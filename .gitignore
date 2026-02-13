@@ -1,0 +1,48 @@
+# Dependencies
+node_modules
+
+# SvelteKit
+/build
+/.svelte-kit
+/package
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Rust / Cargo
+src-tauri/target/
+
+# Tauri generated
+src-tauri/gen/schemas
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Database (local dev)
+*.sqlite
+*.sqlite-journal
+*.db
+
+# Misc
+*.bak
+*.tmp
