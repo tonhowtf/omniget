@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo check:*)",
+      "Bash(npx svelte-check:*)",
+      "Bash(npm install:*)",
+      "Bash(npx svelte-kit sync:*)",
+      "Bash(npx vite build)"
+    ]
+  }
+}
