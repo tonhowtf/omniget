@@ -31,40 +31,43 @@
   }
 
   .module-item {
-    padding: 10px 12px;
-    border-radius: 6px;
-    transition: background-color 0.15s;
+    padding: calc(var(--padding) / 1.5) var(--padding);
+    border-radius: calc(var(--border-radius) - 4px);
   }
 
-  .module-item:hover {
-    background: rgba(255, 255, 255, 0.03);
+  @media (hover: hover) {
+    .module-item:hover {
+      background: var(--button-stroke);
+    }
   }
 
   .module-header {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: calc(var(--padding) / 1.5);
   }
 
   .module-number {
-    color: var(--text-muted);
-    font-size: 0.82rem;
+    color: var(--gray);
+    font-size: 12.5px;
+    font-weight: 500;
     min-width: 22px;
     font-variant-numeric: tabular-nums;
   }
 
   .module-name {
     flex: 1;
-    font-size: 0.88rem;
-    color: var(--text);
+    font-size: 14.5px;
+    color: var(--secondary);
   }
 
   .module-count {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.05);
-    padding: 2px 8px;
-    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--gray);
+    background: var(--button-stroke);
+    padding: 2px calc(var(--padding) / 2);
+    border-radius: calc(var(--border-radius) / 2);
     white-space: nowrap;
   }
 </style>
