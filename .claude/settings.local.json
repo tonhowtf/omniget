@@ -7,7 +7,9 @@
       "Bash(npx svelte-kit sync:*)",
       "Bash(npx vite build)",
       "Bash(where:*)",
-      "Bash(npx @playwright/mcp@latest:*)"
+      "Bash(npx @playwright/mcp@latest:*)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm check:*)"
     ]
   }
 }
