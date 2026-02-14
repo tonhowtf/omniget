@@ -35,6 +35,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             commands::auth::hotmart_login,
+            commands::courses::hotmart_list_courses,
+            commands::courses::hotmart_get_modules,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
