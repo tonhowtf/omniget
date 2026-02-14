@@ -8,6 +8,7 @@ use reqwest::cookie::Jar;
 
 pub struct HotmartSession {
     pub token: String,
+    pub email: String,
     pub client: reqwest::Client,
     pub cookies: Vec<(String, String)>,
 }
@@ -29,55 +30,71 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
 
     let page = browser.new_page("https://sso.hotmart.com/login").await?;
     tokio::time::sleep(Duration::from_secs(3)).await;
-    tracing::info!("Página de login carregada");
+    tracing::info!("Página carregada, verificando estado...");
 
-    page.evaluate(
-        r#"
-        const el = document.querySelector('#hotmart-cookie-policy');
-        if (el && el.shadowRoot) {
-            const btn = el.shadowRoot.querySelector('button.cookie-policy-accept-all');
-            if (btn) btn.click();
-        }
-    "#,
-    )
-    .await
-    .ok();
-    tokio::time::sleep(Duration::from_secs(1)).await;
-    tracing::info!("Cookie banner tratado");
+    let url = page.url().await?.unwrap_or_default();
 
-    page.find_element("#username")
-        .await?
-        .click()
-        .await?
-        .type_str(email)
-        .await?;
-    page.find_element("#password")
-        .await?
-        .click()
-        .await?
-        .type_str(password)
-        .await?;
-    tracing::info!("Credenciais preenchidas");
+    let already_logged_in = url.contains("consumer.hotmart.com")
+        || url.contains("dashboard")
+        || url.contains("club.hotmart.com");
 
-    page.find_element("[name=submit]").await?.click().await?;
-    tracing::info!("Formulário enviado, aguardando redirect...");
+    if already_logged_in {
+        tracing::info!("Sessão existente detectada, reutilizando cookies");
+    } else if url.contains("sso.hotmart.com") {
+        tracing::info!("Página de login detectada, preenchendo formulário");
 
-    let start = Instant::now();
-    loop {
-        tokio::time::sleep(Duration::from_millis(500)).await;
-        let url = page.url().await?.unwrap_or_default();
-        if url.contains("consumer.hotmart.com") || url.contains("dashboard") {
-            tracing::info!("Redirect detectado: {}", url);
-            break;
+        page.evaluate(
+            r#"
+            const el = document.querySelector('#hotmart-cookie-policy');
+            if (el && el.shadowRoot) {
+                const btn = el.shadowRoot.querySelector('button.cookie-policy-accept-all');
+                if (btn) btn.click();
+            }
+        "#,
+        )
+        .await
+        .ok();
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        tracing::info!("Cookie banner tratado");
+
+        page.find_element("#username")
+            .await?
+            .click()
+            .await?
+            .type_str(email)
+            .await?;
+        page.find_element("#password")
+            .await?
+            .click()
+            .await?
+            .type_str(password)
+            .await?;
+        tracing::info!("Credenciais preenchidas");
+
+        page.find_element("[name=submit]").await?.click().await?;
+        tracing::info!("Formulário enviado, aguardando redirect...");
+
+        let start = Instant::now();
+        loop {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            let current = page.url().await?.unwrap_or_default();
+            if current.contains("consumer.hotmart.com") || current.contains("dashboard") {
+                tracing::info!("Redirect detectado: {}", current);
+                break;
+            }
+            if current.contains("captcha") {
+                return Err(anyhow!("Captcha detectado. Tente novamente."));
+            }
+            if start.elapsed() > Duration::from_secs(30) {
+                return Err(anyhow!(
+                    "Timeout esperando login. Verifique credenciais."
+                ));
+            }
         }
-        if url.contains("captcha") {
-            return Err(anyhow!("Captcha detectado. Tente novamente."));
-        }
-        if start.elapsed() > Duration::from_secs(30) {
-            return Err(anyhow!(
-                "Timeout esperando login. Verifique credenciais."
-            ));
-        }
+    } else {
+        tracing::info!("URL inesperada: {}, navegando para consumer.hotmart.com", url);
+        page.goto("https://consumer.hotmart.com").await?;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     let cookies = page.get_cookies().await?;
@@ -103,6 +120,7 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
 
     Ok(HotmartSession {
         token,
+        email: email.to_string(),
         client,
         cookies: cookies
             .iter()
