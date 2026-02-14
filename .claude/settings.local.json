@@ -5,7 +5,9 @@
       "Bash(npx svelte-check:*)",
       "Bash(npm install:*)",
       "Bash(npx svelte-kit sync:*)",
-      "Bash(npx vite build)"
+      "Bash(npx vite build)",
+      "Bash(where:*)",
+      "Bash(npx @playwright/mcp@latest:*)"
     ]
   }
 }

@@ -1,39 +1,79 @@
 <script lang="ts">
+  import { invoke } from "@tauri-apps/api/core";
+
   let email = $state("");
   let password = $state("");
+  let loading = $state(false);
+  let error = $state("");
+  let loggedIn = $state(false);
+
+  async function handleLogin() {
+    error = "";
+    loading = true;
+    try {
+      await invoke("hotmart_login", { email, password });
+      loggedIn = true;
+    } catch (e: any) {
+      error = typeof e === "string" ? e : e.message ?? "Erro desconhecido";
+    } finally {
+      loading = false;
+    }
+  }
 </script>
 
 <div class="hotmart">
   <h1 class="page-title">Hotmart</h1>
 
-  <div class="card">
-    <h2 class="card-title">Login</h2>
-    <form class="form" onsubmit={(e) => e.preventDefault()}>
-      <label class="field">
-        <span class="label">Email</span>
-        <input
-          type="email"
-          placeholder="you@example.com"
-          bind:value={email}
-          class="input"
-        />
-      </label>
-      <label class="field">
-        <span class="label">Password</span>
-        <input
-          type="password"
-          placeholder="Your password"
-          bind:value={password}
-          class="input"
-        />
-      </label>
-      <button type="submit" class="btn">Sign in</button>
-    </form>
-  </div>
+  {#if loggedIn}
+    <div class="card success-card">
+      <span class="success-icon">&#10003;</span>
+      <p class="success-text">Logado!</p>
+    </div>
 
-  <div class="card empty">
-    <p class="empty-text">Your courses will appear here</p>
-  </div>
+    <div class="card empty">
+      <p class="empty-text">Your courses will appear here</p>
+    </div>
+  {:else}
+    <div class="card">
+      <h2 class="card-title">Login</h2>
+      <form class="form" onsubmit={(e) => { e.preventDefault(); handleLogin(); }}>
+        <label class="field">
+          <span class="label">Email</span>
+          <input
+            type="email"
+            placeholder="you@example.com"
+            bind:value={email}
+            class="input"
+            disabled={loading}
+            required
+          />
+        </label>
+        <label class="field">
+          <span class="label">Password</span>
+          <input
+            type="password"
+            placeholder="Your password"
+            bind:value={password}
+            class="input"
+            disabled={loading}
+            required
+          />
+        </label>
+
+        {#if error}
+          <p class="error-msg">{error}</p>
+        {/if}
+
+        <button type="submit" class="btn" disabled={loading}>
+          {#if loading}
+            Autenticando...
+          {:else}
+            Sign in
+          {/if}
+        </button>
+      </form>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -97,6 +137,16 @@
     border-color: var(--accent);
   }
 
+  .input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .error-msg {
+    color: #ef4444;
+    font-size: 0.85rem;
+  }
+
   .btn {
     padding: 10px 20px;
     font-size: 0.9rem;
@@ -108,8 +158,30 @@
     margin-top: 4px;
   }
 
-  .btn:hover {
+  .btn:hover:not(:disabled) {
     background: var(--accent-hover);
+  }
+
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .success-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .success-icon {
+    font-size: 1.5rem;
+    color: #22c55e;
+  }
+
+  .success-text {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #22c55e;
   }
 
   .empty {
