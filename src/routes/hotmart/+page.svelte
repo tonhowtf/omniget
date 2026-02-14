@@ -1,5 +1,15 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import CourseCard from "../../components/hotmart/CourseCard.svelte";
+
+  type Course = {
+    id: number;
+    name: string;
+    slug: string | null;
+    seller: string;
+    subdomain: string | null;
+    is_hotmart_club: boolean;
+  };
 
   let email = $state("");
   let password = $state("");
@@ -7,16 +17,33 @@
   let error = $state("");
   let loggedIn = $state(false);
 
+  let courses: Course[] = $state([]);
+  let loadingCourses = $state(false);
+  let coursesError = $state("");
+
   async function handleLogin() {
     error = "";
     loading = true;
     try {
       await invoke("hotmart_login", { email, password });
       loggedIn = true;
+      loadCourses();
     } catch (e: any) {
       error = typeof e === "string" ? e : e.message ?? "Erro desconhecido";
     } finally {
       loading = false;
+    }
+  }
+
+  async function loadCourses() {
+    loadingCourses = true;
+    coursesError = "";
+    try {
+      courses = await invoke("hotmart_list_courses");
+    } catch (e: any) {
+      coursesError = typeof e === "string" ? e : e.message ?? "Erro ao carregar cursos";
+    } finally {
+      loadingCourses = false;
     }
   }
 </script>
@@ -25,13 +52,31 @@
   <h1 class="page-title">Hotmart</h1>
 
   {#if loggedIn}
-    <div class="card success-card">
-      <span class="success-icon">&#10003;</span>
-      <p class="success-text">Logado!</p>
-    </div>
-
-    <div class="card empty">
-      <p class="empty-text">Your courses will appear here</p>
+    <div class="courses-section">
+      {#if loadingCourses}
+        <div class="spinner-wrap">
+          <span class="spinner"></span>
+          <span class="spinner-text">Carregando cursos...</span>
+        </div>
+      {:else if coursesError}
+        <div class="card error-card">
+          <p class="error-msg">{coursesError}</p>
+          <button class="btn-retry" onclick={loadCourses}>Tentar novamente</button>
+        </div>
+      {:else if courses.length === 0}
+        <div class="card empty">
+          <p class="empty-text">Nenhum curso encontrado.</p>
+        </div>
+      {:else}
+        <div class="courses-header">
+          <span class="courses-count">{courses.length} {courses.length === 1 ? 'curso' : 'cursos'}</span>
+        </div>
+        <div class="courses-list">
+          {#each courses as course (course.id)}
+            <CourseCard {course} />
+          {/each}
+        </div>
+      {/if}
     </div>
   {:else}
     <div class="card">
@@ -78,7 +123,7 @@
 
 <style>
   .hotmart {
-    max-width: 480px;
+    max-width: 580px;
   }
 
   .page-title {
@@ -167,21 +212,77 @@
     cursor: not-allowed;
   }
 
-  .success-card {
+  .courses-section {
     display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .courses-header {
+    display: flex;
+    align-items: center;
+  }
+
+  .courses-count {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  .courses-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .spinner-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 48px 0;
+  }
+
+  .spinner {
+    width: 28px;
+    height: 28px;
+    border: 2.5px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .spinner-text {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  .error-card {
+    display: flex;
+    flex-direction: column;
     align-items: center;
     gap: 12px;
   }
 
-  .success-icon {
-    font-size: 1.5rem;
-    color: #22c55e;
+  .btn-retry {
+    padding: 8px 16px;
+    font-size: 0.84rem;
+    font-weight: 500;
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.15s;
   }
 
-  .success-text {
-    font-size: 1rem;
-    font-weight: 500;
-    color: #22c55e;
+  .btn-retry:hover {
+    background: rgba(46, 134, 193, 0.1);
   }
 
   .empty {
