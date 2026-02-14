@@ -24,8 +24,8 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: calc(100vh - 64px);
-    gap: 32px;
+    min-height: calc(100vh - var(--padding) * 4);
+    gap: calc(var(--padding) * 2);
   }
 
   .hero {
@@ -33,19 +33,19 @@
   }
 
   .title {
-    font-size: 3rem;
-    font-weight: 700;
+    font-size: 32px;
+    font-weight: 500;
     letter-spacing: -1px;
-    background: linear-gradient(135deg, var(--accent), #5dade2);
+    background: linear-gradient(135deg, var(--blue), #5dade2);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .subtitle {
-    margin-top: 8px;
-    color: var(--text-muted);
-    font-size: 1.05rem;
+    margin-top: calc(var(--padding) / 2);
+    color: var(--gray);
+    font-size: 14.5px;
   }
 
   .omnibox-wrapper {
@@ -55,21 +55,20 @@
 
   .omnibox {
     width: 100%;
-    padding: 14px 20px;
-    font-size: 0.95rem;
-    background: #2a2a2a;
-    border-radius: 12px;
-    color: var(--text);
-    border: 1px solid transparent;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    padding: var(--padding) calc(var(--padding) + 4px);
+    font-size: 14.5px;
+    background: var(--button);
+    border-radius: var(--border-radius);
+    color: var(--secondary);
+    border: 1px solid var(--input-border);
   }
 
   .omnibox::placeholder {
-    color: var(--text-muted);
+    color: var(--gray);
   }
 
-  .omnibox:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(46, 134, 193, 0.15);
+  .omnibox:focus-visible {
+    border-color: var(--secondary);
+    outline: none;
   }
 </style>
