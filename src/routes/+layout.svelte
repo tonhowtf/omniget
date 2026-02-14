@@ -64,12 +64,11 @@
     width: var(--sidebar-width);
     min-width: var(--sidebar-width);
     height: 100vh;
-    background: var(--bg-secondary);
-    border-right: 1px solid var(--border);
+    background: var(--sidebar-bg);
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding-top: 12px;
+    padding-top: var(--padding);
     gap: 4px;
   }
 
@@ -80,18 +79,28 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 10px;
-    color: var(--text-muted);
-    transition: color 0.2s, background-color 0.2s;
+    border-radius: var(--border-radius);
+    color: var(--gray);
   }
 
-  .nav-item:hover {
-    color: var(--text);
-    background-color: rgba(255, 255, 255, 0.05);
+  @media (hover: hover) {
+    .nav-item:hover {
+      color: var(--secondary);
+      background-color: var(--sidebar-highlight);
+    }
+  }
+
+  .nav-item:active {
+    background-color: var(--sidebar-highlight);
+  }
+
+  .nav-item:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
   }
 
   .nav-item.active {
-    color: var(--accent);
+    color: var(--blue);
   }
 
   .indicator {
@@ -99,9 +108,9 @@
     left: -8px;
     width: 3px;
     height: 0;
-    background: var(--accent);
+    background: var(--blue);
     border-radius: 0 2px 2px 0;
-    transition: height 0.2s;
+    transition: height 0.15s;
   }
 
   .nav-item.active .indicator {
@@ -111,6 +120,7 @@
   .content {
     flex: 1;
     overflow-y: auto;
-    padding: 32px;
+    padding: calc(var(--padding) * 2);
+    box-shadow: inset 1px 0 0 0 var(--content-border);
   }
 </style>
