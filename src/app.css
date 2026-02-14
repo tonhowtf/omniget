@@ -1,20 +1,48 @@
-:root {
-  --bg: #0d0d0d;
-  --bg-secondary: #1a1a1a;
-  --bg-card: #1e1e1e;
-  --accent: #2E86C1;
-  --accent-hover: #3498db;
-  --text: #e0e0e0;
-  --text-muted: #888;
-  --border: #2a2a2a;
-  --sidebar-width: 60px;
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
 
-  font-family: system-ui, -apple-system, sans-serif;
+:root {
+  --primary: #0d0d0d;
+  --secondary: #e1e1e1;
+  --gray: #75757e;
+
+  --button: #191919;
+  --button-hover: #1f1f1f;
+  --button-press: #141414;
+  --button-text: #e1e1e1;
+  --button-stroke: rgba(255, 255, 255, 0.05);
+  --button-box-shadow: 0 0 0 1px var(--button-stroke) inset;
+
+  --button-elevated: #282828;
+  --button-elevated-hover: #303030;
+  --button-elevated-press: #222222;
+
+  --sidebar-bg: #131313;
+  --sidebar-highlight: rgba(255, 255, 255, 0.06);
+  --content-border: rgba(255, 255, 255, 0.06);
+  --input-border: #383838;
+
+  --popup-bg: #282828;
+  --dialog-backdrop: rgba(0, 0, 0, 0.5);
+
+  --blue: #2f8af9;
+  --red: #ed2236;
+  --green: #30bd1b;
+  --orange: #f19a38;
+
+  --padding: 12px;
+  --border-radius: 11px;
+  --sidebar-width: 80px;
+
+  --focus-ring: solid 2px var(--blue);
+  --focus-ring-offset: -2px;
+
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 16px;
   line-height: 1.5;
   font-weight: 400;
-  color: var(--text);
-  background-color: var(--bg);
+  color: var(--secondary);
+  background-color: var(--primary);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -28,12 +56,30 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  user-select: none;
+  scrollbar-width: none;
+}
+
+::-webkit-scrollbar {
+  display: none;
 }
 
 body {
   min-height: 100vh;
   overflow: hidden;
 }
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 500;
+  margin-block: 0;
+}
+
+h1 { font-size: 24px; letter-spacing: -1px; }
+h2 { font-size: 20px; letter-spacing: -1px; }
+h3 { font-size: 16px; }
+h4 { font-size: 14.5px; }
+h5 { font-size: 12px; }
+h6 { font-size: 11px; }
 
 a {
   color: inherit;
@@ -48,28 +94,66 @@ button {
   color: inherit;
 }
 
-input {
+input, textarea {
   font-family: inherit;
   border: none;
   outline: none;
   background: none;
   color: inherit;
+  user-select: text;
 }
 
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+img, svg {
+  pointer-events: none;
 }
 
-::-webkit-scrollbar-track {
-  background: var(--bg);
+.button {
+  font-size: 14.5px;
+  font-weight: 500;
+  padding: var(--padding);
+  border-radius: var(--border-radius);
+  background: var(--button);
+  color: var(--button-text);
+  box-shadow: var(--button-box-shadow);
+  border: none;
+  cursor: pointer;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 3px;
+@media (hover: hover) {
+  .button:hover {
+    background: var(--button-hover);
+  }
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #444;
+.button:active {
+  background: var(--button-press);
+}
+
+.button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.button.elevated {
+  background: var(--button-elevated);
+  box-shadow: none;
+}
+
+@media (hover: hover) {
+  .button.elevated:hover {
+    background: var(--button-elevated-hover);
+  }
+}
+
+.button.elevated:active {
+  background: var(--button-elevated-press);
+}
+
+.button.active {
+  background: var(--secondary);
+  color: var(--primary);
+}
+
+.button:disabled {
+  cursor: default;
 }
