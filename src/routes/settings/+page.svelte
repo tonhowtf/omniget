@@ -1,29 +1,29 @@
 <div class="settings">
-  <h1 class="page-title">Settings</h1>
+  <h1>Settings</h1>
 
   <section class="section">
-    <h2 class="section-title">Appearance</h2>
+    <h5 class="section-title">Appearance</h5>
     <div class="card">
       <p class="placeholder">Theme and display preferences</p>
     </div>
   </section>
 
   <section class="section">
-    <h2 class="section-title">Download</h2>
+    <h5 class="section-title">Download</h5>
     <div class="card">
       <p class="placeholder">Download path and behavior settings</p>
     </div>
   </section>
 
   <section class="section">
-    <h2 class="section-title">Hotmart</h2>
+    <h5 class="section-title">Hotmart</h5>
     <div class="card">
       <p class="placeholder">Account and sync settings</p>
     </div>
   </section>
 
   <section class="section">
-    <h2 class="section-title">Advanced</h2>
+    <h5 class="section-title">Advanced</h5>
     <div class="card">
       <p class="placeholder">Concurrent downloads, cache, and logs</p>
     </div>
@@ -32,37 +32,40 @@
 
 <style>
   .settings {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: calc(100vh - var(--padding) * 4);
+    padding-top: calc(var(--padding) * 2);
+    gap: calc(var(--padding) * 1.5);
+  }
+
+  .settings > :global(*) {
+    width: 100%;
     max-width: 560px;
   }
 
-  .page-title {
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin-bottom: 24px;
-  }
-
   .section {
-    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--padding) / 2);
   }
 
   .section-title {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--text-muted);
+    color: var(--gray);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin-bottom: 8px;
   }
 
   .card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
+    background: var(--button-elevated);
+    box-shadow: var(--button-box-shadow);
+    border-radius: var(--border-radius);
+    padding: calc(var(--padding) + 4px);
   }
 
   .placeholder {
-    color: var(--text-muted);
-    font-size: 0.9rem;
+    color: var(--gray);
+    font-size: 14.5px;
   }
 </style>
