@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import CourseCard from "../../components/hotmart/CourseCard.svelte";
+  import CourseCard from "$components/hotmart/CourseCard.svelte";
 
   type Course = {
     id: number;
@@ -15,17 +15,38 @@
   let password = $state("");
   let loading = $state(false);
   let error = $state("");
+
+  let checking = $state(true);
   let loggedIn = $state(false);
+  let sessionEmail = $state("");
 
   let courses: Course[] = $state([]);
   let loadingCourses = $state(false);
   let coursesError = $state("");
 
+  $effect(() => {
+    checkSession();
+  });
+
+  async function checkSession() {
+    try {
+      const result = await invoke<string>("hotmart_check_session");
+      sessionEmail = result;
+      loggedIn = true;
+      loadCourses();
+    } catch {
+      loggedIn = false;
+    } finally {
+      checking = false;
+    }
+  }
+
   async function handleLogin() {
     error = "";
     loading = true;
     try {
-      await invoke("hotmart_login", { email, password });
+      const result = await invoke<string>("hotmart_login", { email, password });
+      sessionEmail = result || email;
       loggedIn = true;
       loadCourses();
     } catch (e: any) {
@@ -33,6 +54,18 @@
     } finally {
       loading = false;
     }
+  }
+
+  async function handleLogout() {
+    try {
+      await invoke("hotmart_logout");
+    } catch {
+      /* ignore */
+    }
+    loggedIn = false;
+    sessionEmail = "";
+    courses = [];
+    coursesError = "";
   }
 
   async function loadCourses() {
@@ -48,42 +81,47 @@
   }
 </script>
 
-<div class="hotmart">
-  <h1 class="page-title">Hotmart</h1>
-
-  {#if loggedIn}
-    <div class="courses-section">
-      {#if loadingCourses}
-        <div class="spinner-wrap">
-          <span class="spinner"></span>
-          <span class="spinner-text">Carregando cursos...</span>
-        </div>
-      {:else if coursesError}
-        <div class="card error-card">
-          <p class="error-msg">{coursesError}</p>
-          <button class="btn-retry" onclick={loadCourses}>Tentar novamente</button>
-        </div>
-      {:else if courses.length === 0}
-        <div class="card empty">
-          <p class="empty-text">Nenhum curso encontrado.</p>
-        </div>
-      {:else}
-        <div class="courses-header">
-          <span class="courses-count">{courses.length} {courses.length === 1 ? 'curso' : 'cursos'}</span>
-        </div>
-        <div class="courses-list">
-          {#each courses as course (course.id)}
-            <CourseCard {course} />
-          {/each}
-        </div>
-      {/if}
+{#if checking}
+  <div class="page-center">
+    <span class="spinner"></span>
+  </div>
+{:else if loggedIn}
+  <div class="page-scroll">
+    <div class="session-bar">
+      <span class="session-info">
+        {sessionEmail ? `Logado como ${sessionEmail}` : "Logado"}
+      </span>
+      <button class="button" onclick={handleLogout}>Sair</button>
     </div>
-  {:else}
-    <div class="card">
-      <h2 class="card-title">Login</h2>
+
+    {#if loadingCourses}
+      <div class="spinner-section">
+        <span class="spinner"></span>
+        <span class="spinner-text">Carregando cursos...</span>
+      </div>
+    {:else if coursesError}
+      <div class="error-section">
+        <p class="error-msg">{coursesError}</p>
+        <button class="button" onclick={loadCourses}>Tentar novamente</button>
+      </div>
+    {:else if courses.length === 0}
+      <p class="empty-text">Nenhum curso encontrado.</p>
+    {:else}
+      <p class="courses-count">{courses.length} {courses.length === 1 ? 'curso' : 'cursos'}</p>
+      <div class="courses-list">
+        {#each courses as course (course.id)}
+          <CourseCard {course} />
+        {/each}
+      </div>
+    {/if}
+  </div>
+{:else}
+  <div class="page-center">
+    <div class="login-card">
+      <h2>Login</h2>
       <form class="form" onsubmit={(e) => { e.preventDefault(); handleLogin(); }}>
         <label class="field">
-          <span class="label">Email</span>
+          <span class="field-label">Email</span>
           <input
             type="email"
             placeholder="you@example.com"
@@ -94,7 +132,7 @@
           />
         </label>
         <label class="field">
-          <span class="label">Password</span>
+          <span class="field-label">Password</span>
           <input
             type="password"
             placeholder="Your password"
@@ -109,7 +147,7 @@
           <p class="error-msg">{error}</p>
         {/if}
 
-        <button type="submit" class="btn" disabled={loading}>
+        <button type="submit" class="button" disabled={loading}>
           {#if loading}
             Autenticando...
           {:else}
@@ -118,135 +156,132 @@
         </button>
       </form>
     </div>
-  {/if}
-</div>
+  </div>
+{/if}
 
 <style>
-  .hotmart {
+  .page-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - var(--padding) * 4);
+  }
+
+  .page-scroll {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--padding);
+    padding-top: var(--padding);
+  }
+
+  .page-scroll > :global(*) {
+    width: 100%;
     max-width: 580px;
   }
 
-  .page-title {
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin-bottom: 24px;
+  .session-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
 
-  .card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px;
-    margin-bottom: 16px;
-  }
-
-  .card-title {
-    font-size: 1rem;
+  .session-info {
+    font-size: 12.5px;
     font-weight: 500;
-    margin-bottom: 20px;
+    color: var(--gray);
+  }
+
+  .session-bar .button {
+    padding: calc(var(--padding) / 2) var(--padding);
+    font-size: 12.5px;
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 400px;
+    background: var(--button-elevated);
+    border-radius: var(--border-radius);
+    padding: calc(var(--padding) * 2);
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--padding) * 1.5);
   }
 
   .form {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--padding);
   }
 
   .field {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: calc(var(--padding) / 2);
   }
 
-  .label {
-    font-size: 0.85rem;
-    color: var(--text-muted);
+  .field-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray);
   }
 
   .input {
     width: 100%;
-    padding: 10px 14px;
-    font-size: 0.9rem;
-    background: #2a2a2a;
-    border-radius: 8px;
-    color: var(--text);
-    border: 1px solid var(--border);
-    transition: border-color 0.2s;
+    padding: var(--padding);
+    font-size: 14.5px;
+    background: var(--button);
+    border-radius: var(--border-radius);
+    color: var(--secondary);
+    border: 1px solid var(--input-border);
   }
 
   .input::placeholder {
-    color: var(--text-muted);
+    color: var(--gray);
   }
 
-  .input:focus {
-    border-color: var(--accent);
+  .input:focus-visible {
+    border-color: var(--secondary);
+    outline: none;
   }
 
   .input:disabled {
     opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .error-msg {
-    color: #ef4444;
-    font-size: 0.85rem;
-  }
-
-  .btn {
-    padding: 10px 20px;
-    font-size: 0.9rem;
+    color: var(--red);
+    font-size: 12.5px;
     font-weight: 500;
-    background: var(--accent);
-    color: #fff;
-    border-radius: 8px;
-    transition: background-color 0.2s;
-    margin-top: 4px;
-  }
-
-  .btn:hover:not(:disabled) {
-    background: var(--accent-hover);
-  }
-
-  .btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .courses-section {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .courses-header {
-    display: flex;
-    align-items: center;
   }
 
   .courses-count {
-    font-size: 0.85rem;
-    color: var(--text-muted);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray);
   }
 
   .courses-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: calc(var(--padding) / 1.5);
   }
 
-  .spinner-wrap {
+  .spinner-section {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
-    padding: 48px 0;
+    gap: var(--padding);
+    padding: calc(var(--padding) * 4) 0;
   }
 
   .spinner {
-    width: 28px;
-    height: 28px;
-    border: 2.5px solid var(--border);
-    border-top-color: var(--accent);
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--input-border);
+    border-top-color: var(--blue);
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
   }
@@ -258,42 +293,23 @@
   }
 
   .spinner-text {
-    font-size: 0.85rem;
-    color: var(--text-muted);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray);
   }
 
-  .error-card {
+  .error-section {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
-  }
-
-  .btn-retry {
-    padding: 8px 16px;
-    font-size: 0.84rem;
-    font-weight: 500;
-    background: transparent;
-    color: var(--accent);
-    border: 1px solid var(--accent);
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background-color 0.15s;
-  }
-
-  .btn-retry:hover {
-    background: rgba(46, 134, 193, 0.1);
-  }
-
-  .empty {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 120px;
+    gap: var(--padding);
+    padding: calc(var(--padding) * 2) 0;
   }
 
   .empty-text {
-    color: var(--text-muted);
-    font-size: 0.9rem;
+    color: var(--gray);
+    font-size: 14.5px;
+    text-align: center;
+    padding: calc(var(--padding) * 4) 0;
   }
 </style>
