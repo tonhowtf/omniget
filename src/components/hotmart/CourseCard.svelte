@@ -77,7 +77,7 @@
         {#if modulesLoaded}
           <span class="summary">{modules.length} modulos &middot; {totalLessons} aulas</span>
         {/if}
-        <button class="btn-download" disabled>Baixar Curso</button>
+        <button class="button" disabled>Baixar Curso</button>
       </div>
 
       {#if loadingModules}
@@ -97,19 +97,14 @@
 
 <style>
   .course-card {
-    background: #1e1e1e;
-    border: 1px solid var(--border);
-    border-radius: 10px;
+    background: var(--button-elevated);
+    box-shadow: var(--button-box-shadow);
+    border-radius: var(--border-radius);
     overflow: hidden;
-    transition: border-color 0.2s;
-  }
-
-  .course-card:hover {
-    border-color: #333;
   }
 
   .course-card.expanded {
-    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--blue) inset;
   }
 
   .card-header {
@@ -117,17 +112,28 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 20px;
+    padding: calc(var(--padding) + 2px) calc(var(--padding) + 4px);
     background: transparent;
     border: none;
     cursor: pointer;
     text-align: left;
-    color: var(--text);
-    gap: 12px;
+    color: var(--secondary);
+    gap: var(--padding);
   }
 
-  .card-header:hover {
-    background: rgba(255, 255, 255, 0.02);
+  @media (hover: hover) {
+    .card-header:hover {
+      background: var(--button-stroke);
+    }
+  }
+
+  .card-header:active {
+    background: var(--button-stroke);
+  }
+
+  .card-header:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
   }
 
   .header-left {
@@ -138,40 +144,41 @@
   }
 
   .course-name {
-    font-weight: 600;
-    font-size: 0.95rem;
+    font-weight: 500;
+    font-size: 14.5px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .course-seller {
-    font-size: 0.8rem;
-    color: var(--text-muted);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray);
   }
 
   .header-right {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: calc(var(--padding) / 1.5);
     flex-shrink: 0;
   }
 
   .badge {
-    font-size: 0.7rem;
-    font-weight: 600;
+    font-size: 11px;
+    font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    background: var(--accent);
-    color: #fff;
-    padding: 3px 8px;
-    border-radius: 6px;
+    background: var(--blue);
+    color: var(--primary);
+    padding: 2px calc(var(--padding) / 2);
+    border-radius: calc(var(--border-radius) / 2);
   }
 
   .chevron {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    transition: transform 0.2s;
+    font-size: 12px;
+    color: var(--gray);
+    transition: transform 0.15s;
   }
 
   .chevron.rotated {
@@ -179,11 +186,11 @@
   }
 
   .card-body {
-    padding: 0 20px 16px;
+    padding: 0 calc(var(--padding) + 4px) calc(var(--padding) + 2px);
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    animation: slideDown 0.2s ease-out;
+    gap: var(--padding);
+    animation: slideDown 0.15s ease-out;
   }
 
   @keyframes slideDown {
@@ -201,39 +208,33 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-top: 4px;
-    border-top: 1px solid var(--border);
-    padding-top: 12px;
+    border-top: 1px solid var(--content-border);
+    padding-top: var(--padding);
   }
 
   .summary {
-    font-size: 0.8rem;
-    color: var(--text-muted);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray);
   }
 
-  .btn-download {
-    padding: 6px 14px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    cursor: not-allowed;
+  .body-top .button {
+    padding: calc(var(--padding) / 2) var(--padding);
+    font-size: 12.5px;
     opacity: 0.5;
   }
 
   .spinner-wrap {
     display: flex;
     justify-content: center;
-    padding: 20px 0;
+    padding: calc(var(--padding) * 1.5) 0;
   }
 
   .spinner {
-    width: 22px;
-    height: 22px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent);
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--input-border);
+    border-top-color: var(--blue);
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
   }
@@ -245,14 +246,16 @@
   }
 
   .error-msg {
-    color: #ef4444;
-    font-size: 0.84rem;
+    color: var(--red);
+    font-size: 12.5px;
+    font-weight: 500;
   }
 
   .empty-msg {
-    color: var(--text-muted);
-    font-size: 0.84rem;
+    color: var(--gray);
+    font-size: 12.5px;
+    font-weight: 500;
     text-align: center;
-    padding: 12px 0;
+    padding: var(--padding) 0;
   }
 </style>
