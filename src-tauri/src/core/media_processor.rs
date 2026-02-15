@@ -1,3 +1,5 @@
+use crate::core::hls_downloader::HlsDownloadResult;
+
 pub struct MediaProcessor;
 
 impl MediaProcessor {
@@ -6,10 +8,9 @@ impl MediaProcessor {
         output: &str,
         referer: &str,
         bytes_tx: Option<tokio::sync::mpsc::UnboundedSender<u64>>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<HlsDownloadResult> {
         let downloader = crate::core::hls_downloader::HlsDownloader::new();
-        downloader.download(m3u8_url, output, referer, bytes_tx).await?;
-        Ok(())
+        downloader.download(m3u8_url, output, referer, bytes_tx).await
     }
 
     pub async fn remux(input: &str, output: &str) -> anyhow::Result<()> {
