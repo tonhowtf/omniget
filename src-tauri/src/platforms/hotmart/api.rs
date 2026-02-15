@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 
 use super::auth::HotmartSession;
@@ -63,12 +64,28 @@ pub struct ReadingLink {
 pub struct AttachmentInfo {
     pub url: String,
     pub file_name: Option<String>,
+    pub token: Option<String>,
+    pub lambda_url: Option<String>,
+    pub is_drm: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct SubdomainInfo {
     pub product_id: u64,
     pub subdomain: String,
+}
+
+pub fn navigation_headers(token: &str, slug: &str, product_id: u64) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert("Accept", HeaderValue::from_static("application/json, text/plain, */*"));
+    headers.insert("Authorization", format!("Bearer {}", token).parse().unwrap());
+    headers.insert("Origin", HeaderValue::from_static("https://hotmart.com"));
+    headers.insert("Referer", HeaderValue::from_static("https://hotmart.com"));
+    headers.insert("Pragma", HeaderValue::from_static("no-cache"));
+    headers.insert("cache-control", HeaderValue::from_static("no-cache"));
+    headers.insert("slug", slug.parse().unwrap());
+    headers.insert("x-product-id", product_id.to_string().parse().unwrap());
+    headers
 }
 
 pub async fn get_subdomains(session: &HotmartSession) -> anyhow::Result<Vec<SubdomainInfo>> {
@@ -79,11 +96,7 @@ pub async fn get_subdomains(session: &HotmartSession) -> anyhow::Result<Vec<Subd
         session.token
     );
 
-    let resp = session
-        .client
-        .get(&url)
-        .send()
-        .await?;
+    let resp = session.client.get(&url).send().await?;
 
     let status = resp.status();
     let body_text = resp.text().await?;
@@ -134,7 +147,6 @@ pub async fn list_courses(session: &HotmartSession) -> anyhow::Result<Vec<Course
     let resp = session
         .client
         .get("https://api-hub.cb.hotmart.com/club-drive-api/rest/v2/purchase/?archived=UNARCHIVED")
-        .header("Host", "api-hub.cb.hotmart.com")
         .send()
         .await?;
 
@@ -159,15 +171,8 @@ pub async fn list_courses(session: &HotmartSession) -> anyhow::Result<Vec<Course
     for p in purchases {
         let product = p.get("product").unwrap_or(p);
 
-        let id = product
-            .get("id")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-        let name = product
-            .get("name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+        let id = product.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
+        let name = product.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
 
         let seller = product
             .get("seller")
@@ -191,15 +196,8 @@ pub async fn list_courses(session: &HotmartSession) -> anyhow::Result<Vec<Course
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
 
-        let category = product
-            .get("category")
-            .and_then(|v| v.as_str())
-            .map(String::from);
-
-        let image_url = product
-            .get("picture")
-            .and_then(|v| v.as_str())
-            .map(String::from);
+        let category = product.get("category").and_then(|v| v.as_str()).map(String::from);
+        let image_url = product.get("picture").and_then(|v| v.as_str()).map(String::from);
 
         courses.push(Course {
             id,
@@ -225,12 +223,7 @@ pub async fn get_course_price(session: &HotmartSession, product_id: u64) -> anyh
         product_id
     );
 
-    let resp = session
-        .client
-        .get(&url)
-        .header("Host", "api-hub.cb.hotmart.com")
-        .send()
-        .await?;
+    let resp = session.client.get(&url).send().await?;
 
     let status = resp.status();
     if !status.is_success() {
@@ -278,24 +271,12 @@ pub async fn get_modules(
     slug: &str,
     product_id: u64,
 ) -> anyhow::Result<Vec<Module>> {
-    tracing::info!("Buscando módulos do curso {} (slug={})", product_id, slug);
-
-    tracing::info!(
-        "[get_modules] Headers: Authorization=Bearer {}..., slug={}, x-product-id={}, Origin=https://hotmart.com, Referer=https://hotmart.com",
-        &session.token[..20.min(session.token.len())],
-        slug,
-        product_id,
-    );
+    tracing::info!("[get_modules] product_id={}, slug={}, token={}...", product_id, slug, &session.token[..20.min(session.token.len())]);
 
     let resp = session
         .client
         .get("https://api-club-course-consumption-gateway.hotmart.com/v1/navigation")
-        .header("Authorization", format!("Bearer {}", session.token))
-        .header("Host", "api-club-course-consumption-gateway.hotmart.com")
-        .header("Origin", "https://hotmart.com")
-        .header("Referer", "https://hotmart.com")
-        .header("slug", slug)
-        .header("x-product-id", product_id.to_string())
+        .headers(navigation_headers(&session.token, slug, product_id))
         .send()
         .await?;
 
@@ -325,11 +306,7 @@ pub async fn get_modules(
                 _ => String::new(),
             })
             .unwrap_or_default();
-        let name = m
-            .get("name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+        let name = m.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
 
         let pages_json = m
             .get("pages")
@@ -340,16 +317,8 @@ pub async fn get_modules(
         let pages = pages_json
             .iter()
             .map(|p| PageInfo {
-                hash: p
-                    .get("hash")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                name: p
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
+                hash: p.get("hash").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                name: p.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
                 page_type: p
                     .get("type")
                     .or_else(|| p.get("pageType"))
@@ -362,7 +331,7 @@ pub async fn get_modules(
         modules.push(Module { id, name, pages });
     }
 
-    tracing::info!("{} módulos encontrados", modules.len());
+    tracing::info!("{} módulos encontrados para produto {}", modules.len(), product_id);
     Ok(modules)
 }
 
@@ -372,7 +341,7 @@ pub async fn get_lesson(
     product_id: u64,
     page_hash: &str,
 ) -> anyhow::Result<Lesson> {
-    tracing::info!("Buscando lição {}", page_hash);
+    tracing::info!("[get_lesson] hash={}", page_hash);
 
     let url = format!(
         "https://api-club-course-consumption-gateway.hotmart.com/v1/lesson/{}",
@@ -381,17 +350,21 @@ pub async fn get_lesson(
     let resp = session
         .client
         .get(&url)
-        .header("Authorization", format!("Bearer {}", session.token))
-        .header("Host", "api-club-course-consumption-gateway.hotmart.com")
-        .header("Origin", "https://hotmart.com")
-        .header("Referer", "https://hotmart.com")
-        .header("slug", slug)
-        .header("x-product-id", product_id.to_string())
+        .headers(navigation_headers(&session.token, slug, product_id))
         .send()
-        .await?
-        .error_for_status()?;
+        .await?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        let body_text = resp.text().await.unwrap_or_default();
+        return Err(anyhow!("get_lesson retornou status {}: {}", status, &body_text[..500.min(body_text.len())]));
+    }
 
     let body: serde_json::Value = resp.json().await?;
+
+    if let Some(msg) = body.get("message").and_then(|v| v.as_str()) {
+        return Err(anyhow!("Lição indisponível: {}", msg));
+    }
 
     let content = body.get("content").and_then(|v| v.as_str()).map(String::from);
     let has_player_media = body
@@ -405,21 +378,9 @@ pub async fn get_lesson(
         .map(|arr| {
             arr.iter()
                 .map(|m| MediaSrc {
-                    media_name: m
-                        .get("mediaName")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    media_src_url: m
-                        .get("mediaSrcUrl")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    media_type: m
-                        .get("mediaType")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
+                    media_name: m.get("mediaName").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    media_src_url: m.get("mediaSrcUrl").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    media_type: m.get("mediaType").and_then(|v| v.as_str()).unwrap_or("").to_string(),
                 })
                 .collect()
         })
@@ -439,11 +400,7 @@ pub async fn get_lesson(
                             _ => String::new(),
                         })
                         .unwrap_or_default(),
-                    file_name: a
-                        .get("fileName")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
+                    file_name: a.get("fileName").and_then(|v| v.as_str()).unwrap_or("").to_string(),
                 })
                 .collect()
         })
@@ -455,8 +412,14 @@ pub async fn get_lesson(
         .map(|arr| {
             arr.iter()
                 .map(|r| ReadingLink {
-                    title: r.get("title").and_then(|v| v.as_str()).map(String::from),
-                    url: r.get("url").and_then(|v| v.as_str()).map(String::from),
+                    title: r.get("articleName")
+                        .or_else(|| r.get("title"))
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    url: r.get("articleUrl")
+                        .or_else(|| r.get("url"))
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
                 })
                 .collect()
         });
@@ -490,27 +453,35 @@ pub async fn get_attachment_url(
     let resp = session
         .client
         .get(&url)
+        .header("Accept", "application/json, text/plain, */*")
+        .header("Origin", "https://hotmart.com")
+        .header("Referer", "https://hotmart.com")
         .send()
         .await?
         .error_for_status()?;
 
     let body: serde_json::Value = resp.json().await?;
+    let body_str = body.to_string();
+    let is_drm = body_str.contains("drm-protection");
 
     let download_url = body
-        .get("url")
-        .or_else(|| body.get("directDownloadUrl"))
+        .get("directDownloadUrl")
+        .or_else(|| body.get("url"))
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow!("URL de download não encontrada para attachment {}", id))?
+        .unwrap_or("")
         .to_string();
-    let file_name = body
-        .get("fileName")
-        .and_then(|v| v.as_str())
-        .map(String::from);
 
-    tracing::info!("Attachment {} -> {}", id, &download_url[..60.min(download_url.len())]);
+    let file_name = body.get("fileName").and_then(|v| v.as_str()).map(String::from);
+    let token = body.get("token").and_then(|v| v.as_str()).map(String::from);
+    let lambda_url = body.get("lambdaUrl").and_then(|v| v.as_str()).map(String::from);
+
+    tracing::info!("Attachment {} -> drm={}, url_len={}", id, is_drm, download_url.len());
 
     Ok(AttachmentInfo {
         url: download_url,
         file_name,
+        token,
+        lambda_url,
+        is_drm,
     })
 }
