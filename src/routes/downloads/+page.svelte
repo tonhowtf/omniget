@@ -22,21 +22,25 @@
       showToast("error", msg);
     }
   }
+
+  function capitalize(s: string): string {
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
 </script>
 
 {#if hasDownloads}
   <div class="downloads-page">
     <h2>{$t('downloads.title')}</h2>
     <div class="download-list">
-      {#each downloadList as item (item.courseId)}
+      {#each downloadList as item (item.id)}
         <div class="download-item" data-status={item.status}>
           <div class="item-header">
-            <span class="item-name">{item.courseName}</span>
+            <span class="item-name">{item.name}</span>
             <div class="item-header-actions">
-              {#if item.status === "downloading"}
+              {#if item.kind === "course" && item.status === "downloading"}
                 <button
                   class="cancel-btn"
-                  onclick={() => cancelDownload(item.courseId)}
+                  onclick={() => cancelDownload(item.id)}
                   aria-label={$t('downloads.cancel')}
                 >
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -50,7 +54,11 @@
             </div>
           </div>
 
-          {#if item.status === "downloading"}
+          {#if item.kind === "generic"}
+            <span class="item-detail">{capitalize(item.platform)}</span>
+          {/if}
+
+          {#if item.kind === "course" && item.status === "downloading"}
             {#if item.currentModule}
               <span class="item-detail">
                 {item.currentModule} &middot; {item.currentPage}
@@ -79,7 +87,7 @@
             </div>
           {/if}
 
-          {#if item.status === "complete" && item.bytesDownloaded > 0}
+          {#if item.kind === "course" && item.status === "complete" && item.bytesDownloaded > 0}
             <span class="item-detail">{formatBytes(item.bytesDownloaded)}</span>
           {/if}
 
