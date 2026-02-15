@@ -5,6 +5,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::platforms::hotmart::api::Course;
 use crate::platforms::hotmart::downloader::HotmartDownloader;
+use crate::storage::config;
 use crate::AppState;
 
 #[derive(Clone, Serialize)]
@@ -45,8 +46,15 @@ pub async fn start_course_download(
         output_dir
     );
 
+    let settings = config::load_settings(&app);
+
     tokio::spawn(async move {
-        let downloader = HotmartDownloader::new(session);
+        let downloader = HotmartDownloader::new(
+            session,
+            settings.download,
+            settings.advanced.max_concurrent_segments,
+            settings.advanced.max_retries,
+        );
         let (tx, mut rx) = mpsc::channel(32);
 
         let app_clone = app.clone();
