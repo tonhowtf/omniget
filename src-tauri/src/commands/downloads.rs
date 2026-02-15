@@ -49,6 +49,12 @@ pub async fn detect_platform(
 }
 
 #[derive(Clone, Serialize)]
+pub struct DownloadStarted {
+    pub id: u64,
+    pub title: String,
+}
+
+#[derive(Clone, Serialize)]
 struct GenericDownloadProgress {
     id: u64,
     title: String,
@@ -73,7 +79,7 @@ pub async fn download_from_url(
     state: tauri::State<'_, AppState>,
     url: String,
     output_dir: String,
-) -> Result<String, String> {
+) -> Result<DownloadStarted, String> {
     let platform = Platform::from_url(&url)
         .ok_or_else(|| "Plataforma não reconhecida".to_string())?;
 
@@ -164,7 +170,38 @@ pub async fn download_from_url(
         }
     });
 
-    Ok(format!("Download iniciado: {}", return_title))
+    Ok(DownloadStarted { id: download_id, title: return_title })
+}
+
+#[tauri::command]
+pub async fn reveal_file(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .args(["/select,", &path])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-R", &path])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let file_path = std::path::Path::new(&path);
+        let dir = file_path.parent().unwrap_or(file_path);
+        std::process::Command::new("xdg-open")
+            .arg(dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
