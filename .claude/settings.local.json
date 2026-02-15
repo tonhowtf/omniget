@@ -10,7 +10,9 @@
       "Bash(npx @playwright/mcp@latest:*)",
       "Bash(pnpm add:*)",
       "Bash(pnpm check:*)",
-      "Bash(cargo doc:*)"
+      "Bash(cargo doc:*)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm install:*)"
     ]
   }
 }
