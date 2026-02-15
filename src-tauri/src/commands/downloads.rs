@@ -15,6 +15,29 @@ struct DownloadCompleteEvent {
     error: Option<String>,
 }
 
+#[derive(Clone, Serialize)]
+pub struct PlatformInfo {
+    pub platform: String,
+    pub supported: bool,
+}
+
+#[tauri::command]
+pub async fn detect_platform(
+    state: tauri::State<'_, AppState>,
+    url: String,
+) -> Result<PlatformInfo, String> {
+    match state.registry.find_platform(&url) {
+        Some(p) => Ok(PlatformInfo {
+            platform: p.name().to_string(),
+            supported: true,
+        }),
+        None => Ok(PlatformInfo {
+            platform: "unknown".to_string(),
+            supported: false,
+        }),
+    }
+}
+
 #[tauri::command]
 pub async fn start_course_download(
     app: tauri::AppHandle,
