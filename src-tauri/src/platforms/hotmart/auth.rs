@@ -36,7 +36,7 @@ pub fn build_client_from_saved(saved: &SavedSession) -> anyhow::Result<reqwest::
         "https://hotmart.com",
         "https://api-sec-vlc.hotmart.com",
         "https://api-hub.cb.hotmart.com",
-        "https://api-club-course-consumption-gateway.hotmart.com",
+        "https://api-club-course-consumption-gateway-ga.cb.hotmart.com",
         "https://consumer.hotmart.com",
         "https://api-club-hot-club-api.cb.hotmart.com",
     ];
@@ -68,6 +68,7 @@ pub fn build_client_from_saved(saved: &SavedSession) -> anyhow::Result<reqwest::
     default_headers.insert("cache-control", HeaderValue::from_static("no-cache"));
 
     let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
         .cookie_provider(Arc::new(jar))
         .default_headers(default_headers)
         .build()?;
@@ -227,7 +228,7 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
         "https://hotmart.com",
         "https://api-sec-vlc.hotmart.com",
         "https://api-hub.cb.hotmart.com",
-        "https://api-club-course-consumption-gateway.hotmart.com",
+        "https://api-club-course-consumption-gateway-ga.cb.hotmart.com",
         "https://consumer.hotmart.com",
         "https://api-club-hot-club-api.cb.hotmart.com",
     ];
@@ -248,6 +249,7 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
     default_headers.insert("cache-control", HeaderValue::from_static("no-cache"));
 
     let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
         .cookie_provider(Arc::new(jar))
         .default_headers(default_headers)
         .build()?;
