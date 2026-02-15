@@ -73,6 +73,7 @@ pub fn run() {
             commands::downloads::cancel_course_download,
             commands::downloads::get_active_downloads,
             commands::downloads::detect_platform,
+            commands::downloads::download_from_url,
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::settings::reset_settings,
