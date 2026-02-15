@@ -45,3 +45,4 @@ tempfile = "3"
 rusty_ytdl = "0.7"
 tokio-util = { version = "0.7", features = ["rt"] }
 url = "2"
+urlencoding = "2"
