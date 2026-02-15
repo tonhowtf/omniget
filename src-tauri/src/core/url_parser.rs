@@ -39,6 +39,7 @@ pub fn parse_url(url_str: &str) -> Option<ParsedUrl> {
         Platform::Twitch => parse_twitch(&parsed, &segments),
         Platform::Vimeo => parse_vimeo(&segments),
         Platform::Hotmart => parse_hotmart(&segments),
+        Platform::Pinterest => parse_pinterest(&segments),
     };
 
     Some(ParsedUrl {
@@ -219,6 +220,26 @@ fn parse_hotmart(segments: &[&str]) -> (Option<String>, ParsedContentType) {
     if segments.contains(&"club") || segments.contains(&"lesson") || segments.contains(&"course") {
         let id = segments.last().map(|s| s.to_string());
         return (id, ParsedContentType::Course);
+    }
+
+    (None, ParsedContentType::Unknown)
+}
+
+fn parse_pinterest(segments: &[&str]) -> (Option<String>, ParsedContentType) {
+    if segments.first() == Some(&"pin") {
+        let raw_id = segments.get(1).map(|s| {
+            if s.contains("--") {
+                s.split("--").last().unwrap_or(s).to_string()
+            } else {
+                s.to_string()
+            }
+        });
+        return (raw_id, ParsedContentType::Image);
+    }
+
+    if segments.first() == Some(&"url_shortener") {
+        let code = segments.get(1).map(|s| s.to_string());
+        return (code, ParsedContentType::Unknown);
     }
 
     (None, ParsedContentType::Unknown)
