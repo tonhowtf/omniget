@@ -72,15 +72,15 @@ impl HlsDownloader {
         output_path: &str,
         referer: &str,
     ) -> anyhow::Result<PathBuf> {
-        let text = self
+        let resp = self
             .client
             .get(m3u8_url)
             .header("Referer", referer)
             .header("User-Agent", USER_AGENT)
             .send()
-            .await?
-            .text()
             .await?;
+
+        let text = resp.text().await?;
 
         let (_, playlist) = parse_media_playlist(text.as_bytes())
             .map_err(|e| anyhow::anyhow!("Parse media playlist: {:?}", e))?;
@@ -215,11 +215,17 @@ struct EncryptionInfo {
 }
 
 fn select_best_variant(master: &MasterPlaylist) -> Option<&VariantStream> {
-    if master.variants.is_empty() {
+    let real: Vec<&VariantStream> = master
+        .variants
+        .iter()
+        .filter(|v| !v.is_i_frame)
+        .collect();
+
+    if real.is_empty() {
         return None;
     }
 
-    let mut sorted: Vec<&VariantStream> = master.variants.iter().collect();
+    let mut sorted = real;
     sorted.sort_by_key(|v| v.resolution.as_ref().map(|r| r.height).unwrap_or(0));
 
     let mut best: Option<&VariantStream> = None;
@@ -253,8 +259,8 @@ fn resolve_url(base: &str, relative: &str) -> String {
     };
 
     match query {
-        Some(q) => format!("{}{}", resolved, q),
-        None => resolved,
+        Some(q) if !relative.contains('?') => format!("{}{}", resolved, q),
+        _ => resolved,
     }
 }
 
