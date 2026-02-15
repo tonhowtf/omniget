@@ -3,7 +3,11 @@
   import { page } from "$app/state";
   import { onMount } from "svelte";
   import { initDownloadListener } from "$lib/stores/download-listener";
+  import { getActiveCount } from "$lib/stores/download-store.svelte";
+  import Toast from "$components/toast/Toast.svelte";
   import type { Snippet } from "svelte";
+
+  let activeCount = $derived(getActiveCount());
 
   let { children }: { children: Snippet } = $props();
 
@@ -52,6 +56,9 @@
             <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
           {/if}
         </svg>
+        {#if item.icon === "downloads" && activeCount > 0}
+          <span class="badge">{activeCount}</span>
+        {/if}
       </a>
     {/each}
   </nav>
@@ -60,6 +67,8 @@
     {@render children()}
   </main>
 </div>
+
+<Toast />
 
 <style>
   .layout {
@@ -123,6 +132,23 @@
 
   .nav-item.active .indicator {
     height: 20px;
+  }
+
+  .badge {
+    position: absolute;
+    top: 4px;
+    right: 2px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 16px;
+    text-align: center;
+    color: #fff;
+    background: var(--blue);
+    border-radius: 50%;
+    pointer-events: none;
   }
 
   .content {
