@@ -38,7 +38,8 @@
     "download_retry": "Erro — Tentar novamente",
     "unavailable": "Indisponível",
     "external_platform": "Plataforma externa",
-    "choose_folder": "Escolher pasta de download"
+    "choose_folder": "Escolher pasta de download",
+    "refresh": "Atualizar"
   },
   "settings": {
     "title": "Configurações",
