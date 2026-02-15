@@ -1,22 +1,33 @@
 export type DownloadStatus = "downloading" | "complete" | "error";
 
-export type DownloadItem = {
-  courseId: number;
-  courseName: string;
+type BaseItem = {
+  id: number;
+  name: string;
   percent: number;
-  currentModule: string;
-  currentPage: string;
   status: DownloadStatus;
   error?: string;
   startedAt: number;
-  bytesDownloaded: number;
   lastUpdateAt: number;
+};
+
+export type CourseDownloadItem = BaseItem & {
+  kind: "course";
+  currentModule: string;
+  currentPage: string;
+  bytesDownloaded: number;
   speed: number;
   totalPages: number;
   completedPages: number;
   totalModules: number;
   currentModuleIndex: number;
 };
+
+export type GenericDownloadItem = BaseItem & {
+  kind: "generic";
+  platform: string;
+};
+
+export type DownloadItem = CourseDownloadItem | GenericDownloadItem;
 
 const SPEED_SMOOTHING = 0.3;
 
@@ -50,7 +61,7 @@ export function upsertProgress(
   const existing = downloads.get(courseId);
 
   let speed = 0;
-  if (existing && existing.bytesDownloaded > 0 && downloadedBytes > existing.bytesDownloaded) {
+  if (existing && existing.kind === "course" && existing.bytesDownloaded > 0 && downloadedBytes > existing.bytesDownloaded) {
     const dt = (now - existing.lastUpdateAt) / 1000;
     if (dt > 0.1) {
       const instantSpeed = (downloadedBytes - existing.bytesDownloaded) / dt;
@@ -63,8 +74,9 @@ export function upsertProgress(
   }
 
   downloads.set(courseId, {
-    courseId,
-    courseName,
+    kind: "course",
+    id: courseId,
+    name: courseName,
     percent,
     currentModule,
     currentPage,
@@ -83,15 +95,19 @@ export function upsertProgress(
 
 export function markComplete(courseName: string, success: boolean, error?: string) {
   for (const [id, item] of downloads) {
-    if (item.courseName === courseName) {
-      downloads.set(id, {
+    if (item.name === courseName) {
+      const base = {
         ...item,
         percent: success ? 100 : item.percent,
-        status: success ? "complete" : "error",
+        status: (success ? "complete" : "error") as DownloadStatus,
         error,
         lastUpdateAt: Date.now(),
-        speed: 0,
-      });
+      };
+      if (item.kind === "course") {
+        downloads.set(id, { ...base, kind: "course", speed: 0 } as CourseDownloadItem);
+      } else {
+        downloads.set(id, base as GenericDownloadItem);
+      }
       downloads = new Map(downloads);
       break;
     }
@@ -108,20 +124,14 @@ export function upsertGenericProgress(
   const existing = downloads.get(id);
 
   downloads.set(id, {
-    courseId: id,
-    courseName: title,
+    kind: "generic",
+    id,
+    name: title,
+    platform,
     percent,
-    currentModule: platform,
-    currentPage: title,
     status: "downloading",
     startedAt: existing?.startedAt ?? now,
-    bytesDownloaded: 0,
     lastUpdateAt: now,
-    speed: existing?.speed ?? 0,
-    totalPages: 1,
-    completedPages: 0,
-    totalModules: 1,
-    currentModuleIndex: 0,
   });
   downloads = new Map(downloads);
 }
@@ -133,10 +143,9 @@ export function markGenericComplete(id: number, success: boolean, error?: string
   downloads.set(id, {
     ...item,
     percent: success ? 100 : item.percent,
-    status: success ? "complete" : "error",
+    status: (success ? "complete" : "error") as DownloadStatus,
     error,
     lastUpdateAt: Date.now(),
-    speed: 0,
   });
   downloads = new Map(downloads);
 }
@@ -156,7 +165,7 @@ export function formatSpeed(bytesPerSec: number): string {
 
 export type I18nValue = { key: string; params?: Record<string, number> };
 
-export function getEtaI18n(item: DownloadItem): I18nValue {
+export function getEtaI18n(item: CourseDownloadItem): I18nValue {
   if (item.percent <= 0 || item.speed <= 0) return { key: "downloads.eta_calculating" };
   const elapsed = (item.lastUpdateAt - item.startedAt) / 1000;
   if (elapsed < 2) return { key: "downloads.eta_calculating" };
