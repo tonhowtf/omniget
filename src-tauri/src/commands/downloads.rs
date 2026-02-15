@@ -83,6 +83,13 @@ pub async fn download_from_url(
     let platform = Platform::from_url(&url)
         .ok_or_else(|| "Plataforma não reconhecida".to_string())?;
 
+    {
+        let mut active_urls = state.active_generic_urls.lock().await;
+        if !active_urls.insert(url.clone()) {
+            return Err("Download já em andamento para esta URL".to_string());
+        }
+    }
+
     let downloader = state.registry.find_platform(&url)
         .ok_or_else(|| format!("Nenhum downloader registrado para {}", platform))?;
 
@@ -103,6 +110,8 @@ pub async fn download_from_url(
     tracing::info!("Iniciando download '{}' ({}) em {}", title, platform_name, output_dir);
 
     let return_title = title.clone();
+    let active_urls = state.active_generic_urls.clone();
+    let url_key = url.clone();
 
     tokio::spawn(async move {
         let opts = crate::models::media::DownloadOptions {
@@ -140,6 +149,11 @@ pub async fn download_from_url(
             .await;
 
         let _ = progress_forwarder.await;
+
+        {
+            let mut urls = active_urls.lock().await;
+            urls.remove(&url_key);
+        }
 
         match result {
             Ok(dl) => {
