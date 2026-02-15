@@ -1,7 +1,12 @@
 import { listen } from "@tauri-apps/api/event";
 import { get } from "svelte/store";
 import { t } from "$lib/i18n";
-import { upsertProgress, markComplete } from "./download-store.svelte";
+import {
+  upsertProgress,
+  markComplete,
+  upsertGenericProgress,
+  markGenericComplete,
+} from "./download-store.svelte";
 import { showToast } from "./toast-store.svelte";
 
 type ProgressPayload = {
@@ -23,7 +28,25 @@ type CompletePayload = {
   error: string | null;
 };
 
+type GenericProgressPayload = {
+  id: number;
+  title: string;
+  platform: string;
+  percent: number;
+};
+
+type GenericCompletePayload = {
+  id: number;
+  title: string;
+  platform: string;
+  success: boolean;
+  error: string | null;
+  file_path: string | null;
+  file_size_bytes: number | null;
+};
+
 const seenCourseIds = new Set<number>();
+const seenGenericIds = new Set<number>();
 
 export async function initDownloadListener(): Promise<() => void> {
   const unlistenProgress = await listen<ProgressPayload>("download-progress", (event) => {
@@ -63,8 +86,42 @@ export async function initDownloadListener(): Promise<() => void> {
     }
   });
 
+  const unlistenGenericProgress = await listen<GenericProgressPayload>(
+    "generic-download-progress",
+    (event) => {
+      const d = event.payload;
+
+      if (!seenGenericIds.has(d.id)) {
+        seenGenericIds.add(d.id);
+        const tr = get(t);
+        showToast("info", tr("toast.download_started", { name: d.title }));
+      }
+
+      upsertGenericProgress(d.id, d.title, d.platform, d.percent);
+    },
+  );
+
+  const unlistenGenericComplete = await listen<GenericCompletePayload>(
+    "generic-download-complete",
+    (event) => {
+      const d = event.payload;
+      markGenericComplete(d.id, d.success, d.error ?? undefined);
+
+      const tr = get(t);
+      if (d.success) {
+        showToast("success", tr("toast.download_complete", { name: d.title }));
+      } else {
+        let msg = tr("toast.download_error", { name: d.title });
+        if (d.error) msg += ` — ${d.error}`;
+        showToast("error", msg);
+      }
+    },
+  );
+
   return () => {
     unlistenProgress();
     unlistenComplete();
+    unlistenGenericProgress();
+    unlistenGenericComplete();
   };
 }
