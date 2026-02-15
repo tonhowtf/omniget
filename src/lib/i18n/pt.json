@@ -71,6 +71,13 @@
       "reset_confirm": "Tem certeza? Todas as configurações serão restauradas."
     }
   },
+  "omnibox": {
+    "placeholder": "Cole uma URL para começar",
+    "detected": "{{platform}} detectada",
+    "unsupported": "Plataforma não suportada ainda",
+    "go_to_hotmart": "Ir para Hotmart",
+    "download": "Baixar"
+  },
   "common": {
     "cancel": "Cancelar",
     "retry": "Tentar novamente",
