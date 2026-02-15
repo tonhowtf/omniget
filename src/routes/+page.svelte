@@ -16,7 +16,6 @@
   let url = $state("");
   let detection = $state<PlatformInfo | null>(null);
   let detecting = $state(false);
-  let downloading = $state(false);
   let debounceTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 
   const STALL_THRESHOLD = 30_000;
@@ -78,7 +77,7 @@
   }
 
   async function handleAction() {
-    if (!detection?.supported || downloading) return;
+    if (!detection?.supported) return;
 
     if (detection.platform === "hotmart") {
       goto("/hotmart");
@@ -97,25 +96,17 @@
       outputDir = selected;
     }
 
-    downloading = true;
     const currentUrl = url.trim();
     const platformName = detection.platform.charAt(0).toUpperCase() + detection.platform.slice(1);
     showToast("info", $t("toast.download_preparing"));
 
-    try {
-      const result = await invoke<string>("download_from_url", {
-        url: currentUrl,
-        outputDir,
-      });
-      showToast("success", $t("toast.download_complete", { name: platformName }));
-      url = "";
-      detection = null;
-    } catch (e: unknown) {
-      const msg = typeof e === "string" ? e : (e as Error)?.message ?? "Error";
-      showToast("error", $t("toast.download_error", { name: platformName }) + ": " + msg);
-    } finally {
-      downloading = false;
-    }
+    url = "";
+    detection = null;
+
+    invoke<string>("download_from_url", {
+      url: currentUrl,
+      outputDir,
+    }).catch(() => {});
   }
 </script>
 
@@ -156,14 +147,9 @@
       {#if detection.supported}
         <button
           class="button action-btn"
-          class:downloading
           onclick={handleAction}
-          disabled={downloading}
         >
-          {#if downloading}
-            <span class="btn-spinner"></span>
-            {$t('omnibox.downloading')}
-          {:else if detection.platform === "hotmart"}
+          {#if detection.platform === "hotmart"}
             {$t('omnibox.go_to_hotmart')}
           {:else}
             {$t('omnibox.download')}
@@ -263,17 +249,4 @@
     font-size: 14.5px;
   }
 
-  .action-btn.downloading {
-    cursor: default;
-    opacity: 0.7;
-  }
-
-  .btn-spinner {
-    width: 14px;
-    height: 14px;
-    border: 2px solid var(--input-border);
-    border-top-color: var(--blue);
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-  }
 </style>
