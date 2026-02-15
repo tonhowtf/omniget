@@ -3,6 +3,8 @@ use tauri::Emitter;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
+use crate::core::url_parser;
+use crate::platforms::Platform;
 use crate::platforms::hotmart::api::Course;
 use crate::platforms::hotmart::downloader::HotmartDownloader;
 use crate::storage::config;
@@ -19,23 +21,77 @@ struct DownloadCompleteEvent {
 pub struct PlatformInfo {
     pub platform: String,
     pub supported: bool,
+    pub content_id: Option<String>,
+    pub content_type: Option<String>,
 }
 
 #[tauri::command]
 pub async fn detect_platform(
-    state: tauri::State<'_, AppState>,
     url: String,
 ) -> Result<PlatformInfo, String> {
-    match state.registry.find_platform(&url) {
-        Some(p) => Ok(PlatformInfo {
-            platform: p.name().to_string(),
-            supported: true,
-        }),
+    match Platform::from_url(&url) {
+        Some(platform) => {
+            let parsed = url_parser::parse_url(&url);
+            Ok(PlatformInfo {
+                platform: platform.to_string(),
+                supported: true,
+                content_id: parsed.as_ref().and_then(|p| p.content_id.clone()),
+                content_type: parsed.map(|p| format!("{:?}", p.content_type).to_lowercase()),
+            })
+        }
         None => Ok(PlatformInfo {
             platform: "unknown".to_string(),
             supported: false,
+            content_id: None,
+            content_type: None,
         }),
     }
+}
+
+#[tauri::command]
+pub async fn download_from_url(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    url: String,
+    output_dir: String,
+) -> Result<String, String> {
+    let platform = Platform::from_url(&url)
+        .ok_or_else(|| "Plataforma não reconhecida".to_string())?;
+
+    let downloader = state.registry.find_platform(&url)
+        .ok_or_else(|| format!("Nenhum downloader registrado para {}", platform))?;
+
+    let settings = config::load_settings(&app);
+    let _parsed = url_parser::parse_url(&url);
+
+    let info = downloader
+        .get_media_info(&url)
+        .await
+        .map_err(|e| format!("Erro ao obter informações: {}", e))?;
+
+    let opts = crate::models::media::DownloadOptions {
+        quality: Some(settings.download.video_quality.clone()),
+        output_dir: std::path::PathBuf::from(&output_dir),
+        filename_template: None,
+        download_subtitles: false,
+    };
+
+    let title = info.title.clone();
+    let (tx, _rx) = mpsc::channel(32);
+
+    let result = downloader
+        .download(&info, &opts, tx)
+        .await
+        .map_err(|e| format!("Erro no download: {}", e))?;
+
+    let _ = app.emit("download-complete", &serde_json::json!({
+        "platform": platform.to_string(),
+        "title": title,
+        "file_path": result.file_path,
+        "file_size_bytes": result.file_size_bytes,
+    }));
+
+    Ok(format!("Download concluído: {}", title))
 }
 
 #[tauri::command]
