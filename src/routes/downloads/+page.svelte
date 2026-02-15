@@ -1,38 +1,27 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
   import {
     getDownloads,
     formatBytes,
     formatSpeed,
-    formatEta,
-    type DownloadStatus,
+    getEtaI18n,
   } from "$lib/stores/download-store.svelte";
 
   let downloads = $derived(getDownloads());
   let downloadList = $derived([...downloads.values()]);
   let hasDownloads = $derived(downloadList.length > 0);
-
-  function statusLabel(status: DownloadStatus): string {
-    switch (status) {
-      case "downloading":
-        return "Baixando";
-      case "complete":
-        return "Concluído";
-      case "error":
-        return "Erro";
-    }
-  }
 </script>
 
 {#if hasDownloads}
   <div class="downloads-page">
-    <h2>Downloads</h2>
+    <h2>{$t('downloads.title')}</h2>
     <div class="download-list">
       {#each downloadList as item (item.courseId)}
         <div class="download-item" data-status={item.status}>
           <div class="item-header">
             <span class="item-name">{item.courseName}</span>
             <span class="item-status" data-status={item.status}>
-              {statusLabel(item.status)}
+              {$t(`downloads.status.${item.status}`)}
             </span>
           </div>
 
@@ -45,9 +34,9 @@
 
             <div class="item-stats">
               {#if item.totalPages > 0}
-                <span>Página {item.completedPages}/{item.totalPages}</span>
+                <span>{$t('downloads.page_progress', { current: item.completedPages, total: item.totalPages })}</span>
                 <span class="stats-sep">&middot;</span>
-                <span>Módulo {item.currentModuleIndex}/{item.totalModules}</span>
+                <span>{$t('downloads.module_progress', { current: item.currentModuleIndex, total: item.totalModules })}</span>
               {/if}
               {#if item.bytesDownloaded > 0}
                 <span class="stats-sep">&middot;</span>
@@ -58,7 +47,10 @@
             <div class="item-stats">
               <span>{formatSpeed(item.speed)}</span>
               <span class="stats-sep">&middot;</span>
-              <span>{formatEta(item)}</span>
+              {#if true}
+                {@const eta = getEtaI18n(item)}
+                <span>{$t(eta.key, eta.params)}</span>
+              {/if}
             </div>
           {/if}
 
@@ -89,7 +81,7 @@
       <path d="M12 3v12m0 0l-4-4m4 4l4-4" />
       <path d="M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2" />
     </svg>
-    <p class="empty-text">Nenhum download em andamento</p>
+    <p class="empty-text">{$t('downloads.empty')}</p>
   </div>
 {/if}
 
