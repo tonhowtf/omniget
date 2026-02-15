@@ -1,6 +1,5 @@
 use anyhow::anyhow;
 use async_trait::async_trait;
-use serde::Deserialize;
 use tokio::sync::mpsc;
 
 use crate::core::direct_downloader;
@@ -13,64 +12,22 @@ const GQL_URL: &str = "https://gql.twitch.tv/gql";
 const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 const TOKEN_HASH: &str = "36b89d2507fce29e5ca551df756d27c1cfe079e2609642b4390aa4c35796eb11";
 
-#[derive(Deserialize)]
-struct GqlMetadataResponse {
-    data: GqlMetadataData,
-}
-
-#[derive(Deserialize)]
-struct GqlMetadataData {
-    clip: Option<ClipData>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ClipData {
+struct ClipMetadata {
     id: String,
     title: String,
     duration_seconds: f64,
-    #[serde(rename = "medium")]
     thumbnail_url: Option<String>,
-    broadcaster: Option<Broadcaster>,
-    curator: Option<Curator>,
-    video_qualities: Option<Vec<TwitchVideoQuality>>,
+    broadcaster_login: Option<String>,
+    curator_login: Option<String>,
+    video_qualities: Vec<ClipQuality>,
 }
 
-#[derive(Deserialize)]
-struct Broadcaster {
-    login: String,
-}
-
-#[derive(Deserialize)]
-struct Curator {
-    login: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct TwitchVideoQuality {
+struct ClipQuality {
     quality: String,
     source_url: String,
 }
 
-#[derive(Deserialize)]
-struct GqlTokenResponse {
-    data: GqlTokenData,
-}
-
-#[derive(Deserialize)]
-struct GqlTokenData {
-    clip: Option<TokenClipData>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct TokenClipData {
-    playback_access_token: Option<PlaybackAccessToken>,
-}
-
-#[derive(Deserialize)]
-struct PlaybackAccessToken {
+struct AccessToken {
     signature: String,
     value: String,
 }
@@ -104,9 +61,9 @@ impl TwitchClipsDownloader {
         None
     }
 
-    async fn fetch_clip_metadata(&self, slug: &str) -> anyhow::Result<ClipData> {
+    async fn fetch_clip_metadata(&self, slug: &str) -> anyhow::Result<ClipMetadata> {
         let query = format!(
-            r#"{{ clip(slug: "{}") {{ broadcaster {{ login }} curator {{ login }} createdAt durationSeconds id medium: thumbnailURL(width: 480, height: 272) title videoQualities {{ quality sourceURL }} }} }}"#,
+            r#"{{ clip(slug: "{}") {{ broadcaster {{ login }} curator {{ login }} durationSeconds id medium: thumbnailURL(width: 480, height: 272) title videoQualities {{ quality sourceURL }} }} }}"#,
             slug
         );
 
@@ -124,14 +81,70 @@ impl TwitchClipsDownloader {
             return Err(anyhow!("Twitch GQL retornou HTTP {}", response.status()));
         }
 
-        let gql: GqlMetadataResponse = response.json().await?;
+        let json: serde_json::Value = response.json().await?;
 
-        gql.data
-            .clip
-            .ok_or_else(|| anyhow!("Clip não encontrado: {}", slug))
+        let clip = json
+            .pointer("/data/clip")
+            .ok_or_else(|| {
+                tracing::debug!("Twitch GQL response: {}", json);
+                anyhow!("Clip não encontrado: {}", slug)
+            })?;
+
+        if clip.is_null() {
+            return Err(anyhow!("Clip não encontrado: {}", slug));
+        }
+
+        let id = clip.get("id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("Clip sem ID"))?
+            .to_string();
+
+        let title = clip.get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Untitled")
+            .to_string();
+
+        let duration_seconds = clip.get("durationSeconds")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+
+        let thumbnail_url = clip.get("medium")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        let broadcaster_login = clip.pointer("/broadcaster/login")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        let curator_login = clip.pointer("/curator/login")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        let video_qualities = clip.get("videoQualities")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|q| {
+                        let quality = q.get("quality")?.as_str()?.to_string();
+                        let source_url = q.get("sourceURL")?.as_str()?.to_string();
+                        Some(ClipQuality { quality, source_url })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(ClipMetadata {
+            id,
+            title,
+            duration_seconds,
+            thumbnail_url,
+            broadcaster_login,
+            curator_login,
+            video_qualities,
+        })
     }
 
-    async fn fetch_access_token(&self, slug: &str) -> anyhow::Result<PlaybackAccessToken> {
+    async fn fetch_access_token(&self, slug: &str) -> anyhow::Result<AccessToken> {
         let body = serde_json::json!([{
             "operationName": "VideoAccessToken_Clip",
             "variables": { "slug": slug },
@@ -155,16 +168,31 @@ impl TwitchClipsDownloader {
             return Err(anyhow!("Twitch GQL token retornou HTTP {}", response.status()));
         }
 
-        let gql: Vec<GqlTokenResponse> = response.json().await?;
+        let json: serde_json::Value = response.json().await?;
 
-        gql.into_iter()
-            .next()
-            .and_then(|r| r.data.clip)
-            .and_then(|c| c.playback_access_token)
-            .ok_or_else(|| anyhow!("Token de acesso não disponível para clip: {}", slug))
+        let token_obj = json
+            .as_array()
+            .and_then(|arr| arr.first())
+            .and_then(|r| r.pointer("/data/clip/playbackAccessToken"))
+            .ok_or_else(|| {
+                tracing::debug!("Twitch token response: {}", json);
+                anyhow!("Token de acesso não disponível para clip: {}", slug)
+            })?;
+
+        let signature = token_obj.get("signature")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("Token sem signature"))?
+            .to_string();
+
+        let value = token_obj.get("value")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("Token sem value"))?
+            .to_string();
+
+        Ok(AccessToken { signature, value })
     }
 
-    fn build_authenticated_url(source_url: &str, token: &PlaybackAccessToken) -> String {
+    fn build_authenticated_url(source_url: &str, token: &AccessToken) -> String {
         format!(
             "{}?sig={}&token={}",
             source_url,
@@ -203,32 +231,25 @@ impl PlatformDownloader for TwitchClipsDownloader {
 
         let clip = self.fetch_clip_metadata(&slug).await?;
 
-        let raw_qualities = clip
-            .video_qualities
-            .as_ref()
-            .ok_or_else(|| anyhow!("Nenhuma qualidade de vídeo disponível"))?;
-
-        if clip.broadcaster.is_none() {
-            return Err(anyhow!("Dados do clip incompletos"));
+        if clip.video_qualities.is_empty() {
+            return Err(anyhow!("Nenhuma qualidade de vídeo disponível"));
         }
+
+        let broadcaster = clip.broadcaster_login.as_deref()
+            .ok_or_else(|| anyhow!("Dados do clip incompletos"))?;
 
         let token = self.fetch_access_token(&slug).await?;
 
-        let broadcaster = clip.broadcaster.as_ref().unwrap();
-        let curator_name = clip
-            .curator
-            .as_ref()
-            .map(|c| c.login.clone())
-            .unwrap_or_default();
-
         let clip_title = clip.title.trim().to_string();
-        let author = if curator_name.is_empty() {
-            format!("{} - @{}", clip_title, broadcaster.login)
-        } else {
-            format!("{} - @{}, clipped by @{}", clip_title, broadcaster.login, curator_name)
+        let author = match clip.curator_login.as_deref() {
+            Some(curator) if !curator.is_empty() => {
+                format!("{} - @{}, clipped by @{}", clip_title, broadcaster, curator)
+            }
+            _ => format!("{} - @{}", clip_title, broadcaster),
         };
 
-        let available_qualities: Vec<VideoQuality> = raw_qualities
+        let available_qualities: Vec<VideoQuality> = clip
+            .video_qualities
             .iter()
             .map(|q| {
                 let height: u32 = q.quality.parse().unwrap_or(0);
