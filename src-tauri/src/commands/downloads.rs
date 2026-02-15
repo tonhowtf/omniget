@@ -24,7 +24,16 @@ pub async fn start_course_download(
         serde_json::from_str(&course_json).map_err(|e| format!("JSON inválido: {}", e))?;
 
     let course_name = course.name.clone();
+    let course_id = course.id;
     let session = state.hotmart_session.clone();
+    let active = state.active_downloads.clone();
+
+    {
+        let mut set = active.lock().await;
+        if !set.insert(course_id) {
+            return Err("Download já em andamento para este curso".to_string());
+        }
+    }
 
     tracing::info!(
         "Iniciando download do curso '{}' em {}",
@@ -48,6 +57,11 @@ pub async fn start_course_download(
             .await;
 
         let _ = progress_forwarder.await;
+
+        {
+            let mut set = active.lock().await;
+            set.remove(&course_id);
+        }
 
         match result {
             Ok(()) => {
@@ -76,4 +90,12 @@ pub async fn start_course_download(
     });
 
     Ok(format!("Download iniciado: {}", course_name))
+}
+
+#[tauri::command]
+pub async fn get_active_downloads(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<u64>, String> {
+    let set = state.active_downloads.lock().await;
+    Ok(set.iter().copied().collect())
 }
