@@ -25,6 +25,7 @@ export type CourseDownloadItem = BaseItem & {
 export type GenericDownloadItem = BaseItem & {
   kind: "generic";
   platform: string;
+  filePath?: string;
 };
 
 export type DownloadItem = CourseDownloadItem | GenericDownloadItem;
@@ -136,15 +137,16 @@ export function upsertGenericProgress(
   downloads = new Map(downloads);
 }
 
-export function markGenericComplete(id: number, success: boolean, error?: string) {
+export function markGenericComplete(id: number, success: boolean, error?: string, filePath?: string) {
   const item = downloads.get(id);
-  if (!item) return;
+  if (!item || item.kind !== "generic") return;
 
   downloads.set(id, {
     ...item,
     percent: success ? 100 : item.percent,
     status: (success ? "complete" : "error") as DownloadStatus,
     error,
+    filePath,
     lastUpdateAt: Date.now(),
   });
   downloads = new Map(downloads);
