@@ -1,7 +1,8 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use platforms::hotmart::auth::HotmartSession;
+use tokio_util::sync::CancellationToken;
 
 pub mod commands;
 pub mod core;
@@ -11,7 +12,7 @@ pub mod storage;
 
 pub struct AppState {
     pub hotmart_session: Arc<tokio::sync::Mutex<Option<HotmartSession>>>,
-    pub active_downloads: Arc<tokio::sync::Mutex<HashSet<u64>>>,
+    pub active_downloads: Arc<tokio::sync::Mutex<HashMap<u64, CancellationToken>>>,
 }
 
 #[tauri::command]
@@ -25,7 +26,7 @@ pub fn run() {
 
     let state = AppState {
         hotmart_session: Arc::new(tokio::sync::Mutex::new(None)),
-        active_downloads: Arc::new(tokio::sync::Mutex::new(HashSet::new())),
+        active_downloads: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
     };
 
     tauri::Builder::default()
@@ -44,6 +45,7 @@ pub fn run() {
             commands::courses::hotmart_list_courses,
             commands::courses::hotmart_get_modules,
             commands::downloads::start_course_download,
+            commands::downloads::cancel_course_download,
             commands::downloads::get_active_downloads,
         ])
         .run(tauri::generate_context!())
