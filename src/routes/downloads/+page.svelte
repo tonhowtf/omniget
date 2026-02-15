@@ -8,14 +8,19 @@
     formatSpeed,
     getEtaI18n,
     type CourseDownloadItem,
+    type GenericDownloadItem,
   } from "$lib/stores/download-store.svelte";
+  import PlatformIcon from "$components/icons/PlatformIcon.svelte";
   import Mascot from "$components/mascot/Mascot.svelte";
 
   let downloads = $derived(getDownloads());
-  let downloadList = $derived(
+  let courseList = $derived(
     [...downloads.values()].filter((d): d is CourseDownloadItem => d.kind === "course")
   );
-  let hasDownloads = $derived(downloadList.length > 0);
+  let genericList = $derived(
+    [...downloads.values()].filter((d): d is GenericDownloadItem => d.kind === "generic")
+  );
+  let hasDownloads = $derived(courseList.length > 0 || genericList.length > 0);
 
   async function cancelDownload(courseId: number) {
     try {
@@ -32,7 +37,37 @@
   <div class="downloads-page">
     <h2>{$t('downloads.title')}</h2>
     <div class="download-list">
-      {#each downloadList as item (item.id)}
+      {#each genericList as item (item.id)}
+        <div class="download-item" data-status={item.status}>
+          <div class="item-header">
+            <div class="item-header-left">
+              <PlatformIcon platform={item.platform} size={16} />
+              <span class="item-name">{item.name}</span>
+            </div>
+            <span class="item-status" data-status={item.status}>
+              {$t(`downloads.status.${item.status}`)}
+            </span>
+          </div>
+
+          <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
+
+          {#if item.status === "error" && item.error}
+            <span class="item-error">{item.error}</span>
+          {/if}
+
+          <div class="progress-track">
+            <div
+              class="progress-fill"
+              data-status={item.status}
+              style="width: {item.percent.toFixed(1)}%"
+            ></div>
+          </div>
+
+          <span class="item-percent">{item.percent.toFixed(0)}%</span>
+        </div>
+      {/each}
+
+      {#each courseList as item (item.id)}
         <div class="download-item" data-status={item.status}>
           <div class="item-header">
             <span class="item-name">{item.name}</span>
@@ -168,6 +203,14 @@
     align-items: center;
     gap: calc(var(--padding) / 2);
     flex-shrink: 0;
+  }
+
+  .item-header-left {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--padding) / 2);
+    min-width: 0;
+    flex: 1;
   }
 
   .item-name {
