@@ -1,71 +1,15 @@
 <script lang="ts">
-  import { listen } from "@tauri-apps/api/event";
-  import { onMount } from "svelte";
+  import {
+    getDownloads,
+    formatBytes,
+    formatSpeed,
+    formatEta,
+    type DownloadStatus,
+  } from "$lib/stores/download-store.svelte";
 
-  type DownloadStatus = "downloading" | "complete" | "error";
-
-  type DownloadItem = {
-    courseId: number;
-    courseName: string;
-    percent: number;
-    currentModule: string;
-    currentPage: string;
-    status: DownloadStatus;
-    error?: string;
-  };
-
-  let downloads: Map<number, DownloadItem> = $state(new Map());
-
+  let downloads = $derived(getDownloads());
   let downloadList = $derived([...downloads.values()]);
   let hasDownloads = $derived(downloadList.length > 0);
-
-  onMount(() => {
-    const unlisteners: Array<() => void> = [];
-
-    listen<{
-      course_id: number;
-      course_name: string;
-      percent: number;
-      current_module: string;
-      current_page: string;
-    }>("download-progress", (event) => {
-      const d = event.payload;
-      downloads.set(d.course_id, {
-        courseId: d.course_id,
-        courseName: d.course_name,
-        percent: d.percent,
-        currentModule: d.current_module,
-        currentPage: d.current_page,
-        status: "downloading",
-      });
-      downloads = new Map(downloads);
-    }).then((u) => unlisteners.push(u));
-
-    listen<{
-      course_name: string;
-      success: boolean;
-      error: string | null;
-    }>("download-complete", (event) => {
-      const d = event.payload;
-      // Find by name since complete event doesn't carry course_id
-      for (const [id, item] of downloads) {
-        if (item.courseName === d.course_name) {
-          downloads.set(id, {
-            ...item,
-            percent: d.success ? 100 : item.percent,
-            status: d.success ? "complete" : "error",
-            error: d.error ?? undefined,
-          });
-          downloads = new Map(downloads);
-          break;
-        }
-      }
-    }).then((u) => unlisteners.push(u));
-
-    return () => {
-      for (const u of unlisteners) u();
-    };
-  });
 
   function statusLabel(status: DownloadStatus): string {
     switch (status) {
@@ -92,10 +36,34 @@
             </span>
           </div>
 
-          {#if item.status === "downloading" && item.currentModule}
-            <span class="item-detail">
-              {item.currentModule} &middot; {item.currentPage}
-            </span>
+          {#if item.status === "downloading"}
+            {#if item.currentModule}
+              <span class="item-detail">
+                {item.currentModule} &middot; {item.currentPage}
+              </span>
+            {/if}
+
+            <div class="item-stats">
+              {#if item.totalPages > 0}
+                <span>Página {item.completedPages}/{item.totalPages}</span>
+                <span class="stats-sep">&middot;</span>
+                <span>Módulo {item.currentModuleIndex}/{item.totalModules}</span>
+              {/if}
+              {#if item.bytesDownloaded > 0}
+                <span class="stats-sep">&middot;</span>
+                <span>{formatBytes(item.bytesDownloaded)}</span>
+              {/if}
+            </div>
+
+            <div class="item-stats">
+              <span>{formatSpeed(item.speed)}</span>
+              <span class="stats-sep">&middot;</span>
+              <span>{formatEta(item)}</span>
+            </div>
+          {/if}
+
+          {#if item.status === "complete" && item.bytesDownloaded > 0}
+            <span class="item-detail">{formatBytes(item.bytesDownloaded)}</span>
           {/if}
 
           {#if item.status === "error" && item.error}
@@ -219,6 +187,20 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .item-stats {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--padding) / 3);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stats-sep {
+    opacity: 0.5;
   }
 
   .item-error {
