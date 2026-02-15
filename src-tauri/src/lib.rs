@@ -69,6 +69,9 @@ pub fn run() {
     registry.register(Arc::new(
         platforms::vimeo::VimeoDownloader::new(),
     ));
+    registry.register(Arc::new(
+        platforms::youtube::YouTubeDownloader::new(),
+    ));
 
     let state = AppState {
         hotmart_session: session,
