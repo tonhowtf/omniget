@@ -3,6 +3,10 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import CourseCard from "$components/hotmart/CourseCard.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import { getDownloads } from "$lib/stores/download-store.svelte";
+  import { t } from "$lib/i18n";
+
+  let downloads = $derived(getDownloads());
 
   type Course = {
     id: number;
@@ -130,23 +134,31 @@
     }
   }
 
-  let downloadingIds: Set<number> = $state(new Set());
+  function getCourseDownloadStatus(courseId: number): "idle" | "downloading" | "complete" | "error" {
+    const item = downloads.get(courseId);
+    if (!item) return "idle";
+    return item.status;
+  }
+
+  function getCourseDownloadPercent(courseId: number): number {
+    return downloads.get(courseId)?.percent ?? 0;
+  }
 
   async function downloadCourse(course: Course) {
-    const selected = await open({ directory: true, title: "Escolher pasta de download" });
-    if (!selected) return;
+    const status = getCourseDownloadStatus(course.id);
+    if (status === "downloading" || status === "complete") return;
 
-    downloadingIds.add(course.id);
-    downloadingIds = new Set(downloadingIds);
+    const selected = await open({ directory: true, title: $t("hotmart.choose_folder") });
+    if (!selected) return;
 
     try {
       await invoke("start_course_download", {
         courseJson: JSON.stringify(course),
         outputDir: selected,
       });
-      showToast("info", "Preparando download...");
+      showToast("info", $t("toast.download_preparing"));
     } catch (e: any) {
-      const msg = typeof e === "string" ? e : e.message ?? "Erro ao iniciar download";
+      const msg = typeof e === "string" ? e : e.message ?? "Error";
       showToast("error", msg);
     }
   }
@@ -221,6 +233,8 @@
             price={formatPrice(course.price)}
             imageUrl={course.image_url ?? undefined}
             externalPlatform={course.external_platform}
+            downloadStatus={getCourseDownloadStatus(course.id)}
+            downloadPercent={getCourseDownloadPercent(course.id)}
             onDownload={() => downloadCourse(course)}
           />
         {/each}
