@@ -643,15 +643,9 @@ impl PlatformDownloader for HotmartDownloader {
     async fn download(
         &self,
         _info: &MediaInfo,
-        opts: &DownloadOptions,
-        progress: mpsc::Sender<f64>,
+        _opts: &DownloadOptions,
+        _progress: mpsc::Sender<f64>,
     ) -> anyhow::Result<DownloadResult> {
-        let output = opts.output_dir.join("hotmart_download.mp4");
-        let _ = progress.send(100.0).await;
-        Ok(DownloadResult {
-            file_path: output,
-            file_size_bytes: 0,
-            duration_seconds: 0.0,
-        })
+        Err(anyhow!("Hotmart downloads use start_course_download, not the generic download trait"))
     }
 }
