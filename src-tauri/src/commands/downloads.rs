@@ -48,6 +48,25 @@ pub async fn detect_platform(
     }
 }
 
+#[derive(Clone, Serialize)]
+struct GenericDownloadProgress {
+    id: u64,
+    title: String,
+    platform: String,
+    percent: f64,
+}
+
+#[derive(Clone, Serialize)]
+struct GenericDownloadComplete {
+    id: u64,
+    title: String,
+    platform: String,
+    success: bool,
+    error: Option<String>,
+    file_path: Option<String>,
+    file_size_bytes: Option<u64>,
+}
+
 #[tauri::command]
 pub async fn download_from_url(
     app: tauri::AppHandle,
@@ -62,36 +81,90 @@ pub async fn download_from_url(
         .ok_or_else(|| format!("Nenhum downloader registrado para {}", platform))?;
 
     let settings = config::load_settings(&app);
-    let _parsed = url_parser::parse_url(&url);
+    let platform_name = platform.to_string();
 
     let info = downloader
         .get_media_info(&url)
         .await
         .map_err(|e| format!("Erro ao obter informações: {}", e))?;
 
-    let opts = crate::models::media::DownloadOptions {
-        quality: Some(settings.download.video_quality.clone()),
-        output_dir: std::path::PathBuf::from(&output_dir),
-        filename_template: None,
-        download_subtitles: false,
-    };
-
     let title = info.title.clone();
-    let (tx, _rx) = mpsc::channel(32);
+    let download_id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
 
-    let result = downloader
-        .download(&info, &opts, tx)
-        .await
-        .map_err(|e| format!("Erro no download: {}", e))?;
+    tracing::info!("Iniciando download '{}' ({}) em {}", title, platform_name, output_dir);
 
-    let _ = app.emit("download-complete", &serde_json::json!({
-        "platform": platform.to_string(),
-        "title": title,
-        "file_path": result.file_path,
-        "file_size_bytes": result.file_size_bytes,
-    }));
+    let return_title = title.clone();
 
-    Ok(format!("Download concluído: {}", title))
+    tokio::spawn(async move {
+        let opts = crate::models::media::DownloadOptions {
+            quality: Some(settings.download.video_quality.clone()),
+            output_dir: std::path::PathBuf::from(&output_dir),
+            filename_template: None,
+            download_subtitles: false,
+        };
+
+        let _ = app.emit("generic-download-progress", &GenericDownloadProgress {
+            id: download_id,
+            title: title.clone(),
+            platform: platform_name.clone(),
+            percent: 0.0,
+        });
+
+        let (tx, mut rx) = mpsc::channel::<f64>(32);
+
+        let app_progress = app.clone();
+        let title_progress = title.clone();
+        let platform_progress = platform_name.clone();
+        let progress_forwarder = tokio::spawn(async move {
+            while let Some(percent) = rx.recv().await {
+                let _ = app_progress.emit("generic-download-progress", &GenericDownloadProgress {
+                    id: download_id,
+                    title: title_progress.clone(),
+                    platform: platform_progress.clone(),
+                    percent,
+                });
+            }
+        });
+
+        let result = downloader
+            .download(&info, &opts, tx)
+            .await;
+
+        let _ = progress_forwarder.await;
+
+        match result {
+            Ok(dl) => {
+                tracing::info!("Download concluído: {}", title);
+                let _ = app.emit("generic-download-complete", &GenericDownloadComplete {
+                    id: download_id,
+                    title: title.clone(),
+                    platform: platform_name,
+                    success: true,
+                    error: None,
+                    file_path: Some(dl.file_path.to_string_lossy().to_string()),
+                    file_size_bytes: Some(dl.file_size_bytes),
+                });
+            }
+            Err(e) => {
+                let err_msg = e.to_string();
+                tracing::error!("Erro no download de '{}': {}", title, err_msg);
+                let _ = app.emit("generic-download-complete", &GenericDownloadComplete {
+                    id: download_id,
+                    title: title.clone(),
+                    platform: platform_name,
+                    success: false,
+                    error: Some(err_msg),
+                    file_path: None,
+                    file_size_bytes: None,
+                });
+            }
+        }
+    });
+
+    Ok(format!("Download iniciado: {}", return_title))
 }
 
 #[tauri::command]
