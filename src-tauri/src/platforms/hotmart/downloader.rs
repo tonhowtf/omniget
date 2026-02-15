@@ -36,15 +36,12 @@ impl HotmartDownloader {
 
     pub async fn download_lesson(
         &self,
+        session: &HotmartSession,
         lesson: &Lesson,
         output_dir: &str,
         referer: &str,
         _progress: mpsc::Sender<f64>,
     ) -> anyhow::Result<Vec<PathBuf>> {
-        let session_guard = self.session.lock().await;
-        let session = session_guard
-            .as_ref()
-            .ok_or_else(|| anyhow!("Não autenticado"))?;
         let mut results = Vec::new();
 
         tokio::fs::create_dir_all(output_dir).await?;
@@ -73,8 +70,11 @@ impl HotmartDownloader {
                     let out = format!("{}/{}. Aula.mp4", output_dir, i + 1);
 
                     if tokio::fs::try_exists(&out).await.unwrap_or(false) {
-                        tracing::info!("[download] Já existe, pulando: {}", out);
-                        continue;
+                        let meta = tokio::fs::metadata(&out).await;
+                        if meta.map(|m| m.len() > 0).unwrap_or(false) {
+                            tracing::info!("[skip] Já existe: {}", out);
+                            continue;
+                        }
                     }
 
                     tracing::info!("[download] Baixando vídeo: {}", out);
@@ -112,8 +112,11 @@ impl HotmartDownloader {
                         );
 
                         if tokio::fs::try_exists(&out).await.unwrap_or(false) {
-                            tracing::info!("[download] Já existe, pulando: {}", out);
-                            continue;
+                            let meta = tokio::fs::metadata(&out).await;
+                            if meta.map(|m| m.len() > 0).unwrap_or(false) {
+                                tracing::info!("[skip] Já existe: {}", out);
+                                continue;
+                            }
                         }
 
                         tracing::info!("[download] Baixando áudio: {}", out);
@@ -136,8 +139,11 @@ impl HotmartDownloader {
                 let out = format!("{}/{}. Aula.mp4", output_dir, i + 1);
 
                 if tokio::fs::try_exists(&out).await.unwrap_or(false) {
-                    tracing::info!("[download] Já existe, pulando: {}", out);
-                    continue;
+                    let meta = tokio::fs::metadata(&out).await;
+                    if meta.map(|m| m.len() > 0).unwrap_or(false) {
+                        tracing::info!("[skip] Já existe: {}", out);
+                        continue;
+                    }
                 }
 
                 match player {
@@ -189,7 +195,7 @@ impl HotmartDownloader {
                 let att_path = format!("{}/{}", mat_dir, safe_name);
 
                 if tokio::fs::try_exists(&att_path).await.unwrap_or(false) {
-                    tracing::info!("[download] Anexo já existe, pulando: {}", att_path);
+                    tracing::info!("[skip] Anexo já existe: {}", att_path);
                     continue;
                 }
 
@@ -240,11 +246,6 @@ impl HotmartDownloader {
         base_dir: &str,
         progress: mpsc::Sender<CourseDownloadProgress>,
     ) -> anyhow::Result<()> {
-        let session_guard = self.session.lock().await;
-        let session = session_guard
-            .as_ref()
-            .ok_or_else(|| anyhow!("Não autenticado"))?;
-
         if course.external_platform {
             return Err(anyhow!("Curso hospedado em plataforma externa"));
         }
@@ -255,7 +256,15 @@ impl HotmartDownloader {
             .or(course.subdomain.as_deref())
             .ok_or_else(|| anyhow!("Curso sem slug/subdomain: {}", course.name))?;
 
-        let modules = api::get_modules(session, slug, course.id).await?;
+        let session = {
+            let guard = self.session.lock().await;
+            guard
+                .as_ref()
+                .ok_or_else(|| anyhow!("Não autenticado"))?
+                .clone()
+        };
+
+        let modules = api::get_modules(&session, slug, course.id).await?;
 
         if modules.is_empty() {
             return Err(anyhow!("'{}' não possui módulos disponíveis para baixar", course.name));
@@ -273,12 +282,21 @@ impl HotmartDownloader {
         let mut done = 0usize;
 
         tracing::info!(
-            "{} módulos encontrados para '{}'",
+            "{} módulos encontrados para '{}' ({} páginas total)",
             modules.len(),
             course.name,
+            total_pages,
         );
 
-        drop(session_guard);
+        let _ = progress
+            .send(CourseDownloadProgress {
+                course_id: course.id,
+                course_name: course.name.clone(),
+                percent: 0.0,
+                current_module: "Iniciando...".to_string(),
+                current_page: String::new(),
+            })
+            .await;
 
         let referer = format!("https://{}.club.hotmart.com/", slug);
 
@@ -299,12 +317,7 @@ impl HotmartDownloader {
                     page.name
                 );
 
-                let session_guard = self.session.lock().await;
-                let session = session_guard
-                    .as_ref()
-                    .ok_or_else(|| anyhow!("Sessão perdida durante download"))?;
-
-                let lesson = match api::get_lesson(session, slug, course.id, &page.hash).await {
+                let lesson = match api::get_lesson(&session, slug, course.id, &page.hash).await {
                     Ok(l) => l,
                     Err(e) => {
                         tracing::error!("Falha ao carregar lição '{}': {}. Continuando...", page.name, e);
@@ -321,12 +334,11 @@ impl HotmartDownloader {
                         continue;
                     }
                 };
-                drop(session_guard);
 
                 let (lesson_tx, _lesson_rx) = mpsc::channel(10);
 
                 if let Err(e) = self
-                    .download_lesson(&lesson, &page_dir, &referer, lesson_tx)
+                    .download_lesson(&session, &lesson, &page_dir, &referer, lesson_tx)
                     .await
                 {
                     tracing::error!(
