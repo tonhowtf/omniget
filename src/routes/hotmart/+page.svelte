@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { open } from "@tauri-apps/plugin-dialog";
   import CourseCard from "$components/hotmart/CourseCard.svelte";
 
   type Course = {
@@ -12,6 +13,7 @@
     price: number | null;
     image_url: string | null;
     category: string | null;
+    external_platform: boolean;
   };
 
   let email = $state("");
@@ -127,6 +129,26 @@
     }
   }
 
+  let downloadingIds: Set<number> = $state(new Set());
+
+  async function downloadCourse(course: Course) {
+    const selected = await open({ directory: true, title: "Escolher pasta de download" });
+    if (!selected) return;
+
+    downloadingIds.add(course.id);
+    downloadingIds = new Set(downloadingIds);
+
+    try {
+      await invoke("start_course_download", {
+        courseJson: JSON.stringify(course),
+        outputDir: selected,
+      });
+    } catch (e: any) {
+      const msg = typeof e === "string" ? e : e.message ?? "Erro ao iniciar download";
+      console.error(msg);
+    }
+  }
+
   async function handleDebugAuth() {
     debugLoading = true;
     debugOutput = "";
@@ -196,9 +218,8 @@
             name={course.name}
             price={formatPrice(course.price)}
             imageUrl={course.image_url ?? undefined}
-            onDownload={() => {
-              /* TODO: download logic */
-            }}
+            externalPlatform={course.external_platform}
+            onDownload={() => downloadCourse(course)}
           />
         {/each}
       </div>
