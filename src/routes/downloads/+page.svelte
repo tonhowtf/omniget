@@ -7,11 +7,14 @@
     formatBytes,
     formatSpeed,
     getEtaI18n,
+    type CourseDownloadItem,
   } from "$lib/stores/download-store.svelte";
   import Mascot from "$components/mascot/Mascot.svelte";
 
   let downloads = $derived(getDownloads());
-  let downloadList = $derived([...downloads.values()]);
+  let downloadList = $derived(
+    [...downloads.values()].filter((d): d is CourseDownloadItem => d.kind === "course")
+  );
   let hasDownloads = $derived(downloadList.length > 0);
 
   async function cancelDownload(courseId: number) {
@@ -23,9 +26,6 @@
     }
   }
 
-  function capitalize(s: string): string {
-    return s.charAt(0).toUpperCase() + s.slice(1);
-  }
 </script>
 
 {#if hasDownloads}
@@ -37,7 +37,7 @@
           <div class="item-header">
             <span class="item-name">{item.name}</span>
             <div class="item-header-actions">
-              {#if item.kind === "course" && item.status === "downloading"}
+              {#if item.status === "downloading"}
                 <button
                   class="cancel-btn"
                   onclick={() => cancelDownload(item.id)}
@@ -54,11 +54,7 @@
             </div>
           </div>
 
-          {#if item.kind === "generic"}
-            <span class="item-detail">{capitalize(item.platform)}</span>
-          {/if}
-
-          {#if item.kind === "course" && item.status === "downloading"}
+          {#if item.status === "downloading"}
             {#if item.currentModule}
               <span class="item-detail">
                 {item.currentModule} &middot; {item.currentPage}
@@ -87,7 +83,7 @@
             </div>
           {/if}
 
-          {#if item.kind === "course" && item.status === "complete" && item.bytesDownloaded > 0}
+          {#if item.status === "complete" && item.bytesDownloaded > 0}
             <span class="item-detail">{formatBytes(item.bytesDownloaded)}</span>
           {/if}
 
