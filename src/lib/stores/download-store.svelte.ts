@@ -98,6 +98,49 @@ export function markComplete(courseName: string, success: boolean, error?: strin
   }
 }
 
+export function upsertGenericProgress(
+  id: number,
+  title: string,
+  platform: string,
+  percent: number,
+) {
+  const now = Date.now();
+  const existing = downloads.get(id);
+
+  downloads.set(id, {
+    courseId: id,
+    courseName: title,
+    percent,
+    currentModule: platform,
+    currentPage: title,
+    status: "downloading",
+    startedAt: existing?.startedAt ?? now,
+    bytesDownloaded: 0,
+    lastUpdateAt: now,
+    speed: existing?.speed ?? 0,
+    totalPages: 1,
+    completedPages: 0,
+    totalModules: 1,
+    currentModuleIndex: 0,
+  });
+  downloads = new Map(downloads);
+}
+
+export function markGenericComplete(id: number, success: boolean, error?: string) {
+  const item = downloads.get(id);
+  if (!item) return;
+
+  downloads.set(id, {
+    ...item,
+    percent: success ? 100 : item.percent,
+    status: success ? "complete" : "error",
+    error,
+    lastUpdateAt: Date.now(),
+    speed: 0,
+  });
+  downloads = new Map(downloads);
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
