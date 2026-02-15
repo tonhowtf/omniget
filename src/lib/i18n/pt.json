@@ -18,7 +18,8 @@
     "eta_calculating": "Calculando...",
     "eta_seconds": "~{{n}} seg",
     "eta_minutes": "~{{n}} min",
-    "eta_hours": "~{{h}}h {{m}}min"
+    "eta_hours": "~{{h}}h {{m}}min",
+    "cancel": "Cancelar"
   },
   "toast": {
     "download_preparing": "Preparando download...",
