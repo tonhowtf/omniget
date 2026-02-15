@@ -8,6 +8,7 @@ pub mod twitch;
 pub mod bluesky;
 pub mod reddit;
 pub mod vimeo;
+pub mod youtube;
 
 use std::fmt;
 use std::str::FromStr;
@@ -80,6 +81,8 @@ impl Platform {
 
         if matches("hotmart.com") {
             Some(Platform::Hotmart)
+        } else if matches("youtube.com") || matches("youtube-nocookie.com") || host == "youtu.be" {
+            Some(Platform::YouTube)
         } else if matches("instagram.com") || matches("ddinstagram.com") {
             Some(Platform::Instagram)
         } else if matches("tiktok.com") {
