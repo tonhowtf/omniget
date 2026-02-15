@@ -1,5 +1,6 @@
 pub mod traits;
 pub mod hotmart;
+pub mod instagram;
 pub mod pinterest;
 pub mod tiktok;
 pub mod twitter;
@@ -81,7 +82,7 @@ impl Platform {
             Some(Platform::Hotmart)
         } else if matches("youtube.com") || matches("youtu.be") {
             Some(Platform::YouTube)
-        } else if matches("instagram.com") {
+        } else if matches("instagram.com") || matches("ddinstagram.com") {
             Some(Platform::Instagram)
         } else if matches("tiktok.com") {
             Some(Platform::TikTok)
