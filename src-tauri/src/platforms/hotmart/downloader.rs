@@ -70,13 +70,7 @@ impl HotmartDownloader {
 
                     tracing::info!("[download] m3u8 URL extraída: {}", m3u8_url);
 
-                    let safe_name = filename::sanitize_path_component(&media.name);
-                    let out = format!(
-                        "{}/{}. {}.mp4",
-                        output_dir,
-                        i + 1,
-                        if safe_name.is_empty() { "Aula".to_string() } else { safe_name }
-                    );
+                    let out = format!("{}/{}. Aula.mp4", output_dir, i + 1);
 
                     if tokio::fs::try_exists(&out).await.unwrap_or(false) {
                         tracing::info!("[download] Já existe, pulando: {}", out);
@@ -84,7 +78,7 @@ impl HotmartDownloader {
                     }
 
                     tracing::info!("[download] Baixando vídeo: {}", out);
-                    if let Err(e) = MediaProcessor::download_hls_ffmpeg(
+                    if let Err(e) = MediaProcessor::download_hls(
                         &m3u8_url,
                         &out,
                         "https://cf-embed.play.hotmart.com/",
@@ -149,7 +143,7 @@ impl HotmartDownloader {
                 match player {
                     DetectedPlayer::Vimeo { embed_url } => {
                         tracing::info!("[download] Baixando Vimeo: {}", embed_url);
-                        if let Err(e) = MediaProcessor::download_hls_ffmpeg(embed_url, &out, referer).await {
+                        if let Err(e) = MediaProcessor::download_hls(embed_url, &out, referer).await {
                             tracing::error!("[download] Falha Vimeo: {}", e);
                             continue;
                         }
@@ -163,7 +157,7 @@ impl HotmartDownloader {
                             .to_string()
                             + "com.br";
                         tracing::info!("[download] Baixando PandaVideo: {}", m3u8_url);
-                        if let Err(e) = MediaProcessor::download_hls_ffmpeg(m3u8_url, &out, &panda_referer).await {
+                        if let Err(e) = MediaProcessor::download_hls(m3u8_url, &out, &panda_referer).await {
                             tracing::error!("[download] Falha PandaVideo: {}", e);
                             continue;
                         }
