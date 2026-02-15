@@ -3,7 +3,7 @@ const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 pub struct MediaProcessor;
 
 impl MediaProcessor {
-    pub async fn download_hls_ffmpeg(
+    pub async fn download_hls(
         m3u8_url: &str,
         output: &str,
         referer: &str,
@@ -12,28 +12,30 @@ impl MediaProcessor {
             tokio::fs::create_dir_all(parent).await?;
         }
 
-        let headers = format!("Referer: {}\r\nUser-Agent: {}\r\n", referer, USER_AGENT);
+        let ua_header = format!("User-Agent:{}", USER_AGENT);
+        let referer_header = format!("Referer:{}", referer);
 
-        let status = tokio::process::Command::new("ffmpeg")
+        let status = tokio::process::Command::new("yt-dlp")
             .args([
-                "-y",
-                "-headers",
-                &headers,
-                "-i",
                 m3u8_url,
-                "-c",
-                "copy",
-                "-bsf:a",
-                "aac_adtstoasc",
-                output,
+                "-S", "+height:720",
+                "--quiet",
+                "--no-check-certificate",
+                "--progress",
+                "-N", "20",
+                "-o", output,
+                "--add-headers", &ua_header,
+                "--add-headers", &referer_header,
+                "--downloader", "ffmpeg",
+                "--hls-use-mpegts",
             ])
-            .stdout(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .status()
             .await?;
 
         if !status.success() {
-            anyhow::bail!("FFmpeg HLS download falhou com status {}", status);
+            anyhow::bail!("yt-dlp HLS download falhou com status {}", status);
         }
 
         tracing::info!("HLS download completo: {}", output);
@@ -126,4 +128,25 @@ pub fn check_ffmpeg() -> bool {
         .status()
         .map(|s| s.success())
         .unwrap_or(false)
+}
+
+pub fn check_ytdlp() -> bool {
+    std::process::Command::new("yt-dlp")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+pub fn check_dependencies() -> Vec<String> {
+    let mut missing = Vec::new();
+    if !check_ytdlp() {
+        missing.push("yt-dlp".into());
+    }
+    if !check_ffmpeg() {
+        missing.push("ffmpeg".into());
+    }
+    missing
 }
