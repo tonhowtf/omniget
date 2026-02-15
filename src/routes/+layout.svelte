@@ -1,9 +1,17 @@
 <script lang="ts">
   import "../app.css";
   import { page } from "$app/state";
+  import { onMount } from "svelte";
+  import { initDownloadListener } from "$lib/stores/download-listener";
   import type { Snippet } from "svelte";
 
   let { children }: { children: Snippet } = $props();
+
+  onMount(() => {
+    let cleanup: (() => void) | undefined;
+    initDownloadListener().then((fn) => (cleanup = fn));
+    return () => cleanup?.();
+  });
 
   const nav = [
     { href: "/", label: "Home", icon: "home" },
