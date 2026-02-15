@@ -1,5 +1,7 @@
 pub mod traits;
 pub mod hotmart;
+pub mod pinterest;
+pub mod twitch;
 
 use std::fmt;
 use std::str::FromStr;
@@ -17,6 +19,7 @@ pub enum Platform {
     Facebook,
     Twitch,
     Vimeo,
+    Pinterest,
 }
 
 impl fmt::Display for Platform {
@@ -31,6 +34,7 @@ impl fmt::Display for Platform {
             Platform::Facebook => "facebook",
             Platform::Twitch => "twitch",
             Platform::Vimeo => "vimeo",
+            Platform::Pinterest => "pinterest",
         };
         write!(f, "{}", name)
     }
@@ -50,6 +54,7 @@ impl FromStr for Platform {
             "facebook" | "fb" => Ok(Platform::Facebook),
             "twitch" => Ok(Platform::Twitch),
             "vimeo" => Ok(Platform::Vimeo),
+            "pinterest" => Ok(Platform::Pinterest),
             _ => Err(format!("Unknown platform: {}", s)),
         }
     }
@@ -82,6 +87,8 @@ impl Platform {
             Some(Platform::Twitch)
         } else if matches("vimeo.com") {
             Some(Platform::Vimeo)
+        } else if host == "pin.it" || host.contains("pinterest.") {
+            Some(Platform::Pinterest)
         } else {
             None
         }
@@ -98,6 +105,7 @@ impl Platform {
             Platform::Facebook,
             Platform::Twitch,
             Platform::Vimeo,
+            Platform::Pinterest,
         ]
     }
 }
