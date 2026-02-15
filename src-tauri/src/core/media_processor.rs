@@ -5,9 +5,10 @@ impl MediaProcessor {
         m3u8_url: &str,
         output: &str,
         referer: &str,
+        bytes_tx: Option<tokio::sync::mpsc::UnboundedSender<u64>>,
     ) -> anyhow::Result<()> {
         let downloader = crate::core::hls_downloader::HlsDownloader::new();
-        downloader.download(m3u8_url, output, referer).await?;
+        downloader.download(m3u8_url, output, referer, bytes_tx).await?;
         Ok(())
     }
 
