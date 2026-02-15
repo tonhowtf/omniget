@@ -1,27 +1,62 @@
 <script lang="ts">
-  type Emotion = "smile" | "error" | "thinking";
+  type MascotEmotion = "idle" | "downloading" | "error" | "stalled";
 
-  let { emotion = "smile" }: { emotion?: Emotion } = $props();
-  let loaded = $state(false);
+  let { emotion = "idle" }: { emotion?: MascotEmotion } = $props();
+  let currentSrc = $state("/mascot/idle.png");
+  let nextSrc = $state("");
+  let showCurrent = $state(false);
+  let showNext = $state(false);
   let errored = $state(false);
+  let transitioning = $state(false);
+
+  $effect(() => {
+    const target = `/mascot/${emotion}.png`;
+    if (target === currentSrc && !transitioning) return;
+    if (transitioning) return;
+
+    if (!showCurrent) {
+      currentSrc = target;
+      return;
+    }
+
+    transitioning = true;
+    nextSrc = target;
+    showNext = false;
+    showCurrent = false;
+
+    setTimeout(() => {
+      currentSrc = target;
+      nextSrc = "";
+      showCurrent = false;
+      transitioning = false;
+    }, 300);
+  });
+
+  function onCurrentLoad() {
+    showCurrent = true;
+    errored = false;
+  }
+
+  function onCurrentError() {
+    if (!showCurrent) errored = true;
+  }
 </script>
 
 <div class="mascot">
   {#if !errored}
     <img
-      src="/mascot/{emotion}.png"
+      src={currentSrc}
       alt="OmniGet mascot"
       class="mascot-img"
-      class:visible={loaded}
-      onload={() => (loaded = true)}
-      onerror={() => (errored = true)}
+      class:visible={showCurrent}
+      onload={onCurrentLoad}
+      onerror={onCurrentError}
       draggable="false"
     />
   {/if}
-  {#if errored || !loaded}
+  {#if errored}
     <svg
       class="mascot-fallback"
-      class:hidden={loaded && !errored}
       viewBox="0 0 64 64"
       width="152"
       height="152"
@@ -63,11 +98,6 @@
   .mascot-fallback {
     color: var(--gray);
     opacity: 0.5;
-    position: absolute;
     pointer-events: none;
-  }
-
-  .mascot-fallback.hidden {
-    display: none;
   }
 </style>
