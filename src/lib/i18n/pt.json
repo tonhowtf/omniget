@@ -1,0 +1,46 @@
+{
+  "nav": {
+    "home": "Início",
+    "downloads": "Downloads",
+    "hotmart": "Hotmart",
+    "settings": "Configurações"
+  },
+  "downloads": {
+    "title": "Downloads",
+    "empty": "Nenhum download em andamento",
+    "status": {
+      "downloading": "Baixando",
+      "complete": "Concluído",
+      "error": "Erro"
+    },
+    "page_progress": "Página {{current}}/{{total}}",
+    "module_progress": "Módulo {{current}}/{{total}}",
+    "eta_calculating": "Calculando...",
+    "eta_seconds": "~{{n}} seg",
+    "eta_minutes": "~{{n}} min",
+    "eta_hours": "~{{h}}h {{m}}min"
+  },
+  "toast": {
+    "download_preparing": "Preparando download...",
+    "download_started": "Download iniciado: {{name}}",
+    "download_complete": "Download concluído: {{name}}",
+    "download_error": "Falha no download: {{name}}"
+  },
+  "hotmart": {
+    "login": "Entrar",
+    "logout": "Sair",
+    "courses_title": "Seus Cursos",
+    "download_btn": "Baixar",
+    "downloading": "Baixando...",
+    "downloaded": "Baixado",
+    "download_retry": "Erro — Tentar novamente",
+    "unavailable": "Indisponível",
+    "external_platform": "Plataforma externa",
+    "choose_folder": "Escolher pasta de download"
+  },
+  "common": {
+    "cancel": "Cancelar",
+    "retry": "Tentar novamente",
+    "close": "Fechar"
+  }
+}
