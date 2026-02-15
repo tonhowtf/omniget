@@ -1,5 +1,3 @@
-const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-
 pub struct MediaProcessor;
 
 impl MediaProcessor {
@@ -8,37 +6,8 @@ impl MediaProcessor {
         output: &str,
         referer: &str,
     ) -> anyhow::Result<()> {
-        if let Some(parent) = std::path::Path::new(output).parent() {
-            tokio::fs::create_dir_all(parent).await?;
-        }
-
-        let ua_header = format!("User-Agent:{}", USER_AGENT);
-        let referer_header = format!("Referer:{}", referer);
-
-        let status = tokio::process::Command::new("yt-dlp")
-            .args([
-                m3u8_url,
-                "-S", "+height:720",
-                "--quiet",
-                "--no-check-certificate",
-                "--progress",
-                "-N", "20",
-                "-o", output,
-                "--add-headers", &ua_header,
-                "--add-headers", &referer_header,
-                "--downloader", "ffmpeg",
-                "--hls-use-mpegts",
-            ])
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .status()
-            .await?;
-
-        if !status.success() {
-            anyhow::bail!("yt-dlp HLS download falhou com status {}", status);
-        }
-
-        tracing::info!("HLS download completo: {}", output);
+        let downloader = crate::core::hls_downloader::HlsDownloader::new();
+        downloader.download(m3u8_url, output, referer).await?;
         Ok(())
     }
 
