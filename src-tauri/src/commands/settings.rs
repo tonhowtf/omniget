@@ -1,1 +1,40 @@
-// TODO: Implement settings Tauri commands (get_settings, update_settings, reset_defaults)
+use crate::models::settings::AppSettings;
+use crate::storage::config;
+
+#[tauri::command]
+pub fn get_settings(app: tauri::AppHandle) -> Result<AppSettings, String> {
+    Ok(config::load_settings(&app))
+}
+
+#[tauri::command]
+pub fn update_settings(app: tauri::AppHandle, partial: String) -> Result<AppSettings, String> {
+    let mut current = config::load_settings(&app);
+    let patch: serde_json::Value =
+        serde_json::from_str(&partial).map_err(|e| format!("JSON inválido: {}", e))?;
+    let mut current_val =
+        serde_json::to_value(&current).map_err(|e| format!("Serialize: {}", e))?;
+    merge_json(&mut current_val, &patch);
+    current =
+        serde_json::from_value(current_val).map_err(|e| format!("Deserialize: {}", e))?;
+    config::save_settings(&app, &current).map_err(|e| format!("Save: {}", e))?;
+    Ok(current)
+}
+
+#[tauri::command]
+pub fn reset_settings(app: tauri::AppHandle) -> Result<AppSettings, String> {
+    let defaults = AppSettings::default();
+    config::save_settings(&app, &defaults).map_err(|e| format!("Save: {}", e))?;
+    Ok(defaults)
+}
+
+fn merge_json(base: &mut serde_json::Value, patch: &serde_json::Value) {
+    if let (Some(base_obj), Some(patch_obj)) = (base.as_object_mut(), patch.as_object()) {
+        for (key, value) in patch_obj {
+            if value.is_object() && base_obj.get(key).map_or(false, |v| v.is_object()) {
+                merge_json(base_obj.get_mut(key).unwrap(), value);
+            } else {
+                base_obj.insert(key.clone(), value.clone());
+            }
+        }
+    }
+}
