@@ -40,6 +40,37 @@
     "external_platform": "External platform",
     "choose_folder": "Choose download folder"
   },
+  "settings": {
+    "title": "Settings",
+    "appearance": {
+      "title": "Appearance",
+      "theme": "Theme",
+      "theme_system": "System",
+      "theme_light": "Light",
+      "theme_dark": "Dark",
+      "language": "Language",
+      "lang_pt": "Português",
+      "lang_en": "English"
+    },
+    "download": {
+      "title": "Download",
+      "default_output_dir": "Default folder",
+      "choose_folder": "Choose",
+      "always_ask_path": "Always ask where to save",
+      "video_quality": "Video quality",
+      "skip_existing": "Skip existing files",
+      "download_attachments": "Download attachments",
+      "download_descriptions": "Save descriptions"
+    },
+    "advanced": {
+      "title": "Advanced",
+      "max_concurrent_segments": "Concurrent segments",
+      "max_retries": "Retries per segment",
+      "debug_mode": "Debug mode",
+      "reset": "Reset defaults",
+      "reset_confirm": "Are you sure? All settings will be reset."
+    }
+  },
   "common": {
     "cancel": "Cancel",
     "retry": "Retry",
