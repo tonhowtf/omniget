@@ -25,11 +25,6 @@ pub struct AppState {
     pub session_validated_at: Arc<tokio::sync::Mutex<Option<std::time::Instant>>>,
 }
 
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt::init();
@@ -90,7 +85,6 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
-            greet,
             commands::auth::hotmart_login,
             commands::auth::hotmart_check_session,
             commands::auth::hotmart_logout,
