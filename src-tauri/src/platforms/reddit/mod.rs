@@ -33,6 +33,8 @@ impl RedditDownloader {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .user_agent(USER_AGENT)
+            .timeout(std::time::Duration::from_secs(120))
+            .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .unwrap_or_default();
         Self { client }
@@ -148,8 +150,13 @@ impl RedditDownloader {
         let candidates = Self::construct_audio_url(fallback_url);
 
         for candidate in candidates {
-            let resp = self.client.head(&candidate).send().await;
-            if let Ok(r) = resp {
+            let resp = tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                self.client.head(&candidate).send(),
+            )
+            .await;
+
+            if let Ok(Ok(r)) = resp {
                 if r.status().is_success() {
                     return Some(candidate);
                 }
@@ -366,18 +373,26 @@ impl PlatformDownloader for RedditDownloader {
 
                     let _ = progress.send(50.0).await;
 
+                    let audio_url = &audio_quality.unwrap().url;
                     let (atx, _arx) = mpsc::channel(8);
-                    let _audio_bytes = direct_downloader::download_direct(
+                    let audio_ok = match direct_downloader::download_direct(
                         &self.client,
-                        &audio_quality.unwrap().url,
+                        audio_url,
                         &audio_tmp,
                         atx,
                     )
-                    .await?;
+                    .await
+                    {
+                        Ok(_) => true,
+                        Err(e) => {
+                            tracing::warn!("Reddit audio download failed: {}", e);
+                            false
+                        }
+                    };
 
                     let _ = progress.send(75.0).await;
 
-                    if ffmpeg::is_ffmpeg_available().await {
+                    if audio_ok && ffmpeg::is_ffmpeg_available().await {
                         ffmpeg::mux_video_audio(&video_tmp, &audio_tmp, &output).await?;
                         let _ = tokio::fs::remove_file(&video_tmp).await;
                         let _ = tokio::fs::remove_file(&audio_tmp).await;
@@ -390,17 +405,28 @@ impl PlatformDownloader for RedditDownloader {
                             duration_seconds: info.duration_seconds.unwrap_or(0.0),
                         })
                     } else {
-                        tracing::warn!("ffmpeg não disponível, salvando vídeo e áudio separados");
+                        if !audio_ok {
+                            tracing::warn!("Reddit: audio indisponível, salvando só vídeo");
+                        } else {
+                            tracing::warn!("ffmpeg não disponível, salvando vídeo e áudio separados");
+                        }
                         let video_final = opts.output_dir.join(format!(
-                            "{}_noaudio.mp4",
-                            sanitize_filename::sanitize(&info.title)
-                        ));
-                        let audio_final = opts.output_dir.join(format!(
-                            "{}_audio.mp4",
-                            sanitize_filename::sanitize(&info.title)
+                            "{}{}.mp4",
+                            sanitize_filename::sanitize(&info.title),
+                            if !audio_ok { "" } else { "_noaudio" }
                         ));
                         let _ = tokio::fs::rename(&video_tmp, &video_final).await;
-                        let _ = tokio::fs::rename(&audio_tmp, &audio_final).await;
+
+                        if audio_ok {
+                            let audio_final = opts.output_dir.join(format!(
+                                "{}_audio.mp4",
+                                sanitize_filename::sanitize(&info.title)
+                            ));
+                            let _ = tokio::fs::rename(&audio_tmp, &audio_final).await;
+                        } else {
+                            let _ = tokio::fs::remove_file(&audio_tmp).await;
+                        }
+
                         let _ = progress.send(100.0).await;
 
                         Ok(DownloadResult {
