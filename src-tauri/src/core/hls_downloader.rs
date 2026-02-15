@@ -6,6 +6,7 @@ use futures::future::join_all;
 use m3u8_rs::{parse_master_playlist, parse_media_playlist, MasterPlaylist, VariantStream};
 use reqwest::Client;
 use tokio::io::AsyncWriteExt;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Semaphore;
 
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -29,6 +30,7 @@ impl HlsDownloader {
         m3u8_url: &str,
         output_path: &str,
         referer: &str,
+        bytes_tx: Option<UnboundedSender<u64>>,
     ) -> anyhow::Result<PathBuf> {
         let m3u8_text = self
             .client
@@ -52,14 +54,14 @@ impl HlsDownloader {
                     variant.bandwidth
                 );
                 return self
-                    .download_media_playlist(&variant_url, output_path, referer)
+                    .download_media_playlist(&variant_url, output_path, referer, bytes_tx)
                     .await;
             }
         }
 
         if parse_media_playlist(m3u8_bytes).is_ok() {
             return self
-                .download_media_playlist(m3u8_url, output_path, referer)
+                .download_media_playlist(m3u8_url, output_path, referer, bytes_tx)
                 .await;
         }
 
@@ -71,6 +73,7 @@ impl HlsDownloader {
         m3u8_url: &str,
         output_path: &str,
         referer: &str,
+        bytes_tx: Option<UnboundedSender<u64>>,
     ) -> anyhow::Result<PathBuf> {
         let resp = self
             .client
@@ -109,11 +112,15 @@ impl HlsDownloader {
                 let referer = referer.to_string();
                 let completed = completed.clone();
                 let total = total_segments;
+                let bytes_tx = bytes_tx.clone();
 
                 tokio::spawn(async move {
                     let _permit = sem.acquire().await.unwrap();
                     let data: Vec<u8> =
                         download_segment_with_retry(&client, &url, &referer).await?;
+                    if let Some(ref tx) = bytes_tx {
+                        let _ = tx.send(data.len() as u64);
+                    }
                     let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
                     tracing::info!(
                         "[download] Segmento {}/{} baixado ({} KB)",
