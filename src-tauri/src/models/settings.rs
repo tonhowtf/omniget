@@ -5,8 +5,7 @@ use std::path::PathBuf;
 pub struct AppSettings {
     pub schema_version: u32,
     pub appearance: AppearanceSettings,
-    pub save: SaveSettings,
-    pub hotmart: HotmartSettings,
+    pub download: DownloadSettings,
     pub advanced: AdvancedSettings,
 }
 
@@ -17,23 +16,20 @@ pub struct AppearanceSettings {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SaveSettings {
+pub struct DownloadSettings {
     pub default_output_dir: PathBuf,
-    pub filename_template: String,
-    pub overwrite_existing: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HotmartSettings {
-    pub email: Option<String>,
-    pub token: Option<String>,
+    pub always_ask_path: bool,
+    pub video_quality: String,
+    pub skip_existing: bool,
+    pub download_attachments: bool,
+    pub download_descriptions: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdvancedSettings {
-    pub max_concurrent_downloads: u32,
+    pub max_concurrent_segments: u32,
     pub max_retries: u32,
-    pub proxy: Option<String>,
+    pub debug_mode: bool,
 }
 
 impl Default for AppSettings {
@@ -42,21 +38,20 @@ impl Default for AppSettings {
             schema_version: 1,
             appearance: AppearanceSettings {
                 theme: "system".into(),
-                language: "pt-BR".into(),
+                language: "pt".into(),
             },
-            save: SaveSettings {
+            download: DownloadSettings {
                 default_output_dir: dirs::download_dir().unwrap_or_else(|| PathBuf::from(".")),
-                filename_template: "{title}".into(),
-                overwrite_existing: false,
-            },
-            hotmart: HotmartSettings {
-                email: None,
-                token: None,
+                always_ask_path: true,
+                video_quality: "720p".into(),
+                skip_existing: true,
+                download_attachments: true,
+                download_descriptions: true,
             },
             advanced: AdvancedSettings {
-                max_concurrent_downloads: 3,
+                max_concurrent_segments: 20,
                 max_retries: 3,
-                proxy: None,
+                debug_mode: false,
             },
         }
     }
