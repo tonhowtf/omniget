@@ -1,5 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { upsertProgress, markComplete } from "./download-store.svelte";
+import { showToast } from "./toast-store.svelte";
 
 type ProgressPayload = {
   course_id: number;
@@ -20,9 +21,17 @@ type CompletePayload = {
   error: string | null;
 };
 
+const seenCourseIds = new Set<number>();
+
 export async function initDownloadListener(): Promise<() => void> {
   const unlistenProgress = await listen<ProgressPayload>("download-progress", (event) => {
     const d = event.payload;
+
+    if (!seenCourseIds.has(d.course_id)) {
+      seenCourseIds.add(d.course_id);
+      showToast("info", `Download iniciado: ${d.course_name}`);
+    }
+
     upsertProgress(
       d.course_id,
       d.course_name,
@@ -40,6 +49,12 @@ export async function initDownloadListener(): Promise<() => void> {
   const unlistenComplete = await listen<CompletePayload>("download-complete", (event) => {
     const d = event.payload;
     markComplete(d.course_name, d.success, d.error ?? undefined);
+
+    if (d.success) {
+      showToast("success", `Download concluído: ${d.course_name}`);
+    } else {
+      showToast("error", `Falha no download: ${d.course_name}${d.error ? ` — ${d.error}` : ""}`);
+    }
   });
 
   return () => {
