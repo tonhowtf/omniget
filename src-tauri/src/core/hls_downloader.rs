@@ -11,6 +11,12 @@ use tokio::sync::Semaphore;
 
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
+pub struct HlsDownloadResult {
+    pub path: PathBuf,
+    pub file_size: u64,
+    pub segments: usize,
+}
+
 pub struct HlsDownloader {
     client: Client,
 }
@@ -31,7 +37,7 @@ impl HlsDownloader {
         output_path: &str,
         referer: &str,
         bytes_tx: Option<UnboundedSender<u64>>,
-    ) -> anyhow::Result<PathBuf> {
+    ) -> anyhow::Result<HlsDownloadResult> {
         let m3u8_text = self
             .client
             .get(m3u8_url)
@@ -74,7 +80,7 @@ impl HlsDownloader {
         output_path: &str,
         referer: &str,
         bytes_tx: Option<UnboundedSender<u64>>,
-    ) -> anyhow::Result<PathBuf> {
+    ) -> anyhow::Result<HlsDownloadResult> {
         let resp = self
             .client
             .get(m3u8_url)
@@ -174,12 +180,17 @@ impl HlsDownloader {
 
         let file_size = tokio::fs::metadata(&output).await?.len();
         tracing::info!(
-            "[download] HLS download completo: {} ({:.1} MB)",
+            "[download] HLS download completo: {} ({:.1} MB, {} segmentos)",
             output.display(),
-            file_size as f64 / (1024.0 * 1024.0)
+            file_size as f64 / (1024.0 * 1024.0),
+            total_segments
         );
 
-        Ok(output)
+        Ok(HlsDownloadResult {
+            path: output,
+            file_size,
+            segments: total_segments,
+        })
     }
 
     async fn fetch_encryption_info(
