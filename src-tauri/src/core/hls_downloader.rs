@@ -1,7 +1,14 @@
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+
+use futures::future::join_all;
 use m3u8_rs::{parse_master_playlist, parse_media_playlist, MasterPlaylist, VariantStream};
 use reqwest::Client;
-use std::path::PathBuf;
-use tokio::sync::mpsc;
+use tokio::io::AsyncWriteExt;
+use tokio::sync::Semaphore;
+
+const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 pub struct HlsDownloader {
     client: Client,
@@ -17,46 +24,42 @@ impl HlsDownloader {
         }
     }
 
-    pub async fn download_hls(
+    pub async fn download(
         &self,
         m3u8_url: &str,
         output_path: &str,
-        headers: &[(&str, &str)],
-        quality: &str,
-        progress_tx: Option<mpsc::Sender<f64>>,
+        referer: &str,
     ) -> anyhow::Result<PathBuf> {
-        let mut req = self.client.get(m3u8_url);
-        for (k, v) in headers {
-            req = req.header(*k, *v);
-        }
-        let m3u8_text = req.send().await?.text().await?;
+        let m3u8_text = self
+            .client
+            .get(m3u8_url)
+            .header("Referer", referer)
+            .header("User-Agent", USER_AGENT)
+            .send()
+            .await?
+            .text()
+            .await?;
+
         let m3u8_bytes = m3u8_text.as_bytes();
 
         if let Ok((_, master)) = parse_master_playlist(m3u8_bytes) {
-            let variant = self.select_variant(&master, quality);
-            let variant_url = resolve_url(m3u8_url, &variant.uri);
-            tracing::info!(
-                "Variante selecionada: {}x{} @ {} bps",
-                variant
-                    .resolution
-                    .as_ref()
-                    .map(|r| r.width)
-                    .unwrap_or(0),
-                variant
-                    .resolution
-                    .as_ref()
-                    .map(|r| r.height)
-                    .unwrap_or(0),
-                variant.bandwidth
-            );
-            return self
-                .download_media_playlist(&variant_url, output_path, headers, progress_tx)
-                .await;
+            if let Some(variant) = select_best_variant(&master) {
+                let variant_url = resolve_url(m3u8_url, &variant.uri);
+                tracing::info!(
+                    "[hls] Variante selecionada: {}x{} @ {} bps",
+                    variant.resolution.as_ref().map(|r| r.width).unwrap_or(0),
+                    variant.resolution.as_ref().map(|r| r.height).unwrap_or(0),
+                    variant.bandwidth
+                );
+                return self
+                    .download_media_playlist(&variant_url, output_path, referer)
+                    .await;
+            }
         }
 
         if parse_media_playlist(m3u8_bytes).is_ok() {
             return self
-                .download_media_playlist(m3u8_url, output_path, headers, progress_tx)
+                .download_media_playlist(m3u8_url, output_path, referer)
                 .await;
         }
 
@@ -67,117 +70,241 @@ impl HlsDownloader {
         &self,
         m3u8_url: &str,
         output_path: &str,
-        headers: &[(&str, &str)],
-        progress_tx: Option<mpsc::Sender<f64>>,
+        referer: &str,
     ) -> anyhow::Result<PathBuf> {
-        let mut req = self.client.get(m3u8_url);
-        for (k, v) in headers {
-            req = req.header(*k, *v);
-        }
-        let text = req.send().await?.text().await?;
+        let text = self
+            .client
+            .get(m3u8_url)
+            .header("Referer", referer)
+            .header("User-Agent", USER_AGENT)
+            .send()
+            .await?
+            .text()
+            .await?;
+
         let (_, playlist) = parse_media_playlist(text.as_bytes())
             .map_err(|e| anyhow::anyhow!("Parse media playlist: {:?}", e))?;
 
-        let temp_dir = tempfile::tempdir()?;
         let total_segments = playlist.segments.len();
-        tracing::info!(
-            "Baixando {} segmentos de {}",
-            total_segments,
-            m3u8_url
-        );
-        let mut segment_paths: Vec<PathBuf> = Vec::new();
+        tracing::info!("[download] {} segmentos para baixar", total_segments);
 
-        for (i, segment) in playlist.segments.iter().enumerate() {
-            let segment_url = resolve_url(m3u8_url, &segment.uri);
-            let seg_path = temp_dir.path().join(format!("seg_{:05}.ts", i));
-
-            let mut req = self.client.get(&segment_url);
-            for (k, v) in headers {
-                req = req.header(*k, *v);
-            }
-            let bytes = req.send().await?.bytes().await?;
-            tokio::fs::write(&seg_path, &bytes).await?;
-            segment_paths.push(seg_path);
-
-            if let Some(tx) = &progress_tx {
-                let pct = (i + 1) as f64 / total_segments as f64 * 100.0;
-                let _ = tx.send(pct).await;
-            }
+        let encryption = self
+            .fetch_encryption_info(&playlist, m3u8_url, referer)
+            .await?;
+        if encryption.is_some() {
+            tracing::info!("[download] Segmentos encriptados com AES-128");
         }
 
-        let concat_file = temp_dir.path().join("concat.txt");
-        let concat_content: String = segment_paths
+        let semaphore = Arc::new(Semaphore::new(20));
+        let completed = Arc::new(AtomicUsize::new(0));
+
+        let tasks: Vec<_> = playlist
+            .segments
             .iter()
-            .map(|p| format!("file '{}'", p.display()))
-            .collect::<Vec<_>>()
-            .join("\n");
-        tokio::fs::write(&concat_file, &concat_content).await?;
+            .enumerate()
+            .map(|(i, segment)| {
+                let sem = semaphore.clone();
+                let client = self.client.clone();
+                let url = resolve_url(m3u8_url, &segment.uri);
+                let referer = referer.to_string();
+                let completed = completed.clone();
+                let total = total_segments;
+
+                tokio::spawn(async move {
+                    let _permit = sem.acquire().await.unwrap();
+                    let data: Vec<u8> =
+                        download_segment_with_retry(&client, &url, &referer).await?;
+                    let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
+                    tracing::info!(
+                        "[download] Segmento {}/{} baixado ({} KB)",
+                        done,
+                        total,
+                        data.len() / 1024
+                    );
+                    Ok::<(usize, Vec<u8>), anyhow::Error>((i, data))
+                })
+            })
+            .collect();
+
+        let results = join_all(tasks).await;
+
+        let mut segments_data: Vec<(usize, Vec<u8>)> = Vec::with_capacity(total_segments);
+        for result in results {
+            let (idx, data) = result??;
+            segments_data.push((idx, data));
+        }
+        segments_data.sort_by_key(|(idx, _)| *idx);
 
         let output = PathBuf::from(output_path);
         if let Some(parent) = output.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
+        let mut file = tokio::fs::File::create(&output).await?;
 
-        let status = tokio::process::Command::new("ffmpeg")
-            .args([
-                "-y",
-                "-f",
-                "concat",
-                "-safe",
-                "0",
-                "-i",
-                concat_file.to_str().unwrap(),
-                "-c",
-                "copy",
-                output.to_str().unwrap(),
-            ])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::piped())
-            .status()
-            .await?;
+        if let Some(enc) = &encryption {
+            use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
+            type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
-        if !status.success() {
-            anyhow::bail!("FFmpeg concat falhou com status {}", status);
+            let media_sequence = playlist.media_sequence;
+
+            for (i, (_, data)) in segments_data.iter().enumerate() {
+                let iv = compute_iv(enc, i, media_sequence);
+                let mut buf = data.clone();
+                let decryptor = Aes128CbcDec::new_from_slices(&enc.key_bytes, &iv)
+                    .map_err(|e| anyhow::anyhow!("AES init: {:?}", e))?;
+                let decrypted = decryptor
+                    .decrypt_padded_mut::<Pkcs7>(&mut buf)
+                    .map_err(|e| anyhow::anyhow!("AES decrypt: {:?}", e))?;
+                file.write_all(decrypted).await?;
+            }
+        } else {
+            for (_, data) in &segments_data {
+                file.write_all(data).await?;
+            }
         }
 
-        tracing::info!("HLS download completo: {}", output.display());
+        file.flush().await?;
+
+        let file_size = tokio::fs::metadata(&output).await?.len();
+        tracing::info!(
+            "[download] HLS download completo: {} ({:.1} MB)",
+            output.display(),
+            file_size as f64 / (1024.0 * 1024.0)
+        );
+
         Ok(output)
     }
 
-    fn select_variant<'a>(
+    async fn fetch_encryption_info(
         &self,
-        master: &'a MasterPlaylist,
-        quality: &str,
-    ) -> &'a VariantStream {
-        let mut variants: Vec<_> = master.variants.iter().collect();
-        variants.sort_by_key(|v| v.bandwidth);
+        playlist: &m3u8_rs::MediaPlaylist,
+        m3u8_url: &str,
+        referer: &str,
+    ) -> anyhow::Result<Option<EncryptionInfo>> {
+        for segment in &playlist.segments {
+            if let Some(key) = &segment.key {
+                if matches!(key.method, m3u8_rs::KeyMethod::AES128) {
+                    if let Some(uri) = &key.uri {
+                        let key_url = resolve_url(m3u8_url, uri);
+                        tracing::info!("[download] Baixando chave AES-128: {}", key_url);
+                        let key_bytes = self
+                            .client
+                            .get(&key_url)
+                            .header("Referer", referer)
+                            .header("User-Agent", USER_AGENT)
+                            .send()
+                            .await?
+                            .bytes()
+                            .await?
+                            .to_vec();
 
-        match quality {
-            "max" => variants.last().unwrap(),
-            "min" => variants.first().unwrap(),
-            q => {
-                let target: u64 = q.parse().unwrap_or(720);
-                variants
-                    .iter()
-                    .min_by_key(|v| {
-                        v.resolution
-                            .as_ref()
-                            .map(|r| r.height.abs_diff(target))
-                            .unwrap_or(u64::MAX)
-                    })
-                    .unwrap()
+                        let iv = key.iv.as_ref().map(|iv_str| parse_hex_iv(iv_str));
+
+                        return Ok(Some(EncryptionInfo { key_bytes, iv }));
+                    }
+                }
             }
         }
+        Ok(None)
     }
 }
 
+struct EncryptionInfo {
+    key_bytes: Vec<u8>,
+    iv: Option<[u8; 16]>,
+}
+
+fn select_best_variant(master: &MasterPlaylist) -> Option<&VariantStream> {
+    if master.variants.is_empty() {
+        return None;
+    }
+
+    let mut sorted: Vec<&VariantStream> = master.variants.iter().collect();
+    sorted.sort_by_key(|v| v.resolution.as_ref().map(|r| r.height).unwrap_or(0));
+
+    let mut best: Option<&VariantStream> = None;
+    for v in &sorted {
+        if v.resolution
+            .as_ref()
+            .map(|r| r.height <= 720)
+            .unwrap_or(true)
+        {
+            best = Some(*v);
+        }
+    }
+
+    best.or_else(|| sorted.first().copied())
+}
+
 fn resolve_url(base: &str, relative: &str) -> String {
-    if relative.starts_with("http") {
+    if relative.starts_with("http://") || relative.starts_with("https://") {
         return relative.to_string();
     }
-    if let Some(base_prefix) = base.rsplit_once('/') {
-        format!("{}/{}", base_prefix.0, relative)
+
+    let (base_path, query) = match base.find('?') {
+        Some(pos) => (&base[..pos], Some(&base[pos..])),
+        None => (base, None),
+    };
+
+    let resolved = if let Some(pos) = base_path.rfind('/') {
+        format!("{}/{}", &base_path[..pos], relative)
     } else {
         relative.to_string()
+    };
+
+    match query {
+        Some(q) => format!("{}{}", resolved, q),
+        None => resolved,
     }
+}
+
+async fn download_segment_with_retry(
+    client: &Client,
+    url: &str,
+    referer: &str,
+) -> anyhow::Result<Vec<u8>> {
+    let mut last_err = None;
+    for attempt in 0..3u32 {
+        match client
+            .get(url)
+            .header("Referer", referer)
+            .header("User-Agent", USER_AGENT)
+            .send()
+            .await
+        {
+            Ok(resp) => match resp.bytes().await {
+                Ok(bytes) => return Ok(bytes.to_vec()),
+                Err(e) => last_err = Some(anyhow::anyhow!(e)),
+            },
+            Err(e) => last_err = Some(anyhow::anyhow!(e)),
+        }
+        if attempt < 2 {
+            tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1)))
+                .await;
+        }
+    }
+    Err(last_err
+        .unwrap_or_else(|| anyhow::anyhow!("Download do segmento falhou após 3 tentativas")))
+}
+
+fn compute_iv(encryption: &EncryptionInfo, segment_index: usize, media_sequence: u64) -> [u8; 16] {
+    if let Some(iv) = &encryption.iv {
+        return *iv;
+    }
+    let seq = media_sequence + segment_index as u64;
+    let mut iv = [0u8; 16];
+    iv[8..16].copy_from_slice(&seq.to_be_bytes());
+    iv
+}
+
+fn parse_hex_iv(iv_str: &str) -> [u8; 16] {
+    let hex = iv_str
+        .trim_start_matches("0x")
+        .trim_start_matches("0X");
+    let mut result = [0u8; 16];
+    let padded = format!("{:0>32}", hex);
+    for i in 0..16 {
+        result[i] = u8::from_str_radix(&padded[i * 2..i * 2 + 2], 16).unwrap_or(0);
+    }
+    result
 }
