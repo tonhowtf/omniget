@@ -12,12 +12,12 @@
 <div class="course-card">
   <div class="card-image">
     {#if imageUrl}
-      <img src={imageUrl} alt={name} />
+      <img src={imageUrl} alt={name} loading="lazy" />
     {:else}
-      <div class="placeholder">
+      <div class="card-placeholder">
         <svg
-          width="32"
-          height="32"
+          width="48"
+          height="48"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -66,9 +66,11 @@
   }
 
   .card-image {
+    width: 100%;
     aspect-ratio: 16 / 9;
-    background: var(--button-elevated);
     overflow: hidden;
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+    background: var(--button-elevated);
   }
 
   .card-image img {
@@ -78,16 +80,17 @@
     pointer-events: none;
   }
 
-  .placeholder {
+  .card-placeholder {
     width: 100%;
     height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--gray);
   }
 
-  .placeholder svg {
+  .card-placeholder svg {
+    stroke: var(--gray);
+    opacity: 0.5;
     pointer-events: none;
   }
 
