@@ -10,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 use crate::core::filename;
 use crate::core::media_processor::MediaProcessor;
 use crate::models::media::{DownloadOptions, DownloadResult, MediaInfo, MediaType};
+use crate::models::settings::DownloadSettings;
 use crate::platforms::traits::PlatformDownloader;
 
 use super::api::{self, Course, Lesson};
@@ -88,11 +89,24 @@ async fn is_hls_file_valid(file_path: &str) -> bool {
 
 pub struct HotmartDownloader {
     session: Arc<Mutex<Option<HotmartSession>>>,
+    download_settings: DownloadSettings,
+    max_concurrent_segments: u32,
+    max_retries: u32,
 }
 
 impl HotmartDownloader {
-    pub fn new(session: Arc<Mutex<Option<HotmartSession>>>) -> Self {
-        Self { session }
+    pub fn new(
+        session: Arc<Mutex<Option<HotmartSession>>>,
+        download_settings: DownloadSettings,
+        max_concurrent_segments: u32,
+        max_retries: u32,
+    ) -> Self {
+        Self {
+            session,
+            download_settings,
+            max_concurrent_segments,
+            max_retries,
+        }
     }
 
     pub async fn download_lesson(
@@ -153,6 +167,8 @@ impl HotmartDownloader {
                         "https://cf-embed.play.hotmart.com/",
                         Some(bytes_tx.clone()),
                         cancel_token.clone(),
+                        self.max_concurrent_segments,
+                        self.max_retries,
                     )
                     .await
                     {
@@ -239,7 +255,7 @@ impl HotmartDownloader {
                         }
 
                         tracing::info!("[download] Baixando Vimeo: {}", embed_url);
-                        match MediaProcessor::download_hls(embed_url, &out, referer, Some(bytes_tx.clone()), cancel_token.clone()).await {
+                        match MediaProcessor::download_hls(embed_url, &out, referer, Some(bytes_tx.clone()), cancel_token.clone(), self.max_concurrent_segments, self.max_retries).await {
                             Ok(hls_result) => {
                                 if let Err(e) = write_done_manifest(&out, hls_result.file_size, hls_result.segments).await {
                                     tracing::warn!("[done] Falha ao escrever manifesto: {}", e);
@@ -275,7 +291,7 @@ impl HotmartDownloader {
                             .to_string()
                             + "com.br";
                         tracing::info!("[download] Baixando PandaVideo: {}", m3u8_url);
-                        match MediaProcessor::download_hls(m3u8_url, &out, &panda_referer, Some(bytes_tx.clone()), cancel_token.clone()).await {
+                        match MediaProcessor::download_hls(m3u8_url, &out, &panda_referer, Some(bytes_tx.clone()), cancel_token.clone(), self.max_concurrent_segments, self.max_retries).await {
                             Ok(hls_result) => {
                                 if let Err(e) = write_done_manifest(&out, hls_result.file_size, hls_result.segments).await {
                                     tracing::warn!("[done] Falha ao escrever manifesto: {}", e);
@@ -325,7 +341,7 @@ impl HotmartDownloader {
             anyhow::bail!("Download cancelado pelo usuário");
         }
 
-        if !lesson.attachments.is_empty() {
+        if self.download_settings.download_attachments && !lesson.attachments.is_empty() {
             let mat_dir = format!("{}/Materiais", output_dir);
             tokio::fs::create_dir_all(&mat_dir).await?;
             for att in &lesson.attachments {
@@ -349,28 +365,30 @@ impl HotmartDownloader {
             }
         }
 
-        if let Some(content) = &lesson.content {
-            if !content.trim().is_empty() {
-                let desc_path = format!("{}/Descrição.html", output_dir);
-                if !tokio::fs::try_exists(&desc_path).await.unwrap_or(false) {
-                    tokio::fs::write(&desc_path, content).await?;
-                    tracing::info!("[download] Descrição salva: {}", desc_path);
+        if self.download_settings.download_descriptions {
+            if let Some(content) = &lesson.content {
+                if !content.trim().is_empty() {
+                    let desc_path = format!("{}/Descrição.html", output_dir);
+                    if !tokio::fs::try_exists(&desc_path).await.unwrap_or(false) {
+                        tokio::fs::write(&desc_path, content).await?;
+                        tracing::info!("[download] Descrição salva: {}", desc_path);
+                    }
                 }
             }
-        }
 
-        if let Some(readings) = &lesson.complementary_readings {
-            if !readings.is_empty() {
-                let reading_path = format!("{}/Leitura complementar.html", output_dir);
-                if !tokio::fs::try_exists(&reading_path).await.unwrap_or(false) {
-                    let mut html = String::new();
-                    for link in readings {
-                        let title = link.title.as_deref().unwrap_or("");
-                        let url = link.url.as_deref().unwrap_or("#");
-                        html.push_str(&format!("<a href=\"{}\">{}</a><br>\n", url, title));
+            if let Some(readings) = &lesson.complementary_readings {
+                if !readings.is_empty() {
+                    let reading_path = format!("{}/Leitura complementar.html", output_dir);
+                    if !tokio::fs::try_exists(&reading_path).await.unwrap_or(false) {
+                        let mut html = String::new();
+                        for link in readings {
+                            let title = link.title.as_deref().unwrap_or("");
+                            let url = link.url.as_deref().unwrap_or("#");
+                            html.push_str(&format!("<a href=\"{}\">{}</a><br>\n", url, title));
+                        }
+                        tokio::fs::write(&reading_path, &html).await?;
+                        tracing::info!("[download] Leitura complementar salva: {}", reading_path);
                     }
-                    tokio::fs::write(&reading_path, &html).await?;
-                    tracing::info!("[download] Leitura complementar salva: {}", reading_path);
                 }
             }
         }
