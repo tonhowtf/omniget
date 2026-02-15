@@ -137,6 +137,13 @@ export function upsertGenericProgress(
   downloads = new Map(downloads);
 }
 
+export function removeDownload(id: number) {
+  if (downloads.has(id)) {
+    downloads.delete(id);
+    downloads = new Map(downloads);
+  }
+}
+
 export function markGenericComplete(id: number, success: boolean, error?: string, filePath?: string) {
   const item = downloads.get(id);
   if (!item || item.kind !== "generic") return;
