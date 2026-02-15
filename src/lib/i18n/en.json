@@ -22,6 +22,7 @@
   },
   "toast": {
     "download_preparing": "Preparing download...",
+    "download_already_active": "This course is already being downloaded",
     "download_started": "Download started: {{name}}",
     "download_complete": "Download complete: {{name}}",
     "download_error": "Download failed: {{name}}"
