@@ -1,8 +1,11 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { open } from "@tauri-apps/plugin-dialog";
   import { goto } from "$app/navigation";
   import Mascot from "$components/mascot/Mascot.svelte";
   import { getDownloads } from "$lib/stores/download-store.svelte";
+  import { getSettings } from "$lib/stores/settings-store.svelte";
+  import { showToast } from "$lib/stores/toast-store.svelte";
   import { t } from "$lib/i18n";
 
   type PlatformInfo = {
@@ -13,6 +16,7 @@
   let url = $state("");
   let detection = $state<PlatformInfo | null>(null);
   let detecting = $state(false);
+  let downloading = $state(false);
   let debounceTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 
   const STALL_THRESHOLD = 30_000;
@@ -73,10 +77,44 @@
     }
   }
 
-  function handleAction() {
-    if (!detection?.supported) return;
+  async function handleAction() {
+    if (!detection?.supported || downloading) return;
+
     if (detection.platform === "hotmart") {
       goto("/hotmart");
+      return;
+    }
+
+    const settings = getSettings();
+    let outputDir = settings?.download.default_output_dir ?? "";
+
+    if (settings?.download.always_ask_path || !outputDir) {
+      const selected = await open({
+        directory: true,
+        title: $t("settings.download.default_output_dir"),
+      });
+      if (!selected) return;
+      outputDir = selected;
+    }
+
+    downloading = true;
+    const currentUrl = url.trim();
+    const platformName = detection.platform.charAt(0).toUpperCase() + detection.platform.slice(1);
+    showToast("info", $t("toast.download_preparing"));
+
+    try {
+      const result = await invoke<string>("download_from_url", {
+        url: currentUrl,
+        outputDir,
+      });
+      showToast("success", $t("toast.download_complete", { name: platformName }));
+      url = "";
+      detection = null;
+    } catch (e: unknown) {
+      const msg = typeof e === "string" ? e : (e as Error)?.message ?? "Error";
+      showToast("error", $t("toast.download_error", { name: platformName }) + ": " + msg);
+    } finally {
+      downloading = false;
     }
   }
 </script>
@@ -116,8 +154,16 @@
       </div>
 
       {#if detection.supported}
-        <button class="button action-btn" onclick={handleAction}>
-          {#if detection.platform === "hotmart"}
+        <button
+          class="button action-btn"
+          class:downloading
+          onclick={handleAction}
+          disabled={downloading}
+        >
+          {#if downloading}
+            <span class="btn-spinner"></span>
+            {$t('omnibox.downloading')}
+          {:else if detection.platform === "hotmart"}
             {$t('omnibox.go_to_hotmart')}
           {:else}
             {$t('omnibox.download')}
@@ -210,7 +256,24 @@
   }
 
   .action-btn {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--padding) / 2);
     padding: calc(var(--padding) / 2) calc(var(--padding) * 1.5);
     font-size: 14.5px;
+  }
+
+  .action-btn.downloading {
+    cursor: default;
+    opacity: 0.7;
+  }
+
+  .btn-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--input-border);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
   }
 </style>
