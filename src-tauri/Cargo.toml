@@ -43,3 +43,4 @@ dirs = "6"
 sanitize-filename = "0.6"
 tempfile = "3"
 rusty_ytdl = "0.7"
+tokio-util = { version = "0.7", features = ["rt"] }
