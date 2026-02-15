@@ -51,6 +51,9 @@ pub fn run() {
         platforms::tiktok::TikTokDownloader::new(),
     ));
     registry.register(Box::new(
+        platforms::twitter::TwitterDownloader::new(),
+    ));
+    registry.register(Box::new(
         platforms::twitch::TwitchClipsDownloader::new(),
     ));
     registry.register(Box::new(
