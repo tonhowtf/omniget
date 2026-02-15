@@ -44,6 +44,12 @@ pub fn run() {
             3,
         ),
     ));
+    registry.register(Box::new(
+        platforms::pinterest::PinterestDownloader::new(),
+    ));
+    registry.register(Box::new(
+        platforms::twitch::TwitchClipsDownloader::new(),
+    ));
 
     let state = AppState {
         hotmart_session: session,
