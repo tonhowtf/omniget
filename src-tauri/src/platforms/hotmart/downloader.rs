@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -23,6 +24,11 @@ pub struct CourseDownloadProgress {
     pub percent: f64,
     pub current_module: String,
     pub current_page: String,
+    pub downloaded_bytes: u64,
+    pub total_pages: u32,
+    pub completed_pages: u32,
+    pub total_modules: u32,
+    pub current_module_index: u32,
 }
 
 pub struct HotmartDownloader {
@@ -40,7 +46,7 @@ impl HotmartDownloader {
         lesson: &Lesson,
         output_dir: &str,
         referer: &str,
-        _progress: mpsc::Sender<f64>,
+        bytes_tx: tokio::sync::mpsc::UnboundedSender<u64>,
     ) -> anyhow::Result<Vec<PathBuf>> {
         let mut results = Vec::new();
 
@@ -82,6 +88,7 @@ impl HotmartDownloader {
                         &m3u8_url,
                         &out,
                         "https://cf-embed.play.hotmart.com/",
+                        Some(bytes_tx.clone()),
                     )
                     .await
                     {
@@ -126,6 +133,7 @@ impl HotmartDownloader {
                             .await?
                             .bytes()
                             .await?;
+                        let _ = bytes_tx.send(bytes.len() as u64);
                         tokio::fs::write(&out, &bytes).await?;
                         results.push(PathBuf::from(out));
                     }
@@ -149,7 +157,7 @@ impl HotmartDownloader {
                 match player {
                     DetectedPlayer::Vimeo { embed_url } => {
                         tracing::info!("[download] Baixando Vimeo: {}", embed_url);
-                        if let Err(e) = MediaProcessor::download_hls(embed_url, &out, referer).await {
+                        if let Err(e) = MediaProcessor::download_hls(embed_url, &out, referer, Some(bytes_tx.clone())).await {
                             tracing::error!("[download] Falha Vimeo: {}", e);
                             continue;
                         }
@@ -163,7 +171,7 @@ impl HotmartDownloader {
                             .to_string()
                             + "com.br";
                         tracing::info!("[download] Baixando PandaVideo: {}", m3u8_url);
-                        if let Err(e) = MediaProcessor::download_hls(m3u8_url, &out, &panda_referer).await {
+                        if let Err(e) = MediaProcessor::download_hls(m3u8_url, &out, &panda_referer, Some(bytes_tx.clone())).await {
                             tracing::error!("[download] Falha PandaVideo: {}", e);
                             continue;
                         }
@@ -176,6 +184,9 @@ impl HotmartDownloader {
                         if let Err(e) = video.download(&out).await {
                             tracing::error!("[download] Falha YouTube: {}", e);
                             continue;
+                        }
+                        if let Ok(meta) = tokio::fs::metadata(&out).await {
+                            let _ = bytes_tx.send(meta.len());
                         }
                         results.push(PathBuf::from(&out));
                     }
@@ -279,11 +290,13 @@ impl HotmartDownloader {
         tokio::fs::create_dir_all(&course_dir).await?;
 
         let total_pages: usize = modules.iter().map(|m| m.pages.len()).sum();
+        let total_modules = modules.len();
         let mut done = 0usize;
+        let total_bytes = Arc::new(AtomicU64::new(0));
 
         tracing::info!(
             "{} módulos encontrados para '{}' ({} páginas total)",
-            modules.len(),
+            total_modules,
             course.name,
             total_pages,
         );
@@ -295,6 +308,11 @@ impl HotmartDownloader {
                 percent: 0.0,
                 current_module: "Iniciando...".to_string(),
                 current_page: String::new(),
+                downloaded_bytes: 0,
+                total_pages: total_pages as u32,
+                completed_pages: 0,
+                total_modules: total_modules as u32,
+                current_module_index: 0,
             })
             .await;
 
@@ -329,16 +347,28 @@ impl HotmartDownloader {
                                 percent: done as f64 / total_pages as f64 * 100.0,
                                 current_module: module.name.clone(),
                                 current_page: page.name.clone(),
+                                downloaded_bytes: total_bytes.load(Ordering::Relaxed),
+                                total_pages: total_pages as u32,
+                                completed_pages: done as u32,
+                                total_modules: total_modules as u32,
+                                current_module_index: (mi + 1) as u32,
                             })
                             .await;
                         continue;
                     }
                 };
 
-                let (lesson_tx, _lesson_rx) = mpsc::channel(10);
+                let (lesson_bytes_tx, mut lesson_bytes_rx) =
+                    tokio::sync::mpsc::unbounded_channel::<u64>();
+                let total_bytes_ref = total_bytes.clone();
+                let accumulator = tokio::spawn(async move {
+                    while let Some(n) = lesson_bytes_rx.recv().await {
+                        total_bytes_ref.fetch_add(n, Ordering::Relaxed);
+                    }
+                });
 
                 if let Err(e) = self
-                    .download_lesson(&session, &lesson, &page_dir, &referer, lesson_tx)
+                    .download_lesson(&session, &lesson, &page_dir, &referer, lesson_bytes_tx)
                     .await
                 {
                     tracing::error!(
@@ -348,6 +378,8 @@ impl HotmartDownloader {
                     );
                 }
 
+                let _ = accumulator.await;
+
                 done += 1;
                 let _ = progress
                     .send(CourseDownloadProgress {
@@ -356,6 +388,11 @@ impl HotmartDownloader {
                         percent: done as f64 / total_pages as f64 * 100.0,
                         current_module: module.name.clone(),
                         current_page: page.name.clone(),
+                        downloaded_bytes: total_bytes.load(Ordering::Relaxed),
+                        total_pages: total_pages as u32,
+                        completed_pages: done as u32,
+                        total_modules: total_modules as u32,
+                        current_module_index: (mi + 1) as u32,
                     })
                     .await;
             }
