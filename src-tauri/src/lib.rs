@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use platforms::hotmart::api::Course;
@@ -19,6 +19,7 @@ pub struct CoursesCache {
 pub struct AppState {
     pub hotmart_session: Arc<tokio::sync::Mutex<Option<HotmartSession>>>,
     pub active_downloads: Arc<tokio::sync::Mutex<HashMap<u64, CancellationToken>>>,
+    pub active_generic_urls: Arc<tokio::sync::Mutex<HashSet<String>>>,
     pub registry: core::registry::PlatformRegistry,
     pub courses_cache: Arc<tokio::sync::Mutex<Option<CoursesCache>>>,
     pub session_validated_at: Arc<tokio::sync::Mutex<Option<std::time::Instant>>>,
@@ -72,6 +73,7 @@ pub fn run() {
     let state = AppState {
         hotmart_session: session,
         active_downloads: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+        active_generic_urls: Arc::new(tokio::sync::Mutex::new(HashSet::new())),
         registry,
         courses_cache: Arc::new(tokio::sync::Mutex::new(None)),
         session_validated_at: Arc::new(tokio::sync::Mutex::new(None)),
