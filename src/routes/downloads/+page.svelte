@@ -8,6 +8,7 @@
     formatSpeed,
     getEtaI18n,
   } from "$lib/stores/download-store.svelte";
+  import Mascot from "$components/mascot/Mascot.svelte";
 
   let downloads = $derived(getDownloads());
   let downloadList = $derived([...downloads.values()]);
@@ -101,10 +102,7 @@
   </div>
 {:else}
   <div class="downloads-empty">
-    <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 3v12m0 0l-4-4m4 4l4-4" />
-      <path d="M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2" />
-    </svg>
+    <Mascot emotion="idle" />
     <p class="empty-text">{$t('downloads.empty')}</p>
   </div>
 {/if}
