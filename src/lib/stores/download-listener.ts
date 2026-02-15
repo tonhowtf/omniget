@@ -105,7 +105,7 @@ export async function initDownloadListener(): Promise<() => void> {
     "generic-download-complete",
     (event) => {
       const d = event.payload;
-      markGenericComplete(d.id, d.success, d.error ?? undefined);
+      markGenericComplete(d.id, d.success, d.error ?? undefined, d.file_path ?? undefined);
 
       const tr = get(t);
       if (d.success) {
