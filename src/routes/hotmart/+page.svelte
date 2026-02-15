@@ -146,7 +146,11 @@
 
   async function downloadCourse(course: Course) {
     const status = getCourseDownloadStatus(course.id);
-    if (status === "downloading" || status === "complete") return;
+    if (status === "downloading") {
+      showToast("info", $t("toast.download_already_active"));
+      return;
+    }
+    if (status === "complete") return;
 
     const selected = await open({ directory: true, title: $t("hotmart.choose_folder") });
     if (!selected) return;
