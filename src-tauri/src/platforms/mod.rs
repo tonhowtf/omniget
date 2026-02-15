@@ -80,8 +80,6 @@ impl Platform {
 
         if matches("hotmart.com") {
             Some(Platform::Hotmart)
-        } else if matches("youtube.com") || matches("youtu.be") {
-            Some(Platform::YouTube)
         } else if matches("instagram.com") || matches("ddinstagram.com") {
             Some(Platform::Instagram)
         } else if matches("tiktok.com") {
@@ -90,8 +88,6 @@ impl Platform {
             Some(Platform::Twitter)
         } else if matches("reddit.com") || host == "v.redd.it" || host == "redd.it" {
             Some(Platform::Reddit)
-        } else if matches("facebook.com") || matches("fb.watch") || matches("fb.com") {
-            Some(Platform::Facebook)
         } else if matches("twitch.tv") {
             Some(Platform::Twitch)
         } else if matches("vimeo.com") {
