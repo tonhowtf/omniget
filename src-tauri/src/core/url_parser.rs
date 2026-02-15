@@ -35,7 +35,6 @@ pub fn parse_url(url_str: &str) -> Option<ParsedUrl> {
         Platform::TikTok => parse_tiktok(&segments),
         Platform::Twitter => parse_twitter(&segments),
         Platform::Reddit => parse_reddit(&segments),
-        Platform::Facebook => parse_facebook(&parsed, &segments),
         Platform::Twitch => parse_twitch(&parsed, &segments),
         Platform::Vimeo => parse_vimeo(&segments),
         Platform::Hotmart => parse_hotmart(&segments),
@@ -162,31 +161,6 @@ fn parse_reddit(segments: &[&str]) -> (Option<String>, ParsedContentType) {
 
     let id = segments.first().map(|s| s.to_string());
     (id, ParsedContentType::Video)
-}
-
-fn parse_facebook(parsed: &url::Url, segments: &[&str]) -> (Option<String>, ParsedContentType) {
-    if segments.first() == Some(&"watch") {
-        let id = parsed.query_pairs().find(|(k, _)| k == "v").map(|(_, v)| v.to_string());
-        return (id, ParsedContentType::Video);
-    }
-
-    if segments.first() == Some(&"reel") {
-        let id = segments.get(1).map(|s| s.to_string());
-        return (id, ParsedContentType::Reel);
-    }
-
-    if let Some(host) = parsed.host_str() {
-        if host.contains("fb.watch") {
-            let id = segments.first().map(|s| s.to_string());
-            return (id, ParsedContentType::Video);
-        }
-    }
-
-    if let Some(name) = segments.first() {
-        return (Some(name.to_string()), ParsedContentType::Profile);
-    }
-
-    (None, ParsedContentType::Unknown)
 }
 
 fn parse_twitch(parsed: &url::Url, segments: &[&str]) -> (Option<String>, ParsedContentType) {
