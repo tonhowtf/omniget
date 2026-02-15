@@ -5,6 +5,7 @@
   import { initDownloadListener } from "$lib/stores/download-listener";
   import { getActiveCount } from "$lib/stores/download-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
+  import { t } from "$lib/i18n";
   import type { Snippet } from "svelte";
 
   let activeCount = $derived(getActiveCount());
@@ -18,10 +19,10 @@
   });
 
   const nav = [
-    { href: "/", label: "Home", icon: "home" },
-    { href: "/downloads", label: "Downloads", icon: "downloads" },
-    { href: "/hotmart", label: "Hotmart", icon: "hotmart" },
-    { href: "/settings", label: "Settings", icon: "settings" },
+    { href: "/", labelKey: "nav.home", icon: "home" },
+    { href: "/downloads", labelKey: "nav.downloads", icon: "downloads" },
+    { href: "/hotmart", labelKey: "nav.hotmart", icon: "hotmart" },
+    { href: "/settings", labelKey: "nav.settings", icon: "settings" },
   ] as const;
 
   function isActive(href: string): boolean {
@@ -37,7 +38,7 @@
         href={item.href}
         class="nav-item"
         class:active={isActive(item.href)}
-        title={item.label}
+        title={$t(item.labelKey)}
       >
         <span class="indicator"></span>
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
