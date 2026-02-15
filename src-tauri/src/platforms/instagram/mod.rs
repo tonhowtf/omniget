@@ -4,7 +4,7 @@ use rand::RngExt;
 use regex::Regex;
 use tokio::sync::mpsc;
 
-use crate::core::direct_downloader;
+use crate::core::direct_downloader::{self, download_direct_with_headers};
 use crate::models::media::{
     DownloadOptions, DownloadResult, MediaInfo, MediaType, VideoQuality,
 };
@@ -465,6 +465,13 @@ impl InstagramDownloader {
         Err(anyhow!("Nenhuma mídia encontrada no post"))
     }
 
+    fn instagram_headers() -> reqwest::header::HeaderMap {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(reqwest::header::REFERER, "https://www.instagram.com/".parse().unwrap());
+        headers.insert(reqwest::header::ORIGIN, "https://www.instagram.com".parse().unwrap());
+        headers
+    }
+
     fn extract_media_from_embed(data: &serde_json::Value) -> anyhow::Result<InstagramMedia> {
         if let Some(video_url) = data
             .get("gql_data")
@@ -621,11 +628,18 @@ impl PlatformDownloader for InstagramDownloader {
             );
             let output = opts.output_dir.join(&filename);
 
-            let bytes = direct_downloader::download_direct(
+            let headers = if quality.format == "mp4" {
+                Some(Self::instagram_headers())
+            } else {
+                None
+            };
+
+            let bytes = download_direct_with_headers(
                 &self.client,
                 &quality.url,
                 &output,
                 progress,
+                headers,
             )
             .await?;
 
@@ -649,11 +663,18 @@ impl PlatformDownloader for InstagramDownloader {
             let output = opts.output_dir.join(&filename);
             let (tx, _rx) = mpsc::channel(8);
 
-            let bytes = direct_downloader::download_direct(
+            let headers = if quality.format == "mp4" {
+                Some(Self::instagram_headers())
+            } else {
+                None
+            };
+
+            let bytes = download_direct_with_headers(
                 &self.client,
                 &quality.url,
                 &output,
                 tx,
+                headers,
             )
             .await?;
 
