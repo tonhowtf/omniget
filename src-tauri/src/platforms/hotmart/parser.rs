@@ -72,14 +72,14 @@ fn extract_youtube_id(url: &str) -> String {
 }
 
 pub async fn fetch_player_media_assets(
-    media_src_url: &str,
+    player_url: &str,
     session: &HotmartSession,
 ) -> anyhow::Result<Vec<serde_json::Value>> {
-    tracing::info!("[download] mediaSrcUrl: {}", media_src_url);
+    tracing::info!("[download] Buscando player: {}", &player_url[..80.min(player_url.len())]);
 
     let resp = session
         .client
-        .get(media_src_url)
+        .get(player_url)
         .header("Referer", "https://hotmart.com")
         .send()
         .await?
