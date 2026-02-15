@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use platforms::hotmart::api::Course;
 use platforms::hotmart::auth::HotmartSession;
 use tokio_util::sync::CancellationToken;
 
@@ -10,10 +11,17 @@ pub mod models;
 pub mod platforms;
 pub mod storage;
 
+pub struct CoursesCache {
+    pub courses: Vec<Course>,
+    pub fetched_at: std::time::Instant,
+}
+
 pub struct AppState {
     pub hotmart_session: Arc<tokio::sync::Mutex<Option<HotmartSession>>>,
     pub active_downloads: Arc<tokio::sync::Mutex<HashMap<u64, CancellationToken>>>,
     pub registry: core::registry::PlatformRegistry,
+    pub courses_cache: Arc<tokio::sync::Mutex<Option<CoursesCache>>>,
+    pub session_validated_at: Arc<tokio::sync::Mutex<Option<std::time::Instant>>>,
 }
 
 #[tauri::command]
@@ -41,6 +49,8 @@ pub fn run() {
         hotmart_session: session,
         active_downloads: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         registry,
+        courses_cache: Arc::new(tokio::sync::Mutex::new(None)),
+        session_validated_at: Arc::new(tokio::sync::Mutex::new(None)),
     };
 
     tauri::Builder::default()
@@ -57,6 +67,7 @@ pub fn run() {
             commands::auth::hotmart_logout,
             commands::auth::hotmart_debug_auth,
             commands::courses::hotmart_list_courses,
+            commands::courses::hotmart_refresh_courses,
             commands::courses::hotmart_get_modules,
             commands::downloads::start_course_download,
             commands::downloads::cancel_course_download,
