@@ -2,6 +2,7 @@ pub mod traits;
 pub mod hotmart;
 pub mod pinterest;
 pub mod tiktok;
+pub mod twitter;
 pub mod twitch;
 pub mod bluesky;
 pub mod reddit;
@@ -84,7 +85,7 @@ impl Platform {
             Some(Platform::Instagram)
         } else if matches("tiktok.com") {
             Some(Platform::TikTok)
-        } else if matches("twitter.com") || matches("x.com") {
+        } else if matches("twitter.com") || matches("x.com") || matches("vxtwitter.com") || matches("fixvx.com") {
             Some(Platform::Twitter)
         } else if matches("reddit.com") || host == "v.redd.it" || host == "redd.it" {
             Some(Platform::Reddit)
