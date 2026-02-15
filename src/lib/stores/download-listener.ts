@@ -1,4 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
+import { get } from "svelte/store";
+import { t } from "$lib/i18n";
 import { upsertProgress, markComplete } from "./download-store.svelte";
 import { showToast } from "./toast-store.svelte";
 
@@ -29,7 +31,8 @@ export async function initDownloadListener(): Promise<() => void> {
 
     if (!seenCourseIds.has(d.course_id)) {
       seenCourseIds.add(d.course_id);
-      showToast("info", `Download iniciado: ${d.course_name}`);
+      const tr = get(t);
+      showToast("info", tr("toast.download_started", { name: d.course_name }));
     }
 
     upsertProgress(
@@ -50,10 +53,13 @@ export async function initDownloadListener(): Promise<() => void> {
     const d = event.payload;
     markComplete(d.course_name, d.success, d.error ?? undefined);
 
+    const tr = get(t);
     if (d.success) {
-      showToast("success", `Download concluído: ${d.course_name}`);
+      showToast("success", tr("toast.download_complete", { name: d.course_name }));
     } else {
-      showToast("error", `Falha no download: ${d.course_name}${d.error ? ` — ${d.error}` : ""}`);
+      let msg = tr("toast.download_error", { name: d.course_name });
+      if (d.error) msg += ` — ${d.error}`;
+      showToast("error", msg);
     }
   });
 
