@@ -5,6 +5,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use tokio::sync::{mpsc, Mutex};
+use tokio_util::sync::CancellationToken;
 
 use crate::core::filename;
 use crate::core::media_processor::MediaProcessor;
@@ -101,6 +102,7 @@ impl HotmartDownloader {
         output_dir: &str,
         referer: &str,
         bytes_tx: tokio::sync::mpsc::UnboundedSender<u64>,
+        cancel_token: &CancellationToken,
     ) -> anyhow::Result<Vec<PathBuf>> {
         let mut results = Vec::new();
 
@@ -108,6 +110,10 @@ impl HotmartDownloader {
 
         if lesson.has_media {
             for (i, media) in lesson.medias.iter().enumerate() {
+                if cancel_token.is_cancelled() {
+                    anyhow::bail!("Download cancelado pelo usuário");
+                }
+
                 let assets = match parser::fetch_player_media_assets(&media.url, session).await {
                     Ok(a) => a,
                     Err(e) => {
@@ -146,6 +152,7 @@ impl HotmartDownloader {
                         &out,
                         "https://cf-embed.play.hotmart.com/",
                         Some(bytes_tx.clone()),
+                        cancel_token.clone(),
                     )
                     .await
                     {
@@ -158,6 +165,9 @@ impl HotmartDownloader {
                         Err(e) => {
                             tracing::error!("[download] Falha ao baixar vídeo '{}': {}", out, e);
                             let _ = tokio::fs::remove_file(&out).await;
+                            if cancel_token.is_cancelled() {
+                                return Err(e);
+                            }
                             continue;
                         }
                     }
@@ -209,6 +219,10 @@ impl HotmartDownloader {
         if let Some(html) = &lesson.content {
             let players = parser::detect_players_from_html(html);
             for (i, player) in players.iter().enumerate() {
+                if cancel_token.is_cancelled() {
+                    anyhow::bail!("Download cancelado pelo usuário");
+                }
+
                 let out = format!("{}/{}. Aula.mp4", output_dir, i + 1);
 
                 match player {
@@ -225,7 +239,7 @@ impl HotmartDownloader {
                         }
 
                         tracing::info!("[download] Baixando Vimeo: {}", embed_url);
-                        match MediaProcessor::download_hls(embed_url, &out, referer, Some(bytes_tx.clone())).await {
+                        match MediaProcessor::download_hls(embed_url, &out, referer, Some(bytes_tx.clone()), cancel_token.clone()).await {
                             Ok(hls_result) => {
                                 if let Err(e) = write_done_manifest(&out, hls_result.file_size, hls_result.segments).await {
                                     tracing::warn!("[done] Falha ao escrever manifesto: {}", e);
@@ -235,6 +249,9 @@ impl HotmartDownloader {
                             Err(e) => {
                                 tracing::error!("[download] Falha Vimeo: {}", e);
                                 let _ = tokio::fs::remove_file(&out).await;
+                                if cancel_token.is_cancelled() {
+                                    return Err(e);
+                                }
                                 continue;
                             }
                         }
@@ -258,7 +275,7 @@ impl HotmartDownloader {
                             .to_string()
                             + "com.br";
                         tracing::info!("[download] Baixando PandaVideo: {}", m3u8_url);
-                        match MediaProcessor::download_hls(m3u8_url, &out, &panda_referer, Some(bytes_tx.clone())).await {
+                        match MediaProcessor::download_hls(m3u8_url, &out, &panda_referer, Some(bytes_tx.clone()), cancel_token.clone()).await {
                             Ok(hls_result) => {
                                 if let Err(e) = write_done_manifest(&out, hls_result.file_size, hls_result.segments).await {
                                     tracing::warn!("[done] Falha ao escrever manifesto: {}", e);
@@ -268,6 +285,9 @@ impl HotmartDownloader {
                             Err(e) => {
                                 tracing::error!("[download] Falha PandaVideo: {}", e);
                                 let _ = tokio::fs::remove_file(&out).await;
+                                if cancel_token.is_cancelled() {
+                                    return Err(e);
+                                }
                                 continue;
                             }
                         }
@@ -299,6 +319,10 @@ impl HotmartDownloader {
                     }
                 }
             }
+        }
+
+        if cancel_token.is_cancelled() {
+            anyhow::bail!("Download cancelado pelo usuário");
         }
 
         if !lesson.attachments.is_empty() {
@@ -359,6 +383,7 @@ impl HotmartDownloader {
         course: &Course,
         base_dir: &str,
         progress: mpsc::Sender<CourseDownloadProgress>,
+        cancel_token: CancellationToken,
     ) -> anyhow::Result<()> {
         if course.external_platform {
             return Err(anyhow!("Curso hospedado em plataforma externa"));
@@ -421,11 +446,16 @@ impl HotmartDownloader {
 
         let referer = format!("https://{}.club.hotmart.com/", slug);
 
-        for (mi, module) in modules.iter().enumerate() {
+        'outer: for (mi, module) in modules.iter().enumerate() {
             let mod_name = filename::sanitize_path_component(&module.name);
             let mod_dir = format!("{}/{}. {}", course_dir, mi + 1, mod_name);
 
             for (pi, page) in module.pages.iter().enumerate() {
+                if cancel_token.is_cancelled() {
+                    tracing::info!("Download cancelado pelo usuário: '{}'", course.name);
+                    break 'outer;
+                }
+
                 let page_name = filename::sanitize_path_component(&page.name);
                 let page_dir = format!("{}/{}. {}", mod_dir, pi + 1, page_name);
                 tokio::fs::create_dir_all(&page_dir).await?;
@@ -470,18 +500,23 @@ impl HotmartDownloader {
                     }
                 });
 
-                if let Err(e) = self
-                    .download_lesson(&session, &lesson, &page_dir, &referer, lesson_bytes_tx)
-                    .await
-                {
+                let lesson_result = self
+                    .download_lesson(&session, &lesson, &page_dir, &referer, lesson_bytes_tx, &cancel_token)
+                    .await;
+
+                let _ = accumulator.await;
+
+                if let Err(e) = lesson_result {
+                    if cancel_token.is_cancelled() {
+                        tracing::info!("Download cancelado pelo usuário: '{}'", course.name);
+                        break 'outer;
+                    }
                     tracing::error!(
                         "Erro ao baixar página '{}': {}. Continuando...",
                         page.name,
                         e
                     );
                 }
-
-                let _ = accumulator.await;
 
                 done += 1;
                 let _ = progress
@@ -499,6 +534,10 @@ impl HotmartDownloader {
                     })
                     .await;
             }
+        }
+
+        if cancel_token.is_cancelled() {
+            return Err(anyhow!("Download cancelado pelo usuário"));
         }
 
         tracing::info!("Download completo do curso '{}'", course.name);
