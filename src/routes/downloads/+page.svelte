@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
+  import { showToast } from "$lib/stores/toast-store.svelte";
   import {
     getDownloads,
     formatBytes,
@@ -10,6 +12,15 @@
   let downloads = $derived(getDownloads());
   let downloadList = $derived([...downloads.values()]);
   let hasDownloads = $derived(downloadList.length > 0);
+
+  async function cancelDownload(courseId: number) {
+    try {
+      await invoke("cancel_course_download", { courseId });
+    } catch (e: any) {
+      const msg = typeof e === "string" ? e : e.message ?? "Error";
+      showToast("error", msg);
+    }
+  }
 </script>
 
 {#if hasDownloads}
@@ -20,9 +31,22 @@
         <div class="download-item" data-status={item.status}>
           <div class="item-header">
             <span class="item-name">{item.courseName}</span>
-            <span class="item-status" data-status={item.status}>
-              {$t(`downloads.status.${item.status}`)}
-            </span>
+            <div class="item-header-actions">
+              {#if item.status === "downloading"}
+                <button
+                  class="cancel-btn"
+                  onclick={() => cancelDownload(item.courseId)}
+                  aria-label={$t('downloads.cancel')}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              {/if}
+              <span class="item-status" data-status={item.status}>
+                {$t(`downloads.status.${item.status}`)}
+              </span>
+            </div>
           </div>
 
           {#if item.status === "downloading"}
@@ -137,6 +161,13 @@
     gap: var(--padding);
   }
 
+  .item-header-actions {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--padding) / 2);
+    flex-shrink: 0;
+  }
+
   .item-name {
     font-size: 14.5px;
     font-weight: 500;
@@ -145,6 +176,41 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .cancel-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: calc(var(--border-radius) / 2);
+    background: transparent;
+    color: var(--gray);
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  @media (hover: hover) {
+    .cancel-btn:hover {
+      background: var(--button-elevated);
+      color: var(--red);
+    }
+  }
+
+  .cancel-btn:active {
+    background: var(--button-elevated);
+    color: var(--red);
+  }
+
+  .cancel-btn:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .cancel-btn svg {
+    pointer-events: none;
   }
 
   .item-status {
