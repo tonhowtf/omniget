@@ -36,7 +36,7 @@ pub fn run() {
     let session = Arc::new(tokio::sync::Mutex::new(None));
 
     let mut registry = core::registry::PlatformRegistry::new();
-    registry.register(Box::new(
+    registry.register(Arc::new(
         platforms::hotmart::downloader::HotmartDownloader::new(
             session.clone(),
             models::settings::AppSettings::default().download,
@@ -44,28 +44,28 @@ pub fn run() {
             3,
         ),
     ));
-    registry.register(Box::new(
+    registry.register(Arc::new(
         platforms::instagram::InstagramDownloader::new(),
     ));
-    registry.register(Box::new(
+    registry.register(Arc::new(
         platforms::pinterest::PinterestDownloader::new(),
     ));
-    registry.register(Box::new(
+    registry.register(Arc::new(
         platforms::tiktok::TikTokDownloader::new(),
     ));
-    registry.register(Box::new(
+    registry.register(Arc::new(
         platforms::twitter::TwitterDownloader::new(),
     ));
-    registry.register(Box::new(
+    registry.register(Arc::new(
         platforms::twitch::TwitchClipsDownloader::new(),
     ));
-    registry.register(Box::new(
+    registry.register(Arc::new(
         platforms::bluesky::BlueskyDownloader::new(),
     ));
-    registry.register(Box::new(
+    registry.register(Arc::new(
         platforms::reddit::RedditDownloader::new(),
     ));
-    registry.register(Box::new(
+    registry.register(Arc::new(
         platforms::vimeo::VimeoDownloader::new(),
     ));
 
