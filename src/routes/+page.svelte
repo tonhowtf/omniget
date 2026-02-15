@@ -3,7 +3,6 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { goto } from "$app/navigation";
   import Mascot from "$components/mascot/Mascot.svelte";
-  import PlatformIcon from "$components/icons/PlatformIcon.svelte";
   import { getDownloads, type GenericDownloadItem } from "$lib/stores/download-store.svelte";
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import { t } from "$lib/i18n";
@@ -92,6 +91,13 @@
     if (hasDownloading) return "downloading";
     return "idle";
   });
+
+  let showLoopIcon = $derived(
+    omniState.kind === "detected" ||
+    omniState.kind === "preparing" ||
+    omniState.kind === "downloading" ||
+    omniState.kind === "complete"
+  );
 
   function isUrl(value: string): boolean {
     return value.startsWith("http://") || value.startsWith("https://");
@@ -202,7 +208,6 @@
     try {
       await invoke("reveal_file", { path: omniState.filePath });
     } catch {
-      // silently fail
     }
   }
 </script>
@@ -211,6 +216,18 @@
   <Mascot emotion={mascotEmotion} />
 
   <div class="omnibox-area">
+    {#if showLoopIcon}
+      <img
+        src="/loop.png"
+        alt=""
+        width="40"
+        height="40"
+        class="loop-icon"
+        class:loop-bounce={omniState.kind === "detected"}
+        class:loop-pulse={omniState.kind === "downloading" || omniState.kind === "preparing"}
+      />
+    {/if}
+
     {#if omniState.kind === "idle" || omniState.kind === "detecting" || omniState.kind === "detected" || omniState.kind === "unsupported"}
       <div class="omnibox-wrapper">
         <input
@@ -230,7 +247,6 @@
 
     {:else if omniState.kind === "detected"}
       <div class="feedback feedback-enter" data-supported="true">
-        <PlatformIcon platform={omniState.info.platform} size={16} />
         <span class="feedback-text">
           {capitalize(omniState.info.platform)}
           {#if omniState.info.content_type}
@@ -270,7 +286,6 @@
     {:else if omniState.kind === "downloading"}
       <div class="feedback-card feedback-enter">
         <div class="card-row">
-          <PlatformIcon platform={omniState.platform} size={16} />
           <span class="card-title">{trackedDownload?.name ?? omniState.title}</span>
           <span class="card-percent">{(trackedDownload?.percent ?? 0).toFixed(0)}%</span>
         </div>
@@ -337,7 +352,7 @@
     align-items: center;
     justify-content: center;
     min-height: calc(100vh - var(--padding) * 4);
-    gap: calc(var(--padding) * 2);
+    gap: calc(var(--padding) * 1.5);
   }
 
   .omnibox-area {
@@ -372,7 +387,44 @@
     outline: none;
   }
 
-  /* Feedback row (detecting, detected, unsupported) */
+  .loop-icon {
+    pointer-events: none;
+    border-radius: 10px;
+    user-select: none;
+  }
+
+  .loop-bounce {
+    animation: loopBounce 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes loopBounce {
+    0% {
+      opacity: 0;
+      transform: scale(0.6) translateY(6px);
+    }
+    60% {
+      opacity: 1;
+      transform: scale(1.08) translateY(-2px);
+    }
+    100% {
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  .loop-pulse {
+    animation: loopPulse 1.8s ease-in-out infinite;
+  }
+
+  @keyframes loopPulse {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.7;
+      transform: scale(0.95);
+    }
+  }
 
   .feedback {
     display: flex;
@@ -425,8 +477,6 @@
     padding: calc(var(--padding) / 2) calc(var(--padding) * 1.5);
     font-size: 14.5px;
   }
-
-  /* Feedback card (preparing, downloading, complete, error) */
 
   .feedback-card {
     width: 100%;
@@ -541,8 +591,6 @@
     pointer-events: none;
   }
 
-  /* Progress bar */
-
   .progress-track {
     width: 100%;
     height: 6px;
@@ -557,8 +605,6 @@
     border-radius: 3px;
     transition: width 0.1s ease-out;
   }
-
-  /* Entry animation */
 
   .feedback-enter {
     animation: feedbackEnter 150ms ease-out;
@@ -582,6 +628,14 @@
 
     .feedback-spinner {
       animation-duration: 1.5s;
+    }
+
+    .loop-bounce {
+      animation: none;
+    }
+
+    .loop-pulse {
+      animation: none;
     }
   }
 </style>
