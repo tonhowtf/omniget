@@ -90,16 +90,30 @@ pub async fn download_from_url(
         }
     }
 
-    let downloader = state.registry.find_platform(&url)
-        .ok_or_else(|| format!("Nenhum downloader registrado para {}", platform))?;
+    let cleanup_urls = state.active_generic_urls.clone();
+    let cleanup_key = url.clone();
+    let cleanup = || async move {
+        cleanup_urls.lock().await.remove(&cleanup_key);
+    };
+
+    let downloader = match state.registry.find_platform(&url) {
+        Some(d) => d,
+        None => {
+            cleanup().await;
+            return Err(format!("Nenhum downloader registrado para {}", platform));
+        }
+    };
 
     let settings = config::load_settings(&app);
     let platform_name = platform.to_string();
 
-    let info = downloader
-        .get_media_info(&url)
-        .await
-        .map_err(|e| format!("Erro ao obter informações: {}", e))?;
+    let info = match downloader.get_media_info(&url).await {
+        Ok(info) => info,
+        Err(e) => {
+            cleanup().await;
+            return Err(format!("Erro ao obter informações: {}", e));
+        }
+    };
 
     let title = info.title.clone();
     let download_id = std::time::SystemTime::now()
