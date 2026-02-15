@@ -1,261 +1,134 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
-  import ModuleList from "./ModuleList.svelte";
-
-  type Course = {
-    id: number;
+  type CourseCardProps = {
     name: string;
-    slug: string | null;
-    seller: string;
-    subdomain: string | null;
-    is_hotmart_club: boolean;
+    price: string;
+    imageUrl?: string;
+    onDownload: () => void;
   };
 
-  type Module = {
-    id: string;
-    name: string;
-    pages: { hash: string; name: string; page_type: string }[];
-  };
-
-  let { course }: { course: Course } = $props();
-
-  let expanded = $state(false);
-  let modules: Module[] = $state([]);
-  let loadingModules = $state(false);
-  let modulesLoaded = $state(false);
-  let modulesError = $state("");
-
-  let totalLessons = $derived(
-    modules.reduce((sum, m) => sum + m.pages.length, 0)
-  );
-
-  async function toggle() {
-    expanded = !expanded;
-    if (expanded && !modulesLoaded) {
-      await loadModules();
-    }
-  }
-
-  async function loadModules() {
-    if (!course.subdomain) {
-      modulesError = "Subdomain indisponivel para este curso.";
-      return;
-    }
-    loadingModules = true;
-    modulesError = "";
-    try {
-      modules = await invoke("hotmart_get_modules", {
-        courseId: course.id,
-        slug: course.subdomain,
-      });
-      modulesLoaded = true;
-    } catch (e: any) {
-      modulesError = typeof e === "string" ? e : e.message ?? "Erro ao carregar modulos";
-    } finally {
-      loadingModules = false;
-    }
-  }
+  let { name, price, imageUrl, onDownload }: CourseCardProps = $props();
 </script>
 
-<div class="course-card" class:expanded>
-  <button class="card-header" onclick={toggle}>
-    <div class="header-left">
-      <span class="course-name">{course.name}</span>
-      <span class="course-seller">{course.seller}</span>
-    </div>
-    <div class="header-right">
-      {#if course.is_hotmart_club}
-        <span class="badge">Club</span>
-      {/if}
-      <span class="chevron" class:rotated={expanded}>&#9662;</span>
-    </div>
-  </button>
-
-  {#if expanded}
-    <div class="card-body">
-      <div class="body-top">
-        {#if modulesLoaded}
-          <span class="summary">{modules.length} modulos &middot; {totalLessons} aulas</span>
-        {/if}
-        <button class="button" disabled>Baixar Curso</button>
+<div class="course-card">
+  <div class="card-image">
+    {#if imageUrl}
+      <img src={imageUrl} alt={name} />
+    {:else}
+      <div class="placeholder">
+        <svg
+          width="32"
+          height="32"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M22 9l-10 -4l-10 4l10 4l10 -4v6" />
+          <path d="M6 10.6v5.4a6 3 0 0 0 12 0v-5.4" />
+        </svg>
       </div>
+    {/if}
+  </div>
 
-      {#if loadingModules}
-        <div class="spinner-wrap">
-          <span class="spinner"></span>
-        </div>
-      {:else if modulesError}
-        <p class="error-msg">{modulesError}</p>
-      {:else if modules.length > 0}
-        <ModuleList {modules} />
-      {:else if modulesLoaded}
-        <p class="empty-msg">Nenhum modulo encontrado.</p>
-      {/if}
-    </div>
-  {/if}
+  <div class="card-body">
+    <h4 class="card-title" title={name}>{name}</h4>
+    <span class="card-price">{price}</span>
+    <button class="button elevated card-download" onclick={onDownload}>
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" />
+        <polyline points="7 11 12 16 17 11" />
+        <line x1="12" y1="4" x2="12" y2="16" />
+      </svg>
+      Baixar
+    </button>
+  </div>
 </div>
 
 <style>
   .course-card {
-    background: var(--button-elevated);
-    box-shadow: var(--button-box-shadow);
+    background: var(--button);
     border-radius: var(--border-radius);
+    box-shadow: var(--button-box-shadow);
     overflow: hidden;
-  }
-
-  .course-card.expanded {
-    box-shadow: 0 0 0 1px var(--blue) inset;
-  }
-
-  .card-header {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: calc(var(--padding) + 2px) calc(var(--padding) + 4px);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    text-align: left;
-    color: var(--secondary);
-    gap: var(--padding);
-  }
-
-  @media (hover: hover) {
-    .card-header:hover {
-      background: var(--button-stroke);
-    }
-  }
-
-  .card-header:active {
-    background: var(--button-stroke);
-  }
-
-  .card-header:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
-  }
-
-  .header-left {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    min-width: 0;
   }
 
-  .course-name {
-    font-weight: 500;
-    font-size: 14.5px;
-    white-space: nowrap;
+  .card-image {
+    aspect-ratio: 16 / 9;
+    background: var(--button-elevated);
     overflow: hidden;
-    text-overflow: ellipsis;
   }
 
-  .course-seller {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--gray);
+  .card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
   }
 
-  .header-right {
+  .placeholder {
+    width: 100%;
+    height: 100%;
     display: flex;
     align-items: center;
-    gap: calc(var(--padding) / 1.5);
-    flex-shrink: 0;
-  }
-
-  .badge {
-    font-size: 11px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    background: var(--blue);
-    color: var(--primary);
-    padding: 2px calc(var(--padding) / 2);
-    border-radius: calc(var(--border-radius) / 2);
-  }
-
-  .chevron {
-    font-size: 12px;
+    justify-content: center;
     color: var(--gray);
-    transition: transform 0.15s;
   }
 
-  .chevron.rotated {
-    transform: rotate(180deg);
+  .placeholder svg {
+    pointer-events: none;
   }
 
   .card-body {
-    padding: 0 calc(var(--padding) + 4px) calc(var(--padding) + 2px);
+    padding: var(--padding);
     display: flex;
     flex-direction: column;
-    gap: var(--padding);
-    animation: slideDown 0.15s ease-out;
+    gap: calc(var(--padding) / 2);
   }
 
-  @keyframes slideDown {
-    from {
-      opacity: 0;
-      transform: translateY(-8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+  .card-title {
+    font-size: 14.5px;
+    font-weight: 500;
+    margin-block: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+    color: var(--secondary);
+    user-select: text;
   }
 
-  .body-top {
+  .card-price {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray);
+  }
+
+  .card-download {
+    width: 100%;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    border-top: 1px solid var(--content-border);
-    padding-top: var(--padding);
-  }
-
-  .summary {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--gray);
-  }
-
-  .body-top .button {
-    padding: calc(var(--padding) / 2) var(--padding);
-    font-size: 12.5px;
-    opacity: 0.5;
-  }
-
-  .spinner-wrap {
-    display: flex;
     justify-content: center;
-    padding: calc(var(--padding) * 1.5) 0;
+    gap: calc(var(--padding) / 2);
+    margin-top: calc(var(--padding) / 2);
   }
 
-  .spinner {
-    width: 20px;
-    height: 20px;
-    border: 2px solid var(--input-border);
-    border-top-color: var(--blue);
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .error-msg {
-    color: var(--red);
-    font-size: 12.5px;
-    font-weight: 500;
-  }
-
-  .empty-msg {
-    color: var(--gray);
-    font-size: 12.5px;
-    font-weight: 500;
-    text-align: center;
-    padding: var(--padding) 0;
+  .card-download svg {
+    pointer-events: none;
   }
 </style>

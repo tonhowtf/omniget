@@ -9,6 +9,9 @@
     seller: string;
     subdomain: string | null;
     is_hotmart_club: boolean;
+    price: number | null;
+    image_url: string | null;
+    category: string | null;
   };
 
   let email = $state("");
@@ -23,6 +26,47 @@
   let courses: Course[] = $state([]);
   let loadingCourses = $state(false);
   let coursesError = $state("");
+
+  let debugOutput = $state("");
+  let debugLoading = $state(false);
+
+  // Pagination
+  const ITEMS_PER_PAGE = 12;
+  let currentPage = $state(1);
+
+  let totalPages = $derived(Math.max(1, Math.ceil(courses.length / ITEMS_PER_PAGE)));
+  let paginatedCourses = $derived(
+    courses.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+  );
+
+  // Generate page numbers for pagination display
+  let pageNumbers = $derived((): number[] => {
+    const pages: number[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push(-1); // ellipsis
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (currentPage < totalPages - 2) pages.push(-1); // ellipsis
+      pages.push(totalPages);
+    }
+    return pages;
+  });
+
+  function formatPrice(price: number | null): string {
+    if (price === null || price === undefined) return "—";
+    if (price === 0) return "Gratuito";
+    return `R$ ${price.toFixed(2).replace(".", ",")}`;
+  }
+
+  function goToPage(page: number) {
+    if (page >= 1 && page <= totalPages) {
+      currentPage = page;
+    }
+  }
 
   $effect(() => {
     checkSession();
@@ -66,6 +110,8 @@
     sessionEmail = "";
     courses = [];
     coursesError = "";
+    currentPage = 1;
+    debugOutput = "";
   }
 
   async function loadCourses() {
@@ -73,28 +119,59 @@
     coursesError = "";
     try {
       courses = await invoke("hotmart_list_courses");
+      currentPage = 1;
     } catch (e: any) {
       coursesError = typeof e === "string" ? e : e.message ?? "Erro ao carregar cursos";
     } finally {
       loadingCourses = false;
     }
   }
+
+  async function handleDebugAuth() {
+    debugLoading = true;
+    debugOutput = "";
+    try {
+      const result = await invoke<string>("hotmart_debug_auth");
+      debugOutput = result;
+    } catch (e: any) {
+      debugOutput = `ERRO: ${typeof e === "string" ? e : e.message ?? "Erro desconhecido"}`;
+    } finally {
+      debugLoading = false;
+    }
+  }
 </script>
 
 {#if checking}
+  <!-- Estado 1: Verificando sessão -->
   <div class="page-center">
     <span class="spinner"></span>
+    <span class="spinner-text">Verificando sessão...</span>
   </div>
 {:else if loggedIn}
-  <div class="page-scroll">
+  <!-- Estado 3/4: Logado -->
+  <div class="page-logged">
     <div class="session-bar">
       <span class="session-info">
-        {sessionEmail ? `Logado como ${sessionEmail}` : "Logado"}
+        Logado como {sessionEmail || "—"}
       </span>
-      <button class="button" onclick={handleLogout}>Sair</button>
+      <div class="session-actions">
+        <button
+          class="button"
+          onclick={handleDebugAuth}
+          disabled={debugLoading}
+        >
+          {debugLoading ? "Debugando..." : "Debug Auth"}
+        </button>
+        <button class="button" onclick={handleLogout}>Sair</button>
+      </div>
     </div>
 
+    {#if debugOutput}
+      <pre class="debug-output">{debugOutput}</pre>
+    {/if}
+
     {#if loadingCourses}
+      <!-- Estado 3: Carregando cursos -->
       <div class="spinner-section">
         <span class="spinner"></span>
         <span class="spinner-text">Carregando cursos...</span>
@@ -105,20 +182,73 @@
         <button class="button" onclick={loadCourses}>Tentar novamente</button>
       </div>
     {:else if courses.length === 0}
-      <p class="empty-text">Nenhum curso encontrado.</p>
+      <p class="empty-text">Nenhum curso encontrado nesta conta.</p>
     {:else}
-      <p class="courses-count">{courses.length} {courses.length === 1 ? 'curso' : 'cursos'}</p>
-      <div class="courses-list">
-        {#each courses as course (course.id)}
-          <CourseCard {course} />
+      <!-- Estado 4: Cursos carregados -->
+      <div class="courses-header">
+        <h2>Seus Cursos</h2>
+        <span class="subtext">{courses.length} {courses.length === 1 ? "curso" : "cursos"}</span>
+      </div>
+
+      <div class="courses-grid">
+        {#each paginatedCourses as course (course.id)}
+          <CourseCard
+            name={course.name}
+            price={formatPrice(course.price)}
+            imageUrl={course.image_url ?? undefined}
+            onDownload={() => {
+              /* TODO: download logic */
+            }}
+          />
         {/each}
       </div>
+
+      <!-- Pagination -->
+      {#if totalPages > 1}
+        <div class="pagination">
+          <span class="pagination-info">
+            Página {currentPage} de {totalPages} &middot; {courses.length} cursos
+          </span>
+          <div class="pagination-controls">
+            <button
+              class="button pagination-btn"
+              disabled={currentPage <= 1}
+              onclick={() => goToPage(currentPage - 1)}
+            >
+              &lt;
+            </button>
+
+            {#each pageNumbers() as page}
+              {#if page === -1}
+                <span class="pagination-ellipsis">&hellip;</span>
+              {:else}
+                <button
+                  class="button pagination-btn"
+                  class:active={page === currentPage}
+                  onclick={() => goToPage(page)}
+                >
+                  {page}
+                </button>
+              {/if}
+            {/each}
+
+            <button
+              class="button pagination-btn"
+              disabled={currentPage >= totalPages}
+              onclick={() => goToPage(currentPage + 1)}
+            >
+              &gt;
+            </button>
+          </div>
+        </div>
+      {/if}
     {/if}
   </div>
 {:else}
+  <!-- Estado 2: Não logado -->
   <div class="page-center">
     <div class="login-card">
-      <h2>Login</h2>
+      <h2>Hotmart</h2>
       <form class="form" onsubmit={(e) => { e.preventDefault(); handleLogin(); }}>
         <label class="field">
           <span class="field-label">Email</span>
@@ -132,10 +262,10 @@
           />
         </label>
         <label class="field">
-          <span class="field-label">Password</span>
+          <span class="field-label">Senha</span>
           <input
             type="password"
-            placeholder="Your password"
+            placeholder="Sua senha"
             bind:value={password}
             class="input"
             disabled={loading}
@@ -151,7 +281,7 @@
           {#if loading}
             Autenticando...
           {:else}
-            Sign in
+            Entrar
           {/if}
         </button>
       </form>
@@ -160,27 +290,32 @@
 {/if}
 
 <style>
+  /* === State 1: Checking / Center layout === */
   .page-center {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     min-height: calc(100vh - var(--padding) * 4);
+    gap: var(--padding);
   }
 
-  .page-scroll {
+  /* === State 3/4: Logged in layout === */
+  .page-logged {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--padding);
-    padding-top: var(--padding);
-  }
-
-  .page-scroll > :global(*) {
+    gap: calc(var(--padding) * 1.5);
+    padding: calc(var(--padding) * 1.5);
     width: 100%;
-    max-width: 580px;
   }
 
+  .page-logged > :global(*) {
+    width: 100%;
+    max-width: 1200px;
+  }
+
+  /* === Session bar === */
   .session-bar {
     display: flex;
     align-items: center;
@@ -193,11 +328,112 @@
     color: var(--gray);
   }
 
-  .session-bar .button {
+  .session-actions {
+    display: flex;
+    gap: calc(var(--padding) / 2);
+  }
+
+  .session-bar :global(.button) {
     padding: calc(var(--padding) / 2) var(--padding);
     font-size: 12.5px;
   }
 
+  /* === Debug output === */
+  .debug-output {
+    background: var(--button);
+    border-radius: var(--border-radius);
+    padding: var(--padding);
+    font-size: 11px;
+    color: var(--secondary);
+    white-space: pre-wrap;
+    word-break: break-all;
+    user-select: text;
+    max-height: 200px;
+    overflow-y: auto;
+    box-shadow: var(--button-box-shadow);
+  }
+
+  /* === Courses header === */
+  .courses-header {
+    display: flex;
+    align-items: baseline;
+    gap: var(--padding);
+  }
+
+  .courses-header h2 {
+    margin-block: 0;
+  }
+
+  .subtext {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray);
+  }
+
+  /* === Courses grid (responsive) === */
+  .courses-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--padding);
+  }
+
+  @media (max-width: 1000px) {
+    .courses-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  @media (max-width: 750px) {
+    .courses-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 535px) {
+    .courses-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* === Pagination === */
+  .pagination {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--padding);
+    padding-top: var(--padding);
+  }
+
+  .pagination-info {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray);
+  }
+
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--padding) / 3);
+  }
+
+  .pagination-btn {
+    min-width: 36px;
+    height: 36px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14.5px;
+  }
+
+  .pagination-ellipsis {
+    min-width: 36px;
+    text-align: center;
+    color: var(--gray);
+    font-size: 14.5px;
+  }
+
+  /* === Login card === */
   .login-card {
     width: 100%;
     max-width: 400px;
@@ -207,6 +443,10 @@
     display: flex;
     flex-direction: column;
     gap: calc(var(--padding) * 1.5);
+  }
+
+  .login-card h2 {
+    margin-block: 0;
   }
 
   .form {
@@ -251,22 +491,11 @@
     cursor: default;
   }
 
+  /* === Shared === */
   .error-msg {
     color: var(--red);
     font-size: 12.5px;
     font-weight: 500;
-  }
-
-  .courses-count {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--gray);
-  }
-
-  .courses-list {
-    display: flex;
-    flex-direction: column;
-    gap: calc(var(--padding) / 1.5);
   }
 
   .spinner-section {

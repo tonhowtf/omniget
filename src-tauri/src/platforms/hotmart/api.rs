@@ -2,6 +2,7 @@ use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 
 use super::auth::HotmartSession;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Course {
     pub id: u64,
@@ -10,6 +11,9 @@ pub struct Course {
     pub seller: String,
     pub subdomain: Option<String>,
     pub is_hotmart_club: bool,
+    pub price: Option<f64>,
+    pub image_url: Option<String>,
+    pub category: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,79 +70,30 @@ pub struct SubdomainInfo {
     pub subdomain: String,
 }
 
-pub async fn list_courses(session: &HotmartSession) -> anyhow::Result<Vec<Course>> {
-    tracing::info!("Listando cursos Hotmart...");
-
-    let resp = session
-        .client
-        .get("https://api-hub.cb.hotmart.com/club-drive-api/rest/v2/purchase/?archived=UNARCHIVED")
-        .header("Authorization", format!("Bearer {}", session.token))
-        .header("Origin", "https://consumer.hotmart.com")
-        .send()
-        .await?
-        .error_for_status()?;
-
-    let body: serde_json::Value = resp.json().await?;
-
-    let purchases = body
-        .as_array()
-        .or_else(|| body.get("purchases").and_then(|p| p.as_array()))
-        .ok_or_else(|| anyhow!("Formato inesperado na resposta de cursos"))?;
-
-    let mut courses = Vec::new();
-    for p in purchases {
-        let product = p.get("product").unwrap_or(p);
-        let id = product
-            .get("id")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-        let name = product
-            .get("name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        let seller = p
-            .get("producer")
-            .or_else(|| p.get("seller"))
-            .and_then(|s| s.get("name").and_then(|n| n.as_str()))
-            .unwrap_or("")
-            .to_string();
-        let is_hotmart_club = p
-            .get("accessRights")
-            .and_then(|a| a.get("hasClubAccess"))
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-
-        courses.push(Course {
-            id,
-            name,
-            slug: None,
-            seller,
-            subdomain: None,
-            is_hotmart_club,
-        });
-    }
-
-    tracing::info!("{} cursos encontrados", courses.len());
-    Ok(courses)
-}
-
+/// CHAMADA 1: check_token — get subdomains mapping (productId → subdomain)
 pub async fn get_subdomains(session: &HotmartSession) -> anyhow::Result<Vec<SubdomainInfo>> {
-    tracing::info!("Buscando subdomínios...");
+    tracing::info!("Buscando subdomínios via check_token...");
 
     let url = format!(
         "https://api-sec-vlc.hotmart.com/security/oauth/check_token?token={}",
         session.token
     );
+
     let resp = session
         .client
         .get(&url)
-        .header("Authorization", format!("Bearer {}", session.token))
         .send()
-        .await?
-        .error_for_status()?;
+        .await?;
 
-    let body: serde_json::Value = resp.json().await?;
+    let status = resp.status();
+    let body_text = resp.text().await?;
+    tracing::info!("check_token status: {} | body (200 chars): {}", status, &body_text[..200.min(body_text.len())]);
+
+    if !status.is_success() {
+        return Err(anyhow!("check_token retornou status {}: {}", status, &body_text[..500.min(body_text.len())]));
+    }
+
+    let body: serde_json::Value = serde_json::from_str(&body_text)?;
 
     let resources = body
         .get("resources")
@@ -173,15 +128,155 @@ pub async fn get_subdomains(session: &HotmartSession) -> anyhow::Result<Vec<Subd
     Ok(subdomains)
 }
 
+/// CHAMADA 2: list purchases — get all courses
+pub async fn list_courses(session: &HotmartSession) -> anyhow::Result<Vec<Course>> {
+    tracing::info!("Listando cursos Hotmart...");
+
+    let resp = session
+        .client
+        .get("https://api-hub.cb.hotmart.com/club-drive-api/rest/v2/purchase/?archived=UNARCHIVED")
+        .header("Host", "api-hub.cb.hotmart.com")
+        .send()
+        .await?;
+
+    let status = resp.status();
+    let body_text = resp.text().await?;
+    tracing::info!("list_courses status: {} | body (200 chars): {}", status, &body_text[..200.min(body_text.len())]);
+
+    if !status.is_success() {
+        return Err(anyhow!("list_courses retornou status {}: {}", status, &body_text[..500.min(body_text.len())]));
+    }
+
+    let body: serde_json::Value = serde_json::from_str(&body_text)?;
+
+    // The API returns { "data": [...] } where each item has a nested "product" object
+    // Fallback: try root array, then "purchases", then "data"
+    let purchases = body
+        .get("data")
+        .and_then(|d| d.as_array())
+        .or_else(|| body.get("purchases").and_then(|p| p.as_array()))
+        .or_else(|| body.as_array())
+        .ok_or_else(|| anyhow!("Formato inesperado na resposta de cursos: sem campo 'data', 'purchases' ou array raiz"))?;
+
+    let mut courses = Vec::new();
+    for p in purchases {
+        // data[].product.id, data[].product.name, etc.
+        let product = p.get("product").unwrap_or(p);
+
+        let id = product
+            .get("id")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let name = product
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        // data[].product.seller.name
+        let seller = product
+            .get("seller")
+            .and_then(|s| s.get("name").and_then(|n| n.as_str()))
+            .or_else(|| {
+                p.get("producer")
+                    .or_else(|| p.get("seller"))
+                    .and_then(|s| s.get("name").and_then(|n| n.as_str()))
+            })
+            .unwrap_or("")
+            .to_string();
+
+        // data[].product.hotmartClub.slug
+        let slug = product
+            .get("hotmartClub")
+            .and_then(|hc| hc.get("slug").and_then(|s| s.as_str()))
+            .map(String::from);
+
+        let is_hotmart_club = slug.is_some()
+            || p.get("accessRights")
+                .and_then(|a| a.get("hasClubAccess"))
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+        // data[].product.category
+        let category = product
+            .get("category")
+            .and_then(|v| v.as_str())
+            .map(String::from);
+
+        // Try to get image from logo or image fields
+        let image_url = product
+            .get("logo")
+            .and_then(|v| v.as_str())
+            .or_else(|| product.get("image").and_then(|v| v.as_str()))
+            .or_else(|| product.get("imageUrl").and_then(|v| v.as_str()))
+            .map(String::from);
+
+        courses.push(Course {
+            id,
+            name,
+            slug,
+            seller,
+            subdomain: None,
+            is_hotmart_club,
+            price: None,
+            image_url,
+            category,
+        });
+    }
+
+    tracing::info!("{} cursos encontrados", courses.len());
+    Ok(courses)
+}
+
+/// CHAMADA 3: get price for a single course
+pub async fn get_course_price(session: &HotmartSession, product_id: u64) -> anyhow::Result<f64> {
+    let url = format!(
+        "https://api-hub.cb.hotmart.com/club-drive-api/rest/v2/purchase/products/{}",
+        product_id
+    );
+
+    let resp = session
+        .client
+        .get(&url)
+        .header("Host", "api-hub.cb.hotmart.com")
+        .send()
+        .await?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        let body_text = resp.text().await.unwrap_or_default();
+        tracing::warn!("get_course_price({}) status {}: {}", product_id, status, &body_text[..200.min(body_text.len())]);
+        return Err(anyhow!("Preço não disponível (status {})", status));
+    }
+
+    let body: serde_json::Value = resp.json().await?;
+
+    // purchases[0].value
+    let price = body
+        .get("purchases")
+        .and_then(|p| p.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|purchase| purchase.get("value"))
+        .and_then(|v| v.as_f64())
+        .or_else(|| body.get("value").and_then(|v| v.as_f64()))
+        .unwrap_or(0.0);
+
+    Ok(price)
+}
+
 pub fn merge_subdomains(courses: &mut [Course], subdomains: &[SubdomainInfo]) {
     for course in courses.iter_mut() {
         if let Some(info) = subdomains.iter().find(|s| s.product_id == course.id) {
             course.subdomain = Some(info.subdomain.clone());
-            course.slug = Some(info.subdomain.clone());
+            // If slug wasn't set from the purchase API, use subdomain
+            if course.slug.is_none() {
+                course.slug = Some(info.subdomain.clone());
+            }
         }
     }
 }
 
+/// Navigation API — requires different headers (Origin/Referer = https://hotmart.com)
 pub async fn get_modules(
     session: &HotmartSession,
     slug: &str,
@@ -189,23 +284,33 @@ pub async fn get_modules(
 ) -> anyhow::Result<Vec<Module>> {
     tracing::info!("Buscando módulos do curso {} (slug={})", product_id, slug);
 
+    // Navigation API needs different headers than the default session headers
     let resp = session
         .client
         .get("https://api-club-course-consumption-gateway.hotmart.com/v1/navigation")
         .header("Authorization", format!("Bearer {}", session.token))
-        .header("Origin", "https://consumer.hotmart.com")
         .header("Host", "api-club-course-consumption-gateway.hotmart.com")
+        .header("Origin", "https://hotmart.com")
+        .header("Referer", "https://hotmart.com")
         .header("slug", slug)
         .header("x-product-id", product_id.to_string())
         .send()
-        .await?
-        .error_for_status()?;
+        .await?;
 
-    let body: serde_json::Value = resp.json().await?;
+    let status = resp.status();
+    let body_text = resp.text().await?;
+    tracing::info!("get_modules status: {} | body (200 chars): {}", status, &body_text[..200.min(body_text.len())]);
+
+    if !status.is_success() {
+        return Err(anyhow!("get_modules retornou status {}: {}", status, &body_text[..500.min(body_text.len())]));
+    }
+
+    let body: serde_json::Value = serde_json::from_str(&body_text)?;
 
     let modules_json = body
-        .as_array()
-        .or_else(|| body.get("modules").and_then(|m| m.as_array()))
+        .get("modules")
+        .and_then(|m| m.as_array())
+        .or_else(|| body.as_array())
         .ok_or_else(|| anyhow!("Formato inesperado na resposta de módulos"))?;
 
     let mut modules = Vec::new();
@@ -275,8 +380,9 @@ pub async fn get_lesson(
         .client
         .get(&url)
         .header("Authorization", format!("Bearer {}", session.token))
-        .header("Origin", "https://consumer.hotmart.com")
         .header("Host", "api-club-course-consumption-gateway.hotmart.com")
+        .header("Origin", "https://hotmart.com")
+        .header("Referer", "https://hotmart.com")
         .header("slug", slug)
         .header("x-product-id", product_id.to_string())
         .send()
@@ -382,8 +488,6 @@ pub async fn get_attachment_url(
     let resp = session
         .client
         .get(&url)
-        .header("Authorization", format!("Bearer {}", session.token))
-        .header("Origin", "https://consumer.hotmart.com")
         .send()
         .await?
         .error_for_status()?;

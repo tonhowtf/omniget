@@ -5,6 +5,7 @@ use anyhow::anyhow;
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use futures::StreamExt;
 use reqwest::cookie::Jar;
+use reqwest::header::{HeaderMap, HeaderValue};
 
 pub struct HotmartSession {
     pub token: String,
@@ -105,18 +106,44 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
         .ok_or_else(|| anyhow!("Cookie hmVlcIntegration não encontrado"))?;
     tracing::info!("Token extraído: {}...", &token[..20.min(token.len())]);
 
+    // Log all cookie names for debugging
+    let cookie_names: Vec<&str> = cookies.iter().map(|c| c.name.as_str()).collect();
+    tracing::info!("Cookies extraídos do browser: {:?}", cookie_names);
+
+    // Build cookie jar with ALL browser cookies for all hotmart domains
+    // Replicate Python requests.Session() behavior: cookies available for all subdomains
     let jar = Jar::default();
+    let domains = [
+        "https://hotmart.com",
+        "https://api-sec-vlc.hotmart.com",
+        "https://api-hub.cb.hotmart.com",
+        "https://api-club-course-consumption-gateway.hotmart.com",
+        "https://consumer.hotmart.com",
+        "https://api-club-hot-club-api.cb.hotmart.com",
+    ];
     for c in &cookies {
-        jar.add_cookie_str(
-            &format!("{}={}", c.name, c.value),
-            &"https://hotmart.com".parse().unwrap(),
-        );
+        let cookie_str = format!("{}={}; Domain=.hotmart.com; Path=/", c.name, c.value);
+        for domain in &domains {
+            jar.add_cookie_str(&cookie_str, &domain.parse().unwrap());
+        }
     }
+    tracing::info!("Cookies adicionados ao jar para {} domínios", domains.len());
+
+    // Set global default headers matching the Python session
+    let mut default_headers = HeaderMap::new();
+    default_headers.insert("Accept", HeaderValue::from_static("application/json, text/plain, */*"));
+    default_headers.insert("Authorization", HeaderValue::from_str(&format!("Bearer {}", token))?);
+    default_headers.insert("Origin", HeaderValue::from_static("https://consumer.hotmart.com"));
+    default_headers.insert("Referer", HeaderValue::from_static("https://consumer.hotmart.com"));
+    default_headers.insert("Pragma", HeaderValue::from_static("no-cache"));
+    default_headers.insert("cache-control", HeaderValue::from_static("no-cache"));
+
     let client = reqwest::Client::builder()
         .cookie_provider(Arc::new(jar))
+        .default_headers(default_headers)
         .build()?;
 
-    tracing::info!("Login Hotmart concluído com sucesso");
+    tracing::info!("Login Hotmart concluído com sucesso (client com headers globais)");
 
     Ok(HotmartSession {
         token,
