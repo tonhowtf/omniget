@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { goto } from "$app/navigation";
   import Mascot from "$components/mascot/Mascot.svelte";
+  import { getDownloads } from "$lib/stores/download-store.svelte";
   import { t } from "$lib/i18n";
 
   type PlatformInfo = {
@@ -13,6 +14,35 @@
   let detection = $state<PlatformInfo | null>(null);
   let detecting = $state(false);
   let debounceTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+
+  const STALL_THRESHOLD = 30_000;
+
+  let downloads = $derived(getDownloads());
+
+  let mascotEmotion = $derived.by((): "idle" | "downloading" | "error" | "stalled" => {
+    let hasError = false;
+    let hasStalled = false;
+    let hasDownloading = false;
+
+    for (const item of downloads.values()) {
+      if (item.status === "error") {
+        hasError = true;
+      } else if (item.status === "downloading") {
+        hasDownloading = true;
+        if (item.speed === 0 && (Date.now() - item.startedAt) > STALL_THRESHOLD) {
+          const stalledDuration = Date.now() - item.lastUpdateAt;
+          if (stalledDuration > STALL_THRESHOLD) {
+            hasStalled = true;
+          }
+        }
+      }
+    }
+
+    if (hasError) return "error";
+    if (hasStalled) return "stalled";
+    if (hasDownloading) return "downloading";
+    return "idle";
+  });
 
   function isUrl(value: string): boolean {
     return value.startsWith("http://") || value.startsWith("https://");
@@ -52,7 +82,7 @@
 </script>
 
 <div class="home">
-  <Mascot emotion="sad" />
+  <Mascot emotion={mascotEmotion} />
 
   <div class="omnibox-area">
     <div class="omnibox-wrapper">
