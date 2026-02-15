@@ -18,6 +18,13 @@ const VIMEO_AUTH_BASIC: &str = "Basic NzRmYTg5YjgxMWExY2JiNzUwZDg1MjhkMTYzZjQ4YW
 const VIMEO_USER_AGENT: &str = "com.vimeo.android.videoapp (Google, Pixel 7a, google, Android 16/36 Version 11.8.1) Kotlin VimeoNetworking/3.12.0";
 const VIMEO_ACCEPT: &str = "application/vnd.vimeo.*+json; version=3.4.10";
 
+const HLS_CDN_KEYS: &[&str] = &[
+    "akfire_interconnect_quic",
+    "fastly_skyfire",
+    "level3",
+    "akamai",
+];
+
 pub struct VimeoDownloader {
     client: reqwest::Client,
     bearer: Arc<Mutex<Option<String>>>,
@@ -99,12 +106,22 @@ impl VimeoDownloader {
             .send()
             .await?;
 
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            tracing::warn!("Vimeo OAuth failed: HTTP {} - {}", status, body);
+            return Err(anyhow!("Falha na autenticação Vimeo (HTTP {})", status));
+        }
+
         let json: serde_json::Value = response.json().await?;
 
         json.get("access_token")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
-            .ok_or_else(|| anyhow!("Falha ao obter token Vimeo"))
+            .ok_or_else(|| {
+                tracing::warn!("Vimeo OAuth response missing access_token: {}", json);
+                anyhow!("Falha ao obter token Vimeo")
+            })
     }
 
     async fn fetch_video_info(
@@ -119,32 +136,54 @@ impl VimeoDownloader {
         };
 
         let url = format!("{}/{}", VIMEO_API_BASE, api_id);
-        let response = self
-            .client
-            .get(&url)
-            .header("Authorization", format!("Bearer {}", bearer))
-            .header("Accept", VIMEO_ACCEPT)
-            .header("Accept-Language", "en")
-            .send()
-            .await?;
 
-        let json: serde_json::Value = response.json().await?;
-
-        if json.get("error_code").and_then(|v| v.as_u64()) == Some(8003) {
-            let new_bearer = self.refresh_bearer().await?;
-            let response = self
-                .client
+        let do_request = |bearer: &str| {
+            self.client
                 .get(&url)
-                .header("Authorization", format!("Bearer {}", new_bearer))
+                .header("Authorization", format!("Bearer {}", bearer))
                 .header("Accept", VIMEO_ACCEPT)
                 .header("Accept-Language", "en")
                 .send()
-                .await?;
-            return response.json().await.map_err(Into::into);
+        };
+
+        let response = do_request(&bearer).await?;
+        let json: serde_json::Value = response.json().await?;
+
+        if let Some(error_code) = json.get("error_code").and_then(|v| v.as_u64()) {
+            let error_msg = json.get("error").and_then(|v| v.as_str()).unwrap_or("unknown");
+            tracing::debug!("Vimeo API error {}: {}", error_code, error_msg);
+
+            // Token expired or invalid - refresh and retry
+            if error_code == 8003 || error_code == 8001 || error_code == 8002 {
+                let new_bearer = self.refresh_bearer().await?;
+                let response = do_request(&new_bearer).await?;
+                let retry_json: serde_json::Value = response.json().await?;
+
+                if let Some(retry_error) = retry_json.get("error_code").and_then(|v| v.as_u64()) {
+                    let retry_msg = retry_json.get("error").and_then(|v| v.as_str()).unwrap_or("unknown");
+                    tracing::warn!("Vimeo API retry failed: error {} - {}", retry_error, retry_msg);
+                    return Err(anyhow!("Vimeo API: {}", retry_msg));
+                }
+
+                return Ok(retry_json);
+            }
+
+            // Not found
+            if error_code == 5000 || error_code == 5001 {
+                return Err(anyhow!("Vídeo Vimeo não encontrado"));
+            }
+
+            // Privacy / password required
+            if error_code == 2222 {
+                return Err(anyhow!("Vídeo Vimeo é privado ou requer senha"));
+            }
+
+            return Err(anyhow!("Vimeo API error {}: {}", error_code, error_msg));
         }
 
-        if json.get("error_code").is_some() || json.get("error").is_some() {
-            return Err(anyhow!("Vídeo Vimeo não encontrado"));
+        if json.get("error").is_some() {
+            let error_msg = json.get("error").and_then(|v| v.as_str()).unwrap_or("unknown");
+            return Err(anyhow!("Vimeo API: {}", error_msg));
         }
 
         Ok(json)
@@ -184,8 +223,34 @@ impl VimeoDownloader {
         let response = self.client.get(config_url).send().await.ok()?;
         let config: serde_json::Value = response.json().await.ok()?;
 
-        config
-            .pointer("/request/files/hls/cdns/akfire_interconnect_quic/url")
+        let cdns = config.pointer("/request/files/hls/cdns")?;
+
+        for key in HLS_CDN_KEYS {
+            if let Some(url) = cdns.pointer(&format!("/{}/url", key)).and_then(|v| v.as_str()) {
+                return Some(url.to_string());
+            }
+        }
+
+        // Fallback: try any CDN that has a url field
+        if let Some(cdns_obj) = cdns.as_object() {
+            for (_key, cdn) in cdns_obj {
+                if let Some(url) = cdn.get("url").and_then(|v| v.as_str()) {
+                    return Some(url.to_string());
+                }
+            }
+        }
+
+        None
+    }
+
+    async fn fetch_oembed_thumbnail(&self, video_id: &str) -> Option<String> {
+        let url = format!(
+            "https://vimeo.com/api/oembed.json?url=https://vimeo.com/{}",
+            video_id
+        );
+        let response = self.client.get(&url).send().await.ok()?;
+        let json: serde_json::Value = response.json().await.ok()?;
+        json.get("thumbnail_url")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
     }
@@ -230,6 +295,19 @@ impl PlatformDownloader for VimeoDownloader {
 
         let duration = info.get("duration").and_then(|v| v.as_f64());
 
+        let thumbnail = info
+            .pointer("/pictures/sizes")
+            .and_then(|v| v.as_array())
+            .and_then(|sizes| sizes.last())
+            .and_then(|s| s.get("link").and_then(|v| v.as_str()))
+            .map(|s| s.to_string());
+
+        // Fallback to oEmbed if no thumbnail from API
+        let thumbnail = match thumbnail {
+            Some(t) => Some(t),
+            None => self.fetch_oembed_thumbnail(&video_id).await,
+        };
+
         let mut qualities = Self::extract_progressive_files(&info);
 
         if qualities.is_empty() {
@@ -255,7 +333,7 @@ impl PlatformDownloader for VimeoDownloader {
             author: format!("{} - {}", title, author),
             platform: "vimeo".to_string(),
             duration_seconds: duration,
-            thumbnail_url: None,
+            thumbnail_url: thumbnail,
             available_qualities: qualities,
             media_type: MediaType::Video,
         })
