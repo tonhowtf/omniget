@@ -4,6 +4,7 @@
   import { onMount } from "svelte";
   import { initDownloadListener } from "$lib/stores/download-listener";
   import { getActiveCount } from "$lib/stores/download-store.svelte";
+  import { loadSettings } from "$lib/stores/settings-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
   import { t } from "$lib/i18n";
   import type { Snippet } from "svelte";
@@ -15,6 +16,7 @@
   onMount(() => {
     let cleanup: (() => void) | undefined;
     initDownloadListener().then((fn) => (cleanup = fn));
+    loadSettings();
     return () => cleanup?.();
   });
 
