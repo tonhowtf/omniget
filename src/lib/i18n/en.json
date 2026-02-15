@@ -77,7 +77,8 @@
     "detected": "{{platform}} detected",
     "unsupported": "Platform not supported yet",
     "go_to_hotmart": "Go to Hotmart",
-    "download": "Download"
+    "download": "Download",
+    "downloading": "Downloading..."
   },
   "common": {
     "cancel": "Cancel",
