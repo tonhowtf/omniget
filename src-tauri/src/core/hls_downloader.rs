@@ -39,6 +39,8 @@ impl HlsDownloader {
         referer: &str,
         bytes_tx: Option<UnboundedSender<u64>>,
         cancel_token: CancellationToken,
+        max_concurrent: u32,
+        max_retries: u32,
     ) -> anyhow::Result<HlsDownloadResult> {
         if cancel_token.is_cancelled() {
             anyhow::bail!("Download cancelado pelo usuário");
@@ -66,14 +68,14 @@ impl HlsDownloader {
                     variant.bandwidth
                 );
                 return self
-                    .download_media_playlist(&variant_url, output_path, referer, bytes_tx, cancel_token)
+                    .download_media_playlist(&variant_url, output_path, referer, bytes_tx, cancel_token, max_concurrent, max_retries)
                     .await;
             }
         }
 
         if parse_media_playlist(m3u8_bytes).is_ok() {
             return self
-                .download_media_playlist(m3u8_url, output_path, referer, bytes_tx, cancel_token)
+                .download_media_playlist(m3u8_url, output_path, referer, bytes_tx, cancel_token, max_concurrent, max_retries)
                 .await;
         }
 
@@ -87,6 +89,8 @@ impl HlsDownloader {
         referer: &str,
         bytes_tx: Option<UnboundedSender<u64>>,
         cancel_token: CancellationToken,
+        max_concurrent: u32,
+        max_retries: u32,
     ) -> anyhow::Result<HlsDownloadResult> {
         let resp = self
             .client
@@ -111,7 +115,7 @@ impl HlsDownloader {
             tracing::info!("[download] Segmentos encriptados com AES-128");
         }
 
-        let semaphore = Arc::new(Semaphore::new(20));
+        let semaphore = Arc::new(Semaphore::new(max_concurrent as usize));
         let completed = Arc::new(AtomicUsize::new(0));
 
         let tasks: Vec<_> = playlist
@@ -127,6 +131,7 @@ impl HlsDownloader {
                 let total = total_segments;
                 let bytes_tx = bytes_tx.clone();
                 let ct = cancel_token.clone();
+                let retries = max_retries;
 
                 tokio::spawn(async move {
                     let _permit = sem.acquire().await.unwrap();
@@ -134,7 +139,7 @@ impl HlsDownloader {
                         anyhow::bail!("Download cancelado pelo usuário");
                     }
                     let data: Vec<u8> =
-                        download_segment_with_retry(&client, &url, &referer).await?;
+                        download_segment_with_retry(&client, &url, &referer, retries).await?;
                     if let Some(ref tx) = bytes_tx {
                         let _ = tx.send(data.len() as u64);
                     }
@@ -301,9 +306,10 @@ async fn download_segment_with_retry(
     client: &Client,
     url: &str,
     referer: &str,
+    max_retries: u32,
 ) -> anyhow::Result<Vec<u8>> {
     let mut last_err = None;
-    for attempt in 0..3u32 {
+    for attempt in 0..max_retries {
         match client
             .get(url)
             .header("Referer", referer)
@@ -317,13 +323,13 @@ async fn download_segment_with_retry(
             },
             Err(e) => last_err = Some(anyhow::anyhow!(e)),
         }
-        if attempt < 2 {
+        if attempt < max_retries - 1 {
             tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1)))
                 .await;
         }
     }
     Err(last_err
-        .unwrap_or_else(|| anyhow::anyhow!("Download do segmento falhou após 3 tentativas")))
+        .unwrap_or_else(|| anyhow::anyhow!("Download do segmento falhou após {} tentativas", max_retries)))
 }
 
 fn compute_iv(encryption: &EncryptionInfo, segment_index: usize, media_sequence: u64) -> [u8; 16] {
