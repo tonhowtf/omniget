@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use platforms::hotmart::auth::HotmartSession;
@@ -10,6 +11,7 @@ pub mod storage;
 
 pub struct AppState {
     pub hotmart_session: Arc<tokio::sync::Mutex<Option<HotmartSession>>>,
+    pub active_downloads: Arc<tokio::sync::Mutex<HashSet<u64>>>,
 }
 
 #[tauri::command]
@@ -23,6 +25,7 @@ pub fn run() {
 
     let state = AppState {
         hotmart_session: Arc::new(tokio::sync::Mutex::new(None)),
+        active_downloads: Arc::new(tokio::sync::Mutex::new(HashSet::new())),
     };
 
     tauri::Builder::default()
@@ -41,6 +44,7 @@ pub fn run() {
             commands::courses::hotmart_list_courses,
             commands::courses::hotmart_get_modules,
             commands::downloads::start_course_download,
+            commands::downloads::get_active_downloads,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
