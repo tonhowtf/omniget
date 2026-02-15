@@ -2,6 +2,8 @@ pub mod registry;
 pub mod download_engine;
 pub mod media_processor;
 pub mod hls_downloader;
+pub mod direct_downloader;
+pub mod redirect;
 pub mod filename;
 pub mod queue;
 pub mod url_parser;
