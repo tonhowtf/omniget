@@ -13,6 +13,7 @@ pub mod storage;
 pub struct AppState {
     pub hotmart_session: Arc<tokio::sync::Mutex<Option<HotmartSession>>>,
     pub active_downloads: Arc<tokio::sync::Mutex<HashMap<u64, CancellationToken>>>,
+    pub registry: core::registry::PlatformRegistry,
 }
 
 #[tauri::command]
@@ -24,9 +25,22 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tracing_subscriber::fmt::init();
 
+    let session = Arc::new(tokio::sync::Mutex::new(None));
+
+    let mut registry = core::registry::PlatformRegistry::new();
+    registry.register(Box::new(
+        platforms::hotmart::downloader::HotmartDownloader::new(
+            session.clone(),
+            models::settings::AppSettings::default().download,
+            20,
+            3,
+        ),
+    ));
+
     let state = AppState {
-        hotmart_session: Arc::new(tokio::sync::Mutex::new(None)),
+        hotmart_session: session,
         active_downloads: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+        registry,
     };
 
     tauri::Builder::default()
@@ -47,6 +61,7 @@ pub fn run() {
             commands::downloads::start_course_download,
             commands::downloads::cancel_course_download,
             commands::downloads::get_active_downloads,
+            commands::downloads::detect_platform,
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::settings::reset_settings,
