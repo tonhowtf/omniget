@@ -2,7 +2,6 @@ use regex::Regex;
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 
-use super::api::MediaSrc;
 use super::auth::HotmartSession;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,9 +17,17 @@ pub enum DetectedPlayer {
 pub fn detect_players_from_html(html: &str) -> Vec<DetectedPlayer> {
     let doc = Html::parse_document(html);
     let sel = Selector::parse("iframe").unwrap();
+
+    let allowlist = ["vimeo", "youtu", "pandavideo", "liquid", "wistia", "videodelivery"];
+
     doc.select(&sel)
         .filter_map(|el| {
             let src = el.value().attr("src")?;
+            if !allowlist.iter().any(|kw| src.contains(kw)) {
+                tracing::warn!("iframe desconhecido ignorado: {}", src);
+                return None;
+            }
+
             if src.contains("vimeo.com") {
                 Some(DetectedPlayer::Vimeo {
                     embed_url: src.to_string(),
@@ -64,41 +71,16 @@ fn extract_youtube_id(url: &str) -> String {
         .unwrap_or_default()
 }
 
-pub async fn extract_native_urls(
-    medias: &[MediaSrc],
+pub async fn fetch_player_media_assets(
+    media_src_url: &str,
     session: &HotmartSession,
-) -> Vec<DetectedPlayer> {
-    let mut players = Vec::new();
+) -> anyhow::Result<Vec<serde_json::Value>> {
+    tracing::info!("[download] mediaSrcUrl: {}", media_src_url);
 
-    for media in medias {
-        if !media.media_type.eq_ignore_ascii_case("VIDEO") {
-            continue;
-        }
-
-        tracing::info!("Extraindo URL nativa para: {}", media.media_name);
-
-        let m3u8 = match fetch_native_m3u8(&media.media_src_url, session).await {
-            Ok(url) => url,
-            Err(e) => {
-                tracing::warn!("Falha ao extrair m3u8 de {}: {}", media.media_name, e);
-                continue;
-            }
-        };
-
-        players.push(DetectedPlayer::HotmartNative {
-            m3u8_url: m3u8,
-            name: media.media_name.clone(),
-        });
-    }
-
-    players
-}
-
-async fn fetch_native_m3u8(media_src_url: &str, session: &HotmartSession) -> anyhow::Result<String> {
     let resp = session
         .client
         .get(media_src_url)
-        .header("Authorization", format!("Bearer {}", session.token))
+        .header("Referer", "https://hotmart.com")
         .send()
         .await?
         .error_for_status()?;
@@ -110,20 +92,17 @@ async fn fetch_native_m3u8(media_src_url: &str, session: &HotmartSession) -> any
     let script_el = doc
         .select(&sel)
         .next()
-        .ok_or_else(|| anyhow::anyhow!("script#__NEXT_DATA__ não encontrado"))?;
+        .ok_or_else(|| anyhow::anyhow!("__NEXT_DATA__ não encontrado no HTML do player"))?;
 
     let json_text = script_el.text().collect::<String>();
     let data: serde_json::Value = serde_json::from_str(&json_text)?;
 
-    let url = data
+    let assets = data
         .pointer("/props/pageProps/applicationData/mediaAssets")
-        .and_then(|arr| arr.as_array())
-        .and_then(|arr| arr.first())
-        .and_then(|asset| asset.get("url"))
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("mediaAssets[0].url não encontrado no __NEXT_DATA__"))?;
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
 
-    tracing::info!("m3u8 nativo extraído: {}...", &url[..60.min(url.len())]);
-
-    Ok(url.to_string())
+    tracing::info!("[download] mediaAssets extraídos: {} assets", assets.len());
+    Ok(assets)
 }
