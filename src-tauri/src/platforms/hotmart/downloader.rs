@@ -49,12 +49,12 @@ impl HotmartDownloader {
 
         tokio::fs::create_dir_all(output_dir).await?;
 
-        if lesson.has_player_media {
-            for (i, media) in lesson.medias_src.iter().enumerate() {
-                let assets = match parser::fetch_player_media_assets(&media.media_src_url, session).await {
+        if lesson.has_media {
+            for (i, media) in lesson.medias.iter().enumerate() {
+                let assets = match parser::fetch_player_media_assets(&media.url, session).await {
                     Ok(a) => a,
                     Err(e) => {
-                        tracing::warn!("Falha ao extrair mediaAssets de '{}': {}", media.media_name, e);
+                        tracing::warn!("Falha ao extrair mediaAssets de '{}': {}", media.name, e);
                         continue;
                     }
                 };
@@ -63,14 +63,14 @@ impl HotmartDownloader {
                     let m3u8_url = match assets.first().and_then(|a| a.get("url")).and_then(|v| v.as_str()) {
                         Some(url) => url.to_string(),
                         None => {
-                            tracing::warn!("m3u8 URL não encontrada para '{}'", media.media_name);
+                            tracing::warn!("m3u8 URL não encontrada para '{}'", media.name);
                             continue;
                         }
                     };
 
                     tracing::info!("[download] m3u8 URL extraída: {}", m3u8_url);
 
-                    let safe_name = filename::sanitize_path_component(&media.media_name);
+                    let safe_name = filename::sanitize_path_component(&media.name);
                     let out = format!(
                         "{}/{}. {}.mp4",
                         output_dir,
@@ -109,7 +109,7 @@ impl HotmartDownloader {
                             None => continue,
                         };
 
-                        let safe_name = filename::sanitize_path_component(&media.media_name);
+                        let safe_name = filename::sanitize_path_component(&media.name);
                         let out = format!(
                             "{}/{}. {}",
                             output_dir,
@@ -123,9 +123,8 @@ impl HotmartDownloader {
                         }
 
                         tracing::info!("[download] Baixando áudio: {}", out);
-                        let bytes = reqwest::Client::new()
+                        let bytes = session.client
                             .get(audio_url)
-                            .header("User-Agent", USER_AGENT)
                             .send()
                             .await?
                             .bytes()
