@@ -34,18 +34,24 @@ pub struct PageInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Lesson {
+    pub hash: String,
+    pub name: String,
     pub content: Option<String>,
-    pub has_player_media: bool,
-    pub medias_src: Vec<MediaSrc>,
+    pub has_media: bool,
+    pub medias: Vec<LessonMedia>,
     pub attachments: Vec<Attachment>,
     pub complementary_readings: Option<Vec<ReadingLink>>,
+    pub locked: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MediaSrc {
-    pub media_name: String,
-    pub media_src_url: String,
+pub struct LessonMedia {
+    pub name: String,
+    pub code: String,
+    pub url: String,
     pub media_type: String,
+    pub size: Option<u64>,
+    pub duration: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -275,7 +281,7 @@ pub async fn get_modules(
 
     let resp = session
         .client
-        .get("https://api-club-course-consumption-gateway.hotmart.com/v1/navigation")
+        .get("https://api-club-course-consumption-gateway-ga.cb.hotmart.com/v1/navigation")
         .headers(navigation_headers(&session.token, slug, product_id))
         .send()
         .await?;
@@ -344,7 +350,7 @@ pub async fn get_lesson(
     tracing::info!("[get_lesson] hash={}", page_hash);
 
     let url = format!(
-        "https://api-club-course-consumption-gateway.hotmart.com/v1/lesson/{}",
+        "https://api-club-course-consumption-gateway-ga.cb.hotmart.com/v2/web/lessons/{}",
         page_hash
     );
     let resp = session
@@ -366,21 +372,28 @@ pub async fn get_lesson(
         return Err(anyhow!("Lição indisponível: {}", msg));
     }
 
+    let hash = body.get("hash").and_then(|v| v.as_str()).unwrap_or(page_hash).to_string();
+    let name = body.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let content = body.get("content").and_then(|v| v.as_str()).map(String::from);
-    let has_player_media = body
-        .get("hasPlayerMedia")
+    let locked = body.get("locked").and_then(|v| v.as_bool()).unwrap_or(false);
+
+    let has_media = body
+        .get("hasMedia")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    let medias_src: Vec<MediaSrc> = body
-        .get("mediasSrc")
+    let medias: Vec<LessonMedia> = body
+        .get("medias")
         .and_then(|v| v.as_array())
         .map(|arr| {
             arr.iter()
-                .map(|m| MediaSrc {
-                    media_name: m.get("mediaName").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    media_src_url: m.get("mediaSrcUrl").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    media_type: m.get("mediaType").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                .map(|m| LessonMedia {
+                    name: m.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    code: m.get("code").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    url: m.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    media_type: m.get("type").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    size: m.get("size").and_then(|v| v.as_u64()),
+                    duration: m.get("duration").and_then(|v| v.as_u64()),
                 })
                 .collect()
         })
@@ -425,18 +438,23 @@ pub async fn get_lesson(
         });
 
     tracing::info!(
-        "Lição {}: {} medias, {} attachments",
+        "Lição {} ({}): {} medias, {} attachments, locked={}",
         page_hash,
-        medias_src.len(),
-        attachments.len()
+        name,
+        medias.len(),
+        attachments.len(),
+        locked,
     );
 
     Ok(Lesson {
+        hash,
+        name,
         content,
-        has_player_media,
-        medias_src,
+        has_media,
+        medias,
         attachments,
         complementary_readings,
+        locked,
     })
 }
 
