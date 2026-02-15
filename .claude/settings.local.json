@@ -12,7 +12,8 @@
       "Bash(pnpm check:*)",
       "Bash(cargo doc:*)",
       "Bash(pnpm build:*)",
-      "Bash(pnpm install:*)"
+      "Bash(pnpm install:*)",
+      "Bash(git log:*)"
     ]
   }
 }
