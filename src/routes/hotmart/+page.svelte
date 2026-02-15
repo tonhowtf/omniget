@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import CourseCard from "$components/hotmart/CourseCard.svelte";
+  import { showToast } from "$lib/stores/toast-store.svelte";
 
   type Course = {
     id: number;
@@ -143,9 +144,10 @@
         courseJson: JSON.stringify(course),
         outputDir: selected,
       });
+      showToast("info", "Preparando download...");
     } catch (e: any) {
       const msg = typeof e === "string" ? e : e.message ?? "Erro ao iniciar download";
-      console.error(msg);
+      showToast("error", msg);
     }
   }
 
