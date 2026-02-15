@@ -1,7 +1,11 @@
 pub mod traits;
 pub mod hotmart;
 pub mod pinterest;
+pub mod tiktok;
 pub mod twitch;
+pub mod bluesky;
+pub mod reddit;
+pub mod vimeo;
 
 use std::fmt;
 use std::str::FromStr;
@@ -20,6 +24,7 @@ pub enum Platform {
     Twitch,
     Vimeo,
     Pinterest,
+    Bluesky,
 }
 
 impl fmt::Display for Platform {
@@ -35,6 +40,7 @@ impl fmt::Display for Platform {
             Platform::Twitch => "twitch",
             Platform::Vimeo => "vimeo",
             Platform::Pinterest => "pinterest",
+            Platform::Bluesky => "bluesky",
         };
         write!(f, "{}", name)
     }
@@ -55,6 +61,7 @@ impl FromStr for Platform {
             "twitch" => Ok(Platform::Twitch),
             "vimeo" => Ok(Platform::Vimeo),
             "pinterest" => Ok(Platform::Pinterest),
+            "bluesky" | "bsky" => Ok(Platform::Bluesky),
             _ => Err(format!("Unknown platform: {}", s)),
         }
     }
@@ -79,7 +86,7 @@ impl Platform {
             Some(Platform::TikTok)
         } else if matches("twitter.com") || matches("x.com") {
             Some(Platform::Twitter)
-        } else if matches("reddit.com") {
+        } else if matches("reddit.com") || host == "v.redd.it" || host == "redd.it" {
             Some(Platform::Reddit)
         } else if matches("facebook.com") || matches("fb.watch") || matches("fb.com") {
             Some(Platform::Facebook)
@@ -89,6 +96,8 @@ impl Platform {
             Some(Platform::Vimeo)
         } else if host == "pin.it" || host.contains("pinterest.") {
             Some(Platform::Pinterest)
+        } else if host == "bsky.app" || host.ends_with(".bsky.app") {
+            Some(Platform::Bluesky)
         } else {
             None
         }
@@ -106,6 +115,7 @@ impl Platform {
             Platform::Twitch,
             Platform::Vimeo,
             Platform::Pinterest,
+            Platform::Bluesky,
         ]
     }
 }
