@@ -3,10 +3,11 @@
     name: string;
     price: string;
     imageUrl?: string;
+    externalPlatform?: boolean;
     onDownload: () => void;
   };
 
-  let { name, price, imageUrl, onDownload }: CourseCardProps = $props();
+  let { name, price, imageUrl, externalPlatform = false, onDownload }: CourseCardProps = $props();
 </script>
 
 <div class="course-card">
@@ -34,24 +35,47 @@
 
   <div class="card-body">
     <h4 class="card-title" title={name}>{name}</h4>
-    <span class="card-price">{price}</span>
-    <button class="button elevated card-download" onclick={onDownload}>
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" />
-        <polyline points="7 11 12 16 17 11" />
-        <line x1="12" y1="4" x2="12" y2="16" />
-      </svg>
-      Baixar
-    </button>
+    <div class="card-meta">
+      <span class="card-price">{price}</span>
+      {#if externalPlatform}
+        <span class="card-badge external">Plataforma externa</span>
+      {/if}
+    </div>
+    {#if externalPlatform}
+      <button class="button elevated card-download" disabled>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M18 6L6 18M6 6l12 12" />
+        </svg>
+        Indisponível
+      </button>
+    {:else}
+      <button class="button elevated card-download" onclick={onDownload}>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" />
+          <polyline points="7 11 12 16 17 11" />
+          <line x1="12" y1="4" x2="12" y2="16" />
+        </svg>
+        Baixar
+      </button>
+    {/if}
   </div>
 </div>
 
@@ -116,10 +140,36 @@
     user-select: text;
   }
 
+  .card-meta {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--padding) / 2);
+    flex-wrap: wrap;
+  }
+
   .card-price {
     font-size: 12.5px;
     font-weight: 500;
     color: var(--gray);
+  }
+
+  .card-badge {
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px calc(var(--padding) / 2);
+    border-radius: calc(var(--border-radius) / 2);
+  }
+
+  .card-badge.external {
+    background: var(--orange);
+    color: #000;
+  }
+
+  .card-download:disabled {
+    opacity: 0.4;
+    cursor: default;
   }
 
   .card-download {
