@@ -8,6 +8,7 @@ use reqwest::Client;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Semaphore;
+use tokio_util::sync::CancellationToken;
 
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
@@ -37,7 +38,12 @@ impl HlsDownloader {
         output_path: &str,
         referer: &str,
         bytes_tx: Option<UnboundedSender<u64>>,
+        cancel_token: CancellationToken,
     ) -> anyhow::Result<HlsDownloadResult> {
+        if cancel_token.is_cancelled() {
+            anyhow::bail!("Download cancelado pelo usuário");
+        }
+
         let m3u8_text = self
             .client
             .get(m3u8_url)
@@ -60,14 +66,14 @@ impl HlsDownloader {
                     variant.bandwidth
                 );
                 return self
-                    .download_media_playlist(&variant_url, output_path, referer, bytes_tx)
+                    .download_media_playlist(&variant_url, output_path, referer, bytes_tx, cancel_token)
                     .await;
             }
         }
 
         if parse_media_playlist(m3u8_bytes).is_ok() {
             return self
-                .download_media_playlist(m3u8_url, output_path, referer, bytes_tx)
+                .download_media_playlist(m3u8_url, output_path, referer, bytes_tx, cancel_token)
                 .await;
         }
 
@@ -80,6 +86,7 @@ impl HlsDownloader {
         output_path: &str,
         referer: &str,
         bytes_tx: Option<UnboundedSender<u64>>,
+        cancel_token: CancellationToken,
     ) -> anyhow::Result<HlsDownloadResult> {
         let resp = self
             .client
@@ -119,9 +126,13 @@ impl HlsDownloader {
                 let completed = completed.clone();
                 let total = total_segments;
                 let bytes_tx = bytes_tx.clone();
+                let ct = cancel_token.clone();
 
                 tokio::spawn(async move {
                     let _permit = sem.acquire().await.unwrap();
+                    if ct.is_cancelled() {
+                        anyhow::bail!("Download cancelado pelo usuário");
+                    }
                     let data: Vec<u8> =
                         download_segment_with_retry(&client, &url, &referer).await?;
                     if let Some(ref tx) = bytes_tx {
@@ -140,6 +151,10 @@ impl HlsDownloader {
             .collect();
 
         let results = join_all(tasks).await;
+
+        if cancel_token.is_cancelled() {
+            anyhow::bail!("Download cancelado pelo usuário");
+        }
 
         let mut segments_data: Vec<(usize, Vec<u8>)> = Vec::with_capacity(total_segments);
         for result in results {
