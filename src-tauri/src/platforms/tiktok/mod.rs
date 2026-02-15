@@ -8,7 +8,13 @@ use crate::models::media::{
 };
 use crate::platforms::traits::PlatformDownloader;
 
-const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const USER_AGENTS: &[&str] = &[
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
+];
+
 const SHORT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)";
 
 pub struct TikTokDownloader {
@@ -18,8 +24,10 @@ pub struct TikTokDownloader {
 
 impl TikTokDownloader {
     pub fn new() -> Self {
+        let ua = Self::pick_user_agent();
         let client = reqwest::Client::builder()
-            .user_agent(USER_AGENT)
+            .user_agent(ua)
+            .timeout(std::time::Duration::from_secs(30))
             .build()
             .unwrap_or_default();
 
@@ -33,6 +41,13 @@ impl TikTokDownloader {
             client,
             short_client,
         }
+    }
+
+    fn pick_user_agent() -> &'static str {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static IDX: AtomicUsize = AtomicUsize::new(0);
+        let i = IDX.fetch_add(1, Ordering::Relaxed);
+        USER_AGENTS[i % USER_AGENTS.len()]
     }
 
     fn extract_post_id(url: &str) -> Option<String> {
@@ -77,6 +92,29 @@ impl TikTokDownloader {
         Err(anyhow!("Não foi possível resolver o short link"))
     }
 
+    fn is_captcha_page(html: &str) -> bool {
+        html.contains("verify-bar-close")
+            || html.contains("captcha_verify")
+            || html.contains("tiktok-verify-page")
+            || html.contains("verify/page")
+            || (html.contains("Verify to continue") && !html.contains("__UNIVERSAL_DATA_FOR_REHYDRATION__"))
+    }
+
+    fn is_valid_play_addr(url: &str) -> bool {
+        if url.is_empty() {
+            return false;
+        }
+        // Must be a real URL, not an encrypted/encoded placeholder
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            return false;
+        }
+        // TikTok sometimes returns placeholder URLs
+        if url.contains("verify") || url.contains("captcha") {
+            return false;
+        }
+        true
+    }
+
     async fn fetch_detail(&self, post_id: &str) -> anyhow::Result<serde_json::Value> {
         let url = format!("https://www.tiktok.com/@i/video/{}", post_id);
 
@@ -91,7 +129,17 @@ impl TikTokDownloader {
             .send()
             .await?;
 
+        let status = response.status();
+        if !status.is_success() && status.as_u16() != 302 {
+            return Err(anyhow!("TikTok retornou HTTP {}", status));
+        }
+
         let html = response.text().await?;
+
+        if Self::is_captcha_page(&html) {
+            tracing::warn!("TikTok returned captcha page for post {}", post_id);
+            return Err(anyhow!("TikTok está pedindo verificação (captcha). Tente novamente em alguns minutos"));
+        }
 
         let json_str = html
             .split(
@@ -99,7 +147,10 @@ impl TikTokDownloader {
             )
             .nth(1)
             .and_then(|s| s.split("</script>").next())
-            .ok_or_else(|| anyhow!("Não foi possível extrair dados do TikTok"))?;
+            .ok_or_else(|| {
+                tracing::debug!("TikTok HTML length: {}, contains SIGI: {}", html.len(), html.contains("SIGI_STATE"));
+                anyhow!("Não foi possível extrair dados do TikTok")
+            })?;
 
         let data: serde_json::Value = serde_json::from_str(json_str)?;
 
@@ -108,12 +159,14 @@ impl TikTokDownloader {
             .and_then(|s| s.get("webapp.video-detail"))
             .ok_or_else(|| anyhow!("Não foi possível extrair dados do TikTok"))?;
 
-        if video_detail
-            .get("statusMsg")
-            .and_then(|v| v.as_str())
-            .is_some()
-        {
-            return Err(anyhow!("Post não disponível"));
+        if let Some(status_msg) = video_detail.get("statusMsg").and_then(|v| v.as_str()) {
+            return Err(anyhow!("Post não disponível: {}", status_msg));
+        }
+
+        if let Some(status_code) = video_detail.get("statusCode").and_then(|v| v.as_u64()) {
+            if status_code != 0 {
+                return Err(anyhow!("Post não disponível (status {})", status_code));
+            }
         }
 
         let detail = video_detail
@@ -136,20 +189,73 @@ impl TikTokDownloader {
         Ok(detail)
     }
 
+    async fn fetch_detail_api(&self, post_id: &str) -> anyhow::Result<serde_json::Value> {
+        let url = format!(
+            "https://api22-normal-c-useast2a.tiktokv.com/aweme/v1/feed/?aweme_id={}",
+            post_id
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .header("Accept", "application/json")
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(anyhow!("TikTok API retornou HTTP {}", response.status()));
+        }
+
+        let json: serde_json::Value = response.json().await?;
+
+        let item = json
+            .get("aweme_list")
+            .and_then(|v| v.as_array())
+            .and_then(|arr| arr.first())
+            .ok_or_else(|| anyhow!("TikTok API: post não encontrado"))?
+            .clone();
+
+        Ok(item)
+    }
+
     fn extract_author(detail: &serde_json::Value) -> String {
         detail
             .pointer("/author/uniqueId")
+            .or_else(|| detail.pointer("/author/unique_id"))
             .and_then(|v| v.as_str())
             .unwrap_or("unknown")
             .to_string()
     }
 
     fn extract_video_url(detail: &serde_json::Value) -> Option<String> {
-        let play_addr = detail.pointer("/video/playAddr")?;
+        // Standard web scraping path
+        if let Some(play_addr) = detail.pointer("/video/playAddr") {
+            if let Some(url) = play_addr.as_str() {
+                if Self::is_valid_play_addr(url) {
+                    return Some(url.to_string());
+                }
+            }
+        }
 
-        if let Some(url) = play_addr.as_str() {
-            if !url.is_empty() {
-                return Some(url.to_string());
+        // API response format
+        if let Some(play_addr) = detail.pointer("/video/play_addr/url_list") {
+            if let Some(urls) = play_addr.as_array() {
+                for u in urls {
+                    if let Some(url) = u.as_str() {
+                        if Self::is_valid_play_addr(url) {
+                            return Some(url.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        // downloadAddr fallback
+        if let Some(download_addr) = detail.pointer("/video/downloadAddr") {
+            if let Some(url) = download_addr.as_str() {
+                if Self::is_valid_play_addr(url) {
+                    return Some(url.to_string());
+                }
             }
         }
 
@@ -219,7 +325,18 @@ impl PlatformDownloader for TikTokDownloader {
             }
         };
 
-        let detail = self.fetch_detail(&post_id).await?;
+        // Try web scraping first, fall back to API
+        let detail = match self.fetch_detail(&post_id).await {
+            Ok(d) => d,
+            Err(web_err) => {
+                tracing::debug!("TikTok web scraping failed: {}, trying API", web_err);
+                self.fetch_detail_api(&post_id).await.map_err(|api_err| {
+                    tracing::debug!("TikTok API also failed: {}", api_err);
+                    web_err
+                })?
+            }
+        };
+
         let author = Self::extract_author(&detail);
         let filename_base = format!(
             "tiktok_{}_{}",
