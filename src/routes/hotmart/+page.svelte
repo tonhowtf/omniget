@@ -4,6 +4,7 @@
   import CourseCard from "$components/hotmart/CourseCard.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { getDownloads } from "$lib/stores/download-store.svelte";
+  import { getSettings } from "$lib/stores/settings-store.svelte";
   import { t } from "$lib/i18n";
 
   let downloads = $derived(getDownloads());
@@ -152,13 +153,24 @@
     }
     if (status === "complete") return;
 
-    const selected = await open({ directory: true, title: $t("hotmart.choose_folder") });
-    if (!selected) return;
+    const appSettings = getSettings();
+    let outputDir: string | null = null;
+
+    if (appSettings?.download.always_ask_path) {
+      outputDir = await open({ directory: true, title: $t("hotmart.choose_folder") }) as string | null;
+      if (!outputDir) return;
+    } else {
+      outputDir = appSettings?.download.default_output_dir ?? null;
+      if (!outputDir) {
+        outputDir = await open({ directory: true, title: $t("hotmart.choose_folder") }) as string | null;
+        if (!outputDir) return;
+      }
+    }
 
     try {
       await invoke("start_course_download", {
         courseJson: JSON.stringify(course),
-        outputDir: selected,
+        outputDir,
       });
       showToast("info", $t("toast.download_preparing"));
     } catch (e: any) {
