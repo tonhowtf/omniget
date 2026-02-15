@@ -11,7 +11,21 @@ pub async fn download_direct(
     output: &Path,
     progress_tx: mpsc::Sender<f64>,
 ) -> anyhow::Result<u64> {
-    let response = client.get(url).send().await?;
+    download_direct_with_headers(client, url, output, progress_tx, None).await
+}
+
+pub async fn download_direct_with_headers(
+    client: &reqwest::Client,
+    url: &str,
+    output: &Path,
+    progress_tx: mpsc::Sender<f64>,
+    headers: Option<reqwest::header::HeaderMap>,
+) -> anyhow::Result<u64> {
+    let mut request = client.get(url);
+    if let Some(h) = headers {
+        request = request.headers(h);
+    }
+    let response = request.send().await?;
 
     if !response.status().is_success() {
         return Err(anyhow!(
