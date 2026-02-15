@@ -9,6 +9,7 @@ use reqwest::cookie::Jar;
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone)]
 pub struct HotmartSession {
     pub token: String,
     pub email: String,
