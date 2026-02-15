@@ -40,6 +40,37 @@
     "external_platform": "Plataforma externa",
     "choose_folder": "Escolher pasta de download"
   },
+  "settings": {
+    "title": "Configurações",
+    "appearance": {
+      "title": "Aparência",
+      "theme": "Tema",
+      "theme_system": "Sistema",
+      "theme_light": "Claro",
+      "theme_dark": "Escuro",
+      "language": "Idioma",
+      "lang_pt": "Português",
+      "lang_en": "English"
+    },
+    "download": {
+      "title": "Download",
+      "default_output_dir": "Pasta padrão",
+      "choose_folder": "Escolher",
+      "always_ask_path": "Sempre perguntar onde salvar",
+      "video_quality": "Qualidade de vídeo",
+      "skip_existing": "Pular arquivos existentes",
+      "download_attachments": "Baixar anexos",
+      "download_descriptions": "Salvar descrições"
+    },
+    "advanced": {
+      "title": "Avançado",
+      "max_concurrent_segments": "Segmentos simultâneos",
+      "max_retries": "Tentativas por segmento",
+      "debug_mode": "Modo debug",
+      "reset": "Restaurar padrões",
+      "reset_confirm": "Tem certeza? Todas as configurações serão restauradas."
+    }
+  },
   "common": {
     "cancel": "Cancelar",
     "retry": "Tentar novamente",
