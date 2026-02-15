@@ -3513,8 +3513,10 @@ dependencies = [
 name = "omniget"
 version = "0.1.0"
 dependencies = [
+ "aes",
  "anyhow",
  "async-trait",
+ "cbc",
  "chromiumoxide",
  "chrono",
  "dirs",

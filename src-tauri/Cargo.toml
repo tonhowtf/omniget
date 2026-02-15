@@ -31,6 +31,8 @@ chromiumoxide = { version = "0.7", features = ["tokio-runtime"] }
 scraper = "0.21"
 regex = "1"
 m3u8-rs = "6"
+aes = "0.8"
+cbc = "0.1"
 anyhow = "1"
 thiserror = "2"
 tracing = "0.1"
