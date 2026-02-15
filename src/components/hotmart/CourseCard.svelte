@@ -1,13 +1,36 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
+
+  type CardDownloadStatus = "idle" | "downloading" | "complete" | "error";
+
   type CourseCardProps = {
     name: string;
     price: string;
     imageUrl?: string;
     externalPlatform?: boolean;
+    downloadStatus?: CardDownloadStatus;
+    downloadPercent?: number;
     onDownload: () => void;
   };
 
-  let { name, price, imageUrl, externalPlatform = false, onDownload }: CourseCardProps = $props();
+  let {
+    name,
+    price,
+    imageUrl,
+    externalPlatform = false,
+    downloadStatus = "idle",
+    downloadPercent = 0,
+    onDownload,
+  }: CourseCardProps = $props();
+
+  let isDisabled = $derived(
+    downloadStatus === "downloading" || downloadStatus === "complete"
+  );
+
+  function handleClick() {
+    if (isDisabled) return;
+    onDownload();
+  }
 </script>
 
 <div class="course-card">
@@ -38,7 +61,7 @@
     <div class="card-meta">
       <span class="card-price">{price}</span>
       {#if externalPlatform}
-        <span class="card-badge external">Plataforma externa</span>
+        <span class="card-badge external">{$t("hotmart.external_platform")}</span>
       {/if}
     </div>
     {#if externalPlatform}
@@ -55,10 +78,55 @@
         >
           <path d="M18 6L6 18M6 6l12 12" />
         </svg>
-        Indisponível
+        {$t("hotmart.unavailable")}
+      </button>
+    {:else if downloadStatus === "downloading"}
+      <button class="button elevated card-download status-downloading" disabled>
+        <span class="btn-spinner"></span>
+        {$t("hotmart.downloading")}
+      </button>
+      <div class="mini-progress-track">
+        <div
+          class="mini-progress-fill"
+          style="width: {downloadPercent.toFixed(1)}%"
+        ></div>
+      </div>
+    {:else if downloadStatus === "complete"}
+      <button class="button elevated card-download status-complete" disabled>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M5 12l5 5l10 -10" />
+        </svg>
+        {$t("hotmart.downloaded")}
+      </button>
+    {:else if downloadStatus === "error"}
+      <button class="button elevated card-download status-error" onclick={handleClick}>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M12 9v4" />
+          <path d="M12 17h.01" />
+          <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" />
+        </svg>
+        {$t("hotmart.download_retry")}
       </button>
     {:else}
-      <button class="button elevated card-download" onclick={onDownload}>
+      <button class="button elevated card-download" onclick={handleClick}>
         <svg
           width="16"
           height="16"
@@ -73,7 +141,7 @@
           <polyline points="7 11 12 16 17 11" />
           <line x1="12" y1="4" x2="12" y2="16" />
         </svg>
-        Baixar
+        {$t("hotmart.download_btn")}
       </button>
     {/if}
   </div>
@@ -167,11 +235,6 @@
     color: #000;
   }
 
-  .card-download:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-
   .card-download {
     width: 100%;
     display: flex;
@@ -181,7 +244,66 @@
     margin-top: calc(var(--padding) / 2);
   }
 
+  .card-download:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
   .card-download svg {
     pointer-events: none;
+  }
+
+  .status-downloading {
+    opacity: 0.8;
+    cursor: default;
+  }
+
+  .status-downloading:disabled {
+    opacity: 0.8;
+  }
+
+  .status-complete {
+    background: var(--green);
+    color: #000;
+  }
+
+  .status-complete:disabled {
+    opacity: 1;
+  }
+
+  .status-error {
+    background: var(--red);
+    color: #fff;
+  }
+
+  .btn-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--input-border);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .mini-progress-track {
+    width: 100%;
+    height: 4px;
+    background: var(--button-elevated);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .mini-progress-fill {
+    height: 100%;
+    background: var(--blue);
+    border-radius: 2px;
+    transition: width 0.3s ease-out;
   }
 </style>
