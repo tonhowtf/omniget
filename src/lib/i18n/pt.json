@@ -78,7 +78,24 @@
     "unsupported": "Plataforma não suportada ainda",
     "go_to_hotmart": "Ir para Hotmart",
     "download": "Baixar",
-    "downloading": "Baixando..."
+    "downloading": "Baixando...",
+    "preparing": "Preparando download...",
+    "complete": "Download concluído",
+    "error": "Download falhou",
+    "open_folder": "Abrir pasta",
+    "retry": "Tentar novamente",
+    "content_type": {
+      "video": "Vídeo",
+      "audio": "Áudio",
+      "image": "Imagem",
+      "post": "Post",
+      "reel": "Reel",
+      "clip": "Clip",
+      "short": "Short",
+      "playlist": "Playlist",
+      "course": "Curso",
+      "unknown": "Mídia"
+    }
   },
   "common": {
     "cancel": "Cancelar",
