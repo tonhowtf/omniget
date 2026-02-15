@@ -45,6 +45,9 @@ pub fn run() {
         ),
     ));
     registry.register(Box::new(
+        platforms::instagram::InstagramDownloader::new(),
+    ));
+    registry.register(Box::new(
         platforms::pinterest::PinterestDownloader::new(),
     ));
     registry.register(Box::new(
