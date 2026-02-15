@@ -32,7 +32,7 @@
         hasError = true;
       } else if (item.status === "downloading") {
         hasDownloading = true;
-        if (item.speed === 0 && (Date.now() - item.startedAt) > STALL_THRESHOLD) {
+        if (item.kind === "course" && item.speed === 0 && (Date.now() - item.startedAt) > STALL_THRESHOLD) {
           const stalledDuration = Date.now() - item.lastUpdateAt;
           if (stalledDuration > STALL_THRESHOLD) {
             hasStalled = true;
