@@ -43,6 +43,78 @@ impl YouTubeDownloader {
 
         None
     }
+
+    fn is_bot_detection_error(err: &rusty_ytdl::VideoError) -> bool {
+        let msg = format!("{}", err);
+        msg.contains("Sign in to confirm")
+            || msg.contains("bot")
+            || msg.contains("429")
+            || msg.contains("consent")
+            || msg.contains("CAPTCHA")
+    }
+
+    async fn is_ytdlp_available() -> bool {
+        tokio::process::Command::new("yt-dlp")
+            .arg("--version")
+            .output()
+            .await
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+
+    async fn get_info_ytdlp(video_id: &str) -> anyhow::Result<MediaInfo> {
+        let output = tokio::process::Command::new("yt-dlp")
+            .args([
+                "--dump-json",
+                "--no-playlist",
+                &format!("https://www.youtube.com/watch?v={}", video_id),
+            ])
+            .output()
+            .await
+            .map_err(|e| anyhow!("Falha ao executar yt-dlp: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(anyhow!("yt-dlp falhou: {}", stderr.trim()));
+        }
+
+        let json: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+
+        let title = json.get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+
+        let author = json.get("uploader")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+
+        let duration = json.get("duration").and_then(|v| v.as_f64());
+
+        let thumbnail = json.get("thumbnail")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        // yt-dlp handles quality selection itself, just offer "best"
+        let qualities = vec![MediaVideoQuality {
+            label: "best".to_string(),
+            width: 0,
+            height: 0,
+            url: video_id.to_string(),
+            format: "ytdlp".to_string(),
+        }];
+
+        Ok(MediaInfo {
+            title: format!("youtube_{}", video_id),
+            author: format!("{} - {}", title, author),
+            platform: "youtube".to_string(),
+            duration_seconds: duration,
+            thumbnail_url: thumbnail,
+            available_qualities: qualities,
+            media_type: MediaType::Video,
+        })
+    }
 }
 
 #[async_trait]
@@ -71,125 +143,137 @@ impl PlatformDownloader for YouTubeDownloader {
 
         let video = rusty_ytdl::Video::new(&video_id).map_err(|e| anyhow!("{}", e))?;
 
-        let info = video.get_basic_info().await.map_err(|e| match e {
-            rusty_ytdl::VideoError::VideoIsPrivate => anyhow!("Vídeo privado"),
-            rusty_ytdl::VideoError::VideoNotFound => anyhow!("Vídeo não encontrado"),
-            rusty_ytdl::VideoError::LiveStreamNotSupported => {
-                anyhow!("Livestreams não suportados")
+        match video.get_basic_info().await {
+            Ok(info) => {
+                let details = &info.video_details;
+
+                if details.is_private {
+                    return Err(anyhow!("Vídeo privado"));
+                }
+
+                if details.age_restricted {
+                    return Err(anyhow!("Conteúdo restrito por idade"));
+                }
+
+                let title = details.title.clone();
+                let author = details
+                    .author
+                    .as_ref()
+                    .map(|a| a.name.clone())
+                    .unwrap_or_else(|| details.owner_channel_name.clone());
+
+                let duration = details.length_seconds.parse::<f64>().ok();
+
+                let thumbnail = details.thumbnails.last().map(|t| t.url.clone());
+
+                let mut qualities: Vec<MediaVideoQuality> = Vec::new();
+                let mut seen_heights: HashSet<u32> = HashSet::new();
+
+                let has_live_only = info
+                    .formats
+                    .iter()
+                    .all(|f| f.is_live || (!f.has_video && !f.has_audio));
+                if has_live_only && details.is_live_content {
+                    return Err(anyhow!("Livestreams não suportados"));
+                }
+
+                let mut combined: Vec<&rusty_ytdl::VideoFormat> = info
+                    .formats
+                    .iter()
+                    .filter(|f| f.has_video && f.has_audio && !f.is_live)
+                    .collect();
+                combined.sort_by(|a, b| b.height.unwrap_or(0).cmp(&a.height.unwrap_or(0)));
+
+                for f in &combined {
+                    let height = f.height.unwrap_or(0) as u32;
+                    let width = f.width.unwrap_or(0) as u32;
+                    let label = f
+                        .quality_label
+                        .clone()
+                        .unwrap_or_else(|| format!("{}p", height));
+
+                    if height > 0 && seen_heights.insert(height) {
+                        qualities.push(MediaVideoQuality {
+                            label: label.clone(),
+                            width,
+                            height,
+                            url: video_id.clone(),
+                            format: "mp4".to_string(),
+                        });
+                    }
+                }
+
+                let mut adaptive_video: Vec<&rusty_ytdl::VideoFormat> = info
+                    .formats
+                    .iter()
+                    .filter(|f| f.has_video && !f.has_audio && !f.is_live)
+                    .filter(|f| {
+                        f.mime_type.container == "mp4"
+                            || f.mime_type.container == "webm"
+                    })
+                    .collect();
+                adaptive_video.sort_by(|a, b| b.height.unwrap_or(0).cmp(&a.height.unwrap_or(0)));
+
+                for f in &adaptive_video {
+                    let height = f.height.unwrap_or(0) as u32;
+                    let width = f.width.unwrap_or(0) as u32;
+                    let label = f
+                        .quality_label
+                        .clone()
+                        .unwrap_or_else(|| format!("{}p", height));
+
+                    if height > 0 && !seen_heights.contains(&height) {
+                        seen_heights.insert(height);
+                        qualities.push(MediaVideoQuality {
+                            label: format!("{} (HD)", label),
+                            width,
+                            height,
+                            url: video_id.clone(),
+                            format: "mp4+mux".to_string(),
+                        });
+                    }
+                }
+
+                qualities.sort_by(|a, b| b.height.cmp(&a.height));
+
+                if qualities.is_empty() {
+                    qualities.push(MediaVideoQuality {
+                        label: "best".to_string(),
+                        width: 0,
+                        height: 0,
+                        url: video_id.clone(),
+                        format: "mp4".to_string(),
+                    });
+                }
+
+                Ok(MediaInfo {
+                    title: format!("youtube_{}", video_id),
+                    author: format!("{} - {}", title, author),
+                    platform: "youtube".to_string(),
+                    duration_seconds: duration,
+                    thumbnail_url: thumbnail,
+                    available_qualities: qualities,
+                    media_type: MediaType::Video,
+                })
             }
-            other => anyhow!("{}", other),
-        })?;
+            Err(e) => {
+                // Map known errors
+                match &e {
+                    rusty_ytdl::VideoError::VideoIsPrivate => return Err(anyhow!("Vídeo privado")),
+                    rusty_ytdl::VideoError::VideoNotFound => return Err(anyhow!("Vídeo não encontrado")),
+                    rusty_ytdl::VideoError::LiveStreamNotSupported => return Err(anyhow!("Livestreams não suportados")),
+                    _ => {}
+                }
 
-        let details = &info.video_details;
+                // Try yt-dlp fallback for bot detection errors
+                if Self::is_bot_detection_error(&e) && Self::is_ytdlp_available().await {
+                    tracing::info!("YouTube bot detection, falling back to yt-dlp");
+                    return Self::get_info_ytdlp(&video_id).await;
+                }
 
-        if details.is_private {
-            return Err(anyhow!("Vídeo privado"));
-        }
-
-        if details.age_restricted {
-            return Err(anyhow!("Conteúdo restrito por idade"));
-        }
-
-        let title = details.title.clone();
-        let author = details
-            .author
-            .as_ref()
-            .map(|a| a.name.clone())
-            .unwrap_or_else(|| details.owner_channel_name.clone());
-
-        let duration = details.length_seconds.parse::<f64>().ok();
-
-        let thumbnail = details.thumbnails.last().map(|t| t.url.clone());
-
-        let mut qualities: Vec<MediaVideoQuality> = Vec::new();
-        let mut seen_heights: HashSet<u32> = HashSet::new();
-
-        let has_live_only = info
-            .formats
-            .iter()
-            .all(|f| f.is_live || (!f.has_video && !f.has_audio));
-        if has_live_only && details.is_live_content {
-            return Err(anyhow!("Livestreams não suportados"));
-        }
-
-        let mut combined: Vec<&rusty_ytdl::VideoFormat> = info
-            .formats
-            .iter()
-            .filter(|f| f.has_video && f.has_audio && !f.is_live)
-            .collect();
-        combined.sort_by(|a, b| b.height.unwrap_or(0).cmp(&a.height.unwrap_or(0)));
-
-        for f in &combined {
-            let height = f.height.unwrap_or(0) as u32;
-            let width = f.width.unwrap_or(0) as u32;
-            let label = f
-                .quality_label
-                .clone()
-                .unwrap_or_else(|| format!("{}p", height));
-
-            if height > 0 && seen_heights.insert(height) {
-                qualities.push(MediaVideoQuality {
-                    label: label.clone(),
-                    width,
-                    height,
-                    url: video_id.clone(),
-                    format: "mp4".to_string(),
-                });
+                Err(anyhow!("YouTube: {}", e))
             }
         }
-
-        let mut adaptive_video: Vec<&rusty_ytdl::VideoFormat> = info
-            .formats
-            .iter()
-            .filter(|f| f.has_video && !f.has_audio && !f.is_live)
-            .filter(|f| {
-                f.mime_type.container == "mp4"
-                    || f.mime_type.container == "webm"
-            })
-            .collect();
-        adaptive_video.sort_by(|a, b| b.height.unwrap_or(0).cmp(&a.height.unwrap_or(0)));
-
-        for f in &adaptive_video {
-            let height = f.height.unwrap_or(0) as u32;
-            let width = f.width.unwrap_or(0) as u32;
-            let label = f
-                .quality_label
-                .clone()
-                .unwrap_or_else(|| format!("{}p", height));
-
-            if height > 0 && !seen_heights.contains(&height) {
-                seen_heights.insert(height);
-                qualities.push(MediaVideoQuality {
-                    label: format!("{} (HD)", label),
-                    width,
-                    height,
-                    url: video_id.clone(),
-                    format: "mp4+mux".to_string(),
-                });
-            }
-        }
-
-        qualities.sort_by(|a, b| b.height.cmp(&a.height));
-
-        if qualities.is_empty() {
-            qualities.push(MediaVideoQuality {
-                label: "best".to_string(),
-                width: 0,
-                height: 0,
-                url: video_id.clone(),
-                format: "mp4".to_string(),
-            });
-        }
-
-        Ok(MediaInfo {
-            title: format!("youtube_{}", video_id),
-            author: format!("{} - {}", title, author),
-            platform: "youtube".to_string(),
-            duration_seconds: duration,
-            thumbnail_url: thumbnail,
-            available_qualities: qualities,
-            media_type: MediaType::Video,
-        })
     }
 
     async fn download(
@@ -225,13 +309,28 @@ impl PlatformDownloader for YouTubeDownloader {
 
         tokio::fs::create_dir_all(&opts.output_dir).await?;
 
+        // yt-dlp download path
+        if selected.format == "ytdlp" {
+            return download_ytdlp(&video_id, &output_path, progress.clone()).await;
+        }
+
         let needs_mux =
             selected.format == "mp4+mux" && ffmpeg::is_ffmpeg_available().await;
 
         let file_size = if needs_mux {
             download_muxed(&video_id, &output_path, progress.clone()).await?
         } else {
-            download_combined(&video_id, &output_path, progress.clone()).await?
+            match download_combined(&video_id, &output_path, progress.clone()).await {
+                Ok(size) => size,
+                Err(e) => {
+                    // If download fails and yt-dlp is available, try fallback
+                    if YouTubeDownloader::is_ytdlp_available().await {
+                        tracing::info!("rusty_ytdl download failed ({}), trying yt-dlp", e);
+                        return download_ytdlp(&video_id, &output_path, progress).await;
+                    }
+                    return Err(e);
+                }
+            }
         };
 
         Ok(DownloadResult {
@@ -372,4 +471,38 @@ async fn download_muxed(
 
     let meta = tokio::fs::metadata(output).await?;
     Ok(meta.len())
+}
+
+async fn download_ytdlp(
+    video_id: &str,
+    output: &PathBuf,
+    progress: mpsc::Sender<f64>,
+) -> anyhow::Result<DownloadResult> {
+    let output_template = output.to_string_lossy().to_string();
+
+    let result = tokio::process::Command::new("yt-dlp")
+        .args([
+            "-f", "bv*+ba/b",
+            "--merge-output-format", "mp4",
+            "--no-playlist",
+            "-o", &output_template,
+            &format!("https://www.youtube.com/watch?v={}", video_id),
+        ])
+        .output()
+        .await
+        .map_err(|e| anyhow!("Falha ao executar yt-dlp: {}", e))?;
+
+    if !result.status.success() {
+        let stderr = String::from_utf8_lossy(&result.stderr);
+        return Err(anyhow!("yt-dlp falhou: {}", stderr.trim()));
+    }
+
+    let _ = progress.send(100.0).await;
+
+    let meta = tokio::fs::metadata(output).await?;
+    Ok(DownloadResult {
+        file_path: output.clone(),
+        file_size_bytes: meta.len(),
+        duration_seconds: 0.0,
+    })
 }
