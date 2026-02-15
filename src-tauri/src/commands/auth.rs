@@ -1,5 +1,5 @@
 use crate::platforms::hotmart::api;
-use crate::platforms::hotmart::auth::authenticate;
+use crate::platforms::hotmart::auth::{authenticate, delete_saved_session, load_saved_session, save_session};
 use crate::AppState;
 
 #[tauri::command]
@@ -13,6 +13,9 @@ pub async fn hotmart_login(
     match authenticate(&email, &password).await {
         Ok(session) => {
             let response_email = session.email.clone();
+            if let Err(e) = save_session(&session).await {
+                tracing::warn!("Falha ao salvar sessão no disco: {}", e);
+            }
             let mut guard = state.hotmart_session.lock().await;
             *guard = Some(session);
             tracing::info!("Sessão Hotmart salva no state global");
@@ -29,6 +32,23 @@ pub async fn hotmart_login(
 pub async fn hotmart_check_session(
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
+    let has_memory_session = state.hotmart_session.lock().await.is_some();
+
+    if !has_memory_session {
+        tracing::info!("Nenhuma sessão em memória, tentando restaurar do disco...");
+        match load_saved_session().await {
+            Ok(session) => {
+                tracing::info!("Sessão restaurada do disco para {}", session.email);
+                let mut guard = state.hotmart_session.lock().await;
+                *guard = Some(session);
+            }
+            Err(e) => {
+                tracing::info!("Sem sessão salva no disco: {}", e);
+                return Err("not_authenticated".to_string());
+            }
+        }
+    }
+
     let guard = state.hotmart_session.lock().await;
     let session = guard
         .as_ref()
@@ -52,8 +72,9 @@ pub async fn hotmart_check_session(
         tracing::info!("Sessão Hotmart válida para {}", email);
         Ok(email)
     } else {
-        tracing::info!("Sessão Hotmart expirada, limpando state");
+        tracing::info!("Sessão Hotmart expirada, limpando state e disco");
         state.hotmart_session.lock().await.take();
+        let _ = delete_saved_session().await;
         Err("session_expired".to_string())
     }
 }
@@ -63,7 +84,10 @@ pub async fn hotmart_logout(
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
     state.hotmart_session.lock().await.take();
-    tracing::info!("Sessão Hotmart removida");
+    if let Err(e) = delete_saved_session().await {
+        tracing::warn!("Falha ao deletar sessão do disco: {}", e);
+    }
+    tracing::info!("Sessão Hotmart removida (memória e disco)");
     Ok(())
 }
 
@@ -73,7 +97,6 @@ pub async fn hotmart_debug_auth(
 ) -> Result<String, String> {
     tracing::info!("=== DEBUG AUTH INICIADO ===");
 
-    // Step 1: Check if session exists, if not login with test account
     let guard = state.hotmart_session.lock().await;
     let has_session = guard.is_some();
     drop(guard);
@@ -97,17 +120,15 @@ pub async fn hotmart_debug_auth(
     let guard = state.hotmart_session.lock().await;
     let session = guard.as_ref().unwrap();
 
-    // Step 2: Log token
+    
     tracing::info!("[DEBUG] Token extraído: {}...", &session.token[..20.min(session.token.len())]);
 
-    // Log all cookies
     let cookie_names: Vec<&str> = session.cookies.iter().map(|(name, _)| name.as_str()).collect();
     tracing::info!("[DEBUG] Cookies na sessão: {:?}", cookie_names);
 
     let has_vlc = session.cookies.iter().any(|(name, _)| name == "hmVlcIntegration");
     tracing::info!("[DEBUG] hmVlcIntegration presente: {}", has_vlc);
 
-    // Step 3: check_token
     tracing::info!("[DEBUG] Chamando check_token...");
     match api::get_subdomains(session).await {
         Ok(subdomains) => {
@@ -122,7 +143,6 @@ pub async fn hotmart_debug_auth(
         }
     }
 
-    // Step 4: list courses
     tracing::info!("[DEBUG] Chamando list_courses...");
     let mut courses = match api::list_courses(session).await {
         Ok(c) => {
@@ -135,12 +155,10 @@ pub async fn hotmart_debug_auth(
         }
     };
 
-    // Merge subdomains
     if let Ok(subdomains) = api::get_subdomains(session).await {
         api::merge_subdomains(&mut courses, &subdomains);
     }
 
-    // Step 5: Get price for each course
     let mut output_lines = Vec::new();
     for course in &mut courses {
         let price = match api::get_course_price(session, course.id).await {
