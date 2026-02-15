@@ -111,15 +111,17 @@ export function formatSpeed(bytesPerSec: number): string {
   return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
 }
 
-export function formatEta(item: DownloadItem): string {
-  if (item.percent <= 0 || item.speed <= 0) return "Calculando...";
+export type I18nValue = { key: string; params?: Record<string, number> };
+
+export function getEtaI18n(item: DownloadItem): I18nValue {
+  if (item.percent <= 0 || item.speed <= 0) return { key: "downloads.eta_calculating" };
   const elapsed = (item.lastUpdateAt - item.startedAt) / 1000;
-  if (elapsed < 2) return "Calculando...";
+  if (elapsed < 2) return { key: "downloads.eta_calculating" };
   const remaining = elapsed * (100 - item.percent) / item.percent;
-  if (!isFinite(remaining) || remaining < 0) return "Calculando...";
-  if (remaining < 60) return `~${Math.ceil(remaining)} seg`;
-  if (remaining < 3600) return `~${Math.ceil(remaining / 60)} min`;
+  if (!isFinite(remaining) || remaining < 0) return { key: "downloads.eta_calculating" };
+  if (remaining < 60) return { key: "downloads.eta_seconds", params: { n: Math.ceil(remaining) } };
+  if (remaining < 3600) return { key: "downloads.eta_minutes", params: { n: Math.ceil(remaining / 60) } };
   const hours = Math.floor(remaining / 3600);
   const mins = Math.ceil((remaining % 3600) / 60);
-  return `~${hours}h ${mins}min`;
+  return { key: "downloads.eta_hours", params: { h: hours, m: mins } };
 }
