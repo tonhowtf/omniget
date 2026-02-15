@@ -1,16 +1,16 @@
-use crate::platforms::hotmart::api::{self, Course, Module};
-use crate::AppState;
+use std::time::{Duration, Instant};
 
-#[tauri::command]
-pub async fn hotmart_list_courses(
-    state: tauri::State<'_, AppState>,
-) -> Result<Vec<Course>, String> {
+use crate::platforms::hotmart::api::{self, Course, Module};
+use crate::{AppState, CoursesCache};
+
+const COURSES_CACHE_TTL: Duration = Duration::from_secs(10 * 60);
+
+async fn fetch_courses_from_api(state: &tauri::State<'_, AppState>) -> Result<Vec<Course>, String> {
     let guard = state.hotmart_session.lock().await;
     let session = guard
         .as_ref()
         .ok_or_else(|| "Não autenticado. Faça login primeiro.".to_string())?;
 
-    // Step 1: get subdomains via check_token
     let subdomains = match api::get_subdomains(session).await {
         Ok(s) => {
             tracing::info!("Subdomínios carregados: {}", s.len());
@@ -22,13 +22,10 @@ pub async fn hotmart_list_courses(
         }
     };
 
-    // Step 2: list courses
     let mut courses = api::list_courses(session).await.map_err(|e| e.to_string())?;
 
-    // Step 3: merge subdomains
     api::merge_subdomains(&mut courses, &subdomains);
 
-    // Step 4: fetch prices for each course
     for course in &mut courses {
         match api::get_course_price(session, course.id).await {
             Ok(price) => {
@@ -41,7 +38,46 @@ pub async fn hotmart_list_courses(
         }
     }
 
+    let mut cache = state.courses_cache.lock().await;
+    *cache = Some(CoursesCache {
+        courses: courses.clone(),
+        fetched_at: Instant::now(),
+    });
+
     Ok(courses)
+}
+
+#[tauri::command]
+pub async fn hotmart_list_courses(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<Course>, String> {
+    {
+        let cache = state.courses_cache.lock().await;
+        if let Some(ref cached) = *cache {
+            if cached.fetched_at.elapsed() < COURSES_CACHE_TTL {
+                tracing::info!(
+                    "Retornando {} cursos do cache ({:?} atrás)",
+                    cached.courses.len(),
+                    cached.fetched_at.elapsed()
+                );
+                return Ok(cached.courses.clone());
+            }
+        }
+    }
+
+    fetch_courses_from_api(&state).await
+}
+
+#[tauri::command]
+pub async fn hotmart_refresh_courses(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<Course>, String> {
+    {
+        let mut cache = state.courses_cache.lock().await;
+        *cache = None;
+    }
+    tracing::info!("Cache de cursos invalidado, recarregando...");
+    fetch_courses_from_api(&state).await
 }
 
 #[tauri::command]
