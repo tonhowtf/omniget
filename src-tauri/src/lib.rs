@@ -40,6 +40,7 @@ pub fn run() {
             commands::auth::hotmart_debug_auth,
             commands::courses::hotmart_list_courses,
             commands::courses::hotmart_get_modules,
+            commands::downloads::start_course_download,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
