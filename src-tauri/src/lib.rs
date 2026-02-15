@@ -48,7 +48,19 @@ pub fn run() {
         platforms::pinterest::PinterestDownloader::new(),
     ));
     registry.register(Box::new(
+        platforms::tiktok::TikTokDownloader::new(),
+    ));
+    registry.register(Box::new(
         platforms::twitch::TwitchClipsDownloader::new(),
+    ));
+    registry.register(Box::new(
+        platforms::bluesky::BlueskyDownloader::new(),
+    ));
+    registry.register(Box::new(
+        platforms::reddit::RedditDownloader::new(),
+    ));
+    registry.register(Box::new(
+        platforms::vimeo::VimeoDownloader::new(),
     ));
 
     let state = AppState {
