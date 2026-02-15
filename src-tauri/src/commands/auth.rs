@@ -1,6 +1,10 @@
+use std::time::{Duration, Instant};
+
 use crate::platforms::hotmart::api;
 use crate::platforms::hotmart::auth::{authenticate, delete_saved_session, load_saved_session, save_session};
 use crate::AppState;
+
+const SESSION_COOLDOWN: Duration = Duration::from_secs(5 * 60);
 
 #[tauri::command]
 pub async fn hotmart_login(
@@ -18,6 +22,7 @@ pub async fn hotmart_login(
             }
             let mut guard = state.hotmart_session.lock().await;
             *guard = Some(session);
+            *state.session_validated_at.lock().await = Some(Instant::now());
             tracing::info!("Sessão Hotmart salva no state global");
             Ok(response_email)
         }
@@ -53,9 +58,19 @@ pub async fn hotmart_check_session(
     let session = guard
         .as_ref()
         .ok_or_else(|| "not_authenticated".to_string())?;
+    let email = session.email.clone();
+
+    {
+        let validated_at = state.session_validated_at.lock().await;
+        if let Some(at) = *validated_at {
+            if at.elapsed() < SESSION_COOLDOWN {
+                tracing::info!("Sessão validada há {:?}, usando cache", at.elapsed());
+                return Ok(email);
+            }
+        }
+    }
 
     let token = session.token.clone();
-    let email = session.email.clone();
     let client = session.client.clone();
     drop(guard);
 
@@ -69,11 +84,14 @@ pub async fn hotmart_check_session(
         .map_err(|e| format!("Erro na validação: {}", e))?;
 
     if resp.status().is_success() {
+        *state.session_validated_at.lock().await = Some(Instant::now());
         tracing::info!("Sessão Hotmart válida para {}", email);
         Ok(email)
     } else {
         tracing::info!("Sessão Hotmart expirada, limpando state e disco");
         state.hotmart_session.lock().await.take();
+        *state.session_validated_at.lock().await = None;
+        *state.courses_cache.lock().await = None;
         let _ = delete_saved_session().await;
         Err("session_expired".to_string())
     }
@@ -84,6 +102,8 @@ pub async fn hotmart_logout(
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
     state.hotmart_session.lock().await.take();
+    *state.session_validated_at.lock().await = None;
+    *state.courses_cache.lock().await = None;
     if let Err(e) = delete_saved_session().await {
         tracing::warn!("Falha ao deletar sessão do disco: {}", e);
     }
@@ -120,7 +140,7 @@ pub async fn hotmart_debug_auth(
     let guard = state.hotmart_session.lock().await;
     let session = guard.as_ref().unwrap();
 
-    
+
     tracing::info!("[DEBUG] Token extraído: {}...", &session.token[..20.min(session.token.len())]);
 
     let cookie_names: Vec<&str> = session.cookies.iter().map(|(name, _)| name.as_str()).collect();
