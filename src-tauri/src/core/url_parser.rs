@@ -40,6 +40,7 @@ pub fn parse_url(url_str: &str) -> Option<ParsedUrl> {
         Platform::Vimeo => parse_vimeo(&segments),
         Platform::Hotmart => parse_hotmart(&segments),
         Platform::Pinterest => parse_pinterest(&segments),
+        Platform::Bluesky => parse_bluesky(&segments),
     };
 
     Some(ParsedUrl {
@@ -140,12 +141,27 @@ fn parse_reddit(segments: &[&str]) -> (Option<String>, ParsedContentType) {
         return (id, ParsedContentType::Post);
     }
 
+    if segments.first() == Some(&"comments") {
+        let id = segments.get(1).map(|s| s.to_string());
+        return (id, ParsedContentType::Post);
+    }
+
+    if segments.first() == Some(&"video") {
+        let id = segments.get(1).map(|s| s.to_string());
+        return (id, ParsedContentType::Video);
+    }
+
     if segments.first() == Some(&"r") {
+        if segments.len() >= 4 && segments.get(2) == Some(&"s") {
+            let share_id = segments.get(3).map(|s| s.to_string());
+            return (share_id, ParsedContentType::Post);
+        }
         let sub = segments.get(1).map(|s| s.to_string());
         return (sub, ParsedContentType::Profile);
     }
 
-    (None, ParsedContentType::Unknown)
+    let id = segments.first().map(|s| s.to_string());
+    (id, ParsedContentType::Video)
 }
 
 fn parse_facebook(parsed: &url::Url, segments: &[&str]) -> (Option<String>, ParsedContentType) {
@@ -240,6 +256,20 @@ fn parse_pinterest(segments: &[&str]) -> (Option<String>, ParsedContentType) {
     if segments.first() == Some(&"url_shortener") {
         let code = segments.get(1).map(|s| s.to_string());
         return (code, ParsedContentType::Unknown);
+    }
+
+    (None, ParsedContentType::Unknown)
+}
+
+fn parse_bluesky(segments: &[&str]) -> (Option<String>, ParsedContentType) {
+    if segments.len() >= 4 && segments[0] == "profile" && segments[2] == "post" {
+        let post_id = Some(segments[3].to_string());
+        return (post_id, ParsedContentType::Post);
+    }
+
+    if segments.first() == Some(&"profile") {
+        let user = segments.get(1).map(|s| s.to_string());
+        return (user, ParsedContentType::Profile);
     }
 
     (None, ParsedContentType::Unknown)
