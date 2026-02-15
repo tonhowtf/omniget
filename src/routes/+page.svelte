@@ -3,7 +3,7 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { goto } from "$app/navigation";
   import Mascot from "$components/mascot/Mascot.svelte";
-  import { getDownloads, type GenericDownloadItem } from "$lib/stores/download-store.svelte";
+  import { getDownloads, removeDownload, type GenericDownloadItem } from "$lib/stores/download-store.svelte";
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import { t } from "$lib/i18n";
 
@@ -27,7 +27,7 @@
     | { kind: "preparing"; platform: string }
     | { kind: "downloading"; trackingId: number; platform: string; title: string }
     | { kind: "complete"; title: string; filePath?: string; platform: string }
-    | { kind: "error"; message: string; originalUrl: string; platform: string };
+    | { kind: "error"; message: string; originalUrl: string; platform: string; trackingId?: number };
 
   let url = $state("");
   let savedUrl = $state("");
@@ -63,18 +63,22 @@
         message: item.error ?? $t("omnibox.error"),
         originalUrl: savedUrl,
         platform: omniState.platform,
+        trackingId: omniState.trackingId,
       };
     }
   });
 
   let mascotEmotion = $derived.by((): "idle" | "downloading" | "error" | "stalled" => {
-    let hasError = false;
+    if (omniState.kind === "error") return "error";
+    if (omniState.kind === "downloading" || omniState.kind === "preparing") return "downloading";
+
+    let hasCourseError = false;
     let hasStalled = false;
     let hasDownloading = false;
 
     for (const item of downloads.values()) {
-      if (item.status === "error") {
-        hasError = true;
+      if (item.kind === "course" && item.status === "error") {
+        hasCourseError = true;
       } else if (item.status === "downloading") {
         hasDownloading = true;
         if (item.kind === "course" && item.speed === 0 && (Date.now() - item.startedAt) > STALL_THRESHOLD) {
@@ -86,7 +90,7 @@
       }
     }
 
-    if (hasError) return "error";
+    if (hasCourseError) return "error";
     if (hasStalled) return "stalled";
     if (hasDownloading) return "downloading";
     return "idle";
@@ -193,12 +197,18 @@
 
   function handleRetry() {
     if (omniState.kind !== "error") return;
+    if (omniState.trackingId != null) {
+      removeDownload(omniState.trackingId);
+    }
     url = omniState.originalUrl;
     omniState = { kind: "detecting" };
     detectPlatform(url.trim());
   }
 
   function handleDismiss() {
+    if (omniState.kind === "error" && omniState.trackingId != null) {
+      removeDownload(omniState.trackingId);
+    }
     omniState = { kind: "idle" };
     url = "";
   }
