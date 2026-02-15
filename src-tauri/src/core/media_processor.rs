@@ -1,4 +1,5 @@
 use crate::core::hls_downloader::HlsDownloadResult;
+use tokio_util::sync::CancellationToken;
 
 pub struct MediaProcessor;
 
@@ -8,9 +9,10 @@ impl MediaProcessor {
         output: &str,
         referer: &str,
         bytes_tx: Option<tokio::sync::mpsc::UnboundedSender<u64>>,
+        cancel_token: CancellationToken,
     ) -> anyhow::Result<HlsDownloadResult> {
         let downloader = crate::core::hls_downloader::HlsDownloader::new();
-        downloader.download(m3u8_url, output, referer, bytes_tx).await
+        downloader.download(m3u8_url, output, referer, bytes_tx, cancel_token).await
     }
 
     pub async fn remux(input: &str, output: &str) -> anyhow::Result<()> {
