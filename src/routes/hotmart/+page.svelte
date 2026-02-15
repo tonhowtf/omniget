@@ -179,6 +179,23 @@
     }
   }
 
+  let refreshing = $state(false);
+
+  async function refreshCourses() {
+    refreshing = true;
+    loadingCourses = true;
+    coursesError = "";
+    try {
+      courses = await invoke("hotmart_refresh_courses");
+      currentPage = 1;
+    } catch (e: any) {
+      coursesError = typeof e === "string" ? e : e.message ?? "Erro ao carregar cursos";
+    } finally {
+      loadingCourses = false;
+      refreshing = false;
+    }
+  }
+
   async function handleDebugAuth() {
     debugLoading = true;
     debugOutput = "";
@@ -214,7 +231,20 @@
         >
           {debugLoading ? "Debugando..." : "Debug Auth"}
         </button>
-        <button class="button" onclick={handleLogout}>Sair</button>
+        <button
+          class="button"
+          onclick={refreshCourses}
+          disabled={refreshing}
+          aria-label={$t('hotmart.refresh')}
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class:spinning={refreshing}>
+            <path d="M21 2v6h-6" />
+            <path d="M3 12a9 9 0 0115-6.7L21 8" />
+            <path d="M3 22v-6h6" />
+            <path d="M21 12a9 9 0 01-15 6.7L3 16" />
+          </svg>
+        </button>
+        <button class="button" onclick={handleLogout}>{$t('hotmart.logout')}</button>
       </div>
     </div>
 
@@ -389,6 +419,10 @@
   .session-bar :global(.button) {
     padding: calc(var(--padding) / 2) var(--padding);
     font-size: 12.5px;
+  }
+
+  .spinning {
+    animation: spin 0.6s linear infinite;
   }
 
   /* === Debug output === */
