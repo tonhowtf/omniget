@@ -4,7 +4,7 @@ use rand::RngExt;
 use regex::Regex;
 use tokio::sync::mpsc;
 
-use crate::core::direct_downloader::{self, download_direct_with_headers};
+use crate::core::direct_downloader::download_direct_with_headers;
 use crate::models::media::{
     DownloadOptions, DownloadResult, MediaInfo, MediaType, VideoQuality,
 };
