@@ -26,7 +26,8 @@
     "download_already_active": "Este curso já está sendo baixado",
     "download_started": "Download iniciado: {{name}}",
     "download_complete": "Download concluído: {{name}}",
-    "download_error": "Falha no download: {{name}}"
+    "download_error": "Falha no download: {{name}}",
+    "download_cancelled": "Download cancelado"
   },
   "hotmart": {
     "login": "Entrar",
