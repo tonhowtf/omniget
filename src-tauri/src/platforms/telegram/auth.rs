@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use grammers_client::{Client, SignInError};
 use grammers_client::types::{LoginToken, PasswordToken};
-use grammers_client::mtsender::SenderPool;
+use grammers_mtsender::SenderPool;
 use grammers_session::storages::SqliteSession;
 use tokio::sync::Mutex;
 
