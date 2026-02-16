@@ -108,6 +108,12 @@
     "star_description": "Se gostou do projeto, deixe uma estrela!",
     "version": "Versão"
   },
+  "services": {
+    "title": "plataformas suportadas",
+    "title_show": "mostrar plataformas suportadas",
+    "title_hide": "esconder plataformas suportadas",
+    "disclaimer": "a disponibilidade depende de cada plataforma e pode variar"
+  },
   "common": {
     "cancel": "Cancelar",
     "retry": "Tentar novamente",
