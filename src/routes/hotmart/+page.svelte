@@ -35,10 +35,6 @@
   let loadingCourses = $state(false);
   let coursesError = $state("");
 
-  let debugOutput = $state("");
-  let debugLoading = $state(false);
-
-  // Pagination
   const ITEMS_PER_PAGE = 12;
   let currentPage = $state(1);
 
@@ -47,18 +43,17 @@
     courses.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
   );
 
-  // Generate page numbers for pagination display
   let pageNumbers = $derived((): number[] => {
     const pages: number[] = [];
     if (totalPages <= 7) {
       for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {
       pages.push(1);
-      if (currentPage > 3) pages.push(-1); // ellipsis
+      if (currentPage > 3) pages.push(-1);
       const start = Math.max(2, currentPage - 1);
       const end = Math.min(totalPages - 1, currentPage + 1);
       for (let i = start; i <= end; i++) pages.push(i);
-      if (currentPage < totalPages - 2) pages.push(-1); // ellipsis
+      if (currentPage < totalPages - 2) pages.push(-1);
       pages.push(totalPages);
     }
     return pages;
@@ -112,14 +107,12 @@
     try {
       await invoke("hotmart_logout");
     } catch {
-      /* ignore */
     }
     loggedIn = false;
     sessionEmail = "";
     courses = [];
     coursesError = "";
     currentPage = 1;
-    debugOutput = "";
   }
 
   async function loadCourses() {
@@ -195,42 +188,20 @@
       refreshing = false;
     }
   }
-
-  async function handleDebugAuth() {
-    debugLoading = true;
-    debugOutput = "";
-    try {
-      const result = await invoke<string>("hotmart_debug_auth");
-      debugOutput = result;
-    } catch (e: any) {
-      debugOutput = `ERRO: ${typeof e === "string" ? e : e.message ?? $t('hotmart.unknown_error')}`;
-    } finally {
-      debugLoading = false;
-    }
-  }
 </script>
 
 {#if checking}
-  <!-- Estado 1: Verificando sessão -->
   <div class="page-center">
     <span class="spinner"></span>
     <span class="spinner-text">{$t('hotmart.loading_courses')}</span>
   </div>
 {:else if loggedIn}
-  <!-- Estado 3/4: Logado -->
   <div class="page-logged">
     <div class="session-bar">
       <span class="session-info">
         Logado como {sessionEmail || "—"}
       </span>
       <div class="session-actions">
-        <button
-          class="button"
-          onclick={handleDebugAuth}
-          disabled={debugLoading}
-        >
-          {debugLoading ? "Debugando..." : "Debug Auth"}
-        </button>
         <button
           class="button"
           onclick={refreshCourses}
@@ -248,12 +219,7 @@
       </div>
     </div>
 
-    {#if debugOutput}
-      <pre class="debug-output">{debugOutput}</pre>
-    {/if}
-
     {#if loadingCourses}
-      <!-- Estado 3: Carregando cursos -->
       <div class="spinner-section">
         <span class="spinner"></span>
         <span class="spinner-text">{$t('hotmart.loading_courses')}</span>
@@ -266,7 +232,6 @@
     {:else if courses.length === 0}
       <p class="empty-text">{$t('hotmart.no_courses')}</p>
     {:else}
-      <!-- Estado 4: Cursos carregados -->
       <div class="courses-header">
         <h2>{$t('hotmart.courses_title')}</h2>
         <span class="subtext">{courses.length === 1 ? $t('hotmart.course_count_one', { count: courses.length }) : $t('hotmart.course_count', { count: courses.length })}</span>
@@ -286,7 +251,6 @@
         {/each}
       </div>
 
-      <!-- Pagination -->
       {#if totalPages > 1}
         <div class="pagination">
           <span class="pagination-info">
@@ -328,7 +292,6 @@
     {/if}
   </div>
 {:else}
-  <!-- Estado 2: Não logado -->
   <div class="page-center">
     <div class="login-card">
       <h2>Hotmart</h2>
@@ -373,7 +336,6 @@
 {/if}
 
 <style>
-  /* === State 1: Checking / Center layout === */
   .page-center {
     display: flex;
     flex-direction: column;
@@ -383,7 +345,6 @@
     gap: var(--padding);
   }
 
-  /* === State 3/4: Logged in layout === */
   .page-logged {
     display: flex;
     flex-direction: column;
@@ -398,7 +359,6 @@
     max-width: 1200px;
   }
 
-  /* === Session bar === */
   .session-bar {
     display: flex;
     align-items: center;
@@ -425,22 +385,6 @@
     animation: spin 0.6s linear infinite;
   }
 
-  /* === Debug output === */
-  .debug-output {
-    background: var(--button);
-    border-radius: var(--border-radius);
-    padding: var(--padding);
-    font-size: 11px;
-    color: var(--secondary);
-    white-space: pre-wrap;
-    word-break: break-all;
-    user-select: text;
-    max-height: 200px;
-    overflow-y: auto;
-    box-shadow: var(--button-box-shadow);
-  }
-
-  /* === Courses header === */
   .courses-header {
     display: flex;
     align-items: baseline;
@@ -457,7 +401,6 @@
     color: var(--gray);
   }
 
-  /* === Courses grid (responsive) === */
   .courses-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -482,7 +425,6 @@
     }
   }
 
-  /* === Pagination === */
   .pagination {
     display: flex;
     flex-direction: column;
@@ -520,7 +462,6 @@
     font-size: 14.5px;
   }
 
-  /* === Login card === */
   .login-card {
     width: 100%;
     max-width: 400px;
@@ -578,7 +519,6 @@
     cursor: default;
   }
 
-  /* === Shared === */
   .error-msg {
     color: var(--red);
     font-size: 12.5px;
