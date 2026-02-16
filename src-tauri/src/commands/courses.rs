@@ -11,30 +11,15 @@ async fn fetch_courses_from_api(state: &tauri::State<'_, AppState>) -> Result<Ve
         .as_ref()
         .ok_or_else(|| "Não autenticado. Faça login primeiro.".to_string())?;
 
-    let subdomains = match api::get_subdomains(session).await {
-        Ok(s) => {
-            tracing::info!("Subdomínios carregados: {}", s.len());
-            s
-        }
-        Err(e) => {
-            tracing::warn!("Falha ao buscar subdomínios: {}. Continuando sem eles.", e);
-            vec![]
-        }
-    };
+    let subdomains = api::get_subdomains(session).await.unwrap_or_default();
 
     let mut courses = api::list_courses(session).await.map_err(|e| e.to_string())?;
 
     api::merge_subdomains(&mut courses, &subdomains);
 
     for course in &mut courses {
-        match api::get_course_price(session, course.id).await {
-            Ok(price) => {
-                course.price = Some(price);
-                tracing::info!("- {} (ID: {}, slug: {:?}, preço: R${:.2})", course.name, course.id, course.slug, price);
-            }
-            Err(e) => {
-                tracing::warn!("Preço não disponível para {} (ID: {}): {}", course.name, course.id, e);
-            }
+        if let Ok(price) = api::get_course_price(session, course.id).await {
+            course.price = Some(price);
         }
     }
 
@@ -55,11 +40,6 @@ pub async fn hotmart_list_courses(
         let cache = state.courses_cache.lock().await;
         if let Some(ref cached) = *cache {
             if cached.fetched_at.elapsed() < COURSES_CACHE_TTL {
-                tracing::info!(
-                    "Retornando {} cursos do cache ({:?} atrás)",
-                    cached.courses.len(),
-                    cached.fetched_at.elapsed()
-                );
                 return Ok(cached.courses.clone());
             }
         }
@@ -76,7 +56,6 @@ pub async fn hotmart_refresh_courses(
         let mut cache = state.courses_cache.lock().await;
         *cache = None;
     }
-    tracing::info!("Cache de cursos invalidado, recarregando...");
     fetch_courses_from_api(&state).await
 }
 
