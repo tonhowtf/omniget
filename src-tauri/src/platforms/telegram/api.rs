@@ -1,7 +1,11 @@
+use std::path::Path;
+
 use grammers_client::grammers_tl_types as tl;
 use grammers_client::session::defs::{PeerAuth, PeerId, PeerRef};
 use grammers_client::types::{Media, Peer};
 use serde::Serialize;
+use tokio::io::AsyncWriteExt;
+use tokio::sync::mpsc;
 
 use super::auth::TelegramSessionHandle;
 
@@ -145,4 +149,63 @@ pub async fn list_media(
     }
 
     Ok(items)
+}
+
+pub async fn download_media(
+    handle: &TelegramSessionHandle,
+    chat_id: i64,
+    chat_type: &str,
+    message_id: i32,
+    output_path: &Path,
+    progress_tx: mpsc::Sender<f64>,
+) -> anyhow::Result<u64> {
+    let guard = handle.lock().await;
+    let client = guard.client.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
+        .clone();
+    drop(guard);
+
+    let peer_ref = make_peer_ref(chat_id, chat_type)?;
+
+    let messages = client
+        .get_messages_by_id(peer_ref, &[message_id])
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+    let message = messages
+        .into_iter()
+        .next()
+        .flatten()
+        .ok_or_else(|| anyhow::anyhow!("Message not found"))?;
+
+    let media = message
+        .media()
+        .ok_or_else(|| anyhow::anyhow!("Message has no media"))?;
+
+    let total_size = match &media {
+        Media::Document(doc) => doc.size().max(0) as u64,
+        Media::Photo(photo) => photo.size().max(0) as u64,
+        _ => 0,
+    };
+
+    if let Some(parent) = output_path.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+
+    let mut file = tokio::fs::File::create(output_path).await?;
+    let mut download = client.iter_download(&media);
+    let mut downloaded: u64 = 0;
+
+    while let Some(chunk) = download.next().await.map_err(|e| anyhow::anyhow!("{}", e))? {
+        file.write_all(&chunk).await?;
+        downloaded += chunk.len() as u64;
+
+        if total_size > 0 {
+            let percent = (downloaded as f64 / total_size as f64) * 100.0;
+            let _ = progress_tx.send(percent.min(100.0)).await;
+        }
+    }
+
+    file.flush().await?;
+    Ok(downloaded)
 }
