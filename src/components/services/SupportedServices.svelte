@@ -6,7 +6,7 @@
   const services = [
     "YouTube", "Instagram", "TikTok", "Twitter / X",
     "Reddit", "Twitch", "Pinterest",
-    "Bluesky", "Hotmart",
+    "Bluesky", "Hotmart", "Telegram",
   ];
 
   function toggle() {
