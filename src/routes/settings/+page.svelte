@@ -189,20 +189,6 @@
         </div>
         <div class="divider"></div>
         <div class="setting-row">
-          <span class="setting-label">{$t('settings.advanced.debug_mode')}</span>
-          <button
-            class="toggle"
-            class:on={settings.advanced.debug_mode}
-            onclick={() => toggleBool("advanced", "debug_mode", settings!.advanced.debug_mode)}
-            role="switch"
-            aria-checked={settings.advanced.debug_mode}
-            aria-label={$t('settings.advanced.debug_mode')}
-          >
-            <span class="toggle-knob"></span>
-          </button>
-        </div>
-        <div class="divider"></div>
-        <div class="setting-row">
           <span class="setting-label">{$t('settings.advanced.reset')}</span>
           <button class="button reset-btn" onclick={handleReset} disabled={resetting}>
             {$t('settings.advanced.reset')}
