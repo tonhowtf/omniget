@@ -3146,6 +3146,7 @@ dependencies = [
  "dirs",
  "futures",
  "grammers-client",
+ "grammers-mtsender",
  "grammers-session",
  "grammers-tl-types",
  "m3u8-rs",
