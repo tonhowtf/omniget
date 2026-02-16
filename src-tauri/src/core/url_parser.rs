@@ -36,7 +36,6 @@ pub fn parse_url(url_str: &str) -> Option<ParsedUrl> {
         Platform::Twitter => parse_twitter(&segments),
         Platform::Reddit => parse_reddit(&segments),
         Platform::Twitch => parse_twitch(&parsed, &segments),
-        Platform::Vimeo => parse_vimeo(&segments),
         Platform::Hotmart => parse_hotmart(&segments),
         Platform::Pinterest => parse_pinterest(&segments),
         Platform::Bluesky => parse_bluesky(&segments),
@@ -185,22 +184,6 @@ fn parse_twitch(parsed: &url::Url, segments: &[&str]) -> (Option<String>, Parsed
         if !["directory", "settings", "downloads"].contains(channel) {
             return (Some(channel.to_string()), ParsedContentType::Profile);
         }
-    }
-
-    (None, ParsedContentType::Unknown)
-}
-
-fn parse_vimeo(segments: &[&str]) -> (Option<String>, ParsedContentType) {
-    if let Some(first) = segments.first() {
-        if first.chars().all(|c| c.is_ascii_digit()) {
-            return (Some(first.to_string()), ParsedContentType::Video);
-        }
-
-        if segments.get(1) == Some(&"videos") {
-            return (Some(first.to_string()), ParsedContentType::Profile);
-        }
-
-        return (Some(first.to_string()), ParsedContentType::Profile);
     }
 
     (None, ParsedContentType::Unknown)
