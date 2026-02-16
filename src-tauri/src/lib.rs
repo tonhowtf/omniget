@@ -32,6 +32,8 @@ pub fn run() {
     tracing_subscriber::fmt::init();
 
     let session = Arc::new(tokio::sync::Mutex::new(None));
+    let telegram_session: TelegramSessionHandle =
+        Arc::new(tokio::sync::Mutex::new(TelegramState::new()));
 
     let mut registry = core::registry::PlatformRegistry::new();
     registry.register(Arc::new(
@@ -66,6 +68,11 @@ pub fn run() {
     registry.register(Arc::new(
         platforms::youtube::YouTubeDownloader::new(),
     ));
+    registry.register(Arc::new(
+        platforms::telegram::downloader::TelegramDownloader::new(
+            telegram_session.clone(),
+        ),
+    ));
 
     let state = AppState {
         hotmart_session: session,
@@ -74,7 +81,7 @@ pub fn run() {
         registry,
         courses_cache: Arc::new(tokio::sync::Mutex::new(None)),
         session_validated_at: Arc::new(tokio::sync::Mutex::new(None)),
-        telegram_session: Arc::new(tokio::sync::Mutex::new(TelegramState::new())),
+        telegram_session,
     };
 
     tauri::Builder::default()
@@ -110,6 +117,7 @@ pub fn run() {
             commands::telegram::telegram_logout,
             commands::telegram::telegram_list_chats,
             commands::telegram::telegram_list_media,
+            commands::telegram::telegram_download_media,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
