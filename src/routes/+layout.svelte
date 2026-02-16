@@ -4,7 +4,7 @@
   import { onMount } from "svelte";
   import { initDownloadListener } from "$lib/stores/download-listener";
   import { getActiveCount } from "$lib/stores/download-store.svelte";
-  import { loadSettings } from "$lib/stores/settings-store.svelte";
+  import { loadSettings, getSettings } from "$lib/stores/settings-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
   import { open } from "@tauri-apps/plugin-shell";
   import { t } from "$lib/i18n";
@@ -23,7 +23,20 @@
     let cleanup: (() => void) | undefined;
     initDownloadListener().then((fn) => (cleanup = fn));
     loadSettings();
-    return () => cleanup?.();
+
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = () => {
+      const s = getSettings();
+      if (s?.appearance.theme === "system") {
+        document.documentElement.setAttribute("data-theme", mediaQuery.matches ? "dark" : "light");
+      }
+    };
+    mediaQuery.addEventListener("change", handleChange);
+
+    return () => {
+      cleanup?.();
+      mediaQuery.removeEventListener("change", handleChange);
+    };
   });
 
   const nav = [
