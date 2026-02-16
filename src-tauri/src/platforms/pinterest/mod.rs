@@ -20,6 +20,8 @@ impl PinterestDownloader {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .user_agent(USER_AGENT)
+            .timeout(std::time::Duration::from_secs(120))
+            .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .unwrap_or_default();
 
@@ -233,6 +235,7 @@ impl PlatformDownloader for PinterestDownloader {
             &quality.url,
             &output_path,
             progress,
+            None,
         )
         .await?;
 
