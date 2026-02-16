@@ -41,7 +41,16 @@
     "unavailable": "Unavailable",
     "external_platform": "External platform",
     "choose_folder": "Choose download folder",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "loading_courses": "Loading courses...",
+    "no_courses": "No courses found in this account.",
+    "course_count": "{{count}} courses",
+    "course_count_one": "{{count}} course",
+    "page_of": "Page {{current}} of {{total}}",
+    "password_label": "Password",
+    "password_placeholder": "Your password",
+    "authenticating": "Authenticating...",
+    "unknown_error": "Unknown error"
   },
   "settings": {
     "title": "Settings",
