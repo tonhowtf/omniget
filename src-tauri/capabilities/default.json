@@ -9,6 +9,8 @@
     "store:default",
     "dialog:default",
     "notification:default",
-    "fs:default"
+    "fs:default",
+    "updater:default",
+    "process:allow-restart"
   ]
 }
