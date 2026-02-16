@@ -49,7 +49,6 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
         return Ok(path);
     }
 
-    tracing::info!("yt-dlp não encontrado, baixando automaticamente...");
     download_ytdlp_binary().await
 }
 
@@ -68,8 +67,6 @@ async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
     } else {
         "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
     };
-
-    tracing::info!("Baixando yt-dlp de {}", download_url);
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
@@ -94,13 +91,10 @@ async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
         tokio::fs::set_permissions(&target, perms).await?;
     }
 
-    tracing::info!("yt-dlp instalado em {:?}", target);
     Ok(target)
 }
 
 pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_json::Value> {
-    tracing::info!("yt-dlp: obtendo info de {}", url);
-
     let output = tokio::process::Command::new(ytdlp)
         .args(["--dump-json", "--no-warnings", "--no-playlist", url])
         .stdout(Stdio::piped())
@@ -124,8 +118,6 @@ pub async fn get_playlist_info(
     ytdlp: &Path,
     url: &str,
 ) -> anyhow::Result<(String, Vec<PlaylistEntry>)> {
-    tracing::info!("yt-dlp: obtendo playlist de {}", url);
-
     let output = tokio::process::Command::new(ytdlp)
         .args([
             "--flat-playlist",
@@ -190,12 +182,6 @@ pub async fn get_playlist_info(
         }
     }
 
-    tracing::info!(
-        "yt-dlp: playlist '{}' com {} vídeos",
-        playlist_title,
-        entries.len()
-    );
-
     Ok((playlist_title, entries))
 }
 
@@ -225,13 +211,6 @@ pub async fn download_video(
         .join("%(title).200s [%(id)s].%(ext)s")
         .to_string_lossy()
         .to_string();
-
-    tracing::info!(
-        "yt-dlp download: url={}, format={}, output_dir={:?}",
-        url,
-        format_selector,
-        output_dir
-    );
 
     tokio::fs::create_dir_all(output_dir).await?;
 
@@ -282,12 +261,6 @@ pub async fn download_video(
 
     let file_path = find_downloaded_file(output_dir, url).await?;
     let meta = tokio::fs::metadata(&file_path).await?;
-
-    tracing::info!(
-        "yt-dlp download concluído: {:?} ({} bytes)",
-        file_path,
-        meta.len()
-    );
 
     Ok(DownloadResult {
         file_path,
