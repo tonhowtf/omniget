@@ -29,7 +29,6 @@ impl MediaProcessor {
             anyhow::bail!("FFmpeg remux falhou com status {}", status);
         }
 
-        tracing::info!("Remux completo: {} -> {}", input, output);
         Ok(())
     }
 
@@ -52,7 +51,6 @@ impl MediaProcessor {
             anyhow::bail!("FFmpeg merge falhou com status {}", status);
         }
 
-        tracing::info!("Merge completo: {} + {} -> {}", video, audio, output);
         Ok(())
     }
 
@@ -90,7 +88,6 @@ impl MediaProcessor {
             anyhow::bail!("FFmpeg download_direct falhou com status {}", status);
         }
 
-        tracing::info!("Download direto completo: {}", output);
         Ok(())
     }
 }
