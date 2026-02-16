@@ -87,10 +87,7 @@ impl TwitchClipsDownloader {
 
         let clip = json
             .pointer("/data/clip")
-            .ok_or_else(|| {
-                tracing::debug!("Twitch GQL response: {}", json);
-                anyhow!("Clip não encontrado: {}", slug)
-            })?;
+            .ok_or_else(|| anyhow!("Clip não encontrado: {}", slug))?;
 
         if clip.is_null() {
             return Err(anyhow!("Clip não encontrado: {}", slug));
@@ -176,10 +173,7 @@ impl TwitchClipsDownloader {
             .as_array()
             .and_then(|arr| arr.first())
             .and_then(|r| r.pointer("/data/clip/playbackAccessToken"))
-            .ok_or_else(|| {
-                tracing::debug!("Twitch token response: {}", json);
-                anyhow!("Token de acesso não disponível para clip: {}", slug)
-            })?;
+            .ok_or_else(|| anyhow!("Token de acesso não disponível para clip: {}", slug))?;
 
         let signature = token_obj.get("signature")
             .and_then(|v| v.as_str())
