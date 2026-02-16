@@ -41,7 +41,16 @@
     "unavailable": "Indisponível",
     "external_platform": "Plataforma externa",
     "choose_folder": "Escolher pasta de download",
-    "refresh": "Atualizar"
+    "refresh": "Atualizar",
+    "loading_courses": "Carregando cursos...",
+    "no_courses": "Nenhum curso encontrado nesta conta.",
+    "course_count": "{{count}} cursos",
+    "course_count_one": "{{count}} curso",
+    "page_of": "Página {{current}} de {{total}}",
+    "password_label": "Senha",
+    "password_placeholder": "Sua senha",
+    "authenticating": "Autenticando...",
+    "unknown_error": "Erro desconhecido"
   },
   "settings": {
     "title": "Configurações",
