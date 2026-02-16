@@ -318,16 +318,34 @@ impl HotmartDownloader {
                         }
 
                         tracing::info!("[download] Baixando YouTube: {}", video_id);
-                        let video = rusty_ytdl::Video::new(video_id)
-                            .map_err(|e| anyhow!("rusty_ytdl: {}", e))?;
-                        if let Err(e) = video.download(&out).await {
-                            tracing::error!("[download] Falha YouTube: {}", e);
-                            continue;
+                        let yt_url = format!("https://www.youtube.com/watch?v={}", video_id);
+                        match crate::core::ytdlp::ensure_ytdlp().await {
+                            Ok(ytdlp_path) => {
+                                let out_dir = std::path::Path::new(&out).parent()
+                                    .unwrap_or(std::path::Path::new("."));
+                                let (ytx, _yrx) = mpsc::channel(8);
+                                match crate::core::ytdlp::download_video(
+                                    &ytdlp_path,
+                                    &yt_url,
+                                    out_dir,
+                                    None,
+                                    ytx,
+                                ).await {
+                                    Ok(result) => {
+                                        let _ = bytes_tx.send(result.file_size_bytes);
+                                        results.push(result.file_path);
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("[download] Falha YouTube: {}", e);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                tracing::error!("[download] yt-dlp indisponível: {}", e);
+                                continue;
+                            }
                         }
-                        if let Ok(meta) = tokio::fs::metadata(&out).await {
-                            let _ = bytes_tx.send(meta.len());
-                        }
-                        results.push(PathBuf::from(&out));
                     }
                     DetectedPlayer::HotmartNative { .. } => {}
                     DetectedPlayer::Unknown { src } => {
