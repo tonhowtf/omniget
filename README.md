@@ -25,7 +25,7 @@ OmniGet is a free, open source desktop app for downloading videos and media from
 - Loop, the expressive mascot that reacts to your downloads
 - Dark and light theme
 - Multi-language (English and Portuguese)
-- Built with Tauri + Rust. Fast, lightweight, no Electron bloat
+- Built with Tauri + Rust. Fast and lightweight
 - Free and open source under GPL-3.0
 
 ## Supported Platforms
@@ -87,8 +87,4 @@ Contributions are welcome! If you found a bug or want to suggest a feature, [ope
 
 OmniGet is licensed under [GPL-3.0](LICENSE). The OmniGet name, logo, and Loop mascot are project trademarks and are not covered by the code license.
 
-<!--
-GitHub Settings Reminder:
-About: "Free, open source media downloader. YouTube, Instagram, TikTok, Twitter/X and more. Built with Tauri + Rust."
-Topics: downloader, media-downloader, youtube-downloader, video-downloader, tiktok-downloader, instagram-downloader, twitter-downloader, reddit-downloader, tauri, rust, svelte, desktop-app, open-source, download-manager
--->
+
