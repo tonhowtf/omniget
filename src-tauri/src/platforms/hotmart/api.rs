@@ -95,8 +95,6 @@ pub fn navigation_headers(token: &str, slug: &str, product_id: u64) -> HeaderMap
 }
 
 pub async fn get_subdomains(session: &HotmartSession) -> anyhow::Result<Vec<SubdomainInfo>> {
-    tracing::info!("Buscando subdomínios via check_token...");
-
     let url = format!(
         "https://api-sec-vlc.hotmart.com/security/oauth/check_token?token={}",
         session.token
@@ -106,7 +104,6 @@ pub async fn get_subdomains(session: &HotmartSession) -> anyhow::Result<Vec<Subd
 
     let status = resp.status();
     let body_text = resp.text().await?;
-    tracing::info!("check_token status: {} | body (200 chars): {}", status, &body_text[..200.min(body_text.len())]);
 
     if !status.is_success() {
         return Err(anyhow!("check_token retornou status {}: {}", status, &body_text[..500.min(body_text.len())]));
@@ -143,13 +140,10 @@ pub async fn get_subdomains(session: &HotmartSession) -> anyhow::Result<Vec<Subd
         }
     }
 
-    tracing::info!("{} subdomínios encontrados", subdomains.len());
     Ok(subdomains)
 }
 
 pub async fn list_courses(session: &HotmartSession) -> anyhow::Result<Vec<Course>> {
-    tracing::info!("Listando cursos Hotmart...");
-
     let resp = session
         .client
         .get("https://api-hub.cb.hotmart.com/club-drive-api/rest/v2/purchase/?archived=UNARCHIVED")
@@ -158,7 +152,6 @@ pub async fn list_courses(session: &HotmartSession) -> anyhow::Result<Vec<Course
 
     let status = resp.status();
     let body_text = resp.text().await?;
-    tracing::info!("list_courses status: {} | body (200 chars): {}", status, &body_text[..200.min(body_text.len())]);
 
     if !status.is_success() {
         return Err(anyhow!("list_courses retornou status {}: {}", status, &body_text[..500.min(body_text.len())]));
@@ -219,7 +212,6 @@ pub async fn list_courses(session: &HotmartSession) -> anyhow::Result<Vec<Course
         });
     }
 
-    tracing::info!("{} cursos encontrados", courses.len());
     Ok(courses)
 }
 
@@ -233,8 +225,6 @@ pub async fn get_course_price(session: &HotmartSession, product_id: u64) -> anyh
 
     let status = resp.status();
     if !status.is_success() {
-        let body_text = resp.text().await.unwrap_or_default();
-        tracing::warn!("get_course_price({}) status {}: {}", product_id, status, &body_text[..200.min(body_text.len())]);
         return Err(anyhow!("Preço não disponível (status {})", status));
     }
 
@@ -263,11 +253,6 @@ pub fn merge_subdomains(courses: &mut [Course], subdomains: &[SubdomainInfo]) {
 
         if course.slug.is_none() && course.subdomain.is_none() {
             course.external_platform = true;
-            tracing::warn!(
-                "Curso '{}' (ID: {}) sem slug/subdomain — marcado como plataforma externa",
-                course.name,
-                course.id
-            );
         }
     }
 }
@@ -277,8 +262,6 @@ pub async fn get_modules(
     slug: &str,
     product_id: u64,
 ) -> anyhow::Result<Vec<Module>> {
-    tracing::info!("[get_modules] product_id={}, slug={}, token={}...", product_id, slug, &session.token[..20.min(session.token.len())]);
-
     let resp = session
         .client
         .get("https://api-club-course-consumption-gateway-ga.cb.hotmart.com/v1/navigation")
@@ -288,7 +271,6 @@ pub async fn get_modules(
 
     let status = resp.status();
     let body_text = resp.text().await?;
-    tracing::info!("get_modules status: {} | body (200 chars): {}", status, &body_text[..200.min(body_text.len())]);
 
     if !status.is_success() {
         return Err(anyhow!("get_modules retornou status {}: {}", status, &body_text[..500.min(body_text.len())]));
@@ -337,7 +319,6 @@ pub async fn get_modules(
         modules.push(Module { id, name, pages });
     }
 
-    tracing::info!("{} módulos encontrados para produto {}", modules.len(), product_id);
     Ok(modules)
 }
 
@@ -347,8 +328,6 @@ pub async fn get_lesson(
     product_id: u64,
     page_hash: &str,
 ) -> anyhow::Result<Lesson> {
-    tracing::info!("[get_lesson] hash={}", page_hash);
-
     let url = format!(
         "https://api-club-course-consumption-gateway-ga.cb.hotmart.com/v2/web/lessons/{}",
         page_hash
@@ -437,15 +416,6 @@ pub async fn get_lesson(
                 .collect()
         });
 
-    tracing::info!(
-        "Lição {} ({}): {} medias, {} attachments, locked={}",
-        page_hash,
-        name,
-        medias.len(),
-        attachments.len(),
-        locked,
-    );
-
     Ok(Lesson {
         hash,
         name,
@@ -462,8 +432,6 @@ pub async fn get_attachment_url(
     session: &HotmartSession,
     id: &str,
 ) -> anyhow::Result<AttachmentInfo> {
-    tracing::info!("Buscando URL de download do attachment {}", id);
-
     let url = format!(
         "https://api-club-hot-club-api.cb.hotmart.com/rest/v3/attachment/{}/download",
         id
@@ -492,8 +460,6 @@ pub async fn get_attachment_url(
     let file_name = body.get("fileName").and_then(|v| v.as_str()).map(String::from);
     let token = body.get("token").and_then(|v| v.as_str()).map(String::from);
     let lambda_url = body.get("lambdaUrl").and_then(|v| v.as_str()).map(String::from);
-
-    tracing::info!("Attachment {} -> drm={}, url_len={}", id, is_drm, download_url.len());
 
     Ok(AttachmentInfo {
         url: download_url,
