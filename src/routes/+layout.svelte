@@ -7,6 +7,7 @@
   import { loadSettings, getSettings } from "$lib/stores/settings-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
   import { open } from "@tauri-apps/plugin-shell";
+  import { refreshUpdateInfo } from "$lib/stores/update-store.svelte";
   import { t } from "$lib/i18n";
   import type { Snippet } from "svelte";
 
@@ -23,6 +24,7 @@
     let cleanup: (() => void) | undefined;
     initDownloadListener().then((fn) => (cleanup = fn));
     loadSettings();
+    refreshUpdateInfo();
 
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleChange = () => {
