@@ -61,7 +61,7 @@
 
   function formatPrice(price: number | null): string {
     if (price === null || price === undefined) return "—";
-    if (price === 0) return "Gratuito";
+    if (price === 0) return $t('hotmart.free');
     return `R$ ${price.toFixed(2).replace(".", ",")}`;
   }
 
@@ -122,7 +122,7 @@
       courses = await invoke("hotmart_list_courses");
       currentPage = 1;
     } catch (e: any) {
-      coursesError = typeof e === "string" ? e : e.message ?? "Erro ao carregar cursos";
+      coursesError = typeof e === "string" ? e : e.message ?? $t('hotmart.courses_error');
     } finally {
       loadingCourses = false;
     }
@@ -182,7 +182,7 @@
       courses = await invoke("hotmart_refresh_courses");
       currentPage = 1;
     } catch (e: any) {
-      coursesError = typeof e === "string" ? e : e.message ?? "Erro ao carregar cursos";
+      coursesError = typeof e === "string" ? e : e.message ?? $t('hotmart.courses_error');
     } finally {
       loadingCourses = false;
       refreshing = false;
@@ -193,13 +193,13 @@
 {#if checking}
   <div class="page-center">
     <span class="spinner"></span>
-    <span class="spinner-text">{$t('hotmart.loading_courses')}</span>
+    <span class="spinner-text">{$t('hotmart.checking_session')}</span>
   </div>
 {:else if loggedIn}
   <div class="page-logged">
     <div class="session-bar">
       <span class="session-info">
-        Logado como {sessionEmail || "—"}
+        {$t('hotmart.logged_as', { email: sessionEmail || "—" })}
       </span>
       <div class="session-actions">
         <button
@@ -294,13 +294,13 @@
 {:else}
   <div class="page-center">
     <div class="login-card">
-      <h2>Hotmart</h2>
+      <h2>{$t('hotmart.title')}</h2>
       <form class="form" onsubmit={(e) => { e.preventDefault(); handleLogin(); }}>
         <label class="field">
-          <span class="field-label">Email</span>
+          <span class="field-label">{$t('hotmart.email_label')}</span>
           <input
             type="email"
-            placeholder="you@example.com"
+            placeholder={$t('hotmart.email_placeholder')}
             bind:value={email}
             class="input"
             disabled={loading}
