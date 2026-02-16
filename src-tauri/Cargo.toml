@@ -25,7 +25,6 @@ futures = "0.3"
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "0.8"
 chromiumoxide = { version = "0.7", features = ["tokio-runtime"] }
 scraper = "0.21"
 regex = "1"
@@ -33,14 +32,12 @@ m3u8-rs = "6"
 aes = "0.8"
 cbc = "0.1"
 anyhow = "1"
-thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 dirs = "6"
 sanitize-filename = "0.6"
-tempfile = "3"
 tokio-util = { version = "0.7", features = ["rt"] }
 url = "2"
 urlencoding = "2"
