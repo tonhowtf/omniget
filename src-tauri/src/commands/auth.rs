@@ -11,18 +11,13 @@ pub async fn hotmart_login(
     email: String,
     password: String,
 ) -> Result<String, String> {
-    tracing::info!("Comando hotmart_login invocado para {}", email);
-
     match authenticate(&email, &password).await {
         Ok(session) => {
             let response_email = session.email.clone();
-            if let Err(e) = save_session(&session).await {
-                tracing::warn!("Falha ao salvar sessão no disco: {}", e);
-            }
+            let _ = save_session(&session).await;
             let mut guard = state.hotmart_session.lock().await;
             *guard = Some(session);
             *state.session_validated_at.lock().await = Some(Instant::now());
-            tracing::info!("Sessão Hotmart salva no state global");
             Ok(response_email)
         }
         Err(e) => {
@@ -39,15 +34,12 @@ pub async fn hotmart_check_session(
     let has_memory_session = state.hotmart_session.lock().await.is_some();
 
     if !has_memory_session {
-        tracing::info!("Nenhuma sessão em memória, tentando restaurar do disco...");
         match load_saved_session().await {
             Ok(session) => {
-                tracing::info!("Sessão restaurada do disco para {}", session.email);
                 let mut guard = state.hotmart_session.lock().await;
                 *guard = Some(session);
             }
-            Err(e) => {
-                tracing::info!("Sem sessão salva no disco: {}", e);
+            Err(_) => {
                 return Err("not_authenticated".to_string());
             }
         }
@@ -63,7 +55,6 @@ pub async fn hotmart_check_session(
         let validated_at = state.session_validated_at.lock().await;
         if let Some(at) = *validated_at {
             if at.elapsed() < SESSION_COOLDOWN {
-                tracing::info!("Sessão validada há {:?}, usando cache", at.elapsed());
                 return Ok(email);
             }
         }
@@ -84,10 +75,8 @@ pub async fn hotmart_check_session(
 
     if resp.status().is_success() {
         *state.session_validated_at.lock().await = Some(Instant::now());
-        tracing::info!("Sessão Hotmart válida para {}", email);
         Ok(email)
     } else {
-        tracing::info!("Sessão Hotmart expirada, limpando state e disco");
         state.hotmart_session.lock().await.take();
         *state.session_validated_at.lock().await = None;
         *state.courses_cache.lock().await = None;
@@ -103,10 +92,6 @@ pub async fn hotmart_logout(
     state.hotmart_session.lock().await.take();
     *state.session_validated_at.lock().await = None;
     *state.courses_cache.lock().await = None;
-    if let Err(e) = delete_saved_session().await {
-        tracing::warn!("Falha ao deletar sessão do disco: {}", e);
-    }
-    tracing::info!("Sessão Hotmart removida (memória e disco)");
+    let _ = delete_saved_session().await;
     Ok(())
 }
-
