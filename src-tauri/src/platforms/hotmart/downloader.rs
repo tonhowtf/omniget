@@ -130,37 +130,26 @@ impl HotmartDownloader {
 
                 let assets = match parser::fetch_player_media_assets(&media.url, session).await {
                     Ok(a) => a,
-                    Err(e) => {
-                        tracing::warn!("Falha ao extrair mediaAssets de '{}': {}", media.name, e);
-                        continue;
-                    }
+                    Err(_) => continue,
                 };
 
                 if media.media_type.to_uppercase().contains("VIDEO") {
                     let m3u8_url = match assets.first().and_then(|a| a.get("url")).and_then(|v| v.as_str()) {
                         Some(url) => url.to_string(),
-                        None => {
-                            tracing::warn!("m3u8 URL não encontrada para '{}'", media.name);
-                            continue;
-                        }
+                        None => continue,
                     };
-
-                    tracing::info!("[download] m3u8 URL extraída: {}", m3u8_url);
 
                     let out = format!("{}/{}. Aula.mp4", output_dir, i + 1);
 
                     if is_hls_file_valid(&out).await {
-                        tracing::info!("[skip] Já existe e válido: {}", out);
                         continue;
                     }
 
                     if tokio::fs::try_exists(done_path(&out)).await.unwrap_or(false) {
-                        tracing::warn!("[integrity] .omniget.done inválido, rebaixando: {}", out);
                         let _ = tokio::fs::remove_file(&out).await;
                         let _ = tokio::fs::remove_file(done_path(&out)).await;
                     }
 
-                    tracing::info!("[download] Baixando vídeo: {}", out);
                     match MediaProcessor::download_hls(
                         &m3u8_url,
                         &out,
@@ -173,9 +162,7 @@ impl HotmartDownloader {
                     .await
                     {
                         Ok(hls_result) => {
-                            if let Err(e) = write_done_manifest(&out, hls_result.file_size, hls_result.segments).await {
-                                tracing::warn!("[done] Falha ao escrever manifesto: {}", e);
-                            }
+                            let _ = write_done_manifest(&out, hls_result.file_size, hls_result.segments).await;
                             results.push(hls_result.path);
                         }
                         Err(e) => {
@@ -212,12 +199,10 @@ impl HotmartDownloader {
                         if tokio::fs::try_exists(&out).await.unwrap_or(false) {
                             let meta = tokio::fs::metadata(&out).await;
                             if meta.map(|m| m.len() > 0).unwrap_or(false) {
-                                tracing::info!("[skip] Já existe: {}", out);
                                 continue;
                             }
                         }
 
-                        tracing::info!("[download] Baixando áudio: {}", out);
                         let bytes = session.client
                             .get(audio_url)
                             .send()
@@ -242,18 +227,15 @@ impl HotmartDownloader {
                 let out = format!("{}/{}. Aula.mp4", output_dir, i + 1);
 
                 match player {
-                    DetectedPlayer::Vimeo { embed_url } => {
-                        tracing::warn!("[skip] Vimeo não suportado, pulando: {}", embed_url);
+                    DetectedPlayer::Vimeo { .. } => {
                         continue;
                     }
                     DetectedPlayer::PandaVideo { m3u8_url, .. } => {
                         if is_hls_file_valid(&out).await {
-                            tracing::info!("[skip] Já existe e válido: {}", out);
                             continue;
                         }
 
                         if tokio::fs::try_exists(done_path(&out)).await.unwrap_or(false) {
-                            tracing::warn!("[integrity] .omniget.done inválido, rebaixando: {}", out);
                             let _ = tokio::fs::remove_file(&out).await;
                             let _ = tokio::fs::remove_file(done_path(&out)).await;
                         }
@@ -264,12 +246,9 @@ impl HotmartDownloader {
                             .unwrap_or("")
                             .to_string()
                             + "com.br";
-                        tracing::info!("[download] Baixando PandaVideo: {}", m3u8_url);
                         match MediaProcessor::download_hls(m3u8_url, &out, &panda_referer, Some(bytes_tx.clone()), cancel_token.clone(), self.max_concurrent_segments, self.max_retries).await {
                             Ok(hls_result) => {
-                                if let Err(e) = write_done_manifest(&out, hls_result.file_size, hls_result.segments).await {
-                                    tracing::warn!("[done] Falha ao escrever manifesto: {}", e);
-                                }
+                                let _ = write_done_manifest(&out, hls_result.file_size, hls_result.segments).await;
                                 results.push(hls_result.path);
                             }
                             Err(e) => {
@@ -286,12 +265,10 @@ impl HotmartDownloader {
                         if tokio::fs::try_exists(&out).await.unwrap_or(false) {
                             let meta = tokio::fs::metadata(&out).await;
                             if meta.map(|m| m.len() > 0).unwrap_or(false) {
-                                tracing::info!("[skip] Já existe: {}", out);
                                 continue;
                             }
                         }
 
-                        tracing::info!("[download] Baixando YouTube: {}", video_id);
                         let yt_url = format!("https://www.youtube.com/watch?v={}", video_id);
                         match crate::core::ytdlp::ensure_ytdlp().await {
                             Ok(ytdlp_path) => {
@@ -322,9 +299,7 @@ impl HotmartDownloader {
                         }
                     }
                     DetectedPlayer::HotmartNative { .. } => {}
-                    DetectedPlayer::Unknown { src } => {
-                        tracing::warn!("[download] Player desconhecido ignorado: {}", src);
-                    }
+                    DetectedPlayer::Unknown { .. } => {}
                 }
             }
         }
@@ -341,18 +316,14 @@ impl HotmartDownloader {
                 let att_path = format!("{}/{}", mat_dir, safe_name);
 
                 if tokio::fs::try_exists(&att_path).await.unwrap_or(false) {
-                    tracing::info!("[skip] Anexo já existe: {}", att_path);
                     continue;
                 }
 
                 match download_attachment(session, &att.file_membership_id, &att_path).await {
                     Ok(()) => {
-                        tracing::info!("[download] Anexo salvo: {}", att_path);
                         results.push(PathBuf::from(att_path));
                     }
-                    Err(e) => {
-                        tracing::warn!("[download] Falha ao baixar anexo '{}': {}", att.file_name, e);
-                    }
+                    Err(_) => {}
                 }
             }
         }
@@ -363,7 +334,6 @@ impl HotmartDownloader {
                     let desc_path = format!("{}/Descrição.html", output_dir);
                     if !tokio::fs::try_exists(&desc_path).await.unwrap_or(false) {
                         tokio::fs::write(&desc_path, content).await?;
-                        tracing::info!("[download] Descrição salva: {}", desc_path);
                     }
                 }
             }
@@ -379,7 +349,6 @@ impl HotmartDownloader {
                             html.push_str(&format!("<a href=\"{}\">{}</a><br>\n", url, title));
                         }
                         tokio::fs::write(&reading_path, &html).await?;
-                        tracing::info!("[download] Leitura complementar salva: {}", reading_path);
                     }
                 }
             }
@@ -432,13 +401,6 @@ impl HotmartDownloader {
         let mut done = 0usize;
         let total_bytes = Arc::new(AtomicU64::new(0));
 
-        tracing::info!(
-            "{} módulos encontrados para '{}' ({} páginas total)",
-            total_modules,
-            course.name,
-            total_pages,
-        );
-
         let _ = progress
             .send(CourseDownloadProgress {
                 course_id: course.id,
@@ -462,21 +424,12 @@ impl HotmartDownloader {
 
             for (pi, page) in module.pages.iter().enumerate() {
                 if cancel_token.is_cancelled() {
-                    tracing::info!("Download cancelado pelo usuário: '{}'", course.name);
                     break 'outer;
                 }
 
                 let page_name = filename::sanitize_path_component(&page.name);
                 let page_dir = format!("{}/{}. {}", mod_dir, pi + 1, page_name);
                 tokio::fs::create_dir_all(&page_dir).await?;
-
-                tracing::info!(
-                    "[{}/{}] Módulo '{}', Página: '{}'",
-                    done + 1,
-                    total_pages,
-                    module.name,
-                    page.name
-                );
 
                 let lesson = match api::get_lesson(&session, slug, course.id, &page.hash).await {
                     Ok(l) => l,
@@ -518,7 +471,6 @@ impl HotmartDownloader {
 
                 if let Err(e) = lesson_result {
                     if cancel_token.is_cancelled() {
-                        tracing::info!("Download cancelado pelo usuário: '{}'", course.name);
                         break 'outer;
                     }
                     tracing::error!(
@@ -550,7 +502,6 @@ impl HotmartDownloader {
             return Err(anyhow!("Download cancelado pelo usuário"));
         }
 
-        tracing::info!("Download completo do curso '{}'", course.name);
         Ok(())
     }
 }
