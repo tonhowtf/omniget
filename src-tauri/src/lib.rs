@@ -109,6 +109,7 @@ pub fn run() {
             commands::telegram::telegram_verify_2fa,
             commands::telegram::telegram_logout,
             commands::telegram::telegram_list_chats,
+            commands::telegram::telegram_list_media,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
