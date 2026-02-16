@@ -83,17 +83,31 @@ pub async fn download_from_url(
     let platform = Platform::from_url(&url)
         .ok_or_else(|| "Plataforma não reconhecida".to_string())?;
 
+    let download_id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+
+    let cancel_token = CancellationToken::new();
+
     {
-        let mut active_urls = state.active_generic_urls.lock().await;
-        if !active_urls.insert(url.clone()) {
+        let active = state.active_generic_downloads.lock().await;
+        if active.values().any(|(u, _)| u == &url) {
             return Err("Download já em andamento para esta URL".to_string());
         }
     }
 
-    let cleanup_urls = state.active_generic_urls.clone();
-    let cleanup_key = url.clone();
-    let cleanup = || async move {
-        cleanup_urls.lock().await.remove(&cleanup_key);
+    {
+        let mut active = state.active_generic_downloads.lock().await;
+        active.insert(download_id, (url.clone(), cancel_token.clone()));
+    }
+
+    let active_downloads = state.active_generic_downloads.clone();
+    let cleanup = {
+        let active_downloads = active_downloads.clone();
+        move || async move {
+            active_downloads.lock().await.remove(&download_id);
+        }
     };
 
     let downloader = match state.registry.find_platform(&url) {
@@ -116,16 +130,9 @@ pub async fn download_from_url(
     };
 
     let title = info.title.clone();
-    let download_id = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
+    let return_title = title.clone();
 
     tracing::info!("Iniciando download '{}' ({}) em {}", title, platform_name, output_dir);
-
-    let return_title = title.clone();
-    let active_urls = state.active_generic_urls.clone();
-    let url_key = url.clone();
 
     tokio::spawn(async move {
         let opts = crate::models::media::DownloadOptions {
@@ -158,15 +165,17 @@ pub async fn download_from_url(
             }
         });
 
-        let result = downloader
-            .download(&info, &opts, tx)
-            .await;
+        let result = tokio::select! {
+            r = downloader.download(&info, &opts, tx) => r,
+            _ = cancel_token.cancelled() => {
+                Err(anyhow::anyhow!("Download cancelado"))
+            }
+        };
 
         let _ = progress_forwarder.await;
 
         {
-            let mut urls = active_urls.lock().await;
-            urls.remove(&url_key);
+            active_downloads.lock().await.remove(&download_id);
         }
 
         match result {
@@ -199,6 +208,22 @@ pub async fn download_from_url(
     });
 
     Ok(DownloadStarted { id: download_id, title: return_title })
+}
+
+#[tauri::command]
+pub async fn cancel_generic_download(
+    state: tauri::State<'_, AppState>,
+    download_id: u64,
+) -> Result<String, String> {
+    let mut map = state.active_generic_downloads.lock().await;
+    match map.remove(&download_id) {
+        Some((_, token)) => {
+            token.cancel();
+            tracing::info!("Download genérico cancelado para id={}", download_id);
+            Ok("Download cancelado".to_string())
+        }
+        None => Err("Nenhum download ativo para este ID".to_string()),
+    }
 }
 
 #[tauri::command]
