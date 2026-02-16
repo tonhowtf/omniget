@@ -24,7 +24,6 @@ pub fn detect_players_from_html(html: &str) -> Vec<DetectedPlayer> {
         .filter_map(|el| {
             let src = el.value().attr("src")?;
             if !allowlist.iter().any(|kw| src.contains(kw)) {
-                tracing::warn!("iframe desconhecido ignorado: {}", src);
                 return None;
             }
 
@@ -75,8 +74,6 @@ pub async fn fetch_player_media_assets(
     player_url: &str,
     session: &HotmartSession,
 ) -> anyhow::Result<Vec<serde_json::Value>> {
-    tracing::info!("[download] Buscando player: {}", &player_url[..80.min(player_url.len())]);
-
     let resp = session
         .client
         .get(player_url)
@@ -103,6 +100,5 @@ pub async fn fetch_player_media_assets(
         .cloned()
         .unwrap_or_default();
 
-    tracing::info!("[download] mediaAssets extraídos: {} assets", assets.len());
     Ok(assets)
 }
