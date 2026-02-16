@@ -23,7 +23,7 @@
     <div class="check-item done"><span class="checkbox">✓</span> Pinterest</div>
     <div class="check-item done"><span class="checkbox">✓</span> Bluesky</div>
     <div class="check-item done"><span class="checkbox">✓</span> Hotmart</div>
-    <div class="check-item"><span class="checkbox"></span> Telegram</div>
+    <div class="check-item done"><span class="checkbox">✓</span> Telegram</div>
     <div class="check-item"><span class="checkbox"></span> Hubla</div>
     <div class="check-item"><span class="checkbox"></span> Kiwify</div>
     <div class="check-item"><span class="checkbox"></span> Udemy</div>
@@ -37,9 +37,9 @@
     <div class="check-item done"><span class="checkbox">✓</span> {$t('about.roadmap_feature_i18n')}</div>
     <div class="check-item done"><span class="checkbox">✓</span> {$t('about.roadmap_feature_hotmart_login')}</div>
     <div class="check-item"><span class="checkbox"></span> {$t('about.roadmap_feature_instagram_login')}</div>
-    <div class="check-item"><span class="checkbox"></span> {$t('about.roadmap_feature_telegram_media')}</div>
-    <div class="check-item"><span class="checkbox"></span> {$t('about.roadmap_feature_telegram_private')}</div>
-    <div class="check-item"><span class="checkbox"></span> {$t('about.roadmap_feature_telegram_chat')}</div>
+    <div class="check-item done"><span class="checkbox">✓</span> {$t('about.roadmap_feature_telegram_media')}</div>
+    <div class="check-item done"><span class="checkbox">✓</span> {$t('about.roadmap_feature_telegram_private')}</div>
+    <div class="check-item done"><span class="checkbox">✓</span> {$t('about.roadmap_feature_telegram_chat')}</div>
   </div>
 </section>
 
