@@ -294,10 +294,12 @@ impl YouTubeDownloader {
             let video_idx = i;
             let video_total = total;
             let forwarder = tokio::spawn(async move {
+                let mut max_pct = 0.0_f64;
                 while let Some(pct) = video_rx.recv().await {
+                    max_pct = max_pct.max(pct);
                     let overall =
                         (video_idx as f64 / video_total as f64) * 100.0
-                            + (pct / video_total as f64);
+                            + (max_pct / video_total as f64);
                     let _ = progress_tx.send(overall).await;
                 }
             });
@@ -315,7 +317,9 @@ impl YouTubeDownloader {
                     total_bytes += result.file_size_bytes;
                     last_path = result.file_path;
                 }
-                Err(_) => {}
+                Err(e) => {
+                    tracing::warn!("Playlist video {} falhou: {}", i + 1, e);
+                }
             }
 
             let _ = forwarder.await;
