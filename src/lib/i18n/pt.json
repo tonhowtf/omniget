@@ -20,7 +20,8 @@
     "eta_seconds": "~{{n}} seg",
     "eta_minutes": "~{{n}} min",
     "eta_hours": "~{{h}}h {{m}}min",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "clear_finished": "Limpar finalizados"
   },
   "toast": {
     "download_preparing": "Preparando download...",
@@ -118,8 +119,16 @@
   "about": {
     "title": "Sobre",
     "description": "Download manager de mídia universal. Código aberto e gratuito.",
-    "legal_title": "Uso Legal",
-    "legal_text": "OmniGet é uma ferramenta de uso privado. Coberto pelo Artigo 184 do Código Penal Brasileiro, que permite a cópia de obra intelectual para uso privado do copista, sem intuito de lucro.",
+    "terms_title": "Termos de Uso",
+    "terms_text": "OmniGet é um gerenciador de downloads fornecido \"como está\", sem garantias de qualquer tipo. O software facilita o download de conteúdo disponível publicamente na internet. Não nos responsabilizamos pelo conteúdo baixado, pela forma como é utilizado ou distribuído pelo usuário final. Ao utilizar o OmniGet, você concorda com estes termos.",
+    "legal_title": "Base Legal",
+    "legal_text": "O uso pessoal do OmniGet é amparado pelo Art. 184, §4º do Código Penal Brasileiro (Decreto-Lei nº 2.848/1940, alterado pela Lei nº 10.695/2003), que exclui da tipificação penal a cópia de obra intelectual ou fonograma, em um só exemplar, para uso privado do copista, sem intuito de lucro direto ou indireto. Isso não constitui autorização para distribuição, revenda ou uso comercial do conteúdo obtido. A Lei nº 9.610/1998 (Lei de Direitos Autorais) permanece aplicável na esfera cível.",
+    "responsibility_title": "Responsabilidade do Usuário",
+    "responsibility_text": "Você é inteiramente responsável pelo uso que faz do OmniGet e do conteúdo obtido através dele. Respeite os direitos autorais e os termos de serviço de cada plataforma. Sempre dê crédito aos criadores originais. Não utilize o software para fins ilegais, comerciais ou que violem direitos de terceiros. O uso para fins educacionais deve sempre citar as fontes e dar os devidos créditos.",
+    "mascot_title": "Loop",
+    "mascot_text": "Loop é o mascote oficial do OmniGet — um bichinho expressivo que reage aos seus downloads em tempo real. Os direitos sobre o design do personagem Loop pertencem ao projeto OmniGet. Você pode criar fan art do Loop livremente, mas não pode: usar o design ou as artes do Loop comercialmente; usar o design do Loop em projetos próprios que não sejam fan art; modificar ou redistribuir as artes originais do projeto.",
+    "license_title": "Licença",
+    "license_text": "OmniGet é software de código aberto licenciado sob a GPL-3.0. O código fonte está disponível no GitHub. A marca \"OmniGet\", o logotipo e o mascote Loop são marcas do projeto e não estão cobertos pela licença do código fonte.",
     "star_button": "Dar uma estrela no GitHub",
     "star_description": "Se gostou do projeto, deixe uma estrela!",
     "version": "Versão"
@@ -129,6 +138,10 @@
     "title_show": "mostrar plataformas suportadas",
     "title_hide": "esconder plataformas suportadas",
     "disclaimer": "a disponibilidade depende de cada plataforma e pode variar"
+  },
+  "terms_note": {
+    "agreement": "ao continuar, você concorda com os",
+    "link": "termos e ética de uso"
   },
   "common": {
     "cancel": "Cancelar",
