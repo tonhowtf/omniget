@@ -3,6 +3,7 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { goto } from "$app/navigation";
   import Mascot from "$components/mascot/Mascot.svelte";
+  import SupportedServices from "$components/services/SupportedServices.svelte";
   import { getDownloads, removeDownload, type GenericDownloadItem } from "$lib/stores/download-store.svelte";
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -372,6 +373,8 @@
       </div>
     {/if}
   </div>
+
+  <SupportedServices />
 </div>
 
 <style>
