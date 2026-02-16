@@ -78,7 +78,6 @@
       "title": "Advanced",
       "max_concurrent_segments": "Concurrent segments",
       "max_retries": "Retries per segment",
-      "debug_mode": "Debug mode",
       "reset": "Reset defaults",
       "reset_confirm": "Are you sure? All settings will be reset."
     }
