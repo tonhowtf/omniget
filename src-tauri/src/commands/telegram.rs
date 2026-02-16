@@ -1,6 +1,34 @@
+use serde::Serialize;
+use tauri::Emitter;
+use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
+
 use crate::platforms::telegram::api::{self, TelegramChat, TelegramMediaItem};
 use crate::platforms::telegram::auth::{self, VerifyError};
 use crate::AppState;
+
+#[derive(Clone, Serialize)]
+struct TelegramDownloadProgress {
+    id: u64,
+    file_name: String,
+    percent: f64,
+}
+
+#[derive(Clone, Serialize)]
+struct TelegramDownloadComplete {
+    id: u64,
+    file_name: String,
+    success: bool,
+    error: Option<String>,
+    file_path: Option<String>,
+    file_size_bytes: Option<u64>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct TelegramDownloadStarted {
+    pub id: u64,
+    pub file_name: String,
+}
 
 #[tauri::command]
 pub async fn telegram_check_session(
@@ -84,4 +112,104 @@ pub async fn telegram_list_media(
     )
     .await
     .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn telegram_download_media(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    chat_id: i64,
+    chat_type: String,
+    message_id: i32,
+    file_name: String,
+    output_dir: String,
+) -> Result<TelegramDownloadStarted, String> {
+    let download_id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+
+    let cancel_token = CancellationToken::new();
+
+    {
+        let mut active = state.active_generic_downloads.lock().await;
+        let key = format!("tg:{}:{}", chat_id, message_id);
+        if active.values().any(|(u, _)| u == &key) {
+            return Err("Download já em andamento para esta mídia".to_string());
+        }
+        active.insert(download_id, (key, cancel_token.clone()));
+    }
+
+    let session = state.telegram_session.clone();
+    let active_downloads = state.active_generic_downloads.clone();
+    let file_name_clone = file_name.clone();
+
+    tokio::spawn(async move {
+        let output_path = std::path::PathBuf::from(&output_dir).join(&file_name_clone);
+
+        let _ = app.emit("generic-download-progress", &TelegramDownloadProgress {
+            id: download_id,
+            file_name: file_name_clone.clone(),
+            percent: 0.0,
+        });
+
+        let (tx, mut rx) = mpsc::channel::<f64>(32);
+
+        let app_progress = app.clone();
+        let file_name_progress = file_name_clone.clone();
+        let progress_forwarder = tokio::spawn(async move {
+            while let Some(percent) = rx.recv().await {
+                let _ = app_progress.emit("generic-download-progress", &TelegramDownloadProgress {
+                    id: download_id,
+                    file_name: file_name_progress.clone(),
+                    percent,
+                });
+            }
+        });
+
+        let result = tokio::select! {
+            r = api::download_media(
+                &session,
+                chat_id,
+                &chat_type,
+                message_id,
+                &output_path,
+                tx,
+            ) => r,
+            _ = cancel_token.cancelled() => {
+                Err(anyhow::anyhow!("Download cancelado"))
+            }
+        };
+
+        let _ = progress_forwarder.await;
+
+        {
+            active_downloads.lock().await.remove(&download_id);
+        }
+
+        match result {
+            Ok(size) => {
+                let _ = app.emit("generic-download-complete", &TelegramDownloadComplete {
+                    id: download_id,
+                    file_name: file_name_clone,
+                    success: true,
+                    error: None,
+                    file_path: Some(output_path.to_string_lossy().to_string()),
+                    file_size_bytes: Some(size),
+                });
+            }
+            Err(e) => {
+                let _ = app.emit("generic-download-complete", &TelegramDownloadComplete {
+                    id: download_id,
+                    file_name: file_name_clone,
+                    success: false,
+                    error: Some(e.to_string()),
+                    file_path: None,
+                    file_size_bytes: None,
+                });
+            }
+        }
+    });
+
+    Ok(TelegramDownloadStarted { id: download_id, file_name })
 }
