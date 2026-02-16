@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use platforms::hotmart::api::Course;
 use platforms::hotmart::auth::HotmartSession;
+use platforms::telegram::auth::{TelegramSessionHandle, TelegramState};
 use tokio_util::sync::CancellationToken;
 
 pub mod commands;
@@ -23,6 +24,7 @@ pub struct AppState {
     pub registry: core::registry::PlatformRegistry,
     pub courses_cache: Arc<tokio::sync::Mutex<Option<CoursesCache>>>,
     pub session_validated_at: Arc<tokio::sync::Mutex<Option<std::time::Instant>>>,
+    pub telegram_session: TelegramSessionHandle,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -72,6 +74,7 @@ pub fn run() {
         registry,
         courses_cache: Arc::new(tokio::sync::Mutex::new(None)),
         session_validated_at: Arc::new(tokio::sync::Mutex::new(None)),
+        telegram_session: Arc::new(tokio::sync::Mutex::new(TelegramState::new())),
     };
 
     tauri::Builder::default()
@@ -100,6 +103,12 @@ pub fn run() {
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::settings::reset_settings,
+            commands::telegram::telegram_check_session,
+            commands::telegram::telegram_send_code,
+            commands::telegram::telegram_verify_code,
+            commands::telegram::telegram_verify_2fa,
+            commands::telegram::telegram_logout,
+            commands::telegram::telegram_list_chats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
