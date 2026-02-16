@@ -116,6 +116,27 @@ export function markComplete(courseName: string, success: boolean, error?: strin
   }
 }
 
+export function clearFinished() {
+  let changed = false;
+  for (const [id, item] of downloads) {
+    if (item.status !== "downloading") {
+      downloads.delete(id);
+      changed = true;
+    }
+  }
+  if (changed) {
+    downloads = new Map(downloads);
+  }
+}
+
+export function getFinishedCount(): number {
+  let count = 0;
+  for (const item of downloads.values()) {
+    if (item.status !== "downloading") count++;
+  }
+  return count;
+}
+
 export function upsertGenericProgress(
   id: number,
   title: string,
