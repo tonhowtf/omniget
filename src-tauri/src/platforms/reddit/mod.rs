@@ -27,6 +27,14 @@ enum RedditMedia {
     Image {
         url: String,
     },
+    Gallery {
+        items: Vec<GalleryItem>,
+    },
+}
+
+struct GalleryItem {
+    url: String,
+    ext: String,
 }
 
 impl RedditDownloader {
@@ -167,6 +175,13 @@ impl RedditDownloader {
     }
 
     fn parse_media(data: &serde_json::Value) -> Option<RedditMedia> {
+        let is_gallery = data.get("is_gallery").and_then(|v| v.as_bool()).unwrap_or(false);
+        if is_gallery {
+            if let Some(gallery) = Self::parse_gallery(data) {
+                return Some(gallery);
+            }
+        }
+
         if let Some(url) = data.get("url").and_then(|v| v.as_str()) {
             if url.ends_with(".gif") {
                 return Some(RedditMedia::Gif {
@@ -208,6 +223,49 @@ impl RedditDownloader {
         }
 
         None
+    }
+
+    fn parse_gallery(data: &serde_json::Value) -> Option<RedditMedia> {
+        let gallery_data = data.get("gallery_data")?.get("items")?.as_array()?;
+        let media_metadata = data.get("media_metadata")?;
+
+        let mut items = Vec::new();
+
+        for item in gallery_data {
+            let media_id = item.get("media_id").and_then(|v| v.as_str())?;
+            let meta = media_metadata.get(media_id)?;
+
+            let mime = meta.get("m").and_then(|v| v.as_str()).unwrap_or("image/jpeg");
+            let ext = match mime {
+                "image/png" => "png",
+                "image/gif" => "gif",
+                "image/webp" => "webp",
+                _ => "jpg",
+            };
+
+            let url = if let Some(source) = meta.get("s") {
+                source
+                    .get("u")
+                    .or_else(|| source.get("gif"))
+                    .and_then(|v| v.as_str())
+                    .map(|u| u.replace("&amp;", "&"))
+            } else {
+                None
+            };
+
+            if let Some(url) = url {
+                items.push(GalleryItem {
+                    url,
+                    ext: ext.to_string(),
+                });
+            }
+        }
+
+        if items.is_empty() {
+            return None;
+        }
+
+        Some(RedditMedia::Gallery { items })
     }
 }
 
@@ -320,6 +378,29 @@ impl PlatformDownloader for RedditDownloader {
                         format: ext.to_string(),
                     }],
                     media_type: MediaType::Photo,
+                })
+            }
+            RedditMedia::Gallery { items } => {
+                let qualities: Vec<VideoQuality> = items
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, item)| VideoQuality {
+                        label: format!("media_{}", i + 1),
+                        width: 0,
+                        height: 0,
+                        url: item.url,
+                        format: item.ext,
+                    })
+                    .collect();
+
+                Ok(MediaInfo {
+                    title,
+                    author: subreddit,
+                    platform: "reddit".to_string(),
+                    duration_seconds: None,
+                    thumbnail_url: None,
+                    available_qualities: qualities,
+                    media_type: MediaType::Carousel,
                 })
             }
         }
@@ -496,6 +577,43 @@ impl PlatformDownloader for RedditDownloader {
                 Ok(DownloadResult {
                     file_path: output,
                     file_size_bytes: bytes,
+                    duration_seconds: 0.0,
+                })
+            }
+            MediaType::Carousel => {
+                let count = info.available_qualities.len();
+                let mut total_bytes = 0u64;
+                let mut last_path = opts.output_dir.clone();
+
+                for (i, quality) in info.available_qualities.iter().enumerate() {
+                    let filename = format!(
+                        "{}_{}.{}",
+                        sanitize_filename::sanitize(&info.title),
+                        i + 1,
+                        quality.format,
+                    );
+                    let output = opts.output_dir.join(&filename);
+                    let (tx, _rx) = mpsc::channel(8);
+
+                    let bytes = direct_downloader::download_direct(
+                        &self.client,
+                        &quality.url,
+                        &output,
+                        tx,
+                        None,
+                    )
+                    .await?;
+
+                    total_bytes += bytes;
+                    last_path = output;
+
+                    let percent = ((i + 1) as f64 / count as f64) * 100.0;
+                    let _ = progress.send(percent).await;
+                }
+
+                Ok(DownloadResult {
+                    file_path: last_path,
+                    file_size_bytes: total_bytes,
                     duration_seconds: 0.0,
                 })
             }
