@@ -55,11 +55,15 @@ impl InstagramDownloader {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .user_agent(USER_AGENT)
+            .timeout(std::time::Duration::from_secs(120))
+            .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .unwrap_or_default();
 
         let redirect_client = reqwest::Client::builder()
             .user_agent("curl/7.88.1")
+            .timeout(std::time::Duration::from_secs(120))
+            .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .unwrap_or_default();
 
@@ -640,6 +644,7 @@ impl PlatformDownloader for InstagramDownloader {
                 &output,
                 progress,
                 headers,
+                None,
             )
             .await?;
 
@@ -675,6 +680,7 @@ impl PlatformDownloader for InstagramDownloader {
                 &output,
                 tx,
                 headers,
+                None,
             )
             .await?;
 
