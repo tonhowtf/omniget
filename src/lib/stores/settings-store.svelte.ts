@@ -22,6 +22,17 @@ export type AppSettings = {
 
 let settings = $state<AppSettings | null>(null);
 
+function applyTheme(theme: string) {
+  if (typeof document === "undefined") return;
+
+  if (theme === "system") {
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.setAttribute("data-theme", prefersDark ? "dark" : "light");
+  } else {
+    document.documentElement.setAttribute("data-theme", theme);
+  }
+}
+
 export function getSettings(): AppSettings | null {
   return settings;
 }
@@ -29,6 +40,7 @@ export function getSettings(): AppSettings | null {
 export async function loadSettings(): Promise<AppSettings> {
   const result = await invoke<AppSettings>("get_settings");
   settings = result;
+  applyTheme(result.appearance.theme);
   return result;
 }
 
@@ -37,11 +49,13 @@ export async function updateSettings(partial: Record<string, unknown>): Promise<
     partial: JSON.stringify(partial),
   });
   settings = result;
+  applyTheme(result.appearance.theme);
   return result;
 }
 
 export async function resetSettings(): Promise<AppSettings> {
   const result = await invoke<AppSettings>("reset_settings");
   settings = result;
+  applyTheme(result.appearance.theme);
   return result;
 }
