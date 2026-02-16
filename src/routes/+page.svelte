@@ -71,7 +71,6 @@
     }
   });
 
-  // Timer to force re-evaluation of stall detection (Date.now() doesn't trigger $derived)
   let stallTick = $state(0);
   $effect(() => {
     const interval = setInterval(() => { stallTick++; }, 5000);
@@ -81,28 +80,33 @@
   let mascotEmotion = $derived.by((): "idle" | "downloading" | "error" | "stalled" => {
     void stallTick;
 
+    if (omniState.kind === "preparing" || omniState.kind === "downloading") {
+      if (omniState.kind === "downloading") {
+        const tracked = downloads.get(omniState.trackingId);
+        if (tracked && tracked.status === "downloading") {
+          const elapsed = Date.now() - tracked.lastUpdateAt;
+          if (elapsed > STALL_THRESHOLD) return "stalled";
+        }
+      }
+      return "downloading";
+    }
+
     if (omniState.kind === "error") return "error";
-    if (omniState.kind === "downloading" || omniState.kind === "preparing") return "downloading";
 
-    let hasError = false;
-    let hasStalled = false;
-    let hasDownloading = false;
-
+    let hasActiveDownloading = false;
+    let hasActiveStalled = false;
     for (const item of downloads.values()) {
-      if (item.status === "error") {
-        hasError = true;
-      } else if (item.status === "downloading") {
-        hasDownloading = true;
-        const stalledDuration = Date.now() - item.lastUpdateAt;
-        if (stalledDuration > STALL_THRESHOLD) {
-          hasStalled = true;
+      if (item.status === "downloading") {
+        hasActiveDownloading = true;
+        const elapsed = Date.now() - item.lastUpdateAt;
+        if (elapsed > STALL_THRESHOLD) {
+          hasActiveStalled = true;
         }
       }
     }
 
-    if (hasError) return "error";
-    if (hasStalled) return "stalled";
-    if (hasDownloading) return "downloading";
+    if (hasActiveStalled) return "stalled";
+    if (hasActiveDownloading) return "downloading";
     return "idle";
   });
 
