@@ -82,6 +82,10 @@
       "download_attachments": "Download attachments",
       "download_descriptions": "Save descriptions"
     },
+    "update_available": "OmniGet {{version}} is available",
+    "update_button": "update now",
+    "update_checking": "checking for updates...",
+    "update_downloading": "downloading update...",
     "advanced": {
       "title": "Advanced",
       "max_concurrent_segments": "Concurrent segments",
