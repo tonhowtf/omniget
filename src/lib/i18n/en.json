@@ -108,6 +108,12 @@
     "star_description": "If you enjoy the project, leave a star!",
     "version": "Version"
   },
+  "services": {
+    "title": "supported services",
+    "title_show": "show supported services",
+    "title_hide": "hide supported services",
+    "disclaimer": "availability depends on each platform and may vary"
+  },
   "common": {
     "cancel": "Cancel",
     "retry": "Retry",
