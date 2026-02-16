@@ -31,6 +31,7 @@
     { href: "/downloads", labelKey: "nav.downloads", icon: "downloads" },
     { href: "/hotmart", labelKey: "nav.hotmart", icon: "hotmart" },
     { href: "/settings", labelKey: "nav.settings", icon: "settings" },
+    { href: "/about", labelKey: "nav.about", icon: "about" },
   ] as const;
 
   function isActive(href: string): boolean {
@@ -63,6 +64,9 @@
           {:else if item.icon === "settings"}
             <circle cx="12" cy="12" r="3" />
             <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+          {:else if item.icon === "about"}
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 16v-4m0-4h.01" />
           {/if}
         </svg>
         {#if item.icon === "downloads" && activeCount > 0}
