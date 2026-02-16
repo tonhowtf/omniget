@@ -78,7 +78,6 @@
       "title": "Avançado",
       "max_concurrent_segments": "Segmentos simultâneos",
       "max_retries": "Tentativas por segmento",
-      "debug_mode": "Modo debug",
       "reset": "Restaurar padrões",
       "reset_confirm": "Tem certeza? Todas as configurações serão restauradas."
     }
