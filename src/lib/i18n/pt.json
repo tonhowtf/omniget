@@ -83,6 +83,7 @@
     "downloading": "Baixando...",
     "preparing": "Preparando download...",
     "complete": "Download concluído",
+    "complete_files": "{{count}} arquivos baixados",
     "error": "Download falhou",
     "open_folder": "Abrir pasta",
     "retry": "Tentar novamente",
