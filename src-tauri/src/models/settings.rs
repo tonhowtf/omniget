@@ -29,7 +29,6 @@ pub struct DownloadSettings {
 pub struct AdvancedSettings {
     pub max_concurrent_segments: u32,
     pub max_retries: u32,
-    pub debug_mode: bool,
 }
 
 impl Default for AppSettings {
@@ -51,7 +50,6 @@ impl Default for AppSettings {
             advanced: AdvancedSettings {
                 max_concurrent_segments: 20,
                 max_retries: 3,
-                debug_mode: false,
             },
         }
     }
