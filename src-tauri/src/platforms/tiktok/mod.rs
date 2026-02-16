@@ -9,10 +9,10 @@ use crate::models::media::{
 use crate::platforms::traits::PlatformDownloader;
 
 const USER_AGENTS: &[&str] = &[
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) Gecko/20100101 Firefox/135.0",
 ];
 
 const SHORT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)";
@@ -27,6 +27,7 @@ impl TikTokDownloader {
         let ua = Self::pick_user_agent();
         let client = reqwest::Client::builder()
             .user_agent(ua)
+            .cookie_store(true)
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .unwrap_or_default();
@@ -118,6 +119,8 @@ impl TikTokDownloader {
     async fn fetch_detail(&self, post_id: &str) -> anyhow::Result<serde_json::Value> {
         let url = format!("https://www.tiktok.com/@i/video/{}", post_id);
 
+        tracing::debug!("TikTok: fetching {}", url);
+
         let response = self
             .client
             .get(&url)
@@ -126,20 +129,30 @@ impl TikTokDownloader {
                 "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             )
             .header("Accept-Language", "en-US,en;q=0.9")
+            .header("Sec-Fetch-Dest", "document")
+            .header("Sec-Fetch-Mode", "navigate")
+            .header("Sec-Fetch-Site", "none")
             .send()
             .await?;
 
         let status = response.status();
+        tracing::debug!("TikTok: HTTP status {}", status);
+
         if !status.is_success() && status.as_u16() != 302 {
             return Err(anyhow!("TikTok retornou HTTP {}", status));
         }
 
         let html = response.text().await?;
+        tracing::debug!("TikTok: HTML length {}", html.len());
 
         if Self::is_captcha_page(&html) {
-            tracing::warn!("TikTok returned captcha page for post {}", post_id);
-            return Err(anyhow!("TikTok está pedindo verificação (captcha). Tente novamente em alguns minutos"));
+            tracing::warn!("TikTok: CAPTCHA page detected for post {}", post_id);
+            return Err(anyhow!("TikTok está bloqueando requests. Tente novamente em alguns minutos."));
         }
+
+        let has_rehydration = html.contains("__UNIVERSAL_DATA_FOR_REHYDRATION__");
+        let has_sigi = html.contains("SIGI_STATE");
+        tracing::debug!("TikTok: has REHYDRATION={}, has SIGI={}", has_rehydration, has_sigi);
 
         let json_str = html
             .split(
@@ -148,22 +161,42 @@ impl TikTokDownloader {
             .nth(1)
             .and_then(|s| s.split("</script>").next())
             .ok_or_else(|| {
-                tracing::debug!("TikTok HTML length: {}, contains SIGI: {}", html.len(), html.contains("SIGI_STATE"));
-                anyhow!("Não foi possível extrair dados do TikTok")
+                let preview = &html[..html.len().min(500)];
+                tracing::warn!("TikTok: no REHYDRATION script found. HTML preview: {}", preview);
+                anyhow!("TikTok está bloqueando requests. Tente novamente em alguns minutos.")
             })?;
 
-        let data: serde_json::Value = serde_json::from_str(json_str)?;
+        let data: serde_json::Value = serde_json::from_str(json_str)
+            .map_err(|e| {
+                tracing::warn!("TikTok: JSON parse error: {}", e);
+                anyhow!("Erro ao processar resposta do TikTok")
+            })?;
+
+        // Log available keys in __DEFAULT_SCOPE__
+        if let Some(scope) = data.get("__DEFAULT_SCOPE__") {
+            if let Some(obj) = scope.as_object() {
+                let keys: Vec<&String> = obj.keys().collect();
+                tracing::debug!("TikTok: __DEFAULT_SCOPE__ keys: {:?}", keys);
+            }
+        } else {
+            tracing::warn!("TikTok: no __DEFAULT_SCOPE__ in JSON");
+        }
 
         let video_detail = data
             .get("__DEFAULT_SCOPE__")
             .and_then(|s| s.get("webapp.video-detail"))
-            .ok_or_else(|| anyhow!("Não foi possível extrair dados do TikTok"))?;
+            .ok_or_else(|| {
+                tracing::warn!("TikTok: webapp.video-detail not found in __DEFAULT_SCOPE__");
+                anyhow!("Dados do vídeo não encontrados na resposta do TikTok")
+            })?;
 
         if let Some(status_msg) = video_detail.get("statusMsg").and_then(|v| v.as_str()) {
+            tracing::debug!("TikTok: statusMsg={}", status_msg);
             return Err(anyhow!("Post não disponível: {}", status_msg));
         }
 
         if let Some(status_code) = video_detail.get("statusCode").and_then(|v| v.as_u64()) {
+            tracing::debug!("TikTok: statusCode={}", status_code);
             if status_code != 0 {
                 return Err(anyhow!("Post não disponível (status {})", status_code));
             }
@@ -171,8 +204,20 @@ impl TikTokDownloader {
 
         let detail = video_detail
             .pointer("/itemInfo/itemStruct")
-            .ok_or_else(|| anyhow!("Não foi possível extrair dados do TikTok"))?
+            .ok_or_else(|| {
+                let keys: Vec<&String> = video_detail.as_object()
+                    .map(|o| o.keys().collect())
+                    .unwrap_or_default();
+                tracing::warn!("TikTok: itemInfo/itemStruct not found. video-detail keys: {:?}", keys);
+                anyhow!("Dados do vídeo não encontrados na resposta do TikTok")
+            })?
             .clone();
+
+        // Log what media data is available
+        let has_play_addr = detail.pointer("/video/playAddr").is_some();
+        let has_bitrate_info = detail.pointer("/video/bitrateInfo").is_some();
+        let has_images = detail.pointer("/imagePost/images").is_some();
+        tracing::debug!("TikTok: playAddr={}, bitrateInfo={}, images={}", has_play_addr, has_bitrate_info, has_images);
 
         if detail
             .get("isContentClassified")
@@ -232,6 +277,7 @@ impl TikTokDownloader {
         if let Some(play_addr) = detail.pointer("/video/playAddr") {
             if let Some(url) = play_addr.as_str() {
                 if Self::is_valid_play_addr(url) {
+                    tracing::debug!("TikTok: found video via playAddr");
                     return Some(url.to_string());
                 }
             }
@@ -243,6 +289,7 @@ impl TikTokDownloader {
                 for u in urls {
                     if let Some(url) = u.as_str() {
                         if Self::is_valid_play_addr(url) {
+                            tracing::debug!("TikTok: found video via play_addr/url_list");
                             return Some(url.to_string());
                         }
                     }
@@ -254,7 +301,25 @@ impl TikTokDownloader {
         if let Some(download_addr) = detail.pointer("/video/downloadAddr") {
             if let Some(url) = download_addr.as_str() {
                 if Self::is_valid_play_addr(url) {
+                    tracing::debug!("TikTok: found video via downloadAddr");
                     return Some(url.to_string());
+                }
+            }
+        }
+
+        // bitrateInfo fallback (h264/h265 streams)
+        if let Some(bitrate_info) = detail.pointer("/video/bitrateInfo").and_then(|v| v.as_array()) {
+            for bitrate in bitrate_info {
+                if let Some(url_list) = bitrate.pointer("/PlayAddr/UrlList").and_then(|v| v.as_array()) {
+                    for u in url_list {
+                        if let Some(url) = u.as_str() {
+                            if Self::is_valid_play_addr(url) {
+                                let codec = bitrate.get("CodecType").and_then(|v| v.as_str()).unwrap_or("unknown");
+                                tracing::debug!("TikTok: found video via bitrateInfo (codec: {})", codec);
+                                return Some(url.to_string());
+                            }
+                        }
+                    }
                 }
             }
         }
