@@ -34,6 +34,8 @@ impl VimeoDownloader {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .user_agent(VIMEO_USER_AGENT)
+            .timeout(std::time::Duration::from_secs(120))
+            .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .unwrap_or_default();
         Self {
@@ -400,6 +402,7 @@ impl PlatformDownloader for VimeoDownloader {
                 &selected.url,
                 &output,
                 progress,
+                None,
             )
             .await?;
 
