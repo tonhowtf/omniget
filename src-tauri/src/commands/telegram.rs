@@ -1,4 +1,4 @@
-use crate::platforms::telegram::api::{self, TelegramChat};
+use crate::platforms::telegram::api::{self, TelegramChat, TelegramMediaItem};
 use crate::platforms::telegram::auth::{self, VerifyError};
 use crate::AppState;
 
@@ -63,4 +63,25 @@ pub async fn telegram_list_chats(
     api::list_chats(&state.telegram_session)
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn telegram_list_media(
+    state: tauri::State<'_, AppState>,
+    chat_id: i64,
+    chat_type: String,
+    media_type: Option<String>,
+    offset: i32,
+    limit: u32,
+) -> Result<Vec<TelegramMediaItem>, String> {
+    api::list_media(
+        &state.telegram_session,
+        chat_id,
+        &chat_type,
+        media_type.as_deref(),
+        offset,
+        limit,
+    )
+    .await
+    .map_err(|e| e.to_string())
 }
