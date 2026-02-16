@@ -31,6 +31,15 @@
     }
   }
 
+  async function cancelGenericDownload(id: number) {
+    try {
+      await invoke("cancel_generic_download", { downloadId: id });
+    } catch (e: any) {
+      const msg = typeof e === "string" ? e : e.message ?? "Error";
+      showToast("error", msg);
+    }
+  }
+
 </script>
 
 {#if hasDownloads}
@@ -44,9 +53,22 @@
               <PlatformIcon platform={item.platform} size={16} />
               <span class="item-name">{item.name}</span>
             </div>
-            <span class="item-status" data-status={item.status}>
-              {$t(`downloads.status.${item.status}`)}
-            </span>
+            <div class="item-header-actions">
+              {#if item.status === "downloading"}
+                <button
+                  class="cancel-btn"
+                  onclick={() => cancelGenericDownload(item.id)}
+                  aria-label={$t('downloads.cancel')}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              {/if}
+              <span class="item-status" data-status={item.status}>
+                {$t(`downloads.status.${item.status}`)}
+              </span>
+            </div>
           </div>
 
           <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
