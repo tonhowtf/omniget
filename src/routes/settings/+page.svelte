@@ -2,10 +2,23 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { t, locale, loadTranslations } from "$lib/i18n";
   import { getSettings, updateSettings, resetSettings, loadSettings } from "$lib/stores/settings-store.svelte";
+  import { getUpdateInfo } from "$lib/stores/update-store.svelte";
+  import { installUpdate } from "$lib/updater";
   import { showToast } from "$lib/stores/toast-store.svelte";
 
   let settings = $derived(getSettings());
+  let updateInfo = $derived(getUpdateInfo());
   let resetting = $state(false);
+  let updating = $state(false);
+
+  async function handleUpdate() {
+    updating = true;
+    try {
+      await installUpdate();
+    } catch {
+      updating = false;
+    }
+  }
 
   async function changeTheme(e: Event) {
     const value = (e.target as HTMLSelectElement).value;
@@ -58,6 +71,25 @@
 {#if settings}
   <div class="settings">
     <h2>{$t('settings.title')}</h2>
+
+    {#if updateInfo.available}
+      <div class="update-banner">
+        <span class="update-text">
+          {#if updating}
+            {$t('settings.update_downloading')}
+          {:else}
+            {$t('settings.update_available', { version: updateInfo.version })}
+          {/if}
+        </span>
+        <button class="update-btn" onclick={handleUpdate} disabled={updating}>
+          {#if updating}
+            <span class="update-spinner"></span>
+          {:else}
+            {$t('settings.update_button')}
+          {/if}
+        </button>
+      </div>
+    {/if}
 
     <section class="section">
       <h5 class="section-title">{$t('settings.appearance.title')}</h5>
@@ -373,5 +405,62 @@
     padding: calc(var(--padding) / 2) var(--padding);
     font-size: 12.5px;
     color: var(--red);
+  }
+
+  .update-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--padding);
+    padding: var(--padding);
+    background: var(--blue);
+    border-radius: var(--border-radius);
+  }
+
+  .update-text {
+    font-size: 14.5px;
+    font-weight: 500;
+    color: #fff;
+  }
+
+  .update-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--padding) / 2);
+    padding: calc(var(--padding) / 2) var(--padding);
+    font-size: 12.5px;
+    font-weight: 500;
+    background: #fff;
+    color: var(--blue);
+    border: none;
+    border-radius: calc(var(--border-radius) - 2px);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .update-btn:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+
+  @media (hover: hover) {
+    .update-btn:not(:disabled):hover {
+      opacity: 0.9;
+    }
+  }
+
+  .update-btn:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+
+  .update-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(47, 138, 249, 0.3);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
   }
 </style>
