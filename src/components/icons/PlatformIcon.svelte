@@ -30,11 +30,6 @@
     <path d="M21 2H3v16h5v4l4-4h5l4-4V2z" />
     <path d="M11 11V7M15 11V7" />
   </svg>
-{:else if platform === "vimeo"}
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="12" cy="12" r="10" />
-    <polygon points="10,8 16,12 10,16" />
-  </svg>
 {:else if platform === "pinterest"}
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <circle cx="12" cy="10" r="8" />
