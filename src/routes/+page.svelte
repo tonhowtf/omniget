@@ -393,6 +393,11 @@
   </div>
 
   <SupportedServices />
+
+  <div class="terms-note">
+    {$t('terms_note.agreement')}
+    <a href="/about" class="terms-link">{$t('terms_note.link')}</a>
+  </div>
 </div>
 
 <style>
@@ -668,6 +673,26 @@
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+
+  .terms-note {
+    color: var(--gray);
+    font-size: 12px;
+    text-align: center;
+    font-weight: 500;
+    padding-bottom: 6px;
+  }
+
+  .terms-link {
+    color: var(--gray);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  @media (hover: hover) {
+    .terms-link:hover {
+      color: var(--secondary);
     }
   }
 
