@@ -145,7 +145,13 @@
       "project": "Projeto",
       "roadmap": "Roadmap"
     },
-    "roadmap_description": "Em breve."
+    "roadmap_intro": "O que já foi feito e o que está por vir.",
+    "roadmap_platforms_title": "Plataformas",
+    "roadmap_features_title": "Funcionalidades",
+    "roadmap_feature_themes": "Tema escuro e claro",
+    "roadmap_feature_i18n": "Multi-idioma",
+    "roadmap_feature_hotmart_login": "Login Hotmart integrado",
+    "roadmap_feature_instagram_login": "Login Instagram integrado"
   },
   "services": {
     "title": "plataformas suportadas",
