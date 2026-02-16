@@ -6,7 +6,7 @@
   import { getActiveCount } from "$lib/stores/download-store.svelte";
   import { loadSettings } from "$lib/stores/settings-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
-  import { t } from "$lib/i18n";
+  import { t, locale, loadTranslations, defaultLocale } from "$lib/i18n";
   import type { Snippet } from "svelte";
 
   let activeCount = $derived(getActiveCount());
@@ -16,7 +16,13 @@
   onMount(() => {
     let cleanup: (() => void) | undefined;
     initDownloadListener().then((fn) => (cleanup = fn));
-    loadSettings();
+    loadSettings().then(async (settings) => {
+      const lang = settings.appearance.language;
+      if (lang && lang !== defaultLocale) {
+        await loadTranslations(lang, window.location.pathname);
+        locale.set(lang);
+      }
+    });
     return () => cleanup?.();
   });
 
