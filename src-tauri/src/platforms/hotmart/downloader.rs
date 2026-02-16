@@ -114,7 +114,7 @@ impl HotmartDownloader {
         session: &HotmartSession,
         lesson: &Lesson,
         output_dir: &str,
-        referer: &str,
+        _referer: &str,
         bytes_tx: tokio::sync::mpsc::UnboundedSender<u64>,
         cancel_token: &CancellationToken,
     ) -> anyhow::Result<Vec<PathBuf>> {
@@ -243,34 +243,8 @@ impl HotmartDownloader {
 
                 match player {
                     DetectedPlayer::Vimeo { embed_url } => {
-                        if is_hls_file_valid(&out).await {
-                            tracing::info!("[skip] Já existe e válido: {}", out);
-                            continue;
-                        }
-
-                        if tokio::fs::try_exists(done_path(&out)).await.unwrap_or(false) {
-                            tracing::warn!("[integrity] .omniget.done inválido, rebaixando: {}", out);
-                            let _ = tokio::fs::remove_file(&out).await;
-                            let _ = tokio::fs::remove_file(done_path(&out)).await;
-                        }
-
-                        tracing::info!("[download] Baixando Vimeo: {}", embed_url);
-                        match MediaProcessor::download_hls(embed_url, &out, referer, Some(bytes_tx.clone()), cancel_token.clone(), self.max_concurrent_segments, self.max_retries).await {
-                            Ok(hls_result) => {
-                                if let Err(e) = write_done_manifest(&out, hls_result.file_size, hls_result.segments).await {
-                                    tracing::warn!("[done] Falha ao escrever manifesto: {}", e);
-                                }
-                                results.push(hls_result.path);
-                            }
-                            Err(e) => {
-                                tracing::error!("[download] Falha Vimeo: {}", e);
-                                let _ = tokio::fs::remove_file(&out).await;
-                                if cancel_token.is_cancelled() {
-                                    return Err(e);
-                                }
-                                continue;
-                            }
-                        }
+                        tracing::warn!("[skip] Vimeo não suportado, pulando: {}", embed_url);
+                        continue;
                     }
                     DetectedPlayer::PandaVideo { m3u8_url, .. } => {
                         if is_hls_file_valid(&out).await {
