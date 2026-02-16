@@ -7,6 +7,8 @@
     formatBytes,
     formatSpeed,
     getEtaI18n,
+    clearFinished,
+    getFinishedCount,
     type CourseDownloadItem,
     type GenericDownloadItem,
   } from "$lib/stores/download-store.svelte";
@@ -21,6 +23,7 @@
     [...downloads.values()].filter((d): d is GenericDownloadItem => d.kind === "generic")
   );
   let hasDownloads = $derived(courseList.length > 0 || genericList.length > 0);
+  let finishedCount = $derived(getFinishedCount());
 
   async function cancelDownload(courseId: number) {
     try {
@@ -44,7 +47,14 @@
 
 {#if hasDownloads}
   <div class="downloads-page">
-    <h2>{$t('downloads.title')}</h2>
+    <div class="downloads-header">
+      <h2>{$t('downloads.title')}</h2>
+      {#if finishedCount > 0}
+        <button class="clear-btn" onclick={clearFinished}>
+          {$t('downloads.clear_finished')}
+        </button>
+      {/if}
+    </div>
     <div class="download-list">
       {#each genericList as item (item.id)}
         <div class="download-item" data-status={item.status}>
@@ -195,6 +205,41 @@
 
   .downloads-page h2 {
     margin-block: 0;
+  }
+
+  .downloads-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--padding);
+  }
+
+  .clear-btn {
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: calc(var(--padding) / 3) calc(var(--padding) * 0.75);
+    background: var(--button-elevated);
+    color: var(--gray);
+    border: none;
+    border-radius: calc(var(--border-radius) / 2);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  @media (hover: hover) {
+    .clear-btn:hover {
+      background: var(--button-elevated-hover);
+      color: var(--secondary);
+    }
+  }
+
+  .clear-btn:active {
+    background: var(--button-elevated-press);
+  }
+
+  .clear-btn:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
   }
 
   .download-list {
