@@ -18,8 +18,28 @@
   </div>
 
   <section class="card">
+    <h5 class="card-title">{$t('about.terms_title')}</h5>
+    <p class="card-text">{$t('about.terms_text')}</p>
+  </section>
+
+  <section class="card">
     <h5 class="card-title">{$t('about.legal_title')}</h5>
     <p class="card-text">{$t('about.legal_text')}</p>
+  </section>
+
+  <section class="card">
+    <h5 class="card-title">{$t('about.responsibility_title')}</h5>
+    <p class="card-text">{$t('about.responsibility_text')}</p>
+  </section>
+
+  <section class="card">
+    <h5 class="card-title">{$t('about.mascot_title')}</h5>
+    <p class="card-text">{$t('about.mascot_text')}</p>
+  </section>
+
+  <section class="card">
+    <h5 class="card-title">{$t('about.license_title')}</h5>
+    <p class="card-text">{$t('about.license_text')}</p>
   </section>
 
   <section class="star-section">
@@ -42,6 +62,9 @@
     align-items: center;
     min-height: calc(100vh - var(--padding) * 4);
     padding-top: calc(var(--padding) * 3);
+    padding-left: calc(var(--padding) * 1.5);
+    padding-right: calc(var(--padding) * 1.5);
+    padding-bottom: calc(var(--padding) * 3);
     gap: calc(var(--padding) * 2);
     max-width: 480px;
     margin: 0 auto;
