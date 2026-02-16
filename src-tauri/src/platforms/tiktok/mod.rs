@@ -434,6 +434,7 @@ impl PlatformDownloader for TikTokDownloader {
                     &quality.url,
                     &output,
                     progress,
+                    None,
                 )
                 .await?;
 
@@ -466,6 +467,7 @@ impl PlatformDownloader for TikTokDownloader {
                         &quality.url,
                         &output,
                         tx,
+                        None,
                     )
                     .await?;
 
@@ -496,6 +498,7 @@ impl PlatformDownloader for TikTokDownloader {
                     &quality.url,
                     &output,
                     progress,
+                    None,
                 )
                 .await?;
 
