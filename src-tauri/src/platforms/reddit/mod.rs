@@ -174,6 +174,51 @@ impl RedditDownloader {
         None
     }
 
+    fn get_resolution_variants(video_url: &str) -> Vec<String> {
+        let resolutions = ["DASH_720.mp4", "DASH_480.mp4", "DASH_360.mp4", "DASH_240.mp4"];
+        let mut variants = vec![video_url.to_string()];
+        for res in &resolutions {
+            if !video_url.contains(res) {
+                if let Some(base) = video_url.rfind("DASH_") {
+                    let mut variant = video_url[..base].to_string();
+                    variant.push_str(res);
+                    variants.push(variant);
+                }
+            }
+        }
+        variants
+    }
+
+    async fn download_video_with_fallback(
+        &self,
+        video_url: &str,
+        output: &std::path::Path,
+        progress_tx: mpsc::Sender<f64>,
+    ) -> anyhow::Result<u64> {
+        let variants = Self::get_resolution_variants(video_url);
+        let mut last_err = anyhow!("Nenhuma resolução disponível");
+
+        for variant in &variants {
+            match direct_downloader::download_direct(
+                &self.client,
+                variant,
+                output,
+                progress_tx.clone(),
+                None,
+            )
+            .await
+            {
+                Ok(bytes) => return Ok(bytes),
+                Err(e) => {
+                    last_err = e;
+                    let _ = tokio::fs::remove_file(output).await;
+                }
+            }
+        }
+
+        Err(last_err)
+    }
+
     fn parse_media(data: &serde_json::Value) -> Option<RedditMedia> {
         let is_gallery = data.get("is_gallery").and_then(|v| v.as_bool()).unwrap_or(false);
         if is_gallery {
@@ -297,13 +342,6 @@ impl PlatformDownloader for RedditDownloader {
         let subreddit = Self::extract_subreddit(&canonical).unwrap_or_default();
 
         let data = self.fetch_post_data(&post_id).await?;
-
-        tracing::info!(
-            "Reddit post data: is_video={}, is_gallery={}, has_secure_media={}",
-            data.get("is_video").and_then(|v| v.as_bool()).unwrap_or(false),
-            data.get("is_gallery").and_then(|v| v.as_bool()).unwrap_or(false),
-            data.get("secure_media").is_some()
-        );
 
         let media = Self::parse_media(&data)
             .ok_or_else(|| anyhow!("Nenhuma mídia encontrada no post"))?;
@@ -435,16 +473,6 @@ impl PlatformDownloader for RedditDownloader {
                 let has_audio = audio_quality.is_some();
                 let ffmpeg_available = ffmpeg::is_ffmpeg_available().await;
 
-                tracing::info!(
-                    "Reddit download: video_url={}, has_audio={}, ffmpeg={}",
-                    video_quality.url,
-                    has_audio,
-                    ffmpeg_available
-                );
-                if let Some(aq) = audio_quality {
-                    tracing::info!("Reddit audio_url={}", aq.url);
-                }
-
                 if has_audio {
                     let video_tmp = opts.output_dir.join(format!(
                         "{}_video_tmp.mp4",
@@ -461,23 +489,35 @@ impl PlatformDownloader for RedditDownloader {
 
                     let _ = progress.send(0.0).await;
 
-                    tracing::info!("Reddit: Baixando vídeo...");
-                    let (vtx, _vrx) = mpsc::channel(8);
-                    let video_bytes = direct_downloader::download_direct(
-                        &self.client,
-                        &video_quality.url,
-                        &video_tmp,
-                        vtx,
-                        None,
-                    )
-                    .await?;
+                    let (vtx, mut vrx) = mpsc::channel::<f64>(8);
+                    let progress_video = progress.clone();
+                    tokio::spawn(async move {
+                        while let Some(p) = vrx.recv().await {
+                            let scaled = p * 0.6;
+                            let _ = progress_video.send(scaled).await;
+                        }
+                    });
 
-                    tracing::info!("Reddit: Vídeo baixado ({} bytes)", video_bytes);
-                    let _ = progress.send(50.0).await;
+                    let video_bytes = self
+                        .download_video_with_fallback(
+                            &video_quality.url,
+                            &video_tmp,
+                            vtx,
+                        )
+                        .await?;
 
-                    tracing::info!("Reddit: Baixando áudio...");
+                    let _ = progress.send(60.0).await;
+
                     let audio_url = &audio_quality.unwrap().url;
-                    let (atx, _arx) = mpsc::channel(8);
+                    let (atx, mut arx) = mpsc::channel::<f64>(8);
+                    let progress_audio = progress.clone();
+                    tokio::spawn(async move {
+                        while let Some(p) = arx.recv().await {
+                            let scaled = 60.0 + p * 0.25;
+                            let _ = progress_audio.send(scaled).await;
+                        }
+                    });
+
                     let audio_ok = match direct_downloader::download_direct(
                         &self.client,
                         audio_url,
@@ -488,16 +528,12 @@ impl PlatformDownloader for RedditDownloader {
                     .await
                     {
                         Ok(_) => true,
-                        Err(e) => {
-                            tracing::warn!("Reddit audio download failed: {}", e);
-                            false
-                        }
+                        Err(_) => false,
                     };
 
-                    let _ = progress.send(75.0).await;
+                    let _ = progress.send(85.0).await;
 
                     if audio_ok && ffmpeg_available {
-                        tracing::info!("Reddit: Muxando vídeo + áudio com ffmpeg...");
                         ffmpeg::mux_video_audio(&video_tmp, &audio_tmp, &output).await?;
                         let _ = tokio::fs::remove_file(&video_tmp).await;
                         let _ = tokio::fs::remove_file(&audio_tmp).await;
@@ -510,11 +546,6 @@ impl PlatformDownloader for RedditDownloader {
                             duration_seconds: info.duration_seconds.unwrap_or(0.0),
                         })
                     } else {
-                        if !audio_ok {
-                            tracing::warn!("Reddit: audio indisponível, salvando só vídeo");
-                        } else {
-                            tracing::warn!("ffmpeg não disponível, salvando vídeo e áudio separados");
-                        }
                         let video_final = opts.output_dir.join(format!(
                             "{}{}.mp4",
                             sanitize_filename::sanitize(&info.title),
@@ -545,14 +576,13 @@ impl PlatformDownloader for RedditDownloader {
                         "{}.mp4",
                         sanitize_filename::sanitize(&info.title)
                     ));
-                    let bytes = direct_downloader::download_direct(
-                        &self.client,
-                        &video_quality.url,
-                        &output,
-                        progress,
-                        None,
-                    )
-                    .await?;
+                    let bytes = self
+                        .download_video_with_fallback(
+                            &video_quality.url,
+                            &output,
+                            progress,
+                        )
+                        .await?;
 
                     Ok(DownloadResult {
                         file_path: output,
