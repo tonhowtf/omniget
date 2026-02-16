@@ -102,7 +102,7 @@
       loggedIn = true;
       loadCourses();
     } catch (e: any) {
-      error = typeof e === "string" ? e : e.message ?? "Erro desconhecido";
+      error = typeof e === "string" ? e : e.message ?? $t('hotmart.unknown_error');
     } finally {
       loading = false;
     }
@@ -203,7 +203,7 @@
       const result = await invoke<string>("hotmart_debug_auth");
       debugOutput = result;
     } catch (e: any) {
-      debugOutput = `ERRO: ${typeof e === "string" ? e : e.message ?? "Erro desconhecido"}`;
+      debugOutput = `ERRO: ${typeof e === "string" ? e : e.message ?? $t('hotmart.unknown_error')}`;
     } finally {
       debugLoading = false;
     }
@@ -214,7 +214,7 @@
   <!-- Estado 1: Verificando sessão -->
   <div class="page-center">
     <span class="spinner"></span>
-    <span class="spinner-text">Verificando sessão...</span>
+    <span class="spinner-text">{$t('hotmart.loading_courses')}</span>
   </div>
 {:else if loggedIn}
   <!-- Estado 3/4: Logado -->
@@ -256,20 +256,20 @@
       <!-- Estado 3: Carregando cursos -->
       <div class="spinner-section">
         <span class="spinner"></span>
-        <span class="spinner-text">Carregando cursos...</span>
+        <span class="spinner-text">{$t('hotmart.loading_courses')}</span>
       </div>
     {:else if coursesError}
       <div class="error-section">
         <p class="error-msg">{coursesError}</p>
-        <button class="button" onclick={loadCourses}>Tentar novamente</button>
+        <button class="button" onclick={loadCourses}>{$t('common.retry')}</button>
       </div>
     {:else if courses.length === 0}
-      <p class="empty-text">Nenhum curso encontrado nesta conta.</p>
+      <p class="empty-text">{$t('hotmart.no_courses')}</p>
     {:else}
       <!-- Estado 4: Cursos carregados -->
       <div class="courses-header">
-        <h2>Seus Cursos</h2>
-        <span class="subtext">{courses.length} {courses.length === 1 ? "curso" : "cursos"}</span>
+        <h2>{$t('hotmart.courses_title')}</h2>
+        <span class="subtext">{courses.length === 1 ? $t('hotmart.course_count_one', { count: courses.length }) : $t('hotmart.course_count', { count: courses.length })}</span>
       </div>
 
       <div class="courses-grid">
@@ -290,7 +290,7 @@
       {#if totalPages > 1}
         <div class="pagination">
           <span class="pagination-info">
-            Página {currentPage} de {totalPages} &middot; {courses.length} cursos
+            {$t('hotmart.page_of', { current: currentPage, total: totalPages })} &middot; {courses.length === 1 ? $t('hotmart.course_count_one', { count: courses.length }) : $t('hotmart.course_count', { count: courses.length })}
           </span>
           <div class="pagination-controls">
             <button
@@ -345,10 +345,10 @@
           />
         </label>
         <label class="field">
-          <span class="field-label">Senha</span>
+          <span class="field-label">{$t('hotmart.password_label')}</span>
           <input
             type="password"
-            placeholder="Sua senha"
+            placeholder={$t('hotmart.password_placeholder')}
             bind:value={password}
             class="input"
             disabled={loading}
@@ -362,9 +362,9 @@
 
         <button type="submit" class="button" disabled={loading}>
           {#if loading}
-            Autenticando...
+            {$t('hotmart.authenticating')}
           {:else}
-            Entrar
+            {$t('hotmart.login')}
           {/if}
         </button>
       </form>
