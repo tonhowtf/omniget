@@ -71,6 +71,7 @@ struct GenericDownloadComplete {
     error: Option<String>,
     file_path: Option<String>,
     file_size_bytes: Option<u64>,
+    file_count: Option<u32>,
 }
 
 #[tauri::command]
@@ -131,6 +132,11 @@ pub async fn download_from_url(
 
     let title = info.title.clone();
     let return_title = title.clone();
+    let file_count = if info.media_type == crate::models::media::MediaType::Carousel {
+        info.available_qualities.len() as u32
+    } else {
+        1
+    };
 
     tracing::info!("Iniciando download '{}' ({}) em {}", title, platform_name, output_dir);
 
@@ -189,6 +195,7 @@ pub async fn download_from_url(
                     error: None,
                     file_path: Some(dl.file_path.to_string_lossy().to_string()),
                     file_size_bytes: Some(dl.file_size_bytes),
+                    file_count: Some(file_count),
                 });
             }
             Err(e) => {
@@ -202,6 +209,7 @@ pub async fn download_from_url(
                     error: Some(err_msg),
                     file_path: None,
                     file_size_bytes: None,
+                    file_count: None,
                 });
             }
         }
