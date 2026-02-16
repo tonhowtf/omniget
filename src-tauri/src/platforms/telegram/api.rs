@@ -1,3 +1,4 @@
+use grammers_client::types::Peer;
 use serde::Serialize;
 
 use super::auth::TelegramSessionHandle;
@@ -7,7 +8,6 @@ pub struct TelegramChat {
     pub id: i64,
     pub title: String,
     pub chat_type: String,
-    pub media_count: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -21,15 +21,34 @@ pub struct TelegramMediaItem {
 
 pub async fn list_chats(
     handle: &TelegramSessionHandle,
-    _filter: Option<&str>,
 ) -> anyhow::Result<Vec<TelegramChat>> {
     let guard = handle.lock().await;
-    let _client = guard.as_ref()
+    let client = guard.client.as_ref()
         .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .client.clone();
+        .clone();
     drop(guard);
 
-    Ok(Vec::new())
+    let mut dialogs = client.iter_dialogs();
+    let mut chats = Vec::new();
+
+    while let Some(dialog) = dialogs.next().await.map_err(|e| anyhow::anyhow!("{}", e))? {
+        let peer = dialog.peer();
+        let chat_type = match peer {
+            Peer::User(_) => "private",
+            Peer::Group(_) => "group",
+            Peer::Channel(_) => "channel",
+        };
+        let id = peer.id().bare_id();
+        let title = peer.name().unwrap_or("Unknown").to_string();
+
+        chats.push(TelegramChat {
+            id,
+            title,
+            chat_type: chat_type.to_string(),
+        });
+    }
+
+    Ok(chats)
 }
 
 pub async fn list_media(
@@ -40,9 +59,9 @@ pub async fn list_media(
     _limit: u32,
 ) -> anyhow::Result<Vec<TelegramMediaItem>> {
     let guard = handle.lock().await;
-    let _client = guard.as_ref()
+    let _client = guard.client.as_ref()
         .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .client.clone();
+        .clone();
     drop(guard);
 
     Ok(Vec::new())
