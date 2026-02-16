@@ -57,12 +57,12 @@ impl YouTubeDownloader {
     fn extract_quality_height(quality_str: &str) -> Option<u32> {
         let s = quality_str.trim().to_lowercase();
         if s == "best" || s == "highest" {
-            return None; 
+            return None;
         }
         s.trim_end_matches('p').parse::<u32>().ok()
     }
 
-    
+
     fn parse_video_info(json: &serde_json::Value) -> anyhow::Result<MediaInfo> {
         let video_id = json
             .get("id")
@@ -262,12 +262,6 @@ impl PlatformDownloader for YouTubeDownloader {
         let quality_height = Self::extract_quality_height(&selected.label);
         let video_url = &selected.url;
 
-        tracing::info!(
-            "YouTube download: url={}, quality={:?}",
-            video_url,
-            quality_height
-        );
-
         ytdlp::download_video(
             &ytdlp_path,
             video_url,
@@ -294,20 +288,7 @@ impl YouTubeDownloader {
         let mut total_bytes = 0u64;
         let mut last_path = playlist_dir.clone();
 
-        tracing::info!(
-            "YouTube playlist download: {} vídeos em {:?}",
-            total,
-            playlist_dir
-        );
-
         for (i, entry) in info.available_qualities.iter().enumerate() {
-            tracing::info!(
-                "YouTube playlist [{}/{}]: {}",
-                i + 1,
-                total,
-                entry.url
-            );
-
             let (video_tx, mut video_rx) = mpsc::channel::<f64>(16);
             let progress_tx = progress.clone();
             let video_idx = i;
@@ -334,14 +315,7 @@ impl YouTubeDownloader {
                     total_bytes += result.file_size_bytes;
                     last_path = result.file_path;
                 }
-                Err(e) => {
-                    tracing::warn!(
-                        "YouTube playlist [{}/{}] falhou: {}",
-                        i + 1,
-                        total,
-                        e
-                    );
-                }
+                Err(_) => {}
             }
 
             let _ = forwarder.await;
