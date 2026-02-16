@@ -138,8 +138,6 @@ pub async fn download_from_url(
         1
     };
 
-    tracing::info!("Iniciando download '{}' ({}) em {}", title, platform_name, output_dir);
-
     tokio::spawn(async move {
         let opts = crate::models::media::DownloadOptions {
             quality: Some(settings.download.video_quality.clone()),
@@ -186,7 +184,6 @@ pub async fn download_from_url(
 
         match result {
             Ok(dl) => {
-                tracing::info!("Download concluído: {}", title);
                 let _ = app.emit("generic-download-complete", &GenericDownloadComplete {
                     id: download_id,
                     title: title.clone(),
@@ -227,7 +224,6 @@ pub async fn cancel_generic_download(
     match map.remove(&download_id) {
         Some((_, token)) => {
             token.cancel();
-            tracing::info!("Download genérico cancelado para id={}", download_id);
             Ok("Download cancelado".to_string())
         }
         None => Err("Nenhum download ativo para este ID".to_string()),
@@ -290,12 +286,6 @@ pub async fn start_course_download(
         map.insert(course_id, cancel_token.clone());
     }
 
-    tracing::info!(
-        "Iniciando download do curso '{}' em {}",
-        course_name,
-        output_dir
-    );
-
     let settings = config::load_settings(&app);
 
     tokio::spawn(async move {
@@ -327,7 +317,6 @@ pub async fn start_course_download(
 
         match result {
             Ok(()) => {
-                tracing::info!("Download completo: {}", course.name);
                 let _ = app.emit(
                     "download-complete",
                     &DownloadCompleteEvent {
@@ -363,7 +352,6 @@ pub async fn cancel_course_download(
     match map.remove(&course_id) {
         Some(token) => {
             token.cancel();
-            tracing::info!("Download cancelado para course_id={}", course_id);
             Ok("Download cancelado".to_string())
         }
         None => Err("Nenhum download ativo para este curso".to_string()),
