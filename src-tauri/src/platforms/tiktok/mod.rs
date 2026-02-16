@@ -105,11 +105,9 @@ impl TikTokDownloader {
         if url.is_empty() {
             return false;
         }
-        // Must be a real URL, not an encrypted/encoded placeholder
         if !url.starts_with("http://") && !url.starts_with("https://") {
             return false;
         }
-        // TikTok sometimes returns placeholder URLs
         if url.contains("verify") || url.contains("captcha") {
             return false;
         }
@@ -118,8 +116,6 @@ impl TikTokDownloader {
 
     async fn fetch_detail(&self, post_id: &str) -> anyhow::Result<serde_json::Value> {
         let url = format!("https://www.tiktok.com/@i/video/{}", post_id);
-
-        tracing::debug!("TikTok: fetching {}", url);
 
         let response = self
             .client
@@ -136,23 +132,16 @@ impl TikTokDownloader {
             .await?;
 
         let status = response.status();
-        tracing::debug!("TikTok: HTTP status {}", status);
 
         if !status.is_success() && status.as_u16() != 302 {
             return Err(anyhow!("TikTok retornou HTTP {}", status));
         }
 
         let html = response.text().await?;
-        tracing::debug!("TikTok: HTML length {}", html.len());
 
         if Self::is_captcha_page(&html) {
-            tracing::warn!("TikTok: CAPTCHA page detected for post {}", post_id);
             return Err(anyhow!("TikTok está bloqueando requests. Tente novamente em alguns minutos."));
         }
-
-        let has_rehydration = html.contains("__UNIVERSAL_DATA_FOR_REHYDRATION__");
-        let has_sigi = html.contains("SIGI_STATE");
-        tracing::debug!("TikTok: has REHYDRATION={}, has SIGI={}", has_rehydration, has_sigi);
 
         let json_str = html
             .split(
@@ -160,43 +149,21 @@ impl TikTokDownloader {
             )
             .nth(1)
             .and_then(|s| s.split("</script>").next())
-            .ok_or_else(|| {
-                let preview = &html[..html.len().min(500)];
-                tracing::warn!("TikTok: no REHYDRATION script found. HTML preview: {}", preview);
-                anyhow!("TikTok está bloqueando requests. Tente novamente em alguns minutos.")
-            })?;
+            .ok_or_else(|| anyhow!("TikTok está bloqueando requests. Tente novamente em alguns minutos."))?;
 
         let data: serde_json::Value = serde_json::from_str(json_str)
-            .map_err(|e| {
-                tracing::warn!("TikTok: JSON parse error: {}", e);
-                anyhow!("Erro ao processar resposta do TikTok")
-            })?;
-
-        // Log available keys in __DEFAULT_SCOPE__
-        if let Some(scope) = data.get("__DEFAULT_SCOPE__") {
-            if let Some(obj) = scope.as_object() {
-                let keys: Vec<&String> = obj.keys().collect();
-                tracing::debug!("TikTok: __DEFAULT_SCOPE__ keys: {:?}", keys);
-            }
-        } else {
-            tracing::warn!("TikTok: no __DEFAULT_SCOPE__ in JSON");
-        }
+            .map_err(|_| anyhow!("Erro ao processar resposta do TikTok"))?;
 
         let video_detail = data
             .get("__DEFAULT_SCOPE__")
             .and_then(|s| s.get("webapp.video-detail"))
-            .ok_or_else(|| {
-                tracing::warn!("TikTok: webapp.video-detail not found in __DEFAULT_SCOPE__");
-                anyhow!("Dados do vídeo não encontrados na resposta do TikTok")
-            })?;
+            .ok_or_else(|| anyhow!("Dados do vídeo não encontrados na resposta do TikTok"))?;
 
         if let Some(status_msg) = video_detail.get("statusMsg").and_then(|v| v.as_str()) {
-            tracing::debug!("TikTok: statusMsg={}", status_msg);
             return Err(anyhow!("Post não disponível: {}", status_msg));
         }
 
         if let Some(status_code) = video_detail.get("statusCode").and_then(|v| v.as_u64()) {
-            tracing::debug!("TikTok: statusCode={}", status_code);
             if status_code != 0 {
                 return Err(anyhow!("Post não disponível (status {})", status_code));
             }
@@ -204,20 +171,8 @@ impl TikTokDownloader {
 
         let detail = video_detail
             .pointer("/itemInfo/itemStruct")
-            .ok_or_else(|| {
-                let keys: Vec<&String> = video_detail.as_object()
-                    .map(|o| o.keys().collect())
-                    .unwrap_or_default();
-                tracing::warn!("TikTok: itemInfo/itemStruct not found. video-detail keys: {:?}", keys);
-                anyhow!("Dados do vídeo não encontrados na resposta do TikTok")
-            })?
+            .ok_or_else(|| anyhow!("Dados do vídeo não encontrados na resposta do TikTok"))?
             .clone();
-
-        // Log what media data is available
-        let has_play_addr = detail.pointer("/video/playAddr").is_some();
-        let has_bitrate_info = detail.pointer("/video/bitrateInfo").is_some();
-        let has_images = detail.pointer("/imagePost/images").is_some();
-        tracing::debug!("TikTok: playAddr={}, bitrateInfo={}, images={}", has_play_addr, has_bitrate_info, has_images);
 
         if detail
             .get("isContentClassified")
@@ -273,23 +228,19 @@ impl TikTokDownloader {
     }
 
     fn extract_video_url(detail: &serde_json::Value) -> Option<String> {
-        // Standard web scraping path
         if let Some(play_addr) = detail.pointer("/video/playAddr") {
             if let Some(url) = play_addr.as_str() {
                 if Self::is_valid_play_addr(url) {
-                    tracing::debug!("TikTok: found video via playAddr");
                     return Some(url.to_string());
                 }
             }
         }
 
-        // API response format
         if let Some(play_addr) = detail.pointer("/video/play_addr/url_list") {
             if let Some(urls) = play_addr.as_array() {
                 for u in urls {
                     if let Some(url) = u.as_str() {
                         if Self::is_valid_play_addr(url) {
-                            tracing::debug!("TikTok: found video via play_addr/url_list");
                             return Some(url.to_string());
                         }
                     }
@@ -297,25 +248,20 @@ impl TikTokDownloader {
             }
         }
 
-        // downloadAddr fallback
         if let Some(download_addr) = detail.pointer("/video/downloadAddr") {
             if let Some(url) = download_addr.as_str() {
                 if Self::is_valid_play_addr(url) {
-                    tracing::debug!("TikTok: found video via downloadAddr");
                     return Some(url.to_string());
                 }
             }
         }
 
-        // bitrateInfo fallback (h264/h265 streams)
         if let Some(bitrate_info) = detail.pointer("/video/bitrateInfo").and_then(|v| v.as_array()) {
             for bitrate in bitrate_info {
                 if let Some(url_list) = bitrate.pointer("/PlayAddr/UrlList").and_then(|v| v.as_array()) {
                     for u in url_list {
                         if let Some(url) = u.as_str() {
                             if Self::is_valid_play_addr(url) {
-                                let codec = bitrate.get("CodecType").and_then(|v| v.as_str()).unwrap_or("unknown");
-                                tracing::debug!("TikTok: found video via bitrateInfo (codec: {})", codec);
                                 return Some(url.to_string());
                             }
                         }
@@ -390,15 +336,23 @@ impl PlatformDownloader for TikTokDownloader {
             }
         };
 
-        // Try web scraping first, fall back to API
         let detail = match self.fetch_detail(&post_id).await {
             Ok(d) => d,
-            Err(web_err) => {
-                tracing::debug!("TikTok web scraping failed: {}, trying API", web_err);
-                self.fetch_detail_api(&post_id).await.map_err(|api_err| {
-                    tracing::debug!("TikTok API also failed: {}", api_err);
-                    web_err
-                })?
+            Err(first_err) => {
+                let err_msg = first_err.to_string();
+                if err_msg.contains("CAPTCHA") || err_msg.contains("bloqueando") {
+                    return Err(first_err);
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                match self.fetch_detail(&post_id).await {
+                    Ok(d) => d,
+                    Err(_) => {
+                        match self.fetch_detail_api(&post_id).await {
+                            Ok(d) => d,
+                            Err(_) => return Err(first_err),
+                        }
+                    }
+                }
             }
         };
 
