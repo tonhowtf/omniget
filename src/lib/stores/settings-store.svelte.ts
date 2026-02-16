@@ -17,7 +17,6 @@ export type AppSettings = {
   advanced: {
     max_concurrent_segments: number;
     max_retries: number;
-    debug_mode: boolean;
   };
 };
 
