@@ -131,7 +131,13 @@
     "license_text": "OmniGet é software de código aberto licenciado sob a GPL-3.0. O código fonte está disponível no GitHub. A marca \"OmniGet\", o logotipo e o mascote Loop são marcas do projeto e não estão cobertos pela licença do código fonte.",
     "star_button": "Dar uma estrela no GitHub",
     "star_description": "Se gostou do projeto, deixe uma estrela!",
-    "version": "Versão"
+    "version": "Versão",
+    "tab": {
+      "terms": "Termos",
+      "project": "Projeto",
+      "roadmap": "Roadmap"
+    },
+    "roadmap_description": "Em breve."
   },
   "services": {
     "title": "plataformas suportadas",
