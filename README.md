@@ -50,9 +50,11 @@ Grab the latest release for your platform:
 
 <p align="center">
   <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/badge/-Windows-blue.svg?style=for-the-badge&logo=windows" alt="Download for Windows" /></a>
+  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/badge/-macOS-black.svg?style=for-the-badge&logo=apple" alt="Download for macOS" /></a>
+  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/badge/-Linux-orange.svg?style=for-the-badge&logo=linux&logoColor=white" alt="Download for Linux" /></a>
 </p>
 
-OmniGet currently supports Windows. macOS and Linux support is planned.
+macOS and Linux builds are available but not yet fully tested. If you run into any issues, please [open an issue](https://github.com/tonhowtf/omniget/issues).
 
 ## Windows SmartScreen
 
