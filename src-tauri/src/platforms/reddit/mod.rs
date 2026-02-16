@@ -368,6 +368,7 @@ impl PlatformDownloader for RedditDownloader {
                         &video_quality.url,
                         &video_tmp,
                         vtx,
+                        None,
                     )
                     .await?;
 
@@ -380,6 +381,7 @@ impl PlatformDownloader for RedditDownloader {
                         audio_url,
                         &audio_tmp,
                         atx,
+                        None,
                     )
                     .await
                     {
@@ -445,6 +447,7 @@ impl PlatformDownloader for RedditDownloader {
                         &video_quality.url,
                         &output,
                         progress,
+                        None,
                     )
                     .await?;
 
@@ -466,7 +469,7 @@ impl PlatformDownloader for RedditDownloader {
                     sanitize_filename::sanitize(&info.title)
                 ));
                 let bytes =
-                    direct_downloader::download_direct(&self.client, url, &output, progress)
+                    direct_downloader::download_direct(&self.client, url, &output, progress, None)
                         .await?;
 
                 Ok(DownloadResult {
@@ -487,7 +490,7 @@ impl PlatformDownloader for RedditDownloader {
                     ext
                 ));
                 let bytes =
-                    direct_downloader::download_direct(&self.client, &quality.url, &output, progress)
+                    direct_downloader::download_direct(&self.client, &quality.url, &output, progress, None)
                         .await?;
 
                 Ok(DownloadResult {
