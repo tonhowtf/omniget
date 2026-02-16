@@ -21,6 +21,8 @@ impl BlueskyDownloader {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .user_agent(USER_AGENT)
+            .timeout(std::time::Duration::from_secs(120))
+            .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .unwrap_or_default();
         Self { client }
@@ -272,7 +274,7 @@ impl PlatformDownloader for BlueskyDownloader {
                     let output = opts.output_dir.join(&filename);
                     let (tx, _rx) = mpsc::channel(8);
                     let bytes =
-                        direct_downloader::download_direct(&self.client, &quality.url, &output, tx)
+                        direct_downloader::download_direct(&self.client, &quality.url, &output, tx, None)
                             .await?;
                     total_bytes += bytes;
                     last_path = output;
@@ -298,7 +300,7 @@ impl PlatformDownloader for BlueskyDownloader {
                 let output = opts.output_dir.join(&filename);
 
                 let bytes =
-                    direct_downloader::download_direct(&self.client, gif_url, &output, progress)
+                    direct_downloader::download_direct(&self.client, gif_url, &output, progress, None)
                         .await?;
 
                 Ok(DownloadResult {
