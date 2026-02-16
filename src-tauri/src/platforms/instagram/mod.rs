@@ -536,7 +536,7 @@ impl PlatformDownloader for InstagramDownloader {
 
     async fn get_media_info(&self, url: &str) -> anyhow::Result<MediaInfo> {
         if Self::is_story_url(url) {
-            return Err(anyhow!("Stories requerem login"));
+            return Err(anyhow!("Instagram Stories requerem login. Esta funcionalidade será adicionada em breve."));
         }
 
         let post_id = if let Some(share_id) = Self::extract_share_id(url) {
