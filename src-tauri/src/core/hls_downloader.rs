@@ -61,12 +61,6 @@ impl HlsDownloader {
         if let Ok((_, master)) = parse_master_playlist(m3u8_bytes) {
             if let Some(variant) = select_best_variant(&master) {
                 let variant_url = resolve_url(m3u8_url, &variant.uri);
-                tracing::info!(
-                    "[hls] Variante selecionada: {}x{} @ {} bps",
-                    variant.resolution.as_ref().map(|r| r.width).unwrap_or(0),
-                    variant.resolution.as_ref().map(|r| r.height).unwrap_or(0),
-                    variant.bandwidth
-                );
                 return self
                     .download_media_playlist(&variant_url, output_path, referer, bytes_tx, cancel_token, max_concurrent, max_retries)
                     .await;
@@ -106,14 +100,10 @@ impl HlsDownloader {
             .map_err(|e| anyhow::anyhow!("Parse media playlist: {:?}", e))?;
 
         let total_segments = playlist.segments.len();
-        tracing::info!("[download] {} segmentos para baixar", total_segments);
 
         let encryption = self
             .fetch_encryption_info(&playlist, m3u8_url, referer)
             .await?;
-        if encryption.is_some() {
-            tracing::info!("[download] Segmentos encriptados com AES-128");
-        }
 
         let semaphore = Arc::new(Semaphore::new(max_concurrent as usize));
         let completed = Arc::new(AtomicUsize::new(0));
@@ -128,7 +118,6 @@ impl HlsDownloader {
                 let url = resolve_url(m3u8_url, &segment.uri);
                 let referer = referer.to_string();
                 let completed = completed.clone();
-                let total = total_segments;
                 let bytes_tx = bytes_tx.clone();
                 let ct = cancel_token.clone();
                 let retries = max_retries;
@@ -143,13 +132,7 @@ impl HlsDownloader {
                     if let Some(ref tx) = bytes_tx {
                         let _ = tx.send(data.len() as u64);
                     }
-                    let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
-                    tracing::info!(
-                        "[download] Segmento {}/{} baixado ({} KB)",
-                        done,
-                        total,
-                        data.len() / 1024
-                    );
+                    completed.fetch_add(1, Ordering::Relaxed);
                     Ok::<(usize, Vec<u8>), anyhow::Error>((i, data))
                 })
             })
@@ -199,12 +182,6 @@ impl HlsDownloader {
         file.flush().await?;
 
         let file_size = tokio::fs::metadata(&output).await?.len();
-        tracing::info!(
-            "[download] HLS download completo: {} ({:.1} MB, {} segmentos)",
-            output.display(),
-            file_size as f64 / (1024.0 * 1024.0),
-            total_segments
-        );
 
         Ok(HlsDownloadResult {
             path: output,
@@ -224,7 +201,6 @@ impl HlsDownloader {
                 if matches!(key.method, m3u8_rs::KeyMethod::AES128) {
                     if let Some(uri) = &key.uri {
                         let key_url = resolve_url(m3u8_url, uri);
-                        tracing::info!("[download] Baixando chave AES-128: {}", key_url);
                         let key_bytes = self
                             .client
                             .get(&key_url)
