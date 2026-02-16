@@ -95,7 +95,6 @@ pub async fn save_session(session: &HotmartSession) -> anyhow::Result<()> {
 
     let json = serde_json::to_string_pretty(&saved)?;
     tokio::fs::write(&path, json).await?;
-    tracing::info!("Sessão salva em {:?}", path);
     Ok(())
 }
 
@@ -103,12 +102,6 @@ pub async fn load_saved_session() -> anyhow::Result<HotmartSession> {
     let path = session_file_path()?;
     let json = tokio::fs::read_to_string(&path).await?;
     let saved: SavedSession = serde_json::from_str(&json)?;
-
-    tracing::info!(
-        "Sessão restaurada do disco para {} (salva em {})",
-        saved.email,
-        saved.saved_at
-    );
 
     let client = build_client_from_saved(&saved)?;
 
@@ -124,14 +117,11 @@ pub async fn delete_saved_session() -> anyhow::Result<()> {
     let path = session_file_path()?;
     if path.exists() {
         tokio::fs::remove_file(&path).await?;
-        tracing::info!("Sessão removida do disco: {:?}", path);
     }
     Ok(())
 }
 
 pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<HotmartSession> {
-    tracing::info!("Iniciando autenticação Hotmart para {}", email);
-
     let (browser, mut handler) = Browser::launch(
         BrowserConfig::builder()
             .with_head()
@@ -142,11 +132,9 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
     tokio::spawn(async move {
         while handler.next().await.is_some() {}
     });
-    tracing::info!("Browser iniciado");
 
     let page = browser.new_page("https://sso.hotmart.com/login").await?;
     tokio::time::sleep(Duration::from_secs(3)).await;
-    tracing::info!("Página carregada, verificando estado...");
 
     let url = page.url().await?.unwrap_or_default();
 
@@ -155,10 +143,7 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
         || url.contains("club.hotmart.com");
 
     if already_logged_in {
-        tracing::info!("Sessão existente detectada, reutilizando cookies");
     } else if url.contains("sso.hotmart.com") {
-        tracing::info!("Página de login detectada, preenchendo formulário");
-
         page.evaluate(
             r#"
             const el = document.querySelector('#hotmart-cookie-policy');
@@ -171,7 +156,6 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
         .await
         .ok();
         tokio::time::sleep(Duration::from_secs(1)).await;
-        tracing::info!("Cookie banner tratado");
 
         page.find_element("#username")
             .await?
@@ -185,17 +169,14 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
             .await?
             .type_str(password)
             .await?;
-        tracing::info!("Credenciais preenchidas");
 
         page.find_element("[name=submit]").await?.click().await?;
-        tracing::info!("Formulário enviado, aguardando redirect...");
 
         let start = Instant::now();
         loop {
             tokio::time::sleep(Duration::from_millis(500)).await;
             let current = page.url().await?.unwrap_or_default();
             if current.contains("consumer.hotmart.com") || current.contains("dashboard") {
-                tracing::info!("Redirect detectado: {}", current);
                 break;
             }
             if current.contains("captcha") {
@@ -208,7 +189,6 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
             }
         }
     } else {
-        tracing::info!("URL inesperada: {}, navegando para consumer.hotmart.com", url);
         page.goto("https://consumer.hotmart.com").await?;
         tokio::time::sleep(Duration::from_secs(3)).await;
     }
@@ -219,10 +199,6 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
         .find(|c| c.name == "hmVlcIntegration")
         .map(|c| c.value.clone())
         .ok_or_else(|| anyhow!("Cookie hmVlcIntegration não encontrado"))?;
-    tracing::info!("Token extraído: {}...", &token[..20.min(token.len())]);
-
-    let cookie_names: Vec<&str> = cookies.iter().map(|c| c.name.as_str()).collect();
-    tracing::info!("Cookies extraídos do browser: {:?}", cookie_names);
 
     let jar = Jar::default();
     let domains = [
@@ -239,7 +215,6 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
             jar.add_cookie_str(&cookie_str, &domain.parse().unwrap());
         }
     }
-    tracing::info!("Cookies adicionados ao jar para {} domínios", domains.len());
 
     let mut default_headers = HeaderMap::new();
     default_headers.insert("Accept", HeaderValue::from_static("application/json, text/plain, */*"));
@@ -254,8 +229,6 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
         .cookie_provider(Arc::new(jar))
         .default_headers(default_headers)
         .build()?;
-
-    tracing::info!("Login Hotmart concluído com sucesso (client com headers globais)");
 
     Ok(HotmartSession {
         token,
