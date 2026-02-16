@@ -41,7 +41,6 @@ pub async fn download_direct_with_headers(
         ));
     }
 
-    // Check for HTML responses (expired/invalid URLs)
     if let Some(ct) = response.headers().get("content-type") {
         if let Ok(ct_str) = ct.to_str() {
             if ct_str.contains("text/html") {
@@ -81,6 +80,9 @@ pub async fn download_direct_with_headers(
                         let percent = (downloaded as f64 / total as f64) * 100.0;
                         let _ = progress_tx.send(percent).await;
                     }
+                } else {
+                    let percent = (downloaded as f64 / (downloaded as f64 + 500_000.0)) * 100.0;
+                    let _ = progress_tx.send(percent.min(95.0)).await;
                 }
             }
             Ok(Some(Err(e))) => {
@@ -88,7 +90,7 @@ pub async fn download_direct_with_headers(
                 let _ = tokio::fs::remove_file(output).await;
                 return Err(anyhow!("Erro no stream de download: {}", e));
             }
-            Ok(None) => break, // stream finished
+            Ok(None) => break,
             Err(_) => {
                 drop(file);
                 let _ = tokio::fs::remove_file(output).await;
