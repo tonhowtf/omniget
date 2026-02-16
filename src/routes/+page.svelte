@@ -396,7 +396,7 @@
 
   <div class="terms-note">
     {$t('terms_note.agreement')}
-    <a href="/about" class="terms-link">{$t('terms_note.link')}</a>
+    <a href="/about/terms" class="terms-link">{$t('terms_note.link')}</a>
   </div>
 </div>
 
