@@ -3,7 +3,8 @@
     "home": "Início",
     "downloads": "Downloads",
     "hotmart": "Hotmart",
-    "settings": "Configurações"
+    "settings": "Configurações",
+    "about": "Sobre"
   },
   "downloads": {
     "title": "Downloads",
@@ -97,6 +98,15 @@
       "course": "Curso",
       "unknown": "Mídia"
     }
+  },
+  "about": {
+    "title": "Sobre",
+    "description": "Download manager de mídia universal. Código aberto e gratuito.",
+    "legal_title": "Uso Legal",
+    "legal_text": "OmniGet é uma ferramenta de uso privado. Coberto pelo Artigo 184 do Código Penal Brasileiro, que permite a cópia de obra intelectual para uso privado do copista, sem intuito de lucro.",
+    "star_button": "Dar uma estrela no GitHub",
+    "star_description": "Se gostou do projeto, deixe uma estrela!",
+    "version": "Versão"
   },
   "common": {
     "cancel": "Cancelar",
