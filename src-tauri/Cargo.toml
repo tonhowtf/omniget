@@ -43,6 +43,9 @@ url = "2"
 urlencoding = "2"
 rand = "0.10.0"
 base64 = "0.22.1"
+grammers-client = "0.8"
+grammers-session = "0.8"
+grammers-tl-types = "0.8"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-process = "2.3.1"
