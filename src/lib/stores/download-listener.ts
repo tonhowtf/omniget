@@ -43,6 +43,7 @@ type GenericCompletePayload = {
   error: string | null;
   file_path: string | null;
   file_size_bytes: number | null;
+  file_count: number | null;
 };
 
 const seenCourseIds = new Set<number>();
@@ -105,7 +106,7 @@ export async function initDownloadListener(): Promise<() => void> {
     "generic-download-complete",
     (event) => {
       const d = event.payload;
-      markGenericComplete(d.id, d.success, d.error ?? undefined, d.file_path ?? undefined);
+      markGenericComplete(d.id, d.success, d.error ?? undefined, d.file_path ?? undefined, d.file_count ?? undefined);
 
       const tr = get(t);
       if (d.success) {
