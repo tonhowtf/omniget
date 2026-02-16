@@ -10,7 +10,7 @@ use crate::models::media::{
 };
 use crate::platforms::traits::PlatformDownloader;
 
-const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
 
 pub struct RedditDownloader {
     client: reqwest::Client,
@@ -298,6 +298,13 @@ impl PlatformDownloader for RedditDownloader {
 
         let data = self.fetch_post_data(&post_id).await?;
 
+        tracing::info!(
+            "Reddit post data: is_video={}, is_gallery={}, has_secure_media={}",
+            data.get("is_video").and_then(|v| v.as_bool()).unwrap_or(false),
+            data.get("is_gallery").and_then(|v| v.as_bool()).unwrap_or(false),
+            data.get("secure_media").is_some()
+        );
+
         let media = Self::parse_media(&data)
             .ok_or_else(|| anyhow!("Nenhuma mídia encontrada no post"))?;
 
@@ -426,6 +433,17 @@ impl PlatformDownloader for RedditDownloader {
                     .find(|q| q.label == "audio");
 
                 let has_audio = audio_quality.is_some();
+                let ffmpeg_available = ffmpeg::is_ffmpeg_available().await;
+
+                tracing::info!(
+                    "Reddit download: video_url={}, has_audio={}, ffmpeg={}",
+                    video_quality.url,
+                    has_audio,
+                    ffmpeg_available
+                );
+                if let Some(aq) = audio_quality {
+                    tracing::info!("Reddit audio_url={}", aq.url);
+                }
 
                 if has_audio {
                     let video_tmp = opts.output_dir.join(format!(
@@ -443,6 +461,7 @@ impl PlatformDownloader for RedditDownloader {
 
                     let _ = progress.send(0.0).await;
 
+                    tracing::info!("Reddit: Baixando vídeo...");
                     let (vtx, _vrx) = mpsc::channel(8);
                     let video_bytes = direct_downloader::download_direct(
                         &self.client,
@@ -453,8 +472,10 @@ impl PlatformDownloader for RedditDownloader {
                     )
                     .await?;
 
+                    tracing::info!("Reddit: Vídeo baixado ({} bytes)", video_bytes);
                     let _ = progress.send(50.0).await;
 
+                    tracing::info!("Reddit: Baixando áudio...");
                     let audio_url = &audio_quality.unwrap().url;
                     let (atx, _arx) = mpsc::channel(8);
                     let audio_ok = match direct_downloader::download_direct(
@@ -475,7 +496,8 @@ impl PlatformDownloader for RedditDownloader {
 
                     let _ = progress.send(75.0).await;
 
-                    if audio_ok && ffmpeg::is_ffmpeg_available().await {
+                    if audio_ok && ffmpeg_available {
+                        tracing::info!("Reddit: Muxando vídeo + áudio com ffmpeg...");
                         ffmpeg::mux_video_audio(&video_tmp, &audio_tmp, &output).await?;
                         let _ = tokio::fs::remove_file(&video_tmp).await;
                         let _ = tokio::fs::remove_file(&audio_tmp).await;
