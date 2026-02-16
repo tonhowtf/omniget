@@ -1,10 +1,13 @@
 use std::path::Path;
+use std::time::Duration;
 
 use anyhow::anyhow;
 use futures::StreamExt;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
+
+const CHUNK_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub async fn download_direct(
     client: &reqwest::Client,
@@ -38,6 +41,15 @@ pub async fn download_direct_with_headers(
         ));
     }
 
+    // Check for HTML responses (expired/invalid URLs)
+    if let Some(ct) = response.headers().get("content-type") {
+        if let Ok(ct_str) = ct.to_str() {
+            if ct_str.contains("text/html") {
+                return Err(anyhow!("Servidor retornou HTML em vez de mídia — URL pode ter expirado"));
+            }
+        }
+    }
+
     let total_size = response.content_length();
 
     if let Some(parent) = output.parent() {
@@ -48,7 +60,7 @@ pub async fn download_direct_with_headers(
     let mut downloaded: u64 = 0;
     let mut stream = response.bytes_stream();
 
-    while let Some(chunk) = stream.next().await {
+    loop {
         if let Some(token) = cancel {
             if token.is_cancelled() {
                 drop(file);
@@ -57,14 +69,30 @@ pub async fn download_direct_with_headers(
             }
         }
 
-        let chunk = chunk?;
-        file.write_all(&chunk).await?;
-        downloaded += chunk.len() as u64;
+        let chunk_result = tokio::time::timeout(CHUNK_TIMEOUT, stream.next()).await;
 
-        if let Some(total) = total_size {
-            if total > 0 {
-                let percent = (downloaded as f64 / total as f64) * 100.0;
-                let _ = progress_tx.send(percent).await;
+        match chunk_result {
+            Ok(Some(Ok(chunk))) => {
+                file.write_all(&chunk).await?;
+                downloaded += chunk.len() as u64;
+
+                if let Some(total) = total_size {
+                    if total > 0 {
+                        let percent = (downloaded as f64 / total as f64) * 100.0;
+                        let _ = progress_tx.send(percent).await;
+                    }
+                }
+            }
+            Ok(Some(Err(e))) => {
+                drop(file);
+                let _ = tokio::fs::remove_file(output).await;
+                return Err(anyhow!("Erro no stream de download: {}", e));
+            }
+            Ok(None) => break, // stream finished
+            Err(_) => {
+                drop(file);
+                let _ = tokio::fs::remove_file(output).await;
+                return Err(anyhow!("Download timeout — nenhum dado recebido por 30 segundos"));
             }
         }
     }
