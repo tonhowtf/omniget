@@ -28,7 +28,7 @@
     | { kind: "unsupported" }
     | { kind: "preparing"; platform: string }
     | { kind: "downloading"; trackingId: number; platform: string; title: string }
-    | { kind: "complete"; title: string; filePath?: string; platform: string }
+    | { kind: "complete"; title: string; filePath?: string; platform: string; fileCount?: number }
     | { kind: "error"; message: string; originalUrl: string; platform: string; trackingId?: number };
 
   let url = $state("");
@@ -58,6 +58,7 @@
         title: item.name,
         filePath: item.filePath,
         platform: omniState.platform,
+        fileCount: item.fileCount,
       };
     } else if (item.status === "error") {
       omniState = {
@@ -341,7 +342,13 @@
           </button>
         </div>
         <div class="card-row card-actions">
-          <span class="card-subtext">{$t('omnibox.complete')}</span>
+          <span class="card-subtext">
+            {#if omniState.kind === "complete" && omniState.fileCount && omniState.fileCount > 1}
+              {$t('omnibox.complete_files', { count: omniState.fileCount })}
+            {:else}
+              {$t('omnibox.complete')}
+            {/if}
+          </span>
           {#if omniState.filePath}
             <button class="button card-action-btn" onclick={handleRevealFile}>
               {$t('omnibox.open_folder')}
