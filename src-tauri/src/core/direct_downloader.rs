@@ -4,14 +4,16 @@ use anyhow::anyhow;
 use futures::StreamExt;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 pub async fn download_direct(
     client: &reqwest::Client,
     url: &str,
     output: &Path,
     progress_tx: mpsc::Sender<f64>,
+    cancel: Option<&CancellationToken>,
 ) -> anyhow::Result<u64> {
-    download_direct_with_headers(client, url, output, progress_tx, None).await
+    download_direct_with_headers(client, url, output, progress_tx, None, cancel).await
 }
 
 pub async fn download_direct_with_headers(
@@ -20,6 +22,7 @@ pub async fn download_direct_with_headers(
     output: &Path,
     progress_tx: mpsc::Sender<f64>,
     headers: Option<reqwest::header::HeaderMap>,
+    cancel: Option<&CancellationToken>,
 ) -> anyhow::Result<u64> {
     let mut request = client.get(url);
     if let Some(h) = headers {
@@ -46,6 +49,14 @@ pub async fn download_direct_with_headers(
     let mut stream = response.bytes_stream();
 
     while let Some(chunk) = stream.next().await {
+        if let Some(token) = cancel {
+            if token.is_cancelled() {
+                drop(file);
+                let _ = tokio::fs::remove_file(output).await;
+                return Err(anyhow!("Download cancelado"));
+            }
+        }
+
         let chunk = chunk?;
         file.write_all(&chunk).await?;
         downloaded += chunk.len() as u64;
