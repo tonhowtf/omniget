@@ -132,7 +132,9 @@ pub async fn download_from_url(
 
     let title = info.title.clone();
     let return_title = title.clone();
-    let file_count = if info.media_type == crate::models::media::MediaType::Carousel {
+    let file_count = if info.media_type == crate::models::media::MediaType::Carousel
+        || info.media_type == crate::models::media::MediaType::Playlist
+    {
         info.available_qualities.len() as u32
     } else {
         1
