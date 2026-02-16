@@ -135,7 +135,11 @@ impl TikTokDownloader {
             .and_then(|s| s.get("webapp.video-detail"))
             .ok_or_else(|| anyhow!("Dados do vídeo não encontrados na resposta do TikTok"))?;
 
-        if let Some(status_msg) = video_detail.get("statusMsg").and_then(|v| v.as_str()) {
+        if let Some(status_msg) = video_detail
+            .get("statusMsg")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+        {
             return Err(anyhow!("Post não disponível: {}", status_msg));
         }
 
