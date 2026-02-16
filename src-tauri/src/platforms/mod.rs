@@ -7,7 +7,6 @@ pub mod twitter;
 pub mod twitch;
 pub mod bluesky;
 pub mod reddit;
-pub mod vimeo;
 pub mod youtube;
 
 use std::fmt;
@@ -24,7 +23,6 @@ pub enum Platform {
     Twitter,
     Reddit,
     Twitch,
-    Vimeo,
     Pinterest,
     Bluesky,
 }
@@ -39,7 +37,6 @@ impl fmt::Display for Platform {
             Platform::Twitter => "twitter",
             Platform::Reddit => "reddit",
             Platform::Twitch => "twitch",
-            Platform::Vimeo => "vimeo",
             Platform::Pinterest => "pinterest",
             Platform::Bluesky => "bluesky",
         };
@@ -59,7 +56,6 @@ impl FromStr for Platform {
             "twitter" | "x" => Ok(Platform::Twitter),
             "reddit" => Ok(Platform::Reddit),
             "twitch" => Ok(Platform::Twitch),
-            "vimeo" => Ok(Platform::Vimeo),
             "pinterest" => Ok(Platform::Pinterest),
             "bluesky" | "bsky" => Ok(Platform::Bluesky),
             _ => Err(format!("Unknown platform: {}", s)),
@@ -90,8 +86,6 @@ impl Platform {
             Some(Platform::Reddit)
         } else if matches("twitch.tv") {
             Some(Platform::Twitch)
-        } else if matches("vimeo.com") {
-            Some(Platform::Vimeo)
         } else if host == "pin.it" || host.contains("pinterest.") {
             Some(Platform::Pinterest)
         } else if host == "bsky.app" || host.ends_with(".bsky.app") {
@@ -110,7 +104,6 @@ impl Platform {
             Platform::Twitter,
             Platform::Reddit,
             Platform::Twitch,
-            Platform::Vimeo,
             Platform::Pinterest,
             Platform::Bluesky,
         ]
