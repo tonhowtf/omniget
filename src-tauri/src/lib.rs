@@ -85,7 +85,6 @@ pub fn run() {
             commands::auth::hotmart_login,
             commands::auth::hotmart_check_session,
             commands::auth::hotmart_logout,
-            commands::auth::hotmart_debug_auth,
             commands::courses::hotmart_list_courses,
             commands::courses::hotmart_refresh_courses,
             commands::courses::hotmart_get_modules,
