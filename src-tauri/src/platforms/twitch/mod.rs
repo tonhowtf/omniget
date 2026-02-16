@@ -39,6 +39,8 @@ pub struct TwitchClipsDownloader {
 impl TwitchClipsDownloader {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .unwrap_or_default();
 
@@ -307,6 +309,7 @@ impl PlatformDownloader for TwitchClipsDownloader {
             &selected.url,
             &output_path,
             progress,
+            None,
         )
         .await?;
 
