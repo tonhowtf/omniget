@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use async_trait::async_trait;
+use reqwest::header::{HeaderMap, HeaderValue, REFERER};
 use tokio::sync::mpsc;
 
 use crate::core::direct_downloader;
@@ -8,47 +9,28 @@ use crate::models::media::{
 };
 use crate::platforms::traits::PlatformDownloader;
 
-const USER_AGENTS: &[&str] = &[
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) Gecko/20100101 Firefox/135.0",
-];
-
-const SHORT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)";
+const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36";
 
 pub struct TikTokDownloader {
     client: reqwest::Client,
-    short_client: reqwest::Client,
 }
 
 impl TikTokDownloader {
     pub fn new() -> Self {
-        let ua = Self::pick_user_agent();
         let client = reqwest::Client::builder()
-            .user_agent(ua)
+            .user_agent(USER_AGENT)
             .cookie_store(true)
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .unwrap_or_default();
 
-        let short_client = reqwest::Client::builder()
-            .user_agent(SHORT_USER_AGENT)
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .unwrap_or_default();
-
-        Self {
-            client,
-            short_client,
-        }
+        Self { client }
     }
 
-    fn pick_user_agent() -> &'static str {
-        use std::sync::atomic::{AtomicUsize, Ordering};
-        static IDX: AtomicUsize = AtomicUsize::new(0);
-        let i = IDX.fetch_add(1, Ordering::Relaxed);
-        USER_AGENTS[i % USER_AGENTS.len()]
+    fn tiktok_headers() -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(REFERER, HeaderValue::from_static("https://www.tiktok.com/"));
+        headers
     }
 
     fn extract_post_id(url: &str) -> Option<String> {
@@ -69,7 +51,13 @@ impl TikTokDownloader {
     }
 
     async fn resolve_short_link(&self, url: &str) -> anyhow::Result<String> {
-        let response = self.short_client.get(url).send().await?;
+        let redirect_client = reqwest::Client::builder()
+            .user_agent(USER_AGENT)
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap_or_default();
+
+        let response = redirect_client.get(url).send().await?;
 
         if let Some(location) = response
             .headers()
@@ -117,19 +105,7 @@ impl TikTokDownloader {
     async fn fetch_detail(&self, post_id: &str) -> anyhow::Result<serde_json::Value> {
         let url = format!("https://www.tiktok.com/@i/video/{}", post_id);
 
-        let response = self
-            .client
-            .get(&url)
-            .header(
-                "Accept",
-                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            )
-            .header("Accept-Language", "en-US,en;q=0.9")
-            .header("Sec-Fetch-Dest", "document")
-            .header("Sec-Fetch-Mode", "navigate")
-            .header("Sec-Fetch-Site", "none")
-            .send()
-            .await?;
+        let response = self.client.get(&url).send().await?;
 
         let status = response.status();
 
@@ -187,35 +163,6 @@ impl TikTokDownloader {
         }
 
         Ok(detail)
-    }
-
-    async fn fetch_detail_api(&self, post_id: &str) -> anyhow::Result<serde_json::Value> {
-        let url = format!(
-            "https://api22-normal-c-useast2a.tiktokv.com/aweme/v1/feed/?aweme_id={}",
-            post_id
-        );
-
-        let response = self
-            .client
-            .get(&url)
-            .header("Accept", "application/json")
-            .send()
-            .await?;
-
-        if !response.status().is_success() {
-            return Err(anyhow!("TikTok API retornou HTTP {}", response.status()));
-        }
-
-        let json: serde_json::Value = response.json().await?;
-
-        let item = json
-            .get("aweme_list")
-            .and_then(|v| v.as_array())
-            .and_then(|arr| arr.first())
-            .ok_or_else(|| anyhow!("TikTok API: post não encontrado"))?
-            .clone();
-
-        Ok(item)
     }
 
     fn extract_author(detail: &serde_json::Value) -> String {
@@ -344,15 +291,7 @@ impl PlatformDownloader for TikTokDownloader {
                     return Err(first_err);
                 }
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                match self.fetch_detail(&post_id).await {
-                    Ok(d) => d,
-                    Err(_) => {
-                        match self.fetch_detail_api(&post_id).await {
-                            Ok(d) => d,
-                            Err(_) => return Err(first_err),
-                        }
-                    }
-                }
+                self.fetch_detail(&post_id).await.map_err(|_| first_err)?
             }
         };
 
@@ -438,6 +377,8 @@ impl PlatformDownloader for TikTokDownloader {
         opts: &DownloadOptions,
         progress: mpsc::Sender<f64>,
     ) -> anyhow::Result<DownloadResult> {
+        let headers = Self::tiktok_headers();
+
         match info.media_type {
             MediaType::Video => {
                 let quality = info
@@ -448,11 +389,12 @@ impl PlatformDownloader for TikTokDownloader {
                 let filename = format!("{}.mp4", sanitize_filename::sanitize(&info.title));
                 let output = opts.output_dir.join(&filename);
 
-                let bytes = direct_downloader::download_direct(
+                let bytes = direct_downloader::download_direct_with_headers(
                     &self.client,
                     &quality.url,
                     &output,
                     progress,
+                    Some(headers),
                     None,
                 )
                 .await?;
@@ -481,11 +423,12 @@ impl PlatformDownloader for TikTokDownloader {
                     let output = opts.output_dir.join(&filename);
                     let (tx, _rx) = mpsc::channel(8);
 
-                    let bytes = direct_downloader::download_direct(
+                    let bytes = direct_downloader::download_direct_with_headers(
                         &self.client,
                         &quality.url,
                         &output,
                         tx,
+                        Some(headers.clone()),
                         None,
                     )
                     .await?;
@@ -512,11 +455,12 @@ impl PlatformDownloader for TikTokDownloader {
                 let filename = format!("{}.mp3", sanitize_filename::sanitize(&info.title));
                 let output = opts.output_dir.join(&filename);
 
-                let bytes = direct_downloader::download_direct(
+                let bytes = direct_downloader::download_direct_with_headers(
                     &self.client,
                     &quality.url,
                     &output,
                     progress,
+                    Some(headers),
                     None,
                 )
                 .await?;
