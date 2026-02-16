@@ -71,29 +71,36 @@
     }
   });
 
+  // Timer to force re-evaluation of stall detection (Date.now() doesn't trigger $derived)
+  let stallTick = $state(0);
+  $effect(() => {
+    const interval = setInterval(() => { stallTick++; }, 5000);
+    return () => clearInterval(interval);
+  });
+
   let mascotEmotion = $derived.by((): "idle" | "downloading" | "error" | "stalled" => {
+    void stallTick;
+
     if (omniState.kind === "error") return "error";
     if (omniState.kind === "downloading" || omniState.kind === "preparing") return "downloading";
 
-    let hasCourseError = false;
+    let hasError = false;
     let hasStalled = false;
     let hasDownloading = false;
 
     for (const item of downloads.values()) {
-      if (item.kind === "course" && item.status === "error") {
-        hasCourseError = true;
+      if (item.status === "error") {
+        hasError = true;
       } else if (item.status === "downloading") {
         hasDownloading = true;
-        if (item.kind === "course" && item.speed === 0 && (Date.now() - item.startedAt) > STALL_THRESHOLD) {
-          const stalledDuration = Date.now() - item.lastUpdateAt;
-          if (stalledDuration > STALL_THRESHOLD) {
-            hasStalled = true;
-          }
+        const stalledDuration = Date.now() - item.lastUpdateAt;
+        if (stalledDuration > STALL_THRESHOLD) {
+          hasStalled = true;
         }
       }
     }
 
-    if (hasCourseError) return "error";
+    if (hasError) return "error";
     if (hasStalled) return "stalled";
     if (hasDownloading) return "downloading";
     return "idle";
