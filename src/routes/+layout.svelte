@@ -6,8 +6,14 @@
   import { getActiveCount } from "$lib/stores/download-store.svelte";
   import { loadSettings } from "$lib/stores/settings-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
+  import { open } from "@tauri-apps/plugin-shell";
   import { t, locale, loadTranslations, defaultLocale } from "$lib/i18n";
   import type { Snippet } from "svelte";
+
+  async function openAuthorGithub(e: Event) {
+    e.preventDefault();
+    await open("https://github.com/tonhowtf");
+  }
 
   let activeCount = $derived(getActiveCount());
 
@@ -78,6 +84,14 @@
 
   <main class="content">
     {@render children()}
+    <a
+      href="https://github.com/tonhowtf"
+      class="watermark"
+      onclick={openAuthorGithub}
+      title="@tonhowtf"
+    >
+      @tonhowtf
+    </a>
   </main>
 </div>
 
@@ -169,5 +183,26 @@
     overflow-y: auto;
     padding: calc(var(--padding) * 2);
     box-shadow: inset 1px 0 0 0 var(--content-border);
+  }
+
+  .watermark {
+    position: fixed;
+    bottom: 8px;
+    right: 12px;
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--gray);
+    opacity: 0.3;
+    pointer-events: auto;
+    cursor: pointer;
+    z-index: 1;
+    user-select: none;
+    transition: opacity 0.15s;
+  }
+
+  @media (hover: hover) {
+    .watermark:hover {
+      opacity: 0.7;
+    }
   }
 </style>
