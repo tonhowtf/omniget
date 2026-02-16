@@ -39,6 +39,7 @@ pub fn parse_url(url_str: &str) -> Option<ParsedUrl> {
         Platform::Hotmart => parse_hotmart(&segments),
         Platform::Pinterest => parse_pinterest(&segments),
         Platform::Bluesky => parse_bluesky(&segments),
+        Platform::Telegram => parse_telegram(&segments),
     };
 
     Some(ParsedUrl {
@@ -227,6 +228,23 @@ fn parse_bluesky(segments: &[&str]) -> (Option<String>, ParsedContentType) {
     if segments.first() == Some(&"profile") {
         let user = segments.get(1).map(|s| s.to_string());
         return (user, ParsedContentType::Profile);
+    }
+
+    (None, ParsedContentType::Unknown)
+}
+
+fn parse_telegram(segments: &[&str]) -> (Option<String>, ParsedContentType) {
+    if segments.len() >= 2 {
+        let channel = segments[0].to_string();
+        if let Ok(msg_id) = segments[1].parse::<u64>() {
+            return (Some(format!("{}/{}", channel, msg_id)), ParsedContentType::Post);
+        }
+    }
+
+    if let Some(channel) = segments.first() {
+        if !["joinchat", "addstickers", "login", "share"].contains(channel) {
+            return (Some(channel.to_string()), ParsedContentType::Profile);
+        }
     }
 
     (None, ParsedContentType::Unknown)
