@@ -5,6 +5,7 @@
   import Mascot from "$components/mascot/Mascot.svelte";
   import { getDownloads, removeDownload, type GenericDownloadItem } from "$lib/stores/download-store.svelte";
   import { getSettings } from "$lib/stores/settings-store.svelte";
+  import { showToast } from "$lib/stores/toast-store.svelte";
   import { t } from "$lib/i18n";
 
   type PlatformInfo = {
@@ -213,6 +214,18 @@
     url = "";
   }
 
+  async function handleCancelDownload() {
+    if (omniState.kind !== "downloading") return;
+    const trackingId = omniState.trackingId;
+    try {
+      await invoke("cancel_generic_download", { downloadId: trackingId });
+    } catch {
+    }
+    removeDownload(trackingId);
+    omniState = { kind: "idle" };
+    url = "";
+  }
+
   async function handleRevealFile() {
     if (omniState.kind !== "complete" || !omniState.filePath) return;
     try {
@@ -304,6 +317,12 @@
             class="progress-fill"
             style="width: {(trackedDownload?.percent ?? 0).toFixed(1)}%"
           ></div>
+        </div>
+        <div class="card-row card-actions">
+          <span class="card-subtext">{$t('omnibox.preparing')}</span>
+          <button class="button card-action-btn" onclick={handleCancelDownload}>
+            {$t('downloads.cancel')}
+          </button>
         </div>
       </div>
 
