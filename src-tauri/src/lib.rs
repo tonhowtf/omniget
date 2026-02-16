@@ -62,9 +62,6 @@ pub fn run() {
         platforms::reddit::RedditDownloader::new(),
     ));
     registry.register(Arc::new(
-        platforms::vimeo::VimeoDownloader::new(),
-    ));
-    registry.register(Arc::new(
         platforms::youtube::YouTubeDownloader::new(),
     ));
 
