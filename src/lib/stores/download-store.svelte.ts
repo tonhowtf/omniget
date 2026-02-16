@@ -26,6 +26,7 @@ export type GenericDownloadItem = BaseItem & {
   kind: "generic";
   platform: string;
   filePath?: string;
+  fileCount?: number;
 };
 
 export type DownloadItem = CourseDownloadItem | GenericDownloadItem;
@@ -144,7 +145,7 @@ export function removeDownload(id: number) {
   }
 }
 
-export function markGenericComplete(id: number, success: boolean, error?: string, filePath?: string) {
+export function markGenericComplete(id: number, success: boolean, error?: string, filePath?: string, fileCount?: number) {
   const item = downloads.get(id);
   if (!item || item.kind !== "generic") return;
 
@@ -154,6 +155,7 @@ export function markGenericComplete(id: number, success: boolean, error?: string
     status: (success ? "complete" : "error") as DownloadStatus,
     error,
     filePath,
+    fileCount,
     lastUpdateAt: Date.now(),
   });
   downloads = new Map(downloads);
