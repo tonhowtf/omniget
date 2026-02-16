@@ -2,6 +2,21 @@
 @import '@fontsource/ibm-plex-mono/500.css';
 
 :root {
+  --padding: 12px;
+  --border-radius: 11px;
+  --sidebar-width: 80px;
+
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root, [data-theme="dark"] {
   --primary: #0d0d0d;
   --secondary: #e1e1e1;
   --gray: #75757e;
@@ -30,24 +45,47 @@
   --green: #30bd1b;
   --orange: #f19a38;
 
-  --padding: 12px;
-  --border-radius: 11px;
-  --sidebar-width: 80px;
+  --focus-ring: solid 2px var(--blue);
+  --focus-ring-offset: -2px;
+
+  color: var(--secondary);
+  background-color: var(--primary);
+}
+
+[data-theme="light"] {
+  --primary: #ffffff;
+  --secondary: #1a1a1a;
+  --gray: #6e6e78;
+
+  --button: #f2f2f3;
+  --button-hover: #eaeaeb;
+  --button-press: #e4e4e5;
+  --button-text: #1a1a1a;
+  --button-stroke: rgba(0, 0, 0, 0.06);
+  --button-box-shadow: 0 0 0 1px var(--button-stroke) inset;
+
+  --button-elevated: #e8e8e9;
+  --button-elevated-hover: #dfdfdf;
+  --button-elevated-press: #d6d6d6;
+
+  --sidebar-bg: #f5f5f6;
+  --sidebar-highlight: rgba(0, 0, 0, 0.05);
+  --content-border: rgba(0, 0, 0, 0.06);
+  --input-border: #d1d1d6;
+
+  --popup-bg: #e8e8e9;
+  --dialog-backdrop: rgba(0, 0, 0, 0.3);
+
+  --blue: #2563eb;
+  --red: #dc2626;
+  --green: #16a34a;
+  --orange: #ea580c;
 
   --focus-ring: solid 2px var(--blue);
   --focus-ring-offset: -2px;
 
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 16px;
-  line-height: 1.5;
-  font-weight: 400;
   color: var(--secondary);
   background-color: var(--primary);
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 *,
