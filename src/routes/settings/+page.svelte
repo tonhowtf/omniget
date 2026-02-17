@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import { t, locale, loadTranslations } from "$lib/i18n";
   import { getSettings, updateSettings, resetSettings, loadSettings } from "$lib/stores/settings-store.svelte";
@@ -47,6 +48,11 @@
     const value = parseInt((e.target as HTMLInputElement).value, 10);
     if (!isNaN(value) && value > 0) {
       await updateSettings({ [section]: { [key]: value } });
+      if (key === "max_concurrent_downloads") {
+        try {
+          await invoke("update_max_concurrent", { max: value });
+        } catch {}
+      }
     }
   }
 
@@ -233,6 +239,21 @@
     <section class="section">
       <h5 class="section-title">{$t('settings.advanced.title')}</h5>
       <div class="card">
+        <div class="setting-row">
+          <div class="setting-col">
+            <span class="setting-label">{$t('settings.advanced.max_concurrent_downloads')}</span>
+            <span class="setting-path">{$t('settings.advanced.max_concurrent_downloads_desc')}</span>
+          </div>
+          <input
+            type="number"
+            class="input-number"
+            min="1"
+            max="10"
+            value={settings.advanced.max_concurrent_downloads}
+            onchange={(e) => changeNumber("advanced", "max_concurrent_downloads", e)}
+          />
+        </div>
+        <div class="divider"></div>
         <div class="setting-row">
           <span class="setting-label">{$t('settings.advanced.max_concurrent_segments')}</span>
           <input
