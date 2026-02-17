@@ -4,7 +4,7 @@
   import { goto } from "$app/navigation";
   import Mascot from "$components/mascot/Mascot.svelte";
   import SupportedServices from "$components/services/SupportedServices.svelte";
-  import { getDownloads, removeDownload, type GenericDownloadItem } from "$lib/stores/download-store.svelte";
+  import { getDownloads } from "$lib/stores/download-store.svelte";
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { t } from "$lib/i18n";
@@ -27,12 +27,9 @@
     | { kind: "detected"; info: PlatformInfo }
     | { kind: "unsupported" }
     | { kind: "preparing"; platform: string }
-    | { kind: "downloading"; trackingId: number; platform: string; title: string }
-    | { kind: "complete"; title: string; filePath?: string; platform: string; fileCount?: number }
-    | { kind: "error"; message: string; originalUrl: string; platform: string; trackingId?: number };
+    | { kind: "error"; message: string; originalUrl: string; platform: string };
 
   let url = $state("");
-  let savedUrl = $state("");
   let omniState = $state<OmniState>({ kind: "idle" });
   let debounceTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 
@@ -40,62 +37,23 @@
 
   let downloads = $derived(getDownloads());
 
-  let trackedDownload = $derived.by((): GenericDownloadItem | undefined => {
-    if (omniState.kind !== "downloading") return undefined;
-    const item = downloads.get(omniState.trackingId);
-    if (item && item.kind === "generic") return item;
-    return undefined;
-  });
-
-  $effect(() => {
-    if (omniState.kind !== "downloading") return;
-    const item = downloads.get(omniState.trackingId);
-    if (!item || item.kind !== "generic") return;
-
-    if (item.status === "complete") {
-      omniState = {
-        kind: "complete",
-        title: item.name,
-        filePath: item.filePath,
-        platform: omniState.platform,
-        fileCount: item.fileCount,
-      };
-    } else if (item.status === "error") {
-      omniState = {
-        kind: "error",
-        message: item.error ?? $t("omnibox.error"),
-        originalUrl: savedUrl,
-        platform: omniState.platform,
-        trackingId: omniState.trackingId,
-      };
-    }
-  });
-
   let stallTick = $state(0);
   $effect(() => {
     const interval = setInterval(() => { stallTick++; }, 5000);
     return () => clearInterval(interval);
   });
 
-  let mascotEmotion = $derived.by((): "idle" | "downloading" | "error" | "stalled" => {
+  let mascotEmotion = $derived.by((): "idle" | "downloading" | "error" | "stalled" | "queue" => {
     void stallTick;
 
-    if (omniState.kind === "preparing" || omniState.kind === "downloading") {
-      if (omniState.kind === "downloading") {
-        const tracked = downloads.get(omniState.trackingId);
-        if (tracked && tracked.status === "downloading") {
-          const elapsed = Date.now() - tracked.lastUpdateAt;
-          if (elapsed > STALL_THRESHOLD) return "stalled";
-        }
-      }
-      return "downloading";
-    }
-
+    if (omniState.kind === "preparing") return "downloading";
     if (omniState.kind === "error") return "error";
 
     let hasActiveDownloading = false;
     let hasActiveStalled = false;
+    let hasItems = false;
     for (const item of downloads.values()) {
+      hasItems = true;
       if (item.status === "downloading") {
         hasActiveDownloading = true;
         const elapsed = Date.now() - item.lastUpdateAt;
@@ -107,14 +65,13 @@
 
     if (hasActiveStalled) return "stalled";
     if (hasActiveDownloading) return "downloading";
+    if (hasItems) return "queue";
     return "idle";
   });
 
   let showLoopIcon = $derived(
     omniState.kind === "detected" ||
-    omniState.kind === "preparing" ||
-    omniState.kind === "downloading" ||
-    omniState.kind === "complete"
+    omniState.kind === "preparing"
   );
 
   function isUrl(value: string): boolean {
@@ -182,22 +139,16 @@
     }
 
     const currentUrl = url.trim();
-    savedUrl = currentUrl;
     const platform = info.platform;
     omniState = { kind: "preparing", platform };
     url = "";
 
     try {
-      const result = await invoke<DownloadStarted>("download_from_url", {
+      await invoke<DownloadStarted>("download_from_url", {
         url: currentUrl,
         outputDir,
       });
-      omniState = {
-        kind: "downloading",
-        trackingId: result.id,
-        platform,
-        title: result.title,
-      };
+      omniState = { kind: "idle" };
     } catch (e: any) {
       const msg = typeof e === "string" ? e : e.message ?? $t("omnibox.error");
       omniState = {
@@ -211,40 +162,14 @@
 
   function handleRetry() {
     if (omniState.kind !== "error") return;
-    if (omniState.trackingId != null) {
-      removeDownload(omniState.trackingId);
-    }
     url = omniState.originalUrl;
     omniState = { kind: "detecting" };
     detectPlatform(url.trim());
   }
 
   function handleDismiss() {
-    if (omniState.kind === "error" && omniState.trackingId != null) {
-      removeDownload(omniState.trackingId);
-    }
     omniState = { kind: "idle" };
     url = "";
-  }
-
-  async function handleCancelDownload() {
-    if (omniState.kind !== "downloading") return;
-    const trackingId = omniState.trackingId;
-    try {
-      await invoke("cancel_generic_download", { downloadId: trackingId });
-    } catch {
-    }
-    removeDownload(trackingId);
-    omniState = { kind: "idle" };
-    url = "";
-  }
-
-  async function handleRevealFile() {
-    if (omniState.kind !== "complete" || !omniState.filePath) return;
-    try {
-      await invoke("reveal_file", { path: omniState.filePath });
-    } catch {
-    }
   }
 </script>
 
@@ -260,7 +185,7 @@
         height="40"
         class="loop-icon"
         class:loop-bounce={omniState.kind === "detected"}
-        class:loop-pulse={omniState.kind === "downloading" || omniState.kind === "preparing"}
+        class:loop-pulse={omniState.kind === "preparing"}
       />
     {/if}
 
@@ -316,55 +241,6 @@
         <div class="card-row">
           <span class="feedback-spinner"></span>
           <span class="card-text">{$t('omnibox.preparing')}</span>
-        </div>
-      </div>
-
-    {:else if omniState.kind === "downloading"}
-      <div class="feedback-card feedback-enter">
-        <div class="card-row">
-          <span class="card-title">{trackedDownload?.name ?? omniState.title}</span>
-          <span class="card-percent">{(trackedDownload?.percent ?? 0).toFixed(0)}%</span>
-        </div>
-        <div class="progress-track">
-          <div
-            class="progress-fill"
-            style="width: {(trackedDownload?.percent ?? 0).toFixed(1)}%"
-          ></div>
-        </div>
-        <div class="card-row card-actions">
-          <span class="card-subtext">{$t('omnibox.preparing')}</span>
-          <button class="button card-action-btn" onclick={handleCancelDownload}>
-            {$t('downloads.cancel')}
-          </button>
-        </div>
-      </div>
-
-    {:else if omniState.kind === "complete"}
-      <div class="feedback-card feedback-enter" data-status="complete">
-        <div class="card-row">
-          <svg class="card-status-icon complete" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20 6L9 17l-5-5" />
-          </svg>
-          <span class="card-title">{omniState.title}</span>
-          <button class="dismiss-btn" onclick={handleDismiss} aria-label={$t('common.close')}>
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div class="card-row card-actions">
-          <span class="card-subtext">
-            {#if omniState.kind === "complete" && omniState.fileCount && omniState.fileCount > 1}
-              {$t('omnibox.complete_files', { count: omniState.fileCount })}
-            {:else}
-              {$t('omnibox.complete')}
-            {/if}
-          </span>
-          {#if omniState.filePath}
-            <button class="button card-action-btn" onclick={handleRevealFile}>
-              {$t('omnibox.open_folder')}
-            </button>
-          {/if}
         </div>
       </div>
 
@@ -568,14 +444,6 @@
     color: var(--gray);
   }
 
-  .card-percent {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--gray);
-    font-variant-numeric: tabular-nums;
-    flex-shrink: 0;
-  }
-
   .card-subtext {
     font-size: 12.5px;
     font-weight: 500;
@@ -590,10 +458,6 @@
   .card-status-icon {
     flex-shrink: 0;
     pointer-events: none;
-  }
-
-  .card-status-icon.complete {
-    color: var(--green);
   }
 
   .card-status-icon.error {
@@ -644,21 +508,6 @@
 
   .dismiss-btn svg {
     pointer-events: none;
-  }
-
-  .progress-track {
-    width: 100%;
-    height: 6px;
-    background: var(--button-elevated);
-    border-radius: 3px;
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: var(--blue);
-    border-radius: 3px;
-    transition: width 0.1s ease-out;
   }
 
   .feedback-enter {
