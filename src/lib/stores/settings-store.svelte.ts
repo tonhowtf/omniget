@@ -18,6 +18,10 @@ export type AppSettings = {
     max_concurrent_segments: number;
     max_retries: number;
   };
+  telegram: {
+    concurrent_downloads: number;
+    fix_file_extensions: boolean;
+  };
 };
 
 let settings = $state<AppSettings | null>(null);
