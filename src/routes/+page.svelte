@@ -492,11 +492,11 @@
             <div class="quality-select-wrapper">
               <span class="quality-label">{$t('omnibox.quality')}</span>
               <select class="quality-select" bind:value={selectedQuality}>
-                <option value="best">best</option>
-                <option value="1080p">1080p</option>
-                <option value="720p">720p</option>
-                <option value="480p">480p</option>
-                <option value="360p">360p</option>
+                <option value="best">{$t('omnibox.quality_best')}</option>
+                <option value="1080p">{$t('omnibox.quality_1080p')}</option>
+                <option value="720p">{$t('omnibox.quality_720p')}</option>
+                <option value="480p">{$t('omnibox.quality_480p')}</option>
+                <option value="360p">{$t('omnibox.quality_360p')}</option>
               </select>
             </div>
           {:else}
@@ -511,7 +511,7 @@
           {/if}
         </div>
 
-        {#if omniState.info.platform === "vimeo"}
+        {#if omniState.info.platform === "vimeo" || omniState.info.platform === "generic"}
           <div class="referer-input-wrapper feedback-enter">
             <label class="referer-label" for="referer-input">{$t('omnibox.referer_label')}</label>
             <input
