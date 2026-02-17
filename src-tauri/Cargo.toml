@@ -52,6 +52,8 @@ os_info = "3"
 sys-locale = "0.3"
 filetime = "0.2.27"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+sha2 = "0.10"
+open = "5"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-process = "2.3.1"
