@@ -78,10 +78,8 @@ pub async fn hotmart_check_session(
     drop(guard);
 
     let resp = client
-        .get(format!(
-            "https://api-sec-vlc.hotmart.com/security/oauth/check_token?token={}",
-            token
-        ))
+        .post("https://api-sec-vlc.hotmart.com/security/oauth/check_token")
+        .form(&[("token", &token)])
         .send()
         .await
         .map_err(|e| format!("Erro na validação: {}", e))?;
