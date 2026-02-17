@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { open } from "@tauri-apps/plugin-shell";
   import { t } from "$lib/i18n";
 
   let expanded = $state(false);
@@ -7,13 +8,16 @@
     "YouTube", "Instagram", "TikTok", "Twitter / X",
     "Reddit", "Twitch", "Pinterest", "Vimeo",
     "Bluesky", "Hotmart", "Telegram",
-    "SoundCloud", "Facebook", "Dailymotion", "Bilibili",
-    "Snapchat", "Tumblr", "Rutube", "VK",
-    "Streamable", "Loom", "Newgrounds", "Xiaohongshu",
   ];
+
+  const YT_DLP_SITES_URL = "https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md";
 
   function toggle() {
     expanded = !expanded;
+  }
+
+  async function openSupportedSites() {
+    await open(YT_DLP_SITES_URL);
   }
 </script>
 
@@ -38,6 +42,14 @@
         {#each services as service}
           <span class="pill">{service}</span>
         {/each}
+        <button class="pill pill-link" onclick={openSupportedSites}>
+          {$t('services.and_more')}
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            <path d="M15 3h6v6" />
+            <path d="M10 14L21 3" />
+          </svg>
+        </button>
       </div>
       <p class="disclaimer">{$t('services.disclaimer')}</p>
     </div>
@@ -149,6 +161,35 @@
     font-weight: 500;
     color: var(--secondary);
     user-select: none;
+  }
+
+  .pill-link {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--blue);
+    border: none;
+    cursor: pointer;
+  }
+
+  @media (hover: hover) {
+    .pill-link:hover {
+      background: var(--button-elevated-hover);
+    }
+  }
+
+  .pill-link:active {
+    background: var(--button-elevated-press);
+  }
+
+  .pill-link:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .pill-link svg {
+    pointer-events: none;
+    flex-shrink: 0;
   }
 
   .disclaimer {
