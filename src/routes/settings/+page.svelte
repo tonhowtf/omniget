@@ -230,6 +230,23 @@
             <span class="toggle-knob"></span>
           </button>
         </div>
+        <div class="divider"></div>
+        <div class="setting-row">
+          <div class="setting-col">
+            <span class="setting-label">{$t('settings.download.clipboard_detection')}</span>
+            <span class="setting-path">{$t('settings.download.clipboard_detection_desc')}</span>
+          </div>
+          <button
+            class="toggle"
+            class:on={settings.download.clipboard_detection}
+            onclick={() => toggleBool("download", "clipboard_detection", settings!.download.clipboard_detection)}
+            role="switch"
+            aria-checked={settings.download.clipboard_detection}
+            aria-label={$t('settings.download.clipboard_detection')}
+          >
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
       </div>
     </section>
 
