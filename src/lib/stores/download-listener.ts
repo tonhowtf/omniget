@@ -7,6 +7,11 @@ import {
   syncQueueState,
 } from "./download-store.svelte";
 import { showToast } from "./toast-store.svelte";
+import {
+  updateFileProgress,
+  markFileComplete,
+  markFileError,
+} from "./convert-store.svelte";
 
 type ProgressPayload = {
   course_id: number;
@@ -57,6 +62,23 @@ let batchFileStatusCallback: BatchFileStatusCallback | null = null;
 export function onBatchFileStatus(cb: BatchFileStatusCallback | null) {
   batchFileStatusCallback = cb;
 }
+
+type ConvertProgressPayload = {
+  id: number;
+  percent: number;
+};
+
+type ConvertCompletePayload = {
+  id: number;
+  success: boolean;
+  result: {
+    output_path: string;
+    file_size_bytes: number;
+    duration_seconds: number;
+    error: string | null;
+  } | null;
+  error: string | null;
+};
 
 const seenCourseIds = new Set<number>();
 
@@ -114,10 +136,35 @@ export async function initDownloadListener(): Promise<() => void> {
     },
   );
 
+  const unlistenConvertProgress = await listen<ConvertProgressPayload>(
+    "convert-progress",
+    (event) => {
+      updateFileProgress(event.payload.id, event.payload.percent);
+    },
+  );
+
+  const unlistenConvertComplete = await listen<ConvertCompletePayload>(
+    "convert-complete",
+    (event) => {
+      const d = event.payload;
+      const tr = get(t);
+      if (d.success && d.result) {
+        markFileComplete(d.id, d.result.output_path, d.result.file_size_bytes);
+        showToast("success", tr("convert.toast_complete"));
+      } else {
+        const errorMsg = d.error ?? d.result?.error ?? "Unknown error";
+        markFileError(d.id, errorMsg);
+        showToast("error", `${tr("convert.toast_error")} — ${errorMsg}`);
+      }
+    },
+  );
+
   return () => {
     unlistenProgress();
     unlistenComplete();
     unlistenQueueState();
     unlistenBatchFileStatus();
+    unlistenConvertProgress();
+    unlistenConvertComplete();
   };
 }
