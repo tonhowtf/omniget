@@ -40,6 +40,7 @@ pub fn parse_url(url_str: &str) -> Option<ParsedUrl> {
         Platform::Pinterest => parse_pinterest(&segments),
         Platform::Bluesky => parse_bluesky(&segments),
         Platform::Telegram => parse_telegram(&segments),
+        Platform::Vimeo => parse_vimeo(&segments),
     };
 
     Some(ParsedUrl {
@@ -230,6 +231,15 @@ fn parse_bluesky(segments: &[&str]) -> (Option<String>, ParsedContentType) {
         return (user, ParsedContentType::Profile);
     }
 
+    (None, ParsedContentType::Unknown)
+}
+
+fn parse_vimeo(segments: &[&str]) -> (Option<String>, ParsedContentType) {
+    if let Some(id) = segments.first() {
+        if id.chars().all(|c| c.is_ascii_digit()) {
+            return (Some(id.to_string()), ParsedContentType::Video);
+        }
+    }
     (None, ParsedContentType::Unknown)
 }
 
