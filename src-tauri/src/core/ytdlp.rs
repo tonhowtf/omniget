@@ -46,6 +46,7 @@ fn managed_ytdlp_path() -> Option<PathBuf> {
 
 pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
     if let Some(path) = find_ytdlp().await {
+        check_ytdlp_freshness(&path).await;
         return Ok(path);
     }
 
@@ -92,6 +93,32 @@ async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
     }
 
     Ok(target)
+}
+
+async fn check_ytdlp_freshness(path: &Path) {
+    if let Some(managed) = managed_ytdlp_path() {
+        if path != managed.as_path() {
+            return;
+        }
+    } else {
+        return;
+    }
+
+    if let Ok(meta) = tokio::fs::metadata(path).await {
+        if let Ok(modified) = meta.modified() {
+            if let Ok(age) = modified.elapsed() {
+                if age > std::time::Duration::from_secs(30 * 24 * 60 * 60) {
+                    tracing::info!("yt-dlp is older than 30 days, updating in background");
+                    tokio::spawn(async {
+                        match download_ytdlp_binary().await {
+                            Ok(_) => tracing::info!("yt-dlp updated successfully"),
+                            Err(e) => tracing::warn!("Failed to update yt-dlp: {}", e),
+                        }
+                    });
+                }
+            }
+        }
+    }
 }
 
 pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_json::Value> {
@@ -232,72 +259,189 @@ pub async fn download_video(
 
     tokio::fs::create_dir_all(output_dir).await?;
 
-    let mut args = vec![
+    let mut base_args = vec![
         "-f".to_string(),
         format_selector,
     ];
 
     if format_id.is_none() && mode != "audio" {
-        args.push("--merge-output-format".to_string());
-        args.push("mp4".to_string());
+        base_args.push("--merge-output-format".to_string());
+        base_args.push("mp4".to_string());
     }
 
     if let Some(ref_url) = referer {
-        args.push("--add-headers".to_string());
-        args.push(format!("Referer:{}", ref_url));
+        base_args.push("--add-headers".to_string());
+        base_args.push(format!("Referer:{}", ref_url));
     }
 
-    args.extend([
+    base_args.extend([
+        "--no-check-certificate".to_string(),
+        "--no-warnings".to_string(),
+        "-N".to_string(),
+        "4".to_string(),
+        "--socket-timeout".to_string(),
+        "30".to_string(),
+        "--retries".to_string(),
+        "3".to_string(),
         "--no-playlist".to_string(),
         "--newline".to_string(),
         "--progress-template".to_string(),
         "download:%(progress._percent_str)s".to_string(),
         "-o".to_string(),
         output_template,
-        url.to_string(),
     ]);
 
-    let mut child = tokio::process::Command::new(ytdlp)
-        .args(&args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| anyhow!("Falha ao iniciar yt-dlp: {}", e))?;
+    let max_attempts: usize = 3;
+    let backoff_secs: [u64; 3] = [0, 2, 5];
+    let mut extra_args: Vec<String> = Vec::new();
+    let mut last_error = String::new();
 
-    let stdout = child.stdout.take().ok_or_else(|| anyhow!("Sem stdout"))?;
-    let reader = BufReader::new(stdout);
-    let mut lines = reader.lines();
-
-    let progress_tx = progress.clone();
-    let line_reader = tokio::spawn(async move {
-        while let Ok(Some(line)) = lines.next_line().await {
-            if let Some(pct) = parse_progress_line(&line) {
-                let _ = progress_tx.send(pct).await;
+    for attempt in 0..max_attempts {
+        if attempt > 0 {
+            let wait = backoff_secs[attempt.min(backoff_secs.len() - 1)];
+            if wait > 0 {
+                tracing::info!("yt-dlp retry {}/{} after {}s", attempt, max_attempts - 1, wait);
+                tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
             }
+            cleanup_part_files(output_dir).await;
         }
-    });
 
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| anyhow!("yt-dlp processo falhou: {}", e))?;
+        let mut args = base_args.clone();
+        args.extend(extra_args.iter().cloned());
+        args.push(url.to_string());
 
-    let _ = line_reader.await;
+        let mut child = tokio::process::Command::new(ytdlp)
+            .args(&args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| anyhow!("Falha ao iniciar yt-dlp: {}", e))?;
 
-    if !status.success() {
-        return Err(anyhow!("yt-dlp saiu com código {}", status));
+        let stdout = child.stdout.take().ok_or_else(|| anyhow!("Sem stdout"))?;
+        let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("Sem stderr"))?;
+
+        let reader = BufReader::new(stdout);
+        let mut lines = reader.lines();
+
+        let progress_tx = progress.clone();
+        let line_reader = tokio::spawn(async move {
+            while let Ok(Some(line)) = lines.next_line().await {
+                if let Some(pct) = parse_progress_line(&line) {
+                    let _ = progress_tx.send(pct).await;
+                }
+            }
+        });
+
+        let stderr_reader = tokio::spawn(async move {
+            let mut buf = String::new();
+            let stderr_buf = BufReader::new(stderr_pipe);
+            let mut stderr_lines = stderr_buf.lines();
+            while let Ok(Some(line)) = stderr_lines.next_line().await {
+                buf.push_str(&line);
+                buf.push('\n');
+            }
+            buf
+        });
+
+        let status = child
+            .wait()
+            .await
+            .map_err(|e| anyhow!("yt-dlp processo falhou: {}", e))?;
+
+        let _ = line_reader.await;
+        let stderr_content = stderr_reader.await.unwrap_or_default();
+
+        if status.success() {
+            let _ = progress.send(100.0).await;
+            let file_path = find_downloaded_file(output_dir, url).await?;
+            let meta = tokio::fs::metadata(&file_path).await?;
+            return Ok(DownloadResult {
+                file_path,
+                file_size_bytes: meta.len(),
+                duration_seconds: 0.0,
+            });
+        }
+
+        last_error = stderr_content;
+        let stderr_lower = last_error.to_lowercase();
+
+        if stderr_lower.contains("sign in to confirm") || stderr_lower.contains("login required") {
+            return Err(anyhow!("Vídeo requer login. Use cookies do navegador ou tente outro URL."));
+        }
+
+        if attempt < max_attempts - 1 {
+            if stderr_lower.contains("http error 429") {
+                tracing::warn!("yt-dlp rate limited (429), waiting 10s before retry");
+                tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            }
+
+            if stderr_lower.contains("nsig extraction failed") || stderr_lower.contains("nsig") {
+                if !extra_args.iter().any(|a| a.contains("player_client")) {
+                    extra_args.push("--extractor-args".to_string());
+                    extra_args.push("youtube:player_client=web".to_string());
+                }
+            }
+
+            if stderr_lower.contains("http error 403") || stderr_lower.contains("forbidden") {
+                if !extra_args.contains(&"--force-ipv4".to_string()) {
+                    extra_args.push("--force-ipv4".to_string());
+                }
+            }
+
+            tracing::warn!("yt-dlp attempt {} failed: {}", attempt + 1, last_error.trim());
+            continue;
+        }
     }
 
-    let _ = progress.send(100.0).await;
+    Err(translate_ytdlp_error(&last_error))
+}
 
-    let file_path = find_downloaded_file(output_dir, url).await?;
-    let meta = tokio::fs::metadata(&file_path).await?;
+async fn cleanup_part_files(dir: &Path) {
+    if let Ok(mut entries) = tokio::fs::read_dir(dir).await {
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name.ends_with(".part") || name.ends_with(".ytdl") {
+                let _ = tokio::fs::remove_file(entry.path()).await;
+            }
+        }
+    }
+}
 
-    Ok(DownloadResult {
-        file_path,
-        file_size_bytes: meta.len(),
-        duration_seconds: 0.0,
-    })
+fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
+    let lower = stderr.to_lowercase();
+
+    if lower.contains("http error 429") {
+        return anyhow!("Servidor retornou erro 429 (muitas requisições). Tente novamente mais tarde.");
+    }
+    if lower.contains("http error 403") || lower.contains("forbidden") {
+        return anyhow!("Acesso negado (403). O vídeo pode ser privado ou restrito por região.");
+    }
+    if lower.contains("sign in to confirm") || lower.contains("login required") {
+        return anyhow!("Vídeo requer login. Use cookies do navegador ou tente outro URL.");
+    }
+    if lower.contains("nsig extraction failed") {
+        return anyhow!("Falha na extração do vídeo. Atualize o yt-dlp ou tente novamente.");
+    }
+    if lower.contains("video unavailable") || lower.contains("not available") {
+        return anyhow!("Vídeo indisponível ou removido.");
+    }
+    if lower.contains("private video") {
+        return anyhow!("Este vídeo é privado.");
+    }
+    if lower.contains("copyright") {
+        return anyhow!("Vídeo bloqueado por direitos autorais.");
+    }
+    if lower.contains("geo") && lower.contains("block") {
+        return anyhow!("Vídeo restrito na sua região.");
+    }
+
+    let trimmed = stderr.trim();
+    if trimmed.len() > 200 {
+        anyhow!("yt-dlp falhou: {}...", &trimmed[..200])
+    } else {
+        anyhow!("yt-dlp falhou: {}", trimmed)
+    }
 }
 
 fn parse_progress_line(line: &str) -> Option<f64> {
