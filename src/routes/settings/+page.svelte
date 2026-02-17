@@ -553,6 +553,21 @@
         </div>
         <div class="divider"></div>
         <div class="setting-row">
+          <div class="setting-col">
+            <span class="setting-label">{$t('settings.advanced.concurrent_fragments')}</span>
+            <span class="setting-path">{$t('settings.advanced.concurrent_fragments_desc')}</span>
+          </div>
+          <input
+            type="number"
+            class="input-number"
+            min="1"
+            max="32"
+            value={settings.advanced.concurrent_fragments}
+            onchange={(e) => changeNumber("advanced", "concurrent_fragments", e)}
+          />
+        </div>
+        <div class="divider"></div>
+        <div class="setting-row">
           <span class="setting-label">{$t('settings.advanced.max_retries')}</span>
           <input
             type="number"
