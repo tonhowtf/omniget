@@ -10,6 +10,7 @@ pub mod reddit;
 pub mod youtube;
 pub mod telegram;
 pub mod vimeo;
+pub mod generic_ytdlp;
 
 use std::fmt;
 use std::str::FromStr;
