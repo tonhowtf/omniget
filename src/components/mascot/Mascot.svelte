@@ -1,5 +1,10 @@
 <script lang="ts">
-  type MascotEmotion = "idle" | "downloading" | "error" | "stalled";
+  type MascotEmotion = "idle" | "downloading" | "error" | "stalled" | "queue";
+
+  function emotionToSrc(e: MascotEmotion): string {
+    if (e === "queue") return "/mascot/downloading.png";
+    return `/mascot/${e}.png`;
+  }
 
   let { emotion = "idle" }: { emotion?: MascotEmotion } = $props();
   let currentSrc = $state("/mascot/idle.png");
@@ -10,7 +15,7 @@
   let transitioning = $state(false);
 
   $effect(() => {
-    const target = `/mascot/${emotion}.png`;
+    const target = emotionToSrc(emotion);
     if (target === currentSrc && !transitioning) return;
     if (transitioning) return;
 
