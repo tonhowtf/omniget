@@ -33,6 +33,8 @@ pub struct DownloadSettings {
     pub clipboard_detection: bool,
     #[serde(default = "default_filename_template")]
     pub filename_template: String,
+    #[serde(default)]
+    pub organize_by_platform: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,6 +91,7 @@ impl Default for AppSettings {
                 embed_thumbnail: true,
                 clipboard_detection: false,
                 filename_template: default_filename_template(),
+                organize_by_platform: false,
             },
             advanced: AdvancedSettings {
                 max_concurrent_segments: 20,
