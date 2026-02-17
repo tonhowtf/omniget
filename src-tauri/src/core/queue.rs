@@ -421,6 +421,7 @@ async fn spawn_download_inner(
         format_id,
         referer,
         cancel_token: cancel_token.clone(),
+        concurrent_fragments: settings.advanced.concurrent_fragments,
     };
 
     let total_bytes = info.file_size_bytes;
