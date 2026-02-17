@@ -580,6 +580,7 @@ impl PlatformDownloader for HotmartDownloader {
             thumbnail_url: None,
             available_qualities: vec![],
             media_type: MediaType::Course,
+            file_size_bytes: None,
         })
     }
 
