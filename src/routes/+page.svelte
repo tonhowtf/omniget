@@ -33,6 +33,8 @@
   let url = $state("");
   let omniState = $state<OmniState>({ kind: "idle" });
   let debounceTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+  let downloadMode = $state<"auto" | "audio" | "mute">("auto");
+  let selectedQuality = $state("best");
 
   const STALL_THRESHOLD = 30_000;
 
@@ -82,6 +84,8 @@
 
   function handleInput() {
     if (debounceTimer) clearTimeout(debounceTimer);
+    downloadMode = "auto";
+    selectedQuality = "best";
 
     const trimmed = url.trim();
     if (!trimmed) {
@@ -162,6 +166,8 @@
       await invoke<DownloadStarted>("download_from_url", {
         url: currentUrl,
         outputDir,
+        downloadMode: downloadMode === "auto" ? null : downloadMode,
+        quality: selectedQuality === "best" ? null : selectedQuality,
       });
       omniState = { kind: "idle" };
     } catch (e: any) {
@@ -195,7 +201,12 @@
     url = "";
 
     const results = await Promise.allSettled(
-      batchUrls.map(u => invoke<DownloadStarted>("download_from_url", { url: u, outputDir }))
+      batchUrls.map(u => invoke<DownloadStarted>("download_from_url", {
+        url: u,
+        outputDir,
+        downloadMode: downloadMode === "auto" ? null : downloadMode,
+        quality: selectedQuality === "best" ? null : selectedQuality,
+      }))
     );
 
     const queued = results.filter(r => r.status === "fulfilled").length;
@@ -260,6 +271,58 @@
           {/if}
         </span>
       </div>
+
+      {#if omniState.info.platform !== "hotmart"}
+        <div class="download-options feedback-enter">
+          <div class="mode-switcher">
+            <button
+              class="button mode-btn"
+              class:active={downloadMode === "auto"}
+              onclick={() => downloadMode = "auto"}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3l1.912 5.813a2 2 0 001.272 1.272L21 12l-5.813 1.912a2 2 0 00-1.272 1.272L12 21l-1.912-5.813a2 2 0 00-1.272-1.272L3 12l5.813-1.912a2 2 0 001.272-1.272z" />
+              </svg>
+              {$t('omnibox.mode_auto')}
+            </button>
+            <button
+              class="button mode-btn"
+              class:active={downloadMode === "audio"}
+              onclick={() => downloadMode = "audio"}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 18V5l12-2v13" />
+                <circle cx="6" cy="18" r="3" />
+                <circle cx="18" cy="16" r="3" />
+              </svg>
+              {$t('omnibox.mode_audio')}
+            </button>
+            <button
+              class="button mode-btn"
+              class:active={downloadMode === "mute"}
+              onclick={() => downloadMode = "mute"}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 5L6 9H2v6h4l5 4V5z" />
+                <line x1="23" y1="9" x2="17" y2="15" />
+                <line x1="17" y1="9" x2="23" y2="15" />
+              </svg>
+              {$t('omnibox.mode_mute')}
+            </button>
+          </div>
+
+          <div class="quality-select-wrapper">
+            <span class="quality-label">{$t('omnibox.quality')}</span>
+            <select class="quality-select" bind:value={selectedQuality}>
+              <option value="best">best</option>
+              <option value="1080p">1080p</option>
+              <option value="720p">720p</option>
+              <option value="480p">480p</option>
+              <option value="360p">360p</option>
+            </select>
+          </div>
+        </div>
+      {/if}
 
       {#if omniState.info.platform === "hotmart"}
         <button class="button action-btn" onclick={handleAction}>
@@ -454,6 +517,74 @@
     to {
       transform: rotate(360deg);
     }
+  }
+
+  .download-options {
+    display: flex;
+    align-items: center;
+    gap: var(--padding);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .mode-switcher {
+    display: flex;
+    gap: 0;
+  }
+
+  .mode-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: calc(var(--padding) / 3) calc(var(--padding) * 0.75);
+    font-size: 12.5px;
+    border-radius: 0;
+  }
+
+  .mode-btn:first-child {
+    border-radius: var(--border-radius) 0 0 var(--border-radius);
+  }
+
+  .mode-btn:last-child {
+    border-radius: 0 var(--border-radius) var(--border-radius) 0;
+  }
+
+  .mode-btn + .mode-btn {
+    margin-left: -1px;
+  }
+
+  .mode-btn svg {
+    pointer-events: none;
+    flex-shrink: 0;
+  }
+
+  .quality-select-wrapper {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--padding) / 2);
+  }
+
+  .quality-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray);
+  }
+
+  .quality-select {
+    font-size: 12.5px;
+    font-weight: 500;
+    font-family: inherit;
+    padding: calc(var(--padding) / 3) calc(var(--padding) * 0.75);
+    background: var(--button);
+    color: var(--secondary);
+    border: 1px solid var(--input-border);
+    border-radius: calc(var(--border-radius) / 2);
+    cursor: pointer;
+  }
+
+  .quality-select:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
   }
 
   .action-btn {
