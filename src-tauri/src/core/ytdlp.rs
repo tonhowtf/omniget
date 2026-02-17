@@ -201,6 +201,7 @@ pub async fn download_video(
     download_mode: Option<&str>,
     format_id: Option<&str>,
     filename_template: Option<&str>,
+    referer: Option<&str>,
 ) -> anyhow::Result<DownloadResult> {
     let mode = download_mode.unwrap_or("auto");
 
@@ -239,6 +240,11 @@ pub async fn download_video(
     if format_id.is_none() && mode != "audio" {
         args.push("--merge-output-format".to_string());
         args.push("mp4".to_string());
+    }
+
+    if let Some(ref_url) = referer {
+        args.push("--add-headers".to_string());
+        args.push(format!("Referer:{}", ref_url));
     }
 
     args.extend([
