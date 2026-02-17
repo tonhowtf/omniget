@@ -152,6 +152,13 @@
     "update_button": "atualizar agora",
     "update_checking": "verificando atualizações...",
     "update_downloading": "baixando atualização...",
+    "telegram": {
+      "title": "Telegram",
+      "concurrent_downloads": "Downloads simultâneos",
+      "concurrent_downloads_desc": "Máximo de downloads de arquivo ao mesmo tempo",
+      "fix_file_extensions": "Corrigir extensões de arquivo",
+      "fix_file_extensions_desc": "Adicionar extensão correta aos arquivos com base no tipo"
+    },
     "advanced": {
       "title": "Avançado",
       "max_concurrent_segments": "Segmentos simultâneos",
