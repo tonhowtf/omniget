@@ -238,7 +238,8 @@
     "tab": {
       "terms": "termos",
       "project": "projeto",
-      "roadmap": "roadmap"
+      "roadmap": "roadmap",
+      "changelog": "changelog"
     },
     "description": "o seu downloader de mídia. código aberto e gratuito.",
     "terms_title": "termos de uso",
@@ -321,6 +322,10 @@
     "toast_complete": "Conversão concluída",
     "toast_error": "Falha na conversão",
     "no_ffmpeg": "FFmpeg não encontrado. Instale o FFmpeg para usar a conversão."
+  },
+  "changelog": {
+    "title": "Novidades",
+    "empty": "Nenhuma nota de atualização disponível."
   },
   "common": {
     "cancel": "Cancelar",
