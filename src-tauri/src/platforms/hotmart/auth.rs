@@ -96,6 +96,7 @@ pub async fn save_session(session: &HotmartSession) -> anyhow::Result<()> {
 
     let json = serde_json::to_string_pretty(&saved)?;
     tokio::fs::write(&path, json).await?;
+    tracing::info!("[session] saved for {}, {} cookies", session.email, session.cookies.len());
     Ok(())
 }
 
@@ -103,6 +104,8 @@ pub async fn load_saved_session() -> anyhow::Result<HotmartSession> {
     let path = session_file_path()?;
     let json = tokio::fs::read_to_string(&path).await?;
     let saved: SavedSession = serde_json::from_str(&json)?;
+
+    tracing::info!("[session] loaded for {}, {} cookies", saved.email, saved.cookies.len());
 
     let client = build_client_from_saved(&saved)?;
 
@@ -122,7 +125,6 @@ pub async fn delete_saved_session() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Cookie URIs to extract from — covers all Hotmart subdomains that may hold auth cookies.
 const COOKIE_URIS: &[&str] = &[
     "https://hotmart.com",
     "https://sso.hotmart.com",
@@ -130,7 +132,6 @@ const COOKIE_URIS: &[&str] = &[
     "https://api-sec-vlc.hotmart.com",
 ];
 
-/// Extract cookies from the WebView for a single URI.
 #[cfg(windows)]
 async fn extract_webview_cookies_for_uri(
     window: &tauri::WebviewWindow,
@@ -190,7 +191,6 @@ async fn extract_webview_cookies_for_uri(
     Ok(cookies)
 }
 
-/// Extract cookies from multiple Hotmart domains, deduplicating by name (first value wins).
 #[cfg(windows)]
 async fn extract_webview_cookies(
     window: &tauri::WebviewWindow,
@@ -200,24 +200,20 @@ async fn extract_webview_cookies(
     for uri in COOKIE_URIS {
         match extract_webview_cookies_for_uri(window, uri).await {
             Ok(cookies) => {
+                let names: Vec<&str> = cookies.iter().map(|(n, _)| n.as_str()).collect();
+                tracing::info!("[cookies] {} → {} cookies: {:?}", uri, cookies.len(), names);
                 for (name, value) in cookies {
-                    seen.entry(name).or_insert(value);
+                    seen.insert(name, value);
                 }
             }
             Err(e) => {
-                tracing::warn!("Failed to extract cookies from {}: {}", uri, e);
+                tracing::warn!("[cookies] {} → error: {}", uri, e);
             }
         }
     }
 
     let cookies: Vec<(String, String)> = seen.into_iter().collect();
-
-    let cookie_names: Vec<&str> = cookies.iter().map(|(n, _)| n.as_str()).collect();
-    tracing::info!(
-        "Extracted {} cookies: {:?}",
-        cookies.len(),
-        cookie_names
-    );
+    tracing::info!("[cookies] total unique: {}", cookies.len());
 
     Ok(cookies)
 }
@@ -306,7 +302,6 @@ async fn authenticate_webview(
         let host = url.host_str().unwrap_or("");
         let url_str = url.as_str();
 
-        // Detect post-login redirects
         if host == "consumer.hotmart.com"
             || host.ends_with(".club.hotmart.com")
             || url_str.contains("dashboard")
@@ -314,7 +309,6 @@ async fn authenticate_webview(
             post_login_flag.store(true, std::sync::atomic::Ordering::Relaxed);
         }
 
-        // Detect captcha/challenge pages
         if url_str.contains("captcha") || url_str.contains("challenge") {
             captcha_flag.store(true, std::sync::atomic::Ordering::Relaxed);
         }
@@ -333,13 +327,11 @@ async fn authenticate_webview(
             return Err(anyhow!("Timeout esperando login. Verifique credenciais."));
         }
 
-        // Emit captcha event to frontend if detected
         if captcha_detected.swap(false, std::sync::atomic::Ordering::Relaxed) {
             let _ = app.emit("hotmart-auth-captcha", ());
         }
 
         if post_login_detected.load(std::sync::atomic::Ordering::Relaxed) {
-            // Poll for hmVlcIntegration cookie instead of fixed sleep
             let poll_start = std::time::Instant::now();
             let poll_timeout = Duration::from_secs(15);
             let poll_interval = Duration::from_millis(500);
@@ -488,7 +480,6 @@ async fn authenticate_chromiumoxide(
         }
     }
 
-    // Wait a bit for cookies to settle, then poll
     tokio::time::sleep(Duration::from_secs(2)).await;
 
     let browser_cookies = page.get_cookies().await?;
