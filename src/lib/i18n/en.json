@@ -154,7 +154,11 @@
       "video_quality": "Video quality",
       "skip_existing": "Skip existing files",
       "download_attachments": "Download attachments",
-      "download_descriptions": "Save descriptions"
+      "download_descriptions": "Save descriptions",
+      "embed_metadata": "Embed metadata",
+      "embed_metadata_desc": "Write title and artist info into downloaded files",
+      "embed_thumbnail": "Embed thumbnail as cover",
+      "embed_thumbnail_desc": "Embed album art into audio files"
     },
     "update_available": "OmniGet {{version}} is available",
     "update_button": "update now",
