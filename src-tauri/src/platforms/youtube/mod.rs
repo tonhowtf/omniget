@@ -270,6 +270,7 @@ impl PlatformDownloader for YouTubeDownloader {
             &opts.output_dir,
             quality_height,
             progress,
+            opts.download_mode.as_deref(),
         )
         .await
     }
@@ -312,6 +313,7 @@ impl YouTubeDownloader {
                 &playlist_dir,
                 None,
                 video_tx,
+                opts.download_mode.as_deref(),
             )
             .await
             {
