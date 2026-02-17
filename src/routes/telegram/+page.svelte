@@ -19,7 +19,12 @@
     date: number;
   };
 
-  type View = "checking" | "phone" | "code" | "password" | "chats" | "media";
+  type QrStartResponse = {
+    svg: string;
+    expires: number;
+  };
+
+  type View = "checking" | "qr" | "phone" | "code" | "password" | "chats" | "media";
 
   let view: View = $state("checking");
   let phone = $state("");
@@ -29,6 +34,12 @@
   let sessionPhone = $state("");
   let loading = $state(false);
   let error = $state("");
+
+  let qrSvg = $state("");
+  let qrLoading = $state(false);
+  let qrError = $state("");
+  let qrPollTimer: ReturnType<typeof setInterval> | null = $state(null);
+  let qrRefreshTimer: ReturnType<typeof setTimeout> | null = $state(null);
 
   let chats: TelegramChat[] = $state([]);
   let loadingChats = $state(false);
@@ -52,7 +63,21 @@
 
   $effect(() => {
     checkSession();
+    return () => {
+      stopQrPolling();
+    };
   });
+
+  function stopQrPolling() {
+    if (qrPollTimer) {
+      clearInterval(qrPollTimer);
+      qrPollTimer = null;
+    }
+    if (qrRefreshTimer) {
+      clearTimeout(qrRefreshTimer);
+      qrRefreshTimer = null;
+    }
+  }
 
   async function checkSession() {
     view = "checking";
@@ -62,8 +87,71 @@
       view = "chats";
       loadChats();
     } catch {
-      view = "phone";
+      view = "qr";
+      startQrLogin();
     }
+  }
+
+  async function startQrLogin() {
+    qrLoading = true;
+    qrError = "";
+    qrSvg = "";
+    stopQrPolling();
+
+    try {
+      const result = await invoke<QrStartResponse>("telegram_qr_start");
+      qrSvg = result.svg;
+      qrLoading = false;
+
+      const now = Math.floor(Date.now() / 1000);
+      const expiresIn = Math.max((result.expires - now) * 1000 - 2000, 5000);
+      qrRefreshTimer = setTimeout(() => {
+        if (view === "qr") startQrLogin();
+      }, expiresIn);
+
+      qrPollTimer = setInterval(pollQrLogin, 1500);
+    } catch (e: any) {
+      qrLoading = false;
+      const msg = typeof e === "string" ? e : e.message ?? "";
+      if (msg.includes("already_authenticated")) {
+        checkSession();
+      } else {
+        qrError = msg || $t("telegram.qr_error");
+      }
+    }
+  }
+
+  async function pollQrLogin() {
+    try {
+      const status = await invoke<string>("telegram_qr_poll");
+      if (status === "waiting") return;
+
+      stopQrPolling();
+
+      if (status === "password_required" || status.startsWith("password_required:")) {
+        passwordHint = status.startsWith("password_required:")
+          ? status.slice("password_required:".length)
+          : "";
+        view = "password";
+      } else if (status.startsWith("success:")) {
+        sessionPhone = status.slice("success:".length);
+        view = "chats";
+        loadChats();
+      }
+    } catch {
+      // ignore transient poll errors
+    }
+  }
+
+  function switchToPhone() {
+    stopQrPolling();
+    view = "phone";
+  }
+
+  function switchToQr() {
+    error = "";
+    view = "qr";
+    startQrLogin();
   }
 
   async function handleSendCode() {
@@ -123,6 +211,7 @@
   }
 
   async function handleLogout() {
+    stopQrPolling();
     try {
       await invoke("telegram_logout");
     } catch {}
@@ -134,7 +223,8 @@
     code = "";
     password = "";
     error = "";
-    view = "phone";
+    view = "qr";
+    startQrLogin();
   }
 
   async function loadChats() {
@@ -246,6 +336,43 @@
     <span class="spinner"></span>
     <span class="spinner-text">{$t("telegram.checking_session")}</span>
   </div>
+{:else if view === "qr"}
+  <div class="page-center">
+    <div class="login-card">
+      <h2>{$t("telegram.title")}</h2>
+
+      {#if qrLoading}
+        <div class="qr-placeholder">
+          <span class="spinner"></span>
+          <span class="spinner-text">{$t("telegram.qr_loading")}</span>
+        </div>
+      {:else if qrError}
+        <div class="qr-placeholder">
+          <p class="error-msg">{qrError}</p>
+          <button class="button" onclick={startQrLogin}>{$t("common.retry")}</button>
+        </div>
+      {:else if qrSvg}
+        <div class="qr-container">
+          {@html qrSvg}
+        </div>
+      {/if}
+
+      <div class="qr-text">
+        <h3>{$t("telegram.qr_title")}</h3>
+        <p class="qr-instruction">{$t("telegram.qr_instruction")}</p>
+      </div>
+
+      <div class="separator">
+        <span class="separator-line"></span>
+        <span class="separator-text">{$t("telegram.or_separator")}</span>
+        <span class="separator-line"></span>
+      </div>
+
+      <button class="button use-phone-btn" onclick={switchToPhone}>
+        {$t("telegram.use_phone")}
+      </button>
+    </div>
+  </div>
 {:else if view === "phone"}
   <div class="page-center">
     <div class="login-card">
@@ -270,6 +397,9 @@
           {loading ? $t("telegram.sending_code") : $t("telegram.send_code")}
         </button>
       </form>
+      <button class="button back-to-qr-btn" onclick={switchToQr}>
+        {$t("telegram.back_to_qr")}
+      </button>
     </div>
   </div>
 {:else if view === "code"}
@@ -554,6 +684,73 @@
 
   .login-card h2 {
     margin-block: 0;
+  }
+
+  .qr-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #ffffff;
+    border-radius: var(--border-radius);
+    padding: var(--padding);
+  }
+
+  .qr-container :global(svg) {
+    width: 200px;
+    height: 200px;
+    display: block;
+  }
+
+  .qr-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--padding);
+    min-height: 200px;
+  }
+
+  .qr-text {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--padding) / 2);
+    text-align: center;
+  }
+
+  .qr-text h3 {
+    margin-block: 0;
+  }
+
+  .qr-instruction {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray);
+    line-height: 1.6;
+  }
+
+  .separator {
+    display: flex;
+    align-items: center;
+    gap: var(--padding);
+  }
+
+  .separator-line {
+    flex: 1;
+    height: 1px;
+    background: var(--input-border);
+  }
+
+  .separator-text {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray);
+  }
+
+  .use-phone-btn,
+  .back-to-qr-btn {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
   }
 
   .form {
