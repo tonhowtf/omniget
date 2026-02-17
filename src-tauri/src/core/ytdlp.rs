@@ -15,7 +15,7 @@ pub async fn find_ytdlp() -> Option<PathBuf> {
         "yt-dlp"
     };
 
-    if let Ok(output) = tokio::process::Command::new(bin_name)
+    if let Ok(output) = crate::core::process::command(bin_name)
         .arg("--version")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -123,7 +123,7 @@ async fn check_ytdlp_freshness(path: &Path) {
 }
 
 pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_json::Value> {
-    let output = tokio::process::Command::new(ytdlp)
+    let output = crate::core::process::command(ytdlp)
         .args(["--dump-json", "--no-warnings", "--no-playlist", url])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -146,7 +146,7 @@ pub async fn get_playlist_info(
     ytdlp: &Path,
     url: &str,
 ) -> anyhow::Result<(String, Vec<PlaylistEntry>)> {
-    let output = tokio::process::Command::new(ytdlp)
+    let output = crate::core::process::command(ytdlp)
         .args([
             "--flat-playlist",
             "--dump-json",
@@ -318,7 +318,7 @@ pub async fn download_video(
         args.extend(extra_args.iter().cloned());
         args.push(url.to_string());
 
-        let mut child = tokio::process::Command::new(ytdlp)
+        let mut child = crate::core::process::command(ytdlp)
             .args(&args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
