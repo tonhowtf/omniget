@@ -272,6 +272,7 @@ impl PlatformDownloader for YouTubeDownloader {
             progress,
             opts.download_mode.as_deref(),
             opts.format_id.as_deref(),
+            opts.filename_template.as_deref(),
         )
         .await
     }
@@ -316,6 +317,7 @@ impl YouTubeDownloader {
                 video_tx,
                 opts.download_mode.as_deref(),
                 None,
+                opts.filename_template.as_deref(),
             )
             .await
             {
