@@ -31,6 +31,8 @@ pub struct DownloadSettings {
     pub embed_thumbnail: bool,
     #[serde(default)]
     pub clipboard_detection: bool,
+    #[serde(default = "default_filename_template")]
+    pub filename_template: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +49,10 @@ fn default_max_concurrent_downloads() -> u32 {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_filename_template() -> String {
+    "%(title).200s [%(id)s].%(ext)s".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,6 +88,7 @@ impl Default for AppSettings {
                 embed_metadata: true,
                 embed_thumbnail: true,
                 clipboard_detection: false,
+                filename_template: default_filename_template(),
             },
             advanced: AdvancedSettings {
                 max_concurrent_segments: 20,
