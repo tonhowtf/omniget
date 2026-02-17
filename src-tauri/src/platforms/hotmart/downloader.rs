@@ -283,6 +283,7 @@ impl HotmartDownloader {
                                     ytx,
                                     None,
                                     None,
+                                    None,
                                 ).await {
                                     Ok(result) => {
                                         let _ = bytes_tx.send(result.file_size_bytes);
