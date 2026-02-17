@@ -7,6 +7,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::platforms::telegram::api::{self, TelegramChat, TelegramMediaItem};
 use crate::platforms::telegram::auth::{self, QrPollStatus, VerifyError};
+use crate::storage::config;
 use crate::AppState;
 
 #[derive(Clone, Serialize)]
@@ -137,6 +138,7 @@ pub async fn telegram_list_chats(
 
 #[tauri::command]
 pub async fn telegram_list_media(
+    app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     chat_id: i64,
     chat_type: String,
@@ -144,6 +146,7 @@ pub async fn telegram_list_media(
     offset: i32,
     limit: u32,
 ) -> Result<Vec<TelegramMediaItem>, String> {
+    let fix_extensions = config::load_settings(&app).telegram.fix_file_extensions;
     api::list_media(
         &state.telegram_session,
         chat_id,
@@ -151,6 +154,7 @@ pub async fn telegram_list_media(
         media_type.as_deref(),
         offset,
         limit,
+        fix_extensions,
     )
     .await
     .map_err(|e| e.to_string())
@@ -305,6 +309,10 @@ pub async fn telegram_download_batch(
     let active_downloads = state.active_generic_downloads.clone();
     let total_files = items.len() as u32;
 
+    // Read Telegram settings
+    let tg_settings = config::load_settings(&app).telegram;
+    let concurrent = tg_settings.concurrent_downloads.max(1).min(10) as usize;
+
     // Emit initial 0% batch progress
     let _ = app.emit("generic-download-progress", &GenericDownloadProgress {
         id: batch_id,
@@ -314,7 +322,7 @@ pub async fn telegram_download_batch(
     });
 
     tokio::spawn(async move {
-        let semaphore = Arc::new(Semaphore::new(3));
+        let semaphore = Arc::new(Semaphore::new(concurrent));
         let completed = Arc::new(std::sync::atomic::AtomicU32::new(0));
         let failed = Arc::new(std::sync::atomic::AtomicU32::new(0));
         let skipped = Arc::new(std::sync::atomic::AtomicU32::new(0));
