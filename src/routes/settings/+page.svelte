@@ -61,6 +61,39 @@
     await updateSettings({ download: { video_quality: value } });
   }
 
+  let templateInput = $state("");
+  let templateTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+
+  $effect(() => {
+    if (settings) {
+      templateInput = settings.download.filename_template;
+    }
+  });
+
+  function previewTemplate(template: string): string {
+    return template
+      .replace("%(title).200s", "My Video Title")
+      .replace("%(title)s", "My Video Title")
+      .replace("%(id)s", "dQw4w9WgXcQ")
+      .replace("%(ext)s", "mp4")
+      .replace("%(uploader)s", "Channel Name")
+      .replace("%(upload_date)s", "20260217")
+      .replace("%(resolution)s", "1920x1080")
+      .replace("%(fps)s", "30")
+      .replace("%(duration)s", "212");
+  }
+
+  function handleTemplateInput(e: Event) {
+    const value = (e.target as HTMLInputElement).value;
+    templateInput = value;
+    if (templateTimer) clearTimeout(templateTimer);
+    templateTimer = setTimeout(async () => {
+      if (value.trim() && value.includes("%(ext)s")) {
+        await updateSettings({ download: { filename_template: value } });
+      }
+    }, 800);
+  }
+
   async function handleReset() {
     if (!confirm($t("settings.advanced.reset_confirm"))) return;
     resetting = true;
@@ -247,6 +280,25 @@
             <span class="toggle-knob"></span>
           </button>
         </div>
+        <div class="divider"></div>
+        <div class="setting-row template-row">
+          <div class="setting-col">
+            <span class="setting-label">{$t('settings.download.filename_template')}</span>
+            <span class="setting-path">{$t('settings.download.filename_template_desc')}</span>
+          </div>
+          <input
+            type="text"
+            class="input-template"
+            value={templateInput}
+            oninput={handleTemplateInput}
+            spellcheck="false"
+          />
+        </div>
+        {#if templateInput}
+          <div class="template-preview">
+            <span class="setting-path">{$t('settings.download.filename_template_preview', { preview: previewTemplate(templateInput) })}</span>
+          </div>
+        {/if}
       </div>
     </section>
 
@@ -470,6 +522,36 @@
   .input-number:focus-visible {
     border-color: var(--blue);
     outline: none;
+  }
+
+  .template-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: calc(var(--padding) / 2);
+  }
+
+  .input-template {
+    width: 100%;
+    padding: calc(var(--padding) / 2);
+    font-size: 12.5px;
+    font-weight: 500;
+    background: var(--button-elevated);
+    border-radius: calc(var(--border-radius) / 2);
+    color: var(--secondary);
+    border: 1px solid var(--input-border);
+  }
+
+  .input-template:focus-visible {
+    border-color: var(--blue);
+    outline: none;
+  }
+
+  .template-preview {
+    padding: 0 0 calc(var(--padding) + 2px);
+  }
+
+  .template-preview .setting-path {
+    word-break: break-all;
   }
 
   .toggle {
