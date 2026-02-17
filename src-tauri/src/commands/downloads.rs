@@ -77,6 +77,7 @@ pub async fn download_from_url(
     download_mode: Option<String>,
     quality: Option<String>,
     format_id: Option<String>,
+    referer: Option<String>,
 ) -> Result<DownloadStarted, String> {
     let platform = Platform::from_url(&url)
         .ok_or_else(|| "Plataforma não reconhecida".to_string())?;
@@ -131,6 +132,7 @@ pub async fn download_from_url(
             download_mode,
             quality,
             format_id,
+            referer,
             Some(info),
             total_bytes,
             file_count,
