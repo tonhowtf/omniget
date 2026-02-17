@@ -101,5 +101,3 @@ Found a bug or want to suggest a feature? [Open an issue](https://github.com/ton
 ## License
 
 OmniGet is licensed under [GPL-3.0](LICENSE). The OmniGet name, logo, and Loop mascot are project trademarks not covered by the code license.
-
-<!-- omniget media downloader youtube instagram tiktok twitter reddit twitch pinterest vimeo bluesky hotmart telegram desktop app tauri rust open source free download video audio converter clipboard batch -->

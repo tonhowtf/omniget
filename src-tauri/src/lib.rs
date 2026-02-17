@@ -33,6 +33,13 @@ pub struct AppState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Prepend managed bin dir to PATH so auto-downloaded tools (ffmpeg, ffprobe, yt-dlp) are discoverable
+    if let Some(bin_dir) = dirs::data_dir().map(|d| d.join("omniget").join("bin")) {
+        let sep = if cfg!(windows) { ";" } else { ":" };
+        let current = std::env::var("PATH").unwrap_or_default();
+        std::env::set_var("PATH", format!("{}{}{}", bin_dir.display(), sep, current));
+    }
+
     tracing_subscriber::fmt::init();
 
     let session = Arc::new(tokio::sync::Mutex::new(None));
