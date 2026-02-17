@@ -179,6 +179,14 @@
       "fix_file_extensions": "Corrigir extensões de arquivo",
       "fix_file_extensions_desc": "Adicionar extensão correta aos arquivos com base no tipo"
     },
+    "dependencies": {
+      "title": "Dependências",
+      "installed": "instalado",
+      "not_found": "não encontrado",
+      "install": "Instalar",
+      "update": "Atualizar",
+      "installing": "Instalando..."
+    },
     "advanced": {
       "title": "Avançado",
       "max_concurrent_downloads": "Downloads simultâneos",
