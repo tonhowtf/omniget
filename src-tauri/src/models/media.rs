@@ -43,6 +43,7 @@ pub struct DownloadOptions {
     pub download_subtitles: bool,
     pub download_mode: Option<String>,
     pub format_id: Option<String>,
+    pub referer: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
