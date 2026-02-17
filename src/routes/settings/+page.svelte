@@ -178,6 +178,23 @@
         </div>
         <div class="divider"></div>
         <div class="setting-row">
+          <div class="setting-col">
+            <span class="setting-label">{$t('settings.download.organize_by_platform')}</span>
+            <span class="setting-path">{$t('settings.download.organize_by_platform_desc')}</span>
+          </div>
+          <button
+            class="toggle"
+            class:on={settings.download.organize_by_platform}
+            onclick={() => toggleBool("download", "organize_by_platform", settings!.download.organize_by_platform)}
+            role="switch"
+            aria-checked={settings.download.organize_by_platform}
+            aria-label={$t('settings.download.organize_by_platform')}
+          >
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+        <div class="divider"></div>
+        <div class="setting-row">
           <span class="setting-label">{$t('settings.download.video_quality')}</span>
           <select class="select" value={settings.download.video_quality} onchange={changeQuality}>
             <option value="360p">360p</option>
