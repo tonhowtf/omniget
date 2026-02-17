@@ -193,6 +193,8 @@
       "max_concurrent_downloads": "Downloads simultâneos",
       "max_concurrent_downloads_desc": "Máximo de downloads ao mesmo tempo",
       "max_concurrent_segments": "Segmentos simultâneos",
+      "concurrent_fragments": "Fragmentos simultâneos",
+      "concurrent_fragments_desc": "Downloads paralelos de fragmento por vídeo (yt-dlp)",
       "max_retries": "Tentativas por segmento",
       "reset": "Restaurar padrões",
       "reset_confirm": "Tem certeza? Todas as configurações serão restauradas."

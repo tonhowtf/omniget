@@ -193,6 +193,8 @@
       "max_concurrent_downloads": "Concurrent downloads",
       "max_concurrent_downloads_desc": "Max simultaneous downloads",
       "max_concurrent_segments": "Concurrent segments",
+      "concurrent_fragments": "Concurrent fragments",
+      "concurrent_fragments_desc": "Parallel fragment downloads per video (yt-dlp)",
       "max_retries": "Retries per segment",
       "reset": "Reset defaults",
       "reset_confirm": "Are you sure? All settings will be reset."
