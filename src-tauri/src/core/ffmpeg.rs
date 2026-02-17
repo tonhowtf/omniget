@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 pub async fn is_ffmpeg_available() -> bool {
-    tokio::process::Command::new("ffmpeg")
+    crate::core::process::command("ffmpeg")
         .arg("-version")
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -22,7 +22,7 @@ pub async fn mux_video_audio(video: &Path, audio: &Path, output: &Path) -> anyho
         tokio::fs::create_dir_all(parent).await?;
     }
 
-    let status = tokio::process::Command::new("ffmpeg")
+    let status = crate::core::process::command("ffmpeg")
         .args([
             "-y",
             "-i",
@@ -99,7 +99,7 @@ pub struct ConversionResult {
 }
 
 pub async fn probe(path: &Path) -> anyhow::Result<MediaProbeInfo> {
-    let output = tokio::process::Command::new("ffprobe")
+    let output = crate::core::process::command("ffprobe")
         .args([
             "-v",
             "quiet",
@@ -322,7 +322,7 @@ pub async fn convert(
         opts.output_path.clone(),
     ]);
 
-    let mut child = tokio::process::Command::new("ffmpeg")
+    let mut child = crate::core::process::command("ffmpeg")
         .args(&args)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -502,7 +502,7 @@ pub async fn embed_metadata(
 
     args.push(temp_output.to_string_lossy().to_string());
 
-    let output = tokio::process::Command::new("ffmpeg")
+    let output = crate::core::process::command("ffmpeg")
         .args(&args)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -561,7 +561,7 @@ async fn download_thumbnail(
 
     if ext == "png" {
         let jpg_path = dest_dir.join(format!(".omniget_thumb_{}.jpg", uuid::Uuid::new_v4()));
-        let convert_result = tokio::process::Command::new("ffmpeg")
+        let convert_result = crate::core::process::command("ffmpeg")
             .args([
                 "-y",
                 "-i",
