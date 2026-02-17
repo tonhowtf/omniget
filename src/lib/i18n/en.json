@@ -11,10 +11,17 @@
     "title": "Downloads",
     "empty": "No downloads in progress",
     "status": {
+      "queued": "Queued",
       "downloading": "Downloading",
+      "paused": "Paused",
       "complete": "Complete",
       "error": "Error"
     },
+    "section_queued": "Queued",
+    "section_finished": "Finished",
+    "pause": "Pause",
+    "resume": "Resume",
+    "retry": "Retry",
     "page_progress": "Page {{current}}/{{total}}",
     "module_progress": "Module {{current}}/{{total}}",
     "eta_calculating": "Calculating...",
@@ -161,6 +168,8 @@
     },
     "advanced": {
       "title": "Advanced",
+      "max_concurrent_downloads": "Concurrent downloads",
+      "max_concurrent_downloads_desc": "Max simultaneous downloads",
       "max_concurrent_segments": "Concurrent segments",
       "max_retries": "Retries per segment",
       "reset": "Reset defaults",
