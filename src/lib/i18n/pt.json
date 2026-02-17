@@ -158,7 +158,9 @@
       "embed_metadata": "Embutir metadados",
       "embed_metadata_desc": "Gravar título e artista nos arquivos baixados",
       "embed_thumbnail": "Embutir thumbnail como capa",
-      "embed_thumbnail_desc": "Embutir capa de álbum em arquivos de áudio"
+      "embed_thumbnail_desc": "Embutir capa de álbum em arquivos de áudio",
+      "clipboard_detection": "Detecção de clipboard",
+      "clipboard_detection_desc": "Detectar URLs copiadas automaticamente"
     },
     "update_available": "OmniGet {{version}} está disponível",
     "update_button": "atualizar agora",
