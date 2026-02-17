@@ -7,6 +7,7 @@
     formatBytes,
     formatSpeed,
     getEtaI18n,
+    getGenericEtaI18n,
     clearFinished,
     getFinishedCount,
     type CourseDownloadItem,
@@ -81,7 +82,32 @@
             </div>
           </div>
 
-          <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
+          {#if item.status === "downloading"}
+            <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
+
+            <div class="item-stats">
+              {#if item.downloadedBytes > 0}
+                <span>
+                  {formatBytes(item.downloadedBytes)}{#if item.totalBytes} / {formatBytes(item.totalBytes)}{/if}
+                </span>
+                <span class="stats-sep">&middot;</span>
+              {/if}
+              {#if item.speed > 0}
+                <span>{formatSpeed(item.speed)}</span>
+                <span class="stats-sep">&middot;</span>
+              {/if}
+              {#if true}
+                {@const eta = getGenericEtaI18n(item)}
+                <span>{$t(eta.key, eta.params)}</span>
+              {/if}
+            </div>
+          {:else}
+            <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
+          {/if}
+
+          {#if item.status === "complete" && item.totalBytes}
+            <span class="item-detail">{formatBytes(item.totalBytes)}</span>
+          {/if}
 
           {#if item.status === "error" && item.error}
             <span class="item-error">{item.error}</span>
