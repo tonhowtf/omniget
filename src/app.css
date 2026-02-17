@@ -6,7 +6,7 @@
   --border-radius: 11px;
   --sidebar-width: 80px;
 
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'IBM Plex Mono', 'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono', 'Ubuntu Mono', 'Courier New', monospace;
   font-size: 16px;
   line-height: 1.5;
   font-weight: 400;
