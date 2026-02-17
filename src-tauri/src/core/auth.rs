@@ -382,7 +382,7 @@ impl PlatformAuth for SpotifyAuth {
     }
 
     fn get_token(&self) -> Option<String> {
-        let guard = self.session.blocking_lock();
+        let guard = self.session.try_lock().ok()?;
         guard.as_ref().and_then(|s| s.token.clone())
     }
 }
@@ -508,7 +508,7 @@ impl PlatformAuth for BrowserCookieAuth {
     }
 
     fn get_token(&self) -> Option<String> {
-        let guard = self.session.blocking_lock();
+        let guard = self.session.try_lock().ok()?;
         guard.as_ref().and_then(|s| s.token.clone())
     }
 }
