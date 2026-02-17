@@ -107,25 +107,10 @@ pub async fn download_from_url(
         .find_platform(&url)
         .ok_or_else(|| "Nenhum downloader disponível para esta URL".to_string())?;
 
-    let info = match downloader.get_media_info(&url).await {
-        Ok(info) => info,
-        Err(e) => {
-            return Err(format!("Erro ao obter informações: {}", e));
-        }
-    };
-
-    let title = info.title.clone();
     let platform_name = platform
         .map(|p| p.to_string())
-        .unwrap_or_else(|| info.platform.clone());
-    let total_bytes = info.file_size_bytes;
-    let file_count = if info.media_type == crate::models::media::MediaType::Carousel
-        || info.media_type == crate::models::media::MediaType::Playlist
-    {
-        Some(info.available_qualities.len() as u32)
-    } else {
-        Some(1)
-    };
+        .unwrap_or_else(|| "generic".to_string());
+    let title = url.clone();
 
     {
         let mut q = download_queue.lock().await;
@@ -139,9 +124,9 @@ pub async fn download_from_url(
             quality,
             format_id,
             referer,
-            Some(info),
-            total_bytes,
-            file_count,
+            None,
+            None,
+            None,
             downloader,
         );
 
