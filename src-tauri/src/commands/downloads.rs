@@ -84,6 +84,8 @@ pub async fn download_from_url(
     state: tauri::State<'_, AppState>,
     url: String,
     output_dir: String,
+    download_mode: Option<String>,
+    quality: Option<String>,
 ) -> Result<DownloadStarted, String> {
     let platform = Platform::from_url(&url)
         .ok_or_else(|| "Plataforma não reconhecida".to_string())?;
@@ -146,10 +148,11 @@ pub async fn download_from_url(
 
     tokio::spawn(async move {
         let opts = crate::models::media::DownloadOptions {
-            quality: Some(settings.download.video_quality.clone()),
+            quality: Some(quality.unwrap_or(settings.download.video_quality.clone())),
             output_dir: std::path::PathBuf::from(&output_dir),
             filename_template: None,
             download_subtitles: false,
+            download_mode,
         };
 
         let total_bytes = info.file_size_bytes;
