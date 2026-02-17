@@ -17,6 +17,7 @@ export type AppSettings = {
   advanced: {
     max_concurrent_segments: number;
     max_retries: number;
+    max_concurrent_downloads: number;
   };
   telegram: {
     concurrent_downloads: number;
