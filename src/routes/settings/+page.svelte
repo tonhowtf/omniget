@@ -7,10 +7,40 @@
   import { installUpdate } from "$lib/updater";
   import { showToast } from "$lib/stores/toast-store.svelte";
 
+  type DependencyStatus = {
+    name: string;
+    installed: boolean;
+    version: string | null;
+  };
+
   let settings = $derived(getSettings());
   let updateInfo = $derived(getUpdateInfo());
   let resetting = $state(false);
   let updating = $state(false);
+  let deps = $state<DependencyStatus[]>([]);
+  let installingDep = $state<string | null>(null);
+
+  async function loadDeps() {
+    try {
+      deps = await invoke<DependencyStatus[]>("check_dependencies");
+    } catch {}
+  }
+
+  async function handleInstallDep(name: string) {
+    installingDep = name;
+    try {
+      await invoke("install_dependency", { name });
+      await loadDeps();
+    } catch (e: any) {
+      showToast("error", typeof e === "string" ? e : e.message ?? "Error");
+    } finally {
+      installingDep = null;
+    }
+  }
+
+  $effect(() => {
+    if (settings) loadDeps();
+  });
 
   async function handleUpdate() {
     updating = true;
@@ -355,6 +385,43 @@
         </div>
       </div>
     </section>
+
+    {#if deps.length > 0}
+      <section class="section">
+        <h5 class="section-title">{$t('settings.dependencies.title')}</h5>
+        <div class="card">
+          {#each deps as dep, i}
+            {#if i > 0}
+              <div class="divider"></div>
+            {/if}
+            <div class="setting-row">
+              <div class="setting-col">
+                <span class="setting-label">{dep.name}</span>
+                {#if dep.installed && dep.version}
+                  <span class="setting-path dep-ok">v{dep.version}</span>
+                {:else}
+                  <span class="setting-path dep-missing">{$t('settings.dependencies.not_found')}</span>
+                {/if}
+              </div>
+              {#if installingDep === dep.name}
+                <span class="dep-spinner"></span>
+              {:else}
+                <button
+                  class="button dep-btn"
+                  onclick={() => handleInstallDep(dep.name)}
+                >
+                  {#if dep.installed}
+                    {$t('settings.dependencies.update')}
+                  {:else}
+                    {$t('settings.dependencies.install')}
+                  {/if}
+                </button>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      </section>
+    {/if}
 
     <section class="section">
       <h5 class="section-title">{$t('settings.advanced.title')}</h5>
