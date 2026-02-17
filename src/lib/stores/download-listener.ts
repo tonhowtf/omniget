@@ -5,6 +5,7 @@ import {
   upsertProgress,
   markComplete,
   syncQueueState,
+  upsertGenericProgress,
 } from "./download-store.svelte";
 import { showToast } from "./toast-store.svelte";
 import {
@@ -62,6 +63,17 @@ let batchFileStatusCallback: BatchFileStatusCallback | null = null;
 export function onBatchFileStatus(cb: BatchFileStatusCallback | null) {
   batchFileStatusCallback = cb;
 }
+
+type QueueItemProgressPayload = {
+  id: number;
+  title: string;
+  platform: string;
+  percent: number;
+  speed_bytes_per_sec: number;
+  downloaded_bytes: number;
+  total_bytes: number | null;
+  eta_seconds: number | null;
+};
 
 type ConvertProgressPayload = {
   id: number;
@@ -127,6 +139,23 @@ export async function initDownloadListener(): Promise<() => void> {
     },
   );
 
+  const unlistenQueueItemProgress = await listen<QueueItemProgressPayload>(
+    "queue-item-progress",
+    (event) => {
+      const d = event.payload;
+      upsertGenericProgress(
+        d.id,
+        d.title,
+        d.platform,
+        d.percent,
+        d.speed_bytes_per_sec,
+        d.downloaded_bytes,
+        d.total_bytes,
+        d.eta_seconds,
+      );
+    },
+  );
+
   const unlistenBatchFileStatus = await listen<BatchFileStatusPayload>(
     "telegram-batch-file-status",
     (event) => {
@@ -163,6 +192,7 @@ export async function initDownloadListener(): Promise<() => void> {
     unlistenProgress();
     unlistenComplete();
     unlistenQueueState();
+    unlistenQueueItemProgress();
     unlistenBatchFileStatus();
     unlistenConvertProgress();
     unlistenConvertComplete();
