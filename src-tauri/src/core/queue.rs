@@ -402,10 +402,11 @@ async fn spawn_download_inner(
     }
 
     let settings = config::load_settings(&app);
+    let tmpl = settings.download.filename_template.clone();
     let opts = crate::models::media::DownloadOptions {
         quality: Some(quality.unwrap_or(settings.download.video_quality.clone())),
         output_dir: std::path::PathBuf::from(&output_dir),
-        filename_template: None,
+        filename_template: Some(tmpl),
         download_subtitles: false,
         download_mode,
         format_id,
