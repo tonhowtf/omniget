@@ -92,6 +92,7 @@ pub struct HotmartDownloader {
     download_settings: DownloadSettings,
     max_concurrent_segments: u32,
     max_retries: u32,
+    concurrent_fragments: u32,
 }
 
 impl HotmartDownloader {
@@ -100,12 +101,14 @@ impl HotmartDownloader {
         download_settings: DownloadSettings,
         max_concurrent_segments: u32,
         max_retries: u32,
+        concurrent_fragments: u32,
     ) -> Self {
         Self {
             session,
             download_settings,
             max_concurrent_segments,
             max_retries,
+            concurrent_fragments,
         }
     }
 
@@ -254,6 +257,7 @@ impl HotmartDownloader {
                                     Some(referer),
                                     cancel_token.clone(),
                                     None,
+                                    self.concurrent_fragments,
                                 ).await {
                                     Ok(result) => {
                                         let _ = bytes_tx.send(result.file_size_bytes);
@@ -329,6 +333,7 @@ impl HotmartDownloader {
                                     None,
                                     cancel_token.clone(),
                                     None,
+                                    self.concurrent_fragments,
                                 ).await {
                                     Ok(result) => {
                                         let _ = bytes_tx.send(result.file_size_bytes);
