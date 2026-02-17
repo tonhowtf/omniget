@@ -11,6 +11,18 @@ pub async fn hotmart_login(
     email: String,
     password: String,
 ) -> Result<String, String> {
+    let _ = delete_saved_session().await;
+    {
+        let mut map = state.active_downloads.lock().await;
+        for token in map.values() {
+            token.cancel();
+        }
+        map.clear();
+    }
+    state.hotmart_session.lock().await.take();
+    *state.session_validated_at.lock().await = None;
+    *state.courses_cache.lock().await = None;
+
     match authenticate(&email, &password).await {
         Ok(session) => {
             let response_email = session.email.clone();
@@ -89,9 +101,16 @@ pub async fn hotmart_check_session(
 pub async fn hotmart_logout(
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
+    let _ = delete_saved_session().await;
+    {
+        let mut map = state.active_downloads.lock().await;
+        for token in map.values() {
+            token.cancel();
+        }
+        map.clear();
+    }
     state.hotmart_session.lock().await.take();
     *state.session_validated_at.lock().await = None;
     *state.courses_cache.lock().await = None;
-    let _ = delete_saved_session().await;
     Ok(())
 }
