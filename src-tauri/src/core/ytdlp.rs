@@ -200,6 +200,7 @@ pub async fn download_video(
     progress: mpsc::Sender<f64>,
     download_mode: Option<&str>,
     format_id: Option<&str>,
+    filename_template: Option<&str>,
 ) -> anyhow::Result<DownloadResult> {
     let mode = download_mode.unwrap_or("auto");
 
@@ -222,8 +223,9 @@ pub async fn download_video(
         }
     };
 
+    let template = filename_template.unwrap_or("%(title).200s [%(id)s].%(ext)s");
     let output_template = output_dir
-        .join("%(title).200s [%(id)s].%(ext)s")
+        .join(template)
         .to_string_lossy()
         .to_string();
 
