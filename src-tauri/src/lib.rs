@@ -28,6 +28,7 @@ pub struct AppState {
     pub session_validated_at: Arc<tokio::sync::Mutex<Option<std::time::Instant>>>,
     pub telegram_session: TelegramSessionHandle,
     pub download_queue: Arc<tokio::sync::Mutex<core::queue::DownloadQueue>>,
+    pub auth_registry: core::auth::AuthRegistry,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -77,6 +78,17 @@ pub fn run() {
         ),
     ));
 
+    let mut auth_registry = core::auth::AuthRegistry::new();
+    auth_registry.register(Arc::new(core::auth::SpotifyAuth::new(
+        String::new(),
+    )));
+    auth_registry.register(Arc::new(core::auth::BrowserCookieAuth::new(
+        "instagram",
+        "https://www.instagram.com/accounts/login/",
+        "instagram.com",
+        ".instagram.com",
+    )));
+
     let state = AppState {
         hotmart_session: session,
         active_downloads: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
@@ -87,6 +99,7 @@ pub fn run() {
         session_validated_at: Arc::new(tokio::sync::Mutex::new(None)),
         telegram_session,
         download_queue: Arc::new(tokio::sync::Mutex::new(core::queue::DownloadQueue::new(2))),
+        auth_registry,
     };
 
     tauri::Builder::default()
@@ -152,6 +165,10 @@ pub fn run() {
             commands::dependencies::check_dependencies,
             commands::dependencies::install_dependency,
             commands::search::search_videos,
+            commands::platform_auth::platform_auth_check,
+            commands::platform_auth::platform_auth_login,
+            commands::platform_auth::platform_auth_logout,
+            commands::platform_auth::platform_auth_list,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
