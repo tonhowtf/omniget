@@ -44,6 +44,7 @@
   const nav = [
     { href: "/", labelKey: "nav.home", icon: "home" },
     { href: "/downloads", labelKey: "nav.downloads", icon: "downloads" },
+    { href: "/convert", labelKey: "nav.convert", icon: "convert" },
     { href: "/hotmart", labelKey: "nav.hotmart", icon: "hotmart" },
     { href: "/telegram", labelKey: "nav.telegram", icon: "telegram" },
     { href: "/settings", labelKey: "nav.settings", icon: "settings" },
@@ -73,6 +74,9 @@
           {:else if item.icon === "downloads"}
             <path d="M12 3v12m0 0l-4-4m4 4l4-4" />
             <path d="M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2" />
+          {:else if item.icon === "convert"}
+            <path d="M20 10H4l4-4" />
+            <path d="M4 14h16l-4 4" />
           {:else if item.icon === "hotmart"}
             <path d="M6 4v16" />
             <path d="M18 4v16" />
