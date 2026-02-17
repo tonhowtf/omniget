@@ -25,6 +25,10 @@ export type CourseDownloadItem = BaseItem & {
 export type GenericDownloadItem = BaseItem & {
   kind: "generic";
   platform: string;
+  speed: number;
+  downloadedBytes: number;
+  totalBytes: number | null;
+  etaSeconds: number | null;
   filePath?: string;
   fileCount?: number;
 };
@@ -142,9 +146,18 @@ export function upsertGenericProgress(
   title: string,
   platform: string,
   percent: number,
+  speedBytesPerSec: number,
+  downloadedBytes: number,
+  totalBytes: number | null,
+  etaSeconds: number | null,
 ) {
   const now = Date.now();
   const existing = downloads.get(id);
+
+  let speed = speedBytesPerSec;
+  if (existing && existing.kind === "generic" && existing.speed > 0 && speedBytesPerSec > 0) {
+    speed = existing.speed * (1 - SPEED_SMOOTHING) + speedBytesPerSec * SPEED_SMOOTHING;
+  }
 
   downloads.set(id, {
     kind: "generic",
@@ -152,6 +165,10 @@ export function upsertGenericProgress(
     name: title,
     platform,
     percent,
+    speed,
+    downloadedBytes,
+    totalBytes,
+    etaSeconds,
     status: "downloading",
     startedAt: existing?.startedAt ?? now,
     lastUpdateAt: now,
@@ -166,7 +183,7 @@ export function removeDownload(id: number) {
   }
 }
 
-export function markGenericComplete(id: number, success: boolean, error?: string, filePath?: string, fileCount?: number) {
+export function markGenericComplete(id: number, success: boolean, error?: string, filePath?: string, fileCount?: number, totalBytes?: number | null) {
   const item = downloads.get(id);
   if (!item || item.kind !== "generic") return;
 
@@ -177,6 +194,9 @@ export function markGenericComplete(id: number, success: boolean, error?: string
     error,
     filePath,
     fileCount,
+    totalBytes: totalBytes ?? item.totalBytes,
+    speed: 0,
+    etaSeconds: null,
     lastUpdateAt: Date.now(),
   });
   downloads = new Map(downloads);
@@ -199,6 +219,27 @@ export type I18nValue = { key: string; params?: Record<string, number> };
 
 export function getEtaI18n(item: CourseDownloadItem): I18nValue {
   if (item.percent <= 0 || item.speed <= 0) return { key: "downloads.eta_calculating" };
+  const elapsed = (item.lastUpdateAt - item.startedAt) / 1000;
+  if (elapsed < 2) return { key: "downloads.eta_calculating" };
+  const remaining = elapsed * (100 - item.percent) / item.percent;
+  if (!isFinite(remaining) || remaining < 0) return { key: "downloads.eta_calculating" };
+  if (remaining < 60) return { key: "downloads.eta_seconds", params: { n: Math.ceil(remaining) } };
+  if (remaining < 3600) return { key: "downloads.eta_minutes", params: { n: Math.ceil(remaining / 60) } };
+  const hours = Math.floor(remaining / 3600);
+  const mins = Math.ceil((remaining % 3600) / 60);
+  return { key: "downloads.eta_hours", params: { h: hours, m: mins } };
+}
+
+export function getGenericEtaI18n(item: GenericDownloadItem): I18nValue {
+  if (item.etaSeconds != null && isFinite(item.etaSeconds) && item.etaSeconds >= 0) {
+    const remaining = item.etaSeconds;
+    if (remaining < 60) return { key: "downloads.eta_seconds", params: { n: Math.ceil(remaining) } };
+    if (remaining < 3600) return { key: "downloads.eta_minutes", params: { n: Math.ceil(remaining / 60) } };
+    const hours = Math.floor(remaining / 3600);
+    const mins = Math.ceil((remaining % 3600) / 60);
+    return { key: "downloads.eta_hours", params: { h: hours, m: mins } };
+  }
+  if (item.percent <= 0) return { key: "downloads.eta_calculating" };
   const elapsed = (item.lastUpdateAt - item.startedAt) / 1000;
   if (elapsed < 2) return { key: "downloads.eta_calculating" };
   const remaining = elapsed * (100 - item.percent) / item.percent;
