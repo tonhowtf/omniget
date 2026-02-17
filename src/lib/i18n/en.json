@@ -107,7 +107,14 @@
     "downloading": "Downloading...",
     "downloaded": "Downloaded",
     "choose_folder": "Choose download folder",
-    "unknown_error": "Unknown error"
+    "unknown_error": "Unknown error",
+    "qr_title": "Scan to log in",
+    "qr_instruction": "Open Telegram on your phone, go to Settings > Devices > Link Desktop Device",
+    "qr_loading": "Generating QR code...",
+    "qr_error": "Failed to generate QR code",
+    "or_separator": "or",
+    "use_phone": "Use phone number instead",
+    "back_to_qr": "Back to QR code"
   },
   "settings": {
     "title": "Settings",
