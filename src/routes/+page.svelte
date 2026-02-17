@@ -2,11 +2,13 @@
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import { goto } from "$app/navigation";
+  import { onMount } from "svelte";
   import Mascot from "$components/mascot/Mascot.svelte";
   import SupportedServices from "$components/services/SupportedServices.svelte";
   import { getDownloads } from "$lib/stores/download-store.svelte";
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import { onClipboardUrl } from "$lib/stores/clipboard-monitor";
   import { t } from "$lib/i18n";
 
   type PlatformInfo = {
@@ -55,6 +57,18 @@
   let formats = $state<FormatInfo[]>([]);
   let formatsOpen = $state(false);
   let loadingFormats = $state(false);
+
+  onMount(() => {
+    onClipboardUrl((detectedUrl) => {
+      if (omniState.kind === "preparing") return;
+      url = detectedUrl;
+      handleInput();
+      showToast("info", $t("toast.clipboard_url_detected"));
+    });
+    return () => {
+      onClipboardUrl(null);
+    };
+  });
 
   const STALL_THRESHOLD = 30_000;
 
