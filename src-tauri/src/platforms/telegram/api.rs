@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use grammers_client::Client;
@@ -12,6 +12,112 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use super::auth::TelegramSessionHandle;
+
+/// Maps a MIME type to a file extension (with leading dot).
+/// Covers the most common Telegram media MIME types.
+fn mime_to_ext(mime: &str) -> &'static str {
+    match mime {
+        // Video
+        "video/mp4" => ".mp4",
+        "video/x-matroska" => ".mkv",
+        "video/webm" => ".webm",
+        "video/quicktime" => ".mov",
+        "video/x-msvideo" => ".avi",
+        "video/mpeg" => ".mpeg",
+        "video/3gpp" => ".3gp",
+        "video/x-flv" => ".flv",
+        // Audio
+        "audio/mpeg" | "audio/mp3" => ".mp3",
+        "audio/ogg" => ".ogg",
+        "audio/x-opus+ogg" => ".opus",
+        "audio/flac" | "audio/x-flac" => ".flac",
+        "audio/x-wav" | "audio/wav" => ".wav",
+        "audio/aac" | "audio/x-aac" => ".aac",
+        "audio/mp4" | "audio/x-m4a" => ".m4a",
+        "audio/x-ms-wma" => ".wma",
+        // Image
+        "image/jpeg" => ".jpg",
+        "image/png" => ".png",
+        "image/gif" => ".gif",
+        "image/webp" => ".webp",
+        "image/bmp" => ".bmp",
+        "image/svg+xml" => ".svg",
+        "image/tiff" => ".tiff",
+        // Documents
+        "application/pdf" => ".pdf",
+        "application/zip" => ".zip",
+        "application/x-rar-compressed" | "application/vnd.rar" => ".rar",
+        "application/x-7z-compressed" => ".7z",
+        "application/gzip" | "application/x-gzip" => ".gz",
+        "application/x-tar" => ".tar",
+        "application/json" => ".json",
+        "application/xml" | "text/xml" => ".xml",
+        "text/plain" => ".txt",
+        "text/html" => ".html",
+        "text/csv" => ".csv",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => ".docx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => ".xlsx",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation" => ".pptx",
+        "application/msword" => ".doc",
+        "application/vnd.ms-excel" => ".xls",
+        "application/vnd.ms-powerpoint" => ".ppt",
+        "application/x-python-script" | "text/x-python" => ".py",
+        "application/javascript" | "text/javascript" => ".js",
+        // Fallback: try to extract from the subtype
+        other => {
+            if let Some(sub) = other.split('/').nth(1) {
+                // Common pattern: "video/mp4" → ".mp4"
+                // But we only return static strings, so we use a catch-all
+                match sub {
+                    "mp4" => ".mp4",
+                    "mpeg" => ".mpeg",
+                    "ogg" => ".ogg",
+                    "webm" => ".webm",
+                    "flac" => ".flac",
+                    "wav" => ".wav",
+                    "jpeg" => ".jpg",
+                    "png" => ".png",
+                    "gif" => ".gif",
+                    _ => "",
+                }
+            } else {
+                ""
+            }
+        }
+    }
+}
+
+/// Ensures a filename has a proper extension based on its MIME type.
+/// If the file already has a known extension, keeps it.
+/// If not, appends the MIME-derived extension.
+fn ensure_extension(name: &str, mime_type: &str) -> String {
+    let path = Path::new(name);
+    if let Some(ext) = path.extension() {
+        let ext_str = ext.to_string_lossy().to_lowercase();
+        // Already has a recognized extension
+        let known = matches!(
+            ext_str.as_str(),
+            "mp4" | "mkv" | "webm" | "mov" | "avi" | "mpeg" | "3gp" | "flv"
+            | "mp3" | "ogg" | "opus" | "flac" | "wav" | "aac" | "m4a" | "wma"
+            | "jpg" | "jpeg" | "png" | "gif" | "webp" | "bmp" | "svg" | "tiff"
+            | "pdf" | "zip" | "rar" | "7z" | "gz" | "tar"
+            | "json" | "xml" | "txt" | "html" | "csv"
+            | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx"
+            | "py" | "js" | "ts" | "rs" | "go" | "c" | "cpp" | "h"
+        );
+        if known {
+            return name.to_string();
+        }
+    }
+
+    // No extension or unknown extension — add from MIME type
+    let ext = mime_to_ext(mime_type);
+    if ext.is_empty() {
+        name.to_string()
+    } else {
+        format!("{}{}", name, ext)
+    }
+}
 
 fn parse_flood_wait(err: &str) -> Option<u64> {
     for pattern in &["FLOOD_WAIT_", "FLOOD_PREMIUM_WAIT_"] {
@@ -97,7 +203,7 @@ fn media_filter(media_type: Option<&str>) -> tl::enums::MessagesFilter {
     }
 }
 
-fn extract_raw_media_info(media: &tl::enums::MessageMedia) -> Option<(String, u64, String)> {
+fn extract_raw_media_info(media: &tl::enums::MessageMedia, fix_extensions: bool) -> Option<(String, u64, String)> {
     match media {
         tl::enums::MessageMedia::Photo(photo_media) => {
             let photo = match photo_media.photo.as_ref()? {
@@ -116,18 +222,34 @@ fn extract_raw_media_info(media: &tl::enums::MessageMedia) -> Option<(String, u6
                 tl::enums::Document::Document(d) => d,
                 tl::enums::Document::Empty(_) => return None,
             };
-            let name = doc.attributes.iter().find_map(|attr| {
+            let raw_name = doc.attributes.iter().find_map(|attr| {
                 if let tl::enums::DocumentAttribute::Filename(f) = attr {
                     Some(f.file_name.clone())
                 } else {
                     None
                 }
-            }).unwrap_or_else(|| format!("file_{}", doc.id));
+            }).unwrap_or_else(|| {
+                // No filename attribute — use ID + MIME extension (like tdl-master)
+                let ext = mime_to_ext(&doc.mime_type);
+                if ext.is_empty() {
+                    format!("file_{}", doc.id)
+                } else {
+                    format!("{}{}", doc.id, ext)
+                }
+            });
+            // Ensure files with names but missing extensions get the right one
+            let name = if fix_extensions {
+                ensure_extension(&raw_name, &doc.mime_type)
+            } else {
+                raw_name
+            };
             let size = doc.size as u64;
             let mt = if doc.mime_type.starts_with("video/") {
                 "video"
             } else if doc.mime_type.starts_with("audio/") {
                 "audio"
+            } else if doc.mime_type.starts_with("image/") {
+                "photo"
             } else {
                 "document"
             };
@@ -214,6 +336,7 @@ pub async fn list_media(
     media_type: Option<&str>,
     offset: i32,
     limit: u32,
+    fix_extensions: bool,
 ) -> anyhow::Result<Vec<TelegramMediaItem>> {
     let guard = handle.lock().await;
     let client = guard.client.as_ref()
@@ -271,7 +394,7 @@ pub async fn list_media(
         };
 
         if let Some(raw_media) = msg.media {
-            if let Some((file_name, file_size, media_type_str)) = extract_raw_media_info(&raw_media) {
+            if let Some((file_name, file_size, media_type_str)) = extract_raw_media_info(&raw_media, fix_extensions) {
                 items.push(TelegramMediaItem {
                     message_id: msg.id,
                     file_name,
@@ -314,6 +437,8 @@ pub async fn download_media(
         .flatten()
         .ok_or_else(|| anyhow::anyhow!("Message not found"))?;
 
+    let msg_date = message.date();
+
     let media = message
         .media()
         .ok_or_else(|| anyhow::anyhow!("Message has no media"))?;
@@ -328,22 +453,47 @@ pub async fn download_media(
         tokio::fs::create_dir_all(parent).await?;
     }
 
-    let mut file = tokio::fs::File::create(output_path).await?;
+    // Download to .tmp file first, then rename atomically
+    let tmp_path = PathBuf::from(format!("{}.tmp", output_path.display()));
+    let mut file = tokio::fs::File::create(&tmp_path).await?;
     let mut download = client.iter_download(&media);
     let mut downloaded: u64 = 0;
 
-    while let Some(chunk) = download.next().await.map_err(|e| anyhow::anyhow!("{}", e))? {
-        file.write_all(&chunk).await?;
-        downloaded += chunk.len() as u64;
+    let result: Result<u64, anyhow::Error> = async {
+        while let Some(chunk) = download.next().await.map_err(|e| anyhow::anyhow!("{}", e))? {
+            file.write_all(&chunk).await?;
+            downloaded += chunk.len() as u64;
 
-        if total_size > 0 {
-            let percent = (downloaded as f64 / total_size as f64) * 100.0;
-            let _ = progress_tx.send(percent.min(100.0)).await;
+            if total_size > 0 {
+                let percent = (downloaded as f64 / total_size as f64) * 100.0;
+                let _ = progress_tx.send(percent.min(100.0)).await;
+            }
         }
+
+        file.flush().await?;
+        drop(file);
+
+        // Atomic rename from .tmp to final path
+        tokio::fs::rename(&tmp_path, output_path).await?;
+
+        // Preserve message date as file modification time
+        let ts = msg_date.timestamp();
+        if ts > 0 {
+            let file_time = filetime::FileTime::from_unix_time(ts, 0);
+            if let Err(e) = filetime::set_file_mtime(output_path, file_time) {
+                tracing::warn!("[tg-api] failed to set file time: {}", e);
+            }
+        }
+
+        Ok(downloaded)
+    }.await;
+
+    // Clean up .tmp on failure
+    if result.is_err() {
+        let _ = tokio::fs::remove_file(&tmp_path).await;
     }
 
-    file.flush().await?;
-    Ok(downloaded)
+    result
 }
 
 fn is_retryable_error(err_str: &str) -> bool {
