@@ -46,6 +46,7 @@ pub struct QueueItem {
     pub output_dir: String,
     pub download_mode: Option<String>,
     pub quality: Option<String>,
+    pub format_id: Option<String>,
     pub percent: f64,
     pub speed_bytes_per_sec: f64,
     pub downloaded_bytes: u64,
@@ -103,6 +104,7 @@ impl DownloadQueue {
         output_dir: String,
         download_mode: Option<String>,
         quality: Option<String>,
+        format_id: Option<String>,
         media_info: Option<MediaInfo>,
         total_bytes: Option<u64>,
         file_count: Option<u32>,
@@ -118,6 +120,7 @@ impl DownloadQueue {
             output_dir,
             download_mode,
             quality,
+            format_id,
             percent: 0.0,
             speed_bytes_per_sec: 0.0,
             downloaded_bytes: 0,
@@ -345,7 +348,7 @@ async fn spawn_download_inner(
     queue: Arc<tokio::sync::Mutex<DownloadQueue>>,
     item_id: u64,
 ) {
-    let (url, output_dir, download_mode, quality, cancel_token, media_info, platform_name, downloader) = {
+    let (url, output_dir, download_mode, quality, format_id, cancel_token, media_info, platform_name, downloader) = {
         let q = queue.lock().await;
         let item = match q.items.iter().find(|i| i.id == item_id) {
             Some(i) => i,
@@ -356,6 +359,7 @@ async fn spawn_download_inner(
             item.output_dir.clone(),
             item.download_mode.clone(),
             item.quality.clone(),
+            item.format_id.clone(),
             item.cancel_token.clone(),
             item.media_info.clone(),
             item.platform.clone(),
@@ -403,6 +407,7 @@ async fn spawn_download_inner(
         filename_template: None,
         download_subtitles: false,
         download_mode,
+        format_id,
     };
 
     let total_bytes = info.file_size_bytes;
