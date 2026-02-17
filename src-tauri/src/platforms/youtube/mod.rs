@@ -275,6 +275,7 @@ impl PlatformDownloader for YouTubeDownloader {
             opts.filename_template.as_deref(),
             None,
             opts.cancel_token.clone(),
+            None,
         )
         .await
     }
@@ -326,6 +327,7 @@ impl YouTubeDownloader {
                 opts.filename_template.as_deref(),
                 None,
                 opts.cancel_token.clone(),
+                None,
             )
             .await
             {
