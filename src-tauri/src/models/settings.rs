@@ -25,6 +25,10 @@ pub struct DownloadSettings {
     pub skip_existing: bool,
     pub download_attachments: bool,
     pub download_descriptions: bool,
+    #[serde(default = "default_true")]
+    pub embed_metadata: bool,
+    #[serde(default = "default_true")]
+    pub embed_thumbnail: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +41,10 @@ pub struct AdvancedSettings {
 
 fn default_max_concurrent_downloads() -> u32 {
     2
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +77,8 @@ impl Default for AppSettings {
                 skip_existing: true,
                 download_attachments: true,
                 download_descriptions: true,
+                embed_metadata: true,
+                embed_thumbnail: true,
             },
             advanced: AdvancedSettings {
                 max_concurrent_segments: 20,
