@@ -9,6 +9,7 @@
     { href: "/about/terms", labelKey: "about.tab.terms" },
     { href: "/about/project", labelKey: "about.tab.project" },
     { href: "/about/roadmap", labelKey: "about.tab.roadmap" },
+    { href: "/about/changelog", labelKey: "about.tab.changelog" },
   ] as const;
 
   function isActive(href: string): boolean {
