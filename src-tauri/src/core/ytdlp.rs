@@ -231,9 +231,14 @@ fn detect_cookies_browser() -> Option<String> {
     None
 }
 
+fn is_youtube_url(url: &str) -> bool {
+    let lower = url.to_lowercase();
+    lower.contains("youtube.com") || lower.contains("youtu.be")
+}
+
 pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_json::Value> {
     let mut args = vec![
-        "--dump-json".to_string(),
+        "--dump-single-json".to_string(),
         "--no-warnings".to_string(),
         "--no-playlist".to_string(),
         "--socket-timeout".to_string(),
@@ -242,13 +247,11 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         "3".to_string(),
         "--user-agent".to_string(),
         CHROME_UA.to_string(),
-        "--extractor-args".to_string(),
-        "youtube:player_client=web,default".to_string(),
     ];
 
-    if let Some(browser) = detect_cookies_browser() {
-        args.push("--cookies-from-browser".to_string());
-        args.push(browser);
+    if is_youtube_url(url) {
+        args.push("--extractor-args".to_string());
+        args.push("youtube:player_client=web,default".to_string());
     }
 
     args.push(url.to_string());
@@ -290,13 +293,11 @@ pub async fn get_playlist_info(
         "3".to_string(),
         "--user-agent".to_string(),
         CHROME_UA.to_string(),
-        "--extractor-args".to_string(),
-        "youtube:player_client=web,default".to_string(),
     ];
 
-    if let Some(browser) = detect_cookies_browser() {
-        args.push("--cookies-from-browser".to_string());
-        args.push(browser);
+    if is_youtube_url(url) {
+        args.push("--extractor-args".to_string());
+        args.push("youtube:player_client=web,default".to_string());
     }
 
     args.push(url.to_string());
@@ -422,6 +423,7 @@ pub async fn download_video(
     referer: Option<&str>,
     cancel_token: CancellationToken,
     cookie_file: Option<&Path>,
+    concurrent_fragments: u32,
 ) -> anyhow::Result<DownloadResult> {
     let mode = download_mode.unwrap_or("auto");
     let ffmpeg_available = crate::core::ffmpeg::is_ffmpeg_available().await;
@@ -473,7 +475,7 @@ pub async fn download_video(
     } else {
         None
     };
-    let mut use_browser_cookies = browser_cookies.is_some();
+    let mut use_browser_cookies = false;
 
     let mut base_args = vec![
         "-f".to_string(),
@@ -483,6 +485,8 @@ pub async fn download_video(
     if format_id.is_none() && mode != "audio" && ffmpeg_available {
         base_args.push("--merge-output-format".to_string());
         base_args.push("mp4".to_string());
+        base_args.push("-S".to_string());
+        base_args.push("ext:mp4:m4a".to_string());
     }
 
     if let Some(ref_url) = referer {
@@ -502,13 +506,46 @@ pub async fn download_video(
         base_args.push(loc.clone());
     }
 
+    // Concurrent fragment downloads (-N) — biggest speed factor
+    let effective_fragments = if is_youtube_url(url) {
+        concurrent_fragments.min(4) // conservative for YouTube to avoid 429
+    } else {
+        concurrent_fragments
+    };
+    base_args.push("-N".to_string());
+    base_args.push(effective_fragments.to_string());
+
+    if is_youtube_url(url) {
+        // Prefer ios client for downloads (less throttling)
+        base_args.push("--extractor-args".to_string());
+        base_args.push("youtube:player_client=ios,web".to_string());
+
+        // Detect throttled streams and switch to non-throttled format
+        base_args.push("--throttled-rate".to_string());
+        base_args.push("100K".to_string());
+    }
+
+    // Larger buffers for better throughput
+    base_args.extend([
+        "--buffer-size".to_string(),
+        "1M".to_string(),
+        "--http-chunk-size".to_string(),
+        "10M".to_string(),
+    ]);
+
+    // aria2c external downloader (not for audio-only or when cookies are active)
+    let aria2c_path = crate::core::dependencies::ensure_aria2c().await;
+    let mut use_aria2c = aria2c_path.is_some()
+        && mode != "audio"
+        && cookie_file.is_none()
+        && browser_cookies.is_none();
+
     base_args.extend([
         "--no-check-certificate".to_string(),
         "--no-warnings".to_string(),
+        "--no-mtime".to_string(),
         "--user-agent".to_string(),
         CHROME_UA.to_string(),
-        "-N".to_string(),
-        "4".to_string(),
         "--socket-timeout".to_string(),
         "30".to_string(),
         "--retries".to_string(),
@@ -552,6 +589,16 @@ pub async fn download_video(
             if let Some(ref browser) = browser_cookies {
                 args.push("--cookies-from-browser".to_string());
                 args.push(browser.clone());
+            }
+        }
+
+        // aria2c external downloader (skip when browser cookies active)
+        if use_aria2c && !use_browser_cookies {
+            if let Some(ref a2_path) = aria2c_path {
+                args.push("--downloader".to_string());
+                args.push(a2_path.to_string_lossy().to_string());
+                args.push("--downloader-args".to_string());
+                args.push("aria2c:-x 16 -k 1M -j 16 --file-allocation=none --optimize-concurrent-downloads=true --auto-file-renaming=false --summary-interval=0".to_string());
             }
         }
 
@@ -636,13 +683,16 @@ pub async fn download_video(
         last_error = stderr_content;
         let stderr_lower = last_error.to_lowercase();
 
-        if stderr_lower.contains("sign in to confirm") || stderr_lower.contains("login required") {
-            return Err(anyhow!(
-                "Vídeo requer login. Use cookies do navegador ou tente outro URL."
-            ));
-        }
-
         if attempt < max_attempts - 1 {
+            // aria2c fallback: if aria2c caused the failure, retry without it
+            if use_aria2c
+                && (stderr_lower.contains("aria2")
+                    || stderr_lower.contains("external downloader"))
+            {
+                use_aria2c = false;
+                tracing::warn!("[yt-dlp] aria2c failed, retrying with native downloader");
+            }
+
             if stderr_lower.contains("http error 429") {
                 let wait_secs = 10 * 2u64.pow(attempt as u32);
                 tracing::warn!("[yt-dlp] rate limited (429), waiting {}s", wait_secs);
@@ -678,12 +728,21 @@ pub async fn download_video(
 
             if (stderr_lower.contains("could not") && stderr_lower.contains("cookie"))
                 || stderr_lower.contains("cookies-from-browser")
+                || stderr_lower.contains("failed to decrypt")
+                || stderr_lower.contains("keyring")
             {
                 if use_browser_cookies {
                     use_browser_cookies = false;
                     tracing::warn!(
                         "[yt-dlp] cookies-from-browser failed, retrying without"
                     );
+                }
+            }
+
+            if stderr_lower.contains("sign in") || stderr_lower.contains("login required") {
+                if !use_browser_cookies && browser_cookies.is_some() {
+                    use_browser_cookies = true;
+                    tracing::warn!("[yt-dlp] login required, enabling cookies-from-browser");
                 }
             }
 
@@ -781,13 +840,38 @@ fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
     {
         return anyhow!("FFmpeg não encontrado. Instale o FFmpeg para baixar este formato.");
     }
-
-    let trimmed = stderr.trim();
-    if trimmed.len() > 200 {
-        anyhow!("yt-dlp falhou: {}...", &trimmed[..200])
-    } else {
-        anyhow!("yt-dlp falhou: {}", trimmed)
+    if lower.contains("unsupported url") || lower.contains("no suitable infojson") {
+        return anyhow!("URL não suportada. Verifique se o link está correto.");
     }
+    if lower.contains("unable to download") && lower.contains("webpage") {
+        return anyhow!("Falha ao acessar a página. Verifique o link e sua conexão.");
+    }
+    if lower.contains("is not a valid url") || lower.contains("no video formats") {
+        return anyhow!("Nenhum formato de vídeo encontrado neste link.");
+    }
+
+    let last_error_line = stderr
+        .lines()
+        .rev()
+        .find(|l| {
+            let t = l.trim().to_lowercase();
+            t.starts_with("error:") || t.starts_with("error ")
+        })
+        .unwrap_or("")
+        .trim();
+
+    let msg = if !last_error_line.is_empty() {
+        last_error_line
+            .strip_prefix("ERROR: ")
+            .or_else(|| last_error_line.strip_prefix("ERROR:"))
+            .or_else(|| last_error_line.strip_prefix("error: "))
+            .unwrap_or(last_error_line)
+    } else {
+        let trimmed = stderr.trim();
+        if trimmed.len() > 300 { &trimmed[..300] } else { trimmed }
+    };
+
+    anyhow!("yt-dlp: {}", msg)
 }
 
 fn parse_progress_line(line: &str) -> Option<f64> {
