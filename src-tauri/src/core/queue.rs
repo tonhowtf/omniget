@@ -332,6 +332,18 @@ impl ProgressThrottle {
     }
 }
 
+#[derive(Clone, Serialize)]
+pub struct QueueItemProgress {
+    pub id: u64,
+    pub title: String,
+    pub platform: String,
+    pub percent: f64,
+    pub speed_bytes_per_sec: f64,
+    pub downloaded_bytes: u64,
+    pub total_bytes: Option<u64>,
+    pub eta_seconds: Option<f64>,
+}
+
 pub fn emit_queue_state(app: &tauri::AppHandle, queue: &DownloadQueue) {
     let state = queue.get_state();
     let _ = app.emit("queue-state-update", &state);
@@ -425,6 +437,8 @@ async fn spawn_download_inner(
     };
 
     let total_bytes = info.file_size_bytes;
+    let item_title = info.title.clone();
+    let item_platform = platform_name.clone();
     let (tx, mut rx) = mpsc::channel::<f64>(32);
 
     let app_progress = app.clone();
@@ -433,7 +447,7 @@ async fn spawn_download_inner(
         let start_time = std::time::Instant::now();
         let mut last_bytes: u64 = 0;
         let mut last_time = std::time::Instant::now();
-        let mut throttle = ProgressThrottle::new(150);
+        let mut throttle = ProgressThrottle::new(250);
         let mut current_speed: f64 = 0.0;
 
         while let Some(percent) = rx.recv().await {
@@ -473,7 +487,7 @@ async fn spawn_download_inner(
             last_bytes = downloaded_bytes;
             last_time = now;
 
-            let (state, active_count) = {
+            {
                 let mut q = queue_progress.lock().await;
                 q.update_progress(
                     item_id,
@@ -483,10 +497,18 @@ async fn spawn_download_inner(
                     total_bytes,
                     eta_seconds,
                 );
-                (q.get_state(), q.active_count())
-            };
-            let _ = app_progress.emit("queue-state-update", &state);
-            crate::tray::update_active_count(&app_progress, active_count);
+            }
+
+            let _ = app_progress.emit("queue-item-progress", &QueueItemProgress {
+                id: item_id,
+                title: item_title.clone(),
+                platform: item_platform.clone(),
+                percent,
+                speed_bytes_per_sec: current_speed,
+                downloaded_bytes,
+                total_bytes,
+                eta_seconds,
+            });
         }
     });
 
