@@ -21,6 +21,7 @@ pub struct AppState {
     pub hotmart_session: Arc<tokio::sync::Mutex<Option<HotmartSession>>>,
     pub active_downloads: Arc<tokio::sync::Mutex<HashMap<u64, CancellationToken>>>,
     pub active_generic_downloads: Arc<tokio::sync::Mutex<HashMap<u64, (String, CancellationToken)>>>,
+    pub active_conversions: Arc<tokio::sync::Mutex<HashMap<u64, CancellationToken>>>,
     pub registry: core::registry::PlatformRegistry,
     pub courses_cache: Arc<tokio::sync::Mutex<Option<CoursesCache>>>,
     pub session_validated_at: Arc<tokio::sync::Mutex<Option<std::time::Instant>>>,
@@ -79,6 +80,7 @@ pub fn run() {
         hotmart_session: session,
         active_downloads: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         active_generic_downloads: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+        active_conversions: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         registry,
         courses_cache: Arc::new(tokio::sync::Mutex::new(None)),
         session_validated_at: Arc::new(tokio::sync::Mutex::new(None)),
@@ -132,6 +134,10 @@ pub fn run() {
             commands::telegram::telegram_download_media,
             commands::telegram::telegram_download_batch,
             commands::telegram::telegram_cancel_batch,
+            commands::convert::probe_file,
+            commands::convert::convert_file,
+            commands::convert::cancel_conversion,
+            commands::convert::get_hwaccel_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
