@@ -173,6 +173,7 @@ impl PlatformDownloader for VimeoDownloader {
             opts.referer.as_deref(),
             opts.cancel_token.clone(),
             None,
+            opts.concurrent_fragments,
         )
         .await
     }
