@@ -4,6 +4,7 @@ pub mod hls_downloader;
 pub mod direct_downloader;
 pub mod redirect;
 pub mod ffmpeg;
+pub mod hwaccel;
 pub mod filename;
 pub mod url_parser;
 pub mod ytdlp;
