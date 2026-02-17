@@ -29,6 +29,8 @@ pub struct DownloadSettings {
     pub embed_metadata: bool,
     #[serde(default = "default_true")]
     pub embed_thumbnail: bool,
+    #[serde(default)]
+    pub clipboard_detection: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,6 +81,7 @@ impl Default for AppSettings {
                 download_descriptions: true,
                 embed_metadata: true,
                 embed_thumbnail: true,
+                clipboard_detection: false,
             },
             advanced: AdvancedSettings {
                 max_concurrent_segments: 20,
