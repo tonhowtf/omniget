@@ -7,6 +7,8 @@ pub struct AppSettings {
     pub appearance: AppearanceSettings,
     pub download: DownloadSettings,
     pub advanced: AdvancedSettings,
+    #[serde(default)]
+    pub telegram: TelegramSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +33,21 @@ pub struct AdvancedSettings {
     pub max_retries: u32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelegramSettings {
+    pub concurrent_downloads: u32,
+    pub fix_file_extensions: bool,
+}
+
+impl Default for TelegramSettings {
+    fn default() -> Self {
+        Self {
+            concurrent_downloads: 3,
+            fix_file_extensions: true,
+        }
+    }
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -51,6 +68,7 @@ impl Default for AppSettings {
                 max_concurrent_segments: 20,
                 max_retries: 3,
             },
+            telegram: TelegramSettings::default(),
         }
     }
 }
