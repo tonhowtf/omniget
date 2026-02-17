@@ -38,7 +38,8 @@
     "download_started": "Download started: {{name}}",
     "download_complete": "Download complete: {{name}}",
     "download_error": "Download failed: {{name}}",
-    "download_cancelled": "Download cancelled"
+    "download_cancelled": "Download cancelled",
+    "clipboard_url_detected": "URL detected in clipboard"
   },
   "hotmart": {
     "title": "Hotmart",
@@ -158,7 +159,9 @@
       "embed_metadata": "Embed metadata",
       "embed_metadata_desc": "Write title and artist info into downloaded files",
       "embed_thumbnail": "Embed thumbnail as cover",
-      "embed_thumbnail_desc": "Embed album art into audio files"
+      "embed_thumbnail_desc": "Embed album art into audio files",
+      "clipboard_detection": "Clipboard detection",
+      "clipboard_detection_desc": "Auto-detect URLs copied to clipboard"
     },
     "update_available": "OmniGet {{version}} is available",
     "update_button": "update now",
