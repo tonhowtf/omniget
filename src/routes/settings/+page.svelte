@@ -196,6 +196,40 @@
             <span class="toggle-knob"></span>
           </button>
         </div>
+        <div class="divider"></div>
+        <div class="setting-row">
+          <div class="setting-col">
+            <span class="setting-label">{$t('settings.download.embed_metadata')}</span>
+            <span class="setting-path">{$t('settings.download.embed_metadata_desc')}</span>
+          </div>
+          <button
+            class="toggle"
+            class:on={settings.download.embed_metadata}
+            onclick={() => toggleBool("download", "embed_metadata", settings!.download.embed_metadata)}
+            role="switch"
+            aria-checked={settings.download.embed_metadata}
+            aria-label={$t('settings.download.embed_metadata')}
+          >
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+        <div class="divider"></div>
+        <div class="setting-row">
+          <div class="setting-col">
+            <span class="setting-label">{$t('settings.download.embed_thumbnail')}</span>
+            <span class="setting-path">{$t('settings.download.embed_thumbnail_desc')}</span>
+          </div>
+          <button
+            class="toggle"
+            class:on={settings.download.embed_thumbnail}
+            onclick={() => toggleBool("download", "embed_thumbnail", settings!.download.embed_thumbnail)}
+            role="switch"
+            aria-checked={settings.download.embed_thumbnail}
+            aria-label={$t('settings.download.embed_thumbnail')}
+          >
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
       </div>
     </section>
 
