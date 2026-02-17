@@ -584,6 +584,7 @@ impl PlatformDownloader for InstagramDownloader {
                         format: format.to_string(),
                     }],
                     media_type,
+                    file_size_bytes: None,
                 })
             }
             InstagramMedia::Carousel { items } => {
@@ -610,6 +611,7 @@ impl PlatformDownloader for InstagramDownloader {
                     thumbnail_url: None,
                     available_qualities: qualities,
                     media_type: MediaType::Carousel,
+                    file_size_bytes: None,
                 })
             }
         }
