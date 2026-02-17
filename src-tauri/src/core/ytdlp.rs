@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::{Arc, Mutex};
 
 use anyhow::anyhow;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -108,8 +109,8 @@ async fn check_ytdlp_freshness(path: &Path) {
     if let Ok(meta) = tokio::fs::metadata(path).await {
         if let Ok(modified) = meta.modified() {
             if let Ok(age) = modified.elapsed() {
-                if age > std::time::Duration::from_secs(30 * 24 * 60 * 60) {
-                    tracing::info!("yt-dlp is older than 30 days, updating in background");
+                if age > std::time::Duration::from_secs(7 * 24 * 60 * 60) {
+                    tracing::info!("yt-dlp is older than 7 days, updating in background");
                     tokio::spawn(async {
                         match download_ytdlp_binary().await {
                             Ok(_) => tracing::info!("yt-dlp updated successfully"),
@@ -220,6 +221,45 @@ pub struct PlaylistEntry {
     pub duration: Option<f64>,
 }
 
+/// Parse `[download] Destination: <path>` or `[Merger] Merging formats into "<path>"` lines.
+fn parse_destination_line(line: &str) -> Option<String> {
+    let line = line.trim();
+
+    if let Some(rest) = line.strip_prefix("[download] Destination:") {
+        let path = rest.trim();
+        if !path.is_empty() {
+            return Some(path.to_string());
+        }
+    }
+
+    if let Some(rest) = line.strip_prefix("[Merger] Merging formats into \"") {
+        let path = rest.trim_end_matches('"');
+        if !path.is_empty() {
+            return Some(path.to_string());
+        }
+    }
+
+    None
+}
+
+/// Write cookies in Netscape cookie file format for yt-dlp --cookies.
+pub async fn write_netscape_cookie_file(
+    cookies: &[(String, String)],
+    domain: &str,
+    path: &Path,
+) -> anyhow::Result<()> {
+    let mut content = String::from("# Netscape HTTP Cookie File\n");
+    for (name, value) in cookies {
+        // domain, include_subdomains, path, secure, expiry, name, value
+        content.push_str(&format!(
+            "{}\tTRUE\t/\tTRUE\t0\t{}\t{}\n",
+            domain, name, value
+        ));
+    }
+    tokio::fs::write(path, content).await?;
+    Ok(())
+}
+
 pub async fn download_video(
     ytdlp: &Path,
     url: &str,
@@ -231,6 +271,7 @@ pub async fn download_video(
     filename_template: Option<&str>,
     referer: Option<&str>,
     cancel_token: CancellationToken,
+    cookie_file: Option<&Path>,
 ) -> anyhow::Result<DownloadResult> {
     let mode = download_mode.unwrap_or("auto");
 
@@ -276,6 +317,11 @@ pub async fn download_video(
         base_args.push(ref_url.to_string());
         base_args.push("--add-headers".to_string());
         base_args.push(format!("Referer:{}", ref_url));
+    }
+
+    if let Some(cf) = cookie_file {
+        base_args.push("--cookies".to_string());
+        base_args.push(cf.to_string_lossy().to_string());
     }
 
     base_args.extend([
@@ -332,10 +378,17 @@ pub async fn download_video(
         let mut lines = reader.lines();
 
         let progress_tx = progress.clone();
+        let captured_path: Arc<Mutex<Option<PathBuf>>> = Arc::new(Mutex::new(None));
+        let captured_path_writer = captured_path.clone();
+
         let line_reader = tokio::spawn(async move {
             while let Ok(Some(line)) = lines.next_line().await {
                 if let Some(pct) = parse_progress_line(&line) {
                     let _ = progress_tx.send(pct).await;
+                }
+                if let Some(dest) = parse_destination_line(&line) {
+                    let mut guard = captured_path_writer.lock().unwrap();
+                    *guard = Some(PathBuf::from(dest));
                 }
             }
         });
@@ -367,7 +420,18 @@ pub async fn download_video(
 
         if status.success() {
             let _ = progress.send(100.0).await;
-            let file_path = find_downloaded_file(output_dir, url).await?;
+
+            // Prefer captured path from stdout, fallback to find_downloaded_file
+            let file_path = {
+                let guard = captured_path.lock().unwrap();
+                guard.clone()
+            };
+
+            let file_path = match file_path {
+                Some(p) if p.exists() => p,
+                _ => find_downloaded_file(output_dir, url).await?,
+            };
+
             let meta = tokio::fs::metadata(&file_path).await?;
             return Ok(DownloadResult {
                 file_path,
@@ -385,8 +449,9 @@ pub async fn download_video(
 
         if attempt < max_attempts - 1 {
             if stderr_lower.contains("http error 429") {
-                tracing::warn!("yt-dlp rate limited (429), waiting 10s before retry");
-                tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                let wait_secs = 10 * 2u64.pow(attempt as u32);
+                tracing::warn!("yt-dlp rate limited (429), waiting {}s before retry", wait_secs);
+                tokio::time::sleep(std::time::Duration::from_secs(wait_secs)).await;
             }
 
             if stderr_lower.contains("nsig extraction failed") || stderr_lower.contains("nsig") {
