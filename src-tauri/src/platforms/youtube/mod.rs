@@ -152,13 +152,14 @@ impl YouTubeDownloader {
         }
 
         Ok(MediaInfo {
-            title: format!("youtube_{}", video_id),
-            author: format!("{} - {}", title, author),
+            title,
+            author,
             platform: "youtube".to_string(),
             duration_seconds: duration,
             thumbnail_url: thumbnail,
             available_qualities: qualities,
             media_type: MediaType::Video,
+            file_size_bytes: None,
         })
     }
 }
@@ -219,6 +220,7 @@ impl PlatformDownloader for YouTubeDownloader {
                 thumbnail_url: None,
                 available_qualities: qualities,
                 media_type: MediaType::Playlist,
+                file_size_bytes: None,
             });
         }
 
