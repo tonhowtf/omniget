@@ -332,6 +332,7 @@ impl ProgressThrottle {
 pub fn emit_queue_state(app: &tauri::AppHandle, queue: &DownloadQueue) {
     let state = queue.get_state();
     let _ = app.emit("queue-state-update", &state);
+    crate::tray::update_active_count(app, queue.active_count());
 }
 
 pub fn spawn_download(
