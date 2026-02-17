@@ -40,12 +40,17 @@ pub async fn detect_platform(url: String) -> Result<PlatformInfo, String> {
                 content_type: parsed.map(|p| format!("{:?}", p.content_type).to_lowercase()),
             })
         }
-        None => Ok(PlatformInfo {
-            platform: "unknown".to_string(),
-            supported: false,
-            content_id: None,
-            content_type: None,
-        }),
+        None => {
+            let is_valid_url = url::Url::parse(&url)
+                .map(|u| u.scheme() == "http" || u.scheme() == "https")
+                .unwrap_or(false);
+            Ok(PlatformInfo {
+                platform: if is_valid_url { "generic".to_string() } else { "unknown".to_string() },
+                supported: is_valid_url,
+                content_id: None,
+                content_type: None,
+            })
+        }
     }
 }
 
@@ -79,8 +84,7 @@ pub async fn download_from_url(
     format_id: Option<String>,
     referer: Option<String>,
 ) -> Result<DownloadStarted, String> {
-    let platform = Platform::from_url(&url)
-        .ok_or_else(|| "Plataforma não reconhecida".to_string())?;
+    let platform = Platform::from_url(&url);
 
     let download_id = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -101,7 +105,7 @@ pub async fn download_from_url(
     let downloader = state
         .registry
         .find_platform(&url)
-        .ok_or_else(|| format!("Nenhum downloader registrado para {}", platform))?;
+        .ok_or_else(|| "Nenhum downloader disponível para esta URL".to_string())?;
 
     let info = match downloader.get_media_info(&url).await {
         Ok(info) => info,
@@ -111,7 +115,9 @@ pub async fn download_from_url(
     };
 
     let title = info.title.clone();
-    let platform_name = platform.to_string();
+    let platform_name = platform
+        .map(|p| p.to_string())
+        .unwrap_or_else(|| info.platform.clone());
     let total_bytes = info.file_size_bytes;
     let file_count = if info.media_type == crate::models::media::MediaType::Carousel
         || info.media_type == crate::models::media::MediaType::Playlist
