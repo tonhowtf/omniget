@@ -198,13 +198,23 @@ pub async fn download_video(
     output_dir: &Path,
     quality_height: Option<u32>,
     progress: mpsc::Sender<f64>,
+    download_mode: Option<&str>,
 ) -> anyhow::Result<DownloadResult> {
-    let format_selector = match quality_height {
-        Some(h) if h > 0 => format!(
-            "bv*[height<={}]+ba/b[height<={}]/bv*+ba/b",
-            h, h
-        ),
-        _ => "bv*+ba/b".to_string(),
+    let mode = download_mode.unwrap_or("auto");
+
+    let format_selector = match mode {
+        "audio" => "ba/b".to_string(),
+        "mute" => match quality_height {
+            Some(h) if h > 0 => format!("bv*[height<={}]/bv*/b", h),
+            _ => "bv*/b".to_string(),
+        },
+        _ => match quality_height {
+            Some(h) if h > 0 => format!(
+                "bv*[height<={}]+ba/b[height<={}]/bv*+ba/b",
+                h, h
+            ),
+            _ => "bv*+ba/b".to_string(),
+        },
     };
 
     let output_template = output_dir
@@ -214,20 +224,28 @@ pub async fn download_video(
 
     tokio::fs::create_dir_all(output_dir).await?;
 
+    let mut args = vec![
+        "-f".to_string(),
+        format_selector,
+    ];
+
+    if mode != "audio" {
+        args.push("--merge-output-format".to_string());
+        args.push("mp4".to_string());
+    }
+
+    args.extend([
+        "--no-playlist".to_string(),
+        "--newline".to_string(),
+        "--progress-template".to_string(),
+        "download:%(progress._percent_str)s".to_string(),
+        "-o".to_string(),
+        output_template,
+        url.to_string(),
+    ]);
+
     let mut child = tokio::process::Command::new(ytdlp)
-        .args([
-            "-f",
-            &format_selector,
-            "--merge-output-format",
-            "mp4",
-            "--no-playlist",
-            "--newline",
-            "--progress-template",
-            "download:%(progress._percent_str)s",
-            "-o",
-            &output_template,
-            url,
-        ])
+        .args(&args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
