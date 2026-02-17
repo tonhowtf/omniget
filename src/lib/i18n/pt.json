@@ -198,7 +198,11 @@
     }
   },
   "omnibox": {
-    "placeholder": "Cole uma URL para começar",
+    "placeholder": "Cole uma URL ou pesquise",
+    "search_placeholder": "Pesquisar vídeos...",
+    "searching": "Buscando...",
+    "search_empty": "Nenhum resultado encontrado",
+    "search_error": "Erro na busca",
     "detected": "{{platform}} detectada",
     "unsupported": "Plataforma não suportada ainda",
     "go_to_hotmart": "Ir para Hotmart",
