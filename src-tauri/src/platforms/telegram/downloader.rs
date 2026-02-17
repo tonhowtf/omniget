@@ -168,6 +168,7 @@ impl PlatformDownloader for TelegramDownloader {
                 format,
             }],
             media_type,
+            file_size_bytes: None,
         })
     }
 
