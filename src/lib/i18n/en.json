@@ -230,6 +230,11 @@
     "mode_audio": "Audio",
     "mode_mute": "Mute",
     "quality": "Quality",
+    "quality_best": "Best",
+    "quality_1080p": "1080p",
+    "quality_720p": "720p",
+    "quality_480p": "480p",
+    "quality_360p": "360p",
     "view_formats": "View formats",
     "best_va": "Best V+A",
     "best_audio": "Best Audio",
@@ -271,7 +276,7 @@
     "star_description": "if you enjoy the project, leave a star!",
     "version": "version",
     "features_title": "what we've built so far",
-    "feature_platforms": "downloads from 10+ platforms: YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Telegram",
+    "feature_platforms": "downloads from 20+ platforms: YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Telegram, SoundCloud, Facebook, Dailymotion, and more via yt-dlp",
     "feature_hotmart": "Hotmart course downloads with login (videos, attachments, descriptions)",
     "feature_progress": "real-time download progress with ETA and speed",
     "feature_mascot": "Loop, the mascot that reacts to your downloads",
@@ -288,6 +293,7 @@
     "roadmap_feature_telegram_media": "Telegram media downloads",
     "roadmap_feature_telegram_private": "private Telegram media downloads",
     "roadmap_feature_telegram_chat": "download all files from a chat",
+    "roadmap_feature_telegram_multi_account": "Telegram multiple accounts",
     "roadmap_community_title": "got an idea?",
     "roadmap_community_text": "we're accepting ideas and suggestions! it's a great way to request a new platform or feature.",
     "roadmap_community_discord": "reach out on discord:",
@@ -345,6 +351,7 @@
   "common": {
     "cancel": "Cancel",
     "retry": "Retry",
-    "close": "Close"
+    "close": "Close",
+    "error": "Error"
   }
 }
