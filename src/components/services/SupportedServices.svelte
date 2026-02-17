@@ -7,6 +7,9 @@
     "YouTube", "Instagram", "TikTok", "Twitter / X",
     "Reddit", "Twitch", "Pinterest", "Vimeo",
     "Bluesky", "Hotmart", "Telegram",
+    "SoundCloud", "Facebook", "Dailymotion", "Bilibili",
+    "Snapchat", "Tumblr", "Rutube", "VK",
+    "Streamable", "Loom", "Newgrounds", "Xiaohongshu",
   ];
 
   function toggle() {
