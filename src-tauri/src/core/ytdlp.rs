@@ -4,6 +4,7 @@ use std::process::Stdio;
 use anyhow::anyhow;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 use crate::models::media::{DownloadResult, FormatInfo};
 
@@ -229,6 +230,7 @@ pub async fn download_video(
     format_id: Option<&str>,
     filename_template: Option<&str>,
     referer: Option<&str>,
+    cancel_token: CancellationToken,
 ) -> anyhow::Result<DownloadResult> {
     let mode = download_mode.unwrap_or("auto");
 
@@ -299,6 +301,10 @@ pub async fn download_video(
     let mut last_error = String::new();
 
     for attempt in 0..max_attempts {
+        if cancel_token.is_cancelled() {
+            anyhow::bail!("Download cancelado");
+        }
+
         if attempt > 0 {
             let wait = backoff_secs[attempt.min(backoff_secs.len() - 1)];
             if wait > 0 {
@@ -345,10 +351,16 @@ pub async fn download_video(
             buf
         });
 
-        let status = child
-            .wait()
-            .await
-            .map_err(|e| anyhow!("yt-dlp processo falhou: {}", e))?;
+        let status = tokio::select! {
+            s = child.wait() => s.map_err(|e| anyhow!("yt-dlp processo falhou: {}", e))?,
+            _ = cancel_token.cancelled() => {
+                let _ = child.kill().await;
+                let _ = line_reader.await;
+                let _ = stderr_reader.await;
+                cleanup_part_files(output_dir).await;
+                anyhow::bail!("Download cancelado");
+            }
+        };
 
         let _ = line_reader.await;
         let stderr_content = stderr_reader.await.unwrap_or_default();
