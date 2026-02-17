@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use crate::platforms::Platform;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MediaInfo {
@@ -35,7 +36,7 @@ pub struct VideoQuality {
     pub format: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone)]
 pub struct DownloadOptions {
     pub quality: Option<String>,
     pub output_dir: PathBuf,
@@ -44,6 +45,7 @@ pub struct DownloadOptions {
     pub download_mode: Option<String>,
     pub format_id: Option<String>,
     pub referer: Option<String>,
+    pub cancel_token: CancellationToken,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
