@@ -5,6 +5,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::core::queue::{self, emit_queue_state, QueueItemInfo};
 use crate::core::url_parser;
+use crate::core::ytdlp;
+use crate::models::media::FormatInfo;
 use crate::platforms::Platform;
 use crate::platforms::hotmart::api::Course;
 use crate::platforms::hotmart::downloader::HotmartDownloader;
@@ -47,6 +49,19 @@ pub async fn detect_platform(url: String) -> Result<PlatformInfo, String> {
     }
 }
 
+#[tauri::command]
+pub async fn get_media_formats(url: String) -> Result<Vec<FormatInfo>, String> {
+    let ytdlp_path = ytdlp::ensure_ytdlp()
+        .await
+        .map_err(|e| format!("yt-dlp indisponível: {}", e))?;
+
+    let json = ytdlp::get_video_info(&ytdlp_path, &url)
+        .await
+        .map_err(|e| format!("Falha ao obter formatos: {}", e))?;
+
+    Ok(ytdlp::parse_formats(&json))
+}
+
 #[derive(Clone, Serialize)]
 pub struct DownloadStarted {
     pub id: u64,
@@ -61,6 +76,7 @@ pub async fn download_from_url(
     output_dir: String,
     download_mode: Option<String>,
     quality: Option<String>,
+    format_id: Option<String>,
 ) -> Result<DownloadStarted, String> {
     let platform = Platform::from_url(&url)
         .ok_or_else(|| "Plataforma não reconhecida".to_string())?;
@@ -114,6 +130,7 @@ pub async fn download_from_url(
             output_dir,
             download_mode,
             quality,
+            format_id,
             Some(info),
             total_bytes,
             file_count,
