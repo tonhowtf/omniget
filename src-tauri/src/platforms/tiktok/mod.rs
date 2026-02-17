@@ -333,6 +333,7 @@ impl PlatformDownloader for TikTokDownloader {
                 thumbnail_url: None,
                 available_qualities: qualities,
                 media_type,
+                file_size_bytes: None,
             });
         }
 
@@ -351,6 +352,7 @@ impl PlatformDownloader for TikTokDownloader {
                     format: "mp4".to_string(),
                 }],
                 media_type: MediaType::Video,
+                file_size_bytes: None,
             });
         }
 
@@ -369,6 +371,7 @@ impl PlatformDownloader for TikTokDownloader {
                     format: "mp3".to_string(),
                 }],
                 media_type: MediaType::Audio,
+                file_size_bytes: None,
             });
         }
 
