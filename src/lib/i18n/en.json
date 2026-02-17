@@ -162,6 +162,8 @@
       "embed_thumbnail_desc": "Embed album art into audio files",
       "clipboard_detection": "Clipboard detection",
       "clipboard_detection_desc": "Auto-detect URLs copied to clipboard",
+      "organize_by_platform": "Organize by platform",
+      "organize_by_platform_desc": "Save files in subfolders named after the platform",
       "filename_template": "Filename template",
       "filename_template_desc": "yt-dlp output template for downloaded files",
       "filename_template_preview": "Preview: {{preview}}"
