@@ -42,6 +42,24 @@ pub struct DownloadOptions {
     pub filename_template: Option<String>,
     pub download_subtitles: bool,
     pub download_mode: Option<String>,
+    pub format_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FormatInfo {
+    pub format_id: String,
+    pub ext: String,
+    pub resolution: Option<String>,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub fps: Option<f64>,
+    pub vcodec: Option<String>,
+    pub acodec: Option<String>,
+    pub filesize: Option<u64>,
+    pub tbr: Option<f64>,
+    pub has_video: bool,
+    pub has_audio: bool,
+    pub format_note: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
