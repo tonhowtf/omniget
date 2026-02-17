@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { open } from "@tauri-apps/plugin-dialog";
   import CourseCard from "$components/hotmart/CourseCard.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -26,6 +27,7 @@
   let password = $state("");
   let loading = $state(false);
   let error = $state("");
+  let captchaWarning = $state(false);
 
   let checking = $state(true);
   let loggedIn = $state(false);
@@ -73,6 +75,10 @@
 
   $effect(() => {
     checkSession();
+    const unlisten = listen("hotmart-auth-captcha", () => {
+      captchaWarning = true;
+    });
+    return () => { unlisten.then((fn) => fn()); };
   });
 
   async function checkSession() {
@@ -90,6 +96,7 @@
 
   async function handleLogin() {
     error = "";
+    captchaWarning = false;
     loading = true;
     try {
       const result = await invoke<string>("hotmart_login", { email, password });
@@ -325,6 +332,10 @@
           <p class="error-msg">{error}</p>
         {/if}
 
+        {#if captchaWarning}
+          <p class="captcha-warning">{$t('hotmart.captcha_detected')}</p>
+        {/if}
+
         <button type="submit" class="button" disabled={loading}>
           {#if loading}
             {$t('hotmart.authenticating')}
@@ -523,6 +534,12 @@
 
   .error-msg {
     color: var(--red);
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+
+  .captcha-warning {
+    color: var(--orange);
     font-size: 12.5px;
     font-weight: 500;
   }
