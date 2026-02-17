@@ -473,6 +473,7 @@ impl PlatformDownloader for TwitterDownloader {
                         format: item.extension,
                     }],
                     media_type,
+                    file_size_bytes: None,
                 })
             }
             TwitterMedia::Multiple(items) => {
@@ -506,6 +507,7 @@ impl PlatformDownloader for TwitterDownloader {
                     thumbnail_url: None,
                     available_qualities: qualities,
                     media_type,
+                    file_size_bytes: None,
                 })
             }
         }
