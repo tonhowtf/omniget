@@ -171,6 +171,7 @@ impl PlatformDownloader for VimeoDownloader {
             opts.format_id.as_deref(),
             opts.filename_template.as_deref(),
             opts.referer.as_deref(),
+            opts.cancel_token.clone(),
         )
         .await
     }
