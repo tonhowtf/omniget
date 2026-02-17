@@ -3,6 +3,7 @@ use tauri::Emitter;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
+use crate::core::queue::{self, emit_queue_state, QueueItemInfo};
 use crate::core::url_parser;
 use crate::platforms::Platform;
 use crate::platforms::hotmart::api::Course;
@@ -26,9 +27,7 @@ pub struct PlatformInfo {
 }
 
 #[tauri::command]
-pub async fn detect_platform(
-    url: String,
-) -> Result<PlatformInfo, String> {
+pub async fn detect_platform(url: String) -> Result<PlatformInfo, String> {
     match Platform::from_url(&url) {
         Some(platform) => {
             let parsed = url_parser::parse_url(&url);
@@ -54,30 +53,6 @@ pub struct DownloadStarted {
     pub title: String,
 }
 
-#[derive(Clone, Serialize)]
-struct GenericDownloadProgress {
-    id: u64,
-    title: String,
-    platform: String,
-    percent: f64,
-    speed_bytes_per_sec: f64,
-    downloaded_bytes: u64,
-    total_bytes: Option<u64>,
-    eta_seconds: Option<f64>,
-}
-
-#[derive(Clone, Serialize)]
-struct GenericDownloadComplete {
-    id: u64,
-    title: String,
-    platform: String,
-    success: bool,
-    error: Option<String>,
-    file_path: Option<String>,
-    file_size_bytes: Option<u64>,
-    file_count: Option<u32>,
-}
-
 #[tauri::command]
 pub async fn download_from_url(
     app: tauri::AppHandle,
@@ -95,207 +70,218 @@ pub async fn download_from_url(
         .unwrap_or_default()
         .as_millis() as u64;
 
-    let cancel_token = CancellationToken::new();
+    let download_queue = state.download_queue.clone();
 
     {
-        let active = state.active_generic_downloads.lock().await;
-        if active.values().any(|(u, _)| u == &url) {
+        let settings = config::load_settings(&app);
+        let mut q = download_queue.lock().await;
+        q.max_concurrent = settings.advanced.max_concurrent_downloads.max(1);
+        if q.has_url(&url) {
             return Err("Download já em andamento para esta URL".to_string());
         }
     }
 
-    {
-        let mut active = state.active_generic_downloads.lock().await;
-        active.insert(download_id, (url.clone(), cancel_token.clone()));
-    }
-
-    let active_downloads = state.active_generic_downloads.clone();
-    let cleanup = {
-        let active_downloads = active_downloads.clone();
-        move || async move {
-            active_downloads.lock().await.remove(&download_id);
-        }
-    };
-
-    let downloader = match state.registry.find_platform(&url) {
-        Some(d) => d,
-        None => {
-            cleanup().await;
-            return Err(format!("Nenhum downloader registrado para {}", platform));
-        }
-    };
-
-    let settings = config::load_settings(&app);
-    let platform_name = platform.to_string();
+    let downloader = state
+        .registry
+        .find_platform(&url)
+        .ok_or_else(|| format!("Nenhum downloader registrado para {}", platform))?;
 
     let info = match downloader.get_media_info(&url).await {
         Ok(info) => info,
         Err(e) => {
-            cleanup().await;
             return Err(format!("Erro ao obter informações: {}", e));
         }
     };
 
     let title = info.title.clone();
-    let return_title = title.clone();
+    let platform_name = platform.to_string();
+    let total_bytes = info.file_size_bytes;
     let file_count = if info.media_type == crate::models::media::MediaType::Carousel
         || info.media_type == crate::models::media::MediaType::Playlist
     {
-        info.available_qualities.len() as u32
+        Some(info.available_qualities.len() as u32)
     } else {
-        1
+        Some(1)
     };
 
-    tokio::spawn(async move {
-        let opts = crate::models::media::DownloadOptions {
-            quality: Some(quality.unwrap_or(settings.download.video_quality.clone())),
-            output_dir: std::path::PathBuf::from(&output_dir),
-            filename_template: None,
-            download_subtitles: false,
+    {
+        let mut q = download_queue.lock().await;
+        q.enqueue(
+            download_id,
+            url,
+            platform_name,
+            title.clone(),
+            output_dir,
             download_mode,
-        };
-
-        let total_bytes = info.file_size_bytes;
-
-        let _ = app.emit("generic-download-progress", &GenericDownloadProgress {
-            id: download_id,
-            title: title.clone(),
-            platform: platform_name.clone(),
-            percent: 0.0,
-            speed_bytes_per_sec: 0.0,
-            downloaded_bytes: 0,
+            quality,
+            Some(info),
             total_bytes,
-            eta_seconds: None,
-        });
+            file_count,
+            downloader,
+        );
 
-        let (tx, mut rx) = mpsc::channel::<f64>(32);
+        let next_ids = q.next_queued_ids();
+        for nid in &next_ids {
+            q.mark_active(*nid);
+        }
+        emit_queue_state(&app, &q);
+    }
 
-        let app_progress = app.clone();
-        let title_progress = title.clone();
-        let platform_progress = platform_name.clone();
-        let progress_forwarder = tokio::spawn(async move {
-            let start_time = std::time::Instant::now();
-            let mut last_bytes: u64 = 0;
-            let mut last_time = std::time::Instant::now();
-            let mut last_emit = std::time::Instant::now();
-            let mut current_speed: f64 = 0.0;
-
-            while let Some(percent) = rx.recv().await {
-                let now = std::time::Instant::now();
-
-                if now.duration_since(last_emit) < std::time::Duration::from_millis(150)
-                    && percent < 100.0
-                {
-                    continue;
-                }
-
-                let downloaded_bytes = total_bytes
-                    .map(|total| (percent / 100.0 * total as f64) as u64)
-                    .unwrap_or(0);
-
-                if total_bytes.is_some() && downloaded_bytes > last_bytes {
-                    let dt = now.duration_since(last_time).as_secs_f64();
-                    if dt > 0.1 {
-                        let instant_speed = (downloaded_bytes - last_bytes) as f64 / dt;
-                        current_speed = if current_speed > 0.0 {
-                            current_speed * 0.7 + instant_speed * 0.3
-                        } else {
-                            instant_speed
-                        };
-                    }
-                }
-
-                let elapsed = now.duration_since(start_time).as_secs_f64();
-                let eta_seconds = if percent > 0.0 && elapsed > 2.0 {
-                    let remaining = elapsed * (100.0 - percent) / percent;
-                    if remaining.is_finite() && remaining >= 0.0 {
-                        Some(remaining)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                };
-
-                last_bytes = downloaded_bytes;
-                last_time = now;
-                last_emit = now;
-
-                let _ = app_progress.emit(
-                    "generic-download-progress",
-                    &GenericDownloadProgress {
-                        id: download_id,
-                        title: title_progress.clone(),
-                        platform: platform_progress.clone(),
-                        percent,
-                        speed_bytes_per_sec: current_speed,
-                        downloaded_bytes,
-                        total_bytes,
-                        eta_seconds,
-                    },
-                );
-            }
-        });
-
-        let result = tokio::select! {
-            r = downloader.download(&info, &opts, tx) => r,
-            _ = cancel_token.cancelled() => {
-                Err(anyhow::anyhow!("Download cancelado"))
-            }
+    let q_clone = download_queue.clone();
+    let app_clone = app.clone();
+    tokio::spawn(async move {
+        let ids_to_start = {
+            let q = q_clone.lock().await;
+            q.items
+                .iter()
+                .filter(|i| i.status == queue::QueueStatus::Active)
+                .filter(|i| i.id == download_id)
+                .map(|i| i.id)
+                .collect::<Vec<_>>()
         };
 
-        let _ = progress_forwarder.await;
+        let stagger = {
+            let q = q_clone.lock().await;
+            q.stagger_delay_ms
+        };
 
-        {
-            active_downloads.lock().await.remove(&download_id);
-        }
-
-        match result {
-            Ok(dl) => {
-                let _ = app.emit("generic-download-complete", &GenericDownloadComplete {
-                    id: download_id,
-                    title: title.clone(),
-                    platform: platform_name,
-                    success: true,
-                    error: None,
-                    file_path: Some(dl.file_path.to_string_lossy().to_string()),
-                    file_size_bytes: Some(dl.file_size_bytes),
-                    file_count: Some(file_count),
-                });
+        for (i, nid) in ids_to_start.into_iter().enumerate() {
+            if i > 0 && stagger > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(stagger)).await;
             }
-            Err(e) => {
-                let err_msg = e.to_string();
-                tracing::error!("Erro no download de '{}': {}", title, err_msg);
-                let _ = app.emit("generic-download-complete", &GenericDownloadComplete {
-                    id: download_id,
-                    title: title.clone(),
-                    platform: platform_name,
-                    success: false,
-                    error: Some(err_msg),
-                    file_path: None,
-                    file_size_bytes: None,
-                    file_count: None,
-                });
-            }
+            let a = app_clone.clone();
+            let qc = q_clone.clone();
+            tokio::spawn(async move {
+                queue::spawn_download(a, qc, nid).await;
+            });
         }
     });
 
-    Ok(DownloadStarted { id: download_id, title: return_title })
+    Ok(DownloadStarted {
+        id: download_id,
+        title,
+    })
 }
 
 #[tauri::command]
 pub async fn cancel_generic_download(
+    app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
-    let mut map = state.active_generic_downloads.lock().await;
-    match map.remove(&download_id) {
-        Some((_, token)) => {
-            token.cancel();
-            Ok("Download cancelado".to_string())
-        }
-        None => Err("Nenhum download ativo para este ID".to_string()),
+    let mut q = state.download_queue.lock().await;
+    if q.cancel(download_id) {
+        emit_queue_state(&app, &q);
+        drop(q);
+        queue::try_start_next(app, state.download_queue.clone()).await;
+        Ok("Download cancelado".to_string())
+    } else {
+        Err("Nenhum download ativo para este ID".to_string())
     }
+}
+
+#[tauri::command]
+pub async fn pause_download(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    download_id: u64,
+) -> Result<String, String> {
+    let mut q = state.download_queue.lock().await;
+    if q.pause(download_id) {
+        emit_queue_state(&app, &q);
+        drop(q);
+        queue::try_start_next(app, state.download_queue.clone()).await;
+        Ok("Download pausado".to_string())
+    } else {
+        Err("Download não pode ser pausado".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn resume_download(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    download_id: u64,
+) -> Result<String, String> {
+    let mut q = state.download_queue.lock().await;
+    if q.resume(download_id) {
+        emit_queue_state(&app, &q);
+        drop(q);
+        queue::try_start_next(app, state.download_queue.clone()).await;
+        Ok("Download retomado".to_string())
+    } else {
+        Err("Download não pode ser retomado".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn retry_download(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    download_id: u64,
+) -> Result<String, String> {
+    let mut q = state.download_queue.lock().await;
+    if q.retry(download_id) {
+        emit_queue_state(&app, &q);
+        drop(q);
+        queue::try_start_next(app, state.download_queue.clone()).await;
+        Ok("Download reenfileirado".to_string())
+    } else {
+        Err("Download não pode ser retentado".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn remove_download(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    download_id: u64,
+) -> Result<String, String> {
+    let mut q = state.download_queue.lock().await;
+    if q.remove(download_id) {
+        emit_queue_state(&app, &q);
+        drop(q);
+        queue::try_start_next(app, state.download_queue.clone()).await;
+        Ok("Download removido".to_string())
+    } else {
+        Err("Download não encontrado".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn get_queue_state(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<QueueItemInfo>, String> {
+    let q = state.download_queue.lock().await;
+    Ok(q.get_state())
+}
+
+#[tauri::command]
+pub async fn update_max_concurrent(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    max: u32,
+) -> Result<String, String> {
+    if max < 1 || max > 10 {
+        return Err("Valor deve ser entre 1 e 10".to_string());
+    }
+    let mut q = state.download_queue.lock().await;
+    q.max_concurrent = max;
+    emit_queue_state(&app, &q);
+    drop(q);
+    queue::try_start_next(app, state.download_queue.clone()).await;
+    Ok(format!("Max concurrent set to {}", max))
+}
+
+#[tauri::command]
+pub async fn clear_finished_downloads(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    let mut q = state.download_queue.lock().await;
+    q.clear_finished();
+    emit_queue_state(&app, &q);
+    Ok("Finalizados removidos".to_string())
 }
 
 #[tauri::command]
