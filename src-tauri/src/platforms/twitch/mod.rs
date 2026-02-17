@@ -13,12 +13,10 @@ const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 const TOKEN_HASH: &str = "36b89d2507fce29e5ca551df756d27c1cfe079e2609642b4390aa4c35796eb11";
 
 struct ClipMetadata {
-    id: String,
     title: String,
     duration_seconds: f64,
     thumbnail_url: Option<String>,
     broadcaster_login: Option<String>,
-    curator_login: Option<String>,
     video_qualities: Vec<ClipQuality>,
 }
 
@@ -93,11 +91,6 @@ impl TwitchClipsDownloader {
             return Err(anyhow!("Clip não encontrado: {}", slug));
         }
 
-        let id = clip.get("id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow!("Clip sem ID"))?
-            .to_string();
-
         let title = clip.get("title")
             .and_then(|v| v.as_str())
             .unwrap_or("Untitled")
@@ -115,10 +108,6 @@ impl TwitchClipsDownloader {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        let curator_login = clip.pointer("/curator/login")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-
         let video_qualities = clip.get("videoQualities")
             .and_then(|v| v.as_array())
             .map(|arr| {
@@ -133,12 +122,10 @@ impl TwitchClipsDownloader {
             .unwrap_or_default();
 
         Ok(ClipMetadata {
-            id,
             title,
             duration_seconds,
             thumbnail_url,
             broadcaster_login,
-            curator_login,
             video_qualities,
         })
     }
@@ -237,12 +224,6 @@ impl PlatformDownloader for TwitchClipsDownloader {
         let token = self.fetch_access_token(&slug).await?;
 
         let clip_title = clip.title.trim().to_string();
-        let author = match clip.curator_login.as_deref() {
-            Some(curator) if !curator.is_empty() => {
-                format!("{} - @{}, clipped by @{}", clip_title, broadcaster, curator)
-            }
-            _ => format!("{} - @{}", clip_title, broadcaster),
-        };
 
         let available_qualities: Vec<VideoQuality> = clip
             .video_qualities
@@ -261,13 +242,14 @@ impl PlatformDownloader for TwitchClipsDownloader {
             .collect();
 
         Ok(MediaInfo {
-            title: format!("twitchclip_{}", clip.id),
-            author,
+            title: sanitize_filename::sanitize(&clip_title),
+            author: broadcaster.to_string(),
             platform: "twitch".to_string(),
             duration_seconds: Some(clip.duration_seconds),
             thumbnail_url: clip.thumbnail_url,
             available_qualities,
             media_type: MediaType::Video,
+            file_size_bytes: None,
         })
     }
 
