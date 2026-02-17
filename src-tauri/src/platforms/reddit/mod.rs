@@ -386,6 +386,7 @@ impl PlatformDownloader for RedditDownloader {
                     thumbnail_url: None,
                     available_qualities: qualities,
                     media_type: MediaType::Video,
+                    file_size_bytes: None,
                 })
             }
             RedditMedia::Gif { url: gif_url } => Ok(MediaInfo {
@@ -402,6 +403,7 @@ impl PlatformDownloader for RedditDownloader {
                     format: "gif".to_string(),
                 }],
                 media_type: MediaType::Gif,
+                file_size_bytes: None,
             }),
             RedditMedia::Image { url: image_url } => {
                 let ext = if image_url.ends_with(".png") {
@@ -423,6 +425,7 @@ impl PlatformDownloader for RedditDownloader {
                         format: ext.to_string(),
                     }],
                     media_type: MediaType::Photo,
+                    file_size_bytes: None,
                 })
             }
             RedditMedia::Gallery { items } => {
@@ -446,6 +449,7 @@ impl PlatformDownloader for RedditDownloader {
                     thumbnail_url: None,
                     available_qualities: qualities,
                     media_type: MediaType::Carousel,
+                    file_size_bytes: None,
                 })
             }
         }
