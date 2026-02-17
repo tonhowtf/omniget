@@ -60,6 +60,41 @@
     <rect x="2" y="4" width="20" height="16" rx="4" />
     <path d="M10 9l5 3l-5 3z" />
   </svg>
+{:else if platform === "soundcloud"}
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2 17l.5-5 .5 5M5 17l.5-8 .5 8M8 17l.5-10 .5 10M11 17l.5-7 .5 7" />
+    <path d="M14 17V7a3 3 0 0 1 3-3c2 0 4 1 5 3v10H14z" />
+  </svg>
+{:else if platform === "facebook"}
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+  </svg>
+{:else if platform === "dailymotion"}
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 4v7" />
+    <circle cx="14" cy="14" r="5" />
+    <path d="M4 4v2" />
+  </svg>
+{:else if platform === "bilibili"}
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="6" width="18" height="14" rx="3" />
+    <path d="M8 6l-2-3M16 6l2-3" />
+    <circle cx="9" cy="13" r="1" fill="currentColor" stroke="none" />
+    <circle cx="15" cy="13" r="1" fill="currentColor" stroke="none" />
+  </svg>
+{:else if platform === "snapchat"}
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3c-3 0-5 2.5-5 6v1c-1 0-2 .5-2 1s1 1 2 1c-1 2-3 3-3 3h16s-2-1-3-3c1 0 2-.5 2-1s-1-1-2-1v-1c0-3.5-2-6-5-6z" />
+  </svg>
+{:else if platform === "tumblr"}
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 21h-4a3 3 0 0 1-3-3v-5H5V9a4 4 0 0 0 4-4V3h4v5h3v5h-3v4a1 1 0 0 0 1 1h3v3z" />
+  </svg>
+{:else if platform === "vk"}
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2 8h3l3 8 3-8h3" />
+    <path d="M18 8v4c0 3-1 4-2 5l3 3" />
+  </svg>
 {:else if platform === "generic"}
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M9 15l6 -6" />
