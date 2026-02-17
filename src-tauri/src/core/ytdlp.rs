@@ -506,9 +506,8 @@ pub async fn download_video(
         base_args.push(loc.clone());
     }
 
-    // Concurrent fragment downloads (-N) — biggest speed factor
     let effective_fragments = if is_youtube_url(url) {
-        concurrent_fragments.min(4) // conservative for YouTube to avoid 429
+        concurrent_fragments.min(4)
     } else {
         concurrent_fragments
     };
@@ -516,16 +515,13 @@ pub async fn download_video(
     base_args.push(effective_fragments.to_string());
 
     if is_youtube_url(url) {
-        // Prefer ios client for downloads (less throttling)
         base_args.push("--extractor-args".to_string());
-        base_args.push("youtube:player_client=ios,web".to_string());
+        base_args.push("youtube:player_client=web,default".to_string());
 
-        // Detect throttled streams and switch to non-throttled format
         base_args.push("--throttled-rate".to_string());
         base_args.push("100K".to_string());
     }
 
-    // Larger buffers for better throughput
     base_args.extend([
         "--buffer-size".to_string(),
         "1M".to_string(),
@@ -533,7 +529,6 @@ pub async fn download_video(
         "10M".to_string(),
     ]);
 
-    // aria2c external downloader (not for audio-only or when cookies are active)
     let aria2c_path = crate::core::dependencies::ensure_aria2c().await;
     let mut use_aria2c = aria2c_path.is_some()
         && mode != "audio"
@@ -592,7 +587,6 @@ pub async fn download_video(
             }
         }
 
-        // aria2c external downloader (skip when browser cookies active)
         if use_aria2c && !use_browser_cookies {
             if let Some(ref a2_path) = aria2c_path {
                 args.push("--downloader".to_string());
@@ -684,7 +678,6 @@ pub async fn download_video(
         let stderr_lower = last_error.to_lowercase();
 
         if attempt < max_attempts - 1 {
-            // aria2c fallback: if aria2c caused the failure, retry without it
             if use_aria2c
                 && (stderr_lower.contains("aria2")
                     || stderr_lower.contains("external downloader"))
