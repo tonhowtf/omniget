@@ -13,6 +13,8 @@ export type AppSettings = {
     skip_existing: boolean;
     download_attachments: boolean;
     download_descriptions: boolean;
+    embed_metadata: boolean;
+    embed_thumbnail: boolean;
   };
   advanced: {
     max_concurrent_segments: number;
