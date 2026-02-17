@@ -47,6 +47,9 @@ grammers-client = "0.8"
 grammers-session = "0.8"
 grammers-tl-types = "0.8"
 grammers-mtsender = "0.8"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+os_info = "3"
+sys-locale = "0.3"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-process = "2.3.1"
