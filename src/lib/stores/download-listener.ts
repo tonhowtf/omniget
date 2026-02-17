@@ -4,8 +4,7 @@ import { t } from "$lib/i18n";
 import {
   upsertProgress,
   markComplete,
-  upsertGenericProgress,
-  markGenericComplete,
+  syncQueueState,
 } from "./download-store.svelte";
 import { showToast } from "./toast-store.svelte";
 
@@ -28,23 +27,17 @@ type CompletePayload = {
   error: string | null;
 };
 
-type GenericProgressPayload = {
+type QueueItemInfo = {
   id: number;
-  title: string;
+  url: string;
   platform: string;
+  title: string;
+  status: { type: string; data?: unknown };
   percent: number;
   speed_bytes_per_sec: number;
   downloaded_bytes: number;
   total_bytes: number | null;
   eta_seconds: number | null;
-};
-
-type GenericCompletePayload = {
-  id: number;
-  title: string;
-  platform: string;
-  success: boolean;
-  error: string | null;
   file_path: string | null;
   file_size_bytes: number | null;
   file_count: number | null;
@@ -66,7 +59,6 @@ export function onBatchFileStatus(cb: BatchFileStatusCallback | null) {
 }
 
 const seenCourseIds = new Set<number>();
-const seenGenericIds = new Set<number>();
 
 export async function initDownloadListener(): Promise<() => void> {
   const unlistenProgress = await listen<ProgressPayload>("download-progress", (event) => {
@@ -106,35 +98,10 @@ export async function initDownloadListener(): Promise<() => void> {
     }
   });
 
-  const unlistenGenericProgress = await listen<GenericProgressPayload>(
-    "generic-download-progress",
+  const unlistenQueueState = await listen<QueueItemInfo[]>(
+    "queue-state-update",
     (event) => {
-      const d = event.payload;
-
-      if (!seenGenericIds.has(d.id)) {
-        seenGenericIds.add(d.id);
-        const tr = get(t);
-        showToast("info", tr("toast.download_started", { name: d.title }));
-      }
-
-      upsertGenericProgress(d.id, d.title, d.platform, d.percent, d.speed_bytes_per_sec, d.downloaded_bytes, d.total_bytes, d.eta_seconds);
-    },
-  );
-
-  const unlistenGenericComplete = await listen<GenericCompletePayload>(
-    "generic-download-complete",
-    (event) => {
-      const d = event.payload;
-      markGenericComplete(d.id, d.success, d.error ?? undefined, d.file_path ?? undefined, d.file_count ?? undefined, d.file_size_bytes);
-
-      const tr = get(t);
-      if (d.success) {
-        showToast("success", tr("toast.download_complete", { name: d.title }));
-      } else {
-        let msg = tr("toast.download_error", { name: d.title });
-        if (d.error) msg += ` — ${d.error}`;
-        showToast("error", msg);
-      }
+      syncQueueState(event.payload);
     },
   );
 
@@ -150,8 +117,7 @@ export async function initDownloadListener(): Promise<() => void> {
   return () => {
     unlistenProgress();
     unlistenComplete();
-    unlistenGenericProgress();
-    unlistenGenericComplete();
+    unlistenQueueState();
     unlistenBatchFileStatus();
   };
 }
