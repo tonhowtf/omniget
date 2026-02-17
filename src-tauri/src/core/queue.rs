@@ -5,6 +5,7 @@ use tauri::Emitter;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
+use crate::core::ffmpeg::{self, MetadataEmbed};
 use crate::models::media::MediaInfo;
 use crate::platforms::traits::PlatformDownloader;
 use crate::storage::config;
@@ -501,6 +502,29 @@ async fn spawn_download_inner(
 
         match result {
             Ok(dl) => {
+                drop(q);
+
+                if settings.download.embed_metadata && ffmpeg::is_ffmpeg_available().await {
+                    let metadata = MetadataEmbed {
+                        title: Some(info.title.clone()),
+                        artist: Some(info.author.clone()),
+                        thumbnail_url: info.thumbnail_url.clone(),
+                        ..Default::default()
+                    };
+                    let client = reqwest::Client::new();
+                    if let Err(e) = ffmpeg::embed_metadata(
+                        &dl.file_path,
+                        &metadata,
+                        settings.download.embed_thumbnail,
+                        &client,
+                    )
+                    .await
+                    {
+                        tracing::warn!("Metadata embed failed for '{}': {}", info.title, e);
+                    }
+                }
+
+                let mut q = queue.lock().await;
                 q.mark_complete(
                     item_id,
                     true,
@@ -508,15 +532,15 @@ async fn spawn_download_inner(
                     Some(dl.file_path.to_string_lossy().to_string()),
                     Some(dl.file_size_bytes),
                 );
+                emit_queue_state(&app, &q);
             }
             Err(e) => {
                 let err_msg = e.to_string();
                 tracing::error!("Download error '{}': {}", platform_name, err_msg);
                 q.mark_complete(item_id, false, Some(err_msg), None, None);
+                emit_queue_state(&app, &q);
             }
         }
-
-        emit_queue_state(&app, &q);
     }
 
     try_start_next(app, queue).await;
