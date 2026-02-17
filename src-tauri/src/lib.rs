@@ -25,6 +25,7 @@ pub struct AppState {
     pub courses_cache: Arc<tokio::sync::Mutex<Option<CoursesCache>>>,
     pub session_validated_at: Arc<tokio::sync::Mutex<Option<std::time::Instant>>>,
     pub telegram_session: TelegramSessionHandle,
+    pub download_queue: Arc<tokio::sync::Mutex<core::queue::DownloadQueue>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -82,6 +83,7 @@ pub fn run() {
         courses_cache: Arc::new(tokio::sync::Mutex::new(None)),
         session_validated_at: Arc::new(tokio::sync::Mutex::new(None)),
         telegram_session,
+        download_queue: Arc::new(tokio::sync::Mutex::new(core::queue::DownloadQueue::new(2))),
     };
 
     tauri::Builder::default()
@@ -106,6 +108,13 @@ pub fn run() {
             commands::downloads::detect_platform,
             commands::downloads::download_from_url,
             commands::downloads::cancel_generic_download,
+            commands::downloads::pause_download,
+            commands::downloads::resume_download,
+            commands::downloads::retry_download,
+            commands::downloads::remove_download,
+            commands::downloads::get_queue_state,
+            commands::downloads::update_max_concurrent,
+            commands::downloads::clear_finished_downloads,
             commands::downloads::reveal_file,
             commands::settings::get_settings,
             commands::settings::update_settings,
