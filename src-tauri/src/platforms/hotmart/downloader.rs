@@ -114,7 +114,7 @@ impl HotmartDownloader {
         session: &HotmartSession,
         lesson: &Lesson,
         output_dir: &str,
-        _referer: &str,
+        referer: &str,
         bytes_tx: tokio::sync::mpsc::UnboundedSender<u64>,
         cancel_token: &CancellationToken,
     ) -> anyhow::Result<Vec<PathBuf>> {
@@ -150,17 +150,19 @@ impl HotmartDownloader {
                         let _ = tokio::fs::remove_file(done_path(&out)).await;
                     }
 
-                    match MediaProcessor::download_hls(
+                    let hls_result = retry_hls_download(
                         &m3u8_url,
                         &out,
                         "https://cf-embed.play.hotmart.com/",
                         Some(bytes_tx.clone()),
-                        cancel_token.clone(),
+                        cancel_token,
                         self.max_concurrent_segments,
                         self.max_retries,
+                        3,
                     )
-                    .await
-                    {
+                    .await;
+
+                    match hls_result {
                         Ok(hls_result) => {
                             let _ = write_done_manifest(&out, hls_result.file_size, hls_result.segments).await;
                             results.push(hls_result.path);
@@ -227,8 +229,46 @@ impl HotmartDownloader {
                 let out = format!("{}/{}. Aula.mp4", output_dir, i + 1);
 
                 match player {
-                    DetectedPlayer::Vimeo { .. } => {
-                        continue;
+                    DetectedPlayer::Vimeo { embed_url } => {
+                        if tokio::fs::try_exists(&out).await.unwrap_or(false) {
+                            let meta = tokio::fs::metadata(&out).await;
+                            if meta.map(|m| m.len() > 0).unwrap_or(false) {
+                                continue;
+                            }
+                        }
+
+                        match crate::core::ytdlp::ensure_ytdlp().await {
+                            Ok(ytdlp_path) => {
+                                let out_dir = std::path::Path::new(&out).parent()
+                                    .unwrap_or(std::path::Path::new("."));
+                                let (vtx, _vrx) = mpsc::channel(8);
+                                match crate::core::ytdlp::download_video(
+                                    &ytdlp_path,
+                                    embed_url,
+                                    out_dir,
+                                    None,
+                                    vtx,
+                                    None,
+                                    None,
+                                    None,
+                                    Some(referer),
+                                ).await {
+                                    Ok(result) => {
+                                        let _ = bytes_tx.send(result.file_size_bytes);
+                                        results.push(result.file_path);
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("[download] Falha Vimeo: {}", e);
+                                        cleanup_part_files(out_dir).await;
+                                        continue;
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                tracing::error!("[download] yt-dlp indisponível para Vimeo: {}", e);
+                                continue;
+                            }
+                        }
                     }
                     DetectedPlayer::PandaVideo { m3u8_url, .. } => {
                         if is_hls_file_valid(&out).await {
@@ -246,7 +286,7 @@ impl HotmartDownloader {
                             .unwrap_or("")
                             .to_string()
                             + "com.br";
-                        match MediaProcessor::download_hls(m3u8_url, &out, &panda_referer, Some(bytes_tx.clone()), cancel_token.clone(), self.max_concurrent_segments, self.max_retries).await {
+                        match retry_hls_download(m3u8_url, &out, &panda_referer, Some(bytes_tx.clone()), cancel_token, self.max_concurrent_segments, self.max_retries, 3).await {
                             Ok(hls_result) => {
                                 let _ = write_done_manifest(&out, hls_result.file_size, hls_result.segments).await;
                                 results.push(hls_result.path);
@@ -284,6 +324,7 @@ impl HotmartDownloader {
                                     None,
                                     None,
                                     None,
+                                    None,
                                 ).await {
                                     Ok(result) => {
                                         let _ = bytes_tx.send(result.file_size_bytes);
@@ -291,6 +332,7 @@ impl HotmartDownloader {
                                     }
                                     Err(e) => {
                                         tracing::error!("[download] Falha YouTube: {}", e);
+                                        cleanup_part_files(out_dir).await;
                                         continue;
                                     }
                                 }
@@ -506,6 +548,77 @@ impl HotmartDownloader {
         }
 
         Ok(())
+    }
+}
+
+async fn retry_hls_download(
+    m3u8_url: &str,
+    output_path: &str,
+    referer: &str,
+    bytes_tx: Option<tokio::sync::mpsc::UnboundedSender<u64>>,
+    cancel_token: &CancellationToken,
+    max_concurrent_segments: u32,
+    max_retries: u32,
+    max_attempts: u32,
+) -> anyhow::Result<crate::core::hls_downloader::HlsDownloadResult> {
+    let mut last_err = None;
+    for attempt in 0..max_attempts {
+        if cancel_token.is_cancelled() {
+            anyhow::bail!("Download cancelado pelo usuário");
+        }
+        match MediaProcessor::download_hls(
+            m3u8_url,
+            output_path,
+            referer,
+            bytes_tx.clone(),
+            cancel_token.clone(),
+            max_concurrent_segments,
+            max_retries,
+        )
+        .await
+        {
+            Ok(result) => {
+                let meta = tokio::fs::metadata(output_path).await;
+                if meta.map(|m| m.len() > 0).unwrap_or(false) {
+                    return Ok(result);
+                }
+                last_err = Some(anyhow!("Arquivo de saída vazio após download HLS"));
+            }
+            Err(e) => {
+                if cancel_token.is_cancelled() {
+                    return Err(e);
+                }
+                last_err = Some(e);
+            }
+        }
+        if attempt < max_attempts - 1 {
+            let _ = tokio::fs::remove_file(output_path).await;
+            let backoff = std::time::Duration::from_secs(2u64.pow(attempt));
+            tracing::warn!(
+                "[hls-retry] Tentativa {}/{} falhou para '{}', retentando em {:?}",
+                attempt + 1,
+                max_attempts,
+                output_path,
+                backoff
+            );
+            tokio::time::sleep(backoff).await;
+        }
+    }
+    Err(last_err.unwrap_or_else(|| anyhow!("HLS download falhou após {} tentativas", max_attempts)))
+}
+
+async fn cleanup_part_files(dir: &std::path::Path) {
+    let mut entries = match tokio::fs::read_dir(dir).await {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let path = entry.path();
+        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+            if name.ends_with(".part") || name.ends_with(".ytdl") {
+                let _ = tokio::fs::remove_file(&path).await;
+            }
+        }
     }
 }
 
