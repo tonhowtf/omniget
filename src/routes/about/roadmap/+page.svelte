@@ -14,16 +14,6 @@
 <section class="card">
   <h5 class="card-title">{$t('about.roadmap_platforms_title')}</h5>
   <div class="checklist">
-    <div class="check-item done"><span class="checkbox">✓</span> YouTube</div>
-    <div class="check-item done"><span class="checkbox">✓</span> Instagram</div>
-    <div class="check-item done"><span class="checkbox">✓</span> TikTok</div>
-    <div class="check-item done"><span class="checkbox">✓</span> Twitter / X</div>
-    <div class="check-item done"><span class="checkbox">✓</span> Reddit</div>
-    <div class="check-item done"><span class="checkbox">✓</span> Twitch</div>
-    <div class="check-item done"><span class="checkbox">✓</span> Pinterest</div>
-    <div class="check-item done"><span class="checkbox">✓</span> Bluesky</div>
-    <div class="check-item done"><span class="checkbox">✓</span> Hotmart</div>
-    <div class="check-item done"><span class="checkbox">✓</span> Telegram</div>
     <div class="check-item"><span class="checkbox"></span> Hubla</div>
     <div class="check-item"><span class="checkbox"></span> Kiwify</div>
     <div class="check-item"><span class="checkbox"></span> Udemy</div>
@@ -33,13 +23,8 @@
 <section class="card">
   <h5 class="card-title">{$t('about.roadmap_features_title')}</h5>
   <div class="checklist">
-    <div class="check-item done"><span class="checkbox">✓</span> {$t('about.roadmap_feature_themes')}</div>
-    <div class="check-item done"><span class="checkbox">✓</span> {$t('about.roadmap_feature_i18n')}</div>
-    <div class="check-item done"><span class="checkbox">✓</span> {$t('about.roadmap_feature_hotmart_login')}</div>
     <div class="check-item"><span class="checkbox"></span> {$t('about.roadmap_feature_instagram_login')}</div>
-    <div class="check-item done"><span class="checkbox">✓</span> {$t('about.roadmap_feature_telegram_media')}</div>
-    <div class="check-item done"><span class="checkbox">✓</span> {$t('about.roadmap_feature_telegram_private')}</div>
-    <div class="check-item done"><span class="checkbox">✓</span> {$t('about.roadmap_feature_telegram_chat')}</div>
+    <div class="check-item"><span class="checkbox"></span> {$t('about.roadmap_feature_telegram_multi_account')}</div>
   </div>
 </section>
 
@@ -105,10 +90,6 @@
     cursor: default;
   }
 
-  .check-item.done {
-    color: var(--secondary);
-  }
-
   .checkbox {
     width: 18px;
     height: 18px;
@@ -121,12 +102,6 @@
     flex-shrink: 0;
     border: 1.5px solid var(--input-border);
     color: transparent;
-  }
-
-  .check-item.done .checkbox {
-    background: var(--green);
-    border-color: var(--green);
-    color: #000;
   }
 
   .community-links {
