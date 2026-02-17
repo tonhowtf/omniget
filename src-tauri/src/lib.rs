@@ -120,6 +120,8 @@ pub fn run() {
             commands::telegram::telegram_list_chats,
             commands::telegram::telegram_list_media,
             commands::telegram::telegram_download_media,
+            commands::telegram::telegram_download_batch,
+            commands::telegram::telegram_cancel_batch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
