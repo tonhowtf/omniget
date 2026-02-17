@@ -373,6 +373,7 @@ pub async fn start_course_download(
             settings.download,
             settings.advanced.max_concurrent_segments,
             settings.advanced.max_retries,
+            settings.advanced.concurrent_fragments,
         );
         let (tx, mut rx) = mpsc::channel(32);
 
