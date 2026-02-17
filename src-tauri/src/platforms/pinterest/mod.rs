@@ -187,6 +187,7 @@ impl PlatformDownloader for PinterestDownloader {
                     format: "mp4".to_string(),
                 }],
                 media_type: MediaType::Video,
+                file_size_bytes: None,
             });
         }
 
@@ -208,6 +209,7 @@ impl PlatformDownloader for PinterestDownloader {
                     format: format.to_string(),
                 }],
                 media_type,
+                file_size_bytes: None,
             });
         }
 
