@@ -1,6 +1,8 @@
-use serde::Serialize;
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
 use tauri::Emitter;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Semaphore};
 use tokio_util::sync::CancellationToken;
 
 use crate::platforms::telegram::api::{self, TelegramChat, TelegramMediaItem};
@@ -258,4 +260,254 @@ pub async fn telegram_download_media(
     });
 
     Ok(TelegramDownloadStarted { id: download_id, file_name })
+}
+
+#[derive(Clone, Deserialize)]
+pub struct BatchItem {
+    pub message_id: i32,
+    pub file_name: String,
+    pub file_size: u64,
+}
+
+#[derive(Clone, Serialize)]
+struct BatchFileStatus {
+    batch_id: u64,
+    message_id: i32,
+    status: String, // "waiting" | "downloading" | "done" | "error" | "skipped"
+    percent: f64,
+    error: Option<String>,
+}
+
+#[tauri::command]
+pub async fn telegram_download_batch(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    chat_id: i64,
+    chat_type: String,
+    chat_title: String,
+    items: Vec<BatchItem>,
+    output_dir: String,
+) -> Result<u64, String> {
+    let batch_id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+
+    let cancel_token = CancellationToken::new();
+
+    {
+        let mut active = state.active_generic_downloads.lock().await;
+        let key = format!("tg-batch:{}", batch_id);
+        active.insert(batch_id, (key, cancel_token.clone()));
+    }
+
+    let session = state.telegram_session.clone();
+    let active_downloads = state.active_generic_downloads.clone();
+    let total_files = items.len() as u32;
+
+    // Emit initial 0% batch progress
+    let _ = app.emit("generic-download-progress", &GenericDownloadProgress {
+        id: batch_id,
+        title: chat_title.clone(),
+        platform: "telegram".to_string(),
+        percent: 0.0,
+    });
+
+    tokio::spawn(async move {
+        let semaphore = Arc::new(Semaphore::new(3));
+        let completed = Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let failed = Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let skipped = Arc::new(std::sync::atomic::AtomicU32::new(0));
+
+        let mut handles = Vec::new();
+
+        for item in items {
+            let sem = semaphore.clone();
+            let session = session.clone();
+            let app = app.clone();
+            let chat_type = chat_type.clone();
+            let chat_title = chat_title.clone();
+            let output_dir = output_dir.clone();
+            let cancel = cancel_token.clone();
+            let completed = completed.clone();
+            let failed = failed.clone();
+            let skipped = skipped.clone();
+
+            let handle = tokio::spawn(async move {
+                // Check cancellation before acquiring permit
+                if cancel.is_cancelled() {
+                    return;
+                }
+
+                let output_path = std::path::PathBuf::from(&output_dir).join(&item.file_name);
+
+                // Skip existing files
+                if let Ok(true) = tokio::fs::try_exists(&output_path).await {
+                    if let Ok(meta) = tokio::fs::metadata(&output_path).await {
+                        if meta.len() > 0 {
+                            skipped.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            let done = completed.load(std::sync::atomic::Ordering::Relaxed)
+                                + failed.load(std::sync::atomic::Ordering::Relaxed)
+                                + skipped.load(std::sync::atomic::Ordering::Relaxed);
+                            let percent = (done as f64 / total_files as f64) * 100.0;
+
+                            let _ = app.emit("telegram-batch-file-status", &BatchFileStatus {
+                                batch_id,
+                                message_id: item.message_id,
+                                status: "skipped".to_string(),
+                                percent: 100.0,
+                                error: None,
+                            });
+                            let _ = app.emit("generic-download-progress", &GenericDownloadProgress {
+                                id: batch_id,
+                                title: chat_title,
+                                platform: "telegram".to_string(),
+                                percent,
+                            });
+                            return;
+                        }
+                    }
+                }
+
+                // Acquire semaphore permit
+                let _permit = tokio::select! {
+                    p = sem.acquire() => match p {
+                        Ok(p) => p,
+                        Err(_) => return,
+                    },
+                    _ = cancel.cancelled() => return,
+                };
+
+                if cancel.is_cancelled() {
+                    return;
+                }
+
+                // Emit downloading status
+                let _ = app.emit("telegram-batch-file-status", &BatchFileStatus {
+                    batch_id,
+                    message_id: item.message_id,
+                    status: "downloading".to_string(),
+                    percent: 0.0,
+                    error: None,
+                });
+
+                let (tx, mut rx) = mpsc::channel::<f64>(32);
+
+                let app_progress = app.clone();
+                let progress_forwarder = tokio::spawn(async move {
+                    while let Some(percent) = rx.recv().await {
+                        let _ = app_progress.emit("telegram-batch-file-status", &BatchFileStatus {
+                            batch_id,
+                            message_id: item.message_id,
+                            status: "downloading".to_string(),
+                            percent,
+                            error: None,
+                        });
+                    }
+                });
+
+                let result = api::download_media_with_retry(
+                    &session,
+                    chat_id,
+                    &chat_type,
+                    item.message_id,
+                    &output_path,
+                    tx,
+                    &cancel,
+                ).await;
+
+                let _ = progress_forwarder.await;
+
+                match result {
+                    Ok(_) => {
+                        completed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let _ = app.emit("telegram-batch-file-status", &BatchFileStatus {
+                            batch_id,
+                            message_id: item.message_id,
+                            status: "done".to_string(),
+                            percent: 100.0,
+                            error: None,
+                        });
+                    }
+                    Err(e) => {
+                        let err_str = e.to_string();
+                        if err_str.contains("cancelled") {
+                            return;
+                        }
+                        failed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let _ = app.emit("telegram-batch-file-status", &BatchFileStatus {
+                            batch_id,
+                            message_id: item.message_id,
+                            status: "error".to_string(),
+                            percent: 0.0,
+                            error: Some(err_str),
+                        });
+                    }
+                }
+
+                let done = completed.load(std::sync::atomic::Ordering::Relaxed)
+                    + failed.load(std::sync::atomic::Ordering::Relaxed)
+                    + skipped.load(std::sync::atomic::Ordering::Relaxed);
+                let percent = (done as f64 / total_files as f64) * 100.0;
+
+                let _ = app.emit("generic-download-progress", &GenericDownloadProgress {
+                    id: batch_id,
+                    title: chat_title,
+                    platform: "telegram".to_string(),
+                    percent,
+                });
+            });
+
+            handles.push(handle);
+        }
+
+        // Wait for all file downloads to complete
+        for h in handles {
+            let _ = h.await;
+        }
+
+        // Clean up active download entry
+        {
+            active_downloads.lock().await.remove(&batch_id);
+        }
+
+        let done_count = completed.load(std::sync::atomic::Ordering::Relaxed);
+        let fail_count = failed.load(std::sync::atomic::Ordering::Relaxed);
+        let skip_count = skipped.load(std::sync::atomic::Ordering::Relaxed);
+        let success = fail_count == 0 && !cancel_token.is_cancelled();
+
+        let _ = app.emit("generic-download-complete", &GenericDownloadComplete {
+            id: batch_id,
+            title: chat_title,
+            platform: "telegram".to_string(),
+            success,
+            error: if cancel_token.is_cancelled() {
+                Some("Batch cancelled".to_string())
+            } else if fail_count > 0 {
+                Some(format!("{} files failed", fail_count))
+            } else {
+                None
+            },
+            file_path: Some(output_dir),
+            file_size_bytes: None,
+            file_count: Some(done_count + skip_count),
+        });
+    });
+
+    Ok(batch_id)
+}
+
+#[tauri::command]
+pub async fn telegram_cancel_batch(
+    state: tauri::State<'_, AppState>,
+    batch_id: u64,
+) -> Result<(), String> {
+    let active = state.active_generic_downloads.lock().await;
+    if let Some((key, token)) = active.get(&batch_id) {
+        if key.starts_with("tg-batch:") {
+            token.cancel();
+            return Ok(());
+        }
+    }
+    Err("Batch not found".to_string())
 }
