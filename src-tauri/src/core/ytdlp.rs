@@ -270,6 +270,8 @@ pub async fn download_video(
     }
 
     if let Some(ref_url) = referer {
+        base_args.push("--referer".to_string());
+        base_args.push(ref_url.to_string());
         base_args.push("--add-headers".to_string());
         base_args.push(format!("Referer:{}", ref_url));
     }
