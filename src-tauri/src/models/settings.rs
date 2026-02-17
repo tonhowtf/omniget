@@ -43,6 +43,12 @@ pub struct AdvancedSettings {
     pub max_retries: u32,
     #[serde(default = "default_max_concurrent_downloads")]
     pub max_concurrent_downloads: u32,
+    #[serde(default = "default_concurrent_fragments")]
+    pub concurrent_fragments: u32,
+}
+
+fn default_concurrent_fragments() -> u32 {
+    8
 }
 
 fn default_max_concurrent_downloads() -> u32 {
@@ -97,6 +103,7 @@ impl Default for AppSettings {
                 max_concurrent_segments: 20,
                 max_retries: 3,
                 max_concurrent_downloads: 2,
+                concurrent_fragments: 8,
             },
             telegram: TelegramSettings::default(),
         }
