@@ -180,6 +180,9 @@
     "error": "Download failed",
     "open_folder": "Open folder",
     "retry": "Retry",
+    "batch_detected": "{{count}} URLs detected",
+    "batch_download_all": "Download all",
+    "batch_queued": "{{count}} downloads added to queue",
     "content_type": {
       "video": "Video",
       "audio": "Audio",
