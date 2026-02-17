@@ -9,6 +9,7 @@ pub mod bluesky;
 pub mod reddit;
 pub mod youtube;
 pub mod telegram;
+pub mod vimeo;
 
 use std::fmt;
 use std::str::FromStr;
@@ -27,6 +28,7 @@ pub enum Platform {
     Pinterest,
     Bluesky,
     Telegram,
+    Vimeo,
 }
 
 impl fmt::Display for Platform {
@@ -42,6 +44,7 @@ impl fmt::Display for Platform {
             Platform::Pinterest => "pinterest",
             Platform::Bluesky => "bluesky",
             Platform::Telegram => "telegram",
+            Platform::Vimeo => "vimeo",
         };
         write!(f, "{}", name)
     }
@@ -62,6 +65,7 @@ impl FromStr for Platform {
             "pinterest" => Ok(Platform::Pinterest),
             "bluesky" | "bsky" => Ok(Platform::Bluesky),
             "telegram" | "tg" => Ok(Platform::Telegram),
+            "vimeo" => Ok(Platform::Vimeo),
             _ => Err(format!("Unknown platform: {}", s)),
         }
     }
@@ -96,6 +100,8 @@ impl Platform {
             Some(Platform::Bluesky)
         } else if host == "t.me" || matches("telegram.me") || matches("telegram.org") {
             Some(Platform::Telegram)
+        } else if matches("vimeo.com") {
+            Some(Platform::Vimeo)
         } else {
             None
         }
@@ -113,6 +119,7 @@ impl Platform {
             Platform::Pinterest,
             Platform::Bluesky,
             Platform::Telegram,
+            Platform::Vimeo,
         ]
     }
 }
