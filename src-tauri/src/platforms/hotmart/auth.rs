@@ -191,6 +191,9 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
             .arg("--disable-gpu")
             .arg("--no-sandbox")
             .arg("--disable-extensions")
+            .arg("--no-first-run")
+            .arg("--no-default-browser-check")
+            .arg("--disable-background-networking")
             .build()
             .map_err(|e| anyhow!("Falha ao configurar browser: {}", e))?,
     )
