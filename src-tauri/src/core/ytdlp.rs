@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::mpsc;
 
-use crate::models::media::DownloadResult;
+use crate::models::media::{DownloadResult, FormatInfo};
 
 pub async fn find_ytdlp() -> Option<PathBuf> {
     let bin_name = if cfg!(target_os = "windows") {
@@ -199,22 +199,27 @@ pub async fn download_video(
     quality_height: Option<u32>,
     progress: mpsc::Sender<f64>,
     download_mode: Option<&str>,
+    format_id: Option<&str>,
 ) -> anyhow::Result<DownloadResult> {
     let mode = download_mode.unwrap_or("auto");
 
-    let format_selector = match mode {
-        "audio" => "ba/b".to_string(),
-        "mute" => match quality_height {
-            Some(h) if h > 0 => format!("bv*[height<={}]/bv*/b", h),
-            _ => "bv*/b".to_string(),
-        },
-        _ => match quality_height {
-            Some(h) if h > 0 => format!(
-                "bv*[height<={}]+ba/b[height<={}]/bv*+ba/b",
-                h, h
-            ),
-            _ => "bv*+ba/b".to_string(),
-        },
+    let format_selector = if let Some(fid) = format_id {
+        fid.to_string()
+    } else {
+        match mode {
+            "audio" => "ba/b".to_string(),
+            "mute" => match quality_height {
+                Some(h) if h > 0 => format!("bv*[height<={}]/bv*/b", h),
+                _ => "bv*/b".to_string(),
+            },
+            _ => match quality_height {
+                Some(h) if h > 0 => format!(
+                    "bv*[height<={}]+ba/b[height<={}]/bv*+ba/b",
+                    h, h
+                ),
+                _ => "bv*+ba/b".to_string(),
+            },
+        }
     };
 
     let output_template = output_dir
@@ -229,7 +234,7 @@ pub async fn download_video(
         format_selector,
     ];
 
-    if mode != "audio" {
+    if format_id.is_none() && mode != "audio" {
         args.push("--merge-output-format".to_string());
         args.push("mp4".to_string());
     }
@@ -363,6 +368,59 @@ async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow::Result<Pa
 
     best.map(|(p, _)| p)
         .ok_or_else(|| anyhow!("Arquivo baixado não encontrado em {:?}", output_dir))
+}
+
+pub fn parse_formats(json: &serde_json::Value) -> Vec<FormatInfo> {
+    let formats = match json.get("formats").and_then(|v| v.as_array()) {
+        Some(f) => f,
+        None => return Vec::new(),
+    };
+
+    let mut result = Vec::new();
+    for f in formats {
+        let format_id = match f.get("format_id").and_then(|v| v.as_str()) {
+            Some(id) => id.to_string(),
+            None => continue,
+        };
+
+        let ext = f.get("ext").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let width = f.get("width").and_then(|v| v.as_u64()).map(|v| v as u32);
+        let height = f.get("height").and_then(|v| v.as_u64()).map(|v| v as u32);
+        let fps = f.get("fps").and_then(|v| v.as_f64());
+        let vcodec = f.get("vcodec").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let acodec = f.get("acodec").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let filesize = f.get("filesize")
+            .or_else(|| f.get("filesize_approx"))
+            .and_then(|v| v.as_u64());
+        let tbr = f.get("tbr").and_then(|v| v.as_f64());
+        let format_note = f.get("format_note").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+        let has_video = vcodec.as_deref().map(|v| v != "none").unwrap_or(false);
+        let has_audio = acodec.as_deref().map(|v| v != "none").unwrap_or(false);
+
+        let resolution = match (width, height) {
+            (Some(w), Some(h)) if w > 0 && h > 0 => Some(format!("{}x{}", w, h)),
+            _ => f.get("resolution").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        };
+
+        result.push(FormatInfo {
+            format_id,
+            ext,
+            resolution,
+            width,
+            height,
+            fps,
+            vcodec,
+            acodec,
+            filesize,
+            tbr,
+            has_video,
+            has_audio,
+            format_note,
+        });
+    }
+
+    result
 }
 
 fn extract_id_from_url(url: &str) -> Option<String> {
