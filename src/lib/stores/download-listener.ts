@@ -46,6 +46,21 @@ type GenericCompletePayload = {
   file_count: number | null;
 };
 
+export type BatchFileStatusPayload = {
+  batch_id: number;
+  message_id: number;
+  status: "waiting" | "downloading" | "done" | "error" | "skipped";
+  percent: number;
+  error: string | null;
+};
+
+type BatchFileStatusCallback = (payload: BatchFileStatusPayload) => void;
+let batchFileStatusCallback: BatchFileStatusCallback | null = null;
+
+export function onBatchFileStatus(cb: BatchFileStatusCallback | null) {
+  batchFileStatusCallback = cb;
+}
+
 const seenCourseIds = new Set<number>();
 const seenGenericIds = new Set<number>();
 
@@ -119,10 +134,20 @@ export async function initDownloadListener(): Promise<() => void> {
     },
   );
 
+  const unlistenBatchFileStatus = await listen<BatchFileStatusPayload>(
+    "telegram-batch-file-status",
+    (event) => {
+      if (batchFileStatusCallback) {
+        batchFileStatusCallback(event.payload);
+      }
+    },
+  );
+
   return () => {
     unlistenProgress();
     unlistenComplete();
     unlistenGenericProgress();
     unlistenGenericComplete();
+    unlistenBatchFileStatus();
   };
 }
