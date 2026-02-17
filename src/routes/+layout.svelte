@@ -8,6 +8,7 @@
   import Toast from "$components/toast/Toast.svelte";
   import { open } from "@tauri-apps/plugin-shell";
   import { refreshUpdateInfo } from "$lib/stores/update-store.svelte";
+  import { startClipboardMonitor, stopClipboardMonitor } from "$lib/stores/clipboard-monitor";
   import { t } from "$lib/i18n";
   import type { Snippet } from "svelte";
 
@@ -17,6 +18,18 @@
   }
 
   let activeCount = $derived(getActiveCount());
+  let settings = $derived(getSettings());
+
+  $effect(() => {
+    if (settings?.download.clipboard_detection) {
+      startClipboardMonitor();
+    } else {
+      stopClipboardMonitor();
+    }
+    return () => {
+      stopClipboardMonitor();
+    };
+  });
 
   let { children }: { children: Snippet } = $props();
 
