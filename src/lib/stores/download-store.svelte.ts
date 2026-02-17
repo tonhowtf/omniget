@@ -1,4 +1,4 @@
-export type DownloadStatus = "downloading" | "complete" | "error";
+export type DownloadStatus = "queued" | "downloading" | "paused" | "complete" | "error";
 
 type BaseItem = {
   id: number;
@@ -47,6 +47,22 @@ export function getActiveCount(): number {
   let count = 0;
   for (const item of downloads.values()) {
     if (item.status === "downloading") count++;
+  }
+  return count;
+}
+
+export function getQueuedCount(): number {
+  let count = 0;
+  for (const item of downloads.values()) {
+    if (item.status === "queued") count++;
+  }
+  return count;
+}
+
+export function getPausedCount(): number {
+  let count = 0;
+  for (const item of downloads.values()) {
+    if (item.status === "paused") count++;
   }
   return count;
 }
@@ -123,7 +139,7 @@ export function markComplete(courseName: string, success: boolean, error?: strin
 export function clearFinished() {
   let changed = false;
   for (const [id, item] of downloads) {
-    if (item.status !== "downloading") {
+    if (item.status === "complete" || item.status === "error") {
       downloads.delete(id);
       changed = true;
     }
@@ -136,9 +152,113 @@ export function clearFinished() {
 export function getFinishedCount(): number {
   let count = 0;
   for (const item of downloads.values()) {
-    if (item.status !== "downloading") count++;
+    if (item.status === "complete" || item.status === "error") count++;
   }
   return count;
+}
+
+type QueueItemInfo = {
+  id: number;
+  url: string;
+  platform: string;
+  title: string;
+  status: { type: string; data?: unknown };
+  percent: number;
+  speed_bytes_per_sec: number;
+  downloaded_bytes: number;
+  total_bytes: number | null;
+  eta_seconds: number | null;
+  file_path: string | null;
+  file_size_bytes: number | null;
+  file_count: number | null;
+};
+
+function queueStatusToDownloadStatus(status: { type: string; data?: unknown }): DownloadStatus {
+  switch (status.type) {
+    case "Queued": return "queued";
+    case "Active": return "downloading";
+    case "Paused": return "paused";
+    case "Complete": return "complete";
+    case "Error": return "error";
+    default: return "queued";
+  }
+}
+
+function extractError(status: { type: string; data?: unknown }): string | undefined {
+  if (status.type === "Error" && status.data && typeof status.data === "object" && "message" in (status.data as Record<string, unknown>)) {
+    return (status.data as { message: string }).message;
+  }
+  if (status.type === "Error" && typeof status.data === "string") {
+    return status.data;
+  }
+  return undefined;
+}
+
+export function syncQueueState(items: QueueItemInfo[]) {
+  const now = Date.now();
+  const queueIds = new Set(items.map(i => i.id));
+
+  for (const [id, item] of downloads) {
+    if (item.kind === "generic" && !queueIds.has(id)) {
+      downloads.delete(id);
+    }
+  }
+
+  for (const qi of items) {
+    const existing = downloads.get(qi.id);
+    const dlStatus = queueStatusToDownloadStatus(qi.status);
+
+    let speed = qi.speed_bytes_per_sec;
+    if (existing && existing.kind === "generic" && existing.speed > 0 && speed > 0) {
+      speed = existing.speed * (1 - SPEED_SMOOTHING) + qi.speed_bytes_per_sec * SPEED_SMOOTHING;
+    }
+
+    downloads.set(qi.id, {
+      kind: "generic",
+      id: qi.id,
+      name: qi.title,
+      platform: qi.platform,
+      percent: qi.percent,
+      speed: dlStatus === "downloading" ? speed : 0,
+      downloadedBytes: qi.downloaded_bytes,
+      totalBytes: qi.total_bytes,
+      etaSeconds: qi.eta_seconds,
+      status: dlStatus,
+      error: extractError(qi.status),
+      startedAt: existing?.startedAt ?? now,
+      lastUpdateAt: now,
+      filePath: qi.file_path ?? undefined,
+      fileCount: qi.file_count ?? undefined,
+    });
+  }
+
+  downloads = new Map(downloads);
+}
+
+export function removeDownload(id: number) {
+  if (downloads.has(id)) {
+    downloads.delete(id);
+    downloads = new Map(downloads);
+  }
+}
+
+export function markGenericComplete(id: number, success: boolean, error?: string, filePath?: string, fileCount?: number, totalBytes?: number | null) {
+  const item = downloads.get(id);
+  if (!item || item.kind !== "generic") return;
+
+  downloads.set(id, {
+    ...item,
+    percent: success ? 100 : item.percent,
+    status: (success ? "complete" : "error") as DownloadStatus,
+    error,
+    filePath,
+    fileCount,
+    totalBytes: totalBytes ?? item.totalBytes,
+    speed: 0,
+    etaSeconds: null,
+    lastUpdateAt: Date.now(),
+  });
+  downloads = new Map(downloads);
 }
 
 export function upsertGenericProgress(
@@ -172,32 +292,6 @@ export function upsertGenericProgress(
     status: "downloading",
     startedAt: existing?.startedAt ?? now,
     lastUpdateAt: now,
-  });
-  downloads = new Map(downloads);
-}
-
-export function removeDownload(id: number) {
-  if (downloads.has(id)) {
-    downloads.delete(id);
-    downloads = new Map(downloads);
-  }
-}
-
-export function markGenericComplete(id: number, success: boolean, error?: string, filePath?: string, fileCount?: number, totalBytes?: number | null) {
-  const item = downloads.get(id);
-  if (!item || item.kind !== "generic") return;
-
-  downloads.set(id, {
-    ...item,
-    percent: success ? 100 : item.percent,
-    status: (success ? "complete" : "error") as DownloadStatus,
-    error,
-    filePath,
-    fileCount,
-    totalBytes: totalBytes ?? item.totalBytes,
-    speed: 0,
-    etaSeconds: null,
-    lastUpdateAt: Date.now(),
   });
   downloads = new Map(downloads);
 }
