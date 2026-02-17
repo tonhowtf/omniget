@@ -11,10 +11,17 @@
     "title": "Downloads",
     "empty": "Nenhum download em andamento",
     "status": {
+      "queued": "Na fila",
       "downloading": "Baixando",
+      "paused": "Pausado",
       "complete": "Concluído",
       "error": "Erro"
     },
+    "section_queued": "Na fila",
+    "section_finished": "Concluídos",
+    "pause": "Pausar",
+    "resume": "Retomar",
+    "retry": "Tentar novamente",
     "page_progress": "Página {{current}}/{{total}}",
     "module_progress": "Módulo {{current}}/{{total}}",
     "eta_calculating": "Calculando...",
@@ -161,6 +168,8 @@
     },
     "advanced": {
       "title": "Avançado",
+      "max_concurrent_downloads": "Downloads simultâneos",
+      "max_concurrent_downloads_desc": "Máximo de downloads ao mesmo tempo",
       "max_concurrent_segments": "Segmentos simultâneos",
       "max_retries": "Tentativas por segmento",
       "reset": "Restaurar padrões",
