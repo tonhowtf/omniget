@@ -183,6 +183,10 @@
     "batch_detected": "{{count}} URLs detectadas",
     "batch_download_all": "Baixar todos",
     "batch_queued": "{{count}} downloads adicionados à fila",
+    "mode_auto": "Auto",
+    "mode_audio": "Áudio",
+    "mode_mute": "Mudo",
+    "quality": "Qualidade",
     "content_type": {
       "video": "Vídeo",
       "audio": "Áudio",
