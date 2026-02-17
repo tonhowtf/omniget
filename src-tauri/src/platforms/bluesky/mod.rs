@@ -174,6 +174,7 @@ impl PlatformDownloader for BlueskyDownloader {
                     format: "hls".to_string(),
                 }],
                 media_type: MediaType::Video,
+                file_size_bytes: None,
             }),
             BlueskyMedia::Images { urls } => {
                 let media_type = if urls.len() == 1 {
@@ -200,6 +201,7 @@ impl PlatformDownloader for BlueskyDownloader {
                     thumbnail_url: None,
                     available_qualities: qualities,
                     media_type,
+                    file_size_bytes: None,
                 })
             }
             BlueskyMedia::Gif { url: gif_url } => Ok(MediaInfo {
@@ -216,6 +218,7 @@ impl PlatformDownloader for BlueskyDownloader {
                     format: "gif".to_string(),
                 }],
                 media_type: MediaType::Gif,
+                file_size_bytes: None,
             }),
         }
     }
