@@ -3,6 +3,7 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { getSettings } from "$lib/stores/settings-store.svelte";
+  import { onBatchFileStatus, type BatchFileStatusPayload } from "$lib/stores/download-listener";
   import { t } from "$lib/i18n";
 
   type TelegramChat = {
@@ -23,6 +24,8 @@
     svg: string;
     expires: number;
   };
+
+  type FileStatus = "waiting" | "downloading" | "done" | "error" | "skipped";
 
   type View = "checking" | "qr" | "phone" | "code" | "password" | "chats" | "media";
 
@@ -51,6 +54,19 @@
   let loadingMedia = $state(false);
   let mediaError = $state("");
   let mediaFilter = $state("all");
+  let loadingMore = $state(false);
+  let hasMore = $state(true);
+
+  // Batch download state
+  let batchStatus: Map<number, { status: FileStatus; percent: number }> = $state(new Map());
+  let activeBatchId: number | null = $state(null);
+  let batchDone = $state(0);
+  let batchTotal = $state(0);
+
+  let isBatchActive = $derived(activeBatchId !== null);
+  let batchPercent = $derived(batchTotal > 0 ? (batchDone / batchTotal) * 100 : 0);
+
+  // Single-file downloading (kept for individual downloads)
   let downloadingIds: Set<number> = $state(new Set());
 
   let filteredChats = $derived(
@@ -63,10 +79,38 @@
 
   $effect(() => {
     checkSession();
+
+    onBatchFileStatus(handleBatchFileStatus);
+
     return () => {
       stopQrPolling();
+      onBatchFileStatus(null);
     };
   });
+
+  function handleBatchFileStatus(payload: BatchFileStatusPayload) {
+    if (payload.batch_id !== activeBatchId) return;
+
+    batchStatus.set(payload.message_id, {
+      status: payload.status,
+      percent: payload.percent,
+    });
+    batchStatus = new Map(batchStatus);
+
+    // Count completed items
+    let done = 0;
+    for (const [, entry] of batchStatus) {
+      if (entry.status === "done" || entry.status === "error" || entry.status === "skipped") {
+        done++;
+      }
+    }
+    batchDone = done;
+
+    // Batch finished
+    if (done >= batchTotal && batchTotal > 0) {
+      activeBatchId = null;
+    }
+  }
 
   function stopQrPolling() {
     if (qrPollTimer) {
@@ -243,6 +287,12 @@
     selectedChat = chat;
     mediaFilter = "all";
     view = "media";
+    batchStatus = new Map();
+    activeBatchId = null;
+    batchDone = 0;
+    batchTotal = 0;
+    downloadingIds = new Set();
+    hasMore = true;
     loadMedia();
   }
 
@@ -250,6 +300,11 @@
     selectedChat = null;
     mediaItems = [];
     mediaError = "";
+    batchStatus = new Map();
+    activeBatchId = null;
+    batchDone = 0;
+    batchTotal = 0;
+    downloadingIds = new Set();
     view = "chats";
   }
 
@@ -258,13 +313,15 @@
     loadingMedia = true;
     mediaError = "";
     try {
-      mediaItems = await invoke("telegram_list_media", {
+      const items: TelegramMediaItem[] = await invoke("telegram_list_media", {
         chatId: selectedChat.id,
         chatType: selectedChat.chat_type,
         mediaType: mediaFilter === "all" ? null : mediaFilter,
         offset: 0,
         limit: 100,
       });
+      mediaItems = items;
+      hasMore = items.length >= 100;
     } catch (e: any) {
       mediaError = typeof e === "string" ? e : e.message ?? $t("telegram.media_error");
     } finally {
@@ -272,13 +329,42 @@
     }
   }
 
+  async function loadMoreMedia() {
+    if (!selectedChat || loadingMore || !hasMore) return;
+    loadingMore = true;
+    try {
+      const lastId = mediaItems.length > 0 ? mediaItems[mediaItems.length - 1].message_id : 0;
+      const items: TelegramMediaItem[] = await invoke("telegram_list_media", {
+        chatId: selectedChat.id,
+        chatType: selectedChat.chat_type,
+        mediaType: mediaFilter === "all" ? null : mediaFilter,
+        offset: lastId,
+        limit: 100,
+      });
+      if (items.length > 0) {
+        mediaItems = [...mediaItems, ...items];
+      }
+      hasMore = items.length >= 100;
+    } catch (e: any) {
+      const msg = typeof e === "string" ? e : e.message ?? "Error";
+      showToast("error", msg);
+    } finally {
+      loadingMore = false;
+    }
+  }
+
   function changeFilter(filter: string) {
     mediaFilter = filter;
+    batchStatus = new Map();
+    activeBatchId = null;
+    batchDone = 0;
+    batchTotal = 0;
+    hasMore = true;
     loadMedia();
   }
 
   function formatSize(bytes: number): string {
-    if (bytes === 0) return "—";
+    if (bytes === 0) return "\u2014";
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -294,23 +380,22 @@
     return $t(key);
   }
 
+  async function resolveOutputDir(): Promise<string | null> {
+    const appSettings = getSettings();
+    if (appSettings?.download.always_ask_path) {
+      return (await open({ directory: true, title: $t("telegram.choose_folder") })) as string | null;
+    }
+    const defaultDir = appSettings?.download.default_output_dir ?? null;
+    if (defaultDir) return defaultDir;
+    return (await open({ directory: true, title: $t("telegram.choose_folder") })) as string | null;
+  }
+
   async function downloadItem(item: TelegramMediaItem) {
     if (!selectedChat) return;
     if (downloadingIds.has(item.message_id)) return;
 
-    const appSettings = getSettings();
-    let outputDir: string | null = null;
-
-    if (appSettings?.download.always_ask_path) {
-      outputDir = (await open({ directory: true, title: $t("telegram.choose_folder") })) as string | null;
-      if (!outputDir) return;
-    } else {
-      outputDir = appSettings?.download.default_output_dir ?? null;
-      if (!outputDir) {
-        outputDir = (await open({ directory: true, title: $t("telegram.choose_folder") })) as string | null;
-        if (!outputDir) return;
-      }
-    }
+    const outputDir = await resolveOutputDir();
+    if (!outputDir) return;
 
     downloadingIds = new Set([...downloadingIds, item.message_id]);
 
@@ -328,6 +413,58 @@
       showToast("error", msg);
       downloadingIds = new Set([...downloadingIds].filter((id) => id !== item.message_id));
     }
+  }
+
+  async function downloadAll() {
+    if (!selectedChat || isBatchActive || mediaItems.length === 0) return;
+
+    const outputDir = await resolveOutputDir();
+    if (!outputDir) return;
+
+    const items = mediaItems.map((m) => ({
+      message_id: m.message_id,
+      file_name: m.file_name,
+      file_size: m.file_size,
+    }));
+
+    batchTotal = items.length;
+    batchDone = 0;
+    batchStatus = new Map(
+      items.map((item) => [item.message_id, { status: "waiting" as FileStatus, percent: 0 }])
+    );
+
+    try {
+      const batchId = await invoke<number>("telegram_download_batch", {
+        chatId: selectedChat.id,
+        chatType: selectedChat.chat_type,
+        chatTitle: selectedChat.title,
+        items,
+        outputDir,
+      });
+      activeBatchId = batchId;
+    } catch (e: any) {
+      const msg = typeof e === "string" ? e : e.message ?? "Error";
+      showToast("error", msg);
+      batchStatus = new Map();
+      batchTotal = 0;
+    }
+  }
+
+  async function cancelBatch() {
+    if (!activeBatchId) return;
+    try {
+      await invoke("telegram_cancel_batch", { batchId: activeBatchId });
+      showToast("info", $t("telegram.batch_cancelled"));
+    } catch {}
+    activeBatchId = null;
+  }
+
+  function getItemStatus(messageId: number): FileStatus | null {
+    return batchStatus.get(messageId)?.status ?? null;
+  }
+
+  function getItemPercent(messageId: number): number {
+    return batchStatus.get(messageId)?.percent ?? 0;
   }
 </script>
 
@@ -461,7 +598,7 @@
   <div class="page-logged">
     <div class="session-bar">
       <span class="session-info">
-        {$t("telegram.logged_as", { phone: sessionPhone || "—" })}
+        {$t("telegram.logged_as", { phone: sessionPhone || "\u2014" })}
       </span>
       <div class="session-actions">
         <button
@@ -552,6 +689,7 @@
           class="button filter-btn"
           class:active={mediaFilter === f.key}
           onclick={() => changeFilter(f.key)}
+          disabled={isBatchActive}
         >
           {f.label}
         </button>
@@ -571,8 +709,45 @@
     {:else if mediaItems.length === 0}
       <p class="empty-text">{$t("telegram.no_media")}</p>
     {:else}
+      <div class="media-header">
+        <span class="subtext">
+          {$t("telegram.file_count", { count: mediaItems.length })}
+        </span>
+        <div class="media-header-actions">
+          {#if isBatchActive}
+            <button class="button batch-cancel-btn" onclick={cancelBatch}>
+              {$t("telegram.cancel_batch")}
+            </button>
+          {:else}
+            <button
+              class="button batch-download-btn"
+              onclick={downloadAll}
+              disabled={mediaItems.length === 0}
+            >
+              {$t("telegram.download_all")}
+            </button>
+          {/if}
+        </div>
+      </div>
+
+      {#if batchTotal > 0}
+        <div class="batch-progress-section">
+          <div class="batch-progress-bar-outer">
+            <div
+              class="batch-progress-bar-inner"
+              style="width: {batchPercent}%"
+            ></div>
+          </div>
+          <span class="subtext">
+            {$t("telegram.batch_progress", { done: batchDone, total: batchTotal })}
+          </span>
+        </div>
+      {/if}
+
       <div class="media-list">
         {#each mediaItems as item (item.message_id)}
+          {@const itemStatus = getItemStatus(item.message_id)}
+          {@const itemPercent = getItemPercent(item.message_id)}
           <div class="media-item">
             <div class="media-icon">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -595,22 +770,82 @@
             </div>
             <div class="media-info">
               <span class="media-name">{item.file_name}</span>
-              <span class="media-meta">{formatSize(item.file_size)} &middot; {formatDate(item.date)}</span>
+              <span class="media-meta">
+                {formatSize(item.file_size)} &middot; {formatDate(item.date)}
+                {#if itemStatus === "downloading"}
+                  &middot; {Math.round(itemPercent)}%
+                {:else if itemStatus === "done"}
+                  &middot; {$t("telegram.downloaded")}
+                {:else if itemStatus === "skipped"}
+                  &middot; {$t("telegram.status_skipped")}
+                {:else if itemStatus === "error"}
+                  &middot; {$t("telegram.status_error")}
+                {:else if itemStatus === "waiting"}
+                  &middot; {$t("telegram.status_waiting")}
+                {/if}
+              </span>
             </div>
-            <button
-              class="button media-download-btn"
-              disabled={downloadingIds.has(item.message_id)}
-              onclick={() => downloadItem(item)}
-            >
-              {#if downloadingIds.has(item.message_id)}
-                {$t("telegram.downloading")}
-              {:else}
-                {$t("telegram.download_btn")}
-              {/if}
-            </button>
+            {#if itemStatus === "downloading"}
+              <span class="media-status-icon downloading">
+                <span class="spinner small"></span>
+              </span>
+            {:else if itemStatus === "done"}
+              <span class="media-status-icon done">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 6L9 17l-5-5" />
+                </svg>
+              </span>
+            {:else if itemStatus === "skipped"}
+              <span class="media-status-icon skipped">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--gray)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M13 17l5-5-5-5" />
+                  <path d="M6 17l5-5-5-5" />
+                </svg>
+              </span>
+            {:else if itemStatus === "error"}
+              <span class="media-status-icon error-icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--red)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 6L6 18" />
+                  <path d="M6 6l12 12" />
+                </svg>
+              </span>
+            {:else if itemStatus === "waiting"}
+              <span class="media-status-icon waiting">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--gray)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 6v6l4 2" />
+                </svg>
+              </span>
+            {:else}
+              <button
+                class="button media-download-btn"
+                disabled={downloadingIds.has(item.message_id) || isBatchActive}
+                onclick={() => downloadItem(item)}
+              >
+                {#if downloadingIds.has(item.message_id)}
+                  {$t("telegram.downloading")}
+                {:else}
+                  {$t("telegram.download_btn")}
+                {/if}
+              </button>
+            {/if}
           </div>
         {/each}
       </div>
+
+      {#if hasMore}
+        <button
+          class="button load-more-btn"
+          onclick={loadMoreMedia}
+          disabled={loadingMore || isBatchActive}
+        >
+          {#if loadingMore}
+            <span class="spinner small"></span>
+          {:else}
+            {$t("telegram.load_more")}
+          {/if}
+        </button>
+      {/if}
     {/if}
   </div>
 {/if}
@@ -829,6 +1064,12 @@
     animation: spin 0.6s linear infinite;
   }
 
+  .spinner.small {
+    width: 14px;
+    height: 14px;
+    border-width: 1.5px;
+  }
+
   @keyframes spin {
     to {
       transform: rotate(360deg);
@@ -940,6 +1181,48 @@
     font-size: 12.5px;
   }
 
+  .media-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .media-header-actions {
+    display: flex;
+    gap: calc(var(--padding) / 2);
+  }
+
+  .batch-download-btn,
+  .batch-cancel-btn {
+    padding: calc(var(--padding) / 2) var(--padding);
+    font-size: 12.5px;
+  }
+
+  .batch-cancel-btn {
+    color: var(--red);
+  }
+
+  .batch-progress-section {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--padding) / 2);
+  }
+
+  .batch-progress-bar-outer {
+    width: 100%;
+    height: 6px;
+    background: var(--button-elevated);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .batch-progress-bar-inner {
+    height: 100%;
+    background: var(--blue);
+    border-radius: 3px;
+    transition: width 0.1s;
+  }
+
   .media-list {
     display: flex;
     flex-direction: column;
@@ -998,5 +1281,23 @@
 
   .media-download-btn:disabled {
     opacity: 0.6;
+  }
+
+  .media-status-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+  }
+
+  .load-more-btn {
+    align-self: center;
+    padding: calc(var(--padding) / 2) calc(var(--padding) * 2);
+    font-size: 12.5px;
+    display: flex;
+    align-items: center;
+    gap: calc(var(--padding) / 2);
   }
 </style>
