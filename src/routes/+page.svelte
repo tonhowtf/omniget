@@ -27,6 +27,7 @@
     | { kind: "detected"; info: PlatformInfo }
     | { kind: "unsupported" }
     | { kind: "preparing"; platform: string }
+    | { kind: "batch"; urls: string[] }
     | { kind: "error"; message: string; originalUrl: string; platform: string };
 
   let url = $state("");
@@ -71,7 +72,8 @@
 
   let showLoopIcon = $derived(
     omniState.kind === "detected" ||
-    omniState.kind === "preparing"
+    omniState.kind === "preparing" ||
+    omniState.kind === "batch"
   );
 
   function isUrl(value: string): boolean {
@@ -81,14 +83,27 @@
   function handleInput() {
     if (debounceTimer) clearTimeout(debounceTimer);
 
-    if (!url.trim() || !isUrl(url.trim())) {
+    const trimmed = url.trim();
+    if (!trimmed) {
+      omniState = { kind: "idle" };
+      return;
+    }
+
+    const urls = trimmed.split(/[\s\n]+/).filter(isUrl);
+
+    if (urls.length > 1) {
+      omniState = { kind: "batch", urls };
+      return;
+    }
+
+    if (!isUrl(trimmed)) {
       omniState = { kind: "idle" };
       return;
     }
 
     omniState = { kind: "detecting" };
     debounceTimer = setTimeout(() => {
-      detectPlatform(url.trim());
+      detectPlatform(trimmed);
     }, 500);
   }
 
@@ -160,6 +175,35 @@
     }
   }
 
+  async function handleBatchDownload() {
+    if (omniState.kind !== "batch") return;
+    const batchUrls = omniState.urls;
+
+    const settings = getSettings();
+    let outputDir = settings?.download.default_output_dir ?? "";
+
+    if (settings?.download.always_ask_path || !outputDir) {
+      const selected = await open({
+        directory: true,
+        title: $t("settings.download.default_output_dir"),
+      });
+      if (!selected) return;
+      outputDir = selected;
+    }
+
+    omniState = { kind: "idle" };
+    url = "";
+
+    const results = await Promise.allSettled(
+      batchUrls.map(u => invoke<DownloadStarted>("download_from_url", { url: u, outputDir }))
+    );
+
+    const queued = results.filter(r => r.status === "fulfilled").length;
+    if (queued > 0) {
+      showToast("info", $t("omnibox.batch_queued", { count: queued }));
+    }
+  }
+
   function handleRetry() {
     if (omniState.kind !== "error") return;
     url = omniState.originalUrl;
@@ -184,12 +228,12 @@
         width="40"
         height="40"
         class="loop-icon"
-        class:loop-bounce={omniState.kind === "detected"}
+        class:loop-bounce={omniState.kind === "detected" || omniState.kind === "batch"}
         class:loop-pulse={omniState.kind === "preparing"}
       />
     {/if}
 
-    {#if omniState.kind === "idle" || omniState.kind === "detecting" || omniState.kind === "detected" || omniState.kind === "unsupported"}
+    {#if omniState.kind === "idle" || omniState.kind === "detecting" || omniState.kind === "detected" || omniState.kind === "unsupported" || omniState.kind === "batch"}
       <div class="omnibox-wrapper">
         <input
           class="omnibox"
@@ -226,6 +270,17 @@
           {$t('omnibox.download')}
         </button>
       {/if}
+
+    {:else if omniState.kind === "batch"}
+      <div class="feedback feedback-enter" data-supported="true">
+        <span class="feedback-text">
+          {$t('omnibox.batch_detected', { count: omniState.urls.length })}
+        </span>
+      </div>
+
+      <button class="button action-btn" onclick={handleBatchDownload}>
+        {$t('omnibox.batch_download_all')}
+      </button>
 
     {:else if omniState.kind === "unsupported"}
       <div class="feedback feedback-enter" data-supported="false">
