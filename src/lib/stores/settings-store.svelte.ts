@@ -15,6 +15,7 @@ export type AppSettings = {
     download_descriptions: boolean;
     embed_metadata: boolean;
     embed_thumbnail: boolean;
+    clipboard_detection: boolean;
   };
   advanced: {
     max_concurrent_segments: number;
