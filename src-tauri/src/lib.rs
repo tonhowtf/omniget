@@ -73,6 +73,9 @@ pub fn run() {
         platforms::youtube::YouTubeDownloader::new(),
     ));
     registry.register(Arc::new(
+        platforms::vimeo::VimeoDownloader::new(),
+    ));
+    registry.register(Arc::new(
         platforms::telegram::downloader::TelegramDownloader::new(
             telegram_session.clone(),
         ),
