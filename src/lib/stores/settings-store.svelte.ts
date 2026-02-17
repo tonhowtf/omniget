@@ -17,6 +17,7 @@ export type AppSettings = {
     embed_thumbnail: boolean;
     clipboard_detection: boolean;
     filename_template: string;
+    organize_by_platform: boolean;
   };
   advanced: {
     max_concurrent_segments: number;
