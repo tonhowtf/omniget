@@ -107,7 +107,14 @@
     "downloading": "Baixando...",
     "downloaded": "Baixado",
     "choose_folder": "Escolher pasta de download",
-    "unknown_error": "Erro desconhecido"
+    "unknown_error": "Erro desconhecido",
+    "qr_title": "Escaneie para entrar",
+    "qr_instruction": "Abra o Telegram no celular, vá em Configurações > Dispositivos > Conectar dispositivo",
+    "qr_loading": "Gerando QR code...",
+    "qr_error": "Falha ao gerar QR code",
+    "or_separator": "ou",
+    "use_phone": "Usar número de telefone",
+    "back_to_qr": "Voltar ao QR code"
   },
   "settings": {
     "title": "Configurações",
