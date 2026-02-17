@@ -738,4 +738,28 @@
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
   }
+
+  .dep-ok {
+    color: var(--green);
+  }
+
+  .dep-missing {
+    color: var(--red);
+  }
+
+  .dep-btn {
+    padding: calc(var(--padding) / 2) var(--padding);
+    font-size: 12.5px;
+    flex-shrink: 0;
+  }
+
+  .dep-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--input-border);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    flex-shrink: 0;
+  }
 </style>
