@@ -196,6 +196,10 @@
     "mode_audio": "Audio",
     "mode_mute": "Mute",
     "quality": "Quality",
+    "view_formats": "View formats",
+    "best_va": "Best V+A",
+    "best_audio": "Best Audio",
+    "best_video": "Best Video",
     "content_type": {
       "video": "Video",
       "audio": "Audio",
