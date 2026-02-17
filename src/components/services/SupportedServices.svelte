@@ -5,7 +5,7 @@
 
   const services = [
     "YouTube", "Instagram", "TikTok", "Twitter / X",
-    "Reddit", "Twitch", "Pinterest",
+    "Reddit", "Twitch", "Pinterest", "Vimeo",
     "Bluesky", "Hotmart", "Telegram",
   ];
 
