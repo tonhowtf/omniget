@@ -111,6 +111,8 @@ pub fn run() {
             commands::settings::update_settings,
             commands::settings::reset_settings,
             commands::telegram::telegram_check_session,
+            commands::telegram::telegram_qr_start,
+            commands::telegram::telegram_qr_poll,
             commands::telegram::telegram_send_code,
             commands::telegram::telegram_verify_code,
             commands::telegram::telegram_verify_2fa,
