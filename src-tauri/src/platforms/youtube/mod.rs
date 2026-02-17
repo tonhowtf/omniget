@@ -274,6 +274,7 @@ impl PlatformDownloader for YouTubeDownloader {
             opts.format_id.as_deref(),
             opts.filename_template.as_deref(),
             None,
+            opts.cancel_token.clone(),
         )
         .await
     }
@@ -295,6 +296,10 @@ impl YouTubeDownloader {
         let mut last_path = playlist_dir.clone();
 
         for (i, entry) in info.available_qualities.iter().enumerate() {
+            if opts.cancel_token.is_cancelled() {
+                anyhow::bail!("Download cancelado");
+            }
+
             let (video_tx, mut video_rx) = mpsc::channel::<f64>(16);
             let progress_tx = progress.clone();
             let video_idx = i;
@@ -320,6 +325,7 @@ impl YouTubeDownloader {
                 None,
                 opts.filename_template.as_deref(),
                 None,
+                opts.cancel_token.clone(),
             )
             .await
             {
