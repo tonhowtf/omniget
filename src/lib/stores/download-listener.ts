@@ -33,6 +33,10 @@ type GenericProgressPayload = {
   title: string;
   platform: string;
   percent: number;
+  speed_bytes_per_sec: number;
+  downloaded_bytes: number;
+  total_bytes: number | null;
+  eta_seconds: number | null;
 };
 
 type GenericCompletePayload = {
@@ -113,7 +117,7 @@ export async function initDownloadListener(): Promise<() => void> {
         showToast("info", tr("toast.download_started", { name: d.title }));
       }
 
-      upsertGenericProgress(d.id, d.title, d.platform, d.percent);
+      upsertGenericProgress(d.id, d.title, d.platform, d.percent, d.speed_bytes_per_sec, d.downloaded_bytes, d.total_bytes, d.eta_seconds);
     },
   );
 
@@ -121,7 +125,7 @@ export async function initDownloadListener(): Promise<() => void> {
     "generic-download-complete",
     (event) => {
       const d = event.payload;
-      markGenericComplete(d.id, d.success, d.error ?? undefined, d.file_path ?? undefined, d.file_count ?? undefined);
+      markGenericComplete(d.id, d.success, d.error ?? undefined, d.file_path ?? undefined, d.file_count ?? undefined, d.file_size_bytes);
 
       const tr = get(t);
       if (d.success) {
