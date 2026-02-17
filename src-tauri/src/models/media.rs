@@ -41,6 +41,7 @@ pub struct DownloadOptions {
     pub output_dir: PathBuf,
     pub filename_template: Option<String>,
     pub download_subtitles: bool,
+    pub download_mode: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
