@@ -9,6 +9,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::models::media::{DownloadResult, FormatInfo};
 
+const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
 pub async fn find_ytdlp() -> Option<PathBuf> {
     let bin_name = if cfg!(target_os = "windows") {
         "yt-dlp.exe"
@@ -123,14 +125,145 @@ async fn check_ytdlp_freshness(path: &Path) {
     }
 }
 
-pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_json::Value> {
-    let output = crate::core::process::command(ytdlp)
-        .args(["--dump-json", "--no-warnings", "--no-playlist", url])
+async fn find_ffmpeg_location() -> Option<String> {
+    let cmd = if cfg!(target_os = "windows") {
+        "where"
+    } else {
+        "which"
+    };
+    let arg = if cfg!(target_os = "windows") {
+        "ffmpeg.exe"
+    } else {
+        "ffmpeg"
+    };
+
+    let output = crate::core::process::command(cmd)
+        .arg(arg)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::null())
         .output()
         .await
-        .map_err(|e| anyhow!("Falha ao executar yt-dlp: {}", e))?;
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let path_str = String::from_utf8_lossy(&output.stdout);
+    let first_line = path_str.lines().next()?.trim().to_string();
+    if first_line.is_empty() {
+        return None;
+    }
+
+    let p = PathBuf::from(&first_line);
+    if p.exists() {
+        p.parent()
+            .and_then(|dir| dir.to_str())
+            .map(|s| s.to_string())
+    } else {
+        None
+    }
+}
+
+fn detect_cookies_browser() -> Option<String> {
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(local) = dirs::data_local_dir() {
+            if local.join("Google").join("Chrome").join("User Data").is_dir() {
+                return Some("chrome".to_string());
+            }
+            if local
+                .join("Microsoft")
+                .join("Edge")
+                .join("User Data")
+                .is_dir()
+            {
+                return Some("edge".to_string());
+            }
+            if local
+                .join("BraveSoftware")
+                .join("Brave-Browser")
+                .join("User Data")
+                .is_dir()
+            {
+                return Some("brave".to_string());
+            }
+        }
+        if let Some(roaming) = dirs::data_dir() {
+            if roaming
+                .join("Mozilla")
+                .join("Firefox")
+                .join("Profiles")
+                .is_dir()
+            {
+                return Some("firefox".to_string());
+            }
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(home) = dirs::home_dir() {
+            let support = home.join("Library").join("Application Support");
+            if support.join("Google").join("Chrome").is_dir() {
+                return Some("chrome".to_string());
+            }
+            if support.join("Firefox").join("Profiles").is_dir() {
+                return Some("firefox".to_string());
+            }
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(config) = dirs::config_dir() {
+            if config.join("google-chrome").is_dir() {
+                return Some("chrome".to_string());
+            }
+            if config.join("chromium").is_dir() {
+                return Some("chromium".to_string());
+            }
+        }
+        if let Some(home) = dirs::home_dir() {
+            if home.join(".mozilla").join("firefox").is_dir() {
+                return Some("firefox".to_string());
+            }
+        }
+    }
+    None
+}
+
+pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_json::Value> {
+    let mut args = vec![
+        "--dump-json".to_string(),
+        "--no-warnings".to_string(),
+        "--no-playlist".to_string(),
+        "--socket-timeout".to_string(),
+        "30".to_string(),
+        "--retries".to_string(),
+        "3".to_string(),
+        "--user-agent".to_string(),
+        CHROME_UA.to_string(),
+        "--extractor-args".to_string(),
+        "youtube:player_client=web,default".to_string(),
+    ];
+
+    if let Some(browser) = detect_cookies_browser() {
+        args.push("--cookies-from-browser".to_string());
+        args.push(browser);
+    }
+
+    args.push(url.to_string());
+
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(60),
+        crate::core::process::command(ytdlp)
+            .args(&args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output(),
+    )
+    .await
+    .map_err(|_| anyhow!("Timeout ao obter informações do vídeo (60s)"))?
+    .map_err(|e| anyhow!("Falha ao executar yt-dlp: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -147,18 +280,38 @@ pub async fn get_playlist_info(
     ytdlp: &Path,
     url: &str,
 ) -> anyhow::Result<(String, Vec<PlaylistEntry>)> {
-    let output = crate::core::process::command(ytdlp)
-        .args([
-            "--flat-playlist",
-            "--dump-json",
-            "--no-warnings",
-            url,
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .await
-        .map_err(|e| anyhow!("Falha ao executar yt-dlp: {}", e))?;
+    let mut args = vec![
+        "--flat-playlist".to_string(),
+        "--dump-json".to_string(),
+        "--no-warnings".to_string(),
+        "--socket-timeout".to_string(),
+        "30".to_string(),
+        "--retries".to_string(),
+        "3".to_string(),
+        "--user-agent".to_string(),
+        CHROME_UA.to_string(),
+        "--extractor-args".to_string(),
+        "youtube:player_client=web,default".to_string(),
+    ];
+
+    if let Some(browser) = detect_cookies_browser() {
+        args.push("--cookies-from-browser".to_string());
+        args.push(browser);
+    }
+
+    args.push(url.to_string());
+
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(120),
+        crate::core::process::command(ytdlp)
+            .args(&args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output(),
+    )
+    .await
+    .map_err(|_| anyhow!("Timeout ao obter playlist (120s)"))?
+    .map_err(|e| anyhow!("Falha ao executar yt-dlp: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -221,7 +374,6 @@ pub struct PlaylistEntry {
     pub duration: Option<f64>,
 }
 
-/// Parse `[download] Destination: <path>` or `[Merger] Merging formats into "<path>"` lines.
 fn parse_destination_line(line: &str) -> Option<String> {
     let line = line.trim();
 
@@ -242,7 +394,6 @@ fn parse_destination_line(line: &str) -> Option<String> {
     None
 }
 
-/// Write cookies in Netscape cookie file format for yt-dlp --cookies.
 pub async fn write_netscape_cookie_file(
     cookies: &[(String, String)],
     domain: &str,
@@ -250,7 +401,6 @@ pub async fn write_netscape_cookie_file(
 ) -> anyhow::Result<()> {
     let mut content = String::from("# Netscape HTTP Cookie File\n");
     for (name, value) in cookies {
-        // domain, include_subdomains, path, secure, expiry, name, value
         content.push_str(&format!(
             "{}\tTRUE\t/\tTRUE\t0\t{}\t{}\n",
             domain, name, value
@@ -274,6 +424,12 @@ pub async fn download_video(
     cookie_file: Option<&Path>,
 ) -> anyhow::Result<DownloadResult> {
     let mode = download_mode.unwrap_or("auto");
+    let ffmpeg_available = crate::core::ffmpeg::is_ffmpeg_available().await;
+    let ffmpeg_location = if ffmpeg_available {
+        find_ffmpeg_location().await
+    } else {
+        None
+    };
 
     let format_selector = if let Some(fid) = format_id {
         fid.to_string()
@@ -284,13 +440,23 @@ pub async fn download_video(
                 Some(h) if h > 0 => format!("bv*[height<={}]/bv*/b", h),
                 _ => "bv*/b".to_string(),
             },
-            _ => match quality_height {
-                Some(h) if h > 0 => format!(
-                    "bv*[height<={}]+ba/b[height<={}]/bv*+ba/b",
-                    h, h
-                ),
-                _ => "bv*+ba/b".to_string(),
-            },
+            _ => {
+                if ffmpeg_available {
+                    match quality_height {
+                        Some(h) if h > 0 => format!(
+                            "bv*[height<={}]+ba/b[height<={}]/bv*+ba/b",
+                            h, h
+                        ),
+                        _ => "bv*+ba/b".to_string(),
+                    }
+                } else {
+                    tracing::warn!("[yt-dlp] ffmpeg not available, using single-stream format");
+                    match quality_height {
+                        Some(h) if h > 0 => format!("b[height<={}]/b", h),
+                        _ => "b".to_string(),
+                    }
+                }
+            }
         }
     };
 
@@ -302,12 +468,19 @@ pub async fn download_video(
 
     tokio::fs::create_dir_all(output_dir).await?;
 
+    let browser_cookies = if cookie_file.is_none() {
+        detect_cookies_browser()
+    } else {
+        None
+    };
+    let mut use_browser_cookies = browser_cookies.is_some();
+
     let mut base_args = vec![
         "-f".to_string(),
         format_selector,
     ];
 
-    if format_id.is_none() && mode != "audio" {
+    if format_id.is_none() && mode != "audio" && ffmpeg_available {
         base_args.push("--merge-output-format".to_string());
         base_args.push("mp4".to_string());
     }
@@ -324,9 +497,16 @@ pub async fn download_video(
         base_args.push(cf.to_string_lossy().to_string());
     }
 
+    if let Some(ref loc) = ffmpeg_location {
+        base_args.push("--ffmpeg-location".to_string());
+        base_args.push(loc.clone());
+    }
+
     base_args.extend([
         "--no-check-certificate".to_string(),
         "--no-warnings".to_string(),
+        "--user-agent".to_string(),
+        CHROME_UA.to_string(),
         "-N".to_string(),
         "4".to_string(),
         "--socket-timeout".to_string(),
@@ -342,7 +522,6 @@ pub async fn download_video(
     ]);
 
     let max_attempts: usize = 3;
-    let backoff_secs: [u64; 3] = [0, 2, 5];
     let mut extra_args: Vec<String> = Vec::new();
     let mut last_error = String::new();
 
@@ -352,15 +531,30 @@ pub async fn download_video(
         }
 
         if attempt > 0 {
-            let wait = backoff_secs[attempt.min(backoff_secs.len() - 1)];
-            if wait > 0 {
-                tracing::info!("yt-dlp retry {}/{} after {}s", attempt, max_attempts - 1, wait);
-                tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
-            }
+            let wait: u64 = match attempt {
+                1 => 3,
+                2 => 8,
+                _ => 15,
+            };
+            tracing::info!(
+                "[yt-dlp] retry {}/{} after {}s",
+                attempt,
+                max_attempts - 1,
+                wait
+            );
+            tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
             cleanup_part_files(output_dir).await;
         }
 
         let mut args = base_args.clone();
+
+        if use_browser_cookies {
+            if let Some(ref browser) = browser_cookies {
+                args.push("--cookies-from-browser".to_string());
+                args.push(browser.clone());
+            }
+        }
+
         args.extend(extra_args.iter().cloned());
         args.push(url.to_string());
 
@@ -421,7 +615,6 @@ pub async fn download_video(
         if status.success() {
             let _ = progress.send(100.0).await;
 
-            // Prefer captured path from stdout, fallback to find_downloaded_file
             let file_path = {
                 let guard = captured_path.lock().unwrap();
                 guard.clone()
@@ -444,30 +637,62 @@ pub async fn download_video(
         let stderr_lower = last_error.to_lowercase();
 
         if stderr_lower.contains("sign in to confirm") || stderr_lower.contains("login required") {
-            return Err(anyhow!("Vídeo requer login. Use cookies do navegador ou tente outro URL."));
+            return Err(anyhow!(
+                "Vídeo requer login. Use cookies do navegador ou tente outro URL."
+            ));
         }
 
         if attempt < max_attempts - 1 {
             if stderr_lower.contains("http error 429") {
                 let wait_secs = 10 * 2u64.pow(attempt as u32);
-                tracing::warn!("yt-dlp rate limited (429), waiting {}s before retry", wait_secs);
+                tracing::warn!("[yt-dlp] rate limited (429), waiting {}s", wait_secs);
                 tokio::time::sleep(std::time::Duration::from_secs(wait_secs)).await;
             }
 
-            if stderr_lower.contains("nsig extraction failed") || stderr_lower.contains("nsig") {
-                if !extra_args.iter().any(|a| a.contains("player_client")) {
-                    extra_args.push("--extractor-args".to_string());
-                    extra_args.push("youtube:player_client=web".to_string());
-                }
+            if stderr_lower.contains("nsig") {
+                extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                let client = if attempt == 0 {
+                    "youtube:player_client=ios"
+                } else {
+                    "youtube:player_client=mweb"
+                };
+                extra_args.push("--extractor-args".to_string());
+                extra_args.push(client.to_string());
+                tracing::warn!("[yt-dlp] nsig error, switching to {}", client);
             }
 
             if stderr_lower.contains("http error 403") || stderr_lower.contains("forbidden") {
                 if !extra_args.contains(&"--force-ipv4".to_string()) {
                     extra_args.push("--force-ipv4".to_string());
+                    tracing::warn!("[yt-dlp] 403 forbidden, adding --force-ipv4");
                 }
             }
 
-            tracing::warn!("yt-dlp attempt {} failed: {}", attempt + 1, last_error.trim());
+            if stderr_lower.contains("timed out") || stderr_lower.contains("timeout") {
+                tracing::warn!("[yt-dlp] socket timeout on attempt {}", attempt + 1);
+            }
+
+            if stderr_lower.contains("certificate") || stderr_lower.contains("ssl") {
+                tracing::warn!("[yt-dlp] SSL/certificate error on attempt {}", attempt + 1);
+            }
+
+            if (stderr_lower.contains("could not") && stderr_lower.contains("cookie"))
+                || stderr_lower.contains("cookies-from-browser")
+            {
+                if use_browser_cookies {
+                    use_browser_cookies = false;
+                    tracing::warn!(
+                        "[yt-dlp] cookies-from-browser failed, retrying without"
+                    );
+                }
+            }
+
+            tracing::warn!(
+                "[yt-dlp] attempt {}/{} failed: {}",
+                attempt + 1,
+                max_attempts,
+                last_error.lines().last().unwrap_or("unknown error").trim()
+            );
             continue;
         }
     }
@@ -491,7 +716,9 @@ fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
     let lower = stderr.to_lowercase();
 
     if lower.contains("http error 429") {
-        return anyhow!("Servidor retornou erro 429 (muitas requisições). Tente novamente mais tarde.");
+        return anyhow!(
+            "Servidor retornou erro 429 (muitas requisições). Tente novamente mais tarde."
+        );
     }
     if lower.contains("http error 403") || lower.contains("forbidden") {
         return anyhow!("Acesso negado (403). O vídeo pode ser privado ou restrito por região.");
@@ -499,7 +726,7 @@ fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
     if lower.contains("sign in to confirm") || lower.contains("login required") {
         return anyhow!("Vídeo requer login. Use cookies do navegador ou tente outro URL.");
     }
-    if lower.contains("nsig extraction failed") {
+    if lower.contains("nsig extraction failed") || lower.contains("nsig") {
         return anyhow!("Falha na extração do vídeo. Atualize o yt-dlp ou tente novamente.");
     }
     if lower.contains("video unavailable") || lower.contains("not available") {
@@ -513,6 +740,13 @@ fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
     }
     if lower.contains("geo") && lower.contains("block") {
         return anyhow!("Vídeo restrito na sua região.");
+    }
+    if lower.contains("timed out") || lower.contains("timeout") {
+        return anyhow!("Conexão expirou. Verifique sua internet e tente novamente.");
+    }
+    if lower.contains("ffmpeg") && (lower.contains("not found") || lower.contains("no such file"))
+    {
+        return anyhow!("FFmpeg não encontrado. Instale o FFmpeg para baixar este formato.");
     }
 
     let trimmed = stderr.trim();
@@ -538,9 +772,15 @@ fn parse_progress_line(line: &str) -> Option<f64> {
 
 async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow::Result<PathBuf> {
     let video_id = extract_id_from_url(url).unwrap_or_default();
+    let media_extensions: &[&str] = &[
+        "mp4", "mkv", "webm", "m4a", "mp3", "ogg", "opus", "flac", "avi", "mov", "ts", "m4v",
+        "3gp", "aac", "wav",
+    ];
+    let now = std::time::SystemTime::now();
+    let recency_limit = std::time::Duration::from_secs(600);
 
     let mut entries = tokio::fs::read_dir(output_dir).await?;
-    let mut best: Option<(PathBuf, std::time::SystemTime)> = None;
+    let mut candidates: Vec<(PathBuf, std::time::SystemTime, bool)> = Vec::new();
 
     while let Some(entry) = entries.next_entry().await? {
         let path = entry.path();
@@ -553,51 +793,35 @@ async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow::Result<Pa
             continue;
         }
 
-        if !video_id.is_empty() && name.contains(&video_id) {
-            if let Ok(meta) = entry.metadata().await {
-                if let Ok(modified) = meta.modified() {
-                    match &best {
-                        Some((_, best_time)) if modified > *best_time => {
-                            best = Some((path, modified));
-                        }
-                        None => {
-                            best = Some((path, modified));
-                        }
-                        _ => {}
-                    }
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        let is_media = media_extensions
+            .iter()
+            .any(|&e| ext.eq_ignore_ascii_case(e));
+        if !is_media {
+            continue;
+        }
+
+        if let Ok(meta) = entry.metadata().await {
+            if meta.len() == 0 {
+                continue;
+            }
+            if let Ok(modified) = meta.modified() {
+                let is_recent = now.duration_since(modified).unwrap_or_default() < recency_limit;
+                let matches_id = !video_id.is_empty() && name.contains(&video_id);
+
+                if matches_id || is_recent {
+                    candidates.push((path, modified, matches_id));
                 }
             }
         }
     }
 
-    if best.is_none() {
-        let mut entries = tokio::fs::read_dir(output_dir).await?;
-        while let Some(entry) = entries.next_entry().await? {
-            let path = entry.path();
-            if !path.is_file() {
-                continue;
-            }
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if name.ends_with(".part") || name.ends_with(".ytdl") || name.starts_with('.') {
-                continue;
-            }
-            if let Ok(meta) = entry.metadata().await {
-                if let Ok(modified) = meta.modified() {
-                    match &best {
-                        Some((_, best_time)) if modified > *best_time => {
-                            best = Some((path, modified));
-                        }
-                        None => {
-                            best = Some((path, modified));
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
-    }
+    candidates.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| b.1.cmp(&a.1)));
 
-    best.map(|(p, _)| p)
+    candidates
+        .into_iter()
+        .next()
+        .map(|(p, _, _)| p)
         .ok_or_else(|| anyhow!("Arquivo baixado não encontrado em {:?}", output_dir))
 }
 
@@ -614,24 +838,41 @@ pub fn parse_formats(json: &serde_json::Value) -> Vec<FormatInfo> {
             None => continue,
         };
 
-        let ext = f.get("ext").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let ext = f
+            .get("ext")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         let width = f.get("width").and_then(|v| v.as_u64()).map(|v| v as u32);
         let height = f.get("height").and_then(|v| v.as_u64()).map(|v| v as u32);
         let fps = f.get("fps").and_then(|v| v.as_f64());
-        let vcodec = f.get("vcodec").and_then(|v| v.as_str()).map(|s| s.to_string());
-        let acodec = f.get("acodec").and_then(|v| v.as_str()).map(|s| s.to_string());
-        let filesize = f.get("filesize")
+        let vcodec = f
+            .get("vcodec")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let acodec = f
+            .get("acodec")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let filesize = f
+            .get("filesize")
             .or_else(|| f.get("filesize_approx"))
             .and_then(|v| v.as_u64());
         let tbr = f.get("tbr").and_then(|v| v.as_f64());
-        let format_note = f.get("format_note").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let format_note = f
+            .get("format_note")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
         let has_video = vcodec.as_deref().map(|v| v != "none").unwrap_or(false);
         let has_audio = acodec.as_deref().map(|v| v != "none").unwrap_or(false);
 
         let resolution = match (width, height) {
             (Some(w), Some(h)) if w > 0 && h > 0 => Some(format!("{}x{}", w, h)),
-            _ => f.get("resolution").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            _ => f
+                .get("resolution")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
         };
 
         result.push(FormatInfo {
