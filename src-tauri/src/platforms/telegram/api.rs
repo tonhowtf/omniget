@@ -9,6 +9,7 @@ use grammers_tl_types::Serializable;
 use serde::Serialize;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 use super::auth::TelegramSessionHandle;
 
@@ -343,4 +344,76 @@ pub async fn download_media(
 
     file.flush().await?;
     Ok(downloaded)
+}
+
+fn is_retryable_error(err_str: &str) -> bool {
+    let retryable = [
+        "connection reset",
+        "timed out",
+        "connection refused",
+        "broken pipe",
+        "unexpected eof",
+        "internal server error",
+        "temporarily unavailable",
+        "transport error",
+        "network",
+        "rpc error",
+    ];
+    let lower = err_str.to_lowercase();
+    retryable.iter().any(|p| lower.contains(p))
+}
+
+pub async fn download_media_with_retry(
+    handle: &TelegramSessionHandle,
+    chat_id: i64,
+    chat_type: &str,
+    message_id: i32,
+    output_path: &Path,
+    progress_tx: mpsc::Sender<f64>,
+    cancel_token: &CancellationToken,
+) -> anyhow::Result<u64> {
+    const MAX_RETRIES: u32 = 5;
+    const BASE_DELAY_SECS: u64 = 2;
+
+    for attempt in 0..MAX_RETRIES {
+        let tx = progress_tx.clone();
+        let result = tokio::select! {
+            r = download_media(handle, chat_id, chat_type, message_id, output_path, tx) => r,
+            _ = cancel_token.cancelled() => return Err(anyhow::anyhow!("Download cancelled")),
+        };
+
+        match result {
+            Ok(size) => return Ok(size),
+            Err(e) => {
+                let err_str = e.to_string();
+
+                if parse_flood_wait(&err_str).is_some() {
+                    // Flood wait is handled inside invoke_with_flood_wait,
+                    // but if it bubbles up, retry
+                    tracing::warn!(
+                        "[tg-api] flood wait error on attempt {}, retrying: {}",
+                        attempt + 1, err_str
+                    );
+                } else if !is_retryable_error(&err_str) {
+                    return Err(e);
+                }
+
+                if attempt + 1 < MAX_RETRIES {
+                    let delay = BASE_DELAY_SECS * 2u64.pow(attempt);
+                    tracing::warn!(
+                        "[tg-api] download attempt {} failed, retrying in {}s: {}",
+                        attempt + 1, delay, err_str
+                    );
+                    tokio::select! {
+                        _ = tokio::time::sleep(Duration::from_secs(delay)) => {},
+                        _ = cancel_token.cancelled() => return Err(anyhow::anyhow!("Download cancelled")),
+                    }
+                } else {
+                    return Err(e);
+                }
+            }
+        }
+    }
+
+    unreachable!()
 }
