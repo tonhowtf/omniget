@@ -1,12 +1,12 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use futures::future::join_all;
 use m3u8_rs::{parse_master_playlist, parse_media_playlist, MasterPlaylist, VariantStream};
 use reqwest::Client;
 use tokio::io::AsyncWriteExt;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
@@ -105,81 +105,78 @@ impl HlsDownloader {
             .fetch_encryption_info(&playlist, m3u8_url, referer)
             .await?;
 
-        let semaphore = Arc::new(Semaphore::new(max_concurrent as usize));
-        let completed = Arc::new(AtomicUsize::new(0));
-
-        let tasks: Vec<_> = playlist
-            .segments
-            .iter()
-            .enumerate()
-            .map(|(i, segment)| {
-                let sem = semaphore.clone();
-                let client = self.client.clone();
-                let url = resolve_url(m3u8_url, &segment.uri);
-                let referer = referer.to_string();
-                let completed = completed.clone();
-                let bytes_tx = bytes_tx.clone();
-                let ct = cancel_token.clone();
-                let retries = max_retries;
-
-                tokio::spawn(async move {
-                    let _permit = sem.acquire().await.unwrap();
-                    if ct.is_cancelled() {
-                        anyhow::bail!("Download cancelado pelo usuário");
-                    }
-                    let data: Vec<u8> =
-                        download_segment_with_retry(&client, &url, &referer, retries).await?;
-                    if let Some(ref tx) = bytes_tx {
-                        let _ = tx.send(data.len() as u64);
-                    }
-                    completed.fetch_add(1, Ordering::Relaxed);
-                    Ok::<(usize, Vec<u8>), anyhow::Error>((i, data))
-                })
-            })
-            .collect();
-
-        let results = join_all(tasks).await;
-
-        if cancel_token.is_cancelled() {
-            anyhow::bail!("Download cancelado pelo usuário");
-        }
-
-        let mut segments_data: Vec<(usize, Vec<u8>)> = Vec::with_capacity(total_segments);
-        for result in results {
-            let (idx, data) = result??;
-            segments_data.push((idx, data));
-        }
-        segments_data.sort_by_key(|(idx, _)| *idx);
-
         let output = PathBuf::from(output_path);
         if let Some(parent) = output.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
-        let mut file = tokio::fs::File::create(&output).await?;
 
-        if let Some(enc) = &encryption {
-            use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
-            type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
+        // Channel for segments: bounded to max_concurrent to limit memory
+        let (seg_tx, seg_rx) = mpsc::channel::<(usize, Vec<u8>)>(max_concurrent as usize * 2);
 
-            let media_sequence = playlist.media_sequence;
+        // Spawn ordered writer task
+        let writer_output = output.clone();
+        let media_sequence = playlist.media_sequence;
+        let writer = tokio::spawn(async move {
+            write_segments_ordered(seg_rx, &writer_output, &encryption, media_sequence, total_segments).await
+        });
 
-            for (i, (_, data)) in segments_data.iter().enumerate() {
-                let iv = compute_iv(enc, i, media_sequence);
-                let mut buf = data.clone();
-                let decryptor = Aes128CbcDec::new_from_slices(&enc.key_bytes, &iv)
-                    .map_err(|e| anyhow::anyhow!("AES init: {:?}", e))?;
-                let decrypted = decryptor
-                    .decrypt_padded_mut::<Pkcs7>(&mut buf)
-                    .map_err(|e| anyhow::anyhow!("AES decrypt: {:?}", e))?;
-                file.write_all(decrypted).await?;
-            }
-        } else {
-            for (_, data) in &segments_data {
-                file.write_all(data).await?;
-            }
+        let semaphore = Arc::new(Semaphore::new(max_concurrent as usize));
+        let completed = Arc::new(AtomicUsize::new(0));
+        let download_error = Arc::new(tokio::sync::Mutex::new(None::<String>));
+
+        for (i, segment) in playlist.segments.iter().enumerate() {
+            let sem = semaphore.clone();
+            let client = self.client.clone();
+            let url = resolve_url(m3u8_url, &segment.uri);
+            let referer = referer.to_string();
+            let completed = completed.clone();
+            let bytes_tx = bytes_tx.clone();
+            let ct = cancel_token.clone();
+            let retries = max_retries;
+            let tx = seg_tx.clone();
+            let err_holder = download_error.clone();
+
+            tokio::spawn(async move {
+                let _permit = sem.acquire().await.unwrap();
+                if ct.is_cancelled() {
+                    return;
+                }
+                match download_segment_with_retry(&client, &url, &referer, retries).await {
+                    Ok(data) => {
+                        if let Some(ref btx) = bytes_tx {
+                            let _ = btx.send(data.len() as u64);
+                        }
+                        completed.fetch_add(1, Ordering::Relaxed);
+                        let _ = tx.send((i, data)).await;
+                    }
+                    Err(e) => {
+                        let mut guard = err_holder.lock().await;
+                        if guard.is_none() {
+                            *guard = Some(e.to_string());
+                        }
+                    }
+                }
+            });
+        }
+        // Drop our sender so writer finishes when all tasks complete
+        drop(seg_tx);
+
+        // Wait for writer to finish processing all segments
+        let writer_result = writer.await
+            .map_err(|e| anyhow::anyhow!("Writer task panicked: {:?}", e))?;
+
+        if cancel_token.is_cancelled() {
+            let _ = tokio::fs::remove_file(&output).await;
+            anyhow::bail!("Download cancelado pelo usuário");
         }
 
-        file.flush().await?;
+        // Check for download errors
+        if let Some(err_msg) = download_error.lock().await.take() {
+            let _ = tokio::fs::remove_file(&output).await;
+            anyhow::bail!("Falha no download de segmento: {}", err_msg);
+        }
+
+        writer_result?;
 
         let file_size = tokio::fs::metadata(&output).await?.len();
 
@@ -278,6 +275,55 @@ fn resolve_url(base: &str, relative: &str) -> String {
     }
 }
 
+async fn write_segments_ordered(
+    mut rx: mpsc::Receiver<(usize, Vec<u8>)>,
+    output_path: &PathBuf,
+    encryption: &Option<EncryptionInfo>,
+    media_sequence: u64,
+    total_segments: usize,
+) -> anyhow::Result<()> {
+    let mut file = tokio::fs::File::create(output_path).await?;
+    let mut next_expected: usize = 0;
+    let mut pending: BTreeMap<usize, Vec<u8>> = BTreeMap::new();
+
+    while let Some((idx, data)) = rx.recv().await {
+        pending.insert(idx, data);
+
+        while let Some(segment_data) = pending.remove(&next_expected) {
+            if let Some(enc) = encryption {
+                use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
+                type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
+
+                let iv = compute_iv(enc, next_expected, media_sequence);
+                let mut buf = segment_data;
+                let decryptor = Aes128CbcDec::new_from_slices(&enc.key_bytes, &iv)
+                    .map_err(|e| anyhow::anyhow!("AES init: {:?}", e))?;
+                let decrypted = decryptor
+                    .decrypt_padded_mut::<Pkcs7>(&mut buf)
+                    .map_err(|e| anyhow::anyhow!("AES decrypt: {:?}", e))?;
+                file.write_all(decrypted).await?;
+            } else {
+                file.write_all(&segment_data).await?;
+            }
+            next_expected += 1;
+        }
+    }
+
+    file.flush().await?;
+
+    if next_expected < total_segments {
+        anyhow::bail!(
+            "Apenas {} de {} segmentos foram escritos",
+            next_expected,
+            total_segments
+        );
+    }
+
+    Ok(())
+}
+
+const SEGMENT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
 async fn download_segment_with_retry(
     client: &Client,
     url: &str,
@@ -286,18 +332,21 @@ async fn download_segment_with_retry(
 ) -> anyhow::Result<Vec<u8>> {
     let mut last_err = None;
     for attempt in 0..max_retries {
-        match client
-            .get(url)
-            .header("Referer", referer)
-            .header("User-Agent", USER_AGENT)
-            .send()
-            .await
-        {
-            Ok(resp) => match resp.bytes().await {
-                Ok(bytes) => return Ok(bytes.to_vec()),
-                Err(e) => last_err = Some(anyhow::anyhow!(e)),
-            },
-            Err(e) => last_err = Some(anyhow::anyhow!(e)),
+        let result = tokio::time::timeout(SEGMENT_TIMEOUT, async {
+            let resp = client
+                .get(url)
+                .header("Referer", referer)
+                .header("User-Agent", USER_AGENT)
+                .send()
+                .await?;
+            resp.bytes().await.map(|b| b.to_vec())
+        })
+        .await;
+
+        match result {
+            Ok(Ok(data)) => return Ok(data),
+            Ok(Err(e)) => last_err = Some(anyhow::anyhow!(e)),
+            Err(_) => last_err = Some(anyhow::anyhow!("Timeout ao baixar segmento")),
         }
         if attempt < max_retries - 1 {
             tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1)))
