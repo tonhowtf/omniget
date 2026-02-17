@@ -72,6 +72,7 @@ pub fn build_client_from_saved(saved: &SavedSession) -> anyhow::Result<reqwest::
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
         .cookie_provider(Arc::new(jar))
         .default_headers(default_headers)
+        .redirect(reqwest::redirect::Policy::limited(10))
         .build()?;
 
     Ok(client)
@@ -121,10 +122,76 @@ pub async fn delete_saved_session() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn is_post_login_url(url: &str) -> bool {
+    url.contains("consumer.hotmart.com")
+        || url.contains("hotmart.com/buyer")
+        || url.contains("club.hotmart.com")
+}
+
+fn build_session_from_cookies(
+    email: &str,
+    token: &str,
+    cookies: &[chromiumoxide::cdp::browser_protocol::network::Cookie],
+) -> anyhow::Result<HotmartSession> {
+    let jar = Jar::default();
+    let domains = [
+        "https://hotmart.com",
+        "https://api-sec-vlc.hotmart.com",
+        "https://api-hub.cb.hotmart.com",
+        "https://api-club-course-consumption-gateway-ga.cb.hotmart.com",
+        "https://consumer.hotmart.com",
+        "https://api-club-hot-club-api.cb.hotmart.com",
+    ];
+    for c in cookies {
+        let cookie_str = format!("{}={}; Domain=.hotmart.com; Path=/", c.name, c.value);
+        for domain in &domains {
+            jar.add_cookie_str(&cookie_str, &domain.parse().unwrap());
+        }
+    }
+
+    let mut default_headers = HeaderMap::new();
+    default_headers.insert("Accept", HeaderValue::from_static("application/json, text/plain, */*"));
+    default_headers.insert("Authorization", HeaderValue::from_str(&format!("Bearer {}", token))?);
+    default_headers.insert("Origin", HeaderValue::from_static("https://consumer.hotmart.com"));
+    default_headers.insert("Referer", HeaderValue::from_static("https://consumer.hotmart.com"));
+    default_headers.insert("Pragma", HeaderValue::from_static("no-cache"));
+    default_headers.insert("cache-control", HeaderValue::from_static("no-cache"));
+
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+        .cookie_provider(Arc::new(jar))
+        .default_headers(default_headers)
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .build()?;
+
+    Ok(HotmartSession {
+        token: token.to_string(),
+        email: email.to_string(),
+        client,
+        cookies: cookies
+            .iter()
+            .map(|c| (c.name.clone(), c.value.clone()))
+            .collect(),
+    })
+}
+
 pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<HotmartSession> {
+    let temp_profile = std::env::temp_dir().join(format!(
+        "omniget_chrome_{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+    ));
+
     let (browser, mut handler) = Browser::launch(
         BrowserConfig::builder()
             .with_head()
+            .arg("--incognito")
+            .arg(format!("--user-data-dir={}", temp_profile.display()))
+            .arg("--disable-gpu")
+            .arg("--no-sandbox")
+            .arg("--disable-extensions")
             .build()
             .map_err(|e| anyhow!("Falha ao configurar browser: {}", e))?,
     )
@@ -138,11 +205,7 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
 
     let url = page.url().await?.unwrap_or_default();
 
-    let already_logged_in = url.contains("consumer.hotmart.com")
-        || url.contains("dashboard")
-        || url.contains("club.hotmart.com");
-
-    if already_logged_in {
+    if is_post_login_url(&url) {
     } else if url.contains("sso.hotmart.com") {
         page.evaluate(
             r#"
@@ -176,13 +239,31 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
         loop {
             tokio::time::sleep(Duration::from_millis(500)).await;
             let current = page.url().await?.unwrap_or_default();
-            if current.contains("consumer.hotmart.com") || current.contains("dashboard") {
+            if is_post_login_url(&current) {
                 break;
             }
             if current.contains("captcha") {
+                let _ = tokio::fs::remove_dir_all(&temp_profile).await;
                 return Err(anyhow!("Captcha detectado. Tente novamente."));
             }
             if start.elapsed() > Duration::from_secs(30) {
+                let page_html = page
+                    .evaluate("document.body ? document.body.innerText : ''")
+                    .await
+                    .ok()
+                    .and_then(|v| v.into_value::<String>().ok())
+                    .unwrap_or_default()
+                    .to_lowercase();
+
+                let _ = tokio::fs::remove_dir_all(&temp_profile).await;
+
+                if page_html.contains("incorrect username or password")
+                    || page_html.contains("senha incorreta")
+                    || page_html.contains("credenciais inválidas")
+                {
+                    return Err(anyhow!("Credenciais inválidas."));
+                }
+
                 return Err(anyhow!(
                     "Timeout esperando login. Verifique credenciais."
                 ));
@@ -193,50 +274,36 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
         tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
-    let cookies = page.get_cookies().await?;
-    let token = cookies
+    let mut cookies = page.get_cookies().await?;
+    let mut token = cookies
         .iter()
         .find(|c| c.name == "hmVlcIntegration")
-        .map(|c| c.value.clone())
-        .ok_or_else(|| anyhow!("Cookie hmVlcIntegration não encontrado"))?;
+        .map(|c| c.value.clone());
 
-    let jar = Jar::default();
-    let domains = [
-        "https://hotmart.com",
-        "https://api-sec-vlc.hotmart.com",
-        "https://api-hub.cb.hotmart.com",
-        "https://api-club-course-consumption-gateway-ga.cb.hotmart.com",
-        "https://consumer.hotmart.com",
-        "https://api-club-hot-club-api.cb.hotmart.com",
-    ];
-    for c in &cookies {
-        let cookie_str = format!("{}={}; Domain=.hotmart.com; Path=/", c.name, c.value);
-        for domain in &domains {
-            jar.add_cookie_str(&cookie_str, &domain.parse().unwrap());
-        }
+    if token.is_none() {
+        tracing::warn!("hmVlcIntegration not found on first attempt, navigating to consumer.hotmart.com");
+        page.goto("https://consumer.hotmart.com").await?;
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        cookies = page.get_cookies().await?;
+        token = cookies
+            .iter()
+            .find(|c| c.name == "hmVlcIntegration")
+            .map(|c| c.value.clone());
     }
 
-    let mut default_headers = HeaderMap::new();
-    default_headers.insert("Accept", HeaderValue::from_static("application/json, text/plain, */*"));
-    default_headers.insert("Authorization", HeaderValue::from_str(&format!("Bearer {}", token))?);
-    default_headers.insert("Origin", HeaderValue::from_static("https://consumer.hotmart.com"));
-    default_headers.insert("Referer", HeaderValue::from_static("https://consumer.hotmart.com"));
-    default_headers.insert("Pragma", HeaderValue::from_static("no-cache"));
-    default_headers.insert("cache-control", HeaderValue::from_static("no-cache"));
-
-    let client = reqwest::Client::builder()
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-        .cookie_provider(Arc::new(jar))
-        .default_headers(default_headers)
-        .build()?;
-
-    Ok(HotmartSession {
-        token,
-        email: email.to_string(),
-        client,
-        cookies: cookies
+    if token.is_none() {
+        tracing::warn!("hmVlcIntegration not found on second attempt, retrying after backoff");
+        tokio::time::sleep(Duration::from_secs(4)).await;
+        cookies = page.get_cookies().await?;
+        token = cookies
             .iter()
-            .map(|c| (c.name.clone(), c.value.clone()))
-            .collect(),
-    })
+            .find(|c| c.name == "hmVlcIntegration")
+            .map(|c| c.value.clone());
+    }
+
+    let _ = tokio::fs::remove_dir_all(&temp_profile).await;
+
+    let token = token.ok_or_else(|| anyhow!("Cookie hmVlcIntegration não encontrado após tentativas"))?;
+
+    build_session_from_cookies(email, &token, &cookies)
 }
