@@ -276,7 +276,7 @@
     "star_description": "se gostou do projeto, deixe uma estrela!",
     "version": "versão",
     "features_title": "o que já temos",
-    "feature_platforms": "download de 20+ plataformas: YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Telegram, SoundCloud, Facebook, Dailymotion e mais via yt-dlp",
+    "feature_platforms": "download de 10+ plataformas e 1000+ mais via yt-dlp: YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Telegram",
     "feature_hotmart": "download de cursos Hotmart com login (vídeos, anexos, descrições)",
     "feature_progress": "progresso em tempo real com ETA e velocidade",
     "feature_mascot": "Loop, o mascote que reage aos seus downloads",
@@ -303,7 +303,8 @@
     "title": "plataformas suportadas",
     "title_show": "mostrar plataformas suportadas",
     "title_hide": "esconder plataformas suportadas",
-    "disclaimer": "a disponibilidade depende de cada plataforma e pode variar"
+    "disclaimer": "a disponibilidade depende de cada plataforma e pode variar",
+    "and_more": "+1000 mais"
   },
   "terms_note": {
     "agreement": "ao continuar, você concorda com os",
