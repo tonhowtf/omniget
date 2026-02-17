@@ -358,19 +358,39 @@ pub async fn get_lesson(
 
     let has_media = body
         .get("hasMedia")
+        .or_else(|| body.get("hasPlayerMedia"))
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    let medias: Vec<LessonMedia> = body
+    let medias_arr = body
         .get("medias")
-        .and_then(|v| v.as_array())
+        .or_else(|| body.get("mediasSrc"))
+        .and_then(|v| v.as_array());
+
+    let medias: Vec<LessonMedia> = medias_arr
         .map(|arr| {
             arr.iter()
                 .map(|m| LessonMedia {
-                    name: m.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    code: m.get("code").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    url: m.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    media_type: m.get("type").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    name: m.get("name")
+                        .or_else(|| m.get("mediaName"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    code: m.get("code")
+                        .or_else(|| m.get("mediaCode"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    url: m.get("url")
+                        .or_else(|| m.get("mediaSrcUrl"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    media_type: m.get("type")
+                        .or_else(|| m.get("mediaType"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
                     size: m.get("size").and_then(|v| v.as_u64()),
                     duration: m.get("duration").and_then(|v| v.as_u64()),
                 })
