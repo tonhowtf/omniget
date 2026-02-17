@@ -18,7 +18,7 @@ fn bin_name(tool: &str) -> String {
 pub async fn find_tool(tool: &str) -> Option<PathBuf> {
     let name = bin_name(tool);
 
-    if let Ok(status) = tokio::process::Command::new(&name)
+    if let Ok(status) = crate::core::process::command(&name)
         .arg("-version")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -40,7 +40,7 @@ pub async fn find_tool(tool: &str) -> Option<PathBuf> {
 
 pub async fn check_version(tool: &str) -> Option<String> {
     let path = find_tool(tool).await?;
-    let output = tokio::process::Command::new(&path)
+    let output = crate::core::process::command(&path)
         .arg("-version")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -212,7 +212,7 @@ async fn extract_tar_xz_ffmpeg(
     let temp_archive = temp_dir.join("ffmpeg.tar.xz");
     tokio::fs::write(&temp_archive, data).await?;
 
-    let status = tokio::process::Command::new("tar")
+    let status = crate::core::process::command("tar")
         .args(["xf", &temp_archive.to_string_lossy(), "-C", &temp_dir.to_string_lossy()])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
