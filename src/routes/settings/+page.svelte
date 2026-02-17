@@ -84,7 +84,7 @@
       accounts[idx] = { platform, authenticated: false, displayName: "", loading: false };
     } catch (e: any) {
       accounts[idx].loading = false;
-      showToast("error", typeof e === "string" ? e : e.message ?? "Error");
+      showToast("error", typeof e === "string" ? e : e.message ?? $t("common.error"));
     }
   }
 
@@ -94,7 +94,7 @@
       await invoke("install_dependency", { name });
       await loadDeps();
     } catch (e: any) {
-      showToast("error", typeof e === "string" ? e : e.message ?? "Error");
+      showToast("error", typeof e === "string" ? e : e.message ?? $t("common.error"));
     } finally {
       installingDep = null;
     }
@@ -195,7 +195,7 @@
     try {
       await resetSettings();
     } catch (e: any) {
-      showToast("error", typeof e === "string" ? e : e.message ?? "Error");
+      showToast("error", typeof e === "string" ? e : e.message ?? $t("common.error"));
     } finally {
       resetting = false;
     }
@@ -292,11 +292,11 @@
         <div class="setting-row">
           <span class="setting-label">{$t('settings.download.video_quality')}</span>
           <select class="select" value={settings.download.video_quality} onchange={changeQuality}>
-            <option value="360p">360p</option>
-            <option value="480p">480p</option>
-            <option value="720p">720p</option>
-            <option value="1080p">1080p</option>
-            <option value="best">Best</option>
+            <option value="360p">{$t('omnibox.quality_360p')}</option>
+            <option value="480p">{$t('omnibox.quality_480p')}</option>
+            <option value="720p">{$t('omnibox.quality_720p')}</option>
+            <option value="1080p">{$t('omnibox.quality_1080p')}</option>
+            <option value="best">{$t('omnibox.quality_best')}</option>
           </select>
         </div>
         <div class="divider"></div>
