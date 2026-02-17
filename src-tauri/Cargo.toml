@@ -25,7 +25,7 @@ futures = "0.3"
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-chromiumoxide = { version = "0.7", features = ["tokio-runtime"] }
+chromiumoxide = { git = "https://github.com/mattsse/chromiumoxide", rev = "6f2392f", default-features = false, features = ["tokio-runtime"] }
 scraper = "0.21"
 regex = "1"
 m3u8-rs = "6"
