@@ -56,6 +56,7 @@ pub fn run() {
             models::settings::AppSettings::default().download,
             20,
             3,
+            8,
         ),
     ));
     registry.register(Arc::new(
