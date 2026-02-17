@@ -131,7 +131,9 @@
   function getCourseDownloadStatus(courseId: number): "idle" | "downloading" | "complete" | "error" {
     const item = downloads.get(courseId);
     if (!item) return "idle";
-    return item.status;
+    const s = item.status;
+    if (s === "queued" || s === "paused") return "downloading";
+    return s;
   }
 
   function getCourseDownloadPercent(courseId: number): number {
