@@ -162,6 +162,8 @@
       "embed_thumbnail_desc": "Embutir capa de álbum em arquivos de áudio",
       "clipboard_detection": "Detecção de clipboard",
       "clipboard_detection_desc": "Detectar URLs copiadas automaticamente",
+      "organize_by_platform": "Organizar por plataforma",
+      "organize_by_platform_desc": "Salvar arquivos em subpastas com o nome da plataforma",
       "filename_template": "Template de nome",
       "filename_template_desc": "Template yt-dlp para nome dos arquivos baixados",
       "filename_template_preview": "Preview: {{preview}}"
