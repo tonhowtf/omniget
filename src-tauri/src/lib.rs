@@ -11,6 +11,7 @@ pub mod core;
 pub mod models;
 pub mod platforms;
 pub mod storage;
+pub mod tray;
 
 pub struct CoursesCache {
     pub courses: Vec<Course>,
@@ -97,6 +98,16 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .setup(|app| {
+            tray::setup(app.handle())?;
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::auth::hotmart_login,
             commands::auth::hotmart_check_session,
