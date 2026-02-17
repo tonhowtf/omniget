@@ -70,6 +70,7 @@
   let formats = $state<FormatInfo[]>([]);
   let formatsOpen = $state(false);
   let loadingFormats = $state(false);
+  let referer = $state("");
 
   onMount(() => {
     onClipboardUrl((detectedUrl) => {
@@ -147,6 +148,7 @@
     selectedFormatId = null;
     formats = [];
     formatsOpen = false;
+    referer = "";
 
     const trimmed = url.trim();
     if (!trimmed) {
@@ -240,7 +242,7 @@
   }
 
   function isYtdlpPlatform(platform: string): boolean {
-    return platform === "youtube";
+    return ["youtube", "vimeo", "generic"].includes(platform);
   }
 
   async function loadFormats() {
@@ -340,6 +342,7 @@
         downloadMode: downloadMode === "auto" ? null : downloadMode,
         quality: selectedQuality === "best" ? null : selectedQuality,
         formatId: selectedFormatId,
+        referer: referer.trim() || null,
       });
       omniState = { kind: "idle" };
     } catch (e: any) {
@@ -379,6 +382,7 @@
         downloadMode: downloadMode === "auto" ? null : downloadMode,
         quality: selectedQuality === "best" ? null : selectedQuality,
         formatId: null,
+        referer: null,
       }))
     );
 
@@ -506,6 +510,20 @@
             </div>
           {/if}
         </div>
+
+        {#if omniState.info.platform === "vimeo"}
+          <div class="referer-input-wrapper feedback-enter">
+            <label class="referer-label" for="referer-input">{$t('omnibox.referer_label')}</label>
+            <input
+              id="referer-input"
+              class="referer-input"
+              type="text"
+              placeholder={$t('omnibox.referer_placeholder')}
+              bind:value={referer}
+              spellcheck="false"
+            />
+          </div>
+        {/if}
 
         {#if isYtdlpPlatform(omniState.info.platform)}
           <button
@@ -901,6 +919,40 @@
   .quality-select:focus-visible {
     outline: var(--focus-ring);
     outline-offset: var(--focus-ring-offset);
+  }
+
+  .referer-input-wrapper {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: calc(var(--padding) / 2);
+  }
+
+  .referer-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray);
+    flex-shrink: 0;
+  }
+
+  .referer-input {
+    flex: 1;
+    padding: calc(var(--padding) / 3) calc(var(--padding) * 0.75);
+    font-size: 12.5px;
+    font-weight: 500;
+    background: var(--button);
+    border-radius: calc(var(--border-radius) / 2);
+    color: var(--secondary);
+    border: 1px solid var(--input-border);
+  }
+
+  .referer-input::placeholder {
+    color: var(--gray);
+  }
+
+  .referer-input:focus-visible {
+    border-color: var(--blue);
+    outline: none;
   }
 
   .action-btn {
