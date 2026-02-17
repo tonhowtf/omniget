@@ -56,7 +56,7 @@ async fn detect_hwaccel_inner() -> HwAccelInfo {
 }
 
 async fn query_codecs(flag: &str) -> Vec<String> {
-    let output = tokio::process::Command::new("ffmpeg")
+    let output = crate::core::process::command("ffmpeg")
         .args([&format!("-{}", flag), "-hide_banner"])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
