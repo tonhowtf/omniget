@@ -187,7 +187,6 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
     let (browser, mut handler) = Browser::launch(
         BrowserConfig::builder()
             .with_head()
-            .arg("--incognito")
             .arg(format!("--user-data-dir={}", temp_profile.display()))
             .arg("--disable-gpu")
             .arg("--no-sandbox")
@@ -220,18 +219,24 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
         .ok();
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        page.find_element("#username")
-            .await?
-            .click()
-            .await?
-            .type_str(email)
-            .await?;
-        page.find_element("#password")
-            .await?
-            .click()
-            .await?
-            .type_str(password)
-            .await?;
+        let email_json = serde_json::to_string(email)?;
+        let password_json = serde_json::to_string(password)?;
+        page.evaluate(format!(
+            r#"(function() {{
+                var s = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                var u = document.querySelector('#username');
+                var p = document.querySelector('#password');
+                s.call(u, {});
+                u.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                u.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                s.call(p, {});
+                p.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                p.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            }})()"#,
+            email_json, password_json,
+        ))
+        .await?;
+        tokio::time::sleep(Duration::from_millis(300)).await;
 
         page.find_element("[name=submit]").await?.click().await?;
 
@@ -274,6 +279,9 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
         tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
+    page.goto("https://consumer.hotmart.com").await?;
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
     let mut cookies = page.get_cookies().await?;
     let mut token = cookies
         .iter()
@@ -281,18 +289,6 @@ pub async fn authenticate(email: &str, password: &str) -> anyhow::Result<Hotmart
         .map(|c| c.value.clone());
 
     if token.is_none() {
-        tracing::warn!("hmVlcIntegration not found on first attempt, navigating to consumer.hotmart.com");
-        page.goto("https://consumer.hotmart.com").await?;
-        tokio::time::sleep(Duration::from_secs(2)).await;
-        cookies = page.get_cookies().await?;
-        token = cookies
-            .iter()
-            .find(|c| c.name == "hmVlcIntegration")
-            .map(|c| c.value.clone());
-    }
-
-    if token.is_none() {
-        tracing::warn!("hmVlcIntegration not found on second attempt, retrying after backoff");
         tokio::time::sleep(Duration::from_secs(4)).await;
         cookies = page.get_cookies().await?;
         token = cookies
