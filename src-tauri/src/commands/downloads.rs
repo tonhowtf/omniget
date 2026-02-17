@@ -60,6 +60,10 @@ struct GenericDownloadProgress {
     title: String,
     platform: String,
     percent: f64,
+    speed_bytes_per_sec: f64,
+    downloaded_bytes: u64,
+    total_bytes: Option<u64>,
+    eta_seconds: Option<f64>,
 }
 
 #[derive(Clone, Serialize)]
@@ -148,11 +152,17 @@ pub async fn download_from_url(
             download_subtitles: false,
         };
 
+        let total_bytes = info.file_size_bytes;
+
         let _ = app.emit("generic-download-progress", &GenericDownloadProgress {
             id: download_id,
             title: title.clone(),
             platform: platform_name.clone(),
             percent: 0.0,
+            speed_bytes_per_sec: 0.0,
+            downloaded_bytes: 0,
+            total_bytes,
+            eta_seconds: None,
         });
 
         let (tx, mut rx) = mpsc::channel::<f64>(32);
@@ -161,13 +171,66 @@ pub async fn download_from_url(
         let title_progress = title.clone();
         let platform_progress = platform_name.clone();
         let progress_forwarder = tokio::spawn(async move {
+            let start_time = std::time::Instant::now();
+            let mut last_bytes: u64 = 0;
+            let mut last_time = std::time::Instant::now();
+            let mut last_emit = std::time::Instant::now();
+            let mut current_speed: f64 = 0.0;
+
             while let Some(percent) = rx.recv().await {
-                let _ = app_progress.emit("generic-download-progress", &GenericDownloadProgress {
-                    id: download_id,
-                    title: title_progress.clone(),
-                    platform: platform_progress.clone(),
-                    percent,
-                });
+                let now = std::time::Instant::now();
+
+                if now.duration_since(last_emit) < std::time::Duration::from_millis(150)
+                    && percent < 100.0
+                {
+                    continue;
+                }
+
+                let downloaded_bytes = total_bytes
+                    .map(|total| (percent / 100.0 * total as f64) as u64)
+                    .unwrap_or(0);
+
+                if total_bytes.is_some() && downloaded_bytes > last_bytes {
+                    let dt = now.duration_since(last_time).as_secs_f64();
+                    if dt > 0.1 {
+                        let instant_speed = (downloaded_bytes - last_bytes) as f64 / dt;
+                        current_speed = if current_speed > 0.0 {
+                            current_speed * 0.7 + instant_speed * 0.3
+                        } else {
+                            instant_speed
+                        };
+                    }
+                }
+
+                let elapsed = now.duration_since(start_time).as_secs_f64();
+                let eta_seconds = if percent > 0.0 && elapsed > 2.0 {
+                    let remaining = elapsed * (100.0 - percent) / percent;
+                    if remaining.is_finite() && remaining >= 0.0 {
+                        Some(remaining)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                last_bytes = downloaded_bytes;
+                last_time = now;
+                last_emit = now;
+
+                let _ = app_progress.emit(
+                    "generic-download-progress",
+                    &GenericDownloadProgress {
+                        id: download_id,
+                        title: title_progress.clone(),
+                        platform: platform_progress.clone(),
+                        percent,
+                        speed_bytes_per_sec: current_speed,
+                        downloaded_bytes,
+                        total_bytes,
+                        eta_seconds,
+                    },
+                );
             }
         });
 
