@@ -40,6 +40,9 @@ pub fn run() {
         std::env::set_var("PATH", format!("{}{}{}", bin_dir.display(), sep, current));
     }
 
+    std::env::set_var("PYTHONIOENCODING", "utf-8");
+    std::env::set_var("PYTHONUTF8", "1");
+
     tracing_subscriber::fmt::init();
 
     let session = Arc::new(tokio::sync::Mutex::new(None));
