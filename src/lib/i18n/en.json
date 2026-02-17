@@ -68,7 +68,8 @@
     "external_platform": "External platform",
     "choose_folder": "Choose download folder",
     "refresh": "Refresh",
-    "unknown_error": "Unknown error"
+    "unknown_error": "Unknown error",
+    "captcha_detected": "Captcha detected — please solve it in the login window."
   },
   "telegram": {
     "title": "Telegram",
