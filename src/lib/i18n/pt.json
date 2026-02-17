@@ -195,6 +195,15 @@
       "max_retries": "Tentativas por segmento",
       "reset": "Restaurar padrões",
       "reset_confirm": "Tem certeza? Todas as configurações serão restauradas."
+    },
+    "accounts": {
+      "title": "Contas",
+      "connected_as": "Conectado como {{name}}",
+      "not_connected": "Não conectado",
+      "login": "Entrar",
+      "logout": "Sair",
+      "logging_in": "Conectando...",
+      "login_failed": "Falha no login"
     }
   },
   "omnibox": {
@@ -225,6 +234,8 @@
     "best_va": "Melhor V+A",
     "best_audio": "Melhor Áudio",
     "best_video": "Melhor Vídeo",
+    "referer_label": "Referer (opcional)",
+    "referer_placeholder": "https://exemplo.com",
     "content_type": {
       "video": "Vídeo",
       "audio": "Áudio",
