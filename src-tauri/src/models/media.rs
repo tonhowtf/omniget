@@ -12,6 +12,7 @@ pub struct MediaInfo {
     pub thumbnail_url: Option<String>,
     pub available_qualities: Vec<VideoQuality>,
     pub media_type: MediaType,
+    pub file_size_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
