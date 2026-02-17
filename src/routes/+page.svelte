@@ -21,6 +21,22 @@
     title: string;
   };
 
+  type FormatInfo = {
+    format_id: string;
+    ext: string;
+    resolution: string | null;
+    width: number | null;
+    height: number | null;
+    fps: number | null;
+    vcodec: string | null;
+    acodec: string | null;
+    filesize: number | null;
+    tbr: number | null;
+    has_video: boolean;
+    has_audio: boolean;
+    format_note: string | null;
+  };
+
   type OmniState =
     | { kind: "idle" }
     | { kind: "detecting" }
@@ -35,6 +51,10 @@
   let debounceTimer = $state<ReturnType<typeof setTimeout> | null>(null);
   let downloadMode = $state<"auto" | "audio" | "mute">("auto");
   let selectedQuality = $state("best");
+  let selectedFormatId = $state<string | null>(null);
+  let formats = $state<FormatInfo[]>([]);
+  let formatsOpen = $state(false);
+  let loadingFormats = $state(false);
 
   const STALL_THRESHOLD = 30_000;
 
@@ -86,6 +106,9 @@
     if (debounceTimer) clearTimeout(debounceTimer);
     downloadMode = "auto";
     selectedQuality = "best";
+    selectedFormatId = null;
+    formats = [];
+    formatsOpen = false;
 
     const trimmed = url.trim();
     if (!trimmed) {
@@ -136,6 +159,74 @@
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
+  function isYtdlpPlatform(platform: string): boolean {
+    return platform === "youtube";
+  }
+
+  async function loadFormats() {
+    if (loadingFormats || formats.length > 0) {
+      formatsOpen = !formatsOpen;
+      return;
+    }
+    loadingFormats = true;
+    try {
+      const result = await invoke<FormatInfo[]>("get_media_formats", { url: url.trim() });
+      formats = result;
+      formatsOpen = true;
+    } catch {
+      formats = [];
+    } finally {
+      loadingFormats = false;
+    }
+  }
+
+  function selectFormat(formatId: string) {
+    selectedFormatId = formatId;
+    formatsOpen = false;
+  }
+
+  function clearFormatSelection() {
+    selectedFormatId = null;
+  }
+
+  function formatFilesize(bytes: number | null): string {
+    if (bytes === null) return "—";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  }
+
+  function formatCodec(codec: string | null): string {
+    if (!codec || codec === "none") return "—";
+    return codec.split(".")[0];
+  }
+
+  function bestVideoAudio(): FormatInfo | null {
+    return formats.find(f => f.has_video && f.has_audio) ?? null;
+  }
+
+  function bestAudioOnly(): FormatInfo | null {
+    return [...formats].reverse().find(f => f.has_audio && !f.has_video) ?? null;
+  }
+
+  function bestVideoOnly(): FormatInfo | null {
+    return formats.find(f => f.has_video && !f.has_audio) ?? null;
+  }
+
+  let selectedFormatLabel = $derived.by(() => {
+    if (!selectedFormatId) return null;
+    const f = formats.find(fmt => fmt.format_id === selectedFormatId);
+    if (!f) return selectedFormatId;
+    const parts: string[] = [];
+    if (f.resolution) parts.push(f.resolution);
+    parts.push(f.ext);
+    if (f.has_video && f.has_audio) parts.push("V+A");
+    else if (f.has_video) parts.push("V");
+    else if (f.has_audio) parts.push("A");
+    return parts.join(" · ");
+  });
+
   async function handleAction() {
     if (omniState.kind !== "detected") return;
     const info = omniState.info;
@@ -168,6 +259,7 @@
         outputDir,
         downloadMode: downloadMode === "auto" ? null : downloadMode,
         quality: selectedQuality === "best" ? null : selectedQuality,
+        formatId: selectedFormatId,
       });
       omniState = { kind: "idle" };
     } catch (e: any) {
@@ -206,6 +298,7 @@
         outputDir,
         downloadMode: downloadMode === "auto" ? null : downloadMode,
         quality: selectedQuality === "best" ? null : selectedQuality,
+        formatId: null,
       }))
     );
 
@@ -278,7 +371,7 @@
             <button
               class="button mode-btn"
               class:active={downloadMode === "auto"}
-              onclick={() => downloadMode = "auto"}
+              onclick={() => { downloadMode = "auto"; selectedFormatId = null; }}
             >
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 3l1.912 5.813a2 2 0 001.272 1.272L21 12l-5.813 1.912a2 2 0 00-1.272 1.272L12 21l-1.912-5.813a2 2 0 00-1.272-1.272L3 12l5.813-1.912a2 2 0 001.272-1.272z" />
@@ -288,7 +381,7 @@
             <button
               class="button mode-btn"
               class:active={downloadMode === "audio"}
-              onclick={() => downloadMode = "audio"}
+              onclick={() => { downloadMode = "audio"; selectedFormatId = null; }}
             >
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M9 18V5l12-2v13" />
@@ -300,7 +393,7 @@
             <button
               class="button mode-btn"
               class:active={downloadMode === "mute"}
-              onclick={() => downloadMode = "mute"}
+              onclick={() => { downloadMode = "mute"; selectedFormatId = null; }}
             >
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M11 5L6 9H2v6h4l5 4V5z" />
@@ -311,17 +404,112 @@
             </button>
           </div>
 
-          <div class="quality-select-wrapper">
-            <span class="quality-label">{$t('omnibox.quality')}</span>
-            <select class="quality-select" bind:value={selectedQuality}>
-              <option value="best">best</option>
-              <option value="1080p">1080p</option>
-              <option value="720p">720p</option>
-              <option value="480p">480p</option>
-              <option value="360p">360p</option>
-            </select>
-          </div>
+          {#if !selectedFormatId}
+            <div class="quality-select-wrapper">
+              <span class="quality-label">{$t('omnibox.quality')}</span>
+              <select class="quality-select" bind:value={selectedQuality}>
+                <option value="best">best</option>
+                <option value="1080p">1080p</option>
+                <option value="720p">720p</option>
+                <option value="480p">480p</option>
+                <option value="360p">360p</option>
+              </select>
+            </div>
+          {:else}
+            <div class="format-selected">
+              <span class="format-selected-label">{selectedFormatLabel}</span>
+              <button class="format-clear-btn" onclick={clearFormatSelection} aria-label={$t('common.close')}>
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          {/if}
         </div>
+
+        {#if isYtdlpPlatform(omniState.info.platform)}
+          <button
+            class="button formats-toggle-btn"
+            onclick={loadFormats}
+            disabled={loadingFormats}
+          >
+            {#if loadingFormats}
+              <span class="feedback-spinner small-spinner"></span>
+            {:else}
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            {/if}
+            {$t('omnibox.view_formats')}
+          </button>
+
+          {#if formatsOpen && formats.length > 0}
+            <div class="formats-panel feedback-enter">
+              <div class="formats-quick">
+                {#if bestVideoAudio()}
+                  <button
+                    class="button format-quick-btn"
+                    class:active={selectedFormatId === bestVideoAudio()?.format_id}
+                    onclick={() => selectFormat(bestVideoAudio()!.format_id)}
+                  >
+                    {$t('omnibox.best_va')}
+                  </button>
+                {/if}
+                {#if bestAudioOnly()}
+                  <button
+                    class="button format-quick-btn"
+                    class:active={selectedFormatId === bestAudioOnly()?.format_id}
+                    onclick={() => selectFormat(bestAudioOnly()!.format_id)}
+                  >
+                    {$t('omnibox.best_audio')}
+                  </button>
+                {/if}
+                {#if bestVideoOnly()}
+                  <button
+                    class="button format-quick-btn"
+                    class:active={selectedFormatId === bestVideoOnly()?.format_id}
+                    onclick={() => selectFormat(bestVideoOnly()!.format_id)}
+                  >
+                    {$t('omnibox.best_video')}
+                  </button>
+                {/if}
+              </div>
+
+              <div class="formats-list">
+                {#each formats as fmt (fmt.format_id)}
+                  <button
+                    class="format-row"
+                    class:format-row-selected={selectedFormatId === fmt.format_id}
+                    onclick={() => selectFormat(fmt.format_id)}
+                  >
+                    <span class="format-id">{fmt.format_id}</span>
+                    <span class="format-ext">{fmt.ext}</span>
+                    <span class="format-res">{fmt.resolution ?? "—"}</span>
+                    <span class="format-codec">
+                      {#if fmt.has_video && fmt.has_audio}
+                        V+A
+                      {:else if fmt.has_video}
+                        V
+                      {:else if fmt.has_audio}
+                        A
+                      {:else}
+                        —
+                      {/if}
+                    </span>
+                    <span class="format-vcodec">{formatCodec(fmt.vcodec)}</span>
+                    <span class="format-acodec">{formatCodec(fmt.acodec)}</span>
+                    <span class="format-size">{formatFilesize(fmt.filesize)}</span>
+                    {#if fmt.tbr}
+                      <span class="format-tbr">{fmt.tbr.toFixed(0)}k</span>
+                    {:else}
+                      <span class="format-tbr">—</span>
+                    {/if}
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        {/if}
       {/if}
 
       {#if omniState.info.platform === "hotmart"}
@@ -728,6 +916,159 @@
   @media (hover: hover) {
     .terms-link:hover {
       color: var(--secondary);
+    }
+  }
+
+  .format-selected {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: calc(var(--padding) / 3) calc(var(--padding) * 0.75);
+    background: var(--button);
+    border-radius: calc(var(--border-radius) / 2);
+    box-shadow: var(--button-box-shadow);
+  }
+
+  .format-selected-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--secondary);
+  }
+
+  .format-clear-btn {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--gray);
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  @media (hover: hover) {
+    .format-clear-btn:hover {
+      color: var(--secondary);
+    }
+  }
+
+  .format-clear-btn svg {
+    pointer-events: none;
+  }
+
+  .formats-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--padding) / 2);
+    font-size: 12.5px;
+    padding: calc(var(--padding) / 3) calc(var(--padding) * 0.75);
+  }
+
+  .formats-toggle-btn svg {
+    pointer-events: none;
+    flex-shrink: 0;
+  }
+
+  .small-spinner {
+    width: 12px;
+    height: 12px;
+  }
+
+  .formats-panel {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--padding) / 2);
+  }
+
+  .formats-quick {
+    display: flex;
+    gap: calc(var(--padding) / 3);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .format-quick-btn {
+    font-size: 12px;
+    padding: calc(var(--padding) / 4) calc(var(--padding) * 0.6);
+  }
+
+  .formats-list {
+    max-height: 240px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    background: var(--button);
+    border-radius: var(--border-radius);
+    box-shadow: var(--button-box-shadow);
+    scrollbar-width: none;
+  }
+
+  .formats-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .format-row {
+    display: grid;
+    grid-template-columns: 48px 48px 80px 32px 64px 64px 64px 48px;
+    align-items: center;
+    gap: 2px;
+    padding: calc(var(--padding) / 2) calc(var(--padding) / 2 + 4px);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--gray);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    border-bottom: 1px solid var(--button-stroke);
+  }
+
+  .format-row:last-child {
+    border-bottom: none;
+  }
+
+  @media (hover: hover) {
+    .format-row:hover {
+      background: var(--button-hover);
+      color: var(--secondary);
+    }
+  }
+
+  .format-row:active {
+    background: var(--button-press);
+  }
+
+  .format-row-selected {
+    background: var(--button-elevated);
+    color: var(--secondary);
+  }
+
+  .format-id {
+    color: var(--secondary);
+    font-weight: 500;
+  }
+
+  .format-ext {
+    color: var(--blue);
+  }
+
+  .format-res {
+    color: var(--secondary);
+  }
+
+  .format-codec {
+    text-align: center;
+  }
+
+  @media (max-width: 535px) {
+    .format-row {
+      grid-template-columns: 40px 40px 64px 24px 56px 56px 56px 40px;
+      font-size: 10px;
     }
   }
 
