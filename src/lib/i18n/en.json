@@ -161,7 +161,10 @@
       "embed_thumbnail": "Embed thumbnail as cover",
       "embed_thumbnail_desc": "Embed album art into audio files",
       "clipboard_detection": "Clipboard detection",
-      "clipboard_detection_desc": "Auto-detect URLs copied to clipboard"
+      "clipboard_detection_desc": "Auto-detect URLs copied to clipboard",
+      "filename_template": "Filename template",
+      "filename_template_desc": "yt-dlp output template for downloaded files",
+      "filename_template_preview": "Preview: {{preview}}"
     },
     "update_available": "OmniGet {{version}} is available",
     "update_button": "update now",
