@@ -7,6 +7,7 @@ const SESSION_COOLDOWN: Duration = Duration::from_secs(5 * 60);
 
 #[tauri::command]
 pub async fn hotmart_login(
+    app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     email: String,
     password: String,
@@ -23,7 +24,7 @@ pub async fn hotmart_login(
     *state.session_validated_at.lock().await = None;
     *state.courses_cache.lock().await = None;
 
-    match authenticate(&email, &password).await {
+    match authenticate(&app, &email, &password).await {
         Ok(session) => {
             let response_email = session.email.clone();
             let _ = save_session(&session).await;
