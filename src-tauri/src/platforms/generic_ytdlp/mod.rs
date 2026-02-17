@@ -203,6 +203,7 @@ impl PlatformDownloader for GenericYtdlpDownloader {
             opts.referer.as_deref(),
             opts.cancel_token.clone(),
             None,
+            opts.concurrent_fragments,
         )
         .await
     }
