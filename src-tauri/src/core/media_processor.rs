@@ -18,7 +18,7 @@ impl MediaProcessor {
     }
 
     pub async fn remux(input: &str, output: &str) -> anyhow::Result<()> {
-        let status = tokio::process::Command::new("ffmpeg")
+        let status = crate::core::process::command("ffmpeg")
             .args(["-y", "-i", input, "-c", "copy", output])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::piped())
@@ -37,7 +37,7 @@ impl MediaProcessor {
         audio: &str,
         output: &str,
     ) -> anyhow::Result<()> {
-        let status = tokio::process::Command::new("ffmpeg")
+        let status = crate::core::process::command("ffmpeg")
             .args([
                 "-y", "-i", video, "-i", audio, "-map", "0:v", "-map", "1:a", "-c", "copy",
                 output,
@@ -77,7 +77,7 @@ impl MediaProcessor {
             output.to_string(),
         ]);
 
-        let status = tokio::process::Command::new("ffmpeg")
+        let status = crate::core::process::command("ffmpeg")
             .args(&args)
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::piped())
@@ -93,7 +93,7 @@ impl MediaProcessor {
 }
 
 pub fn check_ffmpeg() -> bool {
-    std::process::Command::new("ffmpeg")
+    crate::core::process::std_command("ffmpeg")
         .arg("-version")
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -103,7 +103,7 @@ pub fn check_ffmpeg() -> bool {
 }
 
 pub fn check_ytdlp() -> bool {
-    std::process::Command::new("yt-dlp")
+    crate::core::process::std_command("yt-dlp")
         .arg("--version")
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
