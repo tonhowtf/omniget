@@ -687,11 +687,13 @@ pub async fn download_video(
                 }
             }
 
+            let last_line = last_error.lines().last().unwrap_or("unknown error").trim();
+            let sanitized = sanitize_log_line(last_line);
             tracing::warn!(
                 "[yt-dlp] attempt {}/{} failed: {}",
                 attempt + 1,
                 max_attempts,
-                last_error.lines().last().unwrap_or("unknown error").trim()
+                sanitized
             );
             continue;
         }
@@ -710,6 +712,37 @@ async fn cleanup_part_files(dir: &Path) {
             }
         }
     }
+}
+
+fn sanitize_log_line(line: &str) -> String {
+    let mut result = String::with_capacity(line.len());
+    let mut remaining = line;
+    loop {
+        let found = remaining
+            .find("https://")
+            .or_else(|| remaining.find("http://"));
+        match found {
+            Some(start) => {
+                result.push_str(&remaining[..start]);
+                let url_part = &remaining[start..];
+                let url_end = url_part
+                    .find(|c: char| c.is_whitespace() || c == '"' || c == '\'' || c == '>')
+                    .unwrap_or(url_part.len());
+                let url = &url_part[..url_end];
+                if let Some(q) = url.find('?') {
+                    result.push_str(&url[..q]);
+                } else {
+                    result.push_str(url);
+                }
+                remaining = &url_part[url_end..];
+            }
+            None => {
+                result.push_str(remaining);
+                break;
+            }
+        }
+    }
+    result
 }
 
 fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
