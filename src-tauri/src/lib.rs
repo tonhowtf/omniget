@@ -149,6 +149,8 @@ pub fn run() {
             commands::convert::convert_file,
             commands::convert::cancel_conversion,
             commands::convert::get_hwaccel_info,
+            commands::dependencies::check_dependencies,
+            commands::dependencies::install_dependency,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
