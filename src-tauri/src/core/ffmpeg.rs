@@ -406,6 +406,187 @@ pub async fn convert(
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct MetadataEmbed {
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub track_number: Option<String>,
+    pub genre: Option<String>,
+    pub year: Option<String>,
+    pub comment: Option<String>,
+    pub thumbnail_url: Option<String>,
+}
+
+pub async fn embed_metadata(
+    file: &Path,
+    metadata: &MetadataEmbed,
+    embed_thumbnail: bool,
+    http_client: &reqwest::Client,
+) -> anyhow::Result<()> {
+    if !is_ffmpeg_available().await {
+        return Err(anyhow!("ffmpeg não disponível"));
+    }
+
+    let temp_dir = file.parent().unwrap_or(Path::new("."));
+    let ext = file
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("mp4");
+    let temp_output = temp_dir.join(format!(
+        ".omniget_meta_{}.{}",
+        uuid::Uuid::new_v4(),
+        ext
+    ));
+
+    let is_audio_only = matches!(
+        ext.to_lowercase().as_str(),
+        "mp3" | "m4a" | "aac" | "ogg" | "opus" | "flac" | "wav" | "wma"
+    );
+
+    let thumbnail_path = if embed_thumbnail && is_audio_only {
+        if let Some(ref url) = metadata.thumbnail_url {
+            match download_thumbnail(http_client, url, temp_dir).await {
+                Ok(p) => Some(p),
+                Err(e) => {
+                    tracing::warn!("Falha ao baixar thumbnail: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let mut args: Vec<String> = vec!["-y".to_string(), "-i".to_string(), file.to_string_lossy().to_string()];
+
+    if let Some(ref thumb) = thumbnail_path {
+        args.extend(["-i".to_string(), thumb.to_string_lossy().to_string()]);
+    }
+
+    if let Some(ref thumb) = thumbnail_path {
+        let _ = thumb;
+        args.extend([
+            "-map".to_string(), "0:a".to_string(),
+            "-map".to_string(), "1:v".to_string(),
+            "-c".to_string(), "copy".to_string(),
+            "-disposition:v:0".to_string(), "attached_pic".to_string(),
+        ]);
+    } else {
+        args.extend(["-c".to_string(), "copy".to_string()]);
+    }
+
+    if let Some(ref v) = metadata.title {
+        args.extend(["-metadata".to_string(), format!("title={}", v)]);
+    }
+    if let Some(ref v) = metadata.artist {
+        args.extend(["-metadata".to_string(), format!("artist={}", v)]);
+    }
+    if let Some(ref v) = metadata.album {
+        args.extend(["-metadata".to_string(), format!("album={}", v)]);
+    }
+    if let Some(ref v) = metadata.track_number {
+        args.extend(["-metadata".to_string(), format!("track={}", v)]);
+    }
+    if let Some(ref v) = metadata.genre {
+        args.extend(["-metadata".to_string(), format!("genre={}", v)]);
+    }
+    if let Some(ref v) = metadata.year {
+        args.extend(["-metadata".to_string(), format!("date={}", v)]);
+    }
+    if let Some(ref v) = metadata.comment {
+        args.extend(["-metadata".to_string(), format!("comment={}", v)]);
+    }
+
+    args.push(temp_output.to_string_lossy().to_string());
+
+    let output = tokio::process::Command::new("ffmpeg")
+        .args(&args)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .await
+        .map_err(|e| anyhow!("Falha ao executar ffmpeg: {}", e))?;
+
+    if let Some(ref thumb) = thumbnail_path {
+        let _ = tokio::fs::remove_file(thumb).await;
+    }
+
+    if !output.status.success() {
+        let _ = tokio::fs::remove_file(&temp_output).await;
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow!("ffmpeg metadata falhou: {}", stderr));
+    }
+
+    tokio::fs::rename(&temp_output, file)
+        .await
+        .map_err(|e| anyhow!("Falha ao substituir arquivo: {}", e))?;
+
+    Ok(())
+}
+
+async fn download_thumbnail(
+    client: &reqwest::Client,
+    url: &str,
+    dest_dir: &Path,
+) -> anyhow::Result<std::path::PathBuf> {
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| anyhow!("Falha ao baixar thumbnail: {}", e))?;
+
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("image/jpeg")
+        .to_string();
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| anyhow!("Falha ao ler thumbnail: {}", e))?;
+
+    let ext = if content_type.contains("png") {
+        "png"
+    } else {
+        "jpg"
+    };
+
+    let thumb_path = dest_dir.join(format!(".omniget_thumb_{}.{}", uuid::Uuid::new_v4(), ext));
+    tokio::fs::write(&thumb_path, &bytes).await?;
+
+    if ext == "png" {
+        let jpg_path = dest_dir.join(format!(".omniget_thumb_{}.jpg", uuid::Uuid::new_v4()));
+        let convert_result = tokio::process::Command::new("ffmpeg")
+            .args([
+                "-y",
+                "-i",
+                &thumb_path.to_string_lossy(),
+                &jpg_path.to_string_lossy(),
+            ])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .await;
+
+        let _ = tokio::fs::remove_file(&thumb_path).await;
+
+        if let Ok(status) = convert_result {
+            if status.success() {
+                return Ok(jpg_path);
+            }
+        }
+        let _ = tokio::fs::remove_file(&jpg_path).await;
+        return Err(anyhow!("Falha ao converter thumbnail para JPEG"));
+    }
+
+    Ok(thumb_path)
+}
+
 fn parse_out_time_us(line: &str) -> Option<u64> {
     let line = line.trim();
     if let Some(val) = line.strip_prefix("out_time_us=") {
