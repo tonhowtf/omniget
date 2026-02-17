@@ -420,6 +420,7 @@ async fn spawn_download_inner(
         download_mode,
         format_id,
         referer,
+        cancel_token: cancel_token.clone(),
     };
 
     let total_bytes = info.file_size_bytes;
@@ -471,7 +472,7 @@ async fn spawn_download_inner(
             last_bytes = downloaded_bytes;
             last_time = now;
 
-            {
+            let (state, active_count) = {
                 let mut q = queue_progress.lock().await;
                 q.update_progress(
                     item_id,
@@ -481,8 +482,10 @@ async fn spawn_download_inner(
                     total_bytes,
                     eta_seconds,
                 );
-                emit_queue_state(&app_progress, &q);
-            }
+                (q.get_state(), q.active_count())
+            };
+            let _ = app_progress.emit("queue-state-update", &state);
+            crate::tray::update_active_count(&app_progress, active_count);
         }
     });
 
