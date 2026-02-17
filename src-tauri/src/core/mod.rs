@@ -9,3 +9,4 @@ pub mod filename;
 pub mod url_parser;
 pub mod ytdlp;
 pub mod queue;
+pub mod dependencies;
