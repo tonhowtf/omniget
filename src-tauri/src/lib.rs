@@ -80,6 +80,10 @@ pub fn run() {
             telegram_session.clone(),
         ),
     ));
+    // Generic yt-dlp fallback — MUST be last so specific downloaders take priority
+    registry.register(Arc::new(
+        platforms::generic_ytdlp::GenericYtdlpDownloader::new(),
+    ));
 
     let mut auth_registry = core::auth::AuthRegistry::new();
     auth_registry.register(Arc::new(core::auth::SpotifyAuth::new(
