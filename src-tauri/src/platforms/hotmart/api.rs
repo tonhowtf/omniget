@@ -95,12 +95,12 @@ pub fn navigation_headers(token: &str, slug: &str, product_id: u64) -> HeaderMap
 }
 
 pub async fn get_subdomains(session: &HotmartSession) -> anyhow::Result<Vec<SubdomainInfo>> {
-    let url = format!(
-        "https://api-sec-vlc.hotmart.com/security/oauth/check_token?token={}",
-        session.token
-    );
-
-    let resp = session.client.get(&url).send().await?;
+    let resp = session
+        .client
+        .post("https://api-sec-vlc.hotmart.com/security/oauth/check_token")
+        .form(&[("token", &session.token)])
+        .send()
+        .await?;
 
     let status = resp.status();
     let body_text = resp.text().await?;
