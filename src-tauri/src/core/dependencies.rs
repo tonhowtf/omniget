@@ -17,9 +17,10 @@ fn bin_name(tool: &str) -> String {
 
 pub async fn find_tool(tool: &str) -> Option<PathBuf> {
     let name = bin_name(tool);
+    let version_flag = version_flag_for(tool);
 
     if let Ok(status) = crate::core::process::command(&name)
-        .arg("-version")
+        .arg(version_flag)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
@@ -38,10 +39,18 @@ pub async fn find_tool(tool: &str) -> Option<PathBuf> {
     None
 }
 
+fn version_flag_for(tool: &str) -> &'static str {
+    match tool {
+        "aria2c" => "--version",
+        _ => "-version",
+    }
+}
+
 pub async fn check_version(tool: &str) -> Option<String> {
     let path = find_tool(tool).await?;
+    let version_flag = version_flag_for(tool);
     let output = crate::core::process::command(&path)
-        .arg("-version")
+        .arg(version_flag)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
@@ -64,6 +73,14 @@ pub async fn check_version(tool: &str) -> Option<String> {
 
     if tool == "yt-dlp" {
         return Some(first_line.trim().to_string());
+    }
+
+    // aria2c -v outputs: "aria2 version 1.37.0"
+    if tool == "aria2c" {
+        return first_line
+            .split_whitespace()
+            .nth(2)
+            .map(|s| s.to_string());
     }
 
     Some(first_line.trim().to_string())
@@ -255,4 +272,83 @@ async fn find_and_copy_binaries(
         }
     }
     Ok(())
+}
+
+// --- aria2c ---
+
+pub async fn ensure_aria2c() -> Option<PathBuf> {
+    if let Some(path) = find_tool("aria2c").await {
+        return Some(path);
+    }
+
+    // Auto-download only on Windows
+    #[cfg(target_os = "windows")]
+    {
+        match download_aria2c().await {
+            Ok(path) => return Some(path),
+            Err(e) => {
+                tracing::warn!("Failed to download aria2c: {}", e);
+            }
+        }
+    }
+
+    None
+}
+
+#[cfg(target_os = "windows")]
+async fn download_aria2c() -> anyhow::Result<PathBuf> {
+    let bin_dir = managed_bin_dir()
+        .ok_or_else(|| anyhow!("Could not determine data directory"))?;
+    tokio::fs::create_dir_all(&bin_dir).await?;
+
+    let aria2c_name = bin_name("aria2c");
+    let aria2c_target = bin_dir.join(&aria2c_name);
+
+    let url = "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip";
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()?;
+
+    let response = client.get(url).send().await?;
+    if !response.status().is_success() {
+        return Err(anyhow!("Failed to download aria2c: HTTP {}", response.status()));
+    }
+
+    let bytes = response.bytes().await?;
+
+    let data = bytes.to_vec();
+    let bin_dir_clone = bin_dir.clone();
+    let aria2c_name_clone = aria2c_name.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let cursor = std::io::Cursor::new(&data);
+        let mut archive = zip::ZipArchive::new(cursor)
+            .map_err(|e| anyhow!("Failed to open aria2c zip: {}", e))?;
+
+        for i in 0..archive.len() {
+            let mut file = archive
+                .by_index(i)
+                .map_err(|e| anyhow!("Failed to read zip entry: {}", e))?;
+
+            let name = file.name().to_string();
+            if name.ends_with(&aria2c_name_clone) {
+                let dest = bin_dir_clone.join(&aria2c_name_clone);
+                let mut buf = Vec::new();
+                std::io::Read::read_to_end(&mut file, &mut buf)?;
+                std::fs::write(&dest, &buf)?;
+                break;
+            }
+        }
+
+        Ok::<(), anyhow::Error>(())
+    })
+    .await
+    .map_err(|e| anyhow!("Spawn blocking failed: {}", e))??;
+
+    if !aria2c_target.exists() {
+        return Err(anyhow!("aria2c binary not found after extraction"));
+    }
+
+    Ok(aria2c_target)
 }
