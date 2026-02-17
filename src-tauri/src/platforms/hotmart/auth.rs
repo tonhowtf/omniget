@@ -218,20 +218,51 @@ async fn extract_webview_cookies(
     Ok(cookies)
 }
 
-pub async fn authenticate(
-    app: &tauri::AppHandle,
-    email: &str,
-    password: &str,
-) -> anyhow::Result<HotmartSession> {
-    #[cfg(windows)]
-    return authenticate_webview(app, email, password).await;
-
-    #[cfg(not(windows))]
-    return authenticate_chromiumoxide(app, email, password).await;
+#[allow(dead_code)]
+fn parse_document_cookie(s: &str) -> Vec<(String, String)> {
+    s.split(';')
+        .filter_map(|pair| {
+            let pair = pair.trim();
+            if pair.is_empty() {
+                return None;
+            }
+            let (name, value) = pair.split_once('=')?;
+            Some((name.trim().to_string(), value.trim().to_string()))
+        })
+        .collect()
 }
 
-#[cfg(windows)]
-async fn authenticate_webview(
+#[cfg(not(windows))]
+async fn extract_webview_cookies_js(
+    window: &tauri::WebviewWindow,
+    cookie_data: &Arc<std::sync::Mutex<Option<String>>>,
+) -> anyhow::Result<Vec<(String, String)>> {
+    *cookie_data.lock().unwrap() = None;
+
+    window
+        .eval(
+            "window.location.href = 'https://omniget-cookie-extract.local/?cookies=' + encodeURIComponent(document.cookie)",
+        )
+        .map_err(|e| anyhow!("JS eval failed: {}", e))?;
+
+    let start = std::time::Instant::now();
+    let timeout = Duration::from_secs(5);
+    loop {
+        if let Some(cookie_str) = cookie_data.lock().unwrap().take() {
+            let cookies = parse_document_cookie(&cookie_str);
+            let names: Vec<&str> = cookies.iter().map(|(n, _)| n.as_str()).collect();
+            tracing::info!("[cookies] document.cookie → {} cookies: {:?}", cookies.len(), names);
+            return Ok(cookies);
+        }
+        if start.elapsed() > timeout {
+            tracing::warn!("[cookies] timeout waiting for document.cookie response");
+            return Ok(Vec::new());
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+pub async fn authenticate(
     app: &tauri::AppHandle,
     email: &str,
     password: &str,
@@ -243,6 +274,11 @@ async fn authenticate_webview(
 
     let captcha_detected = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let captcha_flag = captcha_detected.clone();
+
+    #[cfg(not(windows))]
+    let cookie_data = Arc::new(std::sync::Mutex::new(Option::<String>::None));
+    #[cfg(not(windows))]
+    let cookie_data_nav = cookie_data.clone();
 
     let email_json = serde_json::to_string(email)?;
     let password_json = serde_json::to_string(password)?;
@@ -313,6 +349,19 @@ async fn authenticate_webview(
             captcha_flag.store(true, std::sync::atomic::Ordering::Relaxed);
         }
 
+        #[cfg(not(windows))]
+        {
+            if host == "omniget-cookie-extract.local" {
+                for (key, value) in url.query_pairs() {
+                    if key == "cookies" {
+                        *cookie_data_nav.lock().unwrap() = Some(value.to_string());
+                        break;
+                    }
+                }
+                return false;
+            }
+        }
+
         true
     })
     .build()
@@ -337,7 +386,10 @@ async fn authenticate_webview(
             let poll_interval = Duration::from_millis(500);
 
             let cookies = loop {
+                #[cfg(windows)]
                 let cookies = extract_webview_cookies(&login_window).await?;
+                #[cfg(not(windows))]
+                let cookies = extract_webview_cookies_js(&login_window, &cookie_data).await?;
 
                 let has_token = cookies.iter().any(|(name, _)| name == "hmVlcIntegration");
                 if has_token {
@@ -401,128 +453,4 @@ async fn authenticate_webview(
 
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
-}
-
-#[cfg(not(windows))]
-async fn authenticate_chromiumoxide(
-    _app: &tauri::AppHandle,
-    email: &str,
-    password: &str,
-) -> anyhow::Result<HotmartSession> {
-    use chromiumoxide::browser::{Browser, BrowserConfig};
-    use futures::StreamExt;
-
-    let email_json = serde_json::to_string(email)?;
-    let password_json = serde_json::to_string(password)?;
-
-    let fill_script = format!(
-        r#"
-        (function() {{
-            try {{
-                var el = document.querySelector('#hotmart-cookie-policy');
-                if (el && el.shadowRoot) {{
-                    var btn = el.shadowRoot.querySelector('button.cookie-policy-accept-all');
-                    if (btn) btn.click();
-                }}
-            }} catch(e) {{}}
-            var u = document.querySelector('#username');
-            var p = document.querySelector('#password');
-            if (u && p) {{
-                var s = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                s.call(u, {email_json});
-                u.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                u.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                s.call(p, {password_json});
-                p.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                p.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                setTimeout(function() {{
-                    var btn = document.querySelector('[name=submit]');
-                    if (btn) btn.click();
-                }}, 500);
-            }}
-        }})()"#
-    );
-
-    let (browser, mut handler) = Browser::launch(
-        BrowserConfig::builder()
-            .with_head()
-            .arg("--disable-gpu")
-            .arg("--no-sandbox")
-            .arg("--disable-extensions")
-            .build()
-            .map_err(|e| anyhow!("Failed to configure browser: {}", e))?,
-    )
-    .await?;
-    tokio::spawn(async move {
-        while handler.next().await.is_some() {}
-    });
-
-    let page = browser
-        .new_page("https://sso.hotmart.com/login")
-        .await?;
-    tokio::time::sleep(Duration::from_secs(3)).await;
-
-    page.evaluate(fill_script).await?;
-
-    let start = std::time::Instant::now();
-    let timeout = Duration::from_secs(120);
-    loop {
-        tokio::time::sleep(Duration::from_millis(1000)).await;
-        let current_url = page.url().await?.unwrap_or_default();
-        let is_post_login = current_url.contains("consumer.hotmart.com")
-            || current_url.contains(".club.hotmart.com")
-            || current_url.contains("dashboard");
-        if is_post_login {
-            break;
-        }
-        if start.elapsed() > timeout {
-            return Err(anyhow!("Timeout esperando login. Verifique credenciais."));
-        }
-    }
-
-    tokio::time::sleep(Duration::from_secs(2)).await;
-
-    let browser_cookies = page.get_cookies().await?;
-    let cookies: Vec<(String, String)> = browser_cookies
-        .iter()
-        .map(|c| (c.name.clone(), c.value.clone()))
-        .collect();
-
-    let cookie_names: Vec<&str> = cookies.iter().map(|(n, _)| n.as_str()).collect();
-    tracing::info!(
-        "Extracted {} cookies via chromiumoxide: {:?}",
-        cookies.len(),
-        cookie_names
-    );
-
-    let token = cookies
-        .iter()
-        .find(|(name, _)| name == "hmVlcIntegration")
-        .map(|(_, value)| value.clone())
-        .ok_or_else(|| {
-            tracing::warn!(
-                "hmVlcIntegration not found. Available cookies: {:?}",
-                cookie_names
-            );
-            anyhow!("Cookie hmVlcIntegration não encontrado.")
-        })?;
-
-    let saved = SavedSession {
-        token: token.clone(),
-        email: email.to_string(),
-        cookies: cookies.clone(),
-        saved_at: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs(),
-    };
-
-    let client = build_client_from_saved(&saved)?;
-
-    Ok(HotmartSession {
-        token,
-        email: email.to_string(),
-        client,
-        cookies,
-    })
 }
