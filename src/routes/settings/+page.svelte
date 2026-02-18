@@ -580,6 +580,22 @@
         </div>
         <div class="divider"></div>
         <div class="setting-row">
+          <div class="setting-col">
+            <span class="setting-label">{$t('settings.advanced.stagger_delay')}</span>
+            <span class="setting-path">{$t('settings.advanced.stagger_delay_desc')}</span>
+          </div>
+          <input
+            type="number"
+            class="input-number"
+            min="0"
+            max="2000"
+            step="50"
+            value={settings.advanced.stagger_delay_ms}
+            onchange={(e) => changeNumber("advanced", "stagger_delay_ms", e)}
+          />
+        </div>
+        <div class="divider"></div>
+        <div class="setting-row">
           <span class="setting-label">{$t('settings.advanced.reset')}</span>
           <button class="button reset-btn" onclick={handleReset} disabled={resetting}>
             {$t('settings.advanced.reset')}
