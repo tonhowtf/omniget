@@ -26,6 +26,7 @@
     "page_progress": "Página {{current}}/{{total}}",
     "module_progress": "Módulo {{current}}/{{total}}",
     "eta_calculating": "Calculando...",
+    "eta_fetching_info": "Obtendo informações...",
     "eta_seconds": "~{{n}} seg",
     "eta_minutes": "~{{n}} min",
     "eta_hours": "~{{h}}h {{m}}min",
@@ -196,6 +197,8 @@
       "concurrent_fragments": "Fragmentos simultâneos",
       "concurrent_fragments_desc": "Downloads paralelos de fragmento por vídeo (yt-dlp)",
       "max_retries": "Tentativas por segmento",
+      "stagger_delay": "Atraso entre downloads (ms)",
+      "stagger_delay_desc": "Intervalo entre o início de downloads simultâneos",
       "reset": "Restaurar padrões",
       "reset_confirm": "Tem certeza? Todas as configurações serão restauradas."
     },
