@@ -306,10 +306,11 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         "--dump-single-json".to_string(),
         "--no-warnings".to_string(),
         "--no-playlist".to_string(),
+        "--no-check-certificates".to_string(),
         "--socket-timeout".to_string(),
-        "30".to_string(),
+        "15".to_string(),
         "--retries".to_string(),
-        "5".to_string(),
+        "3".to_string(),
         "--user-agent".to_string(),
         CHROME_UA.to_string(),
     ];
@@ -317,6 +318,7 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
     if is_youtube_url(url) {
         args.push("--extractor-args".to_string());
         args.push("youtube:player_client=web,default".to_string());
+        args.push("--skip-download".to_string());
     }
 
     args.push(url.to_string());
@@ -348,11 +350,11 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
     });
 
     let result = tokio::time::timeout(
-        std::time::Duration::from_secs(60),
+        std::time::Duration::from_secs(30),
         child.wait_with_output(),
     )
     .await
-    .map_err(|_| anyhow!("Timeout ao obter informações do vídeo (60s)"))?
+    .map_err(|_| anyhow!("Timeout ao obter informações do vídeo (30s)"))?
     .map_err(|e| anyhow!("Falha ao executar yt-dlp: {}", e))?;
 
     let stderr_content = stderr_reader.await.unwrap_or_default();
