@@ -252,29 +252,30 @@ fn detect_cookies_browser() -> Option<String> {
             }
         }
         if let Some(home) = dirs::home_dir() {
-            if home.join(".mozilla").join("firefox").is_dir() {
-                return Some("firefox".to_string());
-            }
-            // Flatpak browsers
             let fp = home.join(".var").join("app");
+
             if fp.join("com.google.Chrome").join("config").join("google-chrome").is_dir() {
                 return Some("chrome".to_string());
-            }
-            if fp.join("com.brave.Browser").join("config").join("BraveSoftware").join("Brave-Browser").is_dir() {
-                return Some("brave".to_string());
             }
             if fp.join("org.chromium.Chromium").join("config").join("chromium").is_dir() {
                 return Some("chromium".to_string());
             }
+            if fp.join("com.brave.Browser").join("config").join("BraveSoftware").join("Brave-Browser").is_dir() {
+                return Some("brave".to_string());
+            }
+
+            if home.join("snap").join("chromium").join("common").join("chromium").is_dir() {
+                return Some("chromium".to_string());
+            }
+
+            if home.join(".mozilla").join("firefox").is_dir() {
+                return Some("firefox".to_string());
+            }
             if fp.join("org.mozilla.firefox").join(".mozilla").join("firefox").is_dir() {
                 return Some("firefox".to_string());
             }
-            // Snap browsers
             if home.join("snap").join("firefox").join("common").join(".mozilla").join("firefox").is_dir() {
                 return Some("firefox".to_string());
-            }
-            if home.join("snap").join("chromium").join("common").join("chromium").is_dir() {
-                return Some("chromium".to_string());
             }
         }
     }
