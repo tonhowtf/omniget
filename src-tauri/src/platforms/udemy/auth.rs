@@ -38,7 +38,13 @@ pub fn build_client_from_saved(saved: &SavedSession) -> anyhow::Result<reqwest::
         "https://udemy.com",
     ];
     for (name, value) in &saved.cookies {
-        let cookie_str = format!("{}={}; Domain=.udemy.com; Path=/", name, value);
+        
+        let clean_value = if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
+            &value[1..value.len()-1]
+        } else {
+            value.as_str()
+        };
+        let cookie_str = format!("{}={}; Domain=.udemy.com; Path=/", name, clean_value);
         for domain in &domains {
             jar.add_cookie_str(&cookie_str, &domain.parse().unwrap());
         }
@@ -62,12 +68,6 @@ pub fn build_client_from_saved(saved: &SavedSession) -> anyhow::Result<reqwest::
         HeaderValue::from_static("XMLHttpRequest"),
     );
 
-    if !saved.access_token.is_empty() {
-        default_headers.insert(
-            "Authorization",
-            HeaderValue::from_str(&format!("Bearer {}", saved.access_token))?,
-        );
-    }
 
     let client = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0")
@@ -388,7 +388,14 @@ pub async fn authenticate(
                 let access_token = cookies
                     .iter()
                     .find(|(name, _)| name == "access_token")
-                    .map(|(_, value)| value.clone())
+                    .map(|(_, value)| {
+                        let v = value.trim();
+                        if v.starts_with('"') && v.ends_with('"') && v.len() >= 2 {
+                            v[1..v.len()-1].to_string()
+                        } else {
+                            value.clone()
+                        }
+                    })
                     .unwrap_or_default();
 
                 let saved = SavedSession {
