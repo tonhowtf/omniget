@@ -325,7 +325,7 @@ export function getEtaI18n(item: CourseDownloadItem): I18nValue {
 }
 
 export function getGenericEtaI18n(item: GenericDownloadItem): I18nValue {
-  if (item.percent < 0) return { key: "downloads.eta_fetching_info" };
+  if (item.percent <= 0 && item.speed <= 0) return { key: "downloads.eta_calculating" };
   if (item.etaSeconds != null && isFinite(item.etaSeconds) && item.etaSeconds >= 0) {
     const remaining = item.etaSeconds;
     if (remaining < 60) return { key: "downloads.eta_seconds", params: { n: Math.ceil(remaining) } };
