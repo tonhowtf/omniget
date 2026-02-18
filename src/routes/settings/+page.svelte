@@ -2,7 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import { t, locale, loadTranslations } from "$lib/i18n";
-  import { getSettings, updateSettings, resetSettings, loadSettings } from "$lib/stores/settings-store.svelte";
+  import { getSettings, updateSettings, resetSettings } from "$lib/stores/settings-store.svelte";
   import { getUpdateInfo } from "$lib/stores/update-store.svelte";
   import { installUpdate } from "$lib/updater";
   import { showToast } from "$lib/stores/toast-store.svelte";
