@@ -39,6 +39,8 @@ pub struct UdemyCurriculum {
     pub title: String,
     pub chapters: Vec<UdemyChapter>,
     pub total_lectures: u32,
+    pub total_video_lectures: u32,
+    pub drm_video_lectures: u32,
 }
 
 pub fn extract_course_name(url: &str) -> Option<(String, String)> {
@@ -285,39 +287,15 @@ pub async fn list_all_courses(
     Ok(my_courses)
 }
 
-pub async fn get_course_curriculum(
-    session: &UdemySession,
-    portal_name: &str,
-    course_id: u64,
-) -> Result<UdemyCurriculum> {
-    let url = format!(
-        "https://{}.udemy.com/api-2.0/courses/{}/subscriber-curriculum-items/",
-        portal_name, course_id
-    );
-
-    let params: &[(&str, &str)] = &[
-        ("fields[lecture]", "title,object_index,asset,supplementary_assets"),
-        ("fields[quiz]", "title,object_index,type"),
-        ("fields[chapter]", "title,object_index"),
-        ("fields[asset]", "title,filename,asset_type,status,media_sources,captions,stream_urls,download_urls,body"),
-        ("page_size", "200"),
-    ];
-
-    tracing::info!("[udemy-api] fetching curriculum for course {}", course_id);
-
-    let data = handle_pagination(session, &url, Some(params)).await?;
-
-    let results = data.get("results")
-        .and_then(|r| r.as_array())
-        .cloned()
-        .unwrap_or_default();
-
+pub fn parse_curriculum(course_id: u64, results: &[serde_json::Value]) -> Result<UdemyCurriculum> {
     let mut chapters: Vec<UdemyChapter> = Vec::new();
     let mut current_chapter: Option<UdemyChapter> = None;
     let mut total_lectures: u32 = 0;
+    let mut total_video_lectures: u32 = 0;
+    let mut drm_video_lectures: u32 = 0;
     let mut course_title = String::new();
 
-    for item in &results {
+    for item in results {
         let class = item.get("_class").and_then(|c| c.as_str()).unwrap_or("");
 
         match class {
@@ -347,6 +325,32 @@ pub async fn get_course_curriculum(
                 let object_index = item.get("object_index").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
                 let asset = item.get("asset").cloned();
 
+                if class == "lecture" {
+                    total_lectures += 1;
+
+                    if let Some(ref a) = asset {
+                        let asset_type = a.get("asset_type")
+                            .or_else(|| a.get("assetType"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_lowercase();
+
+                        if asset_type == "video" {
+                            total_video_lectures += 1;
+                            let has_stream_urls = a.get("stream_urls")
+                                .map(|v| !v.is_null())
+                                .unwrap_or(false);
+                            let has_media_sources = a.get("media_sources")
+                                .map(|v| !v.is_null())
+                                .unwrap_or(false);
+
+                            if !has_stream_urls && has_media_sources {
+                                drm_video_lectures += 1;
+                            }
+                        }
+                    }
+                }
+
                 let lecture = UdemyLecture {
                     id,
                     title,
@@ -354,10 +358,6 @@ pub async fn get_course_curriculum(
                     lecture_class: class.to_string(),
                     asset,
                 };
-
-                if class == "lecture" {
-                    total_lectures += 1;
-                }
 
                 if let Some(ref mut ch) = current_chapter {
                     ch.lectures.push(lecture);
@@ -381,9 +381,8 @@ pub async fn get_course_curriculum(
     }
 
     tracing::info!(
-        "[udemy-api] curriculum: {} chapters, {} lectures",
-        chapters.len(),
-        total_lectures
+        "[udemy-api] curriculum: {} chapters, {} lectures, {} video, {} drm",
+        chapters.len(), total_lectures, total_video_lectures, drm_video_lectures
     );
 
     Ok(UdemyCurriculum {
@@ -391,5 +390,38 @@ pub async fn get_course_curriculum(
         title: course_title,
         chapters,
         total_lectures,
+        total_video_lectures,
+        drm_video_lectures,
     })
+}
+
+pub async fn get_course_curriculum(
+    session: &UdemySession,
+    portal_name: &str,
+    course_id: u64,
+) -> Result<UdemyCurriculum> {
+    let url = format!(
+        "https://{}.udemy.com/api-2.0/courses/{}/subscriber-curriculum-items/",
+        portal_name, course_id
+    );
+
+    let params: &[(&str, &str)] = &[
+        ("fields[lecture]", "title,object_index,asset,supplementary_assets"),
+        ("fields[quiz]", "title,object_index,type"),
+        ("fields[practice]", "title,object_index"),
+        ("fields[chapter]", "title,object_index"),
+        ("fields[asset]", "title,filename,asset_type,status,is_external,media_license_token,course_is_drmed,media_sources,captions,stream_urls,download_urls,external_url,body"),
+        ("page_size", "200"),
+    ];
+
+    tracing::info!("[udemy-api] fetching curriculum for course {}", course_id);
+
+    let data = handle_pagination(session, &url, Some(params)).await?;
+
+    let results = data.get("results")
+        .and_then(|r| r.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    parse_curriculum(course_id, &results)
 }
