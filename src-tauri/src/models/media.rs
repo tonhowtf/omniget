@@ -47,6 +47,7 @@ pub struct DownloadOptions {
     pub referer: Option<String>,
     pub cancel_token: CancellationToken,
     pub concurrent_fragments: u32,
+    pub ytdlp_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
