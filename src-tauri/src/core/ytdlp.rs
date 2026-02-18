@@ -589,10 +589,11 @@ pub async fn download_video(
 
         if use_aria2c && !use_browser_cookies {
             if let Some(ref a2_path) = aria2c_path {
+                let conns = if is_youtube_url(url) { effective_fragments.max(1) } else { 16 };
                 args.push("--downloader".to_string());
                 args.push(a2_path.to_string_lossy().to_string());
                 args.push("--downloader-args".to_string());
-                args.push("aria2c:-x 16 -k 1M -j 16 --file-allocation=none --optimize-concurrent-downloads=true --auto-file-renaming=false --summary-interval=0".to_string());
+                args.push(format!("aria2c:-x {} -k 1M -j {} --file-allocation=none --optimize-concurrent-downloads=true --auto-file-renaming=false --summary-interval=0", conns, conns));
             }
         }
 
