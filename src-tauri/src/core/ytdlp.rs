@@ -545,6 +545,14 @@ pub async fn download_video(
         "30".to_string(),
         "--retries".to_string(),
         "3".to_string(),
+        "--fragment-retries".to_string(),
+        "5".to_string(),
+        "--extractor-retries".to_string(),
+        "3".to_string(),
+        "--file-access-retries".to_string(),
+        "3".to_string(),
+        "--retry-sleep".to_string(),
+        "linear=1::2".to_string(),
         "--no-playlist".to_string(),
         "--newline".to_string(),
         "--progress-template".to_string(),
@@ -552,6 +560,10 @@ pub async fn download_video(
         "-o".to_string(),
         output_template,
     ]);
+
+    if cfg!(target_os = "windows") {
+        base_args.push("--windows-filenames".to_string());
+    }
 
     let max_attempts: usize = 3;
     let mut extra_args: Vec<String> = Vec::new();
@@ -1027,4 +1039,237 @@ fn extract_id_from_url(url: &str) -> Option<String> {
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_progress_download_prefix() {
+        assert_eq!(parse_progress_line("download:  45.2%"), Some(45.2));
+    }
+
+    #[test]
+    fn parse_progress_100_percent() {
+        assert_eq!(parse_progress_line("download:100.0%"), Some(100.0));
+    }
+
+    #[test]
+    fn parse_progress_bare_percent() {
+        assert_eq!(parse_progress_line("  92.5%"), Some(92.5));
+    }
+
+    #[test]
+    fn parse_progress_integer() {
+        assert_eq!(parse_progress_line("download:100%"), Some(100.0));
+    }
+
+    #[test]
+    fn parse_progress_garbage_returns_none() {
+        assert_eq!(parse_progress_line("[info] Writing video subtitles"), None);
+    }
+
+    #[test]
+    fn parse_progress_empty_returns_none() {
+        assert_eq!(parse_progress_line(""), None);
+    }
+
+    #[test]
+    fn parse_destination_standard() {
+        assert_eq!(
+            parse_destination_line("[download] Destination: /tmp/video.mp4"),
+            Some("/tmp/video.mp4".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_destination_merger() {
+        assert_eq!(
+            parse_destination_line("[Merger] Merging formats into \"/tmp/video.mp4\""),
+            Some("/tmp/video.mp4".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_destination_no_match() {
+        assert_eq!(parse_destination_line("[download] 100% of 50.0MiB"), None);
+    }
+
+    #[test]
+    fn parse_destination_empty_path_returns_none() {
+        assert_eq!(parse_destination_line("[download] Destination:"), None);
+    }
+
+    #[test]
+    fn is_youtube_url_standard() {
+        assert!(is_youtube_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"));
+    }
+
+    #[test]
+    fn is_youtube_url_short() {
+        assert!(is_youtube_url("https://youtu.be/dQw4w9WgXcQ"));
+    }
+
+    #[test]
+    fn is_youtube_url_case_insensitive() {
+        assert!(is_youtube_url("https://www.YouTube.com/watch?v=test"));
+    }
+
+    #[test]
+    fn is_youtube_url_other_site() {
+        assert!(!is_youtube_url("https://vimeo.com/123456"));
+    }
+
+    #[test]
+    fn sanitize_strips_query_params() {
+        let input = "Error downloading https://example.com/video?token=secret&key=123 failed";
+        let result = sanitize_log_line(input);
+        assert_eq!(result, "Error downloading https://example.com/video failed");
+    }
+
+    #[test]
+    fn sanitize_preserves_url_without_query() {
+        let input = "Error downloading https://example.com/video failed";
+        let result = sanitize_log_line(input);
+        assert_eq!(result, input);
+    }
+
+    #[test]
+    fn sanitize_multiple_urls() {
+        let input = "from https://a.com/x?s=1 to https://b.com/y?t=2 done";
+        let result = sanitize_log_line(input);
+        assert_eq!(result, "from https://a.com/x to https://b.com/y done");
+    }
+
+    #[test]
+    fn sanitize_no_urls() {
+        let input = "plain error message";
+        let result = sanitize_log_line(input);
+        assert_eq!(result, input);
+    }
+
+    #[test]
+    fn extract_id_youtube_standard() {
+        assert_eq!(
+            extract_id_from_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+            Some("dQw4w9WgXcQ".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_id_youtu_be() {
+        assert_eq!(
+            extract_id_from_url("https://youtu.be/dQw4w9WgXcQ"),
+            Some("dQw4w9WgXcQ".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_id_shorts() {
+        assert_eq!(
+            extract_id_from_url("https://www.youtube.com/shorts/abc123"),
+            Some("abc123".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_id_non_youtube() {
+        assert_eq!(extract_id_from_url("https://vimeo.com/123456"), None);
+    }
+
+    #[test]
+    fn translate_error_429() {
+        let err = translate_ytdlp_error("HTTP Error 429: Too Many Requests");
+        assert!(err.to_string().contains("429"));
+    }
+
+    #[test]
+    fn translate_error_403() {
+        let err = translate_ytdlp_error("HTTP Error 403: Forbidden");
+        assert!(err.to_string().contains("403"));
+    }
+
+    #[test]
+    fn translate_error_nsig() {
+        let err = translate_ytdlp_error("nsig extraction failed");
+        assert!(err.to_string().contains("extração"));
+    }
+
+    #[test]
+    fn translate_error_unavailable() {
+        let err = translate_ytdlp_error("Video unavailable");
+        assert!(err.to_string().contains("indisponível"));
+    }
+
+    #[test]
+    fn translate_error_private() {
+        let err = translate_ytdlp_error("This is a private video");
+        assert!(err.to_string().contains("privado"));
+    }
+
+    #[test]
+    fn translate_error_timeout() {
+        let err = translate_ytdlp_error("Connection timed out");
+        assert!(err.to_string().contains("expirou"));
+    }
+
+    #[test]
+    fn translate_error_unknown_falls_through() {
+        let err = translate_ytdlp_error("ERROR: some unknown thing happened");
+        assert!(err.to_string().contains("yt-dlp"));
+    }
+
+    #[test]
+    fn parse_formats_empty_json() {
+        let json = serde_json::json!({});
+        assert!(parse_formats(&json).is_empty());
+    }
+
+    #[test]
+    fn parse_formats_extracts_fields() {
+        let json = serde_json::json!({
+            "formats": [
+                {
+                    "format_id": "22",
+                    "ext": "mp4",
+                    "width": 1280,
+                    "height": 720,
+                    "fps": 30.0,
+                    "vcodec": "avc1.64001F",
+                    "acodec": "mp4a.40.2",
+                    "filesize": 50_000_000u64,
+                    "tbr": 2500.0,
+                    "format_note": "720p"
+                }
+            ]
+        });
+        let formats = parse_formats(&json);
+        assert_eq!(formats.len(), 1);
+        assert_eq!(formats[0].format_id, "22");
+        assert_eq!(formats[0].height, Some(720));
+        assert!(formats[0].has_video);
+        assert!(formats[0].has_audio);
+        assert_eq!(formats[0].resolution, Some("1280x720".to_string()));
+    }
+
+    #[test]
+    fn parse_formats_video_only() {
+        let json = serde_json::json!({
+            "formats": [
+                {
+                    "format_id": "137",
+                    "ext": "mp4",
+                    "width": 1920,
+                    "height": 1080,
+                    "vcodec": "avc1.640028",
+                    "acodec": "none"
+                }
+            ]
+        });
+        let formats = parse_formats(&json);
+        assert_eq!(formats.len(), 1);
+        assert!(formats[0].has_video);
+        assert!(!formats[0].has_audio);
+    }
 }
