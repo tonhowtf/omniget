@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>wtf.tonho.omniget</id>
+  <name>Omniget</name>
+  <summary>Download media from multiple platforms</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>
+      Omniget is a desktop application to download videos, courses, and media
+      from platforms like YouTube, Udemy, Hotmart, Telegram, Instagram, TikTok,
+      Twitter, Reddit, Twitch, Pinterest, Bluesky, and Vimeo.
+    </p>
+    <p>Features include:</p>
+    <ul>
+      <li>Multi-platform media downloading</li>
+      <li>Course downloading from Udemy and Hotmart</li>
+      <li>Telegram media browser and batch downloader</li>
+      <li>Media format conversion</li>
+      <li>Queue management with concurrent downloads</li>
+    </ul>
+  </description>
+  <url type="homepage">https://github.com/tonhowtf/omniget</url>
+  <url type="bugtracker">https://github.com/tonhowtf/omniget/issues</url>
+  <launchable type="desktop-id">wtf.tonho.omniget.desktop</launchable>
+  <provides>
+    <binary>omniget</binary>
+  </provides>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.2.9" date="2026-02-18">
+      <description><p>Current release</p></description>
+    </release>
+  </releases>
+</component>
