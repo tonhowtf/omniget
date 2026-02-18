@@ -68,14 +68,17 @@ async fn api_get_with_retry(
         match req.send().await {
             Ok(resp) => {
                 let status = resp.status();
+                tracing::info!("[udemy-api] {} → {}", url, status);
                 if status.is_success() {
                     return Ok(resp);
                 }
                 if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
                     let body = resp.text().await.unwrap_or_default();
+                    tracing::error!("[udemy-api] auth error for {}: {} — {}", url, status, &body[..body.len().min(500)]);
                     return Err(anyhow!("API auth error ({}): {}", status, body));
                 }
                 let body = resp.text().await.unwrap_or_default();
+                tracing::warn!("[udemy-api] non-success for {}: {} — {}", url, status, &body[..body.len().min(500)]);
                 last_err = Some(anyhow!("API returned {}: {}", status, body));
             }
             Err(e) => {
@@ -105,12 +108,20 @@ async fn handle_pagination(
 ) -> Result<serde_json::Value> {
     let resp = api_get_with_retry(&session.client, initial_url, params).await?;
 
-    let mut data: serde_json::Value = resp.json().await
-        .map_err(|e| anyhow!("Failed to parse JSON: {}", e))?;
+    let resp_text = resp.text().await
+        .map_err(|e| anyhow!("Failed to read response body: {}", e))?;
+
+    let mut data: serde_json::Value = serde_json::from_str(&resp_text)
+        .map_err(|e| {
+            let preview = if resp_text.len() > 500 { &resp_text[..500] } else { &resp_text };
+            tracing::error!("[udemy-api] JSON parse failed. Body preview: {}", preview);
+            anyhow!("Failed to parse JSON: {} — body starts with: {}", e, &resp_text[..resp_text.len().min(200)])
+        })?;
 
     let count = data.get("count").and_then(|c| c.as_u64());
     if count.is_none() {
-        tracing::warn!("[udemy-api] response missing 'count' field");
+        tracing::warn!("[udemy-api] response missing 'count' field. Keys: {:?}",
+            data.as_object().map(|o| o.keys().collect::<Vec<_>>()));
         return Ok(data);
     }
 
@@ -238,9 +249,30 @@ pub async fn list_all_courses(
     session: &UdemySession,
     portal_name: &str,
 ) -> Result<Vec<UdemyCourse>> {
-    let mut my_courses = list_my_courses(session, portal_name).await.unwrap_or_default();
+    let my_courses_result = list_my_courses(session, portal_name).await;
+    let sub_courses_result = list_subscription_courses(session, portal_name).await;
 
-    let sub_courses = list_subscription_courses(session, portal_name).await.unwrap_or_default();
+    if my_courses_result.is_err() && sub_courses_result.is_err() {
+        let err = my_courses_result.unwrap_err();
+        tracing::error!("[udemy-api] both course fetches failed: {}", err);
+        return Err(err);
+    }
+
+    let mut my_courses = match my_courses_result {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("[udemy-api] subscribed courses failed (continuing with subscription): {}", e);
+            Vec::new()
+        }
+    };
+
+    let sub_courses = match sub_courses_result {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("[udemy-api] subscription enrollments failed (continuing with subscribed): {}", e);
+            Vec::new()
+        }
+    };
 
     let existing_ids: std::collections::HashSet<u64> = my_courses.iter().map(|c| c.id).collect();
     for course in sub_courses {
