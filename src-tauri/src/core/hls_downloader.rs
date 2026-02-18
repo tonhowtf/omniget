@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use m3u8_rs::{parse_master_playlist, parse_media_playlist, MasterPlaylist, VariantStream};
 use reqwest::Client;
@@ -24,12 +25,18 @@ pub struct HlsDownloader {
 
 impl HlsDownloader {
     pub fn new() -> Self {
-        Self {
-            client: Client::builder()
+        Self::with_client(
+            Client::builder()
                 .danger_accept_invalid_certs(true)
+                .connect_timeout(Duration::from_secs(30))
+                .timeout(Duration::from_secs(300))
                 .build()
                 .unwrap(),
-        }
+        )
+    }
+
+    pub fn with_client(client: Client) -> Self {
+        Self { client }
     }
 
     pub async fn download(
@@ -46,15 +53,7 @@ impl HlsDownloader {
             anyhow::bail!("Download cancelado pelo usuário");
         }
 
-        let m3u8_text = self
-            .client
-            .get(m3u8_url)
-            .header("Referer", referer)
-            .header("User-Agent", USER_AGENT)
-            .send()
-            .await?
-            .text()
-            .await?;
+        let m3u8_text = self.fetch_m3u8_with_retry(m3u8_url, referer, 3).await?;
 
         let m3u8_bytes = m3u8_text.as_bytes();
 
@@ -74,6 +73,37 @@ impl HlsDownloader {
         }
 
         anyhow::bail!("Falha ao parsear m3u8: nem master nem media playlist")
+    }
+
+    async fn fetch_m3u8_with_retry(
+        &self,
+        url: &str,
+        referer: &str,
+        max_retries: u32,
+    ) -> anyhow::Result<String> {
+        let mut last_err = None;
+        for attempt in 0..max_retries {
+            match self
+                .client
+                .get(url)
+                .header("Referer", referer)
+                .header("User-Agent", USER_AGENT)
+                .send()
+                .await
+            {
+                Ok(resp) => match resp.text().await {
+                    Ok(text) => return Ok(text),
+                    Err(e) => last_err = Some(anyhow::anyhow!(e)),
+                },
+                Err(e) => last_err = Some(anyhow::anyhow!(e)),
+            }
+            if attempt < max_retries - 1 {
+                tokio::time::sleep(Duration::from_millis(500 * (attempt as u64 + 1))).await;
+            }
+        }
+        Err(last_err.unwrap_or_else(|| {
+            anyhow::anyhow!("Falha ao buscar m3u8 após {} tentativas", max_retries)
+        }))
     }
 
     async fn download_media_playlist(
