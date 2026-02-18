@@ -14,9 +14,9 @@
     id: number;
     title: string;
     published_title: string;
+    url: string | null;
     image_url: string | null;
-    num_lectures: number | null;
-    num_chapters: number | null;
+    num_published_lectures: number | null;
   };
 
   let email = $state("");
@@ -57,8 +57,8 @@
   });
 
   function formatLectures(course: UdemyCourse): string {
-    if (course.num_lectures === null) return "—";
-    return $t('udemy.lectures', { count: course.num_lectures });
+    if (course.num_published_lectures === null) return "—";
+    return $t('udemy.lectures', { count: course.num_published_lectures });
   }
 
   function goToPage(page: number) {
