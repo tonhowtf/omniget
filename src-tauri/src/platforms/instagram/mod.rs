@@ -147,6 +147,12 @@ impl InstagramDownloader {
             .collect()
     }
 
+    fn is_login_redirect(html: &str) -> bool {
+        let lower = html.to_lowercase();
+        lower.contains("/accounts/login") || lower.contains("\"loginpage\"")
+            || (lower.contains("\"require_login\"") && lower.contains("true"))
+    }
+
     async fn get_gql_params(&self, post_id: &str) -> anyhow::Result<GqlParams> {
         let url = format!("https://www.instagram.com/p/{}/", post_id);
 
@@ -163,6 +169,10 @@ impl InstagramDownloader {
             .await?;
 
         let html = response.text().await?;
+
+        if Self::is_login_redirect(&html) {
+            return Err(anyhow!("Instagram redirecionou para login — post pode ser privado"));
+        }
 
         let csrf = Self::extract_object_entry("InstagramSecurityConfig", &html)
             .and_then(|v| v.get("csrf_token").and_then(|t| t.as_str()).map(|s| s.to_string()))
@@ -334,18 +344,20 @@ impl InstagramDownloader {
         let response = self
             .client
             .post("https://www.instagram.com/graphql/query")
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            .header("Accept", "*/*")
             .header("Accept-Language", "en-GB,en;q=0.9")
             .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Sec-Fetch-Dest", "document")
-            .header("Sec-Fetch-Mode", "navigate")
+            .header("Sec-Fetch-Dest", "empty")
+            .header("Sec-Fetch-Mode", "cors")
             .header("Sec-Fetch-Site", "same-origin")
+            .header("X-Requested-With", "XMLHttpRequest")
             .header("x-ig-app-id", &params.app_id)
             .header("X-FB-LSD", &params.lsd_token)
             .header("X-CSRFToken", &params.csrf_token)
             .header("X-FB-Friendly-Name", "PolarisPostActionLoadPostQueryQuery")
             .header("x-asbd-id", "129477")
             .header("X-Bloks-Version-Id", &params.bloks_version_id)
+            .header("Referer", "https://www.instagram.com/")
             .header("Cookie", &anon_cookie)
             .body(body)
             .send()
@@ -385,9 +397,10 @@ impl InstagramDownloader {
             .get(&url)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             .header("Accept-Language", "en-GB,en;q=0.9")
-            .header("Sec-Fetch-Dest", "document")
+            .header("Sec-Fetch-Dest", "iframe")
             .header("Sec-Fetch-Mode", "navigate")
-            .header("Sec-Fetch-Site", "none")
+            .header("Sec-Fetch-Site", "cross-site")
+            .header("Referer", "https://www.instagram.com/")
             .send()
             .await?;
 
@@ -417,6 +430,12 @@ impl InstagramDownloader {
         }
 
         Err(anyhow!("Não foi possível extrair dados do embed"))
+    }
+
+    async fn fallback_ytdlp(&self, url: &str) -> anyhow::Result<MediaInfo> {
+        let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
+        let json = crate::core::ytdlp::get_video_info(&ytdlp_path, url).await?;
+        crate::platforms::generic_ytdlp::GenericYtdlpDownloader::parse_video_info(&json)
     }
 
     fn extract_media_from_gql(data: &serde_json::Value) -> anyhow::Result<InstagramMedia> {
@@ -550,17 +569,25 @@ impl PlatformDownloader for InstagramDownloader {
 
         let filename_base = format!("instagram_{}", post_id);
 
-        let media = match self.request_gql(&post_id).await {
-            Ok(data) => Self::extract_media_from_gql(&data),
-            Err(_gql_err) => {
-                match self.request_embed(&post_id).await {
-                    Ok(data) => Self::extract_media_from_embed(&data),
-                    Err(_embed_err) => {
-                        Err(anyhow!("Post não encontrado ou privado"))
+        let embed_result = self.request_embed(&post_id).await;
+        let media = match embed_result {
+            Ok(data) => Self::extract_media_from_embed(&data),
+            Err(_embed_err) => {
+                match self.request_gql(&post_id).await {
+                    Ok(data) => Self::extract_media_from_gql(&data),
+                    Err(_gql_err) => {
+                        return self.fallback_ytdlp(url).await;
                     }
                 }
             }
-        }?;
+        };
+
+        let media = match media {
+            Ok(m) => m,
+            Err(_) => {
+                return self.fallback_ytdlp(url).await;
+            }
+        };
 
         match media {
             InstagramMedia::Single { url, is_video } => {
@@ -627,6 +654,26 @@ impl PlatformDownloader for InstagramDownloader {
 
         if count == 1 {
             let quality = info.available_qualities.first().unwrap();
+
+            if quality.format == "ytdlp" {
+                let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
+                return crate::core::ytdlp::download_video(
+                    &ytdlp_path,
+                    &quality.url,
+                    &opts.output_dir,
+                    None,
+                    progress,
+                    opts.download_mode.as_deref(),
+                    opts.format_id.as_deref(),
+                    opts.filename_template.as_deref(),
+                    Some("https://www.instagram.com/"),
+                    opts.cancel_token.clone(),
+                    None,
+                    opts.concurrent_fragments,
+                )
+                .await;
+            }
+
             let filename = format!(
                 "{}.{}",
                 sanitize_filename::sanitize(&info.title),
@@ -634,11 +681,7 @@ impl PlatformDownloader for InstagramDownloader {
             );
             let output = opts.output_dir.join(&filename);
 
-            let headers = if quality.format == "mp4" {
-                Some(Self::instagram_headers())
-            } else {
-                None
-            };
+            let headers = Some(Self::instagram_headers());
 
             let bytes = download_direct_with_headers(
                 &self.client,
@@ -670,11 +713,7 @@ impl PlatformDownloader for InstagramDownloader {
             let output = opts.output_dir.join(&filename);
             let (tx, _rx) = mpsc::channel(8);
 
-            let headers = if quality.format == "mp4" {
-                Some(Self::instagram_headers())
-            } else {
-                None
-            };
+            let headers = Some(Self::instagram_headers());
 
             let bytes = download_direct_with_headers(
                 &self.client,
