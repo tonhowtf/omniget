@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -175,7 +175,7 @@ impl HlsDownloader {
         let semaphore = Arc::new(Semaphore::new(max_concurrent as usize));
         let completed = Arc::new(AtomicUsize::new(0));
         let fail_token = cancel_token.child_token();
-        let errors: Arc<tokio::sync::Mutex<Vec<String>>> = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+        let errors: Arc<tokio::sync::Mutex<HashMap<String, u32>>> = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
         let segment_urls: Vec<(usize, String)> = playlist
             .segments
@@ -209,7 +209,10 @@ impl HlsDownloader {
                             let _ = seg_tx.send((i, data)).await;
                         }
                         Err(e) => {
-                            errors_ref.lock().await.push(e.to_string());
+                            let key = e.to_string();
+                            let mut errs = errors_ref.lock().await;
+                            *errs.entry(key).or_insert(0) += 1;
+                            drop(errs);
                             fail_ref.cancel();
                         }
                     }
@@ -232,7 +235,17 @@ impl HlsDownloader {
         let errs = errors.lock().await;
         if !errs.is_empty() {
             let _ = tokio::fs::remove_file(&part_path).await;
-            anyhow::bail!("Falha no download de segmentos: {}", errs.join("; "));
+            let summary: Vec<String> = errs
+                .iter()
+                .map(|(msg, count)| {
+                    if *count > 1 {
+                        format!("{} (x{})", msg, count)
+                    } else {
+                        msg.clone()
+                    }
+                })
+                .collect();
+            anyhow::bail!("Falha no download de segmentos: {}", summary.join("; "));
         }
         drop(errs);
 
