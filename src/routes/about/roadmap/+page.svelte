@@ -16,14 +16,12 @@
   <div class="checklist">
     <div class="check-item"><span class="checkbox"></span> Hubla</div>
     <div class="check-item"><span class="checkbox"></span> Kiwify</div>
-    <div class="check-item"><span class="checkbox"></span> Udemy</div>
   </div>
 </section>
 
 <section class="card">
   <h5 class="card-title">{$t('about.roadmap_features_title')}</h5>
   <div class="checklist">
-    <div class="check-item"><span class="checkbox"></span> {$t('about.roadmap_feature_instagram_login')}</div>
     <div class="check-item"><span class="checkbox"></span> {$t('about.roadmap_feature_telegram_multi_account')}</div>
   </div>
 </section>
