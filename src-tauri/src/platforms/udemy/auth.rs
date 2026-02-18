@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::anyhow;
-use reqwest::cookie::Jar;
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
@@ -31,47 +30,43 @@ fn session_file_path() -> anyhow::Result<PathBuf> {
     Ok(data_dir.join("omniget").join("udemy_session.json"))
 }
 
+const UDEMY_CLIENT_ID: &str = "TH96Ov3Ebo3OtgoSH5mOYzYolcowM3ycedWQDDce";
+const UDEMY_CLIENT_SECRET: &str = "f2lgDUDxjFiOlVHUpwQNFUfCQPyMO0tJQMaud53PF01UKueW8enYjeEYoyVeP0bb2XVEDkJ5GLJaVTfM5QgMVz6yyXyydZdA5QhzgvG9UmCPUYaCrIVf7VpmiilfbLJc";
+
 pub fn build_client_from_saved(saved: &SavedSession) -> anyhow::Result<reqwest::Client> {
-    let jar = Jar::default();
-    let domains = [
-        "https://www.udemy.com",
-        "https://udemy.com",
-    ];
-    for (name, value) in &saved.cookies {
-        
-        let clean_value = if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
-            &value[1..value.len()-1]
-        } else {
-            value.as_str()
-        };
-        let cookie_str = format!("{}={}; Domain=.udemy.com; Path=/", name, clean_value);
-        for domain in &domains {
-            jar.add_cookie_str(&cookie_str, &domain.parse().unwrap());
-        }
+    let mut default_headers = HeaderMap::new();
+
+    if !saved.access_token.is_empty() {
+        let bearer = format!("Bearer {}", saved.access_token);
+        default_headers.insert(
+            "Authorization",
+            HeaderValue::from_str(&bearer)?,
+        );
+        default_headers.insert(
+            "X-Udemy-Authorization",
+            HeaderValue::from_str(&bearer)?,
+        );
     }
 
-    let mut default_headers = HeaderMap::new();
     default_headers.insert(
         "Accept",
         HeaderValue::from_static("application/json, text/plain, */*"),
     );
     default_headers.insert(
-        "Origin",
-        HeaderValue::from_static("https://www.udemy.com"),
+        "x-udemy-client-id",
+        HeaderValue::from_static(UDEMY_CLIENT_ID),
     );
     default_headers.insert(
-        "Referer",
-        HeaderValue::from_static("https://www.udemy.com/"),
+        "x-udemy-client-secret",
+        HeaderValue::from_static(UDEMY_CLIENT_SECRET),
     );
     default_headers.insert(
-        "x-requested-with",
-        HeaderValue::from_static("XMLHttpRequest"),
+        "accept-language",
+        HeaderValue::from_static("en_US"),
     );
-
 
     let client = reqwest::Client::builder()
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0")
-        .cookie_provider(Arc::new(jar))
+        .user_agent("okhttp/4.12.0 UdemyAndroid 9.51.2(594) (phone)")
         .default_headers(default_headers)
         .redirect(reqwest::redirect::Policy::limited(10))
         .connect_timeout(Duration::from_secs(30))
@@ -263,6 +258,15 @@ async fn extract_webview_cookies_js(
     }
 }
 
+fn strip_cookie_quotes(value: &str) -> &str {
+    let v = value.trim();
+    if v.starts_with('"') && v.ends_with('"') && v.len() >= 2 {
+        &v[1..v.len() - 1]
+    } else {
+        v
+    }
+}
+
 pub async fn authenticate(
     app: &tauri::AppHandle,
     email: &str,
@@ -388,14 +392,7 @@ pub async fn authenticate(
                 let access_token = cookies
                     .iter()
                     .find(|(name, _)| name == "access_token")
-                    .map(|(_, value)| {
-                        let v = value.trim();
-                        if v.starts_with('"') && v.ends_with('"') && v.len() >= 2 {
-                            v[1..v.len()-1].to_string()
-                        } else {
-                            value.clone()
-                        }
-                    })
+                    .map(|(_, value)| strip_cookie_quotes(value).to_string())
                     .unwrap_or_default();
 
                 let saved = SavedSession {
