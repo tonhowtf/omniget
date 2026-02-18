@@ -409,6 +409,11 @@ async fn spawn_download_inner(
         )
     };
 
+    {
+        let q = queue.lock().await;
+        emit_queue_state(&app, &q);
+    }
+
     let info = match media_info {
         Some(i) => i,
         None => {
