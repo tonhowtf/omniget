@@ -11,11 +11,11 @@ use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::{mpsc, Semaphore};
 use tokio_util::sync::CancellationToken;
 
-const CHUNK_TIMEOUT: Duration = Duration::from_secs(30);
+const CHUNK_TIMEOUT: Duration = Duration::from_secs(45);
 const MAX_RETRIES: u32 = 3;
-const CHUNK_SIZE: u64 = 5 * 1024 * 1024;
+const CHUNK_SIZE: u64 = 10 * 1024 * 1024;
 const CHUNK_THRESHOLD: u64 = 5 * 1024 * 1024;
-const MAX_PARALLEL: usize = 8;
+const MAX_PARALLEL: usize = 12;
 const MAX_PER_HOST: usize = 16;
 
 fn host_semaphores() -> &'static tokio::sync::Mutex<HashMap<String, Arc<Semaphore>>> {
