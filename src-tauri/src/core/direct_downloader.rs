@@ -14,7 +14,7 @@ use tokio_util::sync::CancellationToken;
 const CHUNK_TIMEOUT: Duration = Duration::from_secs(45);
 const MAX_RETRIES: u32 = 3;
 const CHUNK_SIZE: u64 = 10 * 1024 * 1024;
-const CHUNK_THRESHOLD: u64 = 5 * 1024 * 1024;
+const CHUNK_THRESHOLD: u64 = 10 * 1024 * 1024;
 const MAX_PARALLEL: usize = 12;
 const MAX_PER_HOST: usize = 16;
 
@@ -549,7 +549,7 @@ mod tests {
     #[test]
     fn chunk_count_for_12mb() {
         let total: u64 = 12 * 1024 * 1024;
-        assert_eq!(total.div_ceil(CHUNK_SIZE), 3);
+        assert_eq!(total.div_ceil(CHUNK_SIZE), 2);
     }
 
     #[test]
