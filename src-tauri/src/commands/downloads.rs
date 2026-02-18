@@ -97,6 +97,7 @@ pub async fn download_from_url(
         let settings = config::load_settings(&app);
         let mut q = download_queue.lock().await;
         q.max_concurrent = settings.advanced.max_concurrent_downloads.max(1);
+        q.stagger_delay_ms = settings.advanced.stagger_delay_ms;
         if q.has_url(&url) {
             return Err("Download já em andamento para esta URL".to_string());
         }
