@@ -62,6 +62,7 @@
     { href: "/downloads", labelKey: "nav.downloads", icon: "downloads" },
     { href: "/convert", labelKey: "nav.convert", icon: "convert" },
     { href: "/hotmart", labelKey: "nav.hotmart", icon: "hotmart" },
+    { href: "/udemy", labelKey: "nav.udemy", icon: "udemy" },
     { href: "/telegram", labelKey: "nav.telegram", icon: "telegram" },
     { href: "/settings", labelKey: "nav.settings", icon: "settings" },
     { href: "/about", labelKey: "nav.about", icon: "about" },
@@ -97,6 +98,9 @@
             <path d="M6 4v16" />
             <path d="M18 4v16" />
             <path d="M6 12h12" />
+          {:else if item.icon === "udemy"}
+            <path d="M22 9l-10 -4l-10 4l10 4l10 -4v6" />
+            <path d="M6 10.6v5.4a6 3 0 0 0 12 0v-5.4" />
           {:else if item.icon === "telegram"}
             <path d="M21 5L2 12.5l7 1M21 5l-5.5 15-4.5-7.5M21 5L9 13.5" />
           {:else if item.icon === "settings"}
