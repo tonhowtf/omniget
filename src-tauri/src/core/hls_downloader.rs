@@ -51,6 +51,21 @@ impl HlsDownloader {
         max_concurrent: u32,
         max_retries: u32,
     ) -> anyhow::Result<HlsDownloadResult> {
+        self.download_with_quality(m3u8_url, output_path, referer, bytes_tx, cancel_token, max_concurrent, max_retries, None).await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn download_with_quality(
+        &self,
+        m3u8_url: &str,
+        output_path: &str,
+        referer: &str,
+        bytes_tx: Option<UnboundedSender<u64>>,
+        cancel_token: CancellationToken,
+        max_concurrent: u32,
+        max_retries: u32,
+        max_height: Option<u32>,
+    ) -> anyhow::Result<HlsDownloadResult> {
         if cancel_token.is_cancelled() {
             anyhow::bail!("Download cancelado pelo usuário");
         }
@@ -60,7 +75,7 @@ impl HlsDownloader {
         let m3u8_bytes = m3u8_text.as_bytes();
 
         if let Ok((_, master)) = parse_master_playlist(m3u8_bytes) {
-            if let Some(variant) = select_best_variant(&master) {
+            if let Some(variant) = select_best_variant(&master, max_height.unwrap_or(720)) {
                 let variant_url = resolve_url(m3u8_url, &variant.uri);
                 return self
                     .download_media_playlist(&variant_url, output_path, referer, bytes_tx, cancel_token, max_concurrent, max_retries)
@@ -140,15 +155,19 @@ impl HlsDownloader {
             .await?;
 
         let output = PathBuf::from(output_path);
+        let part_path = {
+            let mut p = output.as_os_str().to_owned();
+            p.push(".part");
+            PathBuf::from(p)
+        };
         if let Some(parent) = output.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
 
-        // Channel for segments: bounded to max_concurrent to limit memory
-        let (seg_tx, seg_rx) = mpsc::channel::<(usize, Vec<u8>)>(max_concurrent as usize * 2);
+        let (seg_tx, seg_rx) = mpsc::channel::<(usize, Vec<u8>)>(max_concurrent as usize);
 
-        // Spawn ordered writer task
-        let writer_output = output.clone();
+
+        let writer_output = part_path.clone();
         let media_sequence = playlist.media_sequence;
         let writer = tokio::spawn(async move {
             write_segments_ordered(seg_rx, &writer_output, &encryption, media_sequence, total_segments).await
@@ -200,17 +219,19 @@ impl HlsDownloader {
             .map_err(|e| anyhow::anyhow!("Writer task panicked: {:?}", e))?;
 
         if cancel_token.is_cancelled() {
-            let _ = tokio::fs::remove_file(&output).await;
+            let _ = tokio::fs::remove_file(&part_path).await;
             anyhow::bail!("Download cancelado pelo usuário");
         }
 
         // Check for download errors
         if let Some(err_msg) = download_error.lock().await.take() {
-            let _ = tokio::fs::remove_file(&output).await;
+            let _ = tokio::fs::remove_file(&part_path).await;
             anyhow::bail!("Falha no download de segmento: {}", err_msg);
         }
 
         writer_result?;
+
+        tokio::fs::rename(&part_path, &output).await?;
 
         let file_size = tokio::fs::metadata(&output).await?.len();
 
@@ -232,16 +253,7 @@ impl HlsDownloader {
                 if matches!(key.method, m3u8_rs::KeyMethod::AES128) {
                     if let Some(uri) = &key.uri {
                         let key_url = resolve_url(m3u8_url, uri);
-                        let key_bytes = self
-                            .client
-                            .get(&key_url)
-                            .header("Referer", referer)
-                            .header("User-Agent", USER_AGENT)
-                            .send()
-                            .await?
-                            .bytes()
-                            .await?
-                            .to_vec();
+                        let key_bytes = self.fetch_key_with_retry(&key_url, referer, 3).await?;
 
                         let iv = key.iv.as_ref().map(|iv_str| parse_hex_iv(iv_str));
 
@@ -252,6 +264,45 @@ impl HlsDownloader {
         }
         Ok(None)
     }
+
+    async fn fetch_key_with_retry(
+        &self,
+        url: &str,
+        referer: &str,
+        max_retries: u32,
+    ) -> anyhow::Result<Vec<u8>> {
+        let mut last_err = None;
+        for attempt in 0..max_retries {
+            match self
+                .client
+                .get(url)
+                .header("Referer", referer)
+                .header("User-Agent", USER_AGENT)
+                .send()
+                .await
+            {
+                Ok(resp) => {
+                    if !resp.status().is_success() {
+                        last_err = Some(anyhow::anyhow!("HTTP {} ao buscar chave AES", resp.status()));
+                    } else {
+                        match resp.bytes().await {
+                            Ok(bytes) => return Ok(bytes.to_vec()),
+                            Err(e) => last_err = Some(anyhow::anyhow!(e)),
+                        }
+                    }
+                }
+                Err(e) => last_err = Some(anyhow::anyhow!(e)),
+            }
+            if attempt < max_retries - 1 {
+                let base = 500 * (attempt as u64 + 1);
+                let jitter = rand::random::<u64>() % (base / 2 + 1);
+                tokio::time::sleep(Duration::from_millis(base + jitter)).await;
+            }
+        }
+        Err(last_err.unwrap_or_else(|| {
+            anyhow::anyhow!("Falha ao buscar chave AES após {} tentativas", max_retries)
+        }))
+    }
 }
 
 struct EncryptionInfo {
@@ -259,7 +310,7 @@ struct EncryptionInfo {
     iv: Option<[u8; 16]>,
 }
 
-fn select_best_variant(master: &MasterPlaylist) -> Option<&VariantStream> {
+fn select_best_variant(master: &MasterPlaylist, max_height: u32) -> Option<&VariantStream> {
     let real: Vec<&VariantStream> = master
         .variants
         .iter()
@@ -273,11 +324,12 @@ fn select_best_variant(master: &MasterPlaylist) -> Option<&VariantStream> {
     let mut sorted = real;
     sorted.sort_by_key(|v| v.resolution.as_ref().map(|r| r.height).unwrap_or(0));
 
+    let max_h = max_height as u64;
     let mut best: Option<&VariantStream> = None;
     for v in &sorted {
         if v.resolution
             .as_ref()
-            .map(|r| r.height <= 720)
+            .map(|r| r.height <= max_h)
             .unwrap_or(true)
         {
             best = Some(*v);
@@ -316,7 +368,10 @@ async fn write_segments_ordered(
     media_sequence: u64,
     total_segments: usize,
 ) -> anyhow::Result<()> {
-    let mut file = tokio::fs::File::create(output_path).await?;
+    let mut file = tokio::io::BufWriter::with_capacity(
+        256 * 1024,
+        tokio::fs::File::create(output_path).await?,
+    );
     let mut next_expected: usize = 0;
     let mut pending: BTreeMap<usize, Vec<u8>> = BTreeMap::new();
 
@@ -373,13 +428,28 @@ async fn download_segment_with_retry(
                 .header("User-Agent", USER_AGENT)
                 .send()
                 .await?;
-            resp.bytes().await.map(|b| b.to_vec())
+
+            let status = resp.status();
+            if !status.is_success() {
+                let code = status.as_u16();
+                if (400..500).contains(&code) && code != 429 && code != 408 {
+                    return Err(anyhow::anyhow!("HTTP {} (fatal) ao baixar segmento", code));
+                }
+                return Err(anyhow::anyhow!("HTTP {} ao baixar segmento", code));
+            }
+
+            resp.bytes().await.map(|b| b.to_vec()).map_err(|e| anyhow::anyhow!(e))
         })
         .await;
 
         match result {
             Ok(Ok(data)) => return Ok(data),
-            Ok(Err(e)) => last_err = Some(anyhow::anyhow!(e)),
+            Ok(Err(e)) => {
+                if e.to_string().contains("(fatal)") {
+                    return Err(e);
+                }
+                last_err = Some(e);
+            }
             Err(_) => last_err = Some(anyhow::anyhow!("Timeout ao baixar segmento")),
         }
         if attempt < max_retries - 1 {
@@ -413,4 +483,268 @@ fn parse_hex_iv(iv_str: &str) -> [u8; 16] {
         result[i] = u8::from_str_radix(&padded[i * 2..i * 2 + 2], 16).unwrap_or(0);
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use m3u8_rs::{MasterPlaylist, Resolution, VariantStream};
+
+    #[test]
+    fn resolve_url_absolute_passthrough() {
+        assert_eq!(
+            resolve_url(
+                "https://cdn.example.com/path/master.m3u8",
+                "https://other.com/video.ts"
+            ),
+            "https://other.com/video.ts"
+        );
+    }
+
+    #[test]
+    fn resolve_url_relative() {
+        assert_eq!(
+            resolve_url("https://cdn.example.com/path/master.m3u8", "segment0.ts"),
+            "https://cdn.example.com/path/segment0.ts"
+        );
+    }
+
+    #[test]
+    fn resolve_url_propagates_query() {
+        assert_eq!(
+            resolve_url(
+                "https://cdn.example.com/path/master.m3u8?token=abc",
+                "segment0.ts"
+            ),
+            "https://cdn.example.com/path/segment0.ts?token=abc"
+        );
+    }
+
+    #[test]
+    fn resolve_url_relative_with_own_query_skips_base_query() {
+        assert_eq!(
+            resolve_url(
+                "https://cdn.example.com/path/master.m3u8?token=abc",
+                "segment0.ts?key=123"
+            ),
+            "https://cdn.example.com/path/segment0.ts?key=123"
+        );
+    }
+
+    #[test]
+    fn resolve_url_no_slash_in_base() {
+        assert_eq!(resolve_url("master.m3u8", "segment0.ts"), "segment0.ts");
+    }
+
+    #[test]
+    fn select_best_variant_picks_720() {
+        let master = MasterPlaylist {
+            variants: vec![
+                VariantStream {
+                    uri: "360.m3u8".into(),
+                    bandwidth: 800_000,
+                    resolution: Some(Resolution {
+                        width: 640,
+                        height: 360,
+                    }),
+                    ..Default::default()
+                },
+                VariantStream {
+                    uri: "720.m3u8".into(),
+                    bandwidth: 2_500_000,
+                    resolution: Some(Resolution {
+                        width: 1280,
+                        height: 720,
+                    }),
+                    ..Default::default()
+                },
+                VariantStream {
+                    uri: "1080.m3u8".into(),
+                    bandwidth: 5_000_000,
+                    resolution: Some(Resolution {
+                        width: 1920,
+                        height: 1080,
+                    }),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        let best = select_best_variant(&master, 720).unwrap();
+        assert_eq!(best.uri, "720.m3u8");
+    }
+
+    #[test]
+    fn select_best_variant_picks_1080() {
+        let master = MasterPlaylist {
+            variants: vec![
+                VariantStream {
+                    uri: "720.m3u8".into(),
+                    bandwidth: 2_500_000,
+                    resolution: Some(Resolution {
+                        width: 1280,
+                        height: 720,
+                    }),
+                    ..Default::default()
+                },
+                VariantStream {
+                    uri: "1080.m3u8".into(),
+                    bandwidth: 5_000_000,
+                    resolution: Some(Resolution {
+                        width: 1920,
+                        height: 1080,
+                    }),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        let best = select_best_variant(&master, 1080).unwrap();
+        assert_eq!(best.uri, "1080.m3u8");
+    }
+
+    #[test]
+    fn select_best_variant_empty_returns_none() {
+        let master = MasterPlaylist {
+            variants: vec![],
+            ..Default::default()
+        };
+        assert!(select_best_variant(&master, 720).is_none());
+    }
+
+    #[test]
+    fn select_best_variant_skips_iframe() {
+        let master = MasterPlaylist {
+            variants: vec![
+                VariantStream {
+                    uri: "iframe.m3u8".into(),
+                    bandwidth: 100_000,
+                    is_i_frame: true,
+                    resolution: Some(Resolution {
+                        width: 320,
+                        height: 180,
+                    }),
+                    ..Default::default()
+                },
+                VariantStream {
+                    uri: "720.m3u8".into(),
+                    bandwidth: 2_500_000,
+                    resolution: Some(Resolution {
+                        width: 1280,
+                        height: 720,
+                    }),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        let best = select_best_variant(&master, 720).unwrap();
+        assert_eq!(best.uri, "720.m3u8");
+    }
+
+    #[test]
+    fn select_best_variant_fallback_to_lowest_when_all_exceed() {
+        let master = MasterPlaylist {
+            variants: vec![
+                VariantStream {
+                    uri: "1080.m3u8".into(),
+                    bandwidth: 5_000_000,
+                    resolution: Some(Resolution {
+                        width: 1920,
+                        height: 1080,
+                    }),
+                    ..Default::default()
+                },
+                VariantStream {
+                    uri: "4k.m3u8".into(),
+                    bandwidth: 15_000_000,
+                    resolution: Some(Resolution {
+                        width: 3840,
+                        height: 2160,
+                    }),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        let best = select_best_variant(&master, 360).unwrap();
+        assert_eq!(best.uri, "1080.m3u8");
+    }
+
+    #[test]
+    fn select_best_variant_no_resolution_treated_as_eligible() {
+        let master = MasterPlaylist {
+            variants: vec![VariantStream {
+                uri: "audio.m3u8".into(),
+                bandwidth: 128_000,
+                resolution: None,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let best = select_best_variant(&master, 720).unwrap();
+        assert_eq!(best.uri, "audio.m3u8");
+    }
+
+    #[test]
+    fn parse_hex_iv_full_32_chars() {
+        let iv = parse_hex_iv("0x00000000000000000000000000000001");
+        let mut expected = [0u8; 16];
+        expected[15] = 1;
+        assert_eq!(iv, expected);
+    }
+
+    #[test]
+    fn parse_hex_iv_short_padded() {
+        let iv = parse_hex_iv("0xFF");
+        let mut expected = [0u8; 16];
+        expected[15] = 0xFF;
+        assert_eq!(iv, expected);
+    }
+
+    #[test]
+    fn parse_hex_iv_uppercase_prefix() {
+        let iv = parse_hex_iv("0X0A0B0C0D0E0F10111213141516171819");
+        assert_eq!(iv[0], 0x0A);
+        assert_eq!(iv[7], 0x11);
+        assert_eq!(iv[15], 0x19);
+    }
+
+    #[test]
+    fn parse_hex_iv_no_prefix() {
+        let iv = parse_hex_iv("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
+        assert_eq!(iv, [0xFF; 16]);
+    }
+
+    #[test]
+    fn compute_iv_returns_explicit_when_present() {
+        let explicit_iv = [0xAB; 16];
+        let enc = EncryptionInfo {
+            key_bytes: vec![0u8; 16],
+            iv: Some(explicit_iv),
+        };
+        assert_eq!(compute_iv(&enc, 5, 100), explicit_iv);
+    }
+
+    #[test]
+    fn compute_iv_derives_from_sequence() {
+        let enc = EncryptionInfo {
+            key_bytes: vec![0u8; 16],
+            iv: None,
+        };
+        let result = compute_iv(&enc, 3, 100);
+        let mut expected = [0u8; 16];
+        expected[8..16].copy_from_slice(&103u64.to_be_bytes());
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn compute_iv_sequence_zero() {
+        let enc = EncryptionInfo {
+            key_bytes: vec![0u8; 16],
+            iv: None,
+        };
+        let result = compute_iv(&enc, 0, 0);
+        assert_eq!(result, [0u8; 16]);
+    }
 }
