@@ -28,7 +28,6 @@ impl HlsDownloader {
     pub fn new() -> Self {
         Self::with_client(
             Client::builder()
-                .danger_accept_invalid_certs(true)
                 .connect_timeout(Duration::from_secs(30))
                 .timeout(Duration::from_secs(300))
                 .pool_max_idle_per_host(50)
