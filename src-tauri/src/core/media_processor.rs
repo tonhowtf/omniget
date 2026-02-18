@@ -4,6 +4,7 @@ use tokio_util::sync::CancellationToken;
 pub struct MediaProcessor;
 
 impl MediaProcessor {
+    #[allow(clippy::too_many_arguments)]
     pub async fn download_hls(
         m3u8_url: &str,
         output: &str,
@@ -19,6 +20,25 @@ impl MediaProcessor {
             None => crate::core::hls_downloader::HlsDownloader::new(),
         };
         downloader.download(m3u8_url, output, referer, bytes_tx, cancel_token, max_concurrent, max_retries).await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn download_hls_with_quality(
+        m3u8_url: &str,
+        output: &str,
+        referer: &str,
+        bytes_tx: Option<tokio::sync::mpsc::UnboundedSender<u64>>,
+        cancel_token: CancellationToken,
+        max_concurrent: u32,
+        max_retries: u32,
+        client: Option<reqwest::Client>,
+        max_height: Option<u32>,
+    ) -> anyhow::Result<HlsDownloadResult> {
+        let downloader = match client {
+            Some(c) => crate::core::hls_downloader::HlsDownloader::with_client(c),
+            None => crate::core::hls_downloader::HlsDownloader::new(),
+        };
+        downloader.download_with_quality(m3u8_url, output, referer, bytes_tx, cancel_token, max_concurrent, max_retries, max_height).await
     }
 
     pub async fn remux(input: &str, output: &str) -> anyhow::Result<()> {
