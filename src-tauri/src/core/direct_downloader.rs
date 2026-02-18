@@ -55,7 +55,10 @@ pub async fn download_direct_with_headers(
         tokio::fs::create_dir_all(parent).await?;
     }
 
-    let mut file = tokio::fs::File::create(output).await?;
+    let mut file = tokio::io::BufWriter::with_capacity(
+        256 * 1024,
+        tokio::fs::File::create(output).await?,
+    );
     let mut downloaded: u64 = 0;
     let mut stream = response.bytes_stream();
 
