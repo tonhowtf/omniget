@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use serde::Serialize;
@@ -14,6 +15,19 @@ use crate::core::ffmpeg::{self, MetadataEmbed};
 use crate::models::media::MediaInfo;
 use crate::platforms::traits::PlatformDownloader;
 use crate::storage::config;
+
+struct CachedInfo {
+    info: MediaInfo,
+    cached_at: std::time::Instant,
+}
+
+static INFO_CACHE: OnceLock<tokio::sync::Mutex<HashMap<String, CachedInfo>>> = OnceLock::new();
+
+fn info_cache() -> &'static tokio::sync::Mutex<HashMap<String, CachedInfo>> {
+    INFO_CACHE.get_or_init(|| tokio::sync::Mutex::new(HashMap::new()))
+}
+
+const INFO_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(300);
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(tag = "type", content = "data")]
@@ -392,18 +406,53 @@ async fn spawn_download_inner(
 
     let info = match media_info {
         Some(i) => i,
-        None => match downloader.get_media_info(&url).await {
-            Ok(i) => i,
-            Err(e) => {
-                {
-                    let mut q = queue.lock().await;
-                    q.mark_complete(item_id, false, Some(e.to_string()), None, None);
-                    emit_queue_state(&app, &q);
+        None => {
+            let _ = app.emit("queue-item-progress", &QueueItemProgress {
+                id: item_id,
+                title: url.clone(),
+                platform: platform_name.clone(),
+                percent: -1.0,
+                speed_bytes_per_sec: 0.0,
+                downloaded_bytes: 0,
+                total_bytes: None,
+                eta_seconds: None,
+            });
+
+            {
+                let cache = info_cache().lock().await;
+                if let Some(entry) = cache.get(&url) {
+                    if entry.cached_at.elapsed() < INFO_CACHE_TTL {
+                        entry.info.clone()
+                    } else {
+                        drop(cache);
+                        match fetch_and_cache_info(&url, &*downloader).await {
+                            Ok(i) => i,
+                            Err(e) => {
+                                let mut q = queue.lock().await;
+                                q.mark_complete(item_id, false, Some(e.to_string()), None, None);
+                                emit_queue_state(&app, &q);
+                                drop(q);
+                                try_start_next(app, queue).await;
+                                return;
+                            }
+                        }
+                    }
+                } else {
+                    drop(cache);
+                    match fetch_and_cache_info(&url, &*downloader).await {
+                        Ok(i) => i,
+                        Err(e) => {
+                            let mut q = queue.lock().await;
+                            q.mark_complete(item_id, false, Some(e.to_string()), None, None);
+                            emit_queue_state(&app, &q);
+                            drop(q);
+                            try_start_next(app, queue).await;
+                            return;
+                        }
+                    }
                 }
-                try_start_next(app, queue).await;
-                return;
             }
-        },
+        }
     };
 
     {
@@ -572,6 +621,20 @@ async fn spawn_download_inner(
     }
 
     try_start_next(app, queue).await;
+}
+
+async fn fetch_and_cache_info(
+    url: &str,
+    downloader: &dyn PlatformDownloader,
+) -> anyhow::Result<MediaInfo> {
+    let info = downloader.get_media_info(url).await?;
+    let mut cache = info_cache().lock().await;
+    cache.insert(url.to_string(), CachedInfo {
+        info: info.clone(),
+        cached_at: std::time::Instant::now(),
+    });
+    cache.retain(|_, v| v.cached_at.elapsed() < INFO_CACHE_TTL);
+    Ok(info)
 }
 
 pub async fn try_start_next(app: tauri::AppHandle, queue: Arc<tokio::sync::Mutex<DownloadQueue>>) {
