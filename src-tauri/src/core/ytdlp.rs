@@ -71,6 +71,8 @@ async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
         "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
     } else if cfg!(target_os = "macos") {
         "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+    } else if cfg!(target_arch = "aarch64") {
+        "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux_aarch64"
     } else {
         "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
     };
