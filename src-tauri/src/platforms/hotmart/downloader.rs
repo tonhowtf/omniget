@@ -1,9 +1,11 @@
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use futures::stream::{self, StreamExt};
 use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 
@@ -87,12 +89,16 @@ async fn is_hls_file_valid(file_path: &str) -> bool {
     meta.len() == manifest.size
 }
 
+const CONCURRENT_LESSONS: usize = 3;
+
+#[derive(Clone)]
 pub struct HotmartDownloader {
     session: Arc<Mutex<Option<HotmartSession>>>,
     download_settings: DownloadSettings,
     max_concurrent_segments: u32,
     max_retries: u32,
     concurrent_fragments: u32,
+    hls_client: reqwest::Client,
 }
 
 impl HotmartDownloader {
@@ -103,12 +109,20 @@ impl HotmartDownloader {
         max_retries: u32,
         concurrent_fragments: u32,
     ) -> Self {
+        let hls_client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .connect_timeout(Duration::from_secs(30))
+            .timeout(Duration::from_secs(300))
+            .build()
+            .unwrap();
+
         Self {
             session,
             download_settings,
             max_concurrent_segments,
             max_retries,
             concurrent_fragments,
+            hls_client,
         }
     }
 
@@ -125,160 +139,40 @@ impl HotmartDownloader {
 
         tokio::fs::create_dir_all(output_dir).await?;
 
+        // Process medias concurrently
         if lesson.has_media {
-            for (i, media) in lesson.medias.iter().enumerate() {
-                if cancel_token.is_cancelled() {
-                    anyhow::bail!("Download cancelado pelo usuário");
-                }
+            let media_futures: Vec<_> = lesson.medias.iter().enumerate().map(|(i, media)| {
+                let media = media.clone();
+                let session = session.clone();
+                let output_dir = output_dir.to_string();
+                let bytes_tx = bytes_tx.clone();
+                let cancel_token = cancel_token.clone();
+                let hls_client = self.hls_client.clone();
+                let max_concurrent_segments = self.max_concurrent_segments;
+                let max_retries = self.max_retries;
 
-                let assets = match parser::fetch_player_media_assets(&media.url, session).await {
-                    Ok(a) => a,
-                    Err(_) => continue,
-                };
+                async move {
+                    let mut paths: Vec<PathBuf> = Vec::new();
 
-                if media.media_type.to_uppercase().contains("VIDEO") {
-                    let m3u8_url = match assets.first().and_then(|a| a.get("url")).and_then(|v| v.as_str()) {
-                        Some(url) => url.to_string(),
-                        None => continue,
+                    if cancel_token.is_cancelled() {
+                        return paths;
+                    }
+
+                    let assets = match parser::fetch_player_media_assets(&media.url, &session).await {
+                        Ok(a) => a,
+                        Err(_) => return paths,
                     };
 
-                    let out = format!("{}/{}. Aula.mp4", output_dir, i + 1);
-
-                    if is_hls_file_valid(&out).await {
-                        continue;
-                    }
-
-                    if tokio::fs::try_exists(done_path(&out)).await.unwrap_or(false) {
-                        let _ = tokio::fs::remove_file(&out).await;
-                        let _ = tokio::fs::remove_file(done_path(&out)).await;
-                    }
-
-                    let hls_result = retry_hls_download(
-                        &m3u8_url,
-                        &out,
-                        "https://cf-embed.play.hotmart.com/",
-                        Some(bytes_tx.clone()),
-                        cancel_token,
-                        self.max_concurrent_segments,
-                        self.max_retries,
-                        3,
-                    )
-                    .await;
-
-                    match hls_result {
-                        Ok(hls_result) => {
-                            let _ = write_done_manifest(&out, hls_result.file_size, hls_result.segments).await;
-                            results.push(hls_result.path);
-                        }
-                        Err(e) => {
-                            tracing::error!("[download] Falha ao baixar vídeo '{}': {}", out, e);
-                            let _ = tokio::fs::remove_file(&out).await;
-                            if cancel_token.is_cancelled() {
-                                return Err(e);
-                            }
-                            continue;
-                        }
-                    }
-                } else if media.media_type.to_uppercase().contains("AUDIO") {
-                    for asset in &assets {
-                        let content_type = asset
-                            .get("contentType")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("");
-                        if !content_type.to_lowercase().contains("audio") {
-                            continue;
-                        }
-                        let audio_url = match asset.get("url").and_then(|v| v.as_str()) {
-                            Some(url) => url,
-                            None => continue,
+                    if media.media_type.to_uppercase().contains("VIDEO") {
+                        let m3u8_url = match assets.first().and_then(|a| a.get("url")).and_then(|v| v.as_str()) {
+                            Some(url) => url.to_string(),
+                            None => return paths,
                         };
 
-                        let safe_name = filename::sanitize_path_component(&media.name);
-                        let out = format!(
-                            "{}/{}. {}",
-                            output_dir,
-                            i + 1,
-                            if safe_name.is_empty() { "Audio.mp4".to_string() } else { safe_name }
-                        );
+                        let out = format!("{}/{}. Aula.mp4", output_dir, i + 1);
 
-                        if tokio::fs::try_exists(&out).await.unwrap_or(false) {
-                            let meta = tokio::fs::metadata(&out).await;
-                            if meta.map(|m| m.len() > 0).unwrap_or(false) {
-                                continue;
-                            }
-                        }
-
-                        let bytes = session.client
-                            .get(audio_url)
-                            .send()
-                            .await?
-                            .bytes()
-                            .await?;
-                        let _ = bytes_tx.send(bytes.len() as u64);
-                        tokio::fs::write(&out, &bytes).await?;
-                        results.push(PathBuf::from(out));
-                    }
-                }
-            }
-        }
-
-        if let Some(html) = &lesson.content {
-            let players = parser::detect_players_from_html(html);
-            for (i, player) in players.iter().enumerate() {
-                if cancel_token.is_cancelled() {
-                    anyhow::bail!("Download cancelado pelo usuário");
-                }
-
-                let out = format!("{}/{}. Aula.mp4", output_dir, i + 1);
-
-                match player {
-                    DetectedPlayer::Vimeo { embed_url } => {
-                        if tokio::fs::try_exists(&out).await.unwrap_or(false) {
-                            let meta = tokio::fs::metadata(&out).await;
-                            if meta.map(|m| m.len() > 0).unwrap_or(false) {
-                                continue;
-                            }
-                        }
-
-                        match crate::core::ytdlp::ensure_ytdlp().await {
-                            Ok(ytdlp_path) => {
-                                let out_dir = std::path::Path::new(&out).parent()
-                                    .unwrap_or(std::path::Path::new("."));
-                                let (vtx, _vrx) = mpsc::channel(8);
-                                match crate::core::ytdlp::download_video(
-                                    &ytdlp_path,
-                                    embed_url,
-                                    out_dir,
-                                    None,
-                                    vtx,
-                                    None,
-                                    None,
-                                    None,
-                                    Some(referer),
-                                    cancel_token.clone(),
-                                    None,
-                                    self.concurrent_fragments,
-                                ).await {
-                                    Ok(result) => {
-                                        let _ = bytes_tx.send(result.file_size_bytes);
-                                        results.push(result.file_path);
-                                    }
-                                    Err(e) => {
-                                        tracing::error!("[download] Falha Vimeo: {}", e);
-                                        cleanup_part_files(out_dir).await;
-                                        continue;
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                tracing::error!("[download] yt-dlp indisponível para Vimeo: {}", e);
-                                continue;
-                            }
-                        }
-                    }
-                    DetectedPlayer::PandaVideo { m3u8_url, .. } => {
                         if is_hls_file_valid(&out).await {
-                            continue;
+                            return paths;
                         }
 
                         if tokio::fs::try_exists(done_path(&out)).await.unwrap_or(false) {
@@ -286,75 +180,229 @@ impl HotmartDownloader {
                             let _ = tokio::fs::remove_file(done_path(&out)).await;
                         }
 
-                        let panda_referer = m3u8_url
-                            .split("com.br")
-                            .next()
-                            .unwrap_or("")
-                            .to_string()
-                            + "com.br";
-                        match retry_hls_download(m3u8_url, &out, &panda_referer, Some(bytes_tx.clone()), cancel_token, self.max_concurrent_segments, self.max_retries, 3).await {
+                        let hls_result = retry_hls_download(
+                            &m3u8_url,
+                            &out,
+                            "https://cf-embed.play.hotmart.com/",
+                            Some(bytes_tx.clone()),
+                            &cancel_token,
+                            max_concurrent_segments,
+                            max_retries,
+                            3,
+                            Some(hls_client),
+                        )
+                        .await;
+
+                        match hls_result {
                             Ok(hls_result) => {
                                 let _ = write_done_manifest(&out, hls_result.file_size, hls_result.segments).await;
-                                results.push(hls_result.path);
+                                paths.push(hls_result.path);
                             }
                             Err(e) => {
-                                tracing::error!("[download] Falha PandaVideo: {}", e);
+                                tracing::error!("[download] Falha ao baixar vídeo '{}': {}", out, e);
                                 let _ = tokio::fs::remove_file(&out).await;
-                                if cancel_token.is_cancelled() {
-                                    return Err(e);
-                                }
-                                continue;
                             }
                         }
-                    }
-                    DetectedPlayer::YouTube { video_id, .. } => {
-                        if tokio::fs::try_exists(&out).await.unwrap_or(false) {
-                            let meta = tokio::fs::metadata(&out).await;
-                            if meta.map(|m| m.len() > 0).unwrap_or(false) {
+                    } else if media.media_type.to_uppercase().contains("AUDIO") {
+                        for asset in &assets {
+                            let content_type = asset
+                                .get("contentType")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("");
+                            if !content_type.to_lowercase().contains("audio") {
                                 continue;
                             }
-                        }
+                            let audio_url = match asset.get("url").and_then(|v| v.as_str()) {
+                                Some(url) => url,
+                                None => continue,
+                            };
 
-                        let yt_url = format!("https://www.youtube.com/watch?v={}", video_id);
-                        match crate::core::ytdlp::ensure_ytdlp().await {
-                            Ok(ytdlp_path) => {
-                                let out_dir = std::path::Path::new(&out).parent()
-                                    .unwrap_or(std::path::Path::new("."));
-                                let (ytx, _yrx) = mpsc::channel(8);
-                                match crate::core::ytdlp::download_video(
-                                    &ytdlp_path,
-                                    &yt_url,
-                                    out_dir,
-                                    None,
-                                    ytx,
-                                    None,
-                                    None,
-                                    None,
-                                    None,
-                                    cancel_token.clone(),
-                                    None,
-                                    self.concurrent_fragments,
-                                ).await {
-                                    Ok(result) => {
-                                        let _ = bytes_tx.send(result.file_size_bytes);
-                                        results.push(result.file_path);
-                                    }
-                                    Err(e) => {
-                                        tracing::error!("[download] Falha YouTube: {}", e);
-                                        cleanup_part_files(out_dir).await;
-                                        continue;
-                                    }
+                            let safe_name = filename::sanitize_path_component(&media.name);
+                            let out = format!(
+                                "{}/{}. {}",
+                                output_dir,
+                                i + 1,
+                                if safe_name.is_empty() { "Audio.mp4".to_string() } else { safe_name }
+                            );
+
+                            if tokio::fs::try_exists(&out).await.unwrap_or(false) {
+                                let meta = tokio::fs::metadata(&out).await;
+                                if meta.map(|m| m.len() > 0).unwrap_or(false) {
+                                    continue;
                                 }
                             }
-                            Err(e) => {
-                                tracing::error!("[download] yt-dlp indisponível: {}", e);
-                                continue;
+
+                            match session.client.get(audio_url).send().await {
+                                Ok(resp) => match resp.bytes().await {
+                                    Ok(bytes) => {
+                                        let _ = bytes_tx.send(bytes.len() as u64);
+                                        if tokio::fs::write(&out, &bytes).await.is_ok() {
+                                            paths.push(PathBuf::from(out));
+                                        }
+                                    }
+                                    Err(e) => tracing::error!("[download] Falha ao baixar áudio: {}", e),
+                                },
+                                Err(e) => tracing::error!("[download] Falha ao baixar áudio: {}", e),
                             }
                         }
                     }
-                    DetectedPlayer::HotmartNative { .. } => {}
-                    DetectedPlayer::Unknown { .. } => {}
+
+                    paths
                 }
+            }).collect();
+
+            let all_media_results = futures::future::join_all(media_futures).await;
+            for media_result in all_media_results {
+                results.extend(media_result);
+            }
+        }
+
+        // Process HTML-embedded players concurrently
+        if let Some(html) = &lesson.content {
+            let players = parser::detect_players_from_html(html);
+            let player_futures: Vec<_> = players.into_iter().enumerate().map(|(i, player)| {
+                let bytes_tx = bytes_tx.clone();
+                let cancel_token = cancel_token.clone();
+                let hls_client = self.hls_client.clone();
+                let max_concurrent_segments = self.max_concurrent_segments;
+                let max_retries = self.max_retries;
+                let concurrent_fragments = self.concurrent_fragments;
+                let output_dir = output_dir.to_string();
+                let referer = referer.to_string();
+
+                async move {
+                    let mut paths: Vec<PathBuf> = Vec::new();
+
+                    if cancel_token.is_cancelled() {
+                        return paths;
+                    }
+
+                    let out = format!("{}/{}. Aula.mp4", output_dir, i + 1);
+
+                    match player {
+                        DetectedPlayer::Vimeo { embed_url } => {
+                            if tokio::fs::try_exists(&out).await.unwrap_or(false) {
+                                let meta = tokio::fs::metadata(&out).await;
+                                if meta.map(|m| m.len() > 0).unwrap_or(false) {
+                                    return paths;
+                                }
+                            }
+
+                            match crate::core::ytdlp::ensure_ytdlp().await {
+                                Ok(ytdlp_path) => {
+                                    let out_dir = std::path::Path::new(&out).parent()
+                                        .unwrap_or(std::path::Path::new("."));
+                                    let (vtx, _vrx) = mpsc::channel(8);
+                                    match crate::core::ytdlp::download_video(
+                                        &ytdlp_path,
+                                        &embed_url,
+                                        out_dir,
+                                        None,
+                                        vtx,
+                                        None,
+                                        None,
+                                        None,
+                                        Some(&referer),
+                                        cancel_token.clone(),
+                                        None,
+                                        concurrent_fragments,
+                                    ).await {
+                                        Ok(result) => {
+                                            let _ = bytes_tx.send(result.file_size_bytes);
+                                            paths.push(result.file_path);
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("[download] Falha Vimeo: {}", e);
+                                            cleanup_part_files(out_dir).await;
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::error!("[download] yt-dlp indisponível para Vimeo: {}", e);
+                                }
+                            }
+                        }
+                        DetectedPlayer::PandaVideo { m3u8_url, .. } => {
+                            if is_hls_file_valid(&out).await {
+                                return paths;
+                            }
+
+                            if tokio::fs::try_exists(done_path(&out)).await.unwrap_or(false) {
+                                let _ = tokio::fs::remove_file(&out).await;
+                                let _ = tokio::fs::remove_file(done_path(&out)).await;
+                            }
+
+                            let panda_referer = m3u8_url
+                                .split("com.br")
+                                .next()
+                                .unwrap_or("")
+                                .to_string()
+                                + "com.br";
+                            match retry_hls_download(&m3u8_url, &out, &panda_referer, Some(bytes_tx.clone()), &cancel_token, max_concurrent_segments, max_retries, 3, Some(hls_client)).await {
+                                Ok(hls_result) => {
+                                    let _ = write_done_manifest(&out, hls_result.file_size, hls_result.segments).await;
+                                    paths.push(hls_result.path);
+                                }
+                                Err(e) => {
+                                    tracing::error!("[download] Falha PandaVideo: {}", e);
+                                    let _ = tokio::fs::remove_file(&out).await;
+                                }
+                            }
+                        }
+                        DetectedPlayer::YouTube { video_id, .. } => {
+                            if tokio::fs::try_exists(&out).await.unwrap_or(false) {
+                                let meta = tokio::fs::metadata(&out).await;
+                                if meta.map(|m| m.len() > 0).unwrap_or(false) {
+                                    return paths;
+                                }
+                            }
+
+                            let yt_url = format!("https://www.youtube.com/watch?v={}", video_id);
+                            match crate::core::ytdlp::ensure_ytdlp().await {
+                                Ok(ytdlp_path) => {
+                                    let out_dir = std::path::Path::new(&out).parent()
+                                        .unwrap_or(std::path::Path::new("."));
+                                    let (ytx, _yrx) = mpsc::channel(8);
+                                    match crate::core::ytdlp::download_video(
+                                        &ytdlp_path,
+                                        &yt_url,
+                                        out_dir,
+                                        None,
+                                        ytx,
+                                        None,
+                                        None,
+                                        None,
+                                        None,
+                                        cancel_token.clone(),
+                                        None,
+                                        concurrent_fragments,
+                                    ).await {
+                                        Ok(result) => {
+                                            let _ = bytes_tx.send(result.file_size_bytes);
+                                            paths.push(result.file_path);
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("[download] Falha YouTube: {}", e);
+                                            cleanup_part_files(out_dir).await;
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::error!("[download] yt-dlp indisponível: {}", e);
+                                }
+                            }
+                        }
+                        DetectedPlayer::HotmartNative { .. } => {}
+                        DetectedPlayer::Unknown { .. } => {}
+                    }
+
+                    paths
+                }
+            }).collect();
+
+            let all_player_results = futures::future::join_all(player_futures).await;
+            for player_result in all_player_results {
+                results.extend(player_result);
             }
         }
 
@@ -362,23 +410,31 @@ impl HotmartDownloader {
             anyhow::bail!("Download cancelado pelo usuário");
         }
 
+        // Download attachments concurrently
         if self.download_settings.download_attachments && !lesson.attachments.is_empty() {
             let mat_dir = format!("{}/Materiais", output_dir);
             tokio::fs::create_dir_all(&mat_dir).await?;
-            for att in &lesson.attachments {
+
+            let att_futures: Vec<_> = lesson.attachments.iter().map(|att| {
+                let session = session.clone();
                 let safe_name = filename::sanitize_path_component(&att.file_name);
                 let att_path = format!("{}/{}", mat_dir, safe_name);
+                let file_membership_id = att.file_membership_id.clone();
 
-                if tokio::fs::try_exists(&att_path).await.unwrap_or(false) {
-                    continue;
-                }
-
-                match download_attachment(session, &att.file_membership_id, &att_path).await {
-                    Ok(()) => {
-                        results.push(PathBuf::from(att_path));
+                async move {
+                    if tokio::fs::try_exists(&att_path).await.unwrap_or(false) {
+                        return None;
                     }
-                    Err(_) => {}
+                    match download_attachment(&session, &file_membership_id, &att_path).await {
+                        Ok(()) => Some(PathBuf::from(att_path)),
+                        Err(_) => None,
+                    }
                 }
+            }).collect();
+
+            let att_results = futures::future::join_all(att_futures).await;
+            for path in att_results.into_iter().flatten() {
+                results.push(path);
             }
         }
 
@@ -452,8 +508,8 @@ impl HotmartDownloader {
 
         let total_pages: usize = modules.iter().map(|m| m.pages.len()).sum();
         let total_modules = modules.len();
-        let mut done = 0usize;
         let total_bytes = Arc::new(AtomicU64::new(0));
+        let done = Arc::new(AtomicUsize::new(0));
 
         let _ = progress
             .send(CourseDownloadProgress {
@@ -471,86 +527,125 @@ impl HotmartDownloader {
             .await;
 
         let referer = format!("https://{}.club.hotmart.com/", slug);
+        let slug_owned = slug.to_string();
 
-        'outer: for (mi, module) in modules.iter().enumerate() {
+        // Flatten all pages with module context for concurrent processing
+        struct PageTask {
+            module_index: usize,
+            module_name: String,
+            page_hash: String,
+            page_name: String,
+            page_dir: String,
+        }
+
+        let mut all_pages = Vec::new();
+        for (mi, module) in modules.iter().enumerate() {
             let mod_name = filename::sanitize_path_component(&module.name);
             let mod_dir = format!("{}/{}. {}", course_dir, mi + 1, mod_name);
-
             for (pi, page) in module.pages.iter().enumerate() {
-                if cancel_token.is_cancelled() {
-                    break 'outer;
-                }
-
-                let page_name = filename::sanitize_path_component(&page.name);
-                let page_dir = format!("{}/{}. {}", mod_dir, pi + 1, page_name);
-                tokio::fs::create_dir_all(&page_dir).await?;
-
-                let lesson = match api::get_lesson(&session, slug, course.id, &page.hash).await {
-                    Ok(l) => l,
-                    Err(e) => {
-                        tracing::error!("Falha ao carregar lição '{}': {}. Continuando...", page.name, e);
-                        done += 1;
-                        let _ = progress
-                            .send(CourseDownloadProgress {
-                                course_id: course.id,
-                                course_name: course.name.clone(),
-                                percent: done as f64 / total_pages as f64 * 100.0,
-                                current_module: module.name.clone(),
-                                current_page: page.name.clone(),
-                                downloaded_bytes: total_bytes.load(Ordering::Relaxed),
-                                total_pages: total_pages as u32,
-                                completed_pages: done as u32,
-                                total_modules: total_modules as u32,
-                                current_module_index: (mi + 1) as u32,
-                            })
-                            .await;
-                        continue;
-                    }
-                };
-
-                let (lesson_bytes_tx, mut lesson_bytes_rx) =
-                    tokio::sync::mpsc::unbounded_channel::<u64>();
-                let total_bytes_ref = total_bytes.clone();
-                let accumulator = tokio::spawn(async move {
-                    while let Some(n) = lesson_bytes_rx.recv().await {
-                        total_bytes_ref.fetch_add(n, Ordering::Relaxed);
-                    }
+                let page_name_sanitized = filename::sanitize_path_component(&page.name);
+                let page_dir = format!("{}/{}. {}", mod_dir, pi + 1, page_name_sanitized);
+                all_pages.push(PageTask {
+                    module_index: mi,
+                    module_name: module.name.clone(),
+                    page_hash: page.hash.clone(),
+                    page_name: page.name.clone(),
+                    page_dir,
                 });
-
-                let lesson_result = self
-                    .download_lesson(&session, &lesson, &page_dir, &referer, lesson_bytes_tx, &cancel_token)
-                    .await;
-
-                let _ = accumulator.await;
-
-                if let Err(e) = lesson_result {
-                    if cancel_token.is_cancelled() {
-                        break 'outer;
-                    }
-                    tracing::error!(
-                        "Erro ao baixar página '{}': {}. Continuando...",
-                        page.name,
-                        e
-                    );
-                }
-
-                done += 1;
-                let _ = progress
-                    .send(CourseDownloadProgress {
-                        course_id: course.id,
-                        course_name: course.name.clone(),
-                        percent: done as f64 / total_pages as f64 * 100.0,
-                        current_module: module.name.clone(),
-                        current_page: page.name.clone(),
-                        downloaded_bytes: total_bytes.load(Ordering::Relaxed),
-                        total_pages: total_pages as u32,
-                        completed_pages: done as u32,
-                        total_modules: total_modules as u32,
-                        current_module_index: (mi + 1) as u32,
-                    })
-                    .await;
             }
         }
+
+        // Process lessons concurrently with a bounded limit
+        stream::iter(all_pages)
+            .for_each_concurrent(CONCURRENT_LESSONS, |task| {
+                let downloader = self.clone();
+                let session = session.clone();
+                let cancel_token = cancel_token.clone();
+                let progress = progress.clone();
+                let total_bytes = total_bytes.clone();
+                let done = done.clone();
+                let course_id = course.id;
+                let course_name = course.name.clone();
+                let referer = referer.clone();
+                let slug = slug_owned.clone();
+
+                async move {
+                    if cancel_token.is_cancelled() {
+                        return;
+                    }
+
+                    if let Err(e) = tokio::fs::create_dir_all(&task.page_dir).await {
+                        tracing::error!("Falha ao criar diretório '{}': {}", task.page_dir, e);
+                        done.fetch_add(1, Ordering::Relaxed);
+                        return;
+                    }
+
+                    let lesson = match api::get_lesson(&session, &slug, course_id, &task.page_hash).await {
+                        Ok(l) => l,
+                        Err(e) => {
+                            tracing::error!("Falha ao carregar lição '{}': {}. Continuando...", task.page_name, e);
+                            let completed = done.fetch_add(1, Ordering::Relaxed) + 1;
+                            let _ = progress
+                                .send(CourseDownloadProgress {
+                                    course_id,
+                                    course_name,
+                                    percent: completed as f64 / total_pages as f64 * 100.0,
+                                    current_module: task.module_name,
+                                    current_page: task.page_name,
+                                    downloaded_bytes: total_bytes.load(Ordering::Relaxed),
+                                    total_pages: total_pages as u32,
+                                    completed_pages: completed as u32,
+                                    total_modules: total_modules as u32,
+                                    current_module_index: (task.module_index + 1) as u32,
+                                })
+                                .await;
+                            return;
+                        }
+                    };
+
+                    let (lesson_bytes_tx, mut lesson_bytes_rx) =
+                        tokio::sync::mpsc::unbounded_channel::<u64>();
+                    let total_bytes_ref = total_bytes.clone();
+                    let accumulator = tokio::spawn(async move {
+                        while let Some(n) = lesson_bytes_rx.recv().await {
+                            total_bytes_ref.fetch_add(n, Ordering::Relaxed);
+                        }
+                    });
+
+                    let lesson_result = downloader
+                        .download_lesson(&session, &lesson, &task.page_dir, &referer, lesson_bytes_tx, &cancel_token)
+                        .await;
+
+                    let _ = accumulator.await;
+
+                    if let Err(e) = lesson_result {
+                        if !cancel_token.is_cancelled() {
+                            tracing::error!(
+                                "Erro ao baixar página '{}': {}. Continuando...",
+                                task.page_name,
+                                e
+                            );
+                        }
+                    }
+
+                    let completed = done.fetch_add(1, Ordering::Relaxed) + 1;
+                    let _ = progress
+                        .send(CourseDownloadProgress {
+                            course_id,
+                            course_name,
+                            percent: completed as f64 / total_pages as f64 * 100.0,
+                            current_module: task.module_name,
+                            current_page: task.page_name,
+                            downloaded_bytes: total_bytes.load(Ordering::Relaxed),
+                            total_pages: total_pages as u32,
+                            completed_pages: completed as u32,
+                            total_modules: total_modules as u32,
+                            current_module_index: (task.module_index + 1) as u32,
+                        })
+                        .await;
+                }
+            })
+            .await;
 
         if cancel_token.is_cancelled() {
             return Err(anyhow!("Download cancelado pelo usuário"));
@@ -569,6 +664,7 @@ async fn retry_hls_download(
     max_concurrent_segments: u32,
     max_retries: u32,
     max_attempts: u32,
+    hls_client: Option<reqwest::Client>,
 ) -> anyhow::Result<crate::core::hls_downloader::HlsDownloadResult> {
     let mut last_err = None;
     for attempt in 0..max_attempts {
@@ -583,6 +679,7 @@ async fn retry_hls_download(
             cancel_token.clone(),
             max_concurrent_segments,
             max_retries,
+            hls_client.clone(),
         )
         .await
         {
