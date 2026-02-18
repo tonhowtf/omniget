@@ -30,6 +30,8 @@ impl HlsDownloader {
                 .danger_accept_invalid_certs(true)
                 .connect_timeout(Duration::from_secs(30))
                 .timeout(Duration::from_secs(300))
+                .pool_max_idle_per_host(50)
+                .pool_idle_timeout(Duration::from_secs(30))
                 .build()
                 .unwrap(),
         )
@@ -98,7 +100,9 @@ impl HlsDownloader {
                 Err(e) => last_err = Some(anyhow::anyhow!(e)),
             }
             if attempt < max_retries - 1 {
-                tokio::time::sleep(Duration::from_millis(500 * (attempt as u64 + 1))).await;
+                let base = 500 * (attempt as u64 + 1);
+                let jitter = rand::random::<u64>() % (base / 2 + 1);
+                tokio::time::sleep(Duration::from_millis(base + jitter)).await;
             }
         }
         Err(last_err.unwrap_or_else(|| {
@@ -379,7 +383,9 @@ async fn download_segment_with_retry(
             Err(_) => last_err = Some(anyhow::anyhow!("Timeout ao baixar segmento")),
         }
         if attempt < max_retries - 1 {
-            tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1)))
+            let base = 500 * (attempt as u64 + 1);
+            let jitter = rand::random::<u64>() % (base / 2 + 1);
+            tokio::time::sleep(std::time::Duration::from_millis(base + jitter))
                 .await;
         }
     }
