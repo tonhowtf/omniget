@@ -54,7 +54,7 @@ impl GenericYtdlpDownloader {
         }
     }
 
-    fn parse_video_info(json: &serde_json::Value) -> anyhow::Result<MediaInfo> {
+    pub fn parse_video_info(json: &serde_json::Value) -> anyhow::Result<MediaInfo> {
         let title = json
             .get("title")
             .and_then(|v| v.as_str())
@@ -172,7 +172,11 @@ impl PlatformDownloader for GenericYtdlpDownloader {
     ) -> anyhow::Result<DownloadResult> {
         let _ = progress.send(0.0).await;
 
-        let ytdlp_path = ytdlp::ensure_ytdlp().await?;
+        let ytdlp_path = if let Some(ref p) = opts.ytdlp_path {
+            p.clone()
+        } else {
+            ytdlp::ensure_ytdlp().await?
+        };
 
         let first = info
             .available_qualities
