@@ -53,6 +53,8 @@ os_info = "3"
 sys-locale = "0.3"
 filetime = "0.2.27"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+tar = "0.4"
+xz2 = "0.1"
 sha2 = "0.10"
 open = "5"
 
