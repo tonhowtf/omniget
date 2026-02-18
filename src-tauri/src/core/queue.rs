@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 
 use serde::Serialize;
@@ -78,6 +79,7 @@ pub struct QueueItem {
     pub file_count: Option<u32>,
     pub media_info: Option<MediaInfo>,
     pub downloader: Arc<dyn PlatformDownloader>,
+    pub ytdlp_path: Option<PathBuf>,
 }
 
 impl QueueItem {
@@ -131,6 +133,7 @@ impl DownloadQueue {
         total_bytes: Option<u64>,
         file_count: Option<u32>,
         downloader: Arc<dyn PlatformDownloader>,
+        ytdlp_path: Option<PathBuf>,
     ) {
         let item = QueueItem {
             id,
@@ -154,6 +157,7 @@ impl DownloadQueue {
             file_count,
             media_info,
             downloader,
+            ytdlp_path,
         };
         self.items.push(item);
     }
@@ -384,7 +388,7 @@ async fn spawn_download_inner(
     queue: Arc<tokio::sync::Mutex<DownloadQueue>>,
     item_id: u64,
 ) {
-    let (url, output_dir, download_mode, quality, format_id, referer, cancel_token, media_info, platform_name, downloader) = {
+    let (url, output_dir, download_mode, quality, format_id, referer, cancel_token, media_info, platform_name, downloader, ytdlp_path) = {
         let q = queue.lock().await;
         let item = match q.items.iter().find(|i| i.id == item_id) {
             Some(i) => i,
@@ -401,6 +405,7 @@ async fn spawn_download_inner(
             item.media_info.clone(),
             item.platform.clone(),
             item.downloader.clone(),
+            item.ytdlp_path.clone(),
         )
     };
 
@@ -411,7 +416,7 @@ async fn spawn_download_inner(
                 id: item_id,
                 title: url.clone(),
                 platform: platform_name.clone(),
-                percent: -1.0,
+                percent: 0.0,
                 speed_bytes_per_sec: 0.0,
                 downloaded_bytes: 0,
                 total_bytes: None,
@@ -425,7 +430,7 @@ async fn spawn_download_inner(
                         entry.info.clone()
                     } else {
                         drop(cache);
-                        match fetch_and_cache_info(&url, &*downloader).await {
+                        match fetch_and_cache_info(&url, &*downloader, &platform_name, ytdlp_path.as_deref()).await {
                             Ok(i) => i,
                             Err(e) => {
                                 let mut q = queue.lock().await;
@@ -439,7 +444,7 @@ async fn spawn_download_inner(
                     }
                 } else {
                     drop(cache);
-                    match fetch_and_cache_info(&url, &*downloader).await {
+                    match fetch_and_cache_info(&url, &*downloader, &platform_name, ytdlp_path.as_deref()).await {
                         Ok(i) => i,
                         Err(e) => {
                             let mut q = queue.lock().await;
@@ -488,6 +493,7 @@ async fn spawn_download_inner(
         referer,
         cancel_token: cancel_token.clone(),
         concurrent_fragments: settings.advanced.concurrent_fragments,
+        ytdlp_path,
     };
 
     let total_bytes = info.file_size_bytes;
@@ -626,8 +632,23 @@ async fn spawn_download_inner(
 async fn fetch_and_cache_info(
     url: &str,
     downloader: &dyn PlatformDownloader,
+    platform: &str,
+    ytdlp_path: Option<&std::path::Path>,
 ) -> anyhow::Result<MediaInfo> {
-    let info = downloader.get_media_info(url).await?;
+    let info = if let Some(ytdlp) = ytdlp_path {
+        match platform {
+            "youtube" => {
+                crate::platforms::youtube::YouTubeDownloader::fetch_with_ytdlp(url, ytdlp).await?
+            }
+            "generic" => {
+                let json = crate::core::ytdlp::get_video_info(ytdlp, url).await?;
+                crate::platforms::generic_ytdlp::GenericYtdlpDownloader::parse_video_info(&json)?
+            }
+            _ => downloader.get_media_info(url).await?,
+        }
+    } else {
+        downloader.get_media_info(url).await?
+    };
     let mut cache = info_cache().lock().await;
     cache.insert(url.to_string(), CachedInfo {
         info: info.clone(),
