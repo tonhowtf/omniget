@@ -138,19 +138,27 @@ async fn check_ytdlp_freshness(path: &Path) {
 }
 
 async fn find_ffmpeg_location() -> Option<String> {
-    let cmd = if cfg!(target_os = "windows") {
-        "where"
-    } else {
-        "which"
-    };
-    let arg = if cfg!(target_os = "windows") {
-        "ffmpeg.exe"
-    } else {
-        "ffmpeg"
-    };
+    #[cfg(target_os = "windows")]
+    let output = crate::core::process::command("where")
+        .arg("ffmpeg.exe")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()
+        .await
+        .ok()?;
 
-    let output = crate::core::process::command(cmd)
-        .arg(arg)
+    #[cfg(target_os = "macos")]
+    let output = crate::core::process::command("which")
+        .arg("ffmpeg")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()
+        .await
+        .ok()?;
+
+    #[cfg(target_os = "linux")]
+    let output = crate::core::process::command("sh")
+        .args(["-c", "command -v ffmpeg"])
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .output()
@@ -233,10 +241,40 @@ fn detect_cookies_browser() -> Option<String> {
             if config.join("chromium").is_dir() {
                 return Some("chromium".to_string());
             }
+            if config.join("BraveSoftware").join("Brave-Browser").is_dir() {
+                return Some("brave".to_string());
+            }
+            if config.join("microsoft-edge").is_dir() {
+                return Some("edge".to_string());
+            }
+            if config.join("vivaldi").is_dir() {
+                return Some("vivaldi".to_string());
+            }
         }
         if let Some(home) = dirs::home_dir() {
             if home.join(".mozilla").join("firefox").is_dir() {
                 return Some("firefox".to_string());
+            }
+            // Flatpak browsers
+            let fp = home.join(".var").join("app");
+            if fp.join("com.google.Chrome").join("config").join("google-chrome").is_dir() {
+                return Some("chrome".to_string());
+            }
+            if fp.join("com.brave.Browser").join("config").join("BraveSoftware").join("Brave-Browser").is_dir() {
+                return Some("brave".to_string());
+            }
+            if fp.join("org.chromium.Chromium").join("config").join("chromium").is_dir() {
+                return Some("chromium".to_string());
+            }
+            if fp.join("org.mozilla.firefox").join(".mozilla").join("firefox").is_dir() {
+                return Some("firefox".to_string());
+            }
+            // Snap browsers
+            if home.join("snap").join("firefox").join("common").join(".mozilla").join("firefox").is_dir() {
+                return Some("firefox".to_string());
+            }
+            if home.join("snap").join("chromium").join("common").join("chromium").is_dir() {
+                return Some("chromium".to_string());
             }
         }
     }
