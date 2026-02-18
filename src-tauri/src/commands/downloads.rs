@@ -316,25 +316,25 @@ pub async fn reveal_file(path: String) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         let file_path = std::path::Path::new(&path);
+        let dir = file_path.parent().unwrap_or(file_path);
 
-        let dbus_result = std::process::Command::new("dbus-send")
+        let portal_result = std::process::Command::new("gdbus")
             .args([
-                "--session",
-                "--dest=org.freedesktop.FileManager1",
-                "--type=method_call",
-                "/org/freedesktop/FileManager1",
-                "org.freedesktop.FileManager1.ShowItems",
-                &format!("array:string:file://{}", file_path.to_string_lossy()),
-                "string:",
+                "call", "--session",
+                "--dest", "org.freedesktop.portal.Desktop",
+                "--object-path", "/org/freedesktop/portal/desktop",
+                "--method", "org.freedesktop.portal.OpenURI.OpenDirectory",
+                "",
+                &format!("file://{}", dir.display()),
+                "{}",
             ])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .status();
 
-        match dbus_result {
+        match portal_result {
             Ok(status) if status.success() => {}
             _ => {
-                let dir = file_path.parent().unwrap_or(file_path);
                 std::process::Command::new("xdg-open")
                     .arg(dir)
                     .stdout(std::process::Stdio::null())
