@@ -19,8 +19,9 @@ jobs:
 
       - name: Generate offline sources
         run: |
-          pip3 install aiohttp tomlkit
-          pip3 install "git+https://github.com/flatpak/flatpak-builder-tools.git#subdirectory=node"
+          python3 -m ensurepip --upgrade
+          python3 -m pip install aiohttp tomlkit
+          python3 -m pip install "git+https://github.com/flatpak/flatpak-builder-tools.git#subdirectory=node"
 
           wget -q https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/refs/heads/master/cargo/flatpak-cargo-generator.py
           python3 flatpak-cargo-generator.py src-tauri/Cargo.lock -o flatpak/cargo-sources.json
