@@ -1,6 +1,8 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
+
 use std::time::Duration;
 
 use anyhow::anyhow;
@@ -14,6 +16,23 @@ const MAX_RETRIES: u32 = 3;
 const CHUNK_SIZE: u64 = 5 * 1024 * 1024;
 const CHUNK_THRESHOLD: u64 = 5 * 1024 * 1024;
 const MAX_PARALLEL: usize = 8;
+const MAX_PER_HOST: usize = 16;
+
+fn host_semaphores() -> &'static tokio::sync::Mutex<HashMap<String, Arc<Semaphore>>> {
+    static MAP: OnceLock<tokio::sync::Mutex<HashMap<String, Arc<Semaphore>>>> = OnceLock::new();
+    MAP.get_or_init(|| tokio::sync::Mutex::new(HashMap::new()))
+}
+
+pub async fn get_host_semaphore(url: &str) -> Arc<Semaphore> {
+    let host = url::Url::parse(url)
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.to_string()))
+        .unwrap_or_default();
+    let mut map = host_semaphores().lock().await;
+    map.entry(host)
+        .or_insert_with(|| Arc::new(Semaphore::new(MAX_PER_HOST)))
+        .clone()
+}
 
 struct ProbeResult {
     content_length: Option<u64>,
