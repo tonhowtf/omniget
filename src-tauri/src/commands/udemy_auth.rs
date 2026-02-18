@@ -76,15 +76,18 @@ pub async fn udemy_check_session(
         .await
         .map_err(|e| format!("Validation error: {}", e))?;
 
-    if resp.status().is_success() {
+    let status = resp.status();
+    if status.is_success() {
         *state.udemy_session_validated_at.lock().await = Some(Instant::now());
         Ok(email)
-    } else {
+    } else if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
         state.udemy_session.lock().await.take();
         *state.udemy_session_validated_at.lock().await = None;
         *state.udemy_courses_cache.lock().await = None;
         let _ = delete_saved_session().await;
         Err("session_expired".to_string())
+    } else {
+        Err(format!("session_check_failed: {}", status))
     }
 }
 
