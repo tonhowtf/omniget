@@ -20,6 +20,14 @@ pub async fn find_ytdlp() -> Option<PathBuf> {
         "yt-dlp"
     };
 
+    #[cfg(target_os = "linux")]
+    {
+        let flatpak_path = PathBuf::from("/app/bin").join(bin_name);
+        if flatpak_path.exists() {
+            return Some(flatpak_path);
+        }
+    }
+
     if let Ok(output) = crate::core::process::command(bin_name)
         .arg("--version")
         .stdout(Stdio::null())
@@ -54,6 +62,10 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
     if let Some(path) = find_ytdlp().await {
         check_ytdlp_freshness(&path).await;
         return Ok(path);
+    }
+
+    if crate::core::dependencies::is_flatpak() {
+        return Err(anyhow!("yt-dlp not found in Flatpak sandbox"));
     }
 
     download_ytdlp_binary().await
