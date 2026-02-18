@@ -205,6 +205,8 @@ pub fn run() {
             commands::udemy_auth::udemy_login,
             commands::udemy_auth::udemy_check_session,
             commands::udemy_auth::udemy_logout,
+            commands::udemy_courses::udemy_list_courses,
+            commands::udemy_courses::udemy_refresh_courses,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
