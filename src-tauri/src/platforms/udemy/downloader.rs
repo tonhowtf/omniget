@@ -71,6 +71,7 @@ impl UdemyDownloader {
         &self,
         course: &UdemyCourse,
         output_dir: &str,
+        curriculum: api::UdemyCurriculum,
         progress_tx: mpsc::Sender<UdemyCourseDownloadProgress>,
         cancel_token: CancellationToken,
     ) -> anyhow::Result<()> {
@@ -86,11 +87,9 @@ impl UdemyDownloader {
             current_chapter: String::new(),
             current_lecture: String::new(),
             downloaded_bytes: 0,
-            total_lectures: course.num_published_lectures.unwrap_or(0),
+            total_lectures: curriculum.total_lectures,
             completed_lectures: 0,
         }).await;
-
-        let curriculum = api::get_course_curriculum(&session, "www", course.id).await?;
 
         let course_dir_name = safe_filename(&course.title);
         let course_dir = PathBuf::from(output_dir).join(&course_dir_name);
