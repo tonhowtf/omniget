@@ -447,6 +447,22 @@ impl PlatformAuth for BrowserCookieAuth {
         use chromiumoxide::browser::{Browser, BrowserConfig};
         use futures::StreamExt;
 
+        #[cfg(target_os = "linux")]
+        {
+            let chrome_available = tokio::process::Command::new("sh")
+                .args(["-c", "command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser"])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .await
+                .map(|s| s.success())
+                .unwrap_or(false);
+
+            if !chrome_available {
+                return Err(anyhow!("Chrome or Chromium is required for browser-based authentication but was not found. Please install Google Chrome or Chromium."));
+            }
+        }
+
         let (browser, mut handler) = Browser::launch(
             BrowserConfig::builder()
                 .with_head()
