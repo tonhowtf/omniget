@@ -12,8 +12,12 @@ impl MediaProcessor {
         cancel_token: CancellationToken,
         max_concurrent: u32,
         max_retries: u32,
+        client: Option<reqwest::Client>,
     ) -> anyhow::Result<HlsDownloadResult> {
-        let downloader = crate::core::hls_downloader::HlsDownloader::new();
+        let downloader = match client {
+            Some(c) => crate::core::hls_downloader::HlsDownloader::with_client(c),
+            None => crate::core::hls_downloader::HlsDownloader::new(),
+        };
         downloader.download(m3u8_url, output, referer, bytes_tx, cancel_token, max_concurrent, max_retries).await
     }
 
