@@ -13,79 +13,17 @@
     version: string | null;
   };
 
-  type AccountStatus = {
-    platform: string;
-    authenticated: boolean;
-    displayName: string;
-    loading: boolean;
-  };
-
   let settings = $derived(getSettings());
   let updateInfo = $derived(getUpdateInfo());
   let resetting = $state(false);
   let updating = $state(false);
   let deps = $state<DependencyStatus[]>([]);
   let installingDep = $state<string | null>(null);
-  let accounts = $state<AccountStatus[]>([]);
 
   async function loadDeps() {
     try {
       deps = await invoke<DependencyStatus[]>("check_dependencies");
     } catch {}
-  }
-
-  async function loadAccounts() {
-    try {
-      const platforms = await invoke<string[]>("platform_auth_list");
-      const statuses: AccountStatus[] = [];
-      for (const platform of platforms) {
-        try {
-          const status = await invoke<{ platform: string; authenticated: boolean; user_info: Record<string, string> }>("platform_auth_check", { platform });
-          const displayName = status.user_info?.display_name || status.user_info?.email || status.user_info?.username || "";
-          statuses.push({
-            platform,
-            authenticated: status.authenticated,
-            displayName,
-            loading: false,
-          });
-        } catch {
-          statuses.push({ platform, authenticated: false, displayName: "", loading: false });
-        }
-      }
-      accounts = statuses;
-    } catch {}
-  }
-
-  async function handleAccountLogin(platform: string) {
-    const idx = accounts.findIndex(a => a.platform === platform);
-    if (idx === -1) return;
-    accounts[idx].loading = true;
-    try {
-      const result = await invoke<{ platform: string; success: boolean; user_info: Record<string, string>; error: string | null }>("platform_auth_login", { platform });
-      if (result.success) {
-        const displayName = result.user_info?.display_name || result.user_info?.email || result.user_info?.username || "";
-        accounts[idx] = { platform, authenticated: true, displayName, loading: false };
-      } else {
-        accounts[idx].loading = false;
-        showToast("error", result.error || $t("settings.accounts.login_failed"));
-      }
-    } catch (e: any) {
-      accounts[idx].loading = false;
-      showToast("error", typeof e === "string" ? e : e.message ?? $t("settings.accounts.login_failed"));
-    }
-  }
-
-  async function handleAccountLogout(platform: string) {
-    const idx = accounts.findIndex(a => a.platform === platform);
-    if (idx === -1) return;
-    accounts[idx].loading = true;
-    try {
-      await invoke("platform_auth_logout", { platform });
-      accounts[idx] = { platform, authenticated: false, displayName: "", loading: false };
-    } catch (e: any) {
-      accounts[idx].loading = false;
-      showToast("error", typeof e === "string" ? e : e.message ?? $t("common.error"));
-    }
   }
 
   async function handleInstallDep(name: string) {
@@ -103,7 +41,6 @@
   $effect(() => {
     if (settings) {
       loadDeps();
-      loadAccounts();
     }
   });
 
@@ -450,40 +387,6 @@
         </div>
       </div>
     </section>
-
-    {#if accounts.length > 0}
-      <section class="section">
-        <h5 class="section-title">{$t('settings.accounts.title')}</h5>
-        <div class="card">
-          {#each accounts as account, i}
-            {#if i > 0}
-              <div class="divider"></div>
-            {/if}
-            <div class="setting-row">
-              <div class="setting-col">
-                <span class="setting-label account-name">{account.platform}</span>
-                {#if account.authenticated}
-                  <span class="setting-path account-connected">{$t('settings.accounts.connected_as', { name: account.displayName || account.platform })}</span>
-                {:else}
-                  <span class="setting-path">{$t('settings.accounts.not_connected')}</span>
-                {/if}
-              </div>
-              {#if account.loading}
-                <span class="account-spinner"></span>
-              {:else if account.authenticated}
-                <button class="button account-btn" onclick={() => handleAccountLogout(account.platform)}>
-                  {$t('settings.accounts.logout')}
-                </button>
-              {:else}
-                <button class="button account-btn account-login" onclick={() => handleAccountLogin(account.platform)}>
-                  {$t('settings.accounts.login')}
-                </button>
-              {/if}
-            </div>
-          {/each}
-        </div>
-      </section>
-    {/if}
 
     {#if deps.length > 0}
       <section class="section">
@@ -893,31 +796,4 @@
     flex-shrink: 0;
   }
 
-  .account-name {
-    text-transform: capitalize;
-  }
-
-  .account-connected {
-    color: var(--green);
-  }
-
-  .account-btn {
-    padding: calc(var(--padding) / 2) var(--padding);
-    font-size: 12.5px;
-    flex-shrink: 0;
-  }
-
-  .account-login {
-    color: var(--blue);
-  }
-
-  .account-spinner {
-    width: 18px;
-    height: 18px;
-    border: 2px solid var(--input-border);
-    border-top-color: var(--blue);
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-    flex-shrink: 0;
-  }
 </style>
