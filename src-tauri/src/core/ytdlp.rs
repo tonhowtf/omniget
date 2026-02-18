@@ -302,6 +302,8 @@ fn is_youtube_url(url: &str) -> bool {
 }
 
 pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_json::Value> {
+    let info_start = std::time::Instant::now();
+    tracing::info!("[yt-dlp] starting info fetch for URL");
     let mut args = vec![
         "--dump-single-json".to_string(),
         "--no-warnings".to_string(),
@@ -371,6 +373,7 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
     let json: serde_json::Value = serde_json::from_slice(&result.stdout)
         .map_err(|e| anyhow!("yt-dlp retornou JSON inválido: {}", e))?;
 
+    tracing::info!("[yt-dlp] info fetch completed in {:?}", info_start.elapsed());
     Ok(json)
 }
 
@@ -680,6 +683,7 @@ pub async fn download_video(
     let mut last_error = String::new();
 
     for attempt in 0..max_attempts {
+        tracing::info!("[yt-dlp] download attempt {}/{}", attempt + 1, max_attempts);
         if cancel_token.is_cancelled() {
             anyhow::bail!("Download cancelado");
         }
