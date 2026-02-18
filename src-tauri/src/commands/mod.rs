@@ -9,3 +9,4 @@ pub mod settings;
 pub mod telegram;
 pub mod udemy_auth;
 pub mod udemy_courses;
+pub mod udemy_downloads;
