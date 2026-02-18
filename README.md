@@ -12,7 +12,7 @@
 
 <h3 align="center">Paste a link. Get your file.<br>No browser extensions, no web apps</h3>
 
-OmniGet is a free, open source desktop app for downloading videos and media from the internet. It natively supports YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Hotmart courses, and Telegram. Any other URL falls back to yt-dlp, covering [1000+ additional sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md).
+OmniGet is a free, open source desktop app for downloading videos and media from the internet. It natively supports YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Hotmart courses, Udemy courses, and Telegram. Any other URL falls back to yt-dlp, covering [1000+ additional sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md).
 
 Built with Tauri and Rust for speed and a small footprint.
 
@@ -22,8 +22,8 @@ Built with Tauri and Rust for speed and a small footprint.
 
 ## Features
 
-- Download from 11 platforms natively, plus [1000+ more via yt-dlp](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
-- Download full Hotmart courses with login (videos, attachments, descriptions)
+- Download from 12 platforms natively, plus [1000+ more via yt-dlp](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
+- Download full Hotmart and Udemy courses with login (videos, attachments, descriptions)
 - Download Telegram media with QR code or phone number login
 - Convert media files between formats with FFmpeg and GPU acceleration
 - Search YouTube directly from the omnibox
@@ -48,6 +48,7 @@ Built with Tauri and Rust for speed and a small footprint.
 | Vimeo | Videos (with referer support) |
 | Bluesky | Images, Videos |
 | Hotmart | Full courses with login |
+| Udemy | Full courses with login |
 | Telegram | Photos, Videos, Files, Audio |
 | [1000+ more](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) | Anything yt-dlp supports |
 
@@ -101,3 +102,5 @@ Found a bug or want to suggest a feature? [Open an issue](https://github.com/ton
 ## License
 
 OmniGet is licensed under [GPL-3.0](LICENSE). The OmniGet name, logo, and Loop mascot are project trademarks not covered by the code license.
+
+<!-- omniget, video downloader, media downloader, youtube downloader, instagram downloader, tiktok downloader, twitter downloader, reddit downloader, twitch downloader, pinterest downloader, vimeo downloader, bluesky downloader, hotmart downloader, udemy downloader, telegram downloader, course downloader, desktop app, open source, rust, tauri -->
