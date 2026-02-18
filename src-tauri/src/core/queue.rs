@@ -388,6 +388,8 @@ async fn spawn_download_inner(
     queue: Arc<tokio::sync::Mutex<DownloadQueue>>,
     item_id: u64,
 ) {
+    tracing::info!("[queue] download {} started", item_id);
+
     let (url, output_dir, download_mode, quality, format_id, referer, cancel_token, media_info, platform_name, downloader, ytdlp_path) = {
         let q = queue.lock().await;
         let item = match q.items.iter().find(|i| i.id == item_id) {
@@ -414,8 +416,12 @@ async fn spawn_download_inner(
         emit_queue_state(&app, &q);
     }
 
+    let info_start = std::time::Instant::now();
     let info = match media_info {
-        Some(i) => i,
+        Some(i) => {
+            tracing::info!("[queue] info for {} from cache/pre-fetched in {:?}", item_id, info_start.elapsed());
+            i
+        }
         None => {
             let _ = app.emit("queue-item-progress", &QueueItemProgress {
                 id: item_id,
@@ -464,6 +470,7 @@ async fn spawn_download_inner(
             }
         }
     };
+    tracing::info!("[queue] info fetch for {} took {:?}", item_id, info_start.elapsed());
 
     {
         let mut q = queue.lock().await;
@@ -564,12 +571,14 @@ async fn spawn_download_inner(
         }
     });
 
+    let dl_start = std::time::Instant::now();
     let result = tokio::select! {
         r = downloader.download(&info, &opts, tx) => r,
         _ = cancel_token.cancelled() => {
             Err(anyhow::anyhow!("Download cancelado"))
         }
     };
+    tracing::info!("[queue] download {} completed in {:?}", item_id, dl_start.elapsed());
 
     let _ = progress_forwarder.await;
 
