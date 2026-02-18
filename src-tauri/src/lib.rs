@@ -98,16 +98,7 @@ pub fn run() {
         platforms::generic_ytdlp::GenericYtdlpDownloader::new(),
     ));
 
-    let mut auth_registry = core::auth::AuthRegistry::new();
-    auth_registry.register(Arc::new(core::auth::SpotifyAuth::new(
-        String::new(),
-    )));
-    auth_registry.register(Arc::new(core::auth::BrowserCookieAuth::new(
-        "instagram",
-        "https://www.instagram.com/accounts/login/",
-        "instagram.com",
-        ".instagram.com",
-    )));
+    let auth_registry = core::auth::AuthRegistry::new();
 
     let state = AppState {
         hotmart_session: session,
