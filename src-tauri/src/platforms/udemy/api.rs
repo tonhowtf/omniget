@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::{anyhow, Result};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -49,26 +51,59 @@ pub fn extract_course_name(url: &str) -> Option<(String, String)> {
     Some((portal_name, course_slug))
 }
 
+async fn api_get_with_retry(
+    client: &reqwest::Client,
+    url: &str,
+    params: Option<&[(&str, &str)]>,
+) -> Result<reqwest::Response> {
+    let max_attempts: u32 = 3;
+    let mut last_err = None;
+
+    for attempt in 0..max_attempts {
+        let mut req = client.get(url);
+        if let Some(p) = params {
+            req = req.query(p);
+        }
+
+        match req.send().await {
+            Ok(resp) => {
+                let status = resp.status();
+                if status.is_success() {
+                    return Ok(resp);
+                }
+                if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+                    let body = resp.text().await.unwrap_or_default();
+                    return Err(anyhow!("API auth error ({}): {}", status, body));
+                }
+                let body = resp.text().await.unwrap_or_default();
+                last_err = Some(anyhow!("API returned {}: {}", status, body));
+            }
+            Err(e) => {
+                last_err = Some(anyhow!("Request failed: {}", e));
+            }
+        }
+
+        if attempt < max_attempts - 1 {
+            let backoff = Duration::from_millis(500 * 2u64.pow(attempt));
+            tracing::warn!(
+                "[udemy-api] attempt {}/{} failed, retrying in {:?}",
+                attempt + 1,
+                max_attempts,
+                backoff
+            );
+            tokio::time::sleep(backoff).await;
+        }
+    }
+
+    Err(last_err.unwrap_or_else(|| anyhow!("All retry attempts failed")))
+}
+
 async fn handle_pagination(
     session: &UdemySession,
     initial_url: &str,
     params: Option<&[(&str, &str)]>,
 ) -> Result<serde_json::Value> {
-    let mut request = session.client.get(initial_url);
-    if let Some(p) = params {
-        request = request.query(p);
-    }
-
-    let resp = request
-        .send()
-        .await
-        .map_err(|e| anyhow!("Request failed: {}", e))?;
-
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
-        return Err(anyhow!("API returned {}: {}", status, body));
-    }
+    let resp = api_get_with_retry(&session.client, initial_url, params).await?;
 
     let mut data: serde_json::Value = resp.json().await
         .map_err(|e| anyhow!("Failed to parse JSON: {}", e))?;
@@ -87,15 +122,15 @@ async fn handle_pagination(
                 page += 1;
                 tracing::info!("[udemy-api] fetching page {}", page);
 
-                let resp = session.client.get(&url)
-                    .send()
-                    .await
-                    .map_err(|e| anyhow!("Pagination request failed: {}", e))?;
+                tokio::time::sleep(Duration::from_millis(200)).await;
 
-                if !resp.status().is_success() {
-                    tracing::error!("[udemy-api] page {} returned {}", page, resp.status());
-                    break;
-                }
+                let resp = match api_get_with_retry(&session.client, &url, None).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        tracing::error!("[udemy-api] page {} failed: {}", page, e);
+                        break;
+                    }
+                };
 
                 let page_data: serde_json::Value = resp.json().await
                     .map_err(|e| anyhow!("Failed to parse page JSON: {}", e))?;
