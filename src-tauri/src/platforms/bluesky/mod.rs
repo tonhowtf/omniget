@@ -1,7 +1,6 @@
 use anyhow::anyhow;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
 
 use crate::core::direct_downloader;
 use crate::core::hls_downloader::HlsDownloader;
@@ -242,11 +241,10 @@ impl PlatformDownloader for BlueskyDownloader {
                 let output_str = output_path.to_string_lossy().to_string();
 
                 let downloader = HlsDownloader::new();
-                let cancel = CancellationToken::new();
                 let _ = progress.send(0.0).await;
 
                 let result = downloader
-                    .download(hls_url, &output_str, "https://bsky.app", None, cancel, 20, 3)
+                    .download(hls_url, &output_str, "https://bsky.app", None, opts.cancel_token.clone(), 20, 3)
                     .await?;
 
                 let _ = progress.send(100.0).await;
@@ -277,7 +275,7 @@ impl PlatformDownloader for BlueskyDownloader {
                     let output = opts.output_dir.join(&filename);
                     let (tx, _rx) = mpsc::channel(8);
                     let bytes =
-                        direct_downloader::download_direct(&self.client, &quality.url, &output, tx, None)
+                        direct_downloader::download_direct(&self.client, &quality.url, &output, tx, Some(&opts.cancel_token))
                             .await?;
                     total_bytes += bytes;
                     last_path = output;
@@ -303,7 +301,7 @@ impl PlatformDownloader for BlueskyDownloader {
                 let output = opts.output_dir.join(&filename);
 
                 let bytes =
-                    direct_downloader::download_direct(&self.client, gif_url, &output, progress, None)
+                    direct_downloader::download_direct(&self.client, gif_url, &output, progress, Some(&opts.cancel_token))
                         .await?;
 
                 Ok(DownloadResult {
