@@ -1,0 +1,49 @@
+app-id: wtf.tonho.omniget
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node20
+
+command: omniget
+
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  - --socket=pulseaudio
+  - --filesystem=xdg-download
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.kde.StatusNotifierWatcher
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node20/bin
+  env:
+    CARGO_HOME: /run/build/omniget/cargo
+    npm_config_nodedir: /usr/lib/sdk/node20
+
+cleanup:
+  - /lib/pkgconfig
+
+modules:
+  - name: omniget
+    buildsystem: simple
+    build-options:
+      env:
+        npm_config_cache: /run/build/omniget/flatpak-node/npm-cache
+    build-commands:
+      - npm install --offline
+      - npx vite build
+      - cargo --offline build --release --manifest-path src-tauri/Cargo.toml
+      - install -Dm755 src-tauri/target/release/omniget /app/bin/omniget
+      - install -Dm644 flatpak/wtf.tonho.omniget.desktop /app/share/applications/wtf.tonho.omniget.desktop
+      - install -Dm644 flatpak/wtf.tonho.omniget.metainfo.xml /app/share/metainfo/wtf.tonho.omniget.metainfo.xml
+      - install -Dm644 flatpak/wtf.tonho.omniget.png /app/share/icons/hicolor/128x128/apps/wtf.tonho.omniget.png
+    sources:
+      - type: dir
+        path: ..
+      - cargo-sources.json
+      - node-sources.json
