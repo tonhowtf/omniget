@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use futures::stream::{self, StreamExt};
 use m3u8_rs::{parse_master_playlist, parse_media_playlist, MasterPlaylist, VariantStream};
 use reqwest::Client;
 use tokio::io::AsyncWriteExt;
@@ -166,7 +167,6 @@ impl HlsDownloader {
 
         let (seg_tx, seg_rx) = mpsc::channel::<(usize, Vec<u8>)>(max_concurrent as usize);
 
-
         let writer_output = part_path.clone();
         let media_sequence = playlist.media_sequence;
         let writer = tokio::spawn(async move {
@@ -175,46 +175,53 @@ impl HlsDownloader {
 
         let semaphore = Arc::new(Semaphore::new(max_concurrent as usize));
         let completed = Arc::new(AtomicUsize::new(0));
-        let download_error = Arc::new(tokio::sync::Mutex::new(None::<String>));
+        let fail_token = cancel_token.child_token();
+        let errors: Arc<tokio::sync::Mutex<Vec<String>>> = Arc::new(tokio::sync::Mutex::new(Vec::new()));
 
-        for (i, segment) in playlist.segments.iter().enumerate() {
-            let sem = semaphore.clone();
-            let client = self.client.clone();
-            let url = resolve_url(m3u8_url, &segment.uri);
-            let referer = referer.to_string();
-            let completed = completed.clone();
-            let bytes_tx = bytes_tx.clone();
-            let ct = cancel_token.clone();
-            let retries = max_retries;
-            let tx = seg_tx.clone();
-            let err_holder = download_error.clone();
+        let segment_urls: Vec<(usize, String)> = playlist
+            .segments
+            .iter()
+            .enumerate()
+            .map(|(i, seg)| (i, resolve_url(m3u8_url, &seg.uri)))
+            .collect();
 
-            tokio::spawn(async move {
-                let _permit = sem.acquire().await.unwrap();
-                if ct.is_cancelled() {
-                    return;
-                }
-                match download_segment_with_retry(&client, &url, &referer, retries).await {
-                    Ok(data) => {
-                        if let Some(ref btx) = bytes_tx {
-                            let _ = btx.send(data.len() as u64);
-                        }
-                        completed.fetch_add(1, Ordering::Relaxed);
-                        let _ = tx.send((i, data)).await;
+        let client = &self.client;
+        let errors_ref = &errors;
+        let completed_ref = &completed;
+        let fail_ref = &fail_token;
+        let sem_ref = &semaphore;
+
+        stream::iter(segment_urls)
+            .map(|(i, url)| {
+                let bytes_tx = bytes_tx.clone();
+                let seg_tx = seg_tx.clone();
+                let referer = referer.to_string();
+                async move {
+                    let _permit = sem_ref.acquire().await.unwrap();
+                    if fail_ref.is_cancelled() {
+                        return;
                     }
-                    Err(e) => {
-                        let mut guard = err_holder.lock().await;
-                        if guard.is_none() {
-                            *guard = Some(e.to_string());
+                    match download_segment_with_retry(client, &url, &referer, max_retries, fail_ref).await {
+                        Ok(data) => {
+                            if let Some(ref btx) = bytes_tx {
+                                let _ = btx.send(data.len() as u64);
+                            }
+                            completed_ref.fetch_add(1, Ordering::Relaxed);
+                            let _ = seg_tx.send((i, data)).await;
+                        }
+                        Err(e) => {
+                            errors_ref.lock().await.push(e.to_string());
+                            fail_ref.cancel();
                         }
                     }
                 }
-            });
-        }
-        // Drop our sender so writer finishes when all tasks complete
+            })
+            .buffer_unordered(max_concurrent as usize)
+            .collect::<()>()
+            .await;
+
         drop(seg_tx);
 
-        // Wait for writer to finish processing all segments
         let writer_result = writer.await
             .map_err(|e| anyhow::anyhow!("Writer task panicked: {:?}", e))?;
 
@@ -223,11 +230,12 @@ impl HlsDownloader {
             anyhow::bail!("Download cancelado pelo usuário");
         }
 
-        // Check for download errors
-        if let Some(err_msg) = download_error.lock().await.take() {
+        let errs = errors.lock().await;
+        if !errs.is_empty() {
             let _ = tokio::fs::remove_file(&part_path).await;
-            anyhow::bail!("Falha no download de segmento: {}", err_msg);
+            anyhow::bail!("Falha no download de segmentos: {}", errs.join("; "));
         }
+        drop(errs);
 
         writer_result?;
 
@@ -418,9 +426,14 @@ async fn download_segment_with_retry(
     url: &str,
     referer: &str,
     max_retries: u32,
+    cancel: &CancellationToken,
 ) -> anyhow::Result<Vec<u8>> {
     let mut last_err = None;
     for attempt in 0..max_retries {
+        if cancel.is_cancelled() {
+            anyhow::bail!("Download cancelado");
+        }
+
         let result = tokio::time::timeout(SEGMENT_TIMEOUT, async {
             let resp = client
                 .get(url)
