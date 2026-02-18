@@ -42,7 +42,7 @@ impl YouTubeDownloader {
         None
     }
 
-    fn is_playlist_url(url: &str) -> bool {
+    pub fn is_playlist_url(url: &str) -> bool {
         if let Ok(parsed) = url::Url::parse(url) {
             if parsed.path().starts_with("/playlist") {
                 return true;
@@ -54,6 +54,45 @@ impl YouTubeDownloader {
         false
     }
 
+    pub async fn fetch_with_ytdlp(url: &str, ytdlp_path: &std::path::Path) -> anyhow::Result<MediaInfo> {
+        if Self::is_playlist_url(url) {
+            let (playlist_title, entries) = ytdlp::get_playlist_info(ytdlp_path, url).await?;
+
+            if entries.is_empty() {
+                return Err(anyhow!("Playlist vazia ou indisponível"));
+            }
+
+            let qualities: Vec<MediaVideoQuality> = entries
+                .into_iter()
+                .enumerate()
+                .map(|(i, entry)| MediaVideoQuality {
+                    label: format!("{}. {}", i + 1, entry.title),
+                    width: 0,
+                    height: 0,
+                    url: entry.url,
+                    format: "ytdlp_playlist".to_string(),
+                })
+                .collect();
+
+            return Ok(MediaInfo {
+                title: sanitize_filename::sanitize(&playlist_title),
+                author: playlist_title,
+                platform: "youtube".to_string(),
+                duration_seconds: None,
+                thumbnail_url: None,
+                available_qualities: qualities,
+                media_type: MediaType::Playlist,
+                file_size_bytes: None,
+            });
+        }
+
+        let _video_id = Self::extract_video_id(url)
+            .ok_or_else(|| anyhow!("Não foi possível extrair o ID do vídeo YouTube"))?;
+
+        let json = ytdlp::get_video_info(ytdlp_path, url).await?;
+        Self::parse_video_info(&json)
+    }
+
     fn extract_quality_height(quality_str: &str) -> Option<u32> {
         let s = quality_str.trim().to_lowercase();
         if s == "best" || s == "highest" {
@@ -63,7 +102,7 @@ impl YouTubeDownloader {
     }
 
 
-    fn parse_video_info(json: &serde_json::Value) -> anyhow::Result<MediaInfo> {
+    pub fn parse_video_info(json: &serde_json::Value) -> anyhow::Result<MediaInfo> {
         let video_id = json
             .get("id")
             .and_then(|v| v.as_str())
@@ -239,7 +278,11 @@ impl PlatformDownloader for YouTubeDownloader {
     ) -> anyhow::Result<DownloadResult> {
         let _ = progress.send(0.0).await;
 
-        let ytdlp_path = ytdlp::ensure_ytdlp().await?;
+        let ytdlp_path = if let Some(ref p) = opts.ytdlp_path {
+            p.clone()
+        } else {
+            ytdlp::ensure_ytdlp().await?
+        };
 
         if info.media_type == MediaType::Playlist {
             return self
