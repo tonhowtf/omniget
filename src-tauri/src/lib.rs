@@ -39,6 +39,8 @@ pub struct AppState {
     pub udemy_session: Arc<tokio::sync::Mutex<Option<UdemySession>>>,
     pub udemy_courses_cache: Arc<tokio::sync::Mutex<Option<UdemyCoursesCache>>>,
     pub udemy_session_validated_at: Arc<tokio::sync::Mutex<Option<std::time::Instant>>>,
+    pub udemy_api_webview: Arc<tokio::sync::Mutex<Option<tauri::WebviewWindow>>>,
+    pub udemy_api_result: Arc<std::sync::Mutex<Option<String>>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -131,6 +133,8 @@ pub fn run() {
         udemy_session: Arc::new(tokio::sync::Mutex::new(None)),
         udemy_courses_cache: Arc::new(tokio::sync::Mutex::new(None)),
         udemy_session_validated_at: Arc::new(tokio::sync::Mutex::new(None)),
+        udemy_api_webview: Arc::new(tokio::sync::Mutex::new(None)),
+        udemy_api_result: Arc::new(std::sync::Mutex::new(None)),
     };
 
     tauri::Builder::default()
