@@ -647,8 +647,6 @@ pub async fn download_video(
         "--no-check-certificate".to_string(),
         "--no-warnings".to_string(),
         "--no-mtime".to_string(),
-        "--no-part".to_string(),
-        "--no-cache-dir".to_string(),
         "--user-agent".to_string(),
         CHROME_UA.to_string(),
         "--socket-timeout".to_string(),
@@ -713,7 +711,7 @@ pub async fn download_video(
 
         if use_aria2c && !use_browser_cookies {
             if let Some(ref a2_path) = aria2c_path {
-                let conns = if is_youtube_url(url) { effective_fragments.max(1) as usize } else { 32.min(effective_fragments as usize * 4) };
+                let conns = if is_youtube_url(url) { effective_fragments.max(1) } else { effective_fragments.max(8).min(16) };
                 args.push("--downloader".to_string());
                 args.push(a2_path.to_string_lossy().to_string());
                 args.push("--downloader-args".to_string());
