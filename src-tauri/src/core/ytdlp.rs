@@ -521,6 +521,7 @@ pub async fn download_video(
     concurrent_fragments: u32,
 ) -> anyhow::Result<DownloadResult> {
     let mode = download_mode.unwrap_or("auto");
+    let is_audio_only = mode == "audio";
     let ffmpeg_available = crate::core::ffmpeg::is_ffmpeg_available().await;
     let ffmpeg_location = if ffmpeg_available {
         find_ffmpeg_location().await
@@ -739,13 +740,35 @@ pub async fn download_video(
         let captured_path_writer = captured_path.clone();
 
         let line_reader = tokio::spawn(async move {
+            let mut phase = 0u32;
+            let mut max_reported = 0.0f64;
             while let Ok(Some(line)) = lines.next_line().await {
-                if let Some(pct) = parse_progress_line(&line) {
-                    let _ = progress_tx.send(pct).await;
-                }
                 if let Some(dest) = parse_destination_line(&line) {
+                    phase += 1;
                     let mut guard = captured_path_writer.lock().unwrap();
                     *guard = Some(PathBuf::from(dest));
+                }
+                if line.contains("[Merger]") {
+                    if 99.0 > max_reported {
+                        max_reported = 99.0;
+                        let _ = progress_tx.send(99.0).await;
+                    }
+                    continue;
+                }
+                if let Some(pct) = parse_progress_line(&line) {
+                    if is_audio_only {
+                        let _ = progress_tx.send(pct).await;
+                    } else {
+                        let adjusted = if phase <= 1 {
+                            pct * 0.5
+                        } else {
+                            50.0 + pct * 0.5
+                        };
+                        if adjusted > max_reported {
+                            max_reported = adjusted;
+                            let _ = progress_tx.send(adjusted).await;
+                        }
+                    }
                 }
             }
         });
