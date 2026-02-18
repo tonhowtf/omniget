@@ -3,6 +3,10 @@ use std::process::Stdio;
 
 use anyhow::anyhow;
 
+pub fn is_flatpak() -> bool {
+    std::path::Path::new("/.flatpak-info").exists()
+}
+
 fn managed_bin_dir() -> Option<PathBuf> {
     Some(dirs::data_dir()?.join("omniget").join("bin"))
 }
@@ -18,6 +22,14 @@ fn bin_name(tool: &str) -> String {
 pub async fn find_tool(tool: &str) -> Option<PathBuf> {
     let name = bin_name(tool);
     let version_flag = version_flag_for(tool);
+
+    #[cfg(target_os = "linux")]
+    {
+        let flatpak_path = PathBuf::from("/app/bin").join(&name);
+        if flatpak_path.exists() {
+            return Some(flatpak_path);
+        }
+    }
 
     if let Ok(status) = crate::core::process::command(&name)
         .arg(version_flag)
@@ -89,6 +101,9 @@ pub async fn check_version(tool: &str) -> Option<String> {
 pub async fn ensure_ffmpeg() -> anyhow::Result<PathBuf> {
     if let Some(path) = find_tool("ffmpeg").await {
         return Ok(path);
+    }
+    if is_flatpak() {
+        return Err(anyhow!("FFmpeg not found in Flatpak sandbox"));
     }
     download_ffmpeg().await
 }
