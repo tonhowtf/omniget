@@ -111,8 +111,8 @@ async fn check_ytdlp_freshness(path: &Path) {
     if let Ok(meta) = tokio::fs::metadata(path).await {
         if let Ok(modified) = meta.modified() {
             if let Ok(age) = modified.elapsed() {
-                if age > std::time::Duration::from_secs(7 * 24 * 60 * 60) {
-                    tracing::info!("yt-dlp is older than 7 days, updating in background");
+                if age > std::time::Duration::from_secs(2 * 24 * 60 * 60) {
+                    tracing::info!("yt-dlp is older than 2 days, updating in background");
                     tokio::spawn(async {
                         match download_ytdlp_binary().await {
                             Ok(_) => tracing::info!("yt-dlp updated successfully"),
