@@ -41,6 +41,7 @@ pub fn parse_url(url_str: &str) -> Option<ParsedUrl> {
         Platform::Bluesky => parse_bluesky(&segments),
         Platform::Telegram => parse_telegram(&segments),
         Platform::Vimeo => parse_vimeo(&segments),
+        Platform::Udemy => parse_udemy(&segments),
     };
 
     Some(ParsedUrl {
@@ -239,6 +240,14 @@ fn parse_vimeo(segments: &[&str]) -> (Option<String>, ParsedContentType) {
         if id.chars().all(|c| c.is_ascii_digit()) {
             return (Some(id.to_string()), ParsedContentType::Video);
         }
+    }
+    (None, ParsedContentType::Unknown)
+}
+
+fn parse_udemy(segments: &[&str]) -> (Option<String>, ParsedContentType) {
+    if segments.first() == Some(&"course") {
+        let slug = segments.get(1).map(|s| s.to_string());
+        return (slug, ParsedContentType::Course);
     }
     (None, ParsedContentType::Unknown)
 }
