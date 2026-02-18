@@ -165,6 +165,11 @@ fn ffmpeg_download_url() -> (&'static str, ArchiveType) {
                 ArchiveType::SingleBinary,
             )
         }
+    } else if cfg!(target_arch = "aarch64") {
+        (
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz",
+            ArchiveType::TarXz,
+        )
     } else {
         (
             "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz",
@@ -222,55 +227,42 @@ async fn extract_tar_xz_ffmpeg(
     ffmpeg_name: &str,
     ffprobe_name: &str,
 ) -> anyhow::Result<()> {
-    let temp_dir = bin_dir.join(".ffmpeg_extract_tmp");
-    let _ = tokio::fs::remove_dir_all(&temp_dir).await;
-    tokio::fs::create_dir_all(&temp_dir).await?;
+    let data = data.to_vec();
+    let bin_dir = bin_dir.to_path_buf();
+    let ffmpeg_name = ffmpeg_name.to_string();
+    let ffprobe_name = ffprobe_name.to_string();
 
-    let temp_archive = temp_dir.join("ffmpeg.tar.xz");
-    tokio::fs::write(&temp_archive, data).await?;
+    tokio::task::spawn_blocking(move || {
+        use std::io::Read;
+        let cursor = std::io::Cursor::new(&data);
+        let decompressor = xz2::read::XzDecoder::new(cursor);
+        let mut archive = tar::Archive::new(decompressor);
+        let targets = [ffmpeg_name.as_str(), ffprobe_name.as_str()];
 
-    let status = crate::core::process::command("tar")
-        .args(["xf", &temp_archive.to_string_lossy(), "-C", &temp_dir.to_string_lossy()])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .await
-        .map_err(|e| anyhow!("Failed to run tar: {}", e))?;
-
-    if !status.success() {
-        let _ = tokio::fs::remove_dir_all(&temp_dir).await;
-        return Err(anyhow!("tar extraction failed"));
-    }
-
-    let targets = [ffmpeg_name, ffprobe_name];
-    find_and_copy_binaries(&temp_dir, bin_dir, &targets).await?;
-
-    let _ = tokio::fs::remove_dir_all(&temp_dir).await;
-    Ok(())
-}
-
-async fn find_and_copy_binaries(
-    search_dir: &std::path::Path,
-    dest_dir: &std::path::Path,
-    targets: &[&str],
-) -> anyhow::Result<()> {
-    let mut stack = vec![search_dir.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let mut entries = tokio::fs::read_dir(&dir).await?;
-        while let Some(entry) = entries.next_entry().await? {
-            let path = entry.path();
-            if path.is_dir() {
-                stack.push(path);
-            } else if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                for target in targets {
-                    if name == *target {
-                        let dest = dest_dir.join(target);
-                        tokio::fs::copy(&path, &dest).await?;
-                    }
+        for entry_result in archive.entries()
+            .map_err(|e| anyhow!("Failed to read tar entries: {}", e))?
+        {
+            let mut entry = entry_result
+                .map_err(|e| anyhow!("Failed to read tar entry: {}", e))?;
+            let path = entry.path()
+                .map_err(|e| anyhow!("Failed to read entry path: {}", e))?;
+            let file_name = path.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("");
+            for target in &targets {
+                if file_name == *target {
+                    let dest = bin_dir.join(target);
+                    let mut buf = Vec::new();
+                    entry.read_to_end(&mut buf)?;
+                    std::fs::write(&dest, &buf)?;
+                    break;
                 }
             }
         }
-    }
+        Ok::<(), anyhow::Error>(())
+    })
+    .await
+    .map_err(|e| anyhow!("Spawn blocking failed: {}", e))??;
     Ok(())
 }
 
