@@ -141,7 +141,6 @@ impl HotmartDownloader {
 
         tokio::fs::create_dir_all(output_dir).await?;
 
-        // Process medias concurrently
         if lesson.has_media {
             let media_futures: Vec<_> = lesson.medias.iter().enumerate().map(|(i, media)| {
                 let media = media.clone();
@@ -259,7 +258,6 @@ impl HotmartDownloader {
             }
         }
 
-        // Process HTML-embedded players concurrently
         if let Some(html) = &lesson.content {
             let players = parser::detect_players_from_html(html);
             let player_futures: Vec<_> = players.into_iter().enumerate().map(|(i, player)| {
@@ -412,7 +410,6 @@ impl HotmartDownloader {
             anyhow::bail!("Download cancelado pelo usuário");
         }
 
-        // Download attachments concurrently
         if self.download_settings.download_attachments && !lesson.attachments.is_empty() {
             let mat_dir = format!("{}/Materiais", output_dir);
             tokio::fs::create_dir_all(&mat_dir).await?;
@@ -531,7 +528,6 @@ impl HotmartDownloader {
         let referer = format!("https://{}.club.hotmart.com/", slug);
         let slug_owned = slug.to_string();
 
-        // Flatten all pages with module context for concurrent processing
         struct PageTask {
             module_index: usize,
             module_name: String,
@@ -557,7 +553,6 @@ impl HotmartDownloader {
             }
         }
 
-        // Process lessons concurrently with a bounded limit
         stream::iter(all_pages)
             .for_each_concurrent(CONCURRENT_LESSONS, |task| {
                 let downloader = self.clone();
