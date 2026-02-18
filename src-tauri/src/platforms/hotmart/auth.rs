@@ -73,6 +73,8 @@ pub fn build_client_from_saved(saved: &SavedSession) -> anyhow::Result<reqwest::
         .cookie_provider(Arc::new(jar))
         .default_headers(default_headers)
         .redirect(reqwest::redirect::Policy::limited(10))
+        .connect_timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(300))
         .build()?;
 
     Ok(client)
