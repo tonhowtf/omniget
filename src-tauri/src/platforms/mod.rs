@@ -11,6 +11,7 @@ pub mod youtube;
 pub mod telegram;
 pub mod vimeo;
 pub mod generic_ytdlp;
+pub mod udemy;
 
 use std::fmt;
 use std::str::FromStr;
@@ -30,6 +31,7 @@ pub enum Platform {
     Bluesky,
     Telegram,
     Vimeo,
+    Udemy,
 }
 
 impl fmt::Display for Platform {
@@ -46,6 +48,7 @@ impl fmt::Display for Platform {
             Platform::Bluesky => "bluesky",
             Platform::Telegram => "telegram",
             Platform::Vimeo => "vimeo",
+            Platform::Udemy => "udemy",
         };
         write!(f, "{}", name)
     }
@@ -67,6 +70,7 @@ impl FromStr for Platform {
             "bluesky" | "bsky" => Ok(Platform::Bluesky),
             "telegram" | "tg" => Ok(Platform::Telegram),
             "vimeo" => Ok(Platform::Vimeo),
+            "udemy" => Ok(Platform::Udemy),
             _ => Err(format!("Unknown platform: {}", s)),
         }
     }
@@ -103,6 +107,8 @@ impl Platform {
             Some(Platform::Telegram)
         } else if matches("vimeo.com") {
             Some(Platform::Vimeo)
+        } else if matches("udemy.com") {
+            Some(Platform::Udemy)
         } else {
             None
         }
@@ -121,6 +127,7 @@ impl Platform {
             Platform::Bluesky,
             Platform::Telegram,
             Platform::Vimeo,
+            Platform::Udemy,
         ]
     }
 }
