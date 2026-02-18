@@ -20,7 +20,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-fs = "2"
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.12", features = ["json", "cookies", "stream"] }
+reqwest = { version = "0.12", features = ["json", "cookies", "stream", "http2", "gzip", "brotli", "deflate"] }
 futures = "0.3"
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
