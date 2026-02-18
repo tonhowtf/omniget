@@ -229,15 +229,6 @@
       "stagger_delay_desc": "Intervalo entre o início de downloads simultâneos",
       "reset": "Restaurar padrões",
       "reset_confirm": "Tem certeza? Todas as configurações serão restauradas."
-    },
-    "accounts": {
-      "title": "Contas",
-      "connected_as": "Conectado como {{name}}",
-      "not_connected": "Não conectado",
-      "login": "Entrar",
-      "logout": "Sair",
-      "logging_in": "Conectando...",
-      "login_failed": "Falha no login"
     }
   },
   "omnibox": {

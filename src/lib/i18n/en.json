@@ -229,15 +229,6 @@
       "stagger_delay_desc": "Delay between starting concurrent downloads",
       "reset": "Reset defaults",
       "reset_confirm": "Are you sure? All settings will be reset."
-    },
-    "accounts": {
-      "title": "Accounts",
-      "connected_as": "Connected as {{name}}",
-      "not_connected": "Not connected",
-      "login": "Login",
-      "logout": "Logout",
-      "logging_in": "Connecting...",
-      "login_failed": "Login failed"
     }
   },
   "omnibox": {
