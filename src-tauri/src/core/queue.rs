@@ -1,9 +1,14 @@
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use serde::Serialize;
 use tauri::Emitter;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
+
+fn shared_http_client() -> &'static reqwest::Client {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(reqwest::Client::new)
+}
 
 use crate::core::ffmpeg::{self, MetadataEmbed};
 use crate::models::media::MediaInfo;
@@ -442,7 +447,6 @@ async fn spawn_download_inner(
     let (tx, mut rx) = mpsc::channel::<f64>(32);
 
     let app_progress = app.clone();
-    let queue_progress = queue.clone();
     let progress_forwarder = tokio::spawn(async move {
         let start_time = std::time::Instant::now();
         let mut last_bytes: u64 = 0;
@@ -486,18 +490,6 @@ async fn spawn_download_inner(
 
             last_bytes = downloaded_bytes;
             last_time = now;
-
-            {
-                let mut q = queue_progress.lock().await;
-                q.update_progress(
-                    item_id,
-                    percent,
-                    current_speed,
-                    downloaded_bytes,
-                    total_bytes,
-                    eta_seconds,
-                );
-            }
 
             let _ = app_progress.emit("queue-item-progress", &QueueItemProgress {
                 id: item_id,
@@ -548,12 +540,11 @@ async fn spawn_download_inner(
                         thumbnail_url: info.thumbnail_url.clone(),
                         ..Default::default()
                     };
-                    let client = reqwest::Client::new();
                     if let Err(e) = ffmpeg::embed_metadata(
                         &dl.file_path,
                         &metadata,
                         settings.download.embed_thumbnail,
-                        &client,
+                        shared_http_client(),
                     )
                     .await
                     {
