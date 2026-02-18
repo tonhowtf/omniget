@@ -3,6 +3,8 @@ use std::sync::Arc;
 
 use platforms::hotmart::api::Course;
 use platforms::hotmart::auth::HotmartSession;
+use platforms::udemy::api::UdemyCourse;
+use platforms::udemy::auth::UdemySession;
 use platforms::telegram::auth::{TelegramSessionHandle, TelegramState};
 use tokio_util::sync::CancellationToken;
 
@@ -18,6 +20,11 @@ pub struct CoursesCache {
     pub fetched_at: std::time::Instant,
 }
 
+pub struct UdemyCoursesCache {
+    pub courses: Vec<UdemyCourse>,
+    pub fetched_at: std::time::Instant,
+}
+
 pub struct AppState {
     pub hotmart_session: Arc<tokio::sync::Mutex<Option<HotmartSession>>>,
     pub active_downloads: Arc<tokio::sync::Mutex<HashMap<u64, CancellationToken>>>,
@@ -29,6 +36,9 @@ pub struct AppState {
     pub telegram_session: TelegramSessionHandle,
     pub download_queue: Arc<tokio::sync::Mutex<core::queue::DownloadQueue>>,
     pub auth_registry: core::auth::AuthRegistry,
+    pub udemy_session: Arc<tokio::sync::Mutex<Option<UdemySession>>>,
+    pub udemy_courses_cache: Arc<tokio::sync::Mutex<Option<UdemyCoursesCache>>>,
+    pub udemy_session_validated_at: Arc<tokio::sync::Mutex<Option<std::time::Instant>>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -118,6 +128,9 @@ pub fn run() {
         telegram_session,
         download_queue: Arc::new(tokio::sync::Mutex::new(core::queue::DownloadQueue::new(2))),
         auth_registry,
+        udemy_session: Arc::new(tokio::sync::Mutex::new(None)),
+        udemy_courses_cache: Arc::new(tokio::sync::Mutex::new(None)),
+        udemy_session_validated_at: Arc::new(tokio::sync::Mutex::new(None)),
     };
 
     tauri::Builder::default()
@@ -189,6 +202,9 @@ pub fn run() {
             commands::platform_auth::platform_auth_login,
             commands::platform_auth::platform_auth_logout,
             commands::platform_auth::platform_auth_list,
+            commands::udemy_auth::udemy_login,
+            commands::udemy_auth::udemy_check_session,
+            commands::udemy_auth::udemy_logout,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
