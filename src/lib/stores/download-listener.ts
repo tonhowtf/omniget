@@ -6,6 +6,7 @@ import {
   markComplete,
   syncQueueState,
   upsertGenericProgress,
+  getDownloads,
 } from "./download-store.svelte";
 import { showToast } from "./toast-store.svelte";
 import {
@@ -92,7 +93,25 @@ type ConvertCompletePayload = {
   error: string | null;
 };
 
+type UdemyProgressPayload = {
+  course_id: number;
+  course_name: string;
+  percent: number;
+  current_chapter: string;
+  current_lecture: string;
+  downloaded_bytes: number;
+  total_lectures: number;
+  completed_lectures: number;
+};
+
+type UdemyCompletePayload = {
+  course_name: string;
+  success: boolean;
+  error: string | null;
+};
+
 const seenCourseIds = new Set<number>();
+const seenUdemyCourseIds = new Set<number>();
 
 export async function initDownloadListener(): Promise<() => void> {
   const unlistenProgress = await listen<ProgressPayload>("download-progress", (event) => {
@@ -121,6 +140,47 @@ export async function initDownloadListener(): Promise<() => void> {
   const unlistenComplete = await listen<CompletePayload>("download-complete", (event) => {
     const d = event.payload;
     markComplete(d.course_name, d.success, d.error ?? undefined);
+
+    const tr = get(t);
+    if (d.success) {
+      showToast("success", tr("toast.download_complete", { name: d.course_name }));
+    } else {
+      let msg = tr("toast.download_error", { name: d.course_name });
+      if (d.error) msg += ` — ${d.error}`;
+      showToast("error", msg);
+    }
+  });
+
+  const unlistenUdemyProgress = await listen<UdemyProgressPayload>("udemy-download-progress", (event) => {
+    const d = event.payload;
+
+    if (!seenUdemyCourseIds.has(d.course_id)) {
+      seenUdemyCourseIds.add(d.course_id);
+      const tr = get(t);
+      showToast("info", tr("toast.download_started", { name: d.course_name }));
+    }
+
+    upsertProgress(
+      d.course_id,
+      d.course_name,
+      d.percent,
+      d.current_chapter,
+      d.current_lecture,
+      d.downloaded_bytes,
+      d.total_lectures,
+      d.completed_lectures,
+      0,
+      0,
+    );
+  });
+
+  const unlistenUdemyComplete = await listen<UdemyCompletePayload>("udemy-download-complete", (event) => {
+    const d = event.payload;
+    markComplete(d.course_name, d.success, d.error ?? undefined);
+    seenUdemyCourseIds.delete([...seenUdemyCourseIds].find(id => {
+      const item = getDownloads().get(id);
+      return item?.name === d.course_name;
+    }) ?? -1);
 
     const tr = get(t);
     if (d.success) {
@@ -191,6 +251,8 @@ export async function initDownloadListener(): Promise<() => void> {
   return () => {
     unlistenProgress();
     unlistenComplete();
+    unlistenUdemyProgress();
+    unlistenUdemyComplete();
     unlistenQueueState();
     unlistenQueueItemProgress();
     unlistenBatchFileStatus();
