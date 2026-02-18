@@ -45,6 +45,8 @@ pub struct AdvancedSettings {
     pub max_concurrent_downloads: u32,
     #[serde(default = "default_concurrent_fragments")]
     pub concurrent_fragments: u32,
+    #[serde(default = "default_stagger_delay_ms")]
+    pub stagger_delay_ms: u64,
 }
 
 fn default_concurrent_fragments() -> u32 {
@@ -53,6 +55,10 @@ fn default_concurrent_fragments() -> u32 {
 
 fn default_max_concurrent_downloads() -> u32 {
     2
+}
+
+fn default_stagger_delay_ms() -> u64 {
+    150
 }
 
 fn default_true() -> bool {
@@ -104,6 +110,7 @@ impl Default for AppSettings {
                 max_retries: 3,
                 max_concurrent_downloads: 2,
                 concurrent_fragments: 8,
+                stagger_delay_ms: 150,
             },
             telegram: TelegramSettings::default(),
         }
