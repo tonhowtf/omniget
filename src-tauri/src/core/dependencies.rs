@@ -53,8 +53,8 @@ pub async fn find_tool(tool: &str) -> Option<PathBuf> {
 
 fn version_flag_for(tool: &str) -> &'static str {
     match tool {
-        "aria2c" => "--version",
-        _ => "-version",
+        "ffmpeg" | "ffprobe" => "-version",
+        _ => "--version",
     }
 }
 
