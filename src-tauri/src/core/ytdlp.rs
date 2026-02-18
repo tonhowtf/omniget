@@ -9,6 +9,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::models::media::{DownloadResult, FormatInfo};
 
+static YTDLP_UPDATING: Mutex<bool> = Mutex::new(false);
+
 const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 pub async fn find_ytdlp() -> Option<PathBuf> {
@@ -112,11 +114,21 @@ async fn check_ytdlp_freshness(path: &Path) {
         if let Ok(modified) = meta.modified() {
             if let Ok(age) = modified.elapsed() {
                 if age > std::time::Duration::from_secs(2 * 24 * 60 * 60) {
+                    let already_updating = YTDLP_UPDATING.lock().map(|g| *g).unwrap_or(false);
+                    if already_updating {
+                        return;
+                    }
+                    if let Ok(mut g) = YTDLP_UPDATING.lock() {
+                        *g = true;
+                    }
                     tracing::info!("yt-dlp is older than 2 days, updating in background");
                     tokio::spawn(async {
                         match download_ytdlp_binary().await {
                             Ok(_) => tracing::info!("yt-dlp updated successfully"),
                             Err(e) => tracing::warn!("Failed to update yt-dlp: {}", e),
+                        }
+                        if let Ok(mut g) = YTDLP_UPDATING.lock() {
+                            *g = false;
                         }
                     });
                 }
@@ -244,7 +256,7 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         "--socket-timeout".to_string(),
         "30".to_string(),
         "--retries".to_string(),
-        "3".to_string(),
+        "5".to_string(),
         "--user-agent".to_string(),
         CHROME_UA.to_string(),
     ];
@@ -256,24 +268,52 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
 
     args.push(url.to_string());
 
-    let output = tokio::time::timeout(
+    let mut child = crate::core::process::command(ytdlp)
+        .args(&args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| anyhow!("Falha ao executar yt-dlp: {}", e))?;
+
+    let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("Sem stderr"))?;
+    let stderr_reader = tokio::spawn(async move {
+        let mut buf = String::new();
+        let mut lines = BufReader::new(stderr_pipe).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let lower = line.to_lowercase();
+            if lower.contains("extracting url") {
+                tracing::debug!("[yt-dlp info] Extracting URL");
+            } else if lower.contains("downloading") && !lower.contains("download") {
+                tracing::debug!("[yt-dlp info] Downloading metadata");
+            } else if lower.contains("format") {
+                tracing::debug!("[yt-dlp info] Selecting format");
+            }
+            buf.push_str(&line);
+            buf.push('\n');
+        }
+        buf
+    });
+
+    let result = tokio::time::timeout(
         std::time::Duration::from_secs(60),
-        crate::core::process::command(ytdlp)
-            .args(&args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output(),
+        child.wait_with_output(),
     )
     .await
     .map_err(|_| anyhow!("Timeout ao obter informações do vídeo (60s)"))?
     .map_err(|e| anyhow!("Falha ao executar yt-dlp: {}", e))?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr_content = stderr_reader.await.unwrap_or_default();
+
+    if !result.status.success() {
+        let stderr = if stderr_content.is_empty() {
+            String::from_utf8_lossy(&result.stderr).to_string()
+        } else {
+            stderr_content
+        };
         return Err(anyhow!("yt-dlp falhou: {}", stderr.trim()));
     }
 
-    let json: serde_json::Value = serde_json::from_slice(&output.stdout)
+    let json: serde_json::Value = serde_json::from_slice(&result.stdout)
         .map_err(|e| anyhow!("yt-dlp retornou JSON inválido: {}", e))?;
 
     Ok(json)
@@ -462,9 +502,17 @@ pub async fn download_video(
         }
     };
 
-    let template = filename_template.unwrap_or("%(title).200s [%(id)s].%(ext)s");
+    let dir_len = output_dir.to_string_lossy().len();
+    let max_name = if cfg!(target_os = "windows") {
+        250_usize.saturating_sub(dir_len).min(200)
+    } else {
+        200
+    };
+    let template = filename_template
+        .map(|t| t.to_string())
+        .unwrap_or_else(|| format!("%(title).{}s [%(id)s].%(ext)s", max_name));
     let output_template = output_dir
-        .join(template)
+        .join(&template)
         .to_string_lossy()
         .to_string();
 
@@ -525,9 +573,13 @@ pub async fn download_video(
     base_args.extend([
         "--buffer-size".to_string(),
         "1M".to_string(),
-        "--http-chunk-size".to_string(),
-        "10M".to_string(),
     ]);
+    if !is_youtube_url(url) {
+        base_args.extend([
+            "--http-chunk-size".to_string(),
+            "10M".to_string(),
+        ]);
+    }
 
     let aria2c_path = crate::core::dependencies::ensure_aria2c().await;
     let mut use_aria2c = aria2c_path.is_some()
@@ -544,7 +596,7 @@ pub async fn download_video(
         "--socket-timeout".to_string(),
         "30".to_string(),
         "--retries".to_string(),
-        "3".to_string(),
+        "5".to_string(),
         "--fragment-retries".to_string(),
         "5".to_string(),
         "--extractor-retries".to_string(),
@@ -553,6 +605,8 @@ pub async fn download_video(
         "3".to_string(),
         "--retry-sleep".to_string(),
         "linear=1::2".to_string(),
+        "--trim-filenames".to_string(),
+        max_name.to_string(),
         "--no-playlist".to_string(),
         "--newline".to_string(),
         "--progress-template".to_string(),
@@ -717,11 +771,11 @@ pub async fn download_video(
                 tracing::warn!("[yt-dlp] nsig error, switching to {}", client);
             }
 
-            if stderr_lower.contains("http error 403") || stderr_lower.contains("forbidden") {
-                if !extra_args.contains(&"--force-ipv4".to_string()) {
-                    extra_args.push("--force-ipv4".to_string());
-                    tracing::warn!("[yt-dlp] 403 forbidden, adding --force-ipv4");
-                }
+            if (stderr_lower.contains("http error 403") || stderr_lower.contains("forbidden"))
+                && !extra_args.contains(&"--force-ipv4".to_string())
+            {
+                extra_args.push("--force-ipv4".to_string());
+                tracing::warn!("[yt-dlp] 403 forbidden, adding --force-ipv4");
             }
 
             if stderr_lower.contains("timed out") || stderr_lower.contains("timeout") {
@@ -732,24 +786,31 @@ pub async fn download_video(
                 tracing::warn!("[yt-dlp] SSL/certificate error on attempt {}", attempt + 1);
             }
 
-            if (stderr_lower.contains("could not") && stderr_lower.contains("cookie"))
-                || stderr_lower.contains("cookies-from-browser")
-                || stderr_lower.contains("failed to decrypt")
-                || stderr_lower.contains("keyring")
+            if (stderr_lower.contains("invalid argument") || stderr_lower.contains("errno 22"))
+                && !extra_args.contains(&"--restrict-filenames".to_string())
             {
-                if use_browser_cookies {
-                    use_browser_cookies = false;
-                    tracing::warn!(
-                        "[yt-dlp] cookies-from-browser failed, retrying without"
-                    );
-                }
+                extra_args.push("--restrict-filenames".to_string());
+                tracing::warn!("[yt-dlp] Errno 22, adding --restrict-filenames");
             }
 
-            if stderr_lower.contains("sign in") || stderr_lower.contains("login required") {
-                if !use_browser_cookies && browser_cookies.is_some() {
-                    use_browser_cookies = true;
-                    tracing::warn!("[yt-dlp] login required, enabling cookies-from-browser");
-                }
+            if ((stderr_lower.contains("could not") && stderr_lower.contains("cookie"))
+                || stderr_lower.contains("cookies-from-browser")
+                || stderr_lower.contains("failed to decrypt")
+                || stderr_lower.contains("keyring"))
+                && use_browser_cookies
+            {
+                use_browser_cookies = false;
+                tracing::warn!(
+                    "[yt-dlp] cookies-from-browser failed, retrying without"
+                );
+            }
+
+            if (stderr_lower.contains("sign in") || stderr_lower.contains("login required"))
+                && !use_browser_cookies
+                && browser_cookies.is_some()
+            {
+                use_browser_cookies = true;
+                tracing::warn!("[yt-dlp] login required, enabling cookies-from-browser");
             }
 
             let last_line = last_error.lines().last().unwrap_or("unknown error").trim();
