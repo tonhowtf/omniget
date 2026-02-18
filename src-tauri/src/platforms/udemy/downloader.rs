@@ -13,6 +13,7 @@ use super::api::{self, UdemyCourse};
 use super::auth::UdemySession;
 
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0";
+const MAX_FILENAME_BYTES: usize = 200;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct UdemyCourseDownloadProgress {
@@ -31,6 +32,18 @@ pub struct UdemyDownloader {
     hls_client: reqwest::Client,
     max_concurrent_segments: u32,
     max_retries: u32,
+}
+
+fn safe_filename(name: &str) -> String {
+    let sanitized = sanitize_filename::sanitize(name);
+    if sanitized.len() <= MAX_FILENAME_BYTES {
+        return sanitized;
+    }
+    let mut end = MAX_FILENAME_BYTES;
+    while !sanitized.is_char_boundary(end) && end > 0 {
+        end -= 1;
+    }
+    sanitized[..end].to_string()
 }
 
 impl UdemyDownloader {
@@ -79,7 +92,7 @@ impl UdemyDownloader {
 
         let curriculum = api::get_course_curriculum(&session, "www", course.id).await?;
 
-        let course_dir_name = sanitize_filename::sanitize(&course.title);
+        let course_dir_name = safe_filename(&course.title);
         let course_dir = PathBuf::from(output_dir).join(&course_dir_name);
         tokio::fs::create_dir_all(&course_dir).await?;
 
@@ -95,7 +108,7 @@ impl UdemyDownloader {
             let chapter_dir_name = format!(
                 "{:02} - {}",
                 ch_idx + 1,
-                sanitize_filename::sanitize(&chapter.title)
+                safe_filename(&chapter.title)
             );
             let chapter_dir = course_dir.join(&chapter_dir_name);
             tokio::fs::create_dir_all(&chapter_dir).await?;
@@ -171,16 +184,14 @@ impl UdemyDownloader {
         chapter_dir: &Path,
         cancel_token: &CancellationToken,
     ) -> anyhow::Result<u64> {
+        if lecture.lecture_class == "quiz" || lecture.lecture_class == "practice" {
+            tracing::info!("[udemy] skipping {}: {}", lecture.lecture_class, lecture.title);
+            return Ok(0);
+        }
+
         let asset = match &lecture.asset {
             Some(a) => a,
-            None => {
-                if lecture.lecture_class == "quiz" {
-                    tracing::info!("[udemy] skipping quiz: {}", lecture.title);
-                } else {
-                    tracing::warn!("[udemy] lecture '{}' has no asset", lecture.title);
-                }
-                return Ok(0);
-            }
+            None => return Ok(0),
         };
 
         let asset_type = asset.get("asset_type")
@@ -202,7 +213,7 @@ impl UdemyDownloader {
                 if !body.is_empty() {
                     let file_name = format!(
                         "{}.html",
-                        sanitize_filename::sanitize(&lecture.title)
+                        safe_filename(&lecture.title)
                     );
                     let file_path = chapter_dir.join(&file_name);
                     if !file_exists_with_content(&file_path).await {
@@ -243,7 +254,7 @@ impl UdemyDownloader {
                 let ext = if url.contains(".vtt") { "vtt" } else { "srt" };
                 let caption_name = format!(
                     "{}_{}.{}",
-                    sanitize_filename::sanitize(&lecture.title),
+                    safe_filename(&lecture.title),
                     lang,
                     ext
                 );
@@ -283,7 +294,7 @@ impl UdemyDownloader {
         chapter_dir: &Path,
         cancel_token: &CancellationToken,
     ) -> anyhow::Result<u64> {
-        let file_name = format!("{}.mp4", sanitize_filename::sanitize(title));
+        let file_name = format!("{}.mp4", safe_filename(title));
         let file_path = chapter_dir.join(&file_name);
 
         if file_exists_with_content(&file_path).await {
@@ -346,7 +357,7 @@ impl UdemyDownloader {
         tracing::info!("[udemy] downloading '{}' at {}p", title, best_height);
 
         let url_str = best_url.to_string();
-        let is_hls = url_str.contains(".m3u8") || url_str.contains("m3u8");
+        let is_hls = url_str.contains(".m3u8");
 
         if is_hls {
             let output_str = file_path.to_string_lossy().to_string();
@@ -359,9 +370,17 @@ impl UdemyDownloader {
                 self.max_concurrent_segments,
                 self.max_retries,
                 Some(self.hls_client.clone()),
-            ).await?;
-            tracing::info!("[udemy] HLS download complete: {}", title);
-            Ok(result.file_size)
+            ).await;
+            match result {
+                Ok(r) => {
+                    tracing::info!("[udemy] HLS download complete: {}", title);
+                    Ok(r.file_size)
+                }
+                Err(e) => {
+                    let _ = tokio::fs::remove_file(file_path).await;
+                    Err(e)
+                }
+            }
         } else {
             let bytes = download_file_simple(&session.client, &url_str, file_path).await?;
             tracing::info!("[udemy] direct download complete: {} ({}p, {} bytes)", title, best_height, bytes);
@@ -404,26 +423,26 @@ impl UdemyDownloader {
             }
         };
 
-        let safe_filename = if filename.is_empty() {
-            format!("{}.bin", sanitize_filename::sanitize(title))
+        let safe_name = if filename.is_empty() {
+            format!("{}.bin", safe_filename(title))
         } else {
-            sanitize_filename::sanitize(filename)
+            safe_filename(filename)
         };
 
-        let file_path = chapter_dir.join(&safe_filename);
+        let file_path = chapter_dir.join(&safe_name);
 
         if file_exists_with_content(&file_path).await {
-            tracing::info!("[udemy] skipping existing file: {}", safe_filename);
+            tracing::info!("[udemy] skipping existing file: {}", safe_name);
             return Ok(0);
         }
 
         match download_file_simple(&session.client, &url, &file_path).await {
             Ok(b) => {
-                tracing::info!("[udemy] downloaded asset: {}", safe_filename);
+                tracing::info!("[udemy] downloaded asset: {}", safe_name);
                 Ok(b)
             }
             Err(e) => {
-                tracing::error!("[udemy] failed to download '{}': {}", safe_filename, e);
+                tracing::error!("[udemy] failed to download '{}': {}", safe_name, e);
                 Ok(0)
             }
         }
@@ -468,9 +487,9 @@ impl UdemyDownloader {
                 };
 
                 let safe_name = if filename.is_empty() {
-                    sanitize_filename::sanitize(title)
+                    safe_filename(title)
                 } else {
-                    sanitize_filename::sanitize(filename)
+                    safe_filename(filename)
                 };
                 let file_path = chapter_dir.join(&safe_name);
 
@@ -486,9 +505,9 @@ impl UdemyDownloader {
                     .unwrap_or("");
                 if !external_url.is_empty() {
                     let safe_name = if filename.is_empty() {
-                        format!("{}.url", sanitize_filename::sanitize(title))
+                        format!("{}.url", safe_filename(title))
                     } else {
-                        format!("{}.url", sanitize_filename::sanitize(filename))
+                        format!("{}.url", safe_filename(filename))
                     };
                     let file_path = chapter_dir.join(&safe_name);
                     if !file_exists_with_content(&file_path).await {
@@ -516,19 +535,6 @@ async fn download_file_simple(
     url: &str,
     output_path: &Path,
 ) -> anyhow::Result<u64> {
-    let resp = client.get(url)
-        .timeout(Duration::from_secs(600))
-        .send()
-        .await
-        .map_err(|e| anyhow!("Download request failed: {}", e))?;
-
-    if !resp.status().is_success() {
-        return Err(anyhow!("Download returned status {}", resp.status()));
-    }
-
-    let mut total: u64 = 0;
-    let mut stream = resp.bytes_stream();
-
     let part_path = output_path.with_extension(
         format!(
             "{}.part",
@@ -536,7 +542,36 @@ async fn download_file_simple(
         )
     );
 
-    let mut file = tokio::fs::File::create(&part_path).await?;
+    let result = download_file_inner(client, url, output_path, &part_path).await;
+    if result.is_err() {
+        let _ = tokio::fs::remove_file(&part_path).await;
+    }
+    result
+}
+
+async fn download_file_inner(
+    client: &reqwest::Client,
+    url: &str,
+    output_path: &Path,
+    part_path: &Path,
+) -> anyhow::Result<u64> {
+    let resp = client.get(url)
+        .timeout(Duration::from_secs(600))
+        .send()
+        .await
+        .map_err(|e| anyhow!("Download request failed: {}", e))?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+            return Err(anyhow!("Auth error ({}), session may have expired", status));
+        }
+        return Err(anyhow!("Download returned status {}", status));
+    }
+
+    let mut total: u64 = 0;
+    let mut stream = resp.bytes_stream();
+    let mut file = tokio::fs::File::create(part_path).await?;
 
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|e| anyhow!("Stream error: {}", e))?;
@@ -547,7 +582,7 @@ async fn download_file_simple(
     tokio::io::AsyncWriteExt::flush(&mut file).await?;
     drop(file);
 
-    tokio::fs::rename(&part_path, output_path).await?;
+    tokio::fs::rename(part_path, output_path).await?;
 
     Ok(total)
 }
