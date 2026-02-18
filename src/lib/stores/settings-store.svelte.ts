@@ -24,6 +24,7 @@ export type AppSettings = {
     max_retries: number;
     max_concurrent_downloads: number;
     concurrent_fragments: number;
+    stagger_delay_ms: number;
   };
   telegram: {
     concurrent_downloads: number;
