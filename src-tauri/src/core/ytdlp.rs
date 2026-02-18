@@ -611,7 +611,7 @@ pub async fn download_video(
     }
 
     let effective_fragments = if is_youtube_url(url) {
-        concurrent_fragments.min(4)
+        concurrent_fragments.min(8)
     } else {
         concurrent_fragments
     };
@@ -620,15 +620,15 @@ pub async fn download_video(
 
     if is_youtube_url(url) {
         base_args.push("--extractor-args".to_string());
-        base_args.push("youtube:player_client=web,default".to_string());
+        base_args.push("youtube:player_client=web,mweb,default".to_string());
 
         base_args.push("--throttled-rate".to_string());
-        base_args.push("100K".to_string());
+        base_args.push("500K".to_string());
     }
 
     base_args.extend([
         "--buffer-size".to_string(),
-        "1M".to_string(),
+        "4M".to_string(),
     ]);
     if !is_youtube_url(url) {
         base_args.extend([
@@ -647,6 +647,8 @@ pub async fn download_video(
         "--no-check-certificate".to_string(),
         "--no-warnings".to_string(),
         "--no-mtime".to_string(),
+        "--no-part".to_string(),
+        "--no-cache-dir".to_string(),
         "--user-agent".to_string(),
         CHROME_UA.to_string(),
         "--socket-timeout".to_string(),
@@ -711,11 +713,11 @@ pub async fn download_video(
 
         if use_aria2c && !use_browser_cookies {
             if let Some(ref a2_path) = aria2c_path {
-                let conns = if is_youtube_url(url) { effective_fragments.max(1) } else { 16 };
+                let conns = if is_youtube_url(url) { effective_fragments.max(1) as usize } else { 32.min(effective_fragments as usize * 4) };
                 args.push("--downloader".to_string());
                 args.push(a2_path.to_string_lossy().to_string());
                 args.push("--downloader-args".to_string());
-                args.push(format!("aria2c:-x {} -k 1M -j {} --file-allocation=none --optimize-concurrent-downloads=true --auto-file-renaming=false --summary-interval=0", conns, conns));
+                args.push(format!("aria2c:-x {} -k 1M -j {} --min-split-size=1M --file-allocation=none --optimize-concurrent-downloads=true --auto-file-renaming=false --summary-interval=0", conns, conns));
             }
         }
 
