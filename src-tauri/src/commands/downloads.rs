@@ -112,6 +112,7 @@ pub async fn download_from_url(
         .map(|p| p.to_string())
         .unwrap_or_else(|| "generic".to_string());
     let title = url.clone();
+    let ytdlp_path = ytdlp::find_ytdlp().await;
 
     {
         let mut q = download_queue.lock().await;
@@ -129,6 +130,7 @@ pub async fn download_from_url(
             None,
             None,
             downloader,
+            ytdlp_path,
         );
 
         let next_ids = q.next_queued_ids();
