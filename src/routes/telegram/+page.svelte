@@ -890,6 +890,7 @@
       class="input search-input"
       placeholder={$t("telegram.search_files")}
       bind:value={mediaSearch}
+      bind:this={searchInputRef}
       oninput={handleSearchInput}
       disabled={isBatchActive}
     />
@@ -897,7 +898,7 @@
     {#if loadingMedia}
       <div class="spinner-section">
         <span class="spinner"></span>
-        <span class="spinner-text">{$t("telegram.loading_media")}</span>
+        <span class="spinner-text">{isSearching ? $t("telegram.searching") : $t("telegram.loading_media")}</span>
       </div>
     {:else if mediaError}
       <div class="error-section">
