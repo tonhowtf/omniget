@@ -178,6 +178,7 @@ impl PlatformDownloader for TelegramDownloader {
         opts: &DownloadOptions,
         progress: mpsc::Sender<f64>,
     ) -> anyhow::Result<DownloadResult> {
+        let _t = std::time::Instant::now();
         let quality = info
             .available_qualities
             .first()
@@ -192,6 +193,7 @@ impl PlatformDownloader for TelegramDownloader {
             .rsplit_once(':')
             .ok_or_else(|| anyhow::anyhow!("Invalid internal reference format"))?;
         let msg_id: i32 = msg_id_str.parse()?;
+        tracing::info!("[tg-perf] TelegramDownloader::download: parsed tg ref username={}, msg_id={}", username, msg_id);
 
         let guard = self.session.lock().await;
         let client = guard
@@ -221,6 +223,7 @@ impl PlatformDownloader for TelegramDownloader {
                 .map_err(|e| anyhow::anyhow!("Cannot resolve username: {}", e))?
                 .ok_or_else(|| anyhow::anyhow!("Channel not found"))?
         };
+        tracing::info!("[tg-perf] TelegramDownloader::download: peer resolved successfully");
 
         let messages = client
             .get_messages_by_id(&peer, &[msg_id])
@@ -232,10 +235,12 @@ impl PlatformDownloader for TelegramDownloader {
             .next()
             .flatten()
             .ok_or_else(|| anyhow::anyhow!("Message not found"))?;
+        tracing::info!("[tg-perf] TelegramDownloader::download: message found");
 
         let media = message
             .media()
             .ok_or_else(|| anyhow::anyhow!("No media in message"))?;
+        tracing::info!("[tg-perf] TelegramDownloader::download: media found");
 
         let total_size = match &media {
             grammers_client::types::Media::Document(doc) => doc.size().max(0) as u64,
@@ -272,6 +277,7 @@ impl PlatformDownloader for TelegramDownloader {
 
         file.flush().await?;
         let _ = progress.send(100.0).await;
+        tracing::info!("[tg-perf] TelegramDownloader::download completed in {:?}, {} bytes", _t.elapsed(), downloaded);
 
         Ok(DownloadResult {
             file_path: output_path,
