@@ -29,5 +29,4 @@ pub struct DownloadProgress {
     pub task_id: Uuid,
     pub percent: f64,
     pub speed_bps: u64,
-    pub eta_seconds: Option<f64>,
 }
