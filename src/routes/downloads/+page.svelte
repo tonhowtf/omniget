@@ -223,19 +223,24 @@
     </div>
 
     {#if item.status === "downloading"}
-      <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
-
-      <div class="item-stats">
-        {#if item.downloadedBytes > 0}
-          <span>
-            {formatBytes(item.downloadedBytes)}{#if item.totalBytes} / {formatBytes(item.totalBytes)}{/if}
-          </span>
-          <span class="stats-sep">&middot;</span>
-        {/if}
-        {#if item.speed > 0}
-          <span>{formatSpeed(item.speed)}</span>
-        {/if}
-      </div>
+      {#if item.phase === "fetching_info"}
+        <span class="item-detail">{$t('downloads.phase_fetching_info')}</span>
+      {:else if item.phase === "starting" || item.phase === "connecting"}
+        <span class="item-detail">{$t('downloads.phase_starting')}</span>
+      {:else}
+        <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
+        <div class="item-stats">
+          {#if item.downloadedBytes > 0}
+            <span>
+              {formatBytes(item.downloadedBytes)}{#if item.totalBytes} / {formatBytes(item.totalBytes)}{/if}
+            </span>
+            <span class="stats-sep">&middot;</span>
+          {/if}
+          {#if item.speed > 0}
+            <span>{formatSpeed(item.speed)}</span>
+          {/if}
+        </div>
+      {/if}
     {:else if item.status === "paused"}
       <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
       {#if item.downloadedBytes > 0}
