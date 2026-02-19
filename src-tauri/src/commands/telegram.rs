@@ -574,6 +574,23 @@ pub async fn telegram_search_media(
 }
 
 #[tauri::command]
+pub async fn telegram_get_chat_photo(
+    state: tauri::State<'_, AppState>,
+    chat_id: i64,
+    chat_type: String,
+) -> Result<String, String> {
+    let data = thumbnail_cache::get_chat_photo(
+        &state.telegram_session,
+        chat_id,
+        &chat_type,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(base64::engine::general_purpose::STANDARD.encode(&data))
+}
+
+#[tauri::command]
 pub async fn telegram_clear_thumbnail_cache() -> Result<(), String> {
     thumbnail_cache::clear_cache().await;
     Ok(())
