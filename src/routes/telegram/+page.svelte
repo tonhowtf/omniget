@@ -59,6 +59,7 @@
   let mediaSearch = $state("");
   let searchDebounce: ReturnType<typeof setTimeout> | null = null;
   let isSearching = $state(false);
+  let searchInputRef: HTMLInputElement | null = $state(null);
 
   // Batch download state
   let batchStatus: Map<number, { status: FileStatus; percent: number }> = $state(new Map());
@@ -72,6 +73,7 @@
   // Single-file downloading (kept for individual downloads)
   let downloadingIds: Set<number> = $state(new Set());
 
+  let chatPhotos: Map<number, string> = $state(new Map());
   let thumbnails: Map<number, string> = $state(new Map());
   let thumbGeneration = 0;
   let thumbActive = 0;
@@ -275,6 +277,7 @@
     chats = [];
     mediaItems = [];
     selectedChat = null;
+    chatPhotos = new Map();
     phone = "";
     code = "";
     password = "";
@@ -578,6 +581,38 @@
     thumbQueue.length = 0;
   }
 
+  async function getChatPhoto(chatId: number, chatType: string) {
+    if (chatPhotos.has(chatId)) return;
+    try {
+      const result = await invoke<string>("telegram_get_chat_photo", { chatId, chatType });
+      chatPhotos.set(chatId, result);
+      chatPhotos = new Map(chatPhotos);
+    } catch {
+      // No photo available
+    }
+  }
+
+  function observeChatPhoto(node: HTMLElement, params: { chatId: number; chatType: string }) {
+    if (chatPhotos.has(params.chatId)) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          observer.disconnect();
+          getChatPhoto(params.chatId, params.chatType);
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(node);
+
+    return {
+      destroy() {
+        observer.disconnect();
+      },
+    };
+  }
+
   function observeThumbnail(node: HTMLElement, params: { messageId: number; mediaType: string }) {
     if (!selectedChat) return;
     if (params.mediaType !== "photo" && params.mediaType !== "video") return;
@@ -787,8 +822,16 @@
       <div class="chats-list">
         {#each filteredChats as chat (chat.id)}
           <button class="chat-item button" onclick={() => selectChat(chat)}>
-            <div class="chat-avatar">
-              {chat.title.charAt(0).toUpperCase()}
+            <div class="chat-avatar" class:has-photo={chatPhotos.get(chat.id)} use:observeChatPhoto={{ chatId: chat.id, chatType: chat.chat_type }}>
+              {#if chatPhotos.get(chat.id)}
+                <img
+                  src="data:image/jpeg;base64,{chatPhotos.get(chat.id)}"
+                  alt=""
+                  class="chat-photo-img"
+                />
+              {:else}
+                {chat.title.charAt(0).toUpperCase()}
+              {/if}
             </div>
             <div class="chat-info">
               <span class="chat-title">{chat.title}</span>
@@ -1294,6 +1337,19 @@
     justify-content: center;
     font-size: 14.5px;
     font-weight: 500;
+  }
+
+  .chat-avatar.has-photo {
+    background: none;
+    overflow: hidden;
+  }
+
+  .chat-photo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    pointer-events: none;
   }
 
   .chat-info {
