@@ -574,12 +574,12 @@ pub async fn download_video(
     let _timer_start = std::time::Instant::now();
     let mode = download_mode.unwrap_or("auto");
     let is_audio_only = mode == "audio";
-    let ffmpeg_available = crate::core::ffmpeg::is_ffmpeg_available().await;
-    let ffmpeg_location = if ffmpeg_available {
-        find_ffmpeg_location_cached().await
-    } else {
-        None
-    };
+    let (ffmpeg_available, ffmpeg_location_result, aria2c_path) = tokio::join!(
+        crate::core::ffmpeg::is_ffmpeg_available(),
+        find_ffmpeg_location_cached(),
+        crate::core::dependencies::ensure_aria2c(),
+    );
+    let ffmpeg_location = if ffmpeg_available { ffmpeg_location_result } else { None };
 
     let format_selector = if let Some(fid) = format_id {
         fid.to_string()
@@ -689,7 +689,6 @@ pub async fn download_video(
         ]);
     }
 
-    let aria2c_path = crate::core::dependencies::ensure_aria2c().await;
     let mut use_aria2c = aria2c_path.is_some()
         && mode != "audio"
         && cookie_file.is_none()
