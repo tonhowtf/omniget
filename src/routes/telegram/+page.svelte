@@ -56,6 +56,9 @@
   let mediaFilter = $state("all");
   let loadingMore = $state(false);
   let hasMore = $state(true);
+  let mediaSearch = $state("");
+  let searchDebounce: ReturnType<typeof setTimeout> | null = null;
+  let isSearching = $state(false);
 
   // Batch download state
   let batchStatus: Map<number, { status: FileStatus; percent: number }> = $state(new Map());
@@ -92,6 +95,7 @@
       stopQrPolling();
       onBatchFileStatus(null);
       resetThumbnails();
+      if (searchDebounce) clearTimeout(searchDebounce);
       invoke("telegram_clear_thumbnail_cache").catch(() => {});
     };
   });
@@ -294,6 +298,7 @@
   async function selectChat(chat: TelegramChat) {
     selectedChat = chat;
     mediaFilter = "all";
+    mediaSearch = "";
     view = "media";
     batchStatus = new Map();
     activeBatchId = null;
@@ -363,6 +368,46 @@
     }
   }
 
+  async function searchMedia() {
+    if (!selectedChat) return;
+    const query = mediaSearch.trim();
+    if (!query) {
+      loadMedia();
+      return;
+    }
+    isSearching = true;
+    loadingMedia = true;
+    mediaError = "";
+    hasMore = false;
+    try {
+      const items: TelegramMediaItem[] = await invoke("telegram_search_media", {
+        chatId: selectedChat.id,
+        chatType: selectedChat.chat_type,
+        query,
+        mediaType: mediaFilter === "all" ? null : mediaFilter,
+        limit: 100,
+      });
+      mediaItems = items;
+    } catch (e: any) {
+      mediaError = typeof e === "string" ? e : e.message ?? $t("telegram.media_error");
+    } finally {
+      loadingMedia = false;
+      isSearching = false;
+    }
+  }
+
+  function handleSearchInput() {
+    if (searchDebounce) clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+      if (mediaSearch.trim()) {
+        searchMedia();
+      } else {
+        hasMore = true;
+        loadMedia();
+      }
+    }, 300);
+  }
+
   function changeFilter(filter: string) {
     mediaFilter = filter;
     batchStatus = new Map();
@@ -370,7 +415,11 @@
     batchDone = 0;
     batchTotal = 0;
     hasMore = true;
-    loadMedia();
+    if (mediaSearch.trim()) {
+      searchMedia();
+    } else {
+      loadMedia();
+    }
   }
 
   function formatSize(bytes: number): string {
@@ -779,6 +828,15 @@
         </button>
       {/each}
     </div>
+
+    <input
+      type="text"
+      class="input search-input"
+      placeholder={$t("telegram.search_files")}
+      bind:value={mediaSearch}
+      oninput={handleSearchInput}
+      disabled={isBatchActive}
+    />
 
     {#if loadingMedia}
       <div class="spinner-section">
