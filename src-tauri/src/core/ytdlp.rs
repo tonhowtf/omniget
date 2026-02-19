@@ -58,10 +58,13 @@ pub async fn find_ytdlp() -> Option<PathBuf> {
 }
 
 pub async fn find_ytdlp_cached() -> Option<PathBuf> {
-    YTDLP_PATH_CACHE
+    let _timer_start = std::time::Instant::now();
+    let result = YTDLP_PATH_CACHE
         .get_or_init(|| async { find_ytdlp().await })
         .await
-        .clone()
+        .clone();
+    tracing::info!("[perf] find_ytdlp_cached: {:?}", _timer_start.elapsed());
+    result
 }
 
 fn managed_ytdlp_path() -> Option<PathBuf> {
@@ -375,6 +378,7 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| anyhow!("Falha ao executar yt-dlp: {}", e))?;
+    tracing::info!("[perf] get_video_info: yt-dlp process spawned at {:?}", _timer_start.elapsed());
 
     let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("Sem stderr"))?;
     let stderr_reader = tokio::spawn(async move {
@@ -410,6 +414,7 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
     })?;
 
     let stderr_content = stderr_reader.await.unwrap_or_default();
+    tracing::info!("[perf] get_video_info: yt-dlp process exited at {:?}", _timer_start.elapsed());
 
     if !result.status.success() {
         let stderr = if stderr_content.is_empty() {
@@ -785,6 +790,7 @@ pub async fn download_video(
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| anyhow!("Falha ao iniciar yt-dlp: {}", e))?;
+        tracing::info!("[perf] download_video: yt-dlp process spawned at {:?} (attempt {})", _timer_start.elapsed(), attempt + 1);
 
         let stdout = child.stdout.take().ok_or_else(|| anyhow!("Sem stdout"))?;
         let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("Sem stderr"))?;
@@ -800,6 +806,7 @@ pub async fn download_video(
             let mut phase = 0u32;
             let mut max_reported = 0.0f64;
             let mut first_line_logged = false;
+            let mut first_progress_logged = false;
             while let Ok(Some(line)) = lines.next_line().await {
                 if !first_line_logged {
                     first_line_logged = true;
@@ -818,6 +825,10 @@ pub async fn download_video(
                     continue;
                 }
                 if let Some(pct) = parse_progress_line(&line) {
+                    if !first_progress_logged && pct > 0.0 {
+                        first_progress_logged = true;
+                        tracing::info!("[perf] download_video: first_progress > 0% at {:?}", _timer_start.elapsed());
+                    }
                     if is_audio_only {
                         let _ = progress_tx.send(pct).await;
                     } else {
