@@ -25,6 +25,7 @@ pub async fn find_ytdlp() -> Option<PathBuf> {
     {
         let flatpak_path = PathBuf::from("/app/bin").join(bin_name);
         if flatpak_path.exists() {
+            tracing::info!("[perf] find_ytdlp took {:?}", _timer_start.elapsed());
             return Some(flatpak_path);
         }
     }
@@ -37,15 +38,18 @@ pub async fn find_ytdlp() -> Option<PathBuf> {
         .await
     {
         if output.success() {
+            tracing::info!("[perf] find_ytdlp took {:?}", _timer_start.elapsed());
             return Some(PathBuf::from(bin_name));
         }
     }
 
     let managed = managed_ytdlp_path()?;
     if managed.exists() {
+        tracing::info!("[perf] find_ytdlp took {:?}", _timer_start.elapsed());
         return Some(managed);
     }
 
+    tracing::info!("[perf] find_ytdlp took {:?}", _timer_start.elapsed());
     None
 }
 
