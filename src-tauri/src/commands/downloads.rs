@@ -84,6 +84,7 @@ pub async fn download_from_url(
     format_id: Option<String>,
     referer: Option<String>,
 ) -> Result<DownloadStarted, String> {
+    let _timer_start = std::time::Instant::now();
     let platform = Platform::from_url(&url);
 
     let download_id = std::time::SystemTime::now()
@@ -99,14 +100,18 @@ pub async fn download_from_url(
         q.max_concurrent = settings.advanced.max_concurrent_downloads.max(1);
         q.stagger_delay_ms = settings.advanced.stagger_delay_ms;
         if q.has_url(&url) {
+            tracing::info!("[perf] download_from_url took {:?}", _timer_start.elapsed());
             return Err("Download já em andamento para esta URL".to_string());
         }
     }
 
-    let downloader = state
-        .registry
-        .find_platform(&url)
-        .ok_or_else(|| "Nenhum downloader disponível para esta URL".to_string())?;
+    let downloader = match state.registry.find_platform(&url) {
+        Some(d) => d,
+        None => {
+            tracing::info!("[perf] download_from_url took {:?}", _timer_start.elapsed());
+            return Err("Nenhum downloader disponível para esta URL".to_string());
+        }
+    };
 
     let platform_name = platform
         .map(|p| p.to_string())
@@ -170,6 +175,7 @@ pub async fn download_from_url(
         }
     });
 
+    tracing::info!("[perf] download_from_url took {:?}", _timer_start.elapsed());
     Ok(DownloadStarted {
         id: download_id,
         title,
