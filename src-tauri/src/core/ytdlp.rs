@@ -203,16 +203,20 @@ async fn find_ffmpeg_location() -> Option<String> {
     }
 
     let p = PathBuf::from(&first_line);
-    if p.exists() {
+    let result = if p.exists() {
         p.parent()
             .and_then(|dir| dir.to_str())
             .map(|s| s.to_string())
     } else {
         None
-    }
+    };
+    tracing::info!("[perf] find_ffmpeg_location took {:?}", _timer_start.elapsed());
+    result
 }
 
 fn detect_cookies_browser() -> Option<String> {
+    let _timer_start = std::time::Instant::now();
+    let result = (|| -> Option<String> {
     #[cfg(target_os = "windows")]
     {
         if let Some(local) = dirs::data_local_dir() {
@@ -307,6 +311,9 @@ fn detect_cookies_browser() -> Option<String> {
         }
     }
     None
+    })();
+    tracing::info!("[perf] detect_cookies_browser took {:?}", _timer_start.elapsed());
+    result
 }
 
 fn is_youtube_url(url: &str) -> bool {
@@ -315,7 +322,7 @@ fn is_youtube_url(url: &str) -> bool {
 }
 
 pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_json::Value> {
-    let info_start = std::time::Instant::now();
+    let _timer_start = std::time::Instant::now();
     tracing::info!("[yt-dlp] starting info fetch for URL");
     let mut args = vec![
         "--dump-single-json".to_string(),
@@ -369,8 +376,14 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         child.wait_with_output(),
     )
     .await
-    .map_err(|_| anyhow!("Timeout ao obter informações do vídeo (30s)"))?
-    .map_err(|e| anyhow!("Falha ao executar yt-dlp: {}", e))?;
+    .map_err(|_| {
+        tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
+        anyhow!("Timeout ao obter informações do vídeo (30s)")
+    })?
+    .map_err(|e| {
+        tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
+        anyhow!("Falha ao executar yt-dlp: {}", e)
+    })?;
 
     let stderr_content = stderr_reader.await.unwrap_or_default();
 
@@ -380,13 +393,14 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         } else {
             stderr_content
         };
+        tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
         return Err(anyhow!("yt-dlp falhou: {}", stderr.trim()));
     }
 
     let json: serde_json::Value = serde_json::from_slice(&result.stdout)
         .map_err(|e| anyhow!("yt-dlp retornou JSON inválido: {}", e))?;
 
-    tracing::info!("[yt-dlp] info fetch completed in {:?}", info_start.elapsed());
+    tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
     Ok(json)
 }
 
@@ -536,6 +550,7 @@ pub async fn download_video(
     cookie_file: Option<&Path>,
     concurrent_fragments: u32,
 ) -> anyhow::Result<DownloadResult> {
+    let _timer_start = std::time::Instant::now();
     let mode = download_mode.unwrap_or("auto");
     let is_audio_only = mode == "audio";
     let ffmpeg_available = crate::core::ffmpeg::is_ffmpeg_available().await;
@@ -699,6 +714,7 @@ pub async fn download_video(
     for attempt in 0..max_attempts {
         tracing::info!("[yt-dlp] download attempt {}/{}", attempt + 1, max_attempts);
         if cancel_token.is_cancelled() {
+            tracing::info!("[perf] download_video took {:?}", _timer_start.elapsed());
             anyhow::bail!("Download cancelado");
         }
 
@@ -760,7 +776,12 @@ pub async fn download_video(
         let line_reader = tokio::spawn(async move {
             let mut phase = 0u32;
             let mut max_reported = 0.0f64;
+            let mut first_line_logged = false;
             while let Ok(Some(line)) = lines.next_line().await {
+                if !first_line_logged {
+                    first_line_logged = true;
+                    tracing::info!("[perf] download_video first_byte_time: {:?}", _timer_start.elapsed());
+                }
                 if let Some(dest) = parse_destination_line(&line) {
                     phase += 1;
                     let mut guard = captured_path_writer.lock().unwrap();
@@ -809,6 +830,7 @@ pub async fn download_video(
                 let _ = line_reader.await;
                 let _ = stderr_reader.await;
                 cleanup_part_files(output_dir).await;
+                tracing::info!("[perf] download_video took {:?}", _timer_start.elapsed());
                 anyhow::bail!("Download cancelado");
             }
         };
@@ -830,6 +852,7 @@ pub async fn download_video(
             };
 
             let meta = tokio::fs::metadata(&file_path).await?;
+            tracing::info!("[perf] download_video took {:?}", _timer_start.elapsed());
             return Ok(DownloadResult {
                 file_path,
                 file_size_bytes: meta.len(),
@@ -921,6 +944,7 @@ pub async fn download_video(
         }
     }
 
+    tracing::info!("[perf] download_video took {:?}", _timer_start.elapsed());
     Err(translate_ytdlp_error(&last_error))
 }
 
