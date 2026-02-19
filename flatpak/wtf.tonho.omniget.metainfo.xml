@@ -28,7 +28,7 @@
   </provides>
   <content_rating type="oars-1.1" />
   <releases>
-    <release version="0.2.10" date="2026-02-18">
+    <release version="0.2.11" date="2026-02-18">
       <description><p>Current release</p></description>
     </release>
   </releases>
