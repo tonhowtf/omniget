@@ -88,15 +88,24 @@
       : chats
   );
 
+  function handleKeydown(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "f" && view === "media" && searchInputRef) {
+      e.preventDefault();
+      searchInputRef.focus();
+    }
+  }
+
   $effect(() => {
     checkSession();
 
     onBatchFileStatus(handleBatchFileStatus);
+    document.addEventListener("keydown", handleKeydown);
 
     return () => {
       stopQrPolling();
       onBatchFileStatus(null);
       resetThumbnails();
+      document.removeEventListener("keydown", handleKeydown);
       if (searchDebounce) clearTimeout(searchDebounce);
       invoke("telegram_clear_thumbnail_cache").catch(() => {});
     };
@@ -412,7 +421,7 @@
         hasMore = true;
         loadMedia();
       }
-    }, 300);
+    }, 400);
   }
 
   function changeFilter(filter: string) {
