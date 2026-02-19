@@ -125,6 +125,7 @@ pub async fn telegram_verify_2fa(
 pub async fn telegram_logout(
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
+    thumbnail_cache::clear_cache().await;
     auth::logout(&state.telegram_session)
         .await
         .map_err(|e| e.to_string())
@@ -546,4 +547,10 @@ pub async fn telegram_get_thumbnail(
     .map_err(|e| e.to_string())?;
 
     Ok(base64::engine::general_purpose::STANDARD.encode(&data))
+}
+
+#[tauri::command]
+pub async fn telegram_clear_thumbnail_cache() -> Result<(), String> {
+    thumbnail_cache::clear_cache().await;
+    Ok(())
 }
