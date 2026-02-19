@@ -1,6 +1,6 @@
 [package]
 name = "omniget"
-version = "0.2.10"
+version = "0.2.11"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
