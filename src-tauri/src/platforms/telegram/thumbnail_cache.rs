@@ -10,7 +10,7 @@ use super::auth::TelegramSessionHandle;
 use super::parallel_download::fetch_raw_media;
 
 const TTL_SECS: u64 = 120;
-const MAX_BYTES: u64 = 50 * 1024 * 1024;
+const MAX_BYTES: u64 = 30 * 1024 * 1024;
 
 struct CacheEntry {
     data: Vec<u8>,
@@ -81,10 +81,11 @@ impl ThumbnailCache {
             }
         }
 
-        tracing::debug!(
-            "[tg-cache] evicted {} expired entries, freed {} bytes",
+        tracing::info!(
+            "[tg-cache] evicted {} expired entries, freed {} bytes, remaining {} bytes",
             count,
-            freed
+            freed,
+            self.total_bytes
         );
     }
 
@@ -110,10 +111,11 @@ impl ThumbnailCache {
             }
         }
 
-        tracing::debug!(
-            "[tg-cache] evicted {} entries for capacity, freed {} bytes",
+        tracing::info!(
+            "[tg-cache] evicted {} entries for capacity, freed {} bytes, remaining {} bytes",
             count,
-            freed
+            freed,
+            self.total_bytes
         );
     }
 }
