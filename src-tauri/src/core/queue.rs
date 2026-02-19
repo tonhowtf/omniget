@@ -30,6 +30,13 @@ fn info_cache() -> &'static tokio::sync::Mutex<HashMap<String, CachedInfo>> {
 
 const INFO_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(300);
 
+static IN_FLIGHT_FETCHES: OnceLock<tokio::sync::Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>> =
+    OnceLock::new();
+
+fn in_flight_map() -> &'static tokio::sync::Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>> {
+    IN_FLIGHT_FETCHES.get_or_init(|| tokio::sync::Mutex::new(HashMap::new()))
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(tag = "type", content = "data")]
 pub enum QueueStatus {
@@ -51,7 +58,6 @@ pub struct QueueItemInfo {
     pub speed_bytes_per_sec: f64,
     pub downloaded_bytes: u64,
     pub total_bytes: Option<u64>,
-    pub eta_seconds: Option<f64>,
     pub file_path: Option<String>,
     pub file_size_bytes: Option<u64>,
     pub file_count: Option<u32>,
@@ -73,7 +79,6 @@ pub struct QueueItem {
     pub speed_bytes_per_sec: f64,
     pub downloaded_bytes: u64,
     pub total_bytes: Option<u64>,
-    pub eta_seconds: Option<f64>,
     pub file_path: Option<String>,
     pub file_size_bytes: Option<u64>,
     pub file_count: Option<u32>,
@@ -94,7 +99,6 @@ impl QueueItem {
             speed_bytes_per_sec: self.speed_bytes_per_sec,
             downloaded_bytes: self.downloaded_bytes,
             total_bytes: self.total_bytes,
-            eta_seconds: self.eta_seconds,
             file_path: self.file_path.clone(),
             file_size_bytes: self.file_size_bytes,
             file_count: self.file_count,
@@ -151,7 +155,6 @@ impl DownloadQueue {
             speed_bytes_per_sec: 0.0,
             downloaded_bytes: 0,
             total_bytes,
-            eta_seconds: None,
             file_path: None,
             file_size_bytes: None,
             file_count,
@@ -206,7 +209,6 @@ impl DownloadQueue {
             item.file_path = file_path;
             item.file_size_bytes = file_size_bytes;
             item.speed_bytes_per_sec = 0.0;
-            item.eta_seconds = None;
         }
     }
 
@@ -217,7 +219,6 @@ impl DownloadQueue {
         speed: f64,
         downloaded: u64,
         total: Option<u64>,
-        eta: Option<f64>,
     ) {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
             item.percent = percent;
@@ -226,7 +227,6 @@ impl DownloadQueue {
             if let Some(t) = total {
                 item.total_bytes = Some(t);
             }
-            item.eta_seconds = eta;
         }
     }
 
@@ -423,7 +423,7 @@ async fn spawn_download_inner(
             i
         }
         None => {
-            tracing::info!("[perf] spawn_download_inner {}: media_info is None, checking cache", item_id);
+            tracing::info!("[perf] spawn_download_inner {}: media_info is None, fetching info", item_id);
             let _ = app.emit("queue-item-progress", &QueueItemProgress {
                 id: item_id,
                 title: url.clone(),
@@ -435,41 +435,15 @@ async fn spawn_download_inner(
                 eta_seconds: None,
             });
 
-            {
-                let cache = info_cache().lock().await;
-                if let Some(entry) = cache.get(&url) {
-                    if entry.cached_at.elapsed() < INFO_CACHE_TTL {
-                        tracing::info!("[perf] spawn_download_inner {}: info cache hit at {:?}", item_id, info_start.elapsed());
-                        entry.info.clone()
-                    } else {
-                        drop(cache);
-                        tracing::info!("[perf] spawn_download_inner {}: info cache expired, fetching at {:?}", item_id, info_start.elapsed());
-                        match fetch_and_cache_info(&url, &*downloader, &platform_name, ytdlp_path.as_deref()).await {
-                            Ok(i) => i,
-                            Err(e) => {
-                                let mut q = queue.lock().await;
-                                q.mark_complete(item_id, false, Some(e.to_string()), None, None);
-                                emit_queue_state(&app, &q);
-                                drop(q);
-                                try_start_next(app, queue).await;
-                                return;
-                            }
-                        }
-                    }
-                } else {
-                    drop(cache);
-                    tracing::info!("[perf] spawn_download_inner {}: info cache miss, fetching at {:?}", item_id, info_start.elapsed());
-                    match fetch_and_cache_info(&url, &*downloader, &platform_name, ytdlp_path.as_deref()).await {
-                        Ok(i) => i,
-                        Err(e) => {
-                            let mut q = queue.lock().await;
-                            q.mark_complete(item_id, false, Some(e.to_string()), None, None);
-                            emit_queue_state(&app, &q);
-                            drop(q);
-                            try_start_next(app, queue).await;
-                            return;
-                        }
-                    }
+            match fetch_and_cache_info(&url, &*downloader, &platform_name, ytdlp_path.as_deref()).await {
+                Ok(i) => i,
+                Err(e) => {
+                    let mut q = queue.lock().await;
+                    q.mark_complete(item_id, false, Some(e.to_string()), None, None);
+                    emit_queue_state(&app, &q);
+                    drop(q);
+                    try_start_next(app, queue).await;
+                    return;
                 }
             }
         }
@@ -492,6 +466,17 @@ async fn spawn_download_inner(
         }
         emit_queue_state(&app, &q);
     }
+
+    let _ = app.emit("queue-item-progress", &QueueItemProgress {
+        id: item_id,
+        title: info.title.clone(),
+        platform: platform_name.clone(),
+        percent: 0.5,
+        speed_bytes_per_sec: 0.0,
+        downloaded_bytes: 0,
+        total_bytes: info.file_size_bytes,
+        eta_seconds: None,
+    });
 
     let settings = config::load_settings(&app);
     let tmpl = settings.download.filename_template.clone();
@@ -653,6 +638,35 @@ async fn fetch_and_cache_info(
     platform: &str,
     ytdlp_path: Option<&std::path::Path>,
 ) -> anyhow::Result<MediaInfo> {
+    {
+        let cache = info_cache().lock().await;
+        if let Some(entry) = cache.get(url) {
+            if entry.cached_at.elapsed() < INFO_CACHE_TTL {
+                tracing::info!("[perf] fetch_and_cache_info: cache hit for {}", platform);
+                return Ok(entry.info.clone());
+            }
+        }
+    }
+
+    let url_lock = {
+        let mut map = in_flight_map().lock().await;
+        map.entry(url.to_string())
+            .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+            .clone()
+    };
+    let _guard = url_lock.lock().await;
+
+    {
+        let cache = info_cache().lock().await;
+        if let Some(entry) = cache.get(url) {
+            if entry.cached_at.elapsed() < INFO_CACHE_TTL {
+                tracing::info!("[perf] fetch_and_cache_info: dedup cache hit for {}", platform);
+                return Ok(entry.info.clone());
+            }
+        }
+    }
+
+    tracing::info!("[perf] fetch_and_cache_info: fetching for {}", platform);
     let info = if let Some(ytdlp) = ytdlp_path {
         match platform {
             "youtube" => {
@@ -667,12 +681,15 @@ async fn fetch_and_cache_info(
     } else {
         downloader.get_media_info(url).await?
     };
+
     let mut cache = info_cache().lock().await;
     cache.insert(url.to_string(), CachedInfo {
         info: info.clone(),
         cached_at: std::time::Instant::now(),
     });
-    cache.retain(|_, v| v.cached_at.elapsed() < INFO_CACHE_TTL);
+    if cache.len() > 50 {
+        cache.retain(|_, v| v.cached_at.elapsed() < INFO_CACHE_TTL);
+    }
     Ok(info)
 }
 
