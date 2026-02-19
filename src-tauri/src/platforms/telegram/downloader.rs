@@ -256,14 +256,6 @@ impl PlatformDownloader for TelegramDownloader {
         let bare_id = peer_ref.id.bare_id();
         let peer_access_hash = peer_ref.auth.hash();
 
-        let (raw_media, _msg_date) = super::parallel_download::fetch_raw_media(
-            &client, bare_id, peer_access_hash, is_channel, msg_id,
-        ).await?;
-
-        let (location, total_size) = super::parallel_download::media_to_input_location(&raw_media)
-            .ok_or_else(|| anyhow::anyhow!("Unsupported media type for download"))?;
-        tracing::info!("[tg-perf] download: total_size={}", total_size);
-
         let filename = format!(
             "{}.{}",
             sanitize_filename::sanitize(&info.title),
@@ -273,25 +265,50 @@ impl PlatformDownloader for TelegramDownloader {
         tokio::fs::create_dir_all(&opts.output_dir).await?;
 
         let tmp_path = std::path::PathBuf::from(format!("{}.tmp", output_path.display()));
-        let result = super::parallel_download::download_parallel(
-            &client, location, total_size, &tmp_path, progress.clone(), &opts.cancel_token, 8,
-        ).await;
+        const MAX_REF_RETRIES: u32 = 2;
 
-        match result {
-            Ok(size) => {
-                tokio::fs::rename(&tmp_path, &output_path).await?;
-                let _ = progress.send(100.0).await;
-                tracing::info!("[tg-perf] TelegramDownloader::download completed in {:?}, {} bytes", _t.elapsed(), size);
-                Ok(DownloadResult {
-                    file_path: output_path,
-                    file_size_bytes: size,
-                    duration_seconds: 0.0,
-                })
+        for ref_attempt in 0..=MAX_REF_RETRIES {
+            let (raw_media, _msg_date) = super::parallel_download::fetch_raw_media(
+                &client, bare_id, peer_access_hash, is_channel, msg_id,
+            ).await?;
+
+            let (location, total_size) = super::parallel_download::media_to_input_location(&raw_media)
+                .ok_or_else(|| anyhow::anyhow!("Unsupported media type for download"))?;
+
+            if ref_attempt == 0 {
+                tracing::info!("[tg-perf] download: total_size={}", total_size);
             }
-            Err(e) => {
-                let _ = tokio::fs::remove_file(&tmp_path).await;
-                Err(e)
+
+            let result = super::parallel_download::download_parallel(
+                &client, location, total_size, &tmp_path, progress.clone(), &opts.cancel_token, 8,
+            ).await;
+
+            match result {
+                Ok(size) => {
+                    tokio::fs::rename(&tmp_path, &output_path).await?;
+                    let _ = progress.send(100.0).await;
+                    tracing::info!("[tg-perf] TelegramDownloader::download completed in {:?}, {} bytes", _t.elapsed(), size);
+                    return Ok(DownloadResult {
+                        file_path: output_path,
+                        file_size_bytes: size,
+                        duration_seconds: 0.0,
+                    });
+                }
+                Err(e) => {
+                    let _ = tokio::fs::remove_file(&tmp_path).await;
+                    let err_lower = e.to_string().to_lowercase();
+                    if err_lower.contains("file_reference") && ref_attempt < MAX_REF_RETRIES {
+                        tracing::warn!(
+                            "[tg-diag] download: FILE_REFERENCE expired, re-fetching message ({}/{})",
+                            ref_attempt + 1, MAX_REF_RETRIES
+                        );
+                        continue;
+                    }
+                    return Err(e);
+                }
             }
         }
+
+        unreachable!()
     }
 }
