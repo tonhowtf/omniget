@@ -284,7 +284,6 @@ impl DownloadQueue {
                 item.percent = 0.0;
                 item.speed_bytes_per_sec = 0.0;
                 item.downloaded_bytes = 0;
-                item.eta_seconds = None;
                 item.file_path = None;
                 item.file_size_bytes = None;
                 return true;
@@ -362,7 +361,6 @@ pub struct QueueItemProgress {
     pub speed_bytes_per_sec: f64,
     pub downloaded_bytes: u64,
     pub total_bytes: Option<u64>,
-    pub eta_seconds: Option<f64>,
 }
 
 pub fn emit_queue_state(app: &tauri::AppHandle, queue: &DownloadQueue) {
