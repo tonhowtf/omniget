@@ -26,11 +26,6 @@
     "retry": "Tentar novamente",
     "page_progress": "Página {{current}}/{{total}}",
     "module_progress": "Módulo {{current}}/{{total}}",
-    "eta_calculating": "Calculando...",
-    "eta_fetching_info": "Obtendo informações...",
-    "eta_seconds": "~{{n}} seg",
-    "eta_minutes": "~{{n}} min",
-    "eta_hours": "~{{h}}h {{m}}min",
     "cancel": "Cancelar",
     "clear_finished": "Limpar finalizados"
   },

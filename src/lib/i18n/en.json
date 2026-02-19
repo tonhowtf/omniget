@@ -26,11 +26,6 @@
     "retry": "Retry",
     "page_progress": "Page {{current}}/{{total}}",
     "module_progress": "Module {{current}}/{{total}}",
-    "eta_calculating": "Calculating...",
-    "eta_fetching_info": "Fetching info...",
-    "eta_seconds": "~{{n}} sec",
-    "eta_minutes": "~{{n}} min",
-    "eta_hours": "~{{h}}h {{m}}min",
     "cancel": "Cancel",
     "clear_finished": "Clear finished"
   },
