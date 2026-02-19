@@ -139,6 +139,7 @@
     "filter_document": "Files",
     "filter_audio": "Audio",
     "search_files": "Search files...",
+    "searching": "Searching...",
     "back_to_chats": "Back to chats",
     "download_btn": "Download",
     "downloading": "Downloading...",
