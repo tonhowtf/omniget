@@ -309,6 +309,80 @@ fn make_input_peer(chat_id: i64, chat_type: &str, access_hash: i64) -> tl::enums
     }
 }
 
+async fn fetch_media_page(
+    client: &Client,
+    input_peer: &tl::enums::InputPeer,
+    media_type: Option<&str>,
+    query: &str,
+    offset: i32,
+    limit: i32,
+    fix_extensions: bool,
+) -> anyhow::Result<Vec<TelegramMediaItem>> {
+    let filter = media_filter(media_type);
+    let request = tl::functions::messages::Search {
+        peer: input_peer.clone(),
+        q: query.to_string(),
+        from_id: None,
+        saved_peer_id: None,
+        saved_reaction: None,
+        top_msg_id: None,
+        filter,
+        min_date: 0,
+        max_date: 0,
+        offset_id: offset,
+        add_offset: 0,
+        limit,
+        max_id: 0,
+        min_id: 0,
+        hash: 0,
+    };
+
+    let result = invoke_with_flood_wait(client, &request).await
+        .map_err(|e| anyhow::anyhow!("messages.Search failed: {}", e))?;
+
+    let messages = match result {
+        tl::enums::messages::Messages::Messages(m) => m.messages,
+        tl::enums::messages::Messages::Slice(m) => m.messages,
+        tl::enums::messages::Messages::ChannelMessages(m) => m.messages,
+        tl::enums::messages::Messages::NotModified(_) => vec![],
+    };
+
+    let mut items = Vec::new();
+    for raw_msg in messages {
+        let msg = match raw_msg {
+            tl::enums::Message::Message(m) => m,
+            _ => continue,
+        };
+        if let Some(raw_media) = msg.media {
+            if let Some((file_name, file_size, media_type_str)) = extract_raw_media_info(&raw_media, fix_extensions) {
+                items.push(TelegramMediaItem {
+                    message_id: msg.id,
+                    file_name,
+                    file_size,
+                    media_type: media_type_str,
+                    date: msg.date as i64,
+                });
+            }
+        }
+    }
+
+    Ok(items)
+}
+
+fn merge_dedup_media(results: [anyhow::Result<Vec<TelegramMediaItem>>; 4], limit: usize) -> Vec<TelegramMediaItem> {
+    let mut all_items = Vec::new();
+    for result in results {
+        if let Ok(items) = result {
+            all_items.extend(items);
+        }
+    }
+    let mut seen = std::collections::HashSet::new();
+    all_items.retain(|item| seen.insert(item.message_id));
+    all_items.sort_by(|a, b| b.date.cmp(&a.date));
+    all_items.truncate(limit);
+    all_items
+}
+
 pub async fn list_media(
     handle: &TelegramSessionHandle,
     chat_id: i64,
@@ -332,61 +406,20 @@ pub async fn list_media(
     );
 
     let input_peer = make_input_peer(chat_id, chat_type, access_hash);
-    let filter = media_filter(media_type);
 
-    let request = tl::functions::messages::Search {
-        peer: input_peer,
-        q: String::new(),
-        from_id: None,
-        saved_peer_id: None,
-        saved_reaction: None,
-        top_msg_id: None,
-        filter,
-        min_date: 0,
-        max_date: 0,
-        offset_id: offset,
-        add_offset: 0,
-        limit: limit as i32,
-        max_id: 0,
-        min_id: 0,
-        hash: 0,
-    };
-
-    let result = invoke_with_flood_wait(&client, &request).await
-        .map_err(|e| {
-            tracing::error!("[tg-api] messages.Search failed: {}", e);
-            anyhow::anyhow!("messages.Search failed: {}", e)
-        })?;
-
-    let messages = match result {
-        tl::enums::messages::Messages::Messages(m) => m.messages,
-        tl::enums::messages::Messages::Slice(m) => m.messages,
-        tl::enums::messages::Messages::ChannelMessages(m) => m.messages,
-        tl::enums::messages::Messages::NotModified(_) => vec![],
-    };
-
-    tracing::debug!("[tg-api] messages.Search returned {} messages", messages.len());
-
-    let mut items = Vec::new();
-    for raw_msg in messages {
-        let msg = match raw_msg {
-            tl::enums::Message::Message(m) => m,
-            _ => continue,
-        };
-
-        if let Some(raw_media) = msg.media {
-            if let Some((file_name, file_size, media_type_str)) = extract_raw_media_info(&raw_media, fix_extensions) {
-                items.push(TelegramMediaItem {
-                    message_id: msg.id,
-                    file_name,
-                    file_size,
-                    media_type: media_type_str,
-                    date: msg.date as i64,
-                });
-            }
-        }
+    if media_type.is_none() {
+        let (photos, videos, docs, audio) = tokio::join!(
+            fetch_media_page(&client, &input_peer, Some("photo"), "", offset, limit as i32, fix_extensions),
+            fetch_media_page(&client, &input_peer, Some("video"), "", offset, limit as i32, fix_extensions),
+            fetch_media_page(&client, &input_peer, Some("document"), "", offset, limit as i32, fix_extensions),
+            fetch_media_page(&client, &input_peer, Some("audio"), "", offset, limit as i32, fix_extensions),
+        );
+        let items = merge_dedup_media([photos, videos, docs, audio], limit as usize);
+        tracing::info!("[tg-perf] list_media (all) completed in {:?}, found {} items", _t.elapsed(), items.len());
+        return Ok(items);
     }
 
+    let items = fetch_media_page(&client, &input_peer, media_type, "", offset, limit as i32, fix_extensions).await?;
     tracing::info!("[tg-perf] list_media completed in {:?}, found {} items", _t.elapsed(), items.len());
     Ok(items)
 }
@@ -409,59 +442,20 @@ pub async fn search_media(
     drop(guard);
 
     let input_peer = make_input_peer(chat_id, chat_type, access_hash);
-    let filter = media_filter(media_type);
 
-    let request = tl::functions::messages::Search {
-        peer: input_peer,
-        q: query.to_string(),
-        from_id: None,
-        saved_peer_id: None,
-        saved_reaction: None,
-        top_msg_id: None,
-        filter,
-        min_date: 0,
-        max_date: 0,
-        offset_id: 0,
-        add_offset: 0,
-        limit: limit as i32,
-        max_id: 0,
-        min_id: 0,
-        hash: 0,
-    };
-
-    let result = invoke_with_flood_wait(&client, &request).await
-        .map_err(|e| {
-            tracing::error!("[tg-api] messages.Search (query) failed: {}", e);
-            anyhow::anyhow!("messages.Search failed: {}", e)
-        })?;
-
-    let messages = match result {
-        tl::enums::messages::Messages::Messages(m) => m.messages,
-        tl::enums::messages::Messages::Slice(m) => m.messages,
-        tl::enums::messages::Messages::ChannelMessages(m) => m.messages,
-        tl::enums::messages::Messages::NotModified(_) => vec![],
-    };
-
-    let mut items = Vec::new();
-    for raw_msg in messages {
-        let msg = match raw_msg {
-            tl::enums::Message::Message(m) => m,
-            _ => continue,
-        };
-
-        if let Some(raw_media) = msg.media {
-            if let Some((file_name, file_size, media_type_str)) = extract_raw_media_info(&raw_media, fix_extensions) {
-                items.push(TelegramMediaItem {
-                    message_id: msg.id,
-                    file_name,
-                    file_size,
-                    media_type: media_type_str,
-                    date: msg.date as i64,
-                });
-            }
-        }
+    if media_type.is_none() {
+        let (photos, videos, docs, audio) = tokio::join!(
+            fetch_media_page(&client, &input_peer, Some("photo"), query, 0, limit as i32, fix_extensions),
+            fetch_media_page(&client, &input_peer, Some("video"), query, 0, limit as i32, fix_extensions),
+            fetch_media_page(&client, &input_peer, Some("document"), query, 0, limit as i32, fix_extensions),
+            fetch_media_page(&client, &input_peer, Some("audio"), query, 0, limit as i32, fix_extensions),
+        );
+        let items = merge_dedup_media([photos, videos, docs, audio], limit as usize);
+        tracing::info!("[tg-perf] search_media (all) completed in {:?}, found {} items for query={:?}", _t.elapsed(), items.len(), query);
+        return Ok(items);
     }
 
+    let items = fetch_media_page(&client, &input_peer, media_type, query, 0, limit as i32, fix_extensions).await?;
     tracing::info!("[tg-perf] search_media completed in {:?}, found {} items for query={:?}", _t.elapsed(), items.len(), query);
     Ok(items)
 }
