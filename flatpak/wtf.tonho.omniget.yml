@@ -56,12 +56,14 @@ modules:
       - install -Dm755 yt-dlp /app/bin/yt-dlp
     sources:
       - type: file
-        url: https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp
+        url: https://github.com/yt-dlp/yt-dlp/releases/download/2026.02.04/yt-dlp
+        sha256: f244941f771c922ffb63d64e17b8762d364b067f38a3caad60386496b3d226f7
         dest-filename: yt-dlp
         only-arches:
           - x86_64
       - type: file
-        url: https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux_aarch64
+        url: https://github.com/yt-dlp/yt-dlp/releases/download/2026.02.04/yt-dlp_linux_aarch64
+        sha256: 6b83f090768a9d428456b7998a5b8fc1c628895647df2763f54f9552601b732e
         dest-filename: yt-dlp
         only-arches:
           - aarch64
