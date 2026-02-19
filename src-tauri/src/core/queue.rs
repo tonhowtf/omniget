@@ -423,6 +423,7 @@ async fn spawn_download_inner(
             i
         }
         None => {
+            tracing::info!("[perf] spawn_download_inner {}: media_info is None, checking cache", item_id);
             let _ = app.emit("queue-item-progress", &QueueItemProgress {
                 id: item_id,
                 title: url.clone(),
@@ -438,9 +439,11 @@ async fn spawn_download_inner(
                 let cache = info_cache().lock().await;
                 if let Some(entry) = cache.get(&url) {
                     if entry.cached_at.elapsed() < INFO_CACHE_TTL {
+                        tracing::info!("[perf] spawn_download_inner {}: info cache hit at {:?}", item_id, info_start.elapsed());
                         entry.info.clone()
                     } else {
                         drop(cache);
+                        tracing::info!("[perf] spawn_download_inner {}: info cache expired, fetching at {:?}", item_id, info_start.elapsed());
                         match fetch_and_cache_info(&url, &*downloader, &platform_name, ytdlp_path.as_deref()).await {
                             Ok(i) => i,
                             Err(e) => {
@@ -455,6 +458,7 @@ async fn spawn_download_inner(
                     }
                 } else {
                     drop(cache);
+                    tracing::info!("[perf] spawn_download_inner {}: info cache miss, fetching at {:?}", item_id, info_start.elapsed());
                     match fetch_and_cache_info(&url, &*downloader, &platform_name, ytdlp_path.as_deref()).await {
                         Ok(i) => i,
                         Err(e) => {
@@ -678,9 +682,11 @@ pub async fn prefetch_info(
     platform: &str,
     ytdlp_path: Option<&std::path::Path>,
 ) {
+    let _timer_start = std::time::Instant::now();
+    tracing::info!("[perf] prefetch_info: started");
     match fetch_and_cache_info(url, downloader, platform, ytdlp_path).await {
-        Ok(info) => tracing::info!("[queue] prefetch_info completed: {}", info.title),
-        Err(e) => tracing::warn!("[queue] prefetch_info failed: {}", e),
+        Ok(info) => tracing::info!("[perf] prefetch_info: completed in {:?} — {}", _timer_start.elapsed(), info.title),
+        Err(e) => tracing::warn!("[perf] prefetch_info: failed in {:?} — {}", _timer_start.elapsed(), e),
     }
 }
 
