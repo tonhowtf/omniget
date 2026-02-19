@@ -391,6 +391,81 @@ pub async fn list_media(
     Ok(items)
 }
 
+pub async fn search_media(
+    handle: &TelegramSessionHandle,
+    chat_id: i64,
+    chat_type: &str,
+    query: &str,
+    media_type: Option<&str>,
+    limit: u32,
+    fix_extensions: bool,
+) -> anyhow::Result<Vec<TelegramMediaItem>> {
+    let _t = std::time::Instant::now();
+    let guard = handle.lock().await;
+    let client = guard.client.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
+        .clone();
+    let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
+    drop(guard);
+
+    let input_peer = make_input_peer(chat_id, chat_type, access_hash);
+    let filter = media_filter(media_type);
+
+    let request = tl::functions::messages::Search {
+        peer: input_peer,
+        q: query.to_string(),
+        from_id: None,
+        saved_peer_id: None,
+        saved_reaction: None,
+        top_msg_id: None,
+        filter,
+        min_date: 0,
+        max_date: 0,
+        offset_id: 0,
+        add_offset: 0,
+        limit: limit as i32,
+        max_id: 0,
+        min_id: 0,
+        hash: 0,
+    };
+
+    let result = invoke_with_flood_wait(&client, &request).await
+        .map_err(|e| {
+            tracing::error!("[tg-api] messages.Search (query) failed: {}", e);
+            anyhow::anyhow!("messages.Search failed: {}", e)
+        })?;
+
+    let messages = match result {
+        tl::enums::messages::Messages::Messages(m) => m.messages,
+        tl::enums::messages::Messages::Slice(m) => m.messages,
+        tl::enums::messages::Messages::ChannelMessages(m) => m.messages,
+        tl::enums::messages::Messages::NotModified(_) => vec![],
+    };
+
+    let mut items = Vec::new();
+    for raw_msg in messages {
+        let msg = match raw_msg {
+            tl::enums::Message::Message(m) => m,
+            _ => continue,
+        };
+
+        if let Some(raw_media) = msg.media {
+            if let Some((file_name, file_size, media_type_str)) = extract_raw_media_info(&raw_media, fix_extensions) {
+                items.push(TelegramMediaItem {
+                    message_id: msg.id,
+                    file_name,
+                    file_size,
+                    media_type: media_type_str,
+                    date: msg.date as i64,
+                });
+            }
+        }
+    }
+
+    tracing::info!("[tg-perf] search_media completed in {:?}, found {} items for query={:?}", _t.elapsed(), items.len(), query);
+    Ok(items)
+}
+
 pub async fn download_media(
     handle: &TelegramSessionHandle,
     chat_id: i64,
