@@ -342,7 +342,7 @@ pub async fn reveal_file(path: String) -> Result<(), String> {
         let file_path = std::path::Path::new(&path);
         let dir = file_path.parent().unwrap_or(file_path);
 
-        let portal_result = std::process::Command::new("gdbus")
+        let portal_result = tokio::process::Command::new("gdbus")
             .args([
                 "call", "--session",
                 "--dest", "org.freedesktop.portal.Desktop",
@@ -354,7 +354,8 @@ pub async fn reveal_file(path: String) -> Result<(), String> {
             ])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .status();
+            .status()
+            .await;
 
         match portal_result {
             Ok(status) if status.success() => {}
