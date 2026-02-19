@@ -428,7 +428,6 @@ async fn spawn_download_inner(
                 speed_bytes_per_sec: 0.0,
                 downloaded_bytes: 0,
                 total_bytes: None,
-                eta_seconds: None,
             });
 
             match fetch_and_cache_info(&url, &*downloader, &platform_name, ytdlp_path.as_deref()).await {
@@ -471,7 +470,6 @@ async fn spawn_download_inner(
         speed_bytes_per_sec: 0.0,
         downloaded_bytes: 0,
         total_bytes: info.file_size_bytes,
-        eta_seconds: None,
     });
 
     let settings = config::load_settings(&app);
@@ -500,7 +498,6 @@ async fn spawn_download_inner(
 
     let app_progress = app.clone();
     let progress_forwarder = tokio::spawn(async move {
-        let start_time = std::time::Instant::now();
         let mut last_bytes: u64 = 0;
         let mut last_time = std::time::Instant::now();
         let mut throttle = ProgressThrottle::new(250);
@@ -528,18 +525,6 @@ async fn spawn_download_inner(
                 }
             }
 
-            let elapsed = now.duration_since(start_time).as_secs_f64();
-            let eta_seconds = if percent > 0.0 && elapsed > 2.0 {
-                let remaining = elapsed * (100.0 - percent) / percent;
-                if remaining.is_finite() && remaining >= 0.0 {
-                    Some(remaining)
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-
             last_bytes = downloaded_bytes;
             last_time = now;
 
@@ -551,7 +536,6 @@ async fn spawn_download_inner(
                 speed_bytes_per_sec: current_speed,
                 downloaded_bytes,
                 total_bytes,
-                eta_seconds,
             });
         }
     });
