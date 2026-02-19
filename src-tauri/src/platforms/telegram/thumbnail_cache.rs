@@ -270,6 +270,135 @@ pub async fn get_thumbnail(
     Ok(data)
 }
 
+async fn fetch_chat_photo_id(
+    client: &Client,
+    chat_id: i64,
+    chat_type: &str,
+    access_hash: i64,
+) -> anyhow::Result<i64> {
+    match chat_type {
+        "private" => {
+            let request = tl::functions::users::GetUsers {
+                id: vec![tl::enums::InputUser::User(tl::types::InputUser {
+                    user_id: chat_id,
+                    access_hash,
+                })],
+            };
+            let users = client
+                .invoke(&request)
+                .await
+                .map_err(|e| anyhow::anyhow!("users.GetUsers: {}", e))?;
+            for user in users {
+                if let tl::enums::User::User(u) = user {
+                    if u.id == chat_id {
+                        if let Some(tl::enums::UserProfilePhoto::Photo(photo)) =
+                            u.photo
+                        {
+                            return Ok(photo.photo_id);
+                        }
+                    }
+                }
+            }
+            Err(anyhow::anyhow!("User has no photo"))
+        }
+        _ => {
+            if access_hash != 0 {
+                let request = tl::functions::channels::GetChannels {
+                    id: vec![tl::enums::InputChannel::Channel(tl::types::InputChannel {
+                        channel_id: chat_id,
+                        access_hash,
+                    })],
+                };
+                let result = client
+                    .invoke(&request)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("channels.GetChannels: {}", e))?;
+                let chats = match result {
+                    tl::enums::messages::Chats::Chats(c) => c.chats,
+                    tl::enums::messages::Chats::Slice(c) => c.chats,
+                };
+                for chat in chats {
+                    match chat {
+                        tl::enums::Chat::Channel(c) if c.id == chat_id => {
+                            if let tl::enums::ChatPhoto::Photo(photo) = c.photo {
+                                return Ok(photo.photo_id);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                Err(anyhow::anyhow!("Channel has no photo"))
+            } else {
+                let request = tl::functions::messages::GetChats {
+                    id: vec![chat_id],
+                };
+                let result = client
+                    .invoke(&request)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("messages.GetChats: {}", e))?;
+                let chats = match result {
+                    tl::enums::messages::Chats::Chats(c) => c.chats,
+                    tl::enums::messages::Chats::Slice(c) => c.chats,
+                };
+                for chat in chats {
+                    if let tl::enums::Chat::Chat(c) = chat {
+                        if c.id == chat_id {
+                            if let tl::enums::ChatPhoto::Photo(photo) = c.photo {
+                                return Ok(photo.photo_id);
+                            }
+                        }
+                    }
+                }
+                Err(anyhow::anyhow!("Chat has no photo"))
+            }
+        }
+    }
+}
+
+pub async fn get_chat_photo(
+    handle: &TelegramSessionHandle,
+    chat_id: i64,
+    chat_type: &str,
+) -> anyhow::Result<Vec<u8>> {
+    let key = (chat_id, 0i32);
+
+    {
+        let mut c = cache().lock().await;
+        if let Some(data) = c.get(&key) {
+            return Ok(data);
+        }
+    }
+
+    let guard = handle.lock().await;
+    let client = guard
+        .client
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
+        .clone();
+    let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
+    drop(guard);
+
+    let input_peer = super::api::make_input_peer(chat_id, chat_type, access_hash);
+    let photo_id = fetch_chat_photo_id(&client, chat_id, chat_type, access_hash).await?;
+
+    let location = tl::enums::InputFileLocation::InputPeerPhotoFileLocation(
+        tl::types::InputPeerPhotoFileLocation {
+            big: false,
+            peer: input_peer,
+            photo_id,
+        },
+    );
+
+    let data = download_to_memory(&client, location, 0).await?;
+
+    {
+        let mut c = cache().lock().await;
+        c.insert(key, data.clone());
+    }
+
+    Ok(data)
+}
+
 pub async fn clear_cache() {
     cache().lock().await.clear();
 }
