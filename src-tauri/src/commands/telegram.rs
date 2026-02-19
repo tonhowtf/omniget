@@ -170,6 +170,11 @@ pub async fn telegram_download_media(
     file_name: String,
     output_dir: String,
 ) -> Result<TelegramDownloadStarted, String> {
+    tracing::info!(
+        "[tg-cmd] telegram_download_media: chat_id={}, chat_type={}, message_id={}, file_name={}",
+        chat_id, chat_type, message_id, file_name
+    );
+
     let download_id = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -215,20 +220,15 @@ pub async fn telegram_download_media(
             }
         });
 
-        let result = tokio::select! {
-            r = api::download_media(
-                &session,
-                chat_id,
-                &chat_type,
-                message_id,
-                &output_path,
-                tx,
-                &cancel_token,
-            ) => r,
-            _ = cancel_token.cancelled() => {
-                Err(anyhow::anyhow!("Download cancelado"))
-            }
-        };
+        let result = api::download_media_with_retry(
+            &session,
+            chat_id,
+            &chat_type,
+            message_id,
+            &output_path,
+            tx,
+            &cancel_token,
+        ).await;
 
         let _ = progress_forwarder.await;
 
@@ -293,6 +293,11 @@ pub async fn telegram_download_batch(
     items: Vec<BatchItem>,
     output_dir: String,
 ) -> Result<u64, String> {
+    tracing::info!(
+        "[tg-cmd] telegram_download_batch: chat_id={}, chat_type={}, items={}, output_dir={}",
+        chat_id, chat_type, items.len(), output_dir
+    );
+
     let batch_id = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
