@@ -431,24 +431,40 @@ pub async fn download_media(
     let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
     drop(guard);
 
+    let is_auth = client.is_authorized().await.unwrap_or(false);
+    tracing::info!("[tg-diag] download_media: is_authorized={}, chat_id={}, msg_id={}", is_auth, chat_id, message_id);
+    if !is_auth {
+        tracing::error!("[tg-diag] download_media: client not authorized");
+    }
+
     let peer_ref = make_peer_ref(chat_id, chat_type, access_hash)?;
 
     let messages = client
         .get_messages_by_id(peer_ref, &[message_id])
         .await
-        .map_err(|e| anyhow::anyhow!("{}", e))?;
+        .map_err(|e| {
+            tracing::error!("[tg-diag] download_media: get_messages_by_id failed: {}", e);
+            anyhow::anyhow!("{}", e)
+        })?;
+    tracing::info!("[tg-diag] download_media: get_messages_by_id returned {} results", messages.len());
 
     let message = messages
         .into_iter()
         .next()
         .flatten()
-        .ok_or_else(|| anyhow::anyhow!("Message not found"))?;
+        .ok_or_else(|| {
+            tracing::error!("[tg-diag] download_media: message {} not found", message_id);
+            anyhow::anyhow!("Message not found")
+        })?;
 
     let msg_date = message.date();
 
     let media = message
         .media()
-        .ok_or_else(|| anyhow::anyhow!("Message has no media"))?;
+        .ok_or_else(|| {
+            tracing::error!("[tg-diag] download_media: message {} has no media", message_id);
+            anyhow::anyhow!("Message has no media")
+        })?;
 
     let total_size = match &media {
         Media::Document(doc) => doc.size().max(0) as u64,
@@ -468,7 +484,24 @@ pub async fn download_media(
     let mut downloaded: u64 = 0;
 
     let result: Result<u64, anyhow::Error> = async {
-        while let Some(chunk) = download.next().await.map_err(|e| anyhow::anyhow!("{}", e))? {
+        let mut entered_loop = false;
+        loop {
+            let chunk = match download.next().await {
+                Ok(Some(chunk)) => chunk,
+                Ok(None) => break,
+                Err(e) => {
+                    let err_str = e.to_string();
+                    if err_str.contains("FILE_REFERENCE_EXPIRED") {
+                        tracing::error!("[tg-diag] download_media: FILE_REFERENCE_EXPIRED — file reference has expired, message media needs re-fetch");
+                    }
+                    tracing::error!("[tg-diag] download_media: iter_download error after {} bytes: {}", downloaded, err_str);
+                    return Err(anyhow::anyhow!("{}", err_str));
+                }
+            };
+            if !entered_loop {
+                tracing::info!("[tg-diag] download_media: first chunk received, {} bytes", chunk.len());
+                entered_loop = true;
+            }
             file.write_all(&chunk).await?;
             downloaded += chunk.len() as u64;
             tracing::debug!("[tg-perf] chunk {} bytes, total so far: {}", chunk.len(), downloaded);
@@ -477,6 +510,9 @@ pub async fn download_media(
                 let percent = (downloaded as f64 / total_size as f64) * 100.0;
                 let _ = progress_tx.send(percent.min(100.0)).await;
             }
+        }
+        if !entered_loop {
+            tracing::warn!("[tg-diag] download_media: download loop never entered (0 chunks)");
         }
 
         file.flush().await?;
