@@ -223,6 +223,7 @@ pub async fn telegram_download_media(
                 message_id,
                 &output_path,
                 tx,
+                &cancel_token,
             ) => r,
             _ = cancel_token.cancelled() => {
                 Err(anyhow::anyhow!("Download cancelado"))
