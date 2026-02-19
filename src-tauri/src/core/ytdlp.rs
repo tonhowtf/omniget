@@ -13,7 +13,7 @@ use crate::models::media::{DownloadResult, FormatInfo};
 static YTDLP_UPDATING: AtomicBool = AtomicBool::new(false);
 static YTDLP_PATH_CACHE: tokio::sync::OnceCell<Option<PathBuf>> = tokio::sync::OnceCell::const_new();
 static FFMPEG_LOCATION_CACHE: tokio::sync::OnceCell<Option<String>> = tokio::sync::OnceCell::const_new();
-static COOKIES_BROWSER_CACHE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+static COOKIES_BROWSER_CACHE: tokio::sync::OnceCell<Option<String>> = tokio::sync::OnceCell::const_new();
 
 const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
@@ -329,8 +329,15 @@ fn detect_cookies_browser() -> Option<String> {
     result
 }
 
-fn detect_cookies_browser_cached() -> Option<String> {
-    COOKIES_BROWSER_CACHE.get_or_init(detect_cookies_browser).clone()
+async fn detect_cookies_browser_cached() -> Option<String> {
+    COOKIES_BROWSER_CACHE
+        .get_or_init(|| async {
+            tokio::task::spawn_blocking(detect_cookies_browser)
+                .await
+                .unwrap_or(None)
+        })
+        .await
+        .clone()
 }
 
 fn is_youtube_url(url: &str) -> bool {
@@ -623,7 +630,7 @@ pub async fn download_video(
     tokio::fs::create_dir_all(output_dir).await?;
 
     let browser_cookies = if cookie_file.is_none() {
-        detect_cookies_browser_cached()
+        detect_cookies_browser_cached().await
     } else {
         None
     };
