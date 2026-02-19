@@ -4,7 +4,10 @@
   <name>Omniget</name>
   <summary>Download media from multiple platforms</summary>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>MIT</project_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer id="wtf.tonho">
+    <name>Tonho</name>
+  </developer>
   <description>
     <p>
       Omniget is a desktop application to download videos, courses, and media
@@ -22,14 +25,27 @@
   </description>
   <url type="homepage">https://github.com/tonhowtf/omniget</url>
   <url type="bugtracker">https://github.com/tonhowtf/omniget/issues</url>
+  <url type="vcs-browser">https://github.com/tonhowtf/omniget</url>
   <launchable type="desktop-id">wtf.tonho.omniget.desktop</launchable>
   <provides>
     <binary>omniget</binary>
   </provides>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main download interface</caption>
+      <image>https://raw.githubusercontent.com/tonhowtf/omniget/v0.2.12/flatpak/screenshots/main.png</image>
+    </screenshot>
+  </screenshots>
+  <branding>
+    <color type="primary" scheme_preference="light">#f4f4f4</color>
+    <color type="primary" scheme_preference="dark">#131313</color>
+  </branding>
   <content_rating type="oars-1.1" />
   <releases>
     <release version="0.2.12" date="2026-02-19">
-      <description><p>Current release</p></description>
+      <description>
+        <p>Telegram improvements: thumbnail previews with LRU cache, media search, and memory cleanup on navigation.</p>
+      </description>
     </release>
   </releases>
 </component>

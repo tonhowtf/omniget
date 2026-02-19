@@ -1,10 +1,11 @@
 [Desktop Entry]
 Name=Omniget
 Comment=Download media from multiple platforms
+GenericName=Download Manager
 Exec=omniget
 Icon=wtf.tonho.omniget
 Terminal=false
 Type=Application
 Categories=Network;FileTransfer;Utility;
-Keywords=download;video;media;udemy;hotmart;youtube;telegram;
+Keywords=omniget;download;downloader;video;media;udemy;hotmart;youtube;telegram;
 StartupWMClass=omniget

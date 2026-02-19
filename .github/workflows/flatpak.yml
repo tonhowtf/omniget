@@ -5,13 +5,28 @@ on:
   release:
     types: [published]
 
+concurrency:
+  group: flatpak-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   flatpak:
-    name: Build Flatpak Bundle
-    runs-on: ubuntu-latest
+    name: Build Flatpak (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-48
       options: --privileged
+
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+            bundle: omniget.flatpak
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            bundle: omniget-aarch64.flatpak
+      fail-fast: false
 
     steps:
       - name: Checkout
@@ -20,8 +35,8 @@ jobs:
       - name: Generate offline sources
         run: |
           python3 -m ensurepip --upgrade
-          python3 -m pip install aiohttp tomlkit
-          python3 -m pip install "git+https://github.com/flatpak/flatpak-builder-tools.git#subdirectory=node"
+          python3 -m pip install --break-system-packages aiohttp tomlkit
+          python3 -m pip install --break-system-packages "git+https://github.com/flatpak/flatpak-builder-tools.git#subdirectory=node"
 
           curl -sSfL -o flatpak-cargo-generator.py https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/refs/heads/master/cargo/flatpak-cargo-generator.py
           python3 flatpak-cargo-generator.py src-tauri/Cargo.lock -o flatpak/cargo-sources.json
@@ -29,54 +44,21 @@ jobs:
           npm install --package-lock-only --ignore-scripts
           python3 -m flatpak_node_generator npm package-lock.json -o flatpak/node-sources.json
 
-      - name: Build Flatpak
-        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
-        with:
-          manifest-path: flatpak/wtf.tonho.omniget.yml
-          bundle: omniget.flatpak
-          upload-artifact: true
-          cache-key: flatpak-builder-${{ github.sha }}
-
-      - name: Upload Flatpak to Release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: omniget.flatpak
-
-  flatpak-aarch64:
-    name: Build Flatpak Bundle (aarch64)
-    runs-on: ubuntu-24.04-arm
-    container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-48
-      options: --privileged
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Generate offline sources
-        run: |
-          python3 -m ensurepip --upgrade
-          python3 -m pip install aiohttp tomlkit
-          python3 -m pip install "git+https://github.com/flatpak/flatpak-builder-tools.git#subdirectory=node"
-
-          curl -sSfL -o flatpak-cargo-generator.py https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/refs/heads/master/cargo/flatpak-cargo-generator.py
-          python3 flatpak-cargo-generator.py src-tauri/Cargo.lock -o flatpak/cargo-sources.json
-
-          npm install --package-lock-only --ignore-scripts
-          python3 -m flatpak_node_generator npm package-lock.json -o flatpak/node-sources.json
+      - name: Validate AppStream metainfo
+        run: appstreamcli validate flatpak/wtf.tonho.omniget.metainfo.xml
 
       - name: Build Flatpak
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           manifest-path: flatpak/wtf.tonho.omniget.yml
-          bundle: omniget-aarch64.flatpak
+          bundle: ${{ matrix.bundle }}
           upload-artifact: true
-          arch: aarch64
-          cache-key: flatpak-builder-aarch64-${{ github.sha }}
+          arch: ${{ matrix.arch }}
+          cache-key: flatpak-builder-${{ hashFiles('flatpak/wtf.tonho.omniget.yml', 'src-tauri/Cargo.lock', 'package.json') }}
 
       - name: Upload Flatpak to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: omniget-aarch64.flatpak
+          tag_name: ${{ github.event.release.tag_name }}
+          files: ${{ matrix.bundle }}
