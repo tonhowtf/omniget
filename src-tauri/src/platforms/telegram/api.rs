@@ -283,7 +283,7 @@ pub async fn list_chats(
     Ok(chats)
 }
 
-fn make_input_peer(chat_id: i64, chat_type: &str, access_hash: i64) -> tl::enums::InputPeer {
+pub fn make_input_peer(chat_id: i64, chat_type: &str, access_hash: i64) -> tl::enums::InputPeer {
     match chat_type {
         "private" => tl::enums::InputPeer::User(tl::types::InputPeerUser {
             user_id: chat_id,
