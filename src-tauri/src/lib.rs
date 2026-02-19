@@ -177,6 +177,7 @@ pub fn run() {
             commands::telegram::telegram_download_batch,
             commands::telegram::telegram_cancel_batch,
             commands::telegram::telegram_get_thumbnail,
+            commands::telegram::telegram_clear_thumbnail_cache,
             commands::convert::probe_file,
             commands::convert::convert_file,
             commands::convert::cancel_conversion,
