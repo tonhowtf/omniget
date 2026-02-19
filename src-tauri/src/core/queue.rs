@@ -361,6 +361,7 @@ pub struct QueueItemProgress {
     pub speed_bytes_per_sec: f64,
     pub downloaded_bytes: u64,
     pub total_bytes: Option<u64>,
+    pub phase: String,
 }
 
 pub fn emit_queue_state(app: &tauri::AppHandle, queue: &DownloadQueue) {
@@ -428,6 +429,7 @@ async fn spawn_download_inner(
                 speed_bytes_per_sec: 0.0,
                 downloaded_bytes: 0,
                 total_bytes: None,
+                phase: "fetching_info".to_string(),
             });
 
             match fetch_and_cache_info(&url, &*downloader, &platform_name, ytdlp_path.as_deref()).await {
@@ -470,6 +472,7 @@ async fn spawn_download_inner(
         speed_bytes_per_sec: 0.0,
         downloaded_bytes: 0,
         total_bytes: info.file_size_bytes,
+        phase: "starting".to_string(),
     });
 
     let settings = config::load_settings(&app);
@@ -528,6 +531,8 @@ async fn spawn_download_inner(
             last_bytes = downloaded_bytes;
             last_time = now;
 
+            let phase = if percent > 0.0 { "downloading" } else { "connecting" };
+
             let _ = app_progress.emit("queue-item-progress", &QueueItemProgress {
                 id: item_id,
                 title: item_title.clone(),
@@ -536,6 +541,7 @@ async fn spawn_download_inner(
                 speed_bytes_per_sec: current_speed,
                 downloaded_bytes,
                 total_bytes,
+                phase: phase.to_string(),
             });
         }
     });
