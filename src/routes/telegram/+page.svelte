@@ -91,6 +91,8 @@
     return () => {
       stopQrPolling();
       onBatchFileStatus(null);
+      resetThumbnails();
+      invoke("telegram_clear_thumbnail_cache").catch(() => {});
     };
   });
 
