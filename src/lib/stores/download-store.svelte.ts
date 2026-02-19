@@ -28,6 +28,7 @@ export type GenericDownloadItem = BaseItem & {
   speed: number;
   downloadedBytes: number;
   totalBytes: number | null;
+  phase: string;
   filePath?: string;
   fileCount?: number;
 };
@@ -220,6 +221,7 @@ export function syncQueueState(items: QueueItemInfo[]) {
       speed: dlStatus === "downloading" ? speed : 0,
       downloadedBytes: qi.downloaded_bytes,
       totalBytes: qi.total_bytes,
+      phase: (existing?.kind === "generic" ? existing.phase : undefined) ?? "queued",
       status: dlStatus,
       error: extractError(qi.status),
       startedAt: existing?.startedAt ?? now,
