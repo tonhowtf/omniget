@@ -23,7 +23,7 @@ jobs:
           python3 -m pip install aiohttp tomlkit
           python3 -m pip install "git+https://github.com/flatpak/flatpak-builder-tools.git#subdirectory=node"
 
-          wget -q https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/refs/heads/master/cargo/flatpak-cargo-generator.py
+          curl -sSfL -o flatpak-cargo-generator.py https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/refs/heads/master/cargo/flatpak-cargo-generator.py
           python3 flatpak-cargo-generator.py src-tauri/Cargo.lock -o flatpak/cargo-sources.json
 
           npm install --package-lock-only --ignore-scripts
@@ -60,7 +60,7 @@ jobs:
           python3 -m pip install aiohttp tomlkit
           python3 -m pip install "git+https://github.com/flatpak/flatpak-builder-tools.git#subdirectory=node"
 
-          wget -q https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/refs/heads/master/cargo/flatpak-cargo-generator.py
+          curl -sSfL -o flatpak-cargo-generator.py https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/refs/heads/master/cargo/flatpak-cargo-generator.py
           python3 flatpak-cargo-generator.py src-tauri/Cargo.lock -o flatpak/cargo-sources.json
 
           npm install --package-lock-only --ignore-scripts
