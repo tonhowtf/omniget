@@ -42,3 +42,40 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: omniget.flatpak
+
+  flatpak-aarch64:
+    name: Build Flatpak Bundle (aarch64)
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: bilelmoussaoui/flatpak-github-actions:gnome-47
+      options: --privileged
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate offline sources
+        run: |
+          python3 -m ensurepip --upgrade
+          python3 -m pip install aiohttp tomlkit
+          python3 -m pip install "git+https://github.com/flatpak/flatpak-builder-tools.git#subdirectory=node"
+
+          wget -q https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/refs/heads/master/cargo/flatpak-cargo-generator.py
+          python3 flatpak-cargo-generator.py src-tauri/Cargo.lock -o flatpak/cargo-sources.json
+
+          npm install --package-lock-only --ignore-scripts
+          python3 -m flatpak_node_generator npm package-lock.json -o flatpak/node-sources.json
+
+      - name: Build Flatpak
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: flatpak/wtf.tonho.omniget.yml
+          bundle: omniget-aarch64.flatpak
+          upload-artifact: true
+          cache-key: flatpak-builder-aarch64-${{ github.sha }}
+
+      - name: Upload Flatpak to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: omniget-aarch64.flatpak

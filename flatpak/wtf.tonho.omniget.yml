@@ -58,6 +58,13 @@ modules:
       - type: file
         url: https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp
         dest-filename: yt-dlp
+        only-arches:
+          - x86_64
+      - type: file
+        url: https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux_aarch64
+        dest-filename: yt-dlp
+        only-arches:
+          - aarch64
 
   - name: omniget
     buildsystem: simple
