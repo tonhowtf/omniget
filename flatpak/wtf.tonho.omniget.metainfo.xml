@@ -42,7 +42,7 @@
   </branding>
   <content_rating type="oars-1.1" />
   <releases>
-    <release version="0.2.12" date="2026-02-19">
+    <release version="0.2.13" date="2026-02-19">
       <description>
         <p>Telegram improvements: thumbnail previews with LRU cache, media search, and memory cleanup on navigation.</p>
       </description>
