@@ -236,7 +236,6 @@ impl DownloadQueue {
                 item.cancel_token.cancel();
                 item.status = QueueStatus::Paused;
                 item.speed_bytes_per_sec = 0.0;
-                item.eta_seconds = None;
                 return true;
             }
         }
@@ -263,7 +262,6 @@ impl DownloadQueue {
                         message: "Cancelled".to_string(),
                     };
                     item.speed_bytes_per_sec = 0.0;
-                    item.eta_seconds = None;
                     return true;
                 }
                 QueueStatus::Queued | QueueStatus::Paused => {
