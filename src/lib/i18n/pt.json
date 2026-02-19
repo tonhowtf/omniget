@@ -26,6 +26,8 @@
     "retry": "Tentar novamente",
     "page_progress": "Página {{current}}/{{total}}",
     "module_progress": "Módulo {{current}}/{{total}}",
+    "phase_fetching_info": "Obtendo informações...",
+    "phase_starting": "Iniciando download...",
     "cancel": "Cancelar",
     "clear_finished": "Limpar finalizados"
   },
