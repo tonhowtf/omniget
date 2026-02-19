@@ -672,6 +672,18 @@ async fn fetch_and_cache_info(
     Ok(info)
 }
 
+pub async fn prefetch_info(
+    url: &str,
+    downloader: &dyn PlatformDownloader,
+    platform: &str,
+    ytdlp_path: Option<&std::path::Path>,
+) {
+    match fetch_and_cache_info(url, downloader, platform, ytdlp_path).await {
+        Ok(info) => tracing::info!("[queue] prefetch_info completed: {}", info.title),
+        Err(e) => tracing::warn!("[queue] prefetch_info failed: {}", e),
+    }
+}
+
 pub async fn try_start_next(app: tauri::AppHandle, queue: Arc<tokio::sync::Mutex<DownloadQueue>>) {
     let (next_ids, stagger) = {
         let mut q = queue.lock().await;
