@@ -7,20 +7,23 @@ use tokio::sync::{Semaphore, mpsc};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
-const PART_SIZE: i32 = 512 * 1024;
-const PARALLEL_THRESHOLD: u64 = 10 * 1024 * 1024;
+const PART_SIZE: i32 = 1024 * 1024;
+const PARALLEL_THRESHOLD: u64 = 5 * 1024 * 1024;
+
+const MAX_RETRIES: u32 = 3;
+const RETRY_BASE_DELAY_MS: u64 = 1000;
 
 pub fn best_threads(file_size: u64, max: usize) -> usize {
-    let threads = if file_size < 64 * 1024 * 1024 {
+    let threads = if file_size < 1024 * 1024 {
+        1
+    } else if file_size < 5 * 1024 * 1024 {
         2
-    } else if file_size < 128 * 1024 * 1024 {
-        3
-    } else if file_size < 256 * 1024 * 1024 {
+    } else if file_size < 20 * 1024 * 1024 {
         4
-    } else if file_size < 512 * 1024 * 1024 {
-        6
-    } else {
+    } else if file_size < 50 * 1024 * 1024 {
         8
+    } else {
+        max
     };
     threads.min(max)
 }
@@ -223,23 +226,57 @@ pub async fn download_parallel(
                 return Err(anyhow::anyhow!("Download cancelled"));
             }
 
-            let request = tl::functions::upload::GetFile {
-                precise: true,
-                cdn_supported: false,
-                location,
-                offset: offset as i64,
-                limit: PART_SIZE,
-            };
+            let mut last_err = None;
+            let mut bytes_result = None;
 
-            let response = client
-                .invoke(&request)
-                .await
-                .map_err(|e| anyhow::anyhow!("upload.GetFile at offset {}: {}", offset, e))?;
+            for attempt in 0..=MAX_RETRIES {
+                if attempt > 0 {
+                    let delay = RETRY_BASE_DELAY_MS * (1u64 << (attempt - 1));
+                    tracing::warn!(
+                        "[tg-parallel] part {} attempt {}/{}, retrying in {}ms",
+                        part_idx, attempt + 1, MAX_RETRIES + 1, delay
+                    );
+                    tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
 
-            let bytes = match response {
-                tl::enums::upload::File::File(f) => f.bytes,
-                tl::enums::upload::File::CdnRedirect(_) => {
-                    return Err(anyhow::anyhow!("CDN redirect not supported"));
+                    if cancel.is_cancelled() {
+                        return Err(anyhow::anyhow!("Download cancelled"));
+                    }
+                }
+
+                let request = tl::functions::upload::GetFile {
+                    precise: true,
+                    cdn_supported: false,
+                    location: location.clone(),
+                    offset: offset as i64,
+                    limit: PART_SIZE,
+                };
+
+                match client.invoke(&request).await {
+                    Ok(response) => match response {
+                        tl::enums::upload::File::File(f) => {
+                            bytes_result = Some(f.bytes);
+                            break;
+                        }
+                        tl::enums::upload::File::CdnRedirect(_) => {
+                            return Err(anyhow::anyhow!("CDN redirect not supported"));
+                        }
+                    },
+                    Err(e) => {
+                        last_err = Some(e);
+                        continue;
+                    }
+                }
+            }
+
+            let bytes = match bytes_result {
+                Some(b) => b,
+                None => {
+                    return Err(anyhow::anyhow!(
+                        "upload.GetFile at offset {} failed after {} retries: {}",
+                        offset,
+                        MAX_RETRIES,
+                        last_err.map(|e| e.to_string()).unwrap_or_default()
+                    ));
                 }
             };
 
