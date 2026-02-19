@@ -14,6 +14,7 @@ static YTDLP_UPDATING: Mutex<bool> = Mutex::new(false);
 const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 pub async fn find_ytdlp() -> Option<PathBuf> {
+    let _timer_start = std::time::Instant::now();
     let bin_name = if cfg!(target_os = "windows") {
         "yt-dlp.exe"
     } else {
@@ -59,16 +60,21 @@ fn managed_ytdlp_path() -> Option<PathBuf> {
 }
 
 pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
+    let _timer_start = std::time::Instant::now();
     if let Some(path) = find_ytdlp().await {
         check_ytdlp_freshness(&path).await;
+        tracing::info!("[perf] ensure_ytdlp took {:?}", _timer_start.elapsed());
         return Ok(path);
     }
 
     if crate::core::dependencies::is_flatpak() {
+        tracing::info!("[perf] ensure_ytdlp took {:?}", _timer_start.elapsed());
         return Err(anyhow!("yt-dlp not found in Flatpak sandbox"));
     }
 
-    download_ytdlp_binary().await
+    let result = download_ytdlp_binary().await;
+    tracing::info!("[perf] ensure_ytdlp took {:?}", _timer_start.elapsed());
+    result
 }
 
 async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
