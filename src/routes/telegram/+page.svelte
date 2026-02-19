@@ -348,16 +348,20 @@
     if (!selectedChat || loadingMore || !hasMore) return;
     loadingMore = true;
     try {
-      const lastId = mediaItems.length > 0 ? mediaItems[mediaItems.length - 1].message_id : 0;
+      const offset = mediaItems.length > 0
+        ? Math.min(...mediaItems.map((m) => m.message_id))
+        : 0;
       const items: TelegramMediaItem[] = await invoke("telegram_list_media", {
         chatId: selectedChat.id,
         chatType: selectedChat.chat_type,
         mediaType: mediaFilter === "all" ? null : mediaFilter,
-        offset: lastId,
+        offset,
         limit: 100,
       });
       if (items.length > 0) {
-        mediaItems = [...mediaItems, ...items];
+        const existingIds = new Set(mediaItems.map((m) => m.message_id));
+        const newItems = items.filter((item) => !existingIds.has(item.message_id));
+        mediaItems = [...mediaItems, ...newItems];
       }
       hasMore = items.length >= 100;
     } catch (e: any) {
