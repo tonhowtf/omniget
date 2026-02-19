@@ -418,41 +418,66 @@ pub async fn download_media(
     }
 
     let is_channel = chat_type == "channel" || (chat_type == "group" && access_hash != 0);
-    let (raw_media, msg_date) = super::parallel_download::fetch_raw_media(
-        &client, chat_id, access_hash, is_channel, message_id,
-    ).await?;
-
-    let (location, total_size) = super::parallel_download::media_to_input_location(&raw_media)
-        .ok_or_else(|| anyhow::anyhow!("Unsupported media type"))?;
-    tracing::info!("[tg-perf] download_media: total_size={}", total_size);
+    if is_channel && access_hash == 0 {
+        tracing::warn!(
+            "[tg-diag] download_media: access_hash=0 for channel/supergroup chat_id={}, download will likely fail",
+            chat_id
+        );
+    }
 
     if let Some(parent) = output_path.parent() {
         tokio::fs::create_dir_all(parent).await?;
     }
 
     let tmp_path = PathBuf::from(format!("{}.tmp", output_path.display()));
-    let result = super::parallel_download::download_parallel(
-        &client, location, total_size, &tmp_path, progress_tx, cancel_token, 8,
-    ).await;
+    const MAX_REF_RETRIES: u32 = 2;
 
-    match &result {
-        Ok(_) => {
-            tokio::fs::rename(&tmp_path, output_path).await?;
-            let ts = msg_date as i64;
-            if ts > 0 {
-                let file_time = filetime::FileTime::from_unix_time(ts, 0);
-                if let Err(e) = filetime::set_file_mtime(output_path, file_time) {
-                    tracing::warn!("[tg-api] failed to set file time: {}", e);
-                }
-            }
+    for ref_attempt in 0..=MAX_REF_RETRIES {
+        let (raw_media, msg_date) = super::parallel_download::fetch_raw_media(
+            &client, chat_id, access_hash, is_channel, message_id,
+        ).await?;
+
+        let (location, total_size) = super::parallel_download::media_to_input_location(&raw_media)
+            .ok_or_else(|| anyhow::anyhow!("Unsupported media type"))?;
+
+        if ref_attempt == 0 {
+            tracing::info!("[tg-perf] download_media: total_size={}", total_size);
         }
-        Err(_) => {
-            let _ = tokio::fs::remove_file(&tmp_path).await;
+
+        let result = super::parallel_download::download_parallel(
+            &client, location, total_size, &tmp_path, progress_tx.clone(), cancel_token, 8,
+        ).await;
+
+        match result {
+            Ok(downloaded) => {
+                tokio::fs::rename(&tmp_path, output_path).await?;
+                let ts = msg_date as i64;
+                if ts > 0 {
+                    let file_time = filetime::FileTime::from_unix_time(ts, 0);
+                    if let Err(e) = filetime::set_file_mtime(output_path, file_time) {
+                        tracing::warn!("[tg-api] failed to set file time: {}", e);
+                    }
+                }
+                tracing::info!("[tg-perf] download_media completed in {:?}", _t.elapsed());
+                return Ok(downloaded);
+            }
+            Err(e) => {
+                let _ = tokio::fs::remove_file(&tmp_path).await;
+                let err_lower = e.to_string().to_lowercase();
+                if err_lower.contains("file_reference") && ref_attempt < MAX_REF_RETRIES {
+                    tracing::warn!(
+                        "[tg-diag] download_media: FILE_REFERENCE expired, re-fetching message ({}/{})",
+                        ref_attempt + 1, MAX_REF_RETRIES
+                    );
+                    continue;
+                }
+                tracing::info!("[tg-perf] download_media failed in {:?}", _t.elapsed());
+                return Err(e);
+            }
         }
     }
 
-    tracing::info!("[tg-perf] download_media completed in {:?}", _t.elapsed());
-    result
+    unreachable!()
 }
 
 fn is_retryable_error(err_str: &str) -> bool {
