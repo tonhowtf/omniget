@@ -6,8 +6,6 @@
     getDownloads,
     formatBytes,
     formatSpeed,
-    getEtaI18n,
-    getGenericEtaI18n,
     getFinishedCount,
     type CourseDownloadItem,
     type GenericDownloadItem,
@@ -236,11 +234,6 @@
         {/if}
         {#if item.speed > 0}
           <span>{formatSpeed(item.speed)}</span>
-          <span class="stats-sep">&middot;</span>
-        {/if}
-        {#if true}
-          {@const eta = getGenericEtaI18n(item)}
-          <span>{$t(eta.key, eta.params)}</span>
         {/if}
       </div>
     {:else if item.status === "paused"}
@@ -320,11 +313,6 @@
 
       <div class="item-stats">
         <span>{formatSpeed(item.speed)}</span>
-        <span class="stats-sep">&middot;</span>
-        {#if true}
-          {@const eta = getEtaI18n(item)}
-          <span>{$t(eta.key, eta.params)}</span>
-        {/if}
       </div>
     {/if}
 
