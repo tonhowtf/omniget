@@ -10,7 +10,7 @@ jobs:
     name: Build Flatpak Bundle
     runs-on: ubuntu-latest
     container:
-      image: bilelmoussaoui/flatpak-github-actions:gnome-47
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-48
       options: --privileged
 
     steps:
@@ -47,7 +47,7 @@ jobs:
     name: Build Flatpak Bundle (aarch64)
     runs-on: ubuntu-24.04-arm
     container:
-      image: bilelmoussaoui/flatpak-github-actions:gnome-47
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-48
       options: --privileged
 
     steps:
@@ -72,6 +72,7 @@ jobs:
           manifest-path: flatpak/wtf.tonho.omniget.yml
           bundle: omniget-aarch64.flatpak
           upload-artifact: true
+          arch: aarch64
           cache-key: flatpak-builder-aarch64-${{ github.sha }}
 
       - name: Upload Flatpak to Release
