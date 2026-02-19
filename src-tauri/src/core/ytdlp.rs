@@ -10,6 +10,9 @@ use tokio_util::sync::CancellationToken;
 use crate::models::media::{DownloadResult, FormatInfo};
 
 static YTDLP_UPDATING: Mutex<bool> = Mutex::new(false);
+static YTDLP_PATH_CACHE: tokio::sync::OnceCell<Option<PathBuf>> = tokio::sync::OnceCell::const_new();
+static FFMPEG_LOCATION_CACHE: tokio::sync::OnceCell<Option<String>> = tokio::sync::OnceCell::const_new();
+static COOKIES_BROWSER_CACHE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
 
 const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
@@ -53,6 +56,13 @@ pub async fn find_ytdlp() -> Option<PathBuf> {
     None
 }
 
+pub async fn find_ytdlp_cached() -> Option<PathBuf> {
+    YTDLP_PATH_CACHE
+        .get_or_init(|| async { find_ytdlp().await })
+        .await
+        .clone()
+}
+
 fn managed_ytdlp_path() -> Option<PathBuf> {
     let data = dirs::data_dir()?;
     let bin_name = if cfg!(target_os = "windows") {
@@ -65,7 +75,7 @@ fn managed_ytdlp_path() -> Option<PathBuf> {
 
 pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
     let _timer_start = std::time::Instant::now();
-    if let Some(path) = find_ytdlp().await {
+    if let Some(path) = find_ytdlp_cached().await {
         check_ytdlp_freshness(&path).await;
         tracing::info!("[perf] ensure_ytdlp took {:?}", _timer_start.elapsed());
         return Ok(path);
@@ -214,6 +224,13 @@ async fn find_ffmpeg_location() -> Option<String> {
     result
 }
 
+async fn find_ffmpeg_location_cached() -> Option<String> {
+    FFMPEG_LOCATION_CACHE
+        .get_or_init(|| async { find_ffmpeg_location().await })
+        .await
+        .clone()
+}
+
 fn detect_cookies_browser() -> Option<String> {
     let _timer_start = std::time::Instant::now();
     let result = (|| -> Option<String> {
@@ -314,6 +331,10 @@ fn detect_cookies_browser() -> Option<String> {
     })();
     tracing::info!("[perf] detect_cookies_browser took {:?}", _timer_start.elapsed());
     result
+}
+
+fn detect_cookies_browser_cached() -> Option<String> {
+    COOKIES_BROWSER_CACHE.get_or_init(detect_cookies_browser).clone()
 }
 
 fn is_youtube_url(url: &str) -> bool {
@@ -555,7 +576,7 @@ pub async fn download_video(
     let is_audio_only = mode == "audio";
     let ffmpeg_available = crate::core::ffmpeg::is_ffmpeg_available().await;
     let ffmpeg_location = if ffmpeg_available {
-        find_ffmpeg_location().await
+        find_ffmpeg_location_cached().await
     } else {
         None
     };
@@ -606,7 +627,7 @@ pub async fn download_video(
     tokio::fs::create_dir_all(output_dir).await?;
 
     let browser_cookies = if cookie_file.is_none() {
-        detect_cookies_browser()
+        detect_cookies_browser_cached()
     } else {
         None
     };
