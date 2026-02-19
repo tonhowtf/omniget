@@ -117,7 +117,7 @@ pub async fn download_from_url(
         .map(|p| p.to_string())
         .unwrap_or_else(|| "generic".to_string());
     let title = url.clone();
-    let ytdlp_path = ytdlp::find_ytdlp().await;
+    let ytdlp_path = ytdlp::find_ytdlp_cached().await;
 
     {
         let mut q = download_queue.lock().await;
