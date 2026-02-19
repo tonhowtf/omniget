@@ -3,11 +3,10 @@ use std::time::Duration;
 
 use grammers_client::Client;
 use grammers_client::grammers_tl_types as tl;
-use grammers_client::session::defs::{PeerAuth, PeerId, PeerRef};
-use grammers_client::types::{Media, Peer};
+use grammers_client::session::defs::PeerRef;
+use grammers_client::types::Peer;
 use grammers_tl_types::Serializable;
 use serde::Serialize;
-use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -171,26 +170,6 @@ pub struct TelegramMediaItem {
     pub file_size: u64,
     pub media_type: String,
     pub date: i64,
-}
-
-fn make_peer_ref(chat_id: i64, chat_type: &str, access_hash: i64) -> anyhow::Result<PeerRef> {
-    let is_supergroup = chat_type == "group" && access_hash != 0;
-    let peer_id = match chat_type {
-        "private" => PeerId::user(chat_id),
-        "group" if is_supergroup => PeerId::channel(chat_id),
-        "group" => PeerId::chat(chat_id),
-        "channel" => PeerId::channel(chat_id),
-        _ => return Err(anyhow::anyhow!("Unknown chat type: {}", chat_type)),
-    };
-    let auth = if access_hash != 0 {
-        PeerAuth::from_hash(access_hash)
-    } else {
-        PeerAuth::default()
-    };
-    Ok(PeerRef {
-        id: peer_id,
-        auth,
-    })
 }
 
 fn media_filter(media_type: Option<&str>) -> tl::enums::MessagesFilter {
@@ -419,6 +398,7 @@ pub async fn download_media(
     message_id: i32,
     output_path: &Path,
     progress_tx: mpsc::Sender<f64>,
+    cancel_token: &CancellationToken,
 ) -> anyhow::Result<u64> {
     let _t = std::time::Instant::now();
     let guard = handle.lock().await;
@@ -437,105 +417,38 @@ pub async fn download_media(
         tracing::error!("[tg-diag] download_media: client not authorized");
     }
 
-    let peer_ref = make_peer_ref(chat_id, chat_type, access_hash)?;
+    let is_channel = chat_type == "channel" || (chat_type == "group" && access_hash != 0);
+    let (raw_media, msg_date) = super::parallel_download::fetch_raw_media(
+        &client, chat_id, access_hash, is_channel, message_id,
+    ).await?;
 
-    let messages = client
-        .get_messages_by_id(peer_ref, &[message_id])
-        .await
-        .map_err(|e| {
-            tracing::error!("[tg-diag] download_media: get_messages_by_id failed: {}", e);
-            anyhow::anyhow!("{}", e)
-        })?;
-    tracing::info!("[tg-diag] download_media: get_messages_by_id returned {} results", messages.len());
-
-    let message = messages
-        .into_iter()
-        .next()
-        .flatten()
-        .ok_or_else(|| {
-            tracing::error!("[tg-diag] download_media: message {} not found", message_id);
-            anyhow::anyhow!("Message not found")
-        })?;
-
-    let msg_date = message.date();
-
-    let media = message
-        .media()
-        .ok_or_else(|| {
-            tracing::error!("[tg-diag] download_media: message {} has no media", message_id);
-            anyhow::anyhow!("Message has no media")
-        })?;
-
-    let total_size = match &media {
-        Media::Document(doc) => doc.size().max(0) as u64,
-        Media::Photo(photo) => photo.size().max(0) as u64,
-        _ => 0,
-    };
+    let (location, total_size) = super::parallel_download::media_to_input_location(&raw_media)
+        .ok_or_else(|| anyhow::anyhow!("Unsupported media type"))?;
     tracing::info!("[tg-perf] download_media: total_size={}", total_size);
 
     if let Some(parent) = output_path.parent() {
         tokio::fs::create_dir_all(parent).await?;
     }
 
-    // Download to .tmp file first, then rename atomically
     let tmp_path = PathBuf::from(format!("{}.tmp", output_path.display()));
-    let mut file = tokio::fs::File::create(&tmp_path).await?;
-    let mut download = client.iter_download(&media);
-    let mut downloaded: u64 = 0;
+    let result = super::parallel_download::download_parallel(
+        &client, location, total_size, &tmp_path, progress_tx, cancel_token, 8,
+    ).await;
 
-    let result: Result<u64, anyhow::Error> = async {
-        let mut entered_loop = false;
-        loop {
-            let chunk = match download.next().await {
-                Ok(Some(chunk)) => chunk,
-                Ok(None) => break,
-                Err(e) => {
-                    let err_str = e.to_string();
-                    if err_str.contains("FILE_REFERENCE_EXPIRED") {
-                        tracing::error!("[tg-diag] download_media: FILE_REFERENCE_EXPIRED — file reference has expired, message media needs re-fetch");
-                    }
-                    tracing::error!("[tg-diag] download_media: iter_download error after {} bytes: {}", downloaded, err_str);
-                    return Err(anyhow::anyhow!("{}", err_str));
+    match &result {
+        Ok(_) => {
+            tokio::fs::rename(&tmp_path, output_path).await?;
+            let ts = msg_date as i64;
+            if ts > 0 {
+                let file_time = filetime::FileTime::from_unix_time(ts, 0);
+                if let Err(e) = filetime::set_file_mtime(output_path, file_time) {
+                    tracing::warn!("[tg-api] failed to set file time: {}", e);
                 }
-            };
-            if !entered_loop {
-                tracing::info!("[tg-diag] download_media: first chunk received, {} bytes", chunk.len());
-                entered_loop = true;
-            }
-            file.write_all(&chunk).await?;
-            downloaded += chunk.len() as u64;
-            tracing::debug!("[tg-perf] chunk {} bytes, total so far: {}", chunk.len(), downloaded);
-
-            if total_size > 0 {
-                let percent = (downloaded as f64 / total_size as f64) * 100.0;
-                let _ = progress_tx.send(percent.min(100.0)).await;
             }
         }
-        if !entered_loop {
-            tracing::warn!("[tg-diag] download_media: download loop never entered (0 chunks)");
+        Err(_) => {
+            let _ = tokio::fs::remove_file(&tmp_path).await;
         }
-
-        file.flush().await?;
-        drop(file);
-
-        // Atomic rename from .tmp to final path
-        tokio::fs::rename(&tmp_path, output_path).await?;
-
-        // Preserve message date as file modification time
-        let ts = msg_date.timestamp();
-        if ts > 0 {
-            let file_time = filetime::FileTime::from_unix_time(ts, 0);
-            if let Err(e) = filetime::set_file_mtime(output_path, file_time) {
-                tracing::warn!("[tg-api] failed to set file time: {}", e);
-            }
-        }
-
-        Ok(downloaded)
-    }.await;
-
-    // Clean up .tmp on failure
-    if result.is_err() {
-        let _ = tokio::fs::remove_file(&tmp_path).await;
     }
 
     tracing::info!("[tg-perf] download_media completed in {:?}", _t.elapsed());
@@ -575,7 +488,7 @@ pub async fn download_media_with_retry(
     for attempt in 0..MAX_RETRIES {
         let tx = progress_tx.clone();
         let result = tokio::select! {
-            r = download_media(handle, chat_id, chat_type, message_id, output_path, tx) => r,
+            r = download_media(handle, chat_id, chat_type, message_id, output_path, tx, cancel_token) => r,
             _ = cancel_token.cancelled() => return Err(anyhow::anyhow!("Download cancelled")),
         };
 
