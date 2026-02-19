@@ -184,14 +184,20 @@ impl PlatformDownloader for TelegramDownloader {
             .first()
             .ok_or_else(|| anyhow::anyhow!("No quality available"))?;
 
-        // Parse tg://username:msg_id from the stored URL
+        tracing::info!("[tg-diag] download: quality.url raw={}", quality.url);
         let tg_ref = quality
             .url
             .strip_prefix("tg://")
-            .ok_or_else(|| anyhow::anyhow!("Invalid internal reference"))?;
+            .ok_or_else(|| {
+                tracing::error!("[tg-diag] download: quality.url missing tg:// prefix: {}", quality.url);
+                anyhow::anyhow!("Invalid internal reference")
+            })?;
         let (username, msg_id_str) = tg_ref
             .rsplit_once(':')
-            .ok_or_else(|| anyhow::anyhow!("Invalid internal reference format"))?;
+            .ok_or_else(|| {
+                tracing::error!("[tg-diag] download: invalid tg ref format (no colon): {}", tg_ref);
+                anyhow::anyhow!("Invalid internal reference format")
+            })?;
         let msg_id: i32 = msg_id_str.parse()?;
         tracing::info!("[tg-perf] TelegramDownloader::download: parsed tg ref username={}, msg_id={}", username, msg_id);
 
@@ -199,12 +205,21 @@ impl PlatformDownloader for TelegramDownloader {
         let client = guard
             .client
             .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Not authenticated to Telegram"))?
+            .ok_or_else(|| {
+                tracing::error!("[tg-diag] download: client is None (not authenticated)");
+                anyhow::anyhow!("Not authenticated to Telegram")
+            })?
             .clone();
         drop(guard);
 
-        // Resolve peer again
+        let is_auth = client.is_authorized().await.unwrap_or(false);
+        tracing::info!("[tg-diag] download: is_authorized={}", is_auth);
+        if !is_auth {
+            tracing::error!("[tg-diag] download: client not authorized, download will likely fail");
+        }
+
         let peer = if username.starts_with("c/") {
+            tracing::info!("[tg-diag] download: resolving private channel (c/ branch)");
             let id_str = username.strip_prefix("c/").unwrap();
             let channel_id: i64 = id_str.parse()?;
             use grammers_client::session::defs::{PeerAuth, PeerId, PeerRef};
@@ -215,32 +230,57 @@ impl PlatformDownloader for TelegramDownloader {
             client
                 .resolve_peer(peer_ref)
                 .await
-                .map_err(|e| anyhow::anyhow!("Cannot resolve channel: {}", e))?
+                .map_err(|e| {
+                    tracing::error!("[tg-diag] download: failed to resolve channel: {}", e);
+                    anyhow::anyhow!("Cannot resolve channel: {}", e)
+                })?
         } else {
+            tracing::info!("[tg-diag] download: resolving by username={}", username);
             client
                 .resolve_username(username)
                 .await
-                .map_err(|e| anyhow::anyhow!("Cannot resolve username: {}", e))?
-                .ok_or_else(|| anyhow::anyhow!("Channel not found"))?
+                .map_err(|e| {
+                    tracing::error!("[tg-diag] download: failed to resolve username {}: {}", username, e);
+                    anyhow::anyhow!("Cannot resolve username: {}", e)
+                })?
+                .ok_or_else(|| {
+                    tracing::error!("[tg-diag] download: username {} resolved to None", username);
+                    anyhow::anyhow!("Channel not found")
+                })?
         };
         tracing::info!("[tg-perf] TelegramDownloader::download: peer resolved successfully");
 
         let messages = client
             .get_messages_by_id(&peer, &[msg_id])
             .await
-            .map_err(|e| anyhow::anyhow!("{}", e))?;
+            .map_err(|e| {
+                tracing::error!("[tg-diag] download: get_messages_by_id failed: {}", e);
+                anyhow::anyhow!("{}", e)
+            })?;
+        tracing::info!("[tg-diag] download: get_messages_by_id returned {} results", messages.len());
 
         let message = messages
             .into_iter()
             .next()
             .flatten()
-            .ok_or_else(|| anyhow::anyhow!("Message not found"))?;
+            .ok_or_else(|| {
+                tracing::error!("[tg-diag] download: message {} not found in results", msg_id);
+                anyhow::anyhow!("Message not found")
+            })?;
         tracing::info!("[tg-perf] TelegramDownloader::download: message found");
 
         let media = message
             .media()
-            .ok_or_else(|| anyhow::anyhow!("No media in message"))?;
-        tracing::info!("[tg-perf] TelegramDownloader::download: media found");
+            .ok_or_else(|| {
+                tracing::error!("[tg-diag] download: message {} has no media attachment", msg_id);
+                anyhow::anyhow!("No media in message")
+            })?;
+        let media_type_name = match &media {
+            grammers_client::types::Media::Photo(_) => "Photo",
+            grammers_client::types::Media::Document(_) => "Document",
+            _ => "Other",
+        };
+        tracing::info!("[tg-diag] download: media type={}, msg_id={}", media_type_name, msg_id);
 
         let total_size = match &media {
             grammers_client::types::Media::Document(doc) => doc.size().max(0) as u64,
@@ -260,12 +300,25 @@ impl PlatformDownloader for TelegramDownloader {
         let mut file = tokio::fs::File::create(&output_path).await?;
         let mut download = client.iter_download(&media);
         let mut downloaded: u64 = 0;
+        let mut entered_loop = false;
 
-        while let Some(chunk) = download
-            .next()
-            .await
-            .map_err(|e| anyhow::anyhow!("{}", e))?
-        {
+        loop {
+            let chunk = match download.next().await {
+                Ok(Some(chunk)) => chunk,
+                Ok(None) => break,
+                Err(e) => {
+                    let err_str = e.to_string();
+                    if err_str.contains("FILE_REFERENCE_EXPIRED") {
+                        tracing::error!("[tg-diag] download: FILE_REFERENCE_EXPIRED — file reference has expired, message media needs re-fetch");
+                    }
+                    tracing::error!("[tg-diag] download: iter_download error after {} bytes: {}", downloaded, err_str);
+                    return Err(anyhow::anyhow!("{}", err_str));
+                }
+            };
+            if !entered_loop {
+                tracing::info!("[tg-diag] download: first chunk received, {} bytes", chunk.len());
+                entered_loop = true;
+            }
             file.write_all(&chunk).await?;
             downloaded += chunk.len() as u64;
 
@@ -273,6 +326,9 @@ impl PlatformDownloader for TelegramDownloader {
                 let percent = (downloaded as f64 / total_size as f64) * 100.0;
                 let _ = progress.send(percent.min(100.0)).await;
             }
+        }
+        if !entered_loop {
+            tracing::warn!("[tg-diag] download: download loop never entered (0 chunks received)");
         }
 
         file.flush().await?;
