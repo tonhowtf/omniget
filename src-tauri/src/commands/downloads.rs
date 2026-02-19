@@ -119,6 +119,22 @@ pub async fn download_from_url(
     let title = url.clone();
     let ytdlp_path = ytdlp::find_ytdlp_cached().await;
 
+    if platform_name == "youtube" || platform_name == "generic" {
+        let url_clone = url.clone();
+        let downloader_clone = downloader.clone();
+        let platform_clone = platform_name.clone();
+        let ytdlp_clone = ytdlp_path.clone();
+        tokio::spawn(async move {
+            queue::prefetch_info(
+                &url_clone,
+                &*downloader_clone,
+                &platform_clone,
+                ytdlp_clone.as_deref(),
+            )
+            .await;
+        });
+    }
+
     {
         let mut q = download_queue.lock().await;
         q.enqueue(
