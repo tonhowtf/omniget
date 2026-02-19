@@ -187,8 +187,14 @@ pub async fn download_parallel(
         threads
     );
 
-    let file = std::fs::File::create(output_path)?;
-    file.set_len(total_size)?;
+    let path_for_create = output_path.to_path_buf();
+    let file = tokio::task::spawn_blocking(move || -> std::io::Result<std::fs::File> {
+        let f = std::fs::File::create(path_for_create)?;
+        f.set_len(total_size)?;
+        Ok(f)
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("File create task panicked: {}", e))??;
     let file = Arc::new(file);
 
     let semaphore = Arc::new(Semaphore::new(threads));
@@ -270,19 +276,19 @@ pub async fn download_parallel(
     while let Some(result) = join_set.join_next().await {
         if cancel_token.is_cancelled() {
             join_set.abort_all();
-            let _ = std::fs::remove_file(output_path);
+            let _ = tokio::fs::remove_file(output_path).await;
             return Err(anyhow::anyhow!("Download cancelled"));
         }
         match result {
             Ok(Ok(bytes)) => total_downloaded += bytes,
             Ok(Err(e)) => {
                 join_set.abort_all();
-                let _ = std::fs::remove_file(output_path);
+                let _ = tokio::fs::remove_file(output_path).await;
                 return Err(e);
             }
             Err(e) => {
                 join_set.abort_all();
-                let _ = std::fs::remove_file(output_path);
+                let _ = tokio::fs::remove_file(output_path).await;
                 return Err(anyhow::anyhow!("Download task panicked: {}", e));
             }
         }
