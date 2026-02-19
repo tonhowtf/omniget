@@ -550,6 +550,30 @@ pub async fn telegram_get_thumbnail(
 }
 
 #[tauri::command]
+pub async fn telegram_search_media(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    chat_id: i64,
+    chat_type: String,
+    query: String,
+    media_type: Option<String>,
+    limit: u32,
+) -> Result<Vec<TelegramMediaItem>, String> {
+    let fix_extensions = config::load_settings(&app).telegram.fix_file_extensions;
+    api::search_media(
+        &state.telegram_session,
+        chat_id,
+        &chat_type,
+        &query,
+        media_type.as_deref(),
+        limit,
+        fix_extensions,
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn telegram_clear_thumbnail_cache() -> Result<(), String> {
     thumbnail_cache::clear_cache().await;
     Ok(())
