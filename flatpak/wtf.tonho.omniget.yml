@@ -15,7 +15,7 @@ finish-args:
   - --socket=wayland
   - --device=dri
   - --socket=pulseaudio
-  - --socket=pipewire
+  - --filesystem=xdg-run/pipewire-0
   - --filesystem=xdg-download
   - --filesystem=xdg-videos
   - --filesystem=xdg-music
