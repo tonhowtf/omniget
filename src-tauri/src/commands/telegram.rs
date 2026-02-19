@@ -5,8 +5,11 @@ use tauri::Emitter;
 use tokio::sync::{mpsc, Semaphore};
 use tokio_util::sync::CancellationToken;
 
+use base64::Engine;
+
 use crate::platforms::telegram::api::{self, TelegramChat, TelegramMediaItem};
 use crate::platforms::telegram::auth::{self, QrPollStatus, VerifyError};
+use crate::platforms::telegram::thumbnail_cache;
 use crate::storage::config;
 use crate::AppState;
 
@@ -524,4 +527,23 @@ pub async fn telegram_cancel_batch(
         }
     }
     Err("Batch not found".to_string())
+}
+
+#[tauri::command]
+pub async fn telegram_get_thumbnail(
+    state: tauri::State<'_, AppState>,
+    chat_id: i64,
+    chat_type: String,
+    message_id: i32,
+) -> Result<String, String> {
+    let data = thumbnail_cache::get_thumbnail(
+        &state.telegram_session,
+        chat_id,
+        &chat_type,
+        message_id,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(base64::engine::general_purpose::STANDARD.encode(&data))
 }
