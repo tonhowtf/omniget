@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use anyhow::anyhow;
@@ -9,7 +10,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::models::media::{DownloadResult, FormatInfo};
 
-static YTDLP_UPDATING: Mutex<bool> = Mutex::new(false);
+static YTDLP_UPDATING: AtomicBool = AtomicBool::new(false);
 static YTDLP_PATH_CACHE: tokio::sync::OnceCell<Option<PathBuf>> = tokio::sync::OnceCell::const_new();
 static FFMPEG_LOCATION_CACHE: tokio::sync::OnceCell<Option<String>> = tokio::sync::OnceCell::const_new();
 static COOKIES_BROWSER_CACHE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
@@ -76,7 +77,8 @@ fn managed_ytdlp_path() -> Option<PathBuf> {
 pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
     let _timer_start = std::time::Instant::now();
     if let Some(path) = find_ytdlp_cached().await {
-        check_ytdlp_freshness(&path).await;
+        let path_clone = path.clone();
+        tokio::spawn(async move { check_ytdlp_freshness(&path_clone).await; });
         tracing::info!("[perf] ensure_ytdlp took {:?}", _timer_start.elapsed());
         return Ok(path);
     }
@@ -148,12 +150,8 @@ async fn check_ytdlp_freshness(path: &Path) {
         if let Ok(modified) = meta.modified() {
             if let Ok(age) = modified.elapsed() {
                 if age > std::time::Duration::from_secs(2 * 24 * 60 * 60) {
-                    let already_updating = YTDLP_UPDATING.lock().map(|g| *g).unwrap_or(false);
-                    if already_updating {
+                    if YTDLP_UPDATING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
                         return;
-                    }
-                    if let Ok(mut g) = YTDLP_UPDATING.lock() {
-                        *g = true;
                     }
                     tracing::info!("yt-dlp is older than 2 days, updating in background");
                     tokio::spawn(async {
@@ -161,9 +159,7 @@ async fn check_ytdlp_freshness(path: &Path) {
                             Ok(_) => tracing::info!("yt-dlp updated successfully"),
                             Err(e) => tracing::warn!("Failed to update yt-dlp: {}", e),
                         }
-                        if let Ok(mut g) = YTDLP_UPDATING.lock() {
-                            *g = false;
-                        }
+                        YTDLP_UPDATING.store(false, Ordering::SeqCst);
                     });
                 }
             }
