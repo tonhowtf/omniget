@@ -262,6 +262,7 @@ fn extract_raw_media_info(media: &tl::enums::MessageMedia, fix_extensions: bool)
 pub async fn list_chats(
     handle: &TelegramSessionHandle,
 ) -> anyhow::Result<Vec<TelegramChat>> {
+    let _t = std::time::Instant::now();
     let guard = handle.lock().await;
     let client = guard.client.as_ref()
         .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
@@ -294,7 +295,7 @@ pub async fn list_chats(
         });
     }
 
-    tracing::info!("[tg-api] list_chats: loaded {} chats", chats.len());
+    tracing::info!("[tg-perf] list_chats completed in {:?}, loaded {} chats", _t.elapsed(), chats.len());
 
     let mut guard = handle.lock().await;
     guard.peer_hashes = peer_hashes;
@@ -338,6 +339,7 @@ pub async fn list_media(
     limit: u32,
     fix_extensions: bool,
 ) -> anyhow::Result<Vec<TelegramMediaItem>> {
+    let _t = std::time::Instant::now();
     let guard = handle.lock().await;
     let client = guard.client.as_ref()
         .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
