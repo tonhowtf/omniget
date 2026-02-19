@@ -54,6 +54,11 @@ impl ThumbnailCache {
         }
     }
 
+    fn clear(&mut self) {
+        self.entries.clear();
+        self.total_bytes = 0;
+    }
+
     fn evict_expired(&mut self) {
         let now = Instant::now();
         let expired: Vec<(i64, i32)> = self
@@ -261,4 +266,8 @@ pub async fn get_thumbnail(
     }
 
     Ok(data)
+}
+
+pub async fn clear_cache() {
+    cache().lock().await.clear();
 }
