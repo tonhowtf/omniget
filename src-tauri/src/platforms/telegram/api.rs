@@ -408,6 +408,7 @@ pub async fn list_media(
         }
     }
 
+    tracing::info!("[tg-perf] list_media completed in {:?}, found {} items", _t.elapsed(), items.len());
     Ok(items)
 }
 
@@ -419,7 +420,11 @@ pub async fn download_media(
     output_path: &Path,
     progress_tx: mpsc::Sender<f64>,
 ) -> anyhow::Result<u64> {
+    let _t = std::time::Instant::now();
     let guard = handle.lock().await;
+    if guard.client.is_none() {
+        tracing::warn!("[tg-perf] download_media: client is None (not authenticated)");
+    }
     let client = guard.client.as_ref()
         .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
         .clone();
@@ -450,6 +455,7 @@ pub async fn download_media(
         Media::Photo(photo) => photo.size().max(0) as u64,
         _ => 0,
     };
+    tracing::info!("[tg-perf] download_media: total_size={}", total_size);
 
     if let Some(parent) = output_path.parent() {
         tokio::fs::create_dir_all(parent).await?;
@@ -465,6 +471,7 @@ pub async fn download_media(
         while let Some(chunk) = download.next().await.map_err(|e| anyhow::anyhow!("{}", e))? {
             file.write_all(&chunk).await?;
             downloaded += chunk.len() as u64;
+            tracing::debug!("[tg-perf] chunk {} bytes, total so far: {}", chunk.len(), downloaded);
 
             if total_size > 0 {
                 let percent = (downloaded as f64 / total_size as f64) * 100.0;
@@ -495,6 +502,7 @@ pub async fn download_media(
         let _ = tokio::fs::remove_file(&tmp_path).await;
     }
 
+    tracing::info!("[tg-perf] download_media completed in {:?}", _t.elapsed());
     result
 }
 
@@ -524,6 +532,7 @@ pub async fn download_media_with_retry(
     progress_tx: mpsc::Sender<f64>,
     cancel_token: &CancellationToken,
 ) -> anyhow::Result<u64> {
+    let _t = std::time::Instant::now();
     const MAX_RETRIES: u32 = 5;
     const BASE_DELAY_SECS: u64 = 2;
 
@@ -535,7 +544,10 @@ pub async fn download_media_with_retry(
         };
 
         match result {
-            Ok(size) => return Ok(size),
+            Ok(size) => {
+                tracing::info!("[tg-perf] download_media_with_retry completed in {:?}", _t.elapsed());
+                return Ok(size);
+            }
             Err(e) => {
                 let err_str = e.to_string();
 
@@ -547,6 +559,7 @@ pub async fn download_media_with_retry(
                         attempt + 1, err_str
                     );
                 } else if !is_retryable_error(&err_str) {
+                    tracing::info!("[tg-perf] download_media_with_retry failed (non-retryable) in {:?}", _t.elapsed());
                     return Err(e);
                 }
 
@@ -561,6 +574,7 @@ pub async fn download_media_with_retry(
                         _ = cancel_token.cancelled() => return Err(anyhow::anyhow!("Download cancelled")),
                     }
                 } else {
+                    tracing::info!("[tg-perf] download_media_with_retry failed (max retries) in {:?}", _t.elapsed());
                     return Err(e);
                 }
             }
