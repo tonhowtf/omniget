@@ -162,6 +162,7 @@ async fn check_ytdlp_freshness(path: &Path) {
 }
 
 async fn find_ffmpeg_location() -> Option<String> {
+    let _timer_start = std::time::Instant::now();
     #[cfg(target_os = "windows")]
     let output = crate::core::process::command("where")
         .arg("ffmpeg.exe")
@@ -190,12 +191,14 @@ async fn find_ffmpeg_location() -> Option<String> {
         .ok()?;
 
     if !output.status.success() {
+        tracing::info!("[perf] find_ffmpeg_location took {:?}", _timer_start.elapsed());
         return None;
     }
 
     let path_str = String::from_utf8_lossy(&output.stdout);
     let first_line = path_str.lines().next()?.trim().to_string();
     if first_line.is_empty() {
+        tracing::info!("[perf] find_ffmpeg_location took {:?}", _timer_start.elapsed());
         return None;
     }
 
