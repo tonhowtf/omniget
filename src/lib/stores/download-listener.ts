@@ -72,6 +72,7 @@ type QueueItemProgressPayload = {
   speed_bytes_per_sec: number;
   downloaded_bytes: number;
   total_bytes: number | null;
+  phase: string;
 };
 
 type ConvertProgressPayload = {
@@ -209,6 +210,7 @@ export async function initDownloadListener(): Promise<() => void> {
         d.speed_bytes_per_sec,
         d.downloaded_bytes,
         d.total_bytes,
+        d.phase,
       );
     },
   );
