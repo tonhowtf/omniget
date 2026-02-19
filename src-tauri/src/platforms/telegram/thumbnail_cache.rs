@@ -42,15 +42,16 @@ impl ThumbnailCache {
             self.total_bytes -= old.data.len() as u64;
         }
 
-        while self.total_bytes + data_len > MAX_BYTES && !self.entries.is_empty() {
-            self.evict_oldest();
-        }
-
         self.total_bytes += data_len;
         self.entries.insert(key, CacheEntry {
             data,
             inserted_at: Instant::now(),
         });
+
+        if self.total_bytes > MAX_BYTES {
+            self.evict_expired();
+            self.evict_to_target();
+        }
     }
 
     fn evict_expired(&mut self) {
@@ -62,24 +63,53 @@ impl ThumbnailCache {
             .map(|(k, _)| *k)
             .collect();
 
+        if expired.is_empty() {
+            return;
+        }
+
+        let mut freed: u64 = 0;
+        let count = expired.len();
         for key in expired {
             if let Some(entry) = self.entries.remove(&key) {
+                freed += entry.data.len() as u64;
                 self.total_bytes -= entry.data.len() as u64;
             }
         }
+
+        tracing::debug!(
+            "[tg-cache] evicted {} expired entries, freed {} bytes",
+            count,
+            freed
+        );
     }
 
-    fn evict_oldest(&mut self) {
-        if let Some(oldest_key) = self
-            .entries
-            .iter()
-            .min_by_key(|(_, v)| v.inserted_at)
-            .map(|(k, _)| *k)
-        {
-            if let Some(entry) = self.entries.remove(&oldest_key) {
+    fn evict_to_target(&mut self) {
+        let target = MAX_BYTES * 3 / 4;
+        if self.total_bytes <= target {
+            return;
+        }
+
+        let mut by_age: Vec<(i64, i32)> = self.entries.keys().copied().collect();
+        by_age.sort_by_key(|k| self.entries[k].inserted_at);
+
+        let mut freed: u64 = 0;
+        let mut count: usize = 0;
+        for key in by_age {
+            if self.total_bytes <= target {
+                break;
+            }
+            if let Some(entry) = self.entries.remove(&key) {
+                freed += entry.data.len() as u64;
                 self.total_bytes -= entry.data.len() as u64;
+                count += 1;
             }
         }
+
+        tracing::debug!(
+            "[tg-cache] evicted {} entries for capacity, freed {} bytes",
+            count,
+            freed
+        );
     }
 }
 
