@@ -69,6 +69,12 @@
   // Single-file downloading (kept for individual downloads)
   let downloadingIds: Set<number> = $state(new Set());
 
+  let thumbnails: Map<number, string> = $state(new Map());
+  let thumbGeneration = 0;
+  let thumbActive = 0;
+  const THUMB_MAX_CONCURRENT = 5;
+  const thumbQueue: (() => void)[] = [];
+
   let filteredChats = $derived(
     chatSearch.trim()
       ? chats.filter((c) =>
@@ -292,6 +298,7 @@
     batchDone = 0;
     batchTotal = 0;
     downloadingIds = new Set();
+    resetThumbnails();
     hasMore = true;
     loadMedia();
   }
@@ -305,6 +312,7 @@
     batchDone = 0;
     batchTotal = 0;
     downloadingIds = new Set();
+    resetThumbnails();
     view = "chats";
   }
 
@@ -465,6 +473,80 @@
 
   function getItemPercent(messageId: number): number {
     return batchStatus.get(messageId)?.percent ?? 0;
+  }
+
+  function thumbAcquire(): Promise<void> {
+    if (thumbActive < THUMB_MAX_CONCURRENT) {
+      thumbActive++;
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      thumbQueue.push(() => {
+        thumbActive++;
+        resolve();
+      });
+    });
+  }
+
+  function thumbRelease() {
+    thumbActive--;
+    if (thumbQueue.length > 0) {
+      thumbQueue.shift()!();
+    }
+  }
+
+  async function getThumbnail(chatId: number, chatType: string, messageId: number): Promise<string | null> {
+    if (thumbnails.has(messageId)) return thumbnails.get(messageId)!;
+
+    const gen = thumbGeneration;
+    await thumbAcquire();
+    try {
+      if (gen !== thumbGeneration) return null;
+      if (thumbnails.has(messageId)) return thumbnails.get(messageId)!;
+
+      const result = await invoke<string>("telegram_get_thumbnail", { chatId, chatType, messageId });
+      if (gen !== thumbGeneration) return null;
+
+      thumbnails.set(messageId, result);
+      thumbnails = new Map(thumbnails);
+      return result;
+    } catch {
+      return null;
+    } finally {
+      thumbRelease();
+    }
+  }
+
+  function resetThumbnails() {
+    thumbnails = new Map();
+    thumbGeneration++;
+    thumbQueue.length = 0;
+  }
+
+  function observeThumbnail(node: HTMLElement, params: { messageId: number; mediaType: string }) {
+    if (!selectedChat) return;
+    if (params.mediaType !== "photo" && params.mediaType !== "video") return;
+    if (thumbnails.has(params.messageId)) return;
+
+    const chatId = selectedChat.id;
+    const chatType = selectedChat.chat_type;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          observer.disconnect();
+          getThumbnail(chatId, chatType, params.messageId);
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(node);
+
+    return {
+      destroy() {
+        observer.disconnect();
+      },
+    };
   }
 </script>
 
@@ -748,25 +830,33 @@
         {#each mediaItems as item (item.message_id)}
           {@const itemStatus = getItemStatus(item.message_id)}
           {@const itemPercent = getItemPercent(item.message_id)}
-          <div class="media-item">
-            <div class="media-icon">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                {#if item.media_type === "photo"}
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <path d="M21 15l-5-5L5 21" />
-                {:else if item.media_type === "video"}
-                  <rect x="2" y="5" width="20" height="14" rx="2" />
-                  <path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none" />
-                {:else if item.media_type === "audio"}
-                  <path d="M9 18V5l12-2v13" />
-                  <circle cx="6" cy="18" r="3" />
-                  <circle cx="18" cy="16" r="3" />
-                {:else}
-                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                  <path d="M14 2v6h6" />
-                {/if}
-              </svg>
+          <div class="media-item" use:observeThumbnail={{ messageId: item.message_id, mediaType: item.media_type }}>
+            <div class="media-icon" class:has-thumb={(item.media_type === "photo" || item.media_type === "video") && thumbnails.get(item.message_id)}>
+              {#if (item.media_type === "photo" || item.media_type === "video") && thumbnails.get(item.message_id)}
+                <img
+                  src="data:image/jpeg;base64,{thumbnails.get(item.message_id)}"
+                  alt=""
+                  class="thumb-img"
+                />
+              {:else}
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  {#if item.media_type === "photo"}
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <path d="M21 15l-5-5L5 21" />
+                  {:else if item.media_type === "video"}
+                    <rect x="2" y="5" width="20" height="14" rx="2" />
+                    <path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none" />
+                  {:else if item.media_type === "audio"}
+                    <path d="M9 18V5l12-2v13" />
+                    <circle cx="6" cy="18" r="3" />
+                    <circle cx="18" cy="16" r="3" />
+                  {:else}
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                    <path d="M14 2v6h6" />
+                  {/if}
+                </svg>
+              {/if}
             </div>
             <div class="media-info">
               <span class="media-name">{item.file_name}</span>
@@ -1239,15 +1329,29 @@
   }
 
   .media-icon {
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--button-elevated);
     border-radius: calc(var(--border-radius) - 2px);
     color: var(--gray);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .media-icon.has-thumb {
+    background: none;
+  }
+
+  .thumb-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    pointer-events: none;
   }
 
   .media-info {
