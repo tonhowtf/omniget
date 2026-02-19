@@ -267,6 +267,7 @@ export function upsertGenericProgress(
   speedBytesPerSec: number,
   downloadedBytes: number,
   totalBytes: number | null,
+  phase: string,
 ) {
   const now = Date.now();
   const existing = downloads.get(id);
@@ -285,6 +286,7 @@ export function upsertGenericProgress(
     speed,
     downloadedBytes,
     totalBytes,
+    phase,
     status: "downloading",
     startedAt: existing?.startedAt ?? now,
     lastUpdateAt: now,
