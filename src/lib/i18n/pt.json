@@ -195,6 +195,9 @@
       "organize_by_platform_desc": "Salvar arquivos em subpastas com o nome da plataforma",
       "download_subtitles": "Baixar legendas",
       "download_subtitles_desc": "Baixar legendas disponíveis junto com vídeos (YouTube)",
+      "hotkey_enabled": "Atalho global",
+      "hotkey_enabled_desc": "Baixar URL do clipboard com um atalho de teclado",
+      "hotkey_binding": "Tecla de atalho",
       "filename_template": "Template de nome",
       "filename_template_desc": "Template yt-dlp para nome dos arquivos baixados",
       "filename_template_preview": "Preview: {{preview}}"
