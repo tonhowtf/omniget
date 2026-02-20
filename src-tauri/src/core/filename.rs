@@ -82,4 +82,28 @@ mod tests {
             assert!(!result.contains(c), "char '{}' should be replaced", c);
         }
     }
+
+    #[test]
+    fn omniget_prefix_basic() {
+        let name = "omniget-My Video Title [abc123]";
+        let result = sanitize_path_component(name);
+        assert!(result.starts_with("omniget-"));
+        assert!(!result.contains(':'));
+    }
+
+    #[test]
+    fn omniget_prefix_with_special_chars() {
+        let name = "omniget-Video: \"Best\" <2024> [id]";
+        let result = sanitize_path_component(name);
+        assert!(result.starts_with("omniget-"));
+    }
+
+    #[test]
+    fn omniget_prefix_long_name() {
+        let long_title = "a".repeat(250);
+        let name = format!("omniget-{} [id]", long_title);
+        let result = sanitize_path_component(&name);
+        assert!(result.starts_with("omniget-"));
+        assert!(result.ends_with("[id]"));
+    }
 }
