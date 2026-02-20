@@ -21,7 +21,7 @@ pub async fn search_videos(
 ) -> Result<Vec<SearchResult>, String> {
     let ytdlp_path = ytdlp::ensure_ytdlp()
         .await
-        .map_err(|e| format!("yt-dlp indisponível: {}", e))?;
+        .map_err(|e| format!("yt-dlp unavailable: {}", e))?;
 
     let n = max_results.clamp(1, 20);
 
@@ -45,11 +45,11 @@ pub async fn search_videos(
         .stderr(std::process::Stdio::piped())
         .output()
         .await
-        .map_err(|e| format!("Falha ao executar yt-dlp: {}", e))?;
+        .map_err(|e| format!("Failed to run yt-dlp: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Busca falhou: {}", stderr.trim()));
+        return Err(format!("Search failed: {}", stderr.trim()));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
