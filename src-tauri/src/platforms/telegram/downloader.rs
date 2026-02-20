@@ -4,6 +4,7 @@ use tokio::sync::mpsc;
 
 use super::auth::TelegramSessionHandle;
 use crate::models::media::{DownloadOptions, DownloadResult, MediaInfo, MediaType, VideoQuality};
+use crate::models::settings::default_filename_template;
 use crate::platforms::traits::PlatformDownloader;
 
 pub struct TelegramDownloader {
@@ -256,8 +257,14 @@ impl PlatformDownloader for TelegramDownloader {
         let bare_id = peer_ref.id.bare_id();
         let peer_access_hash = peer_ref.auth.hash();
 
+        let use_prefix = opts
+            .filename_template
+            .as_deref()
+            .map_or(true, |t| t == default_filename_template());
+        let prefix = if use_prefix { "omniget-" } else { "" };
         let filename = format!(
-            "{}.{}",
+            "{}{}.{}",
+            prefix,
             sanitize_filename::sanitize(&info.title),
             quality.format
         );
