@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 use crate::core::filename;
 use crate::core::media_processor::MediaProcessor;
 use crate::models::media::{DownloadOptions, DownloadResult, MediaInfo, MediaType};
-use crate::models::settings::DownloadSettings;
+use crate::models::settings::{self, DownloadSettings};
 use crate::platforms::traits::PlatformDownloader;
 
 use super::api::{self, Course, Lesson};
@@ -128,6 +128,14 @@ impl HotmartDownloader {
         }
     }
 
+    fn filename_prefix(&self) -> &str {
+        if self.download_settings.filename_template == settings::default_filename_template() {
+            "omniget-"
+        } else {
+            ""
+        }
+    }
+
     pub async fn download_lesson(
         &self,
         session: &HotmartSession,
@@ -142,6 +150,7 @@ impl HotmartDownloader {
         tokio::fs::create_dir_all(output_dir).await?;
 
         if lesson.has_media {
+            let prefix = self.filename_prefix().to_string();
             let media_futures: Vec<_> = lesson.medias.iter().enumerate().map(|(i, media)| {
                 let media = media.clone();
                 let session = session.clone();
@@ -151,6 +160,7 @@ impl HotmartDownloader {
                 let hls_client = self.hls_client.clone();
                 let max_concurrent_segments = self.max_concurrent_segments;
                 let max_retries = self.max_retries;
+                let prefix = prefix.clone();
 
                 async move {
                     let mut paths: Vec<PathBuf> = Vec::new();
@@ -170,7 +180,7 @@ impl HotmartDownloader {
                             None => return paths,
                         };
 
-                        let out = format!("{}/{}. Aula.mp4", output_dir, i + 1);
+                        let out = format!("{}/{}{}. Aula.mp4", output_dir, prefix, i + 1);
 
                         if is_hls_file_valid(&out).await {
                             return paths;
@@ -220,8 +230,9 @@ impl HotmartDownloader {
 
                             let safe_name = filename::sanitize_path_component(&media.name);
                             let out = format!(
-                                "{}/{}. {}",
+                                "{}/{}{}. {}",
                                 output_dir,
+                                prefix,
                                 i + 1,
                                 if safe_name.is_empty() { "Audio.mp4".to_string() } else { safe_name }
                             );
@@ -260,6 +271,7 @@ impl HotmartDownloader {
 
         if let Some(html) = &lesson.content {
             let players = parser::detect_players_from_html(html);
+            let prefix2 = self.filename_prefix().to_string();
             let player_futures: Vec<_> = players.into_iter().enumerate().map(|(i, player)| {
                 let bytes_tx = bytes_tx.clone();
                 let cancel_token = cancel_token.clone();
@@ -269,6 +281,7 @@ impl HotmartDownloader {
                 let concurrent_fragments = self.concurrent_fragments;
                 let output_dir = output_dir.to_string();
                 let referer = referer.to_string();
+                let prefix = prefix2.clone();
 
                 async move {
                     let mut paths: Vec<PathBuf> = Vec::new();
@@ -277,7 +290,7 @@ impl HotmartDownloader {
                         return paths;
                     }
 
-                    let out = format!("{}/{}. Aula.mp4", output_dir, i + 1);
+                    let out = format!("{}/{}{}. Aula.mp4", output_dir, prefix, i + 1);
 
                     match player {
                         DetectedPlayer::Vimeo { embed_url } => {
