@@ -31,6 +31,11 @@ pub async fn check_dependencies() -> Result<Vec<DependencyStatus>, String> {
 }
 
 #[tauri::command]
+pub async fn check_ytdlp_available() -> Result<bool, String> {
+    Ok(crate::core::ytdlp::find_ytdlp().await.is_some())
+}
+
+#[tauri::command]
 pub async fn install_dependency(name: String) -> Result<String, String> {
     match name.as_str() {
         "yt-dlp" => {
