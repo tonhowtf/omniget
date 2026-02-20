@@ -193,6 +193,8 @@
       "clipboard_detection_desc": "Detectar URLs copiadas automaticamente",
       "organize_by_platform": "Organizar por plataforma",
       "organize_by_platform_desc": "Salvar arquivos em subpastas com o nome da plataforma",
+      "download_subtitles": "Baixar legendas",
+      "download_subtitles_desc": "Baixar legendas disponíveis junto com vídeos (YouTube)",
       "filename_template": "Template de nome",
       "filename_template_desc": "Template yt-dlp para nome dos arquivos baixados",
       "filename_template_preview": "Preview: {{preview}}"

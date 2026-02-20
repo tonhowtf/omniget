@@ -193,6 +193,8 @@
       "clipboard_detection_desc": "Auto-detect URLs copied to clipboard",
       "organize_by_platform": "Organize by platform",
       "organize_by_platform_desc": "Save files in subfolders named after the platform",
+      "download_subtitles": "Download subtitles",
+      "download_subtitles_desc": "Download available subtitles alongside videos (YouTube)",
       "filename_template": "Filename template",
       "filename_template_desc": "yt-dlp output template for downloaded files",
       "filename_template_preview": "Preview: {{preview}}"
