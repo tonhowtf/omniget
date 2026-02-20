@@ -34,8 +34,8 @@ pub async fn hotmart_login(
             Ok(response_email)
         }
         Err(e) => {
-            tracing::error!("Falha no login Hotmart: {}", e);
-            Err(format!("Falha no login: {}", e))
+            tracing::error!("Hotmart login failed: {}", e);
+            Err(format!("Login failed: {}", e))
         }
     }
 }
@@ -82,7 +82,7 @@ pub async fn hotmart_check_session(
         .form(&[("token", &token)])
         .send()
         .await
-        .map_err(|e| format!("Erro na validação: {}", e))?;
+        .map_err(|e| format!("Validation error: {}", e))?;
 
     if resp.status().is_success() {
         *state.session_validated_at.lock().await = Some(Instant::now());
