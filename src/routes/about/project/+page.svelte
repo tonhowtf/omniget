@@ -3,7 +3,7 @@
   import { t } from "$lib/i18n";
 
   const GITHUB_URL = "https://github.com/tonhowtf/omniget";
-  const APP_VERSION = "0.2.13";
+  const APP_VERSION = "0.2.14";
 
   async function openGitHub() {
     await open(GITHUB_URL);
