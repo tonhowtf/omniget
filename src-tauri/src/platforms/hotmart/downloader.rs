@@ -306,6 +306,7 @@ impl HotmartDownloader {
                                         cancel_token.clone(),
                                         None,
                                         concurrent_fragments,
+                                        false,
                                     ).await {
                                         Ok(result) => {
                                             let _ = bytes_tx.send(result.file_size_bytes);
@@ -376,6 +377,7 @@ impl HotmartDownloader {
                                         cancel_token.clone(),
                                         None,
                                         concurrent_fragments,
+                                        false,
                                     ).await {
                                         Ok(result) => {
                                             let _ = bytes_tx.send(result.file_size_bytes);
