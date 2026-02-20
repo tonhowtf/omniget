@@ -190,7 +190,7 @@ pub async fn telegram_download_media(
         let mut active = state.active_generic_downloads.lock().await;
         let key = format!("tg:{}:{}", chat_id, message_id);
         if active.values().any(|(u, _)| u == &key) {
-            return Err("Download já em andamento para esta mídia".to_string());
+            return Err("Download already in progress for this media".to_string());
         }
         active.insert(download_id, (key, cancel_token.clone()));
     }
