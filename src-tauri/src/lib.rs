@@ -197,6 +197,7 @@ pub fn run() {
             commands::convert::cancel_conversion,
             commands::convert::get_hwaccel_info,
             commands::dependencies::check_dependencies,
+            commands::dependencies::check_ytdlp_available,
             commands::dependencies::install_dependency,
             commands::search::search_videos,
             commands::platform_auth::platform_auth_check,
