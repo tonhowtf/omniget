@@ -1,3 +1,4 @@
+use crate::hotkey;
 use crate::models::settings::AppSettings;
 use crate::storage::config;
 
@@ -9,6 +10,9 @@ pub fn get_settings(app: tauri::AppHandle) -> Result<AppSettings, String> {
 #[tauri::command]
 pub fn update_settings(app: tauri::AppHandle, partial: String) -> Result<AppSettings, String> {
     let mut current = config::load_settings(&app);
+    let old_hotkey_enabled = current.download.hotkey_enabled;
+    let old_hotkey_binding = current.download.hotkey_binding.clone();
+
     let patch: serde_json::Value =
         serde_json::from_str(&partial).map_err(|e| format!("JSON inválido: {}", e))?;
     let mut current_val =
@@ -17,6 +21,13 @@ pub fn update_settings(app: tauri::AppHandle, partial: String) -> Result<AppSett
     current =
         serde_json::from_value(current_val).map_err(|e| format!("Deserialize: {}", e))?;
     config::save_settings(&app, &current).map_err(|e| format!("Save: {}", e))?;
+
+    if old_hotkey_enabled != current.download.hotkey_enabled
+        || old_hotkey_binding != current.download.hotkey_binding
+    {
+        hotkey::reregister(&app);
+    }
+
     Ok(current)
 }
 
@@ -24,6 +35,7 @@ pub fn update_settings(app: tauri::AppHandle, partial: String) -> Result<AppSett
 pub fn reset_settings(app: tauri::AppHandle) -> Result<AppSettings, String> {
     let defaults = AppSettings::default();
     config::save_settings(&app, &defaults).map_err(|e| format!("Save: {}", e))?;
+    hotkey::reregister(&app);
     Ok(defaults)
 }
 
