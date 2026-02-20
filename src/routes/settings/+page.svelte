@@ -95,10 +95,13 @@
 
   let templateInput = $state("");
   let templateTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+  let hotkeyInput = $state("");
+  let hotkeyTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 
   $effect(() => {
     if (settings) {
       templateInput = settings.download.filename_template;
+      hotkeyInput = settings.download.hotkey_binding;
     }
   });
 
@@ -122,6 +125,17 @@
     templateTimer = setTimeout(async () => {
       if (value.trim() && value.includes("%(ext)s")) {
         await updateSettings({ download: { filename_template: value } });
+      }
+    }, 800);
+  }
+
+  function handleHotkeyInput(e: Event) {
+    const value = (e.target as HTMLInputElement).value;
+    hotkeyInput = value;
+    if (hotkeyTimer) clearTimeout(hotkeyTimer);
+    hotkeyTimer = setTimeout(async () => {
+      if (value.trim()) {
+        await updateSettings({ download: { hotkey_binding: value } });
       }
     }, 800);
   }
@@ -329,6 +343,36 @@
             <span class="toggle-knob"></span>
           </button>
         </div>
+        <div class="divider"></div>
+        <div class="setting-row">
+          <div class="setting-col">
+            <span class="setting-label">{$t('settings.download.hotkey_enabled')}</span>
+            <span class="setting-path">{$t('settings.download.hotkey_enabled_desc')}</span>
+          </div>
+          <button
+            class="toggle"
+            class:on={settings.download.hotkey_enabled}
+            onclick={() => toggleBool("download", "hotkey_enabled", settings!.download.hotkey_enabled)}
+            role="switch"
+            aria-checked={settings.download.hotkey_enabled}
+            aria-label={$t('settings.download.hotkey_enabled')}
+          >
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+        {#if settings.download.hotkey_enabled}
+          <div class="divider"></div>
+          <div class="setting-row">
+            <span class="setting-label">{$t('settings.download.hotkey_binding')}</span>
+            <input
+              type="text"
+              class="input-hotkey"
+              value={hotkeyInput}
+              oninput={handleHotkeyInput}
+              spellcheck="false"
+            />
+          </div>
+        {/if}
         <div class="divider"></div>
         <div class="setting-row">
           <div class="setting-col">
@@ -654,6 +698,24 @@
   }
 
   .input-number:focus-visible {
+    border-color: var(--blue);
+    outline: none;
+  }
+
+  .input-hotkey {
+    width: 180px;
+    padding: calc(var(--padding) / 2);
+    font-size: 12.5px;
+    font-weight: 500;
+    background: var(--button-elevated);
+    border-radius: calc(var(--border-radius) / 2);
+    color: var(--secondary);
+    border: 1px solid var(--input-border);
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .input-hotkey:focus-visible {
     border-color: var(--blue);
     outline: none;
   }
