@@ -320,6 +320,7 @@ impl PlatformDownloader for YouTubeDownloader {
             opts.cancel_token.clone(),
             None,
             opts.concurrent_fragments,
+            opts.download_subtitles,
         )
         .await
     }
@@ -373,6 +374,7 @@ impl YouTubeDownloader {
                 opts.cancel_token.clone(),
                 None,
                 opts.concurrent_fragments,
+                opts.download_subtitles,
             )
             .await
             {
