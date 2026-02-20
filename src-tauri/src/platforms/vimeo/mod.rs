@@ -174,6 +174,7 @@ impl PlatformDownloader for VimeoDownloader {
             opts.cancel_token.clone(),
             None,
             opts.concurrent_fragments,
+            false,
         )
         .await
     }
