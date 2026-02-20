@@ -19,6 +19,8 @@ export type AppSettings = {
     filename_template: string;
     organize_by_platform: boolean;
     download_subtitles: boolean;
+    hotkey_enabled: boolean;
+    hotkey_binding: string;
   };
   advanced: {
     max_concurrent_segments: number;
