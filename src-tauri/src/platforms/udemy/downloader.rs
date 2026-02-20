@@ -128,7 +128,7 @@ impl UdemyDownloader {
                         0.0
                     },
                     current_chapter: chapter.title.clone(),
-                    current_lecture: lecture.title.clone(),
+                    current_lecture: format!("{}/{} - {}", lecture_num, chapter.lectures.len(), lecture.title),
                     downloaded_bytes,
                     total_lectures,
                     completed_lectures,
