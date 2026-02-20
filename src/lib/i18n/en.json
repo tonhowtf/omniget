@@ -375,6 +375,8 @@
     "cancel": "Cancel",
     "retry": "Retry",
     "close": "Close",
-    "error": "Error"
+    "error": "Error",
+    "ytdlp_missing": "yt-dlp is not installed. Install it in Settings to enable downloads.",
+    "go_to_settings": "Go to Settings"
   }
 }
