@@ -670,6 +670,7 @@ impl PlatformDownloader for InstagramDownloader {
                     opts.cancel_token.clone(),
                     None,
                     opts.concurrent_fragments,
+                    false,
                 )
                 .await;
             }
