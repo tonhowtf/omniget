@@ -20,6 +20,7 @@ fn bin_name(tool: &str) -> String {
 }
 
 pub async fn find_tool(tool: &str) -> Option<PathBuf> {
+    let _timer_start = std::time::Instant::now();
     let name = bin_name(tool);
     let version_flag = version_flag_for(tool);
 
@@ -27,6 +28,7 @@ pub async fn find_tool(tool: &str) -> Option<PathBuf> {
     {
         let flatpak_path = PathBuf::from("/app/bin").join(&name);
         if flatpak_path.exists() {
+            tracing::info!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
             return Some(flatpak_path);
         }
     }
@@ -39,15 +41,18 @@ pub async fn find_tool(tool: &str) -> Option<PathBuf> {
         .await
     {
         if status.success() {
+            tracing::info!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
             return Some(PathBuf::from(&name));
         }
     }
 
     let managed = managed_bin_dir()?.join(&name);
     if managed.exists() {
+        tracing::info!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
         return Some(managed);
     }
 
+    tracing::info!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
     None
 }
 
@@ -59,6 +64,7 @@ fn version_flag_for(tool: &str) -> &'static str {
 }
 
 pub async fn check_version(tool: &str) -> Option<String> {
+    let _timer_start = std::time::Instant::now();
     let path = find_tool(tool).await?;
     let version_flag = version_flag_for(tool);
     let output = crate::core::process::command(&path)
@@ -70,32 +76,31 @@ pub async fn check_version(tool: &str) -> Option<String> {
         .ok()?;
 
     if !output.status.success() {
+        tracing::info!("[perf] check_version({}) took {:?}", tool, _timer_start.elapsed());
         return None;
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let first_line = stdout.lines().next().unwrap_or("");
 
-    if tool == "ffmpeg" || tool == "ffprobe" {
-        return first_line
+    let result = if tool == "ffmpeg" || tool == "ffprobe" {
+        first_line
             .split_whitespace()
             .nth(2)
-            .map(|s| s.to_string());
-    }
-
-    if tool == "yt-dlp" {
-        return Some(first_line.trim().to_string());
-    }
-
-    // aria2c -v outputs: "aria2 version 1.37.0"
-    if tool == "aria2c" {
-        return first_line
+            .map(|s| s.to_string())
+    } else if tool == "yt-dlp" {
+        Some(first_line.trim().to_string())
+    } else if tool == "aria2c" {
+        first_line
             .split_whitespace()
             .nth(2)
-            .map(|s| s.to_string());
-    }
+            .map(|s| s.to_string())
+    } else {
+        Some(first_line.trim().to_string())
+    };
 
-    Some(first_line.trim().to_string())
+    tracing::info!("[perf] check_version({}) took {:?}", tool, _timer_start.elapsed());
+    result
 }
 
 pub async fn ensure_ffmpeg() -> anyhow::Result<PathBuf> {
