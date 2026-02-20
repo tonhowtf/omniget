@@ -10,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 
 pub mod commands;
 pub mod core;
+pub mod hotkey;
 pub mod models;
 pub mod platforms;
 pub mod storage;
@@ -127,10 +128,19 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        hotkey::on_hotkey_pressed(app);
+                    }
+                })
+                .build(),
+        )
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             tray::setup(app.handle())?;
+            hotkey::register_from_settings(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {
