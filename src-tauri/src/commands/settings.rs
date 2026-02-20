@@ -14,7 +14,7 @@ pub fn update_settings(app: tauri::AppHandle, partial: String) -> Result<AppSett
     let old_hotkey_binding = current.download.hotkey_binding.clone();
 
     let patch: serde_json::Value =
-        serde_json::from_str(&partial).map_err(|e| format!("JSON inválido: {}", e))?;
+        serde_json::from_str(&partial).map_err(|e| format!("Invalid JSON: {}", e))?;
     let mut current_val =
         serde_json::to_value(&current).map_err(|e| format!("Serialize: {}", e))?;
     merge_json(&mut current_val, &patch);
