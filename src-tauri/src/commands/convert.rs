@@ -114,9 +114,9 @@ pub async fn cancel_conversion(
     match map.remove(&conversion_id) {
         Some(token) => {
             token.cancel();
-            Ok("Conversão cancelada".to_string())
+            Ok("Conversion cancelled".to_string())
         }
-        None => Err("Nenhuma conversão ativa para este ID".to_string()),
+        None => Err("No active conversion for this ID".to_string()),
     }
 }
 
