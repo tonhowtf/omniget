@@ -578,6 +578,7 @@ pub async fn download_video(
     cancel_token: CancellationToken,
     cookie_file: Option<&Path>,
     concurrent_fragments: u32,
+    download_subtitles: bool,
 ) -> anyhow::Result<DownloadResult> {
     let _timer_start = std::time::Instant::now();
     let mode = download_mode.unwrap_or("auto");
@@ -733,6 +734,17 @@ pub async fn download_video(
     if cfg!(target_os = "windows") {
         base_args.push("--windows-filenames".to_string());
         base_args.push("--restrict-filenames".to_string());
+    }
+
+    if download_subtitles {
+        base_args.push("--write-sub".to_string());
+        base_args.push("--write-auto-sub".to_string());
+        base_args.push("--sub-lang".to_string());
+        base_args.push("en,pt,es".to_string());
+        base_args.push("--sub-format".to_string());
+        base_args.push("best".to_string());
+        base_args.push("--convert-subs".to_string());
+        base_args.push("srt".to_string());
     }
 
     let max_attempts: usize = 3;
