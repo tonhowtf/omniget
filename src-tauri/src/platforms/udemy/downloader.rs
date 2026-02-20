@@ -112,10 +112,12 @@ impl UdemyDownloader {
             let chapter_dir = course_dir.join(&chapter_dir_name);
             tokio::fs::create_dir_all(&chapter_dir).await?;
 
-            for lecture in &chapter.lectures {
+            for (lec_idx, lecture) in chapter.lectures.iter().enumerate() {
                 if cancel_token.is_cancelled() {
                     return Err(anyhow!("Download cancelled"));
                 }
+
+                let lecture_num = (lec_idx + 1) as u32;
 
                 let _ = progress_tx.send(UdemyCourseDownloadProgress {
                     course_id: course.id,
@@ -137,6 +139,7 @@ impl UdemyDownloader {
                     lecture,
                     &chapter_dir,
                     &cancel_token,
+                    lecture_num,
                 ).await;
 
                 match bytes {
@@ -182,6 +185,7 @@ impl UdemyDownloader {
         lecture: &api::UdemyLecture,
         chapter_dir: &Path,
         cancel_token: &CancellationToken,
+        lecture_num: u32,
     ) -> anyhow::Result<u64> {
         if lecture.lecture_class == "quiz" || lecture.lecture_class == "practice" {
             tracing::info!("[udemy] skipping {}: {}", lecture.lecture_class, lecture.title);
@@ -204,14 +208,15 @@ impl UdemyDownloader {
         match asset_type.as_str() {
             "video" => {
                 total_bytes += self.download_video_asset(
-                    session, asset, &lecture.title, chapter_dir, cancel_token
+                    session, asset, &lecture.title, chapter_dir, cancel_token, lecture_num
                 ).await?;
             }
             "article" => {
                 let body = asset.get("body").and_then(|v| v.as_str()).unwrap_or("");
                 if !body.is_empty() {
                     let file_name = format!(
-                        "{}.html",
+                        "{:02} - {}.html",
+                        lecture_num,
                         safe_filename(&lecture.title)
                     );
                     let file_path = chapter_dir.join(&file_name);
@@ -223,7 +228,7 @@ impl UdemyDownloader {
             }
             "file" | "e-book" | "presentation" | "audio" => {
                 total_bytes += self.download_downloadable_asset(
-                    session, asset, &lecture.title, chapter_dir
+                    session, asset, &lecture.title, chapter_dir, lecture_num
                 ).await?;
             }
             _ => {
@@ -252,7 +257,8 @@ impl UdemyDownloader {
 
                 let ext = if url.contains(".vtt") { "vtt" } else { "srt" };
                 let caption_name = format!(
-                    "{}_{}.{}",
+                    "{:02} - {}_{}.{}",
+                    lecture_num,
                     safe_filename(&lecture.title),
                     lang,
                     ext
@@ -277,7 +283,7 @@ impl UdemyDownloader {
         if let Some(assets) = supp_assets {
             for supp in assets {
                 total_bytes += self.download_supplementary_asset(
-                    session, supp, chapter_dir
+                    session, supp, chapter_dir, lecture_num
                 ).await.unwrap_or(0);
             }
         }
@@ -292,8 +298,9 @@ impl UdemyDownloader {
         title: &str,
         chapter_dir: &Path,
         cancel_token: &CancellationToken,
+        lecture_num: u32,
     ) -> anyhow::Result<u64> {
-        let file_name = format!("{}.mp4", safe_filename(title));
+        let file_name = format!("{:02} - {}.mp4", lecture_num, safe_filename(title));
         let file_path = chapter_dir.join(&file_name);
 
         if file_exists_with_content(&file_path).await {
@@ -393,6 +400,7 @@ impl UdemyDownloader {
         asset: &serde_json::Value,
         title: &str,
         chapter_dir: &Path,
+        lecture_num: u32,
     ) -> anyhow::Result<u64> {
         let filename = asset.get("filename")
             .and_then(|v| v.as_str())
@@ -423,9 +431,9 @@ impl UdemyDownloader {
         };
 
         let safe_name = if filename.is_empty() {
-            format!("{}.bin", safe_filename(title))
+            format!("{:02} - {}.bin", lecture_num, safe_filename(title))
         } else {
-            safe_filename(filename)
+            format!("{:02} - {}", lecture_num, safe_filename(filename))
         };
 
         let file_path = chapter_dir.join(&safe_name);
@@ -452,6 +460,7 @@ impl UdemyDownloader {
         session: &UdemySession,
         supp: &serde_json::Value,
         chapter_dir: &Path,
+        lecture_num: u32,
     ) -> anyhow::Result<u64> {
         let asset_type = supp.get("asset_type")
             .and_then(|v| v.as_str())
@@ -485,11 +494,12 @@ impl UdemyDownloader {
                     None => return Ok(0),
                 };
 
-                let safe_name = if filename.is_empty() {
+                let base = if filename.is_empty() {
                     safe_filename(title)
                 } else {
                     safe_filename(filename)
                 };
+                let safe_name = format!("{:02} - {}", lecture_num, base);
                 let file_path = chapter_dir.join(&safe_name);
 
                 if file_exists_with_content(&file_path).await {
@@ -503,11 +513,12 @@ impl UdemyDownloader {
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
                 if !external_url.is_empty() {
-                    let safe_name = if filename.is_empty() {
-                        format!("{}.url", safe_filename(title))
+                    let base = if filename.is_empty() {
+                        safe_filename(title)
                     } else {
-                        format!("{}.url", safe_filename(filename))
+                        safe_filename(filename)
                     };
+                    let safe_name = format!("{:02} - {}.url", lecture_num, base);
                     let file_path = chapter_dir.join(&safe_name);
                     if !file_exists_with_content(&file_path).await {
                         let content = format!("[InternetShortcut]\nURL={}", external_url);
