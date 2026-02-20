@@ -30,32 +30,38 @@ pub struct PlatformInfo {
 
 #[tauri::command]
 pub async fn detect_platform(url: String) -> Result<PlatformInfo, String> {
+    let _timer_start = std::time::Instant::now();
     match Platform::from_url(&url) {
         Some(platform) => {
             let parsed = url_parser::parse_url(&url);
-            Ok(PlatformInfo {
+            let result = Ok(PlatformInfo {
                 platform: platform.to_string(),
                 supported: true,
                 content_id: parsed.as_ref().and_then(|p| p.content_id.clone()),
                 content_type: parsed.map(|p| format!("{:?}", p.content_type).to_lowercase()),
-            })
+            });
+            tracing::info!("[perf] detect_platform took {:?}", _timer_start.elapsed());
+            result
         }
         None => {
             let is_valid_url = url::Url::parse(&url)
                 .map(|u| u.scheme() == "http" || u.scheme() == "https")
                 .unwrap_or(false);
-            Ok(PlatformInfo {
+            let result = Ok(PlatformInfo {
                 platform: if is_valid_url { "generic".to_string() } else { "unknown".to_string() },
                 supported: is_valid_url,
                 content_id: None,
                 content_type: None,
-            })
+            });
+            tracing::info!("[perf] detect_platform took {:?}", _timer_start.elapsed());
+            result
         }
     }
 }
 
 #[tauri::command]
 pub async fn get_media_formats(url: String) -> Result<Vec<FormatInfo>, String> {
+    let _timer_start = std::time::Instant::now();
     let ytdlp_path = ytdlp::ensure_ytdlp()
         .await
         .map_err(|e| format!("yt-dlp indisponível: {}", e))?;
@@ -64,6 +70,7 @@ pub async fn get_media_formats(url: String) -> Result<Vec<FormatInfo>, String> {
         .await
         .map_err(|e| format!("Falha ao obter formatos: {}", e))?;
 
+    tracing::info!("[perf] get_media_formats took {:?}", _timer_start.elapsed());
     Ok(ytdlp::parse_formats(&json))
 }
 
@@ -380,6 +387,7 @@ pub async fn start_course_download(
     course_json: String,
     output_dir: String,
 ) -> Result<String, String> {
+    let _timer_start = std::time::Instant::now();
     let course: Course =
         serde_json::from_str(&course_json).map_err(|e| format!("JSON inválido: {}", e))?;
 
@@ -453,6 +461,7 @@ pub async fn start_course_download(
         }
     });
 
+    tracing::info!("[perf] start_course_download took {:?}", _timer_start.elapsed());
     Ok(format!("Download iniciado: {}", course_name))
 }
 
