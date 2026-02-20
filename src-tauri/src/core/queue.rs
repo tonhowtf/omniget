@@ -376,7 +376,9 @@ pub fn spawn_download(
     item_id: u64,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> {
     Box::pin(async move {
+    let _timer_start = std::time::Instant::now();
     spawn_download_inner(app, queue, item_id).await;
+    tracing::info!("[perf] spawn_download {} took {:?}", item_id, _timer_start.elapsed());
     })
 }
 
@@ -694,6 +696,7 @@ pub async fn prefetch_info(
 }
 
 pub async fn try_start_next(app: tauri::AppHandle, queue: Arc<tokio::sync::Mutex<DownloadQueue>>) {
+    let _timer_start = std::time::Instant::now();
     let (next_ids, stagger) = {
         let mut q = queue.lock().await;
         let ids = q.next_queued_ids();
@@ -716,4 +719,5 @@ pub async fn try_start_next(app: tauri::AppHandle, queue: Arc<tokio::sync::Mutex
             spawn_download(app_c, queue_c, nid).await;
         });
     }
+    tracing::info!("[perf] try_start_next took {:?}", _timer_start.elapsed());
 }
