@@ -487,7 +487,7 @@ async fn spawn_download_inner(
         quality: Some(quality.unwrap_or(settings.download.video_quality.clone())),
         output_dir: final_output_dir,
         filename_template: Some(tmpl),
-        download_subtitles: false,
+        download_subtitles: settings.download.download_subtitles,
         download_mode,
         format_id,
         referer,
