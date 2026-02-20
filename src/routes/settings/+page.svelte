@@ -315,6 +315,23 @@
         <div class="divider"></div>
         <div class="setting-row">
           <div class="setting-col">
+            <span class="setting-label">{$t('settings.download.download_subtitles')}</span>
+            <span class="setting-path">{$t('settings.download.download_subtitles_desc')}</span>
+          </div>
+          <button
+            class="toggle"
+            class:on={settings.download.download_subtitles}
+            onclick={() => toggleBool("download", "download_subtitles", settings!.download.download_subtitles)}
+            role="switch"
+            aria-checked={settings.download.download_subtitles}
+            aria-label={$t('settings.download.download_subtitles')}
+          >
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+        <div class="divider"></div>
+        <div class="setting-row">
+          <div class="setting-col">
             <span class="setting-label">{$t('settings.download.clipboard_detection')}</span>
             <span class="setting-path">{$t('settings.download.clipboard_detection_desc')}</span>
           </div>
