@@ -1,7 +1,9 @@
 <script lang="ts">
   import "../app.css";
   import { page } from "$app/state";
+  import { goto } from "$app/navigation";
   import { onMount } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
   import { initDownloadListener } from "$lib/stores/download-listener";
   import { getActiveCount } from "$lib/stores/download-store.svelte";
   import { loadSettings, getSettings } from "$lib/stores/settings-store.svelte";
@@ -13,6 +15,9 @@
   import ChangelogDialog from "$components/dialog/ChangelogDialog.svelte";
   import { t } from "$lib/i18n";
   import type { Snippet } from "svelte";
+
+  let ytdlpMissing = $state(false);
+  let ytdlpDismissed = $state(false);
 
   async function openAuthorGithub(e: Event) {
     e.preventDefault();
@@ -41,6 +46,7 @@
     loadSettings();
     refreshUpdateInfo();
     initChangelog();
+    invoke<boolean>("check_ytdlp_available").then((ok) => { ytdlpMissing = !ok; }).catch(() => {});
 
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleChange = () => {
@@ -119,6 +125,19 @@
   </nav>
 
   <main class="content">
+    {#if ytdlpMissing && !ytdlpDismissed}
+      <div class="ytdlp-banner">
+        <span class="ytdlp-banner-text">{$t('common.ytdlp_missing')}</span>
+        <button class="button ytdlp-banner-link" onclick={() => goto('/settings#dependencies')}>
+          {$t('common.go_to_settings')}
+        </button>
+        <button class="ytdlp-banner-close" onclick={() => ytdlpDismissed = true}>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    {/if}
     {@render children()}
     <a
       href="https://github.com/tonhowtf"
@@ -240,6 +259,58 @@
   @media (hover: hover) {
     .watermark:hover {
       opacity: 0.7;
+    }
+  }
+
+  .ytdlp-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    margin-bottom: var(--padding);
+    background: var(--orange);
+    color: #000;
+    border-radius: var(--border-radius);
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+
+  .ytdlp-banner-text {
+    flex: 1;
+  }
+
+  .ytdlp-banner-link {
+    background: rgba(0, 0, 0, 0.15);
+    color: #000;
+    border: none;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: calc(var(--border-radius) - 4px);
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: none;
+  }
+
+  @media (hover: hover) {
+    .ytdlp-banner-link:hover {
+      background: rgba(0, 0, 0, 0.25);
+    }
+  }
+
+  .ytdlp-banner-close {
+    background: none;
+    border: none;
+    color: #000;
+    cursor: pointer;
+    padding: 2px;
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+  }
+
+  @media (hover: hover) {
+    .ytdlp-banner-close:hover {
+      opacity: 1;
     }
   }
 </style>
