@@ -98,7 +98,7 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
 
 async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
     let target = managed_ytdlp_path()
-        .ok_or_else(|| anyhow!("Não foi possível determinar diretório de dados"))?;
+        .ok_or_else(|| anyhow!("Could not determine data directory"))?;
 
     if let Some(parent) = target.parent() {
         tokio::fs::create_dir_all(parent).await?;
@@ -122,7 +122,7 @@ async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
 
     if !response.status().is_success() {
         return Err(anyhow!(
-            "Falha ao baixar yt-dlp: HTTP {}",
+            "Failed to download yt-dlp: HTTP {}",
             response.status()
         ));
     }
@@ -377,10 +377,10 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| anyhow!("Falha ao executar yt-dlp: {}", e))?;
+        .map_err(|e| anyhow!("Failed to run yt-dlp: {}", e))?;
     tracing::info!("[perf] get_video_info: yt-dlp process spawned at {:?}", _timer_start.elapsed());
 
-    let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("Sem stderr"))?;
+    let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;
     let stderr_reader = tokio::spawn(async move {
         let mut buf = String::new();
         let mut lines = BufReader::new(stderr_pipe).lines();
@@ -406,11 +406,11 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
     .await
     .map_err(|_| {
         tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-        anyhow!("Timeout ao obter informações do vídeo (30s)")
+        anyhow!("Timeout fetching video info (30s)")
     })?
     .map_err(|e| {
         tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-        anyhow!("Falha ao executar yt-dlp: {}", e)
+        anyhow!("Failed to run yt-dlp: {}", e)
     })?;
 
     let stderr_content = stderr_reader.await.unwrap_or_default();
@@ -423,11 +423,11 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
             stderr_content
         };
         tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-        return Err(anyhow!("yt-dlp falhou: {}", stderr.trim()));
+        return Err(anyhow!("yt-dlp failed: {}", stderr.trim()));
     }
 
     let json: serde_json::Value = serde_json::from_slice(&result.stdout)
-        .map_err(|e| anyhow!("yt-dlp retornou JSON inválido: {}", e))?;
+        .map_err(|e| anyhow!("yt-dlp returned invalid JSON: {}", e))?;
 
     tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
     Ok(json)
@@ -465,12 +465,12 @@ pub async fn get_playlist_info(
             .output(),
     )
     .await
-    .map_err(|_| anyhow!("Timeout ao obter playlist (120s)"))?
-    .map_err(|e| anyhow!("Falha ao executar yt-dlp: {}", e))?;
+    .map_err(|_| anyhow!("Timeout fetching playlist (120s)"))?
+    .map_err(|e| anyhow!("Failed to run yt-dlp: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow!("yt-dlp playlist falhou: {}", stderr.trim()));
+        return Err(anyhow!("yt-dlp playlist failed: {}", stderr.trim()));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -755,7 +755,7 @@ pub async fn download_video(
         tracing::info!("[yt-dlp] download attempt {}/{}", attempt + 1, max_attempts);
         if cancel_token.is_cancelled() {
             tracing::info!("[perf] download_video took {:?}", _timer_start.elapsed());
-            anyhow::bail!("Download cancelado");
+            anyhow::bail!("Download cancelled");
         }
 
         if attempt > 0 {
@@ -801,11 +801,11 @@ pub async fn download_video(
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| anyhow!("Falha ao iniciar yt-dlp: {}", e))?;
+            .map_err(|e| anyhow!("Failed to start yt-dlp: {}", e))?;
         tracing::info!("[perf] download_video: yt-dlp process spawned at {:?} (attempt {})", _timer_start.elapsed(), attempt + 1);
 
-        let stdout = child.stdout.take().ok_or_else(|| anyhow!("Sem stdout"))?;
-        let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("Sem stderr"))?;
+        let stdout = child.stdout.take().ok_or_else(|| anyhow!("No stdout"))?;
+        let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;
 
         let reader = BufReader::new(stdout);
         let mut lines = reader.lines();
@@ -870,14 +870,14 @@ pub async fn download_video(
         });
 
         let status = tokio::select! {
-            s = child.wait() => s.map_err(|e| anyhow!("yt-dlp processo falhou: {}", e))?,
+            s = child.wait() => s.map_err(|e| anyhow!("yt-dlp process failed: {}", e))?,
             _ = cancel_token.cancelled() => {
                 let _ = child.kill().await;
                 let _ = line_reader.await;
                 let _ = stderr_reader.await;
                 cleanup_part_files(output_dir).await;
                 tracing::info!("[perf] download_video took {:?}", _timer_start.elapsed());
-                anyhow::bail!("Download cancelado");
+                anyhow::bail!("Download cancelled");
             }
         };
 
@@ -1042,45 +1042,45 @@ fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
 
     if lower.contains("http error 429") {
         return anyhow!(
-            "Servidor retornou erro 429 (muitas requisições). Tente novamente mais tarde."
+            "Server returned error 429 (too many requests). Try again later."
         );
     }
     if lower.contains("http error 403") || lower.contains("forbidden") {
-        return anyhow!("Acesso negado (403). O vídeo pode ser privado ou restrito por região.");
+        return anyhow!("Access denied (403). The video may be private or region-restricted.");
     }
     if lower.contains("sign in to confirm") || lower.contains("login required") {
-        return anyhow!("Vídeo requer login. Use cookies do navegador ou tente outro URL.");
+        return anyhow!("Video requires login. Use browser cookies or try another URL.");
     }
     if lower.contains("nsig extraction failed") || lower.contains("nsig") {
-        return anyhow!("Falha na extração do vídeo. Atualize o yt-dlp ou tente novamente.");
+        return anyhow!("Video extraction failed. Update yt-dlp or try again.");
     }
     if lower.contains("video unavailable") || lower.contains("not available") {
-        return anyhow!("Vídeo indisponível ou removido.");
+        return anyhow!("Video unavailable or removed.");
     }
     if lower.contains("private video") {
-        return anyhow!("Este vídeo é privado.");
+        return anyhow!("This video is private.");
     }
     if lower.contains("copyright") {
-        return anyhow!("Vídeo bloqueado por direitos autorais.");
+        return anyhow!("Video blocked due to copyright.");
     }
     if lower.contains("geo") && lower.contains("block") {
-        return anyhow!("Vídeo restrito na sua região.");
+        return anyhow!("Video restricted in your region.");
     }
     if lower.contains("timed out") || lower.contains("timeout") {
-        return anyhow!("Conexão expirou. Verifique sua internet e tente novamente.");
+        return anyhow!("Connection timed out. Check your internet and try again.");
     }
     if lower.contains("ffmpeg") && (lower.contains("not found") || lower.contains("no such file"))
     {
-        return anyhow!("FFmpeg não encontrado. Instale o FFmpeg para baixar este formato.");
+        return anyhow!("FFmpeg not found. Install FFmpeg to download this format.");
     }
     if lower.contains("unsupported url") || lower.contains("no suitable infojson") {
-        return anyhow!("URL não suportada. Verifique se o link está correto.");
+        return anyhow!("Unsupported URL. Check that the link is correct.");
     }
     if lower.contains("unable to download") && lower.contains("webpage") {
-        return anyhow!("Falha ao acessar a página. Verifique o link e sua conexão.");
+        return anyhow!("Failed to access the page. Check the link and your connection.");
     }
     if lower.contains("is not a valid url") || lower.contains("no video formats") {
-        return anyhow!("Nenhum formato de vídeo encontrado neste link.");
+        return anyhow!("No video formats found for this link.");
     }
 
     let last_error_line = stderr
@@ -1172,7 +1172,7 @@ async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow::Result<Pa
         .into_iter()
         .next()
         .map(|(p, _, _)| p)
-        .ok_or_else(|| anyhow!("Arquivo baixado não encontrado em {:?}", output_dir))
+        .ok_or_else(|| anyhow!("Downloaded file not found in {:?}", output_dir))
 }
 
 pub fn parse_formats(json: &serde_json::Value) -> Vec<FormatInfo> {
@@ -1420,25 +1420,25 @@ mod tests {
     #[test]
     fn translate_error_nsig() {
         let err = translate_ytdlp_error("nsig extraction failed");
-        assert!(err.to_string().contains("extração"));
+        assert!(err.to_string().contains("extraction"));
     }
 
     #[test]
     fn translate_error_unavailable() {
         let err = translate_ytdlp_error("Video unavailable");
-        assert!(err.to_string().contains("indisponível"));
+        assert!(err.to_string().contains("unavailable"));
     }
 
     #[test]
     fn translate_error_private() {
         let err = translate_ytdlp_error("This is a private video");
-        assert!(err.to_string().contains("privado"));
+        assert!(err.to_string().contains("private"));
     }
 
     #[test]
     fn translate_error_timeout() {
         let err = translate_ytdlp_error("Connection timed out");
-        assert!(err.to_string().contains("expirou"));
+        assert!(err.to_string().contains("timed out"));
     }
 
     #[test]
