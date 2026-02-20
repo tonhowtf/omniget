@@ -37,6 +37,10 @@ pub struct DownloadSettings {
     pub organize_by_platform: bool,
     #[serde(default)]
     pub download_subtitles: bool,
+    #[serde(default)]
+    pub hotkey_enabled: bool,
+    #[serde(default = "default_hotkey_binding")]
+    pub hotkey_binding: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +73,10 @@ fn default_true() -> bool {
 
 fn default_filename_template() -> String {
     "%(title).200s [%(id)s].%(ext)s".into()
+}
+
+fn default_hotkey_binding() -> String {
+    "CmdOrCtrl+Shift+D".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,6 +115,8 @@ impl Default for AppSettings {
                 filename_template: default_filename_template(),
                 organize_by_platform: false,
                 download_subtitles: false,
+                hotkey_enabled: false,
+                hotkey_binding: default_hotkey_binding(),
             },
             advanced: AdvancedSettings {
                 max_concurrent_segments: 20,
