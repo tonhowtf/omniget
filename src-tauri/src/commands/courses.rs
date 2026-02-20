@@ -9,7 +9,7 @@ async fn fetch_courses_from_api(state: &tauri::State<'_, AppState>) -> Result<Ve
     let guard = state.hotmart_session.lock().await;
     let session = guard
         .as_ref()
-        .ok_or_else(|| "Não autenticado. Faça login primeiro.".to_string())?;
+        .ok_or_else(|| "Not authenticated. Please log in first.".to_string())?;
 
     let subdomains = api::get_subdomains(session).await.unwrap_or_default();
 
@@ -68,7 +68,7 @@ pub async fn hotmart_get_modules(
     let guard = state.hotmart_session.lock().await;
     let session = guard
         .as_ref()
-        .ok_or_else(|| "Não autenticado. Faça login primeiro.".to_string())?;
+        .ok_or_else(|| "Not authenticated. Please log in first.".to_string())?;
 
     api::get_modules(session, &slug, course_id)
         .await
