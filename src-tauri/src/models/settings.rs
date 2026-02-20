@@ -35,6 +35,8 @@ pub struct DownloadSettings {
     pub filename_template: String,
     #[serde(default)]
     pub organize_by_platform: bool,
+    #[serde(default)]
+    pub download_subtitles: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,6 +106,7 @@ impl Default for AppSettings {
                 clipboard_detection: false,
                 filename_template: default_filename_template(),
                 organize_by_platform: false,
+                download_subtitles: false,
             },
             advanced: AdvancedSettings {
                 max_concurrent_segments: 20,
