@@ -18,6 +18,7 @@ export type AppSettings = {
     clipboard_detection: boolean;
     filename_template: string;
     organize_by_platform: boolean;
+    download_subtitles: boolean;
   };
   advanced: {
     max_concurrent_segments: number;
