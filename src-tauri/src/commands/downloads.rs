@@ -64,11 +64,11 @@ pub async fn get_media_formats(url: String) -> Result<Vec<FormatInfo>, String> {
     let _timer_start = std::time::Instant::now();
     let ytdlp_path = ytdlp::ensure_ytdlp()
         .await
-        .map_err(|e| format!("yt-dlp indisponível: {}", e))?;
+        .map_err(|e| format!("yt-dlp unavailable: {}", e))?;
 
     let json = ytdlp::get_video_info(&ytdlp_path, &url)
         .await
-        .map_err(|e| format!("Falha ao obter formatos: {}", e))?;
+        .map_err(|e| format!("Failed to get formats: {}", e))?;
 
     tracing::info!("[perf] get_media_formats took {:?}", _timer_start.elapsed());
     Ok(ytdlp::parse_formats(&json))
@@ -108,7 +108,7 @@ pub async fn download_from_url(
         q.stagger_delay_ms = settings.advanced.stagger_delay_ms;
         if q.has_url(&url) {
             tracing::info!("[perf] download_from_url took {:?}", _timer_start.elapsed());
-            return Err("Download já em andamento para esta URL".to_string());
+            return Err("Download already in progress for this URL".to_string());
         }
     }
 
@@ -116,7 +116,7 @@ pub async fn download_from_url(
         Some(d) => d,
         None => {
             tracing::info!("[perf] download_from_url took {:?}", _timer_start.elapsed());
-            return Err("Nenhum downloader disponível para esta URL".to_string());
+            return Err("No downloader available for this URL".to_string());
         }
     };
 
@@ -216,9 +216,9 @@ pub async fn cancel_generic_download(
         emit_queue_state(&app, &q);
         drop(q);
         queue::try_start_next(app, state.download_queue.clone()).await;
-        Ok("Download cancelado".to_string())
+        Ok("Download cancelled".to_string())
     } else {
-        Err("Nenhum download ativo para este ID".to_string())
+        Err("No active download for this ID".to_string())
     }
 }
 
@@ -233,9 +233,9 @@ pub async fn pause_download(
         emit_queue_state(&app, &q);
         drop(q);
         queue::try_start_next(app, state.download_queue.clone()).await;
-        Ok("Download pausado".to_string())
+        Ok("Download paused".to_string())
     } else {
-        Err("Download não pode ser pausado".to_string())
+        Err("Download cannot be paused".to_string())
     }
 }
 
@@ -250,9 +250,9 @@ pub async fn resume_download(
         emit_queue_state(&app, &q);
         drop(q);
         queue::try_start_next(app, state.download_queue.clone()).await;
-        Ok("Download retomado".to_string())
+        Ok("Download resumed".to_string())
     } else {
-        Err("Download não pode ser retomado".to_string())
+        Err("Download cannot be resumed".to_string())
     }
 }
 
@@ -267,9 +267,9 @@ pub async fn retry_download(
         emit_queue_state(&app, &q);
         drop(q);
         queue::try_start_next(app, state.download_queue.clone()).await;
-        Ok("Download reenfileirado".to_string())
+        Ok("Download re-queued".to_string())
     } else {
-        Err("Download não pode ser retentado".to_string())
+        Err("Download cannot be retried".to_string())
     }
 }
 
@@ -284,9 +284,9 @@ pub async fn remove_download(
         emit_queue_state(&app, &q);
         drop(q);
         queue::try_start_next(app, state.download_queue.clone()).await;
-        Ok("Download removido".to_string())
+        Ok("Download removed".to_string())
     } else {
-        Err("Download não encontrado".to_string())
+        Err("Download not found".to_string())
     }
 }
 
@@ -305,7 +305,7 @@ pub async fn update_max_concurrent(
     max: u32,
 ) -> Result<String, String> {
     if max < 1 || max > 10 {
-        return Err("Valor deve ser entre 1 e 10".to_string());
+        return Err("Value must be between 1 and 10".to_string());
     }
     let mut q = state.download_queue.lock().await;
     q.max_concurrent = max;
@@ -323,7 +323,7 @@ pub async fn clear_finished_downloads(
     let mut q = state.download_queue.lock().await;
     q.clear_finished();
     emit_queue_state(&app, &q);
-    Ok("Finalizados removidos".to_string())
+    Ok("Finished downloads cleared".to_string())
 }
 
 #[tauri::command]
@@ -389,7 +389,7 @@ pub async fn start_course_download(
 ) -> Result<String, String> {
     let _timer_start = std::time::Instant::now();
     let course: Course =
-        serde_json::from_str(&course_json).map_err(|e| format!("JSON inválido: {}", e))?;
+        serde_json::from_str(&course_json).map_err(|e| format!("Invalid JSON: {}", e))?;
 
     let course_name = course.name.clone();
     let course_id = course.id;
@@ -401,7 +401,7 @@ pub async fn start_course_download(
     {
         let mut map = active.lock().await;
         if map.contains_key(&course_id) {
-            return Err("Download já em andamento para este curso".to_string());
+            return Err("Download already in progress for this course".to_string());
         }
         map.insert(course_id, cancel_token.clone());
     }
@@ -448,7 +448,7 @@ pub async fn start_course_download(
                 );
             }
             Err(e) => {
-                tracing::error!("Erro no download de '{}': {}", course.name, e);
+                tracing::error!("Download error for '{}': {}", course.name, e);
                 let _ = app.emit(
                     "download-complete",
                     &DownloadCompleteEvent {
@@ -462,7 +462,7 @@ pub async fn start_course_download(
     });
 
     tracing::info!("[perf] start_course_download took {:?}", _timer_start.elapsed());
-    Ok(format!("Download iniciado: {}", course_name))
+    Ok(format!("Download started: {}", course_name))
 }
 
 #[tauri::command]
@@ -474,9 +474,9 @@ pub async fn cancel_course_download(
     match map.remove(&course_id) {
         Some(token) => {
             token.cancel();
-            Ok("Download cancelado".to_string())
+            Ok("Download cancelled".to_string())
         }
-        None => Err("Nenhum download ativo para este curso".to_string()),
+        None => Err("No active download for this course".to_string()),
     }
 }
 
