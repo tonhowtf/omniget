@@ -208,6 +208,7 @@ impl PlatformDownloader for GenericYtdlpDownloader {
             opts.cancel_token.clone(),
             None,
             opts.concurrent_fragments,
+            opts.download_subtitles,
         )
         .await
     }
