@@ -7,6 +7,13 @@ use crate::platforms::Platform;
 use crate::storage::config;
 use crate::AppState;
 
+pub fn reregister(app: &tauri::AppHandle) {
+    if let Err(e) = app.global_shortcut().unregister_all() {
+        tracing::warn!("Failed to unregister hotkeys: {}", e);
+    }
+    register_from_settings(app);
+}
+
 pub fn register_from_settings(app: &tauri::AppHandle) {
     let settings = config::load_settings(app);
     if !settings.download.hotkey_enabled {
