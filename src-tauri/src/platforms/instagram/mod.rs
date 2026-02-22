@@ -51,6 +51,12 @@ struct GqlParams {
     bloks_version_id: String,
 }
 
+impl Default for InstagramDownloader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InstagramDownloader {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
