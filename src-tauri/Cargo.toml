@@ -61,7 +61,7 @@ tar = "0.4"
 xz2 = "0.1"
 sha2 = "0.10"
 open = "5"
-omniget-core = { path = "omniget-core" }
+omniget-core = { path = "omniget-core", features = ["desktop"] }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-process = "2.3.1"

@@ -6,6 +6,11 @@ edition = "2021"
 [lib]
 name = "omniget_core"
 
+[features]
+default = ["desktop"]
+desktop = []
+mobile = []
+
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", features = ["json", "cookies", "stream", "http2", "gzip", "brotli", "deflate"] }
