@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use tauri::Emitter;
 
 use platforms::hotmart::api::Course;
 use platforms::hotmart::auth::HotmartSession;
@@ -120,6 +121,14 @@ pub fn run() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            tray::show_window(app);
+            if let Some(url) = argv.get(1) {
+                if url.starts_with("http://") || url.starts_with("https://") {
+                    let _ = app.emit("deep-link", url.clone());
+                }
+            }
+        }))
         .manage(state)
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::default().build())
