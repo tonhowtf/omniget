@@ -47,7 +47,7 @@ pub fn get_autostart_enabled() -> Result<bool, String> {
             .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map_err(|e| format!("reg query failed: {e}"))?;
-        return Ok(output.status.success());
+        Ok(output.status.success())
     }
     #[cfg(not(windows))]
     Ok(false)
