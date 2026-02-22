@@ -5,7 +5,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { initDownloadListener } from "$lib/stores/download-listener";
-  import { getActiveCount } from "$lib/stores/download-store.svelte";
+  import { getActiveCount, getBadgeCount } from "$lib/stores/download-store.svelte";
   import { loadSettings, getSettings } from "$lib/stores/settings-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
   import { open } from "@tauri-apps/plugin-shell";
@@ -28,6 +28,8 @@
   }
 
   let activeCount = $derived(getActiveCount());
+  let badgeCount = $derived(getBadgeCount());
+  let badgeLabel = $derived(badgeCount > 99 ? "99+" : String(badgeCount));
   let settings = $derived(getSettings());
 
   $effect(() => {
@@ -120,8 +122,8 @@
             <path d="M12 16v-4m0-4h.01" />
           {/if}
         </svg>
-        {#if item.icon === "downloads" && activeCount > 0}
-          <span class="badge">{activeCount}</span>
+        {#if item.icon === "downloads" && badgeCount > 0}
+          <span class="badge">{badgeLabel}</span>
         {/if}
       </a>
     {/each}
@@ -236,7 +238,7 @@
     text-align: center;
     color: #fff;
     background: var(--blue);
-    border-radius: 50%;
+    border-radius: 9999px;
     pointer-events: none;
   }
 
