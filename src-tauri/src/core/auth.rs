@@ -545,6 +545,12 @@ pub struct AuthRegistry {
     providers: Vec<Arc<dyn PlatformAuth>>,
 }
 
+impl Default for AuthRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AuthRegistry {
     pub fn new() -> Self {
         Self {
