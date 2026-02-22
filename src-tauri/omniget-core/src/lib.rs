@@ -1,2 +1,2 @@
-pub mod platform;
+pub mod platforms;
 pub mod models;
