@@ -369,7 +369,7 @@ pub struct QueueItemProgress {
 
 pub fn emit_queue_state(app: &tauri::AppHandle, queue: &DownloadQueue) {
     let n = EMIT_COUNT.fetch_add(1, Ordering::Relaxed);
-    if n % 10 == 0 {
+    if n.is_multiple_of(10) {
         tracing::info!("[perf] emit_queue_state called {} times", n);
     }
     let state = queue.get_state();
