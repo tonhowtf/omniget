@@ -390,10 +390,19 @@
     "done_title": "All set!",
     "done_desc": "You're ready to start downloading. You can change these settings anytime."
   },
+  "hints": {
+    "omnibox": "Paste the URL of the video or media you want to download here.",
+    "telegram": "Connect your Telegram account to download media from channels and groups.",
+    "hotkey": "Global hotkey: automatically downloads the URL currently in your clipboard.",
+    "clipboard": "Detects URLs automatically when you copy a link and fills the omnibox.",
+    "downloads_empty": "Your downloads will appear here. Go to the home page to start.",
+    "convert": "Convert media files between formats using FFmpeg."
+  },
   "common": {
     "cancel": "Cancel",
     "retry": "Retry",
     "close": "Close",
+    "hint": "Hint",
     "error": "Error",
     "ytdlp_missing": "yt-dlp is not installed. Install it in Settings to enable downloads.",
     "go_to_settings": "Go to Settings"

@@ -390,10 +390,19 @@
     "done_title": "Tudo pronto!",
     "done_desc": "Você está pronto para começar a baixar. Você pode alterar essas configurações a qualquer momento."
   },
+  "hints": {
+    "omnibox": "Cole aqui a URL do vídeo ou mídia que deseja baixar.",
+    "telegram": "Conecte sua conta Telegram para baixar mídias de canais e grupos.",
+    "hotkey": "Atalho global: baixa automaticamente a URL que está no seu clipboard.",
+    "clipboard": "Detecta URLs automaticamente quando você copia um link e preenche a omnibox.",
+    "downloads_empty": "Seus downloads aparecerão aqui. Volte à página inicial para começar.",
+    "convert": "Converta arquivos de mídia entre formatos usando FFmpeg."
+  },
   "common": {
     "cancel": "Cancelar",
     "retry": "Tentar novamente",
     "close": "Fechar",
+    "hint": "Dica",
     "error": "Erro",
     "ytdlp_missing": "yt-dlp não está instalado. Instale nas Configurações para habilitar downloads.",
     "go_to_settings": "Ir para Configurações"
