@@ -3,6 +3,7 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import ContextHint from "$components/hints/ContextHint.svelte";
   import {
     getFiles,
     getOptions,
@@ -205,7 +206,7 @@
 
   {#if files.length === 0}
     <div class="empty">
-      <span class="empty-text">{$t('convert.empty')}</span>
+      <span class="empty-text">{$t('convert.empty')} <ContextHint text={$t('hints.convert')} dismissKey="convert" /></span>
     </div>
   {:else}
     <section class="section">
