@@ -1,5 +1,5 @@
 pub mod auth;
-pub mod registry;
+pub use omniget_core::core::registry;
 pub mod media_processor;
 pub mod hls_downloader;
 pub mod direct_downloader;
