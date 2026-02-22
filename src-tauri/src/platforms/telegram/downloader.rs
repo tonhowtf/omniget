@@ -260,7 +260,7 @@ impl PlatformDownloader for TelegramDownloader {
         let use_prefix = opts
             .filename_template
             .as_deref()
-            .map_or(true, |t| t == default_filename_template());
+            .is_none_or(|t| t == default_filename_template());
         let prefix = if use_prefix { "omniget-" } else { "" };
         let filename = format!(
             "{}{}.{}",
