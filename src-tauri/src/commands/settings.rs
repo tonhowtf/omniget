@@ -50,7 +50,7 @@ pub fn mark_onboarding_complete(app: tauri::AppHandle) -> Result<(), String> {
 fn merge_json(base: &mut serde_json::Value, patch: &serde_json::Value) {
     if let (Some(base_obj), Some(patch_obj)) = (base.as_object_mut(), patch.as_object()) {
         for (key, value) in patch_obj {
-            if value.is_object() && base_obj.get(key).map_or(false, |v| v.is_object()) {
+            if value.is_object() && base_obj.get(key).is_some_and(|v| v.is_object()) {
                 merge_json(base_obj.get_mut(key).unwrap(), value);
             } else {
                 base_obj.insert(key.clone(), value.clone());
