@@ -29,6 +29,12 @@ pub struct TelegramState {
     pub peer_hashes: HashMap<i64, i64>,
 }
 
+impl Default for TelegramState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TelegramState {
     pub fn new() -> Self {
         Self {
