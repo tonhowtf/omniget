@@ -6,7 +6,7 @@ use std::sync::{Arc, OnceLock};
 static EMIT_COUNT: AtomicU64 = AtomicU64::new(0);
 
 use serde::Serialize;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -376,6 +376,14 @@ pub fn emit_queue_state(app: &tauri::AppHandle, queue: &DownloadQueue) {
     let _ = app.emit("queue-state-update", &state);
     let total = crate::tray::compute_total_active(app);
     crate::tray::update_active_count(app, total);
+    if let Some(window) = app.get_webview_window("main") {
+        let title = if total > 0 {
+            format!("({}) omniget", total)
+        } else {
+            "omniget".into()
+        };
+        let _ = window.set_title(&title);
+    }
 }
 
 pub fn spawn_download(
