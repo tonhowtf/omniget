@@ -33,6 +33,7 @@ export type AppSettings = {
     concurrent_downloads: number;
     fix_file_extensions: boolean;
   };
+  onboarding_completed: boolean;
 };
 
 let settings = $state<AppSettings | null>(null);
