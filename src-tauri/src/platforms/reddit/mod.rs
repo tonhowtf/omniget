@@ -37,6 +37,12 @@ struct GalleryItem {
     ext: String,
 }
 
+impl Default for RedditDownloader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RedditDownloader {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
@@ -522,7 +528,7 @@ impl PlatformDownloader for RedditDownloader {
                         }
                     });
 
-                    let audio_ok = match direct_downloader::download_direct(
+                    let audio_ok = direct_downloader::download_direct(
                         &self.client,
                         audio_url,
                         &audio_tmp,
@@ -530,10 +536,7 @@ impl PlatformDownloader for RedditDownloader {
                         None,
                     )
                     .await
-                    {
-                        Ok(_) => true,
-                        Err(_) => false,
-                    };
+                    .is_ok();
 
                     let _ = progress.send(85.0).await;
 
