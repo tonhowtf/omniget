@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "omniget-core"]
+resolver = "2"
+
 [package]
 name = "omniget"
 version = "0.2.14"
@@ -57,6 +61,7 @@ tar = "0.4"
 xz2 = "0.1"
 sha2 = "0.10"
 open = "5"
+omniget-core = { path = "omniget-core" }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-process = "2.3.1"
