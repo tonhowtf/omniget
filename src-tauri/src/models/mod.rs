@@ -1,3 +1,1 @@
-pub mod media;
-pub mod download;
-pub mod settings;
+pub use omniget_core::models::{media, download, settings};
