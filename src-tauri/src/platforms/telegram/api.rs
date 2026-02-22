@@ -371,10 +371,8 @@ async fn fetch_media_page(
 
 fn merge_dedup_media(results: [anyhow::Result<Vec<TelegramMediaItem>>; 4], limit: usize) -> Vec<TelegramMediaItem> {
     let mut all_items = Vec::new();
-    for result in results {
-        if let Ok(items) = result {
-            all_items.extend(items);
-        }
+    for items in results.into_iter().flatten() {
+        all_items.extend(items);
     }
     let mut seen = std::collections::HashSet::new();
     all_items.retain(|item| seen.insert(item.message_id));
