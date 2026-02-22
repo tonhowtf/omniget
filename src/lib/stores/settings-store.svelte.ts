@@ -34,6 +34,7 @@ export type AppSettings = {
     fix_file_extensions: boolean;
   };
   onboarding_completed: boolean;
+  start_with_windows: boolean;
 };
 
 let settings = $state<AppSettings | null>(null);
