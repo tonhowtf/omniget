@@ -166,6 +166,11 @@
   },
   "settings": {
     "title": "Configurações",
+    "general": {
+      "title": "Geral",
+      "start_with_windows": "Iniciar com o Windows",
+      "start_with_windows_desc": "Abrir o OmniGet automaticamente ao iniciar o Windows"
+    },
     "appearance": {
       "title": "Aparência",
       "theme": "Tema",
