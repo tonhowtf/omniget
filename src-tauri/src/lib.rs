@@ -186,6 +186,8 @@ pub fn run() {
             commands::settings::update_settings,
             commands::settings::reset_settings,
             commands::settings::mark_onboarding_complete,
+            commands::autostart::set_autostart,
+            commands::autostart::get_autostart_status,
             commands::telegram::telegram_check_session,
             commands::telegram::telegram_qr_start,
             commands::telegram::telegram_qr_poll,
