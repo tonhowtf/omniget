@@ -80,6 +80,7 @@ pub struct DownloadStarted {
     pub title: String,
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn download_from_url(
     app: tauri::AppHandle,
@@ -304,7 +305,7 @@ pub async fn update_max_concurrent(
     state: tauri::State<'_, AppState>,
     max: u32,
 ) -> Result<String, String> {
-    if max < 1 || max > 10 {
+    if !(1..=10).contains(&max) {
         return Err("Value must be between 1 and 10".to_string());
     }
     let mut q = state.download_queue.lock().await;
