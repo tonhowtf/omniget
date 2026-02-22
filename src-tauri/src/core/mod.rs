@@ -1,15 +1,22 @@
 pub mod auth;
 pub mod events;
 pub use omniget_core::core::registry;
-pub mod media_processor;
 pub mod hls_downloader;
 pub mod direct_downloader;
 pub mod redirect;
-pub mod ffmpeg;
-pub mod hwaccel;
 pub mod filename;
 pub mod url_parser;
-pub mod ytdlp;
 pub mod queue;
-pub mod dependencies;
+
+#[cfg(not(target_os = "android"))]
 pub mod process;
+#[cfg(not(target_os = "android"))]
+pub mod ffmpeg;
+#[cfg(not(target_os = "android"))]
+pub mod hwaccel;
+#[cfg(not(target_os = "android"))]
+pub mod media_processor;
+#[cfg(not(target_os = "android"))]
+pub mod ytdlp;
+#[cfg(not(target_os = "android"))]
+pub mod dependencies;
