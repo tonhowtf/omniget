@@ -16,6 +16,12 @@ pub struct PinterestDownloader {
     client: reqwest::Client,
 }
 
+impl Default for PinterestDownloader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PinterestDownloader {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
