@@ -1,6 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn setup_environment() {
+    std::env::remove_var("PYTHONHOME");
+    std::env::remove_var("PYTHONPATH");
+
     if let Some(bin_dir) = dirs::data_dir().map(|d| d.join("omniget").join("bin")) {
         let sep = if cfg!(windows) { ";" } else { ":" };
         let current = std::env::var("PATH").unwrap_or_default();
