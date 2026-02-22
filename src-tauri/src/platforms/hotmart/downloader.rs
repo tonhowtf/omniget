@@ -667,6 +667,7 @@ impl HotmartDownloader {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn retry_hls_download(
     m3u8_url: &str,
     output_path: &str,
