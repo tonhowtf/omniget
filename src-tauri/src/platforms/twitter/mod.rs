@@ -42,6 +42,12 @@ enum TwitterMediaType {
     AnimatedGif,
 }
 
+impl Default for TwitterDownloader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TwitterDownloader {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
