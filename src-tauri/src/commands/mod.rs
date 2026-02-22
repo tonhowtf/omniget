@@ -1,13 +1,21 @@
 pub mod auth;
 pub mod autostart;
-pub mod convert;
-pub mod courses;
-pub mod dependencies;
 pub mod downloads;
 pub mod platform_auth;
-pub mod search;
 pub mod settings;
 pub mod telegram;
+
+#[cfg(not(target_os = "android"))]
+pub mod convert;
+#[cfg(not(target_os = "android"))]
+pub mod courses;
+#[cfg(not(target_os = "android"))]
+pub mod dependencies;
+#[cfg(not(target_os = "android"))]
+pub mod search;
+#[cfg(not(target_os = "android"))]
 pub mod udemy_auth;
+#[cfg(not(target_os = "android"))]
 pub mod udemy_courses;
+#[cfg(not(target_os = "android"))]
 pub mod udemy_downloads;
