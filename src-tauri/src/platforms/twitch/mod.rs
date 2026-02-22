@@ -34,6 +34,12 @@ pub struct TwitchClipsDownloader {
     client: reqwest::Client,
 }
 
+impl Default for TwitchClipsDownloader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TwitchClipsDownloader {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
