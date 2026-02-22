@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
+
+static EMIT_COUNT: AtomicU64 = AtomicU64::new(0);
 
 use serde::Serialize;
 use tauri::Emitter;
@@ -365,9 +368,14 @@ pub struct QueueItemProgress {
 }
 
 pub fn emit_queue_state(app: &tauri::AppHandle, queue: &DownloadQueue) {
+    let n = EMIT_COUNT.fetch_add(1, Ordering::Relaxed);
+    if n % 10 == 0 {
+        tracing::info!("[perf] emit_queue_state called {} times", n);
+    }
     let state = queue.get_state();
     let _ = app.emit("queue-state-update", &state);
-    crate::tray::update_active_count(app, queue.active_count());
+    let total = crate::tray::compute_total_active(app);
+    crate::tray::update_active_count(app, total);
 }
 
 pub fn spawn_download(
