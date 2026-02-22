@@ -6,6 +6,7 @@
   import { getUpdateInfo } from "$lib/stores/update-store.svelte";
   import { installUpdate } from "$lib/updater";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import ContextHint from "$components/hints/ContextHint.svelte";
 
   type DependencyStatus = {
     name: string;
@@ -346,7 +347,7 @@
         <div class="divider"></div>
         <div class="setting-row">
           <div class="setting-col">
-            <span class="setting-label">{$t('settings.download.hotkey_enabled')}</span>
+            <span class="setting-label">{$t('settings.download.hotkey_enabled')} <ContextHint text={$t('hints.hotkey')} dismissKey="hotkey" /></span>
             <span class="setting-path">{$t('settings.download.hotkey_enabled_desc')}</span>
           </div>
           <button
@@ -376,7 +377,7 @@
         <div class="divider"></div>
         <div class="setting-row">
           <div class="setting-col">
-            <span class="setting-label">{$t('settings.download.clipboard_detection')}</span>
+            <span class="setting-label">{$t('settings.download.clipboard_detection')} <ContextHint text={$t('hints.clipboard')} dismissKey="clipboard" /></span>
             <span class="setting-path">{$t('settings.download.clipboard_detection_desc')}</span>
           </div>
           <button
