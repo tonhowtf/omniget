@@ -182,7 +182,7 @@ pub async fn download_parallel(
     }
 
     let threads = best_threads(total_size, max_threads);
-    let num_parts = (total_size + PART_SIZE as u64 - 1) / PART_SIZE as u64;
+    let num_parts = total_size.div_ceil(PART_SIZE as u64);
     tracing::info!(
         "[tg-parallel] starting parallel download: size={}, parts={}, threads={}",
         total_size,
