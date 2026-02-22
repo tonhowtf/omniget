@@ -15,6 +15,12 @@ pub struct TikTokDownloader {
     client: reqwest::Client,
 }
 
+impl Default for TikTokDownloader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TikTokDownloader {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
