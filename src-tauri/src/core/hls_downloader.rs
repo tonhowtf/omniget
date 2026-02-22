@@ -24,6 +24,12 @@ pub struct HlsDownloader {
     client: Client,
 }
 
+impl Default for HlsDownloader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HlsDownloader {
     pub fn new() -> Self {
         Self::with_client(
@@ -41,6 +47,7 @@ impl HlsDownloader {
         Self { client }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn download(
         &self,
         m3u8_url: &str,
@@ -125,6 +132,7 @@ impl HlsDownloader {
         }))
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn download_media_playlist(
         &self,
         m3u8_url: &str,
