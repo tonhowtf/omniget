@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::OnceLock;
 
 use tauri::{
@@ -7,6 +8,7 @@ use tauri::{
 };
 
 static DOWNLOADS_ITEM: OnceLock<MenuItem<Wry>> = OnceLock::new();
+static LAST_ACTIVE: AtomicU32 = AtomicU32::new(0);
 
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let open_item = MenuItemBuilder::with_id("open", "OmniGet").build(app)?;
@@ -60,6 +62,27 @@ pub fn update_active_count(_app: &AppHandle, count: u32) {
     if let Some(item) = DOWNLOADS_ITEM.get() {
         let _ = item.set_text(active_label(count));
     }
+}
+
+pub fn compute_total_active(app: &AppHandle) -> u32 {
+    let state = app.state::<crate::AppState>();
+
+    let queue_count = match state.download_queue.try_lock() {
+        Ok(q) => q.active_count(),
+        Err(_) => return LAST_ACTIVE.load(Ordering::Relaxed),
+    };
+
+    let tg_count = match state.active_generic_downloads.try_lock() {
+        Ok(active) => active
+            .values()
+            .filter(|(key, _)| key.starts_with("tg-batch:"))
+            .count() as u32,
+        Err(_) => return LAST_ACTIVE.load(Ordering::Relaxed),
+    };
+
+    let total = queue_count + tg_count;
+    LAST_ACTIVE.store(total, Ordering::Relaxed);
+    total
 }
 
 fn active_label(count: u32) -> String {
