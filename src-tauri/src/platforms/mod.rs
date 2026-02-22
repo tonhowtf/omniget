@@ -1,4 +1,4 @@
-pub mod traits;
+pub use omniget_core::platforms::traits;
 pub mod hotmart;
 pub mod instagram;
 pub mod pinterest;
@@ -13,4 +13,4 @@ pub mod vimeo;
 pub mod generic_ytdlp;
 pub mod udemy;
 
-pub use omniget_core::platform::Platform;
+pub use omniget_core::platforms::Platform;
