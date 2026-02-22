@@ -59,6 +59,14 @@ export function getQueuedCount(): number {
   return count;
 }
 
+export function getBadgeCount(): number {
+  let count = 0;
+  for (const item of downloads.values()) {
+    if (item.status === "downloading" || item.status === "queued") count++;
+  }
+  return count;
+}
+
 export function getPausedCount(): number {
   let count = 0;
   for (const item of downloads.values()) {
