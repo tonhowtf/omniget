@@ -12,6 +12,7 @@
   } from "$lib/stores/download-store.svelte";
   import PlatformIcon from "$components/icons/PlatformIcon.svelte";
   import Mascot from "$components/mascot/Mascot.svelte";
+  import ContextHint from "$components/hints/ContextHint.svelte";
 
   let downloads = $derived(getDownloads());
   let courseList = $derived(
@@ -134,7 +135,7 @@
 {:else}
   <div class="downloads-empty">
     <Mascot emotion="idle" />
-    <p class="empty-text">{$t('downloads.empty')}</p>
+    <p class="empty-text">{$t('downloads.empty')} <ContextHint text={$t('hints.downloads_empty')} dismissKey="downloads_empty" /></p>
   </div>
 {/if}
 
