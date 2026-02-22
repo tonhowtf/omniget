@@ -321,7 +321,7 @@ pub async fn telegram_download_batch(
 
     // Read Telegram settings
     let tg_settings = config::load_settings(&app).telegram;
-    let concurrent = tg_settings.concurrent_downloads.max(1).min(10) as usize;
+    let concurrent = tg_settings.concurrent_downloads.clamp(1, 10) as usize;
 
     // Emit initial 0% batch progress
     let _ = app.emit("generic-download-progress", &GenericDownloadProgress {
