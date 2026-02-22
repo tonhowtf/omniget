@@ -9,6 +9,8 @@ pub struct AppSettings {
     pub advanced: AdvancedSettings,
     #[serde(default)]
     pub telegram: TelegramSettings,
+    #[serde(default)]
+    pub onboarding_completed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,6 +128,7 @@ impl Default for AppSettings {
                 stagger_delay_ms: 150,
             },
             telegram: TelegramSettings::default(),
+            onboarding_completed: false,
         }
     }
 }
