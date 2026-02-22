@@ -5,6 +5,7 @@
   import { onMount } from "svelte";
   import Mascot from "$components/mascot/Mascot.svelte";
   import SupportedServices from "$components/services/SupportedServices.svelte";
+  import ContextHint from "$components/hints/ContextHint.svelte";
   import { getDownloads } from "$lib/stores/download-store.svelte";
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -430,6 +431,7 @@
           bind:value={url}
           oninput={handleInput}
         />
+        <ContextHint text={$t('hints.omnibox')} dismissKey="omnibox" />
       </div>
     {/if}
 
