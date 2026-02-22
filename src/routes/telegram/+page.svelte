@@ -4,6 +4,7 @@
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import { onBatchFileStatus, type BatchFileStatusPayload } from "$lib/stores/download-listener";
+  import ContextHint from "$components/hints/ContextHint.svelte";
   import { t } from "$lib/i18n";
 
   type TelegramChat = {
@@ -657,7 +658,7 @@
 {:else if view === "qr"}
   <div class="page-center">
     <div class="login-card">
-      <h2>{$t("telegram.title")}</h2>
+      <h2>{$t("telegram.title")} <ContextHint text={$t('hints.telegram')} dismissKey="telegram" /></h2>
 
       {#if qrLoading}
         <div class="qr-placeholder">
