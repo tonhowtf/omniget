@@ -12,6 +12,12 @@ use crate::platforms::traits::PlatformDownloader;
 
 pub struct GenericYtdlpDownloader;
 
+impl Default for GenericYtdlpDownloader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GenericYtdlpDownloader {
     pub fn new() -> Self {
         Self
