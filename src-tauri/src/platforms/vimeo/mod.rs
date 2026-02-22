@@ -12,6 +12,12 @@ use crate::platforms::traits::PlatformDownloader;
 
 pub struct VimeoDownloader;
 
+impl Default for VimeoDownloader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VimeoDownloader {
     pub fn new() -> Self {
         Self
