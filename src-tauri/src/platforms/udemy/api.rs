@@ -254,10 +254,9 @@ pub async fn list_all_courses(
     let my_courses_result = list_my_courses(session, portal_name).await;
     let sub_courses_result = list_subscription_courses(session, portal_name).await;
 
-    if my_courses_result.is_err() && sub_courses_result.is_err() {
-        let err = my_courses_result.unwrap_err();
+    if let (Err(err), Err(_)) = (&my_courses_result, &sub_courses_result) {
         tracing::error!("[udemy-api] both course fetches failed: {}", err);
-        return Err(err);
+        return Err(my_courses_result.unwrap_err());
     }
 
     let mut my_courses = match my_courses_result {
