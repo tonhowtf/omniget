@@ -11,6 +11,8 @@ pub struct AppSettings {
     pub telegram: TelegramSettings,
     #[serde(default)]
     pub onboarding_completed: bool,
+    #[serde(default)]
+    pub start_with_windows: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -129,6 +131,7 @@ impl Default for AppSettings {
             },
             telegram: TelegramSettings::default(),
             onboarding_completed: false,
+            start_with_windows: false,
         }
     }
 }
