@@ -12,6 +12,12 @@ use crate::platforms::traits::PlatformDownloader;
 
 pub struct YouTubeDownloader;
 
+impl Default for YouTubeDownloader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl YouTubeDownloader {
     pub fn new() -> Self {
         Self
