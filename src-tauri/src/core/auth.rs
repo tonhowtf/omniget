@@ -363,7 +363,10 @@ impl PlatformAuth for SpotifyAuth {
             urlencoding::encode(&challenge),
         );
 
+        #[cfg(desktop)]
         open::that(&auth_url).map_err(|e| anyhow!("Failed to open browser: {}", e))?;
+        #[cfg(not(desktop))]
+        return Err(anyhow!("OAuth browser flow is not available on this platform"));
 
         let code = Self::wait_for_callback(listener).await?;
         let session = self.exchange_code(&code, &verifier, &redirect_uri).await?;
@@ -440,6 +443,7 @@ impl PlatformAuth for BrowserCookieAuth {
         false
     }
 
+    #[cfg(desktop)]
     async fn authenticate(
         &self,
         _params: HashMap<String, String>,
@@ -513,6 +517,14 @@ impl PlatformAuth for BrowserCookieAuth {
         let mut guard = self.session.lock().await;
         *guard = Some(session.clone());
         Ok(session)
+    }
+
+    #[cfg(not(desktop))]
+    async fn authenticate(
+        &self,
+        _params: HashMap<String, String>,
+    ) -> anyhow::Result<AuthSession> {
+        Err(anyhow!("Browser-based authentication is not available on this platform"))
     }
 
     async fn logout(&self) -> anyhow::Result<()> {
