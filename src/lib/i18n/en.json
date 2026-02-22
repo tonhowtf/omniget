@@ -371,6 +371,25 @@
     "title": "What's New",
     "empty": "No release notes available."
   },
+  "onboarding": {
+    "welcome_title": "Welcome to OmniGet",
+    "welcome_desc": "your media downloader. open source and free.",
+    "next": "Next",
+    "skip": "Skip",
+    "back": "Back",
+    "finish": "Get started",
+    "step_of": "Step {{current}} of {{total}}",
+    "folder_title": "Download folder",
+    "folder_desc": "Choose where your downloads will be saved by default.",
+    "folder_current": "Current folder:",
+    "folder_change": "Change folder",
+    "deps_title": "Dependencies",
+    "deps_desc": "OmniGet uses yt-dlp and FFmpeg to download and process media.",
+    "deps_installing": "Installing...",
+    "deps_install_all": "Install all",
+    "done_title": "All set!",
+    "done_desc": "You're ready to start downloading. You can change these settings anytime."
+  },
   "common": {
     "cancel": "Cancel",
     "retry": "Retry",
