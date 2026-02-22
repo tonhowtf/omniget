@@ -16,6 +16,7 @@
 
   let settings = $derived(getSettings());
   let updateInfo = $derived(getUpdateInfo());
+  let isWindows = typeof navigator !== "undefined" && navigator.userAgent.includes("Windows");
   let resetting = $state(false);
   let updating = $state(false);
   let deps = $state<DependencyStatus[]>([]);
@@ -175,6 +176,30 @@
           {/if}
         </button>
       </div>
+    {/if}
+
+    {#if isWindows}
+      <section class="section">
+        <h5 class="section-title">{$t('settings.general.title')}</h5>
+        <div class="card">
+          <div class="setting-row">
+            <div class="setting-col">
+              <span class="setting-label">{$t('settings.general.start_with_windows')}</span>
+              <span class="setting-path">{$t('settings.general.start_with_windows_desc')}</span>
+            </div>
+            <button
+              class="toggle"
+              class:on={settings.start_with_windows}
+              onclick={() => updateSettings({ start_with_windows: !settings!.start_with_windows })}
+              role="switch"
+              aria-checked={settings.start_with_windows}
+              aria-label={$t('settings.general.start_with_windows')}
+            >
+              <span class="toggle-knob"></span>
+            </button>
+          </div>
+        </div>
+      </section>
     {/if}
 
     <section class="section">
