@@ -565,6 +565,7 @@ pub async fn write_netscape_cookie_file(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn download_video(
     ytdlp: &Path,
     url: &str,
@@ -785,7 +786,7 @@ pub async fn download_video(
 
         if use_aria2c && !use_browser_cookies {
             if let Some(ref a2_path) = aria2c_path {
-                let conns = if is_youtube_url(url) { effective_fragments.max(1) } else { effective_fragments.max(8).min(16) };
+                let conns = if is_youtube_url(url) { effective_fragments.max(1) } else { effective_fragments.clamp(8, 16) };
                 args.push("--downloader".to_string());
                 args.push(a2_path.to_string_lossy().to_string());
                 args.push("--downloader-args".to_string());
