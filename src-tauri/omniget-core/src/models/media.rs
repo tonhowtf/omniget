@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use crate::platform::Platform;
+use crate::platforms::Platform;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
