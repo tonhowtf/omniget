@@ -18,6 +18,8 @@ pub fn command<S: AsRef<std::ffi::OsStr>>(program: S) -> tokio::process::Command
     if let Some(path) = enhanced_path() {
         cmd.env("PATH", path);
     }
+    cmd.env_remove("PYTHONHOME");
+    cmd.env_remove("PYTHONPATH");
     cmd.env("PYTHONIOENCODING", "utf-8");
     cmd.env("PYTHONUTF8", "1");
     cmd
@@ -33,6 +35,8 @@ pub fn std_command<S: AsRef<std::ffi::OsStr>>(program: S) -> std::process::Comma
     if let Some(path) = enhanced_path() {
         cmd.env("PATH", path);
     }
+    cmd.env_remove("PYTHONHOME");
+    cmd.env_remove("PYTHONPATH");
     cmd.env("PYTHONIOENCODING", "utf-8");
     cmd.env("PYTHONUTF8", "1");
     cmd
