@@ -1,16 +1,24 @@
 pub use omniget_core::platforms::traits;
-pub mod hotmart;
-pub mod instagram;
+pub use omniget_core::platforms::Platform;
+
 pub mod pinterest;
 pub mod tiktok;
 pub mod twitter;
 pub mod twitch;
 pub mod bluesky;
-pub mod reddit;
-pub mod youtube;
 pub mod telegram;
-pub mod vimeo;
-pub mod generic_ytdlp;
-pub mod udemy;
 
-pub use omniget_core::platforms::Platform;
+#[cfg(not(target_os = "android"))]
+pub mod hotmart;
+#[cfg(not(target_os = "android"))]
+pub mod instagram;
+#[cfg(not(target_os = "android"))]
+pub mod reddit;
+#[cfg(not(target_os = "android"))]
+pub mod youtube;
+#[cfg(not(target_os = "android"))]
+pub mod vimeo;
+#[cfg(not(target_os = "android"))]
+pub mod generic_ytdlp;
+#[cfg(not(target_os = "android"))]
+pub mod udemy;
