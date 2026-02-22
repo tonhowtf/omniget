@@ -13,11 +13,14 @@
   import { startClipboardMonitor, stopClipboardMonitor } from "$lib/stores/clipboard-monitor";
   import { initChangelog } from "$lib/stores/changelog-store.svelte";
   import ChangelogDialog from "$components/dialog/ChangelogDialog.svelte";
+  import OnboardingWizard from "$components/onboarding/OnboardingWizard.svelte";
+  import { needsOnboarding } from "$lib/stores/onboarding-store.svelte";
   import { t } from "$lib/i18n";
   import type { Snippet } from "svelte";
 
   let ytdlpMissing = $state(false);
   let ytdlpDismissed = $state(false);
+  let showOnboarding = $derived(needsOnboarding());
 
   async function openAuthorGithub(e: Event) {
     e.preventDefault();
@@ -152,6 +155,9 @@
 
 <Toast />
 <ChangelogDialog />
+{#if showOnboarding}
+  <OnboardingWizard />
+{/if}
 
 <style>
   .layout {
