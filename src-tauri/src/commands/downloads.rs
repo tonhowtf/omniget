@@ -5,13 +5,18 @@ use tokio_util::sync::CancellationToken;
 
 use crate::core::queue::{self, emit_queue_state, QueueItemInfo};
 use crate::core::url_parser;
-use crate::core::ytdlp;
-use crate::models::media::FormatInfo;
 use crate::platforms::Platform;
-use crate::platforms::hotmart::api::Course;
-use crate::platforms::hotmart::downloader::HotmartDownloader;
 use crate::storage::config;
 use crate::AppState;
+
+#[cfg(not(target_os = "android"))]
+use crate::core::ytdlp;
+#[cfg(not(target_os = "android"))]
+use crate::models::media::FormatInfo;
+#[cfg(not(target_os = "android"))]
+use crate::platforms::hotmart::api::Course;
+#[cfg(not(target_os = "android"))]
+use crate::platforms::hotmart::downloader::HotmartDownloader;
 
 #[derive(Clone, Serialize)]
 struct DownloadCompleteEvent {
@@ -59,6 +64,7 @@ pub async fn detect_platform(url: String) -> Result<PlatformInfo, String> {
     }
 }
 
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn get_media_formats(url: String) -> Result<Vec<FormatInfo>, String> {
     let _timer_start = std::time::Instant::now();
@@ -80,6 +86,7 @@ pub struct DownloadStarted {
     pub title: String,
 }
 
+#[cfg(not(target_os = "android"))]
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn download_from_url(
@@ -327,6 +334,7 @@ pub async fn clear_finished_downloads(
     Ok("Finished downloads cleared".to_string())
 }
 
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn reveal_file(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
@@ -381,6 +389,7 @@ pub async fn reveal_file(path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn start_course_download(
     app: tauri::AppHandle,
@@ -466,6 +475,7 @@ pub async fn start_course_download(
     Ok(format!("Download started: {}", course_name))
 }
 
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn cancel_course_download(
     state: tauri::State<'_, AppState>,
@@ -481,6 +491,7 @@ pub async fn cancel_course_download(
     }
 }
 
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn get_active_downloads(
     state: tauri::State<'_, AppState>,
