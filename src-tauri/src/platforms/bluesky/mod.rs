@@ -16,6 +16,12 @@ pub struct BlueskyDownloader {
     client: reqwest::Client,
 }
 
+impl Default for BlueskyDownloader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BlueskyDownloader {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
