@@ -575,6 +575,12 @@
                 {/if}
               </div>
 
+              <div class="formats-info">
+                <span class="formats-note">
+                  {$t('omnibox.formats_merge_note')}
+                </span>
+              </div>
+
               <div class="formats-list">
                 {#each formats as fmt (fmt.format_id)}
                   <button
@@ -1177,6 +1183,19 @@
   .format-quick-btn {
     font-size: 12px;
     padding: calc(var(--padding) / 4) calc(var(--padding) * 0.6);
+  }
+
+  .formats-info {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .formats-note {
+    font-size: 11px;
+    color: var(--gray);
+    text-align: center;
+    line-height: 1.4;
   }
 
   .formats-list {
