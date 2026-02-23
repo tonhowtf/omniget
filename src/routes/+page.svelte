@@ -5,7 +5,13 @@
   import { onMount } from "svelte";
   import Mascot from "$components/mascot/Mascot.svelte";
   import SupportedServices from "$components/services/SupportedServices.svelte";
-  import ContextHint from "$components/hints/ContextHint.svelte";
+  import OmniboxInput from "$components/omnibox/OmniboxInput.svelte";
+  import DownloadModeSelector from "$components/omnibox/DownloadModeSelector.svelte";
+  import QualityPicker from "$components/omnibox/QualityPicker.svelte";
+  import FormatSelector from "$components/omnibox/FormatSelector.svelte";
+  import MediaPreview from "$components/omnibox/MediaPreview.svelte";
+  import BatchDownload from "$components/omnibox/BatchDownload.svelte";
+  import SearchResults from "$components/omnibox/SearchResults.svelte";
   import { getDownloads } from "$lib/stores/download-store.svelte";
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -70,7 +76,6 @@
   let selectedQuality = $state("best");
   let selectedFormatId = $state<string | null>(null);
   let formats = $state<FormatInfo[]>([]);
-  let formatsOpen = $state(false);
   let loadingFormats = $state(false);
   let referer = $state("");
   let mediaPreview = $derived(getMediaPreview());
@@ -89,10 +94,9 @@
   });
 
   const STALL_THRESHOLD = 30_000;
-
   let downloads = $derived(getDownloads());
-
   let stallTick = $state(0);
+
   $effect(() => {
     const interval = setInterval(() => { stallTick++; }, 5000);
     return () => clearInterval(interval);
@@ -163,7 +167,6 @@
     selectedQuality = "best";
     selectedFormatId = null;
     formats = [];
-    formatsOpen = false;
     referer = "";
 
     const trimmed = url.trim();
@@ -236,15 +239,6 @@
     detectPlatform(result.url);
   }
 
-  function formatDuration(seconds: number | null): string {
-    if (seconds === null) return "";
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  }
-
   function getContentTypeLabel(contentType: string | null): string {
     if (!contentType) return $t("omnibox.content_type.unknown");
     const key = `omnibox.content_type.${contentType}`;
@@ -257,20 +251,14 @@
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
-  function isYtdlpPlatform(platform: string): boolean {
-    return ["youtube", "vimeo", "generic"].includes(platform);
-  }
-
   async function loadFormats() {
     if (loadingFormats || formats.length > 0) {
-      formatsOpen = !formatsOpen;
       return;
     }
     loadingFormats = true;
     try {
       const result = await invoke<FormatInfo[]>("get_media_formats", { url: url.trim() });
       formats = result;
-      formatsOpen = true;
     } catch {
       formats = [];
     } finally {
@@ -280,50 +268,11 @@
 
   function selectFormat(formatId: string) {
     selectedFormatId = formatId;
-    formatsOpen = false;
   }
 
   function clearFormatSelection() {
     selectedFormatId = null;
   }
-
-  function formatFilesize(bytes: number | null): string {
-    if (bytes === null) return "—";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-  }
-
-  function formatCodec(codec: string | null): string {
-    if (!codec || codec === "none") return "—";
-    return codec.split(".")[0];
-  }
-
-  function bestVideoAudio(): FormatInfo | null {
-    return formats.find(f => f.has_video && f.has_audio) ?? null;
-  }
-
-  function bestAudioOnly(): FormatInfo | null {
-    return [...formats].reverse().find(f => f.has_audio && !f.has_video) ?? null;
-  }
-
-  function bestVideoOnly(): FormatInfo | null {
-    return formats.find(f => f.has_video && !f.has_audio) ?? null;
-  }
-
-  let selectedFormatLabel = $derived.by(() => {
-    if (!selectedFormatId) return null;
-    const f = formats.find(fmt => fmt.format_id === selectedFormatId);
-    if (!f) return selectedFormatId;
-    const parts: string[] = [];
-    if (f.resolution) parts.push(f.resolution);
-    parts.push(f.ext);
-    if (f.has_video && f.has_audio) parts.push("V+A");
-    else if (f.has_video) parts.push("V");
-    else if (f.has_audio) parts.push("A");
-    return parts.join(" · ");
-  });
 
   async function handleAction() {
     if (omniState.kind !== "detected") return;
@@ -438,16 +387,7 @@
     {/if}
 
     {#if showOmnibox}
-      <div class="omnibox-wrapper">
-        <input
-          class="omnibox"
-          type="text"
-          placeholder={$t('omnibox.placeholder')}
-          bind:value={url}
-          oninput={handleInput}
-        />
-        <ContextHint text={$t('hints.omnibox')} dismissKey="omnibox" />
-      </div>
+      <OmniboxInput bind:url onInput={handleInput} />
     {/if}
 
     {#if omniState.kind === "detecting"}
@@ -466,225 +406,56 @@
         </span>
       </div>
 
-      {#if mediaPreview}
-        <div class="preview-container feedback-enter">
-          <div class="preview-thumbnail-wrapper">
-            {#if previewImageLoading}
-              <div class="preview-skeleton"></div>
-            {/if}
-            {#if mediaPreview.thumbnail_url}
-              <img
-                class="preview-thumbnail"
-                class:loaded={!previewImageLoading}
-                src={mediaPreview.thumbnail_url}
-                alt={mediaPreview.title}
-                loading="lazy"
-                onload={() => { previewImageLoading = false; }}
-                onerror={() => { previewImageLoading = false; }}
-              />
-            {/if}
-          </div>
-          <div class="preview-info">
-            <p class="preview-title">{mediaPreview.title}</p>
-            {#if mediaPreview.author}
-              <p class="preview-author">{mediaPreview.author}</p>
-            {/if}
-            {#if mediaPreview.duration_seconds}
-              <p class="preview-duration">
-                {formatDuration(mediaPreview.duration_seconds)}
-              </p>
-            {/if}
-          </div>
-        </div>
-      {/if}
+      <MediaPreview bind:mediaPreview bind:imageLoading={previewImageLoading} />
 
       {#if omniState.info.platform !== "hotmart"}
         <div class="download-options feedback-enter">
-          <div class="mode-switcher">
-            <button
-              class="button mode-btn"
-              class:active={downloadMode === "auto"}
-              onclick={() => { downloadMode = "auto"; selectedFormatId = null; }}
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 3l1.912 5.813a2 2 0 001.272 1.272L21 12l-5.813 1.912a2 2 0 00-1.272 1.272L12 21l-1.912-5.813a2 2 0 00-1.272-1.272L3 12l5.813-1.912a2 2 0 001.272-1.272z" />
-              </svg>
-              {$t('omnibox.mode_auto')}
-            </button>
-            <button
-              class="button mode-btn"
-              class:active={downloadMode === "audio"}
-              onclick={() => { downloadMode = "audio"; selectedFormatId = null; }}
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 18V5l12-2v13" />
-                <circle cx="6" cy="18" r="3" />
-                <circle cx="18" cy="16" r="3" />
-              </svg>
-              {$t('omnibox.mode_audio')}
-            </button>
-            <button
-              class="button mode-btn"
-              class:active={downloadMode === "mute"}
-              onclick={() => { downloadMode = "mute"; selectedFormatId = null; }}
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M11 5L6 9H2v6h4l5 4V5z" />
-                <line x1="23" y1="9" x2="17" y2="15" />
-                <line x1="17" y1="9" x2="23" y2="15" />
-              </svg>
-              {$t('omnibox.mode_mute')}
-            </button>
-          </div>
+          <DownloadModeSelector bind:downloadMode onChange={() => { selectedFormatId = null; }} />
 
-          {#if !selectedFormatId}
-            <div class="quality-select-wrapper">
-              <span class="quality-label">{$t('omnibox.quality')}</span>
-              <select class="quality-select" bind:value={selectedQuality}>
-                <option value="best">{$t('omnibox.quality_best')}</option>
-                <option value="1080p">{$t('omnibox.quality_1080p')}</option>
-                <option value="720p">{$t('omnibox.quality_720p')}</option>
-                <option value="480p">{$t('omnibox.quality_480p')}</option>
-                <option value="360p">{$t('omnibox.quality_360p')}</option>
-              </select>
-            </div>
-          {:else}
-            <div class="format-selected">
-              <span class="format-selected-label">{selectedFormatLabel}</span>
-              <button class="format-clear-btn" onclick={clearFormatSelection} aria-label={$t('common.close')}>
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-              </button>
+          <QualityPicker bind:selectedQuality selectedFormatId />
+
+          {#if omniState.info.platform === "vimeo" || omniState.info.platform === "generic"}
+            <div class="referer-input-wrapper feedback-enter">
+              <label class="referer-label" for="referer-input">{$t('omnibox.referer_label')}</label>
+              <input
+                id="referer-input"
+                class="referer-input"
+                type="text"
+                placeholder={$t('omnibox.referer_placeholder')}
+                bind:value={referer}
+                spellcheck="false"
+              />
             </div>
           {/if}
+
+          <FormatSelector
+            platform={omniState.info.platform}
+            bind:formats
+            bind:selectedFormatId
+            loadingFormats
+            onLoadFormats={loadFormats}
+            onSelectFormat={selectFormat}
+            onClearFormat={clearFormatSelection}
+          />
         </div>
 
-        {#if omniState.info.platform === "vimeo" || omniState.info.platform === "generic"}
-          <div class="referer-input-wrapper feedback-enter">
-            <label class="referer-label" for="referer-input">{$t('omnibox.referer_label')}</label>
-            <input
-              id="referer-input"
-              class="referer-input"
-              type="text"
-              placeholder={$t('omnibox.referer_placeholder')}
-              bind:value={referer}
-              spellcheck="false"
-            />
-          </div>
-        {/if}
-
-        {#if isYtdlpPlatform(omniState.info.platform)}
-          <button
-            class="button formats-toggle-btn"
-            onclick={loadFormats}
-            disabled={loadingFormats}
-          >
-            {#if loadingFormats}
-              <span class="feedback-spinner small-spinner"></span>
-            {:else}
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            {/if}
-            {$t('omnibox.view_formats')}
+        {#if omniState.info.platform === "hotmart"}
+          <button class="button action-btn" onclick={handleAction}>
+            {$t('omnibox.go_to_hotmart')}
           </button>
-
-          {#if formatsOpen && formats.length > 0}
-            <div class="formats-panel feedback-enter">
-              <div class="formats-quick">
-                {#if bestVideoAudio()}
-                  <button
-                    class="button format-quick-btn"
-                    class:active={selectedFormatId === bestVideoAudio()?.format_id}
-                    onclick={() => selectFormat(bestVideoAudio()!.format_id)}
-                  >
-                    {$t('omnibox.best_va')}
-                  </button>
-                {/if}
-                {#if bestAudioOnly()}
-                  <button
-                    class="button format-quick-btn"
-                    class:active={selectedFormatId === bestAudioOnly()?.format_id}
-                    onclick={() => selectFormat(bestAudioOnly()!.format_id)}
-                  >
-                    {$t('omnibox.best_audio')}
-                  </button>
-                {/if}
-                {#if bestVideoOnly()}
-                  <button
-                    class="button format-quick-btn"
-                    class:active={selectedFormatId === bestVideoOnly()?.format_id}
-                    onclick={() => selectFormat(bestVideoOnly()!.format_id)}
-                  >
-                    {$t('omnibox.best_video')}
-                  </button>
-                {/if}
-              </div>
-
-              <div class="formats-info">
-                <span class="formats-note">
-                  {$t('omnibox.formats_merge_note')}
-                </span>
-              </div>
-
-              <div class="formats-list">
-                {#each formats as fmt (fmt.format_id)}
-                  <button
-                    class="format-row"
-                    class:format-row-selected={selectedFormatId === fmt.format_id}
-                    onclick={() => selectFormat(fmt.format_id)}
-                  >
-                    <span class="format-id">{fmt.format_id}</span>
-                    <span class="format-ext">{fmt.ext}</span>
-                    <span class="format-res">{fmt.resolution ?? "—"}</span>
-                    <span class="format-codec">
-                      {#if fmt.has_video && fmt.has_audio}
-                        V+A
-                      {:else if fmt.has_video}
-                        V
-                      {:else if fmt.has_audio}
-                        A
-                      {:else}
-                        —
-                      {/if}
-                    </span>
-                    <span class="format-vcodec">{formatCodec(fmt.vcodec)}</span>
-                    <span class="format-acodec">{formatCodec(fmt.acodec)}</span>
-                    <span class="format-size">{formatFilesize(fmt.filesize)}</span>
-                    {#if fmt.tbr}
-                      <span class="format-tbr">{fmt.tbr.toFixed(0)}k</span>
-                    {:else}
-                      <span class="format-tbr">—</span>
-                    {/if}
-                  </button>
-                {/each}
-              </div>
-            </div>
-          {/if}
+        {:else}
+          <button class="button action-btn" onclick={handleAction}>
+            {$t('omnibox.download')}
+          </button>
         {/if}
-      {/if}
-
-      {#if omniState.info.platform === "hotmart"}
-        <button class="button action-btn" onclick={handleAction}>
-          {$t('omnibox.go_to_hotmart')}
-        </button>
       {:else}
         <button class="button action-btn" onclick={handleAction}>
-          {$t('omnibox.download')}
+          {$t('omnibox.go_to_hotmart')}
         </button>
       {/if}
 
     {:else if omniState.kind === "batch"}
-      <div class="feedback feedback-enter" data-supported="true">
-        <span class="feedback-text">
-          {$t('omnibox.batch_detected', { count: omniState.urls.length })}
-        </span>
-      </div>
-
-      <button class="button action-btn" onclick={handleBatchDownload}>
-        {$t('omnibox.batch_download_all')}
-      </button>
+      <BatchDownload count={omniState.urls.length} onDownload={handleBatchDownload} />
 
     {:else if omniState.kind === "searching"}
       <div class="feedback feedback-enter">
@@ -693,37 +464,7 @@
       </div>
 
     {:else if omniState.kind === "search-results"}
-      <div class="search-results feedback-enter">
-        {#each omniState.results as result (result.id)}
-          <button class="search-result-row" onclick={() => selectSearchResult(result)}>
-            {#if result.thumbnail_url}
-              <img
-                src={result.thumbnail_url}
-                alt=""
-                class="search-thumb"
-                loading="lazy"
-              />
-            {:else}
-              <div class="search-thumb search-thumb-placeholder">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M23 7l-7 5 7 5V7z" />
-                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-                </svg>
-              </div>
-            {/if}
-            <div class="search-result-info">
-              <span class="search-result-title">{result.title}</span>
-              <span class="search-result-meta">
-                {#if result.author}{result.author}{/if}
-                {#if result.author && result.duration !== null}
-                  <span class="feedback-sep">&middot;</span>
-                {/if}
-                {#if result.duration !== null}{formatDuration(result.duration)}{/if}
-              </span>
-            </div>
-          </button>
-        {/each}
-      </div>
+      <SearchResults results={omniState.results} onSelect={selectSearchResult} />
 
     {:else if omniState.kind === "search-empty"}
       <div class="feedback feedback-enter" data-supported="false">
@@ -802,29 +543,6 @@
     max-width: 560px;
   }
 
-  .omnibox-wrapper {
-    width: 100%;
-  }
-
-  .omnibox {
-    width: 100%;
-    padding: var(--padding) calc(var(--padding) + 4px);
-    font-size: 14.5px;
-    background: var(--button);
-    border-radius: var(--border-radius);
-    color: var(--secondary);
-    border: 1px solid var(--input-border);
-  }
-
-  .omnibox::placeholder {
-    color: var(--gray);
-  }
-
-  .omnibox:focus-visible {
-    border-color: var(--secondary);
-    outline: none;
-  }
-
   .loop-icon {
     pointer-events: none;
     border-radius: 10px;
@@ -897,9 +615,9 @@
     width: 16px;
     height: 16px;
     border: 2px solid var(--input-border);
-    border-top-color: var(--blue);
+    border-top-color: var(--secondary);
     border-radius: 50%;
-    animation: spin 0.6s linear infinite;
+    animation: spin 0.8s linear infinite;
   }
 
   @keyframes spin {
@@ -908,97 +626,47 @@
     }
   }
 
+  .feedback-enter {
+    animation: feedbackEnter 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes feedbackEnter {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
   .download-options {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: var(--padding);
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .mode-switcher {
-    display: flex;
-    gap: 0;
-  }
-
-  .mode-btn {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: calc(var(--padding) / 3) calc(var(--padding) * 0.75);
-    font-size: 12.5px;
-    border-radius: 0;
-  }
-
-  .mode-btn:first-child {
-    border-radius: var(--border-radius) 0 0 var(--border-radius);
-  }
-
-  .mode-btn:last-child {
-    border-radius: 0 var(--border-radius) var(--border-radius) 0;
-  }
-
-  .mode-btn + .mode-btn {
-    margin-left: -1px;
-  }
-
-  .mode-btn svg {
-    pointer-events: none;
-    flex-shrink: 0;
-  }
-
-  .quality-select-wrapper {
-    display: flex;
-    align-items: center;
-    gap: calc(var(--padding) / 2);
-  }
-
-  .quality-label {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--gray);
-  }
-
-  .quality-select {
-    font-size: 12.5px;
-    font-weight: 500;
-    font-family: inherit;
-    padding: calc(var(--padding) / 3) calc(var(--padding) * 0.75);
-    background: var(--button);
-    color: var(--secondary);
-    border: 1px solid var(--input-border);
-    border-radius: calc(var(--border-radius) / 2);
-    cursor: pointer;
-  }
-
-  .quality-select:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
+    width: 100%;
   }
 
   .referer-input-wrapper {
-    width: 100%;
     display: flex;
-    align-items: center;
-    gap: calc(var(--padding) / 2);
+    flex-direction: column;
+    gap: 4px;
   }
 
   .referer-label {
     font-size: 12.5px;
     font-weight: 500;
     color: var(--gray);
-    flex-shrink: 0;
   }
 
   .referer-input {
-    flex: 1;
-    padding: calc(var(--padding) / 3) calc(var(--padding) * 0.75);
-    font-size: 12.5px;
-    font-weight: 500;
+    padding: 6px var(--padding);
+    font-size: 13px;
     background: var(--button);
-    border-radius: calc(var(--border-radius) / 2);
-    color: var(--secondary);
     border: 1px solid var(--input-border);
+    border-radius: calc(var(--border-radius) - 2px);
+    color: var(--secondary);
   }
 
   .referer-input::placeholder {
@@ -1006,40 +674,69 @@
   }
 
   .referer-input:focus-visible {
-    border-color: var(--blue);
+    border-color: var(--secondary);
     outline: none;
   }
 
   .action-btn {
     display: flex;
     align-items: center;
-    gap: calc(var(--padding) / 2);
-    padding: calc(var(--padding) / 2) calc(var(--padding) * 1.5);
+    justify-content: center;
+    gap: 6px;
+    padding: var(--padding) calc(var(--padding) * 2);
     font-size: 14.5px;
+    font-weight: 500;
+    background: var(--button);
+    border: none;
+    border-radius: var(--border-radius);
+    color: var(--button-text);
+    cursor: pointer;
+    box-shadow: var(--button-box-shadow);
+  }
+
+  @media (hover: hover) {
+    .action-btn:hover {
+      background: var(--button-hover);
+    }
+  }
+
+  .action-btn:active {
+    background: var(--button-press);
+  }
+
+  .action-btn:disabled {
+    cursor: default;
   }
 
   .feedback-card {
-    width: 100%;
-    background: var(--button);
-    border-radius: var(--border-radius);
-    box-shadow: var(--button-box-shadow);
-    padding: var(--padding);
     display: flex;
     flex-direction: column;
-    gap: calc(var(--padding) * 0.75);
+    gap: var(--padding);
+    padding: var(--padding) calc(var(--padding) * 1.5);
+    background: var(--button-elevated);
+    border-radius: var(--border-radius);
+    border-left: 3px solid var(--blue);
+  }
+
+  .feedback-card[data-status="error"] {
+    border-left-color: var(--red);
   }
 
   .card-row {
     display: flex;
     align-items: center;
     gap: calc(var(--padding) / 2);
-    min-width: 0;
+  }
+
+  .card-text {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--secondary);
   }
 
   .card-title {
-    font-size: 14.5px;
+    font-size: 13px;
     font-weight: 500;
-    color: var(--secondary);
     flex: 1;
     min-width: 0;
     overflow: hidden;
@@ -1047,26 +744,14 @@
     white-space: nowrap;
   }
 
-  .card-text {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--gray);
-  }
-
-  .card-subtext {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--gray);
-    flex: 1;
-  }
-
   .card-error-text {
-    color: var(--red);
+    color: var(--secondary);
   }
 
   .card-status-icon {
     flex-shrink: 0;
     pointer-events: none;
+    color: var(--blue);
   }
 
   .card-status-icon.error {
@@ -1074,446 +759,54 @@
   }
 
   .card-actions {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
+    gap: var(--padding);
+  }
+
+  .card-subtext {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--gray);
   }
 
   .card-action-btn {
-    font-size: 12.5px;
-    padding: calc(var(--padding) / 3) calc(var(--padding) * 0.75);
-    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 13px;
   }
 
   .dismiss-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 24px;
     height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: calc(var(--border-radius) / 2);
     background: transparent;
-    color: var(--gray);
     border: none;
     cursor: pointer;
+    color: var(--secondary);
     padding: 0;
-    flex-shrink: 0;
-  }
-
-  @media (hover: hover) {
-    .dismiss-btn:hover {
-      background: var(--button-elevated);
-      color: var(--secondary);
-    }
-  }
-
-  .dismiss-btn:active {
-    background: var(--button-elevated);
-    color: var(--secondary);
-  }
-
-  .dismiss-btn:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
-  }
-
-  .dismiss-btn svg {
-    pointer-events: none;
-  }
-
-  .feedback-enter {
-    animation: feedbackEnter 150ms ease-out;
-  }
-
-  @keyframes feedbackEnter {
-    from {
-      opacity: 0;
-      transform: translateY(4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .terms-note {
-    color: var(--gray);
-    font-size: 12px;
-    text-align: center;
-    font-weight: 500;
-    padding-bottom: 6px;
-  }
-
-  .terms-link {
-    color: var(--gray);
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-
-  @media (hover: hover) {
-    .terms-link:hover {
-      color: var(--secondary);
-    }
-  }
-
-  .format-selected {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: calc(var(--padding) / 3) calc(var(--padding) * 0.75);
-    background: var(--button);
-    border-radius: calc(var(--border-radius) / 2);
-    box-shadow: var(--button-box-shadow);
-  }
-
-  .format-selected-label {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--secondary);
-  }
-
-  .format-clear-btn {
-    width: 18px;
-    height: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--gray);
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    flex-shrink: 0;
-  }
-
-  @media (hover: hover) {
-    .format-clear-btn:hover {
-      color: var(--secondary);
-    }
-  }
-
-  .format-clear-btn svg {
-    pointer-events: none;
-  }
-
-  .formats-toggle-btn {
-    display: flex;
-    align-items: center;
-    gap: calc(var(--padding) / 2);
-    font-size: 12.5px;
-    padding: calc(var(--padding) / 3) calc(var(--padding) * 0.75);
-  }
-
-  .formats-toggle-btn svg {
-    pointer-events: none;
-    flex-shrink: 0;
-  }
-
-  .small-spinner {
-    width: 12px;
-    height: 12px;
-  }
-
-  .formats-panel {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: calc(var(--padding) / 2);
-  }
-
-  .formats-quick {
-    display: flex;
-    gap: calc(var(--padding) / 3);
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .format-quick-btn {
-    font-size: 12px;
-    padding: calc(var(--padding) / 4) calc(var(--padding) * 0.6);
-  }
-
-  .formats-info {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .formats-note {
-    font-size: 11px;
-    color: var(--gray);
-    text-align: center;
-    line-height: 1.4;
-  }
-
-  .formats-list {
-    max-height: 240px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    background: var(--button);
-    border-radius: var(--border-radius);
-    box-shadow: var(--button-box-shadow);
-    scrollbar-width: none;
-  }
-
-  .formats-list::-webkit-scrollbar {
-    display: none;
-  }
-
-  .format-row {
-    display: grid;
-    grid-template-columns: 48px 48px 80px 32px 64px 64px 64px 48px;
-    align-items: center;
-    gap: 2px;
-    padding: calc(var(--padding) / 2) calc(var(--padding) / 2 + 4px);
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--gray);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    text-align: left;
-    border-bottom: 1px solid var(--button-stroke);
-  }
-
-  .format-row:last-child {
-    border-bottom: none;
-  }
-
-  @media (hover: hover) {
-    .format-row:hover {
-      background: var(--button-hover);
-      color: var(--secondary);
-    }
-  }
-
-  .format-row:active {
-    background: var(--button-press);
-  }
-
-  .format-row-selected {
-    background: var(--button-elevated);
-    color: var(--secondary);
-  }
-
-  .format-id {
-    color: var(--secondary);
-    font-weight: 500;
-  }
-
-  .format-ext {
-    color: var(--blue);
-  }
-
-  .format-res {
-    color: var(--secondary);
-  }
-
-  .format-codec {
-    text-align: center;
-  }
-
-  @media (max-width: 535px) {
-    .format-row {
-      grid-template-columns: 40px 40px 64px 24px 56px 56px 56px 40px;
-      font-size: 10px;
-    }
   }
 
   .search-hint {
     color: var(--gray);
   }
 
-  .search-results {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    background: var(--button);
-    border-radius: var(--border-radius);
-    box-shadow: var(--button-box-shadow);
-    overflow: hidden;
+  .terms-note {
+    font-size: 10px;
+    color: var(--gray);
+    text-align: center;
   }
 
-  .search-result-row {
-    display: flex;
-    align-items: center;
-    gap: var(--padding);
-    padding: calc(var(--padding) * 0.75) var(--padding);
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid var(--button-stroke);
-    cursor: pointer;
-    text-align: left;
-    color: var(--secondary);
-  }
-
-  .search-result-row:last-child {
-    border-bottom: none;
+  .terms-link {
+    color: var(--blue);
+    text-decoration: none;
   }
 
   @media (hover: hover) {
-    .search-result-row:hover {
-      background: var(--button-hover);
-    }
-  }
-
-  .search-result-row:active {
-    background: var(--button-press);
-  }
-
-  .search-result-row:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
-  }
-
-  .search-thumb {
-    width: 64px;
-    height: 36px;
-    border-radius: calc(var(--border-radius) / 2);
-    object-fit: cover;
-    flex-shrink: 0;
-    pointer-events: none;
-    background: var(--button-elevated);
-  }
-
-  .search-thumb-placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--gray);
-  }
-
-  .search-thumb-placeholder svg {
-    pointer-events: none;
-  }
-
-  .search-result-info {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
-  }
-
-  .search-result-title {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--secondary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .search-result-meta {
-    font-size: 11.5px;
-    font-weight: 500;
-    color: var(--gray);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .preview-container {
-    display: flex;
-    gap: calc(var(--padding) * 1.5);
-    align-items: flex-start;
-    padding: 0 calc(var(--padding) * 1.5);
-    max-width: 400px;
-  }
-
-  .preview-thumbnail-wrapper {
-    position: relative;
-    flex-shrink: 0;
-  }
-
-  .preview-skeleton {
-    width: 120px;
-    height: 67.5px;
-    border-radius: calc(var(--border-radius) - 4px);
-    background: var(--button-elevated);
-    animation: skeleton-shimmer 2s infinite;
-  }
-
-  @keyframes skeleton-shimmer {
-    0%, 100% {
-      opacity: 0.6;
-    }
-    50% {
-      opacity: 1;
-    }
-  }
-
-  .preview-thumbnail {
-    width: 120px;
-    height: 67.5px;
-    border-radius: calc(var(--border-radius) - 4px);
-    object-fit: cover;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-
-  .preview-thumbnail.loaded {
-    opacity: 1;
-  }
-
-  .preview-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    flex: 1;
-    min-width: 0;
-    padding-top: 4px;
-  }
-
-  .preview-title {
-    margin: 0;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--secondary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    line-clamp: 2;
-    line-height: 1.4;
-  }
-
-  .preview-author {
-    margin: 0;
-    font-size: 11.5px;
-    font-weight: 500;
-    color: var(--gray);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .preview-duration {
-    margin: 0;
-    font-size: 11.5px;
-    font-weight: 500;
-    color: var(--gray);
-  }
-
-  @media (max-width: 535px) {
-    .preview-container {
-      max-width: 100%;
-      gap: calc(var(--padding));
-    }
-
-    .preview-thumbnail {
-      width: 100px;
-      height: 56.25px;
-    }
-
-    .preview-skeleton {
-      width: 100px;
-      height: 56.25px;
-    }
-
-    .preview-title {
-      font-size: 12px;
+    .terms-link:hover {
+      text-decoration: underline;
     }
   }
 
@@ -1531,10 +824,6 @@
     }
 
     .loop-pulse {
-      animation: none;
-    }
-
-    .preview-skeleton {
       animation: none;
     }
   }
