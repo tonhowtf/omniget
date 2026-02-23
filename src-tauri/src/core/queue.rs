@@ -367,12 +367,11 @@ pub struct QueueItemProgress {
     pub phase: String,
 }
 
-pub fn emit_queue_state(app: &tauri::AppHandle, queue: &DownloadQueue) {
+pub fn emit_queue_state_from_state(app: &tauri::AppHandle, state: Vec<QueueItemInfo>) {
     let n = EMIT_COUNT.fetch_add(1, Ordering::Relaxed);
     if n.is_multiple_of(10) {
         tracing::info!("[perf] emit_queue_state called {} times", n);
     }
-    let state = queue.get_state();
     let _ = app.emit("queue-state-update", &state);
     let total = crate::tray::compute_total_active(app);
     crate::tray::update_active_count(app, total);
@@ -384,6 +383,11 @@ pub fn emit_queue_state(app: &tauri::AppHandle, queue: &DownloadQueue) {
         };
         let _ = window.set_title(&title);
     }
+}
+
+pub fn emit_queue_state(app: &tauri::AppHandle, queue: &DownloadQueue) {
+    let state = queue.get_state();
+    emit_queue_state_from_state(app, state);
 }
 
 pub fn spawn_download(
@@ -426,10 +430,11 @@ async fn spawn_download_inner(
         )
     };
 
-    {
+    let state = {
         let q = queue.lock().await;
-        emit_queue_state(&app, &q);
-    }
+        q.get_state()
+    };
+    emit_queue_state_from_state(&app, state);
 
     let info_start = std::time::Instant::now();
     let info = match media_info {
@@ -453,10 +458,12 @@ async fn spawn_download_inner(
             match fetch_and_cache_info(&url, &*downloader, &platform_name, ytdlp_path.as_deref()).await {
                 Ok(i) => i,
                 Err(e) => {
-                    let mut q = queue.lock().await;
-                    q.mark_complete(item_id, false, Some(e.to_string()), None, None);
-                    emit_queue_state(&app, &q);
-                    drop(q);
+                    let state = {
+                        let mut q = queue.lock().await;
+                        q.mark_complete(item_id, false, Some(e.to_string()), None, None);
+                        q.get_state()
+                    };
+                    emit_queue_state_from_state(&app, state);
                     try_start_next(app, queue).await;
                     return;
                 }
@@ -465,7 +472,7 @@ async fn spawn_download_inner(
     };
     tracing::info!("[queue] info fetch for {} took {:?}", item_id, info_start.elapsed());
 
-    {
+    let state = {
         let mut q = queue.lock().await;
         if let Some(item) = q.items.iter_mut().find(|i| i.id == item_id) {
             item.title = info.title.clone();
@@ -479,8 +486,9 @@ async fn spawn_download_inner(
             };
             item.file_count = Some(fc);
         }
-        emit_queue_state(&app, &q);
-    }
+        q.get_state()
+    };
+    emit_queue_state_from_state(&app, state);
 
     let _ = app.emit("queue-item-progress", &QueueItemProgress {
         id: item_id,
@@ -575,45 +583,47 @@ async fn spawn_download_inner(
 
     let _ = progress_forwarder.await;
 
-    {
-        let mut q = queue.lock().await;
-        let was_paused = q
-            .items
+    let was_paused = {
+        let q = queue.lock().await;
+        q.items
             .iter()
             .find(|i| i.id == item_id)
             .map(|i| i.status == QueueStatus::Paused)
-            .unwrap_or(false);
+            .unwrap_or(false)
+    };
 
-        if was_paused {
-            emit_queue_state(&app, &q);
-            drop(q);
-            try_start_next(app, queue).await;
-            return;
-        }
+    if was_paused {
+        let state = {
+            let q = queue.lock().await;
+            q.get_state()
+        };
+        emit_queue_state_from_state(&app, state);
+        try_start_next(app, queue).await;
+        return;
+    }
 
-        match result {
-            Ok(dl) => {
-                drop(q);
-
-                if settings.download.embed_metadata && ffmpeg::is_ffmpeg_available().await {
-                    let metadata = MetadataEmbed {
-                        title: Some(info.title.clone()),
-                        artist: Some(info.author.clone()),
-                        thumbnail_url: info.thumbnail_url.clone(),
-                        ..Default::default()
-                    };
-                    if let Err(e) = ffmpeg::embed_metadata(
-                        &dl.file_path,
-                        &metadata,
-                        settings.download.embed_thumbnail,
-                        shared_http_client(),
-                    )
-                    .await
-                    {
-                        tracing::warn!("Metadata embed failed for '{}': {}", info.title, e);
-                    }
+    match result {
+        Ok(dl) => {
+            if settings.download.embed_metadata && ffmpeg::is_ffmpeg_available().await {
+                let metadata = MetadataEmbed {
+                    title: Some(info.title.clone()),
+                    artist: Some(info.author.clone()),
+                    thumbnail_url: info.thumbnail_url.clone(),
+                    ..Default::default()
+                };
+                if let Err(e) = ffmpeg::embed_metadata(
+                    &dl.file_path,
+                    &metadata,
+                    settings.download.embed_thumbnail,
+                    shared_http_client(),
+                )
+                .await
+                {
+                    tracing::warn!("Metadata embed failed for '{}': {}", info.title, e);
                 }
+            }
 
+            let state = {
                 let mut q = queue.lock().await;
                 q.mark_complete(
                     item_id,
@@ -622,14 +632,19 @@ async fn spawn_download_inner(
                     Some(dl.file_path.to_string_lossy().to_string()),
                     Some(dl.file_size_bytes),
                 );
-                emit_queue_state(&app, &q);
-            }
-            Err(e) => {
-                let err_msg = e.to_string();
-                tracing::error!("Download error '{}': {}", platform_name, err_msg);
+                q.get_state()
+            };
+            emit_queue_state_from_state(&app, state);
+        }
+        Err(e) => {
+            let err_msg = e.to_string();
+            tracing::error!("Download error '{}': {}", platform_name, err_msg);
+            let state = {
+                let mut q = queue.lock().await;
                 q.mark_complete(item_id, false, Some(err_msg), None, None);
-                emit_queue_state(&app, &q);
-            }
+                q.get_state()
+            };
+            emit_queue_state_from_state(&app, state);
         }
     }
 
@@ -713,17 +728,23 @@ pub async fn prefetch_info(
 
 pub async fn try_start_next(app: tauri::AppHandle, queue: Arc<tokio::sync::Mutex<DownloadQueue>>) {
     let _timer_start = std::time::Instant::now();
-    let (next_ids, stagger) = {
+    let (next_ids, stagger, should_emit) = {
         let mut q = queue.lock().await;
         let ids = q.next_queued_ids();
         for nid in &ids {
             q.mark_active(*nid);
         }
-        if !ids.is_empty() {
-            emit_queue_state(&app, &q);
-        }
-        (ids, q.stagger_delay_ms)
+        let should_emit = !ids.is_empty();
+        (ids, q.stagger_delay_ms, should_emit)
     };
+
+    if should_emit {
+        let state = {
+            let q = queue.lock().await;
+            q.get_state()
+        };
+        emit_queue_state_from_state(&app, state);
+    }
 
     for (i, nid) in next_ids.into_iter().enumerate() {
         if i > 0 && stagger > 0 {
