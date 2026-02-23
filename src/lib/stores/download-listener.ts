@@ -47,6 +47,7 @@ type QueueItemInfo = {
   file_path: string | null;
   file_size_bytes: number | null;
   file_count: number | null;
+  thumbnail_url: string | null;
 };
 
 export type BatchFileStatusPayload = {
