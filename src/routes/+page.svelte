@@ -386,10 +386,6 @@
       />
     {/if}
 
-    {#if showOmnibox}
-      <OmniboxInput bind:url onInput={handleInput} />
-    {/if}
-
     {#if omniState.kind === "detecting"}
       <div class="feedback feedback-enter">
         <span class="feedback-spinner"></span>
@@ -405,7 +401,13 @@
           {/if}
         </span>
       </div>
+    {/if}
 
+    {#if showOmnibox}
+      <OmniboxInput bind:url onInput={handleInput} />
+    {/if}
+
+    {#if omniState.kind === "detected"}
       <MediaPreview bind:mediaPreview bind:imageLoading={previewImageLoading} />
 
       {#if omniState.info.platform !== "hotmart"}
