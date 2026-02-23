@@ -13,9 +13,11 @@
 
   let dialogEl = $state<HTMLDialogElement | null>(null);
   let closing = $state(false);
+  let previousFocusEl = $state<HTMLElement | null>(null);
 
   $effect(() => {
     if (visible && dialogEl && !dialogEl.open) {
+      previousFocusEl = document.activeElement as HTMLElement;
       dialogEl.showModal();
     }
   });
@@ -26,6 +28,8 @@
       closing = false;
       dialogEl?.close();
       dismissChangelog();
+      previousFocusEl?.focus();
+      previousFocusEl = null;
     }, 150);
   }
 
@@ -84,6 +88,8 @@
     bind:this={dialogEl}
     class="changelog-dialog"
     class:closing
+    aria-labelledby="changelog-title"
+    aria-modal="true"
     onclick={handleBackdropClick}
     oncancel={(e) => {
       e.preventDefault();
@@ -93,7 +99,7 @@
     <div class="dialog-content">
       <div class="dialog-header">
         <div class="dialog-title-row">
-          <h3>{$t("changelog.title")}</h3>
+          <h3 id="changelog-title">{$t("changelog.title")}</h3>
           {#if version}
             <span class="version-badge">v{version}</span>
           {/if}
