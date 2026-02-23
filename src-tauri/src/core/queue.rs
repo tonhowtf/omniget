@@ -508,7 +508,7 @@ async fn spawn_download_inner(
         final_output_dir = final_output_dir.join(&platform_name);
     }
     let opts = crate::models::media::DownloadOptions {
-        quality: Some(quality.unwrap_or(settings.download.video_quality.clone())),
+        quality: quality.or_else(|| Some(settings.download.video_quality.clone())),
         output_dir: final_output_dir,
         filename_template: Some(tmpl),
         download_subtitles: settings.download.download_subtitles,
