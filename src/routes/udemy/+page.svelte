@@ -28,6 +28,10 @@
   let loggedIn = $state(false);
   let sessionEmail = $state("");
 
+  let loginMode = $state<"email" | "cookies">("email");
+  let cookieJson = $state("");
+  let portalName = $state("");
+
   let courses: UdemyCourse[] = $state([]);
   let loadingCourses = $state(false);
   let coursesError = $state("");
@@ -80,6 +84,7 @@
       const result = await invoke<string>("udemy_check_session");
       sessionEmail = result;
       loggedIn = true;
+      portalName = await invoke<string>("udemy_get_portal");
       loadCourses();
     } catch {
       loggedIn = false;
@@ -97,6 +102,7 @@
       sessionEmail = result || email;
       loggedIn = true;
       waitingCode = false;
+      portalName = "www";
       loadCourses();
     } catch (e: any) {
       error = typeof e === "string" ? e : e.message ?? $t('udemy.unknown_error');
@@ -106,6 +112,41 @@
     }
   }
 
+  async function handleCookieLogin() {
+    if (!cookieJson.trim()) return;
+    error = "";
+    loading = true;
+    try {
+      const result = await invoke<string>("udemy_login_cookies", { cookieJson });
+      sessionEmail = result;
+      loggedIn = true;
+      portalName = await invoke<string>("udemy_get_portal");
+      loadCourses();
+    } catch (e: any) {
+      error = typeof e === "string" ? e : e.message ?? $t('udemy.unknown_error');
+    } finally {
+      loading = false;
+    }
+  }
+
+  let fileInput: HTMLInputElement;
+
+  function loadCookieFile() {
+    fileInput.click();
+  }
+
+  function onFileSelected(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      cookieJson = reader.result as string;
+    };
+    reader.readAsText(file);
+    input.value = "";
+  }
+
   async function handleLogout() {
     try {
       await invoke("udemy_logout");
@@ -113,6 +154,7 @@
     }
     loggedIn = false;
     sessionEmail = "";
+    portalName = "";
     courses = [];
     coursesError = "";
     currentPage = 1;
@@ -204,7 +246,11 @@
   <div class="page-logged">
     <div class="session-bar">
       <span class="session-info">
-        {$t('udemy.logged_as', { email: sessionEmail || "—" })}
+        {#if portalName && portalName !== "www"}
+          {$t('udemy.logged_as_enterprise', { email: sessionEmail || "—", portal: portalName })}
+        {:else}
+          {$t('udemy.logged_as', { email: sessionEmail || "—" })}
+        {/if}
       </span>
       <div class="session-actions">
         <button
@@ -300,42 +346,97 @@
     <div class="login-card">
       <h2>{$t('udemy.title')}</h2>
 
-      {#if loading && waitingCode}
-        <div class="waiting-code">
-          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="var(--blue)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-            <path d="M3 7l9 6 9-6" />
-          </svg>
-          <h3>{$t('udemy.waiting_code_title')}</h3>
-          <p class="waiting-code-text">{$t('udemy.waiting_code')}</p>
-          <span class="spinner"></span>
-        </div>
+      <div class="login-tabs">
+        <button
+          class="button login-tab"
+          class:active={loginMode === "email"}
+          onclick={() => { loginMode = "email"; error = ""; }}
+        >
+          {$t('udemy.login_email_tab')}
+        </button>
+        <button
+          class="button login-tab"
+          class:active={loginMode === "cookies"}
+          onclick={() => { loginMode = "cookies"; error = ""; }}
+        >
+          {$t('udemy.login_cookies_tab')}
+        </button>
+      </div>
+
+      {#if loginMode === "email"}
+        {#if loading && waitingCode}
+          <div class="waiting-code">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="var(--blue)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+              <path d="M3 7l9 6 9-6" />
+            </svg>
+            <h3>{$t('udemy.waiting_code_title')}</h3>
+            <p class="waiting-code-text">{$t('udemy.waiting_code')}</p>
+            <span class="spinner"></span>
+          </div>
+        {:else}
+          <form class="form" onsubmit={(e) => { e.preventDefault(); handleLogin(); }}>
+            <label class="field">
+              <span class="field-label">{$t('udemy.email_label')}</span>
+              <input
+                type="email"
+                placeholder={$t('udemy.email_placeholder')}
+                bind:value={email}
+                class="input"
+                disabled={loading}
+                required
+              />
+            </label>
+
+            {#if error}
+              <p class="error-msg">{error}</p>
+            {/if}
+
+            <button type="submit" class="button" disabled={loading}>
+              {#if loading}
+                {$t('udemy.authenticating')}
+              {:else}
+                {$t('udemy.login')}
+              {/if}
+            </button>
+          </form>
+        {/if}
       {:else}
-        <form class="form" onsubmit={(e) => { e.preventDefault(); handleLogin(); }}>
-          <label class="field">
-            <span class="field-label">{$t('udemy.email_label')}</span>
-            <input
-              type="email"
-              placeholder={$t('udemy.email_placeholder')}
-              bind:value={email}
-              class="input"
-              disabled={loading}
-              required
-            />
-          </label>
+        <div class="form">
+          <p class="cookies-instructions">{$t('udemy.cookies_instructions')}</p>
+
+          <textarea
+            class="input cookies-textarea"
+            placeholder={$t('udemy.cookies_placeholder')}
+            bind:value={cookieJson}
+            disabled={loading}
+            rows="6"
+          ></textarea>
+
+          <input
+            type="file"
+            accept=".json"
+            class="hidden-file-input"
+            bind:this={fileInput}
+            onchange={onFileSelected}
+          />
+
+          <button class="button" onclick={loadCookieFile} disabled={loading}>
+            {$t('udemy.cookies_load_file')}
+          </button>
 
           {#if error}
             <p class="error-msg">{error}</p>
           {/if}
 
-          <button type="submit" class="button" disabled={loading}>
+          <button class="button" onclick={handleCookieLogin} disabled={loading || !cookieJson.trim()}>
             {#if loading}
               {$t('udemy.authenticating')}
             {:else}
-              {$t('udemy.login')}
+              {$t('udemy.cookies_login')}
             {/if}
           </button>
-        </form>
+        </div>
       {/if}
     </div>
   </div>
@@ -481,6 +582,44 @@
 
   .login-card h2 {
     margin-block: 0;
+  }
+
+  .login-tabs {
+    display: flex;
+    gap: 0;
+  }
+
+  .login-tab {
+    flex: 1;
+    border-radius: 0;
+    font-size: 12.5px;
+    padding: calc(var(--padding) * 0.75) var(--padding);
+  }
+
+  .login-tab:first-child {
+    border-radius: var(--border-radius) 0 0 var(--border-radius);
+  }
+
+  .login-tab:last-child {
+    border-radius: 0 var(--border-radius) var(--border-radius) 0;
+  }
+
+  .cookies-instructions {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray);
+    line-height: 1.6;
+  }
+
+  .cookies-textarea {
+    resize: vertical;
+    min-height: 100px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .hidden-file-input {
+    display: none;
   }
 
   .form {
