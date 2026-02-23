@@ -102,7 +102,7 @@ impl QueueItem {
             speed_bytes_per_sec: self.speed_bytes_per_sec,
             downloaded_bytes: self.downloaded_bytes,
             total_bytes: self.total_bytes,
-            file_path: self.file_path.clone(),
+            file_path: self.file_path.as_ref().map(|p| p.clone()),
             file_size_bytes: self.file_size_bytes,
             file_count: self.file_count,
         }
