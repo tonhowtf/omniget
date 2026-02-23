@@ -64,6 +64,7 @@ pub struct QueueItemInfo {
     pub file_path: Option<String>,
     pub file_size_bytes: Option<u64>,
     pub file_count: Option<u32>,
+    pub thumbnail_url: Option<String>,
 }
 
 pub struct QueueItem {
@@ -105,6 +106,7 @@ impl QueueItem {
             file_path: self.file_path.as_ref().map(|p| p.clone()),
             file_size_bytes: self.file_size_bytes,
             file_count: self.file_count,
+            thumbnail_url: self.media_info.as_ref().and_then(|m| m.thumbnail_url.clone()),
         }
     }
 }
