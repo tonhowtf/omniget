@@ -725,7 +725,7 @@ pub async fn download_video(
     } else {
         None
     };
-    let mut use_browser_cookies = false;
+    let use_browser_cookies = false;
 
     let mut base_args = vec![
         "-f".to_string(),
@@ -829,7 +829,8 @@ pub async fn download_video(
         base_args.push("--restrict-filenames".to_string());
     }
 
-    let subtitle_args = if download_subtitles {
+    let should_download_subs = download_subtitles && RATE_LIMIT_429_COUNT.load(Ordering::Relaxed) < 2;
+    let subtitle_args = if should_download_subs {
         vec![
             "--write-sub".to_string(),
             "--write-auto-sub".to_string(),
@@ -847,7 +848,7 @@ pub async fn download_video(
     let max_attempts: usize = 3;
     let mut extra_args: Vec<String> = Vec::new();
     let mut last_error = String::new();
-    let mut use_subtitles = download_subtitles;
+    let mut use_subtitles = should_download_subs;
     let mut use_browser_cookies = use_browser_cookies
         || (is_youtube_url(url) && browser_cookies.is_some());
 
