@@ -7,17 +7,19 @@ use tauri::Manager;
 pub async fn ensure_api_webview(
     app: &tauri::AppHandle,
     result_store: &Arc<std::sync::Mutex<Option<String>>>,
+    portal_name: &str,
 ) -> anyhow::Result<tauri::WebviewWindow> {
     if let Some(existing) = app.get_webview_window("udemy-api") {
         return Ok(existing);
     }
 
     let store = result_store.clone();
+    let base_url = format!("https://{}.udemy.com/", portal_name);
 
     let window = tauri::WebviewWindowBuilder::new(
         app,
         "udemy-api",
-        tauri::WebviewUrl::External("https://www.udemy.com/".parse().unwrap()),
+        tauri::WebviewUrl::External(base_url.parse().unwrap()),
     )
     .visible(false)
     .inner_size(100.0, 100.0)
