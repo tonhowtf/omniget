@@ -143,6 +143,17 @@
   <div class="download-item" data-status={item.status}>
     <div class="item-header">
       <div class="item-header-left">
+        {#if item.thumbnail_url}
+          <img
+            src={item.thumbnail_url}
+            alt=""
+            class="queue-thumb"
+            loading="lazy"
+            onerror={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        {/if}
         <PlatformIcon platform={item.platform} size={16} />
         <span class="item-name">{item.name}</span>
       </div>
@@ -454,6 +465,14 @@
     gap: calc(var(--padding) / 2);
     min-width: 0;
     flex: 1;
+  }
+
+  .queue-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
   }
 
   .item-name {
