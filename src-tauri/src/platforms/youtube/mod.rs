@@ -301,16 +301,28 @@ impl PlatformDownloader for YouTubeDownloader {
             .first()
             .ok_or_else(|| anyhow!("Nenhuma qualidade disponível"))?;
 
+        let quality_height = if let Some(ref wanted) = opts.quality {
+            if wanted == "best" {
+                None
+            } else {
+                Self::extract_quality_height(wanted)
+            }
+        } else {
+            None
+        };
+
         let selected = if let Some(ref wanted) = opts.quality {
-            info.available_qualities
-                .iter()
-                .find(|q| q.label == *wanted)
-                .unwrap_or(first)
+            if wanted == "best" {
+                first
+            } else {
+                info.available_qualities
+                    .iter()
+                    .find(|q| q.label == *wanted)
+                    .unwrap_or(first)
+            }
         } else {
             first
         };
-
-        let quality_height = Self::extract_quality_height(&selected.label);
         let video_url = &selected.url;
 
         ytdlp::download_video(
