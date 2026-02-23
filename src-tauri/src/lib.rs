@@ -217,6 +217,7 @@ pub fn run() {
             commands::platform_auth::platform_auth_logout,
             commands::platform_auth::platform_auth_list,
             commands::udemy_auth::udemy_login,
+            commands::udemy_auth::udemy_cookie_login,
             commands::udemy_auth::udemy_check_session,
             commands::udemy_auth::udemy_logout,
             commands::udemy_courses::udemy_list_courses,
