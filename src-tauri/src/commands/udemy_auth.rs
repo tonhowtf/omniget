@@ -1,7 +1,8 @@
 use std::time::{Duration, Instant};
 
 use crate::platforms::udemy::auth::{
-    authenticate, delete_saved_session, load_saved_session, save_session,
+    authenticate, authenticate_with_cookie_json, delete_saved_session, load_saved_session,
+    save_session,
 };
 use crate::AppState;
 
@@ -30,6 +31,32 @@ pub async fn udemy_login(
         Err(e) => {
             tracing::error!("[udemy] login failed: {}", e);
             Err(format!("Login failed: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn udemy_cookie_login(
+    state: tauri::State<'_, AppState>,
+    cookie_json: String,
+) -> Result<String, String> {
+    let _ = delete_saved_session().await;
+    state.udemy_session.lock().await.take();
+    *state.udemy_session_validated_at.lock().await = None;
+    *state.udemy_courses_cache.lock().await = None;
+
+    match authenticate_with_cookie_json(&cookie_json).await {
+        Ok(session) => {
+            let response_email = session.email.clone();
+            let _ = save_session(&session).await;
+            let mut guard = state.udemy_session.lock().await;
+            *guard = Some(session);
+            *state.udemy_session_validated_at.lock().await = Some(Instant::now());
+            Ok(response_email)
+        }
+        Err(e) => {
+            tracing::error!("[udemy] cookie login failed: {}", e);
+            Err(format!("Cookie login failed: {}", e))
         }
     }
 }
@@ -68,10 +95,12 @@ pub async fn udemy_check_session(
     }
 
     let client = session.client.clone();
+    let portal = session.portal_name.clone();
     drop(guard);
 
+    let validation_url = format!("https://{}.udemy.com/api-2.0/users/me/", portal);
     let resp = client
-        .get("https://www.udemy.com/api-2.0/users/me/")
+        .get(&validation_url)
         .send()
         .await
         .map_err(|e| format!("Validation error: {}", e))?;
