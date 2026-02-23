@@ -381,7 +381,7 @@
         url: u,
         outputDir,
         downloadMode: downloadMode === "auto" ? null : downloadMode,
-        quality: selectedQuality === "best" ? null : selectedQuality,
+        quality: selectedQuality,
         formatId: null,
         referer: null,
       }))
