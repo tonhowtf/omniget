@@ -14,6 +14,7 @@ pub struct UdemySession {
     pub email: String,
     pub client: reqwest::Client,
     pub cookies: Vec<(String, String)>,
+    pub portal_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,6 +23,12 @@ pub struct SavedSession {
     pub email: String,
     pub cookies: Vec<(String, String)>,
     pub saved_at: u64,
+    #[serde(default = "default_portal")]
+    pub portal_name: String,
+}
+
+fn default_portal() -> String {
+    "www".into()
 }
 
 fn session_file_path() -> anyhow::Result<PathBuf> {
@@ -34,6 +41,10 @@ const UDEMY_CLIENT_ID: &str = "TH96Ov3Ebo3OtgoSH5mOYzYolcowM3ycedWQDDce";
 const UDEMY_CLIENT_SECRET: &str = "f2lgDUDxjFiOlVHUpwQNFUfCQPyMO0tJQMaud53PF01UKueW8enYjeEYoyVeP0bb2XVEDkJ5GLJaVTfM5QgMVz6yyXyydZdA5QhzgvG9UmCPUYaCrIVf7VpmiilfbLJc";
 
 pub fn build_client_from_saved(saved: &SavedSession) -> anyhow::Result<reqwest::Client> {
+    if saved.portal_name != "www" {
+        return build_enterprise_client(saved);
+    }
+
     let mut default_headers = HeaderMap::new();
 
     if !saved.access_token.is_empty() {
@@ -76,6 +87,51 @@ pub fn build_client_from_saved(saved: &SavedSession) -> anyhow::Result<reqwest::
     Ok(client)
 }
 
+fn build_enterprise_client(saved: &SavedSession) -> anyhow::Result<reqwest::Client> {
+    let mut default_headers = HeaderMap::new();
+
+    let cookie_header = saved
+        .cookies
+        .iter()
+        .map(|(name, value)| format!("{}={}", name, value))
+        .collect::<Vec<_>>()
+        .join("; ");
+
+    if !cookie_header.is_empty() {
+        default_headers.insert("Cookie", HeaderValue::from_str(&cookie_header)?);
+    }
+
+    if let Some(csrf) = saved.cookies.iter().find(|(n, _)| n == "csrftoken") {
+        default_headers.insert("X-CSRFToken", HeaderValue::from_str(&csrf.1)?);
+    }
+
+    let origin = format!("https://{}.udemy.com", saved.portal_name);
+    default_headers.insert("Referer", HeaderValue::from_str(&format!("{}/", origin))?);
+    default_headers.insert("Origin", HeaderValue::from_str(&origin)?);
+    default_headers.insert(
+        "x-requested-with",
+        HeaderValue::from_static("XMLHttpRequest"),
+    );
+    default_headers.insert(
+        "Accept",
+        HeaderValue::from_static("application/json, text/plain, */*"),
+    );
+    default_headers.insert(
+        "accept-language",
+        HeaderValue::from_static("en_US"),
+    );
+
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+        .default_headers(default_headers)
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .connect_timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(300))
+        .build()?;
+
+    Ok(client)
+}
+
 pub async fn save_session(session: &UdemySession) -> anyhow::Result<()> {
     let path = session_file_path()?;
     if let Some(parent) = path.parent() {
@@ -90,6 +146,7 @@ pub async fn save_session(session: &UdemySession) -> anyhow::Result<()> {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs(),
+        portal_name: session.portal_name.clone(),
     };
 
     let json = serde_json::to_string_pretty(&saved)?;
@@ -112,6 +169,7 @@ pub async fn load_saved_session() -> anyhow::Result<UdemySession> {
         email: saved.email,
         cookies: saved.cookies,
         client,
+        portal_name: saved.portal_name,
     })
 }
 
@@ -403,6 +461,7 @@ pub async fn authenticate(
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()
                         .as_secs(),
+                    portal_name: "www".into(),
                 };
 
                 let client = build_client_from_saved(&saved)?;
@@ -412,6 +471,7 @@ pub async fn authenticate(
                     email: email.to_string(),
                     client,
                     cookies,
+                    portal_name: "www".into(),
                 });
             }
 
@@ -432,4 +492,122 @@ pub async fn authenticate(
         let sleep_ms = if nav_detected { 500 } else { 2000 };
         tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
     }
+}
+
+pub async fn authenticate_with_cookie_json(cookie_json_str: &str) -> anyhow::Result<UdemySession> {
+    #[derive(Deserialize)]
+    struct CookieEntry {
+        name: String,
+        value: String,
+        #[allow(dead_code)]
+        domain: Option<String>,
+    }
+
+    #[derive(Deserialize)]
+    struct CookieExport {
+        url: Option<String>,
+        cookies: Vec<CookieEntry>,
+    }
+
+    let export: CookieExport = serde_json::from_str(cookie_json_str)
+        .map_err(|e| anyhow!("Invalid cookie JSON: {}", e))?;
+
+    if export.cookies.is_empty() {
+        return Err(anyhow!("No cookies provided"));
+    }
+
+    // Detect portal from URL or cookie domains
+    let portal_name = if let Some(ref url) = export.url {
+        detect_portal_from_url(url)
+    } else {
+        export
+            .cookies
+            .iter()
+            .filter_map(|c| c.domain.as_deref())
+            .find_map(|d| {
+                let d = d.trim_start_matches('.');
+                d.strip_suffix(".udemy.com")
+                    .map(|sub| sub.to_string())
+            })
+            .unwrap_or_else(|| "www".into())
+    };
+
+    let cookies: Vec<(String, String)> = export
+        .cookies
+        .iter()
+        .map(|c| (c.name.clone(), c.value.clone()))
+        .collect();
+
+    let access_token = cookies
+        .iter()
+        .find(|(name, _)| name == "access_token")
+        .map(|(_, value)| strip_cookie_quotes(value).to_string())
+        .unwrap_or_default();
+
+    // Try to extract email from ud_user_jwt cookie (base64url-encoded JWT)
+    let email = cookies
+        .iter()
+        .find(|(name, _)| name == "ud_user_jwt")
+        .and_then(|(_, value)| decode_jwt_email(value))
+        .unwrap_or_else(|| format!("enterprise@{}.udemy.com", portal_name));
+
+    let saved = SavedSession {
+        access_token: access_token.clone(),
+        email: email.clone(),
+        cookies: cookies.clone(),
+        saved_at: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+        portal_name: portal_name.clone(),
+    };
+
+    let client = build_client_from_saved(&saved)?;
+
+    tracing::info!(
+        "[udemy] cookie login for portal={}, email={}, {} cookies",
+        portal_name,
+        email,
+        cookies.len()
+    );
+
+    Ok(UdemySession {
+        access_token,
+        email,
+        client,
+        cookies,
+        portal_name,
+    })
+}
+
+fn detect_portal_from_url(url: &str) -> String {
+    url::Url::parse(url)
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.to_string()))
+        .and_then(|host| {
+            host.strip_suffix(".udemy.com")
+                .map(|sub| sub.to_string())
+        })
+        .unwrap_or_else(|| "www".into())
+}
+
+fn decode_jwt_email(jwt: &str) -> Option<String> {
+    use base64::Engine;
+
+    // JWT has 3 parts: header.payload.signature
+    let parts: Vec<&str> = jwt.split('.').collect();
+    if parts.len() < 2 {
+        return None;
+    }
+
+    let payload = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(parts[1])
+        .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(parts[1]))
+        .ok()?;
+
+    let claims: serde_json::Value = serde_json::from_slice(&payload).ok()?;
+    claims
+        .get("email")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
 }
