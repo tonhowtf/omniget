@@ -23,13 +23,14 @@ async fn fetch_curriculum_via_webview(
     api_webview: &Arc<tokio::sync::Mutex<Option<tauri::WebviewWindow>>>,
     result_store: &Arc<std::sync::Mutex<Option<String>>>,
     course_id: u64,
+    portal_name: &str,
 ) -> Result<UdemyCurriculum, String> {
     let window = {
         let mut wv_guard = api_webview.lock().await;
         match &*wv_guard {
             Some(w) => w.clone(),
             None => {
-                let w = webview_api::ensure_api_webview(app, result_store)
+                let w = webview_api::ensure_api_webview(app, result_store, portal_name)
                     .await
                     .map_err(|e| e.to_string())?;
                 *wv_guard = Some(w.clone());
@@ -39,8 +40,8 @@ async fn fetch_curriculum_via_webview(
     };
 
     let url = format!(
-        "https://www.udemy.com/api-2.0/courses/{}/subscriber-curriculum-items/?fields[lecture]=title,object_index,asset,supplementary_assets&fields[quiz]=title,object_index,type&fields[practice]=title,object_index&fields[chapter]=title,object_index&fields[asset]=title,filename,asset_type,status,is_external,media_license_token,course_is_drmed,media_sources,captions,stream_urls,download_urls,external_url,body&page_size=200",
-        course_id
+        "https://{}.udemy.com/api-2.0/courses/{}/subscriber-curriculum-items/?fields[lecture]=title,object_index,asset,supplementary_assets&fields[quiz]=title,object_index,type&fields[practice]=title,object_index&fields[chapter]=title,object_index&fields[asset]=title,filename,asset_type,status,is_external,media_license_token,course_is_drmed,media_sources,captions,stream_urls,download_urls,external_url,body&page_size=200",
+        portal_name, course_id
     );
 
     tracing::info!("[udemy-api] fetching curriculum via webview for course {}", course_id);
@@ -111,11 +112,19 @@ pub async fn start_udemy_course_download(
         map.insert(course_id, cancel_token.clone());
     }
 
+    let portal = {
+        let guard = state.udemy_session.lock().await;
+        guard
+            .as_ref()
+            .map(|s| s.portal_name.clone())
+            .unwrap_or_else(|| "www".into())
+    };
+
     let api_webview = state.udemy_api_webview.clone();
     let result_store = state.udemy_api_result.clone();
 
     let curriculum = match fetch_curriculum_via_webview(
-        &app, &api_webview, &result_store, course_id
+        &app, &api_webview, &result_store, course_id, &portal
     ).await {
         Ok(c) => c,
         Err(e) => {
