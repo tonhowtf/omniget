@@ -139,12 +139,14 @@ pub async fn download_from_url(
         let downloader_clone = downloader.clone();
         let platform_clone = platform_name.clone();
         let ytdlp_clone = ytdlp_path.clone();
+        let app_clone = app.clone();
         tokio::spawn(async move {
-            queue::prefetch_info(
+            queue::prefetch_info_with_emit(
                 &url_clone,
                 &*downloader_clone,
                 &platform_clone,
                 ytdlp_clone.as_deref(),
+                Some(app_clone),
             )
             .await;
         });
