@@ -31,7 +31,7 @@ fn info_cache() -> &'static tokio::sync::Mutex<HashMap<String, CachedInfo>> {
     INFO_CACHE.get_or_init(|| tokio::sync::Mutex::new(HashMap::new()))
 }
 
-const INFO_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(300);
+const INFO_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(600);
 
 static IN_FLIGHT_FETCHES: OnceLock<tokio::sync::Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>> =
     OnceLock::new();
@@ -747,8 +747,15 @@ pub async fn try_start_next(app: tauri::AppHandle, queue: Arc<tokio::sync::Mutex
     }
 
     for (i, nid) in next_ids.into_iter().enumerate() {
-        if i > 0 && stagger > 0 {
-            tokio::time::sleep(std::time::Duration::from_millis(stagger)).await;
+        if i > 0 {
+            let item_platform = {
+                let q = queue.lock().await;
+                q.items.iter().find(|item| item.id == nid).map(|item| item.platform.clone())
+            };
+            let delay_ms = if item_platform.as_deref() == Some("youtube") { 2000 } else { stagger };
+            if delay_ms > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+            }
         }
         let app_c = app.clone();
         let queue_c = queue.clone();
