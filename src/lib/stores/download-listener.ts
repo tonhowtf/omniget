@@ -14,6 +14,7 @@ import {
   markFileComplete,
   markFileError,
 } from "./convert-store.svelte";
+import { setMediaPreview } from "./media-preview-store.svelte";
 
 type ProgressPayload = {
   course_id: number;
@@ -248,6 +249,16 @@ export async function initDownloadListener(): Promise<() => void> {
     },
   );
 
+  const unlistenMediaPreview = await listen<{
+    url: string;
+    title: string;
+    author: string;
+    thumbnail_url: string | null;
+    duration_seconds: number | null;
+  }>("media-info-preview", (event) => {
+    setMediaPreview(event.payload);
+  });
+
   return () => {
     unlistenProgress();
     unlistenComplete();
@@ -258,5 +269,6 @@ export async function initDownloadListener(): Promise<() => void> {
     unlistenBatchFileStatus();
     unlistenConvertProgress();
     unlistenConvertComplete();
+    unlistenMediaPreview();
   };
 }
