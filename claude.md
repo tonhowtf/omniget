@@ -1,6 +1,6 @@
 # OmniGet
 
-Desktop download manager built with Tauri 2.0 (Rust backend) + SvelteKit (frontend). Monorepo: `src-tauri/` is Rust, `src/` is SvelteKit + TypeScript. Run `cargo tauri dev` to start.
+Desktop download manager built with Tauri 2.0 (Rust backend) + SvelteKit (frontend). Modern design principles (2025-2026): clarity over features, immediate feedback, and universal accessibility. Monorepo: `src-tauri/` is Rust, `src/` is SvelteKit + TypeScript. Run `cargo tauri dev` to start.
 
 ## Commands
 
@@ -42,9 +42,19 @@ src/
 
 ## Design System
 
+### Core Principles
+
+**Minimalism with Purpose**: Interface is clean and uncluttered, but every element has a function. Avoid decoration; use color, motion, and hierarchy for clarity and guidance.
+
+**Immediate Feedback**: Users always know what's happening. Progress bars show percent + bytes + speed. Buttons respond on click. Errors are explicit, not vague ("Missing API key" not "Error").
+
+**Color as Guidance**: Color guides attention (accent for primary actions, error for destructive) but never communicates alone (pair with icon, text, or pattern). No pure black backgrounds (use dark grey #121212).
+
+**Accessibility First**: WCAG 2.2 compliance is baseline, not aspiration. 4.5:1 contrast for text, focus indicators visible and 3:1 contrast ratio, all interactive elements keyboard accessible.
+
 ### Color Architecture
 
-Use CSS custom properties exclusively. NEVER hardcode colors. The theme system uses `[data-theme="dark"]` and `[data-theme="light"]` selectors on a parent element.
+Use CSS custom properties exclusively. NEVER hardcode colors. The theme system uses `[data-theme="dark"]` and `[data-theme="light"]` selectors on a parent element. All colors must meet WCAG 2.2 AA standards (4.5:1 contrast for text, 3:1 for focus rings).
 
 #### Primary Palette
 
@@ -105,7 +115,7 @@ These tokens ensure sufficient contrast for accessibility. Use when text and bac
 
 ### Typography
 
-Typographic hierarchy uses system fonts for body text and UI, monospace only for code/technical content.
+**Hierarchy First**: Use size and weight to guide the eye. Consistent hierarchy improves scannability and accessibility (screen reader users benefit from semantic structure). Typographic hierarchy uses system fonts for body text and UI, monospace only for code/technical content. System fonts render natively on each platform, improving performance and accessibility while reducing the need for custom font licenses.
 
 #### Font Stack
 
@@ -268,10 +278,18 @@ Entry/exit animations via `open`/`closing` CSS classes with 150ms transition. Ba
 - **Scrolling:** Long content uses `max-height` with `overflow: auto`. Scrollbar hidden unless needed.
 - **Positioning:** Centered via CSS `inset: 0; margin: auto`. Max width 600px or 90% viewport width.
 - **Animations:** Entry (scale 0.95 → 1, opacity 0 → 1, 150ms ease-out). Exit (reverse, 150ms ease-in).
+- **WCAG 2.2 Compliance:** Focus indicators must be 3:1 contrast with adjacent colors. Focus must not be obscured by other elements (2.4.12).
 
 ### Progress Bar
 
 Simple div-in-div pattern. Outer: `--button-elevated` bg, 6px height, full rounded. Inner: `--accent` bg (not blue), width set to percentage with `transition: width 0.1s`. Indeterminate state uses a `Skeleton` shimmer component.
+
+**Download UX Requirements**:
+- Always show **determinate** progress (percent, not indeterminate spinner) for downloads
+- Display: `45% • 234 MB / 512 MB • 2.5 MB/s`
+- Include **ETA**: `(totalBytes - downloadedBytes) / speedBytesPerSec` in minutes
+- Combine progress bar + metrics + phase indicator for clarity
+- Users who see progress animation wait 3x longer before canceling (NN/G research)
 
 ### Processing Queue Items
 
@@ -319,6 +337,102 @@ Full safe-area-inset support for notched/Dynamic Island devices:
 - `env(safe-area-inset-bottom)` in sidebar height calculation
 - `env(safe-area-inset-left)` for landscape iPhone sidebar
 
+## Download UX Principles
+
+Download managers have unique UX challenges: slow operations, rate limiting, platform diversity. These principles guide OmniGet's approach to feedback, progress, and error handling.
+
+### Phase Indicators
+
+Downloads have distinct phases. Show them explicitly:
+
+```
+1. "Preparing" — Before spawning yt-dlp/curl (rare but visible)
+2. "Spawning" — Process starting, dependencies loading (helps when yt-dlp is slow)
+3. "Waiting Response" — Process running, waiting for first byte
+4. "Downloading" — Data flowing (percent > 0%)
+5. "Merging" — Post-processing (merging video + audio, or format conversion)
+```
+
+Each phase gets a small icon (hourglass → play → clock → download → checkmark). Never leave the user wondering "is it hung?". Visible progress kills the perception of sluggishness (users wait 3x longer when shown progress bars).
+
+### Determinate Progress for Downloads
+
+ALWAYS use determinate progress bars for downloads (not spinners):
+
+```
+Display: "234 MB / 512 MB (45%) • 2.5 MB/s • ~3m 20s remaining"
+Color: --accent (never grayed out, shows active task)
+Bar height: 6px (minimum 4px for accessibility)
+Update frequency: 100-200ms (not per-byte)
+```
+
+Calculate ETA: `ETA = (totalBytes - downloadedBytes) / currentSpeedBytesPerSec`. If speed fluctuates, smooth with a rolling average (last 5 speed measurements).
+
+### Optimistic UI for Queue Actions
+
+When user clicks "Pause", "Resume", "Remove", or "Retry", update the UI immediately without waiting for backend confirmation:
+
+```
+1. User clicks Pause
+2. UI shows item as "paused" instantly
+3. Send pause command to backend in background
+4. If fails: show toast with "Undo" button or revert to previous state
+```
+
+Benefits: App feels responsive. Download actions are almost never destructive (easy to undo). Failures are recoverable.
+
+### Error Feedback (Not "Loading..."")
+
+Errors must be explicit. Never show vague feedback:
+
+```
+❌ "Error" (unhelpful)
+❌ "Loading..." (what's loading?)
+✅ "HTTP 429 Too Many Requests - Retrying in 15s..."
+✅ "Cannot access cookies from browser - Continuing without auth"
+✅ "Downloaded 234 MB, paused by user"
+```
+
+Use `toast` for transient errors (auto-dismiss after 5s). Use inline status for persistent states (item.status = "error", show details on click).
+
+### Completion Feedback
+
+When a download finishes, provide **visual + haptic + audio** feedback:
+
+```
+- Color flash: progress bar changes to --success (green)
+- Icon change: → to checkmark
+- Haptic: hapticConfirm() (if enabled)
+- Toast: "Downloaded: filename.mp4 (123 MB)"
+- Action: "Open folder" button in toast
+```
+
+Loop mascot can also react (eyes light up, happy expression). Immediate feedback makes success feel rewarding.
+
+### Handling Rate Limiting (429)
+
+Visible retry strategy with feedback:
+
+```
+1. Detect: "HTTP error 429: Too Many Requests"
+2. Show: "Rate limited. Retrying in 10s... (attempt 2/3)"
+3. Rotate strategy: Try different player_client, cookies, proxy
+4. After 3 attempts: Show detailed error "YouTube is blocking this video. Try again in a few hours."
+5. Allow: Manual retry button
+```
+
+Users prefer knowing why something failed over magic retries.
+
+### Batch Operations
+
+When multiple downloads are active, aggregate feedback:
+
+```
+- "3 Downloading, 2 Paused, 1 Complete"
+- Sidebar shows active count badge (red circle with number)
+- Peek queue panel shows top 3 active + total
+```
+
 ## State Management
 
 ### Settings Store
@@ -362,15 +476,21 @@ Three-way: `auto | light | dark`. Auto resolves via `window.matchMedia('(prefers
 
 ## Accessibility
 
+OmniGet targets WCAG 2.2 AA compliance across all features. Accessibility is not a feature — it's a requirement.
+
 ### Semantic HTML & ARIA
 
 Use semantic HTML (`<button>`, `<label>`, `<dialog>`) as the foundation. ARIA is supplementary:
 - `role="dialog"` + `aria-modal="true"` for dialog containers
 - `aria-label` / `aria-labelledby` for unlabeled buttons
-- `aria-describedby` for form hints and longer descriptions
+- `aria-describedby` for form hints and longer descriptions (e.g., "API key: required, 32+ chars")
 - `aria-checked`, `aria-pressed` for custom toggle/button states
-- `role="switch"` for checkbox-style toggles
+- `role="switch"` for checkbox-style toggles (not role="checkbox")
+- `aria-live="polite"` for dynamic content updates (queue progress, toast messages)
+- `aria-valuemin`, `aria-valuenow`, `aria-valuemax` for progress bars
 - Avoid `role="button"` on `<div>` — use `<button>` instead
+
+**Reference**: [W3C ARIA Authoring Practices](https://www.w3.org/WAI/ARIA/apg/)
 
 ### Data Attributes for Preferences
 
@@ -383,34 +503,76 @@ Accessibility preferences are exposed as data attributes on the root element, th
 
 Settings for accessibility: `reduceMotion`, `reduceTransparency`, `disableHaptics`, `dontAutoOpenQueue`.
 
-### Contrast & Color Dependency
+### Contrast & Color Dependency (WCAG 2.2)
 
-- **Text contrast:** Minimum 4.5:1 for body text, 3:1 for large text (18px+)
-- **Color as information:** Never use color alone — pair with icon, text, or pattern
-- **Focus indicators:** Solid outline, 2px, 2px offset. Test with forced-colors media query
+- **Text contrast (1.4.3 Contrast Minimum AA):** 4.5:1 for normal text, 3:1 for large text (18px+)
+- **Focus contrast (2.4.11 Focus Appearance AA):** Focus indicators must have 3:1 contrast with adjacent colors AND cover minimum area (~6px minimum around target)
+- **Color as information (1.4.1):** Never use color alone — pair with icon, text, or pattern (e.g., error = red + ✗ icon + "Error" text)
+- **Focus Not Obscured (2.4.12):** Focused elements must remain visible in viewport without scrolling. Never use `overflow: hidden` on focus targets.
 - **Contrast tokens:** Use `--on-*` tokens for text on colored backgrounds
+- **Test:** Use Chrome DevTools `@media (forced-colors: active)` to verify focus indicators work in high-contrast mode
+
+**References**: [WCAG 2.2 Contrast Minimum](https://wcag.dock.codes/documentation/wcag212/), [WCAG 2.2 Focus Appearance](https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html)
 
 ### Haptic Feedback
 
 Haptics use a DOM checkbox-switch hack (creating a temporary `<input type="checkbox" switch>`, clicking it, then removing). Three patterns: `hapticSwitch()` (single tap), `hapticConfirm()` (double tap 120ms apart), `hapticError()` (triple tap). Always gated by `device.supports.haptics && !settings.accessibility.disableHaptics`.
 
-### Focus Management
+### Focus Management (WCAG 2.1.1 Keyboard)
 
-After navigation, auto-focus the element with `data-first-focus` attribute. All interactive elements use `:focus-visible` (never `:focus`) for ring display. Links and buttons get `outline: var(--focus-ring)` with `outline-offset: 2px`. Focus ring color is `--accent`.
+All functionality must be operable via keyboard. Focus management ensures users can navigate without mouse:
+
+- **Tab order:** Natural DOM order (top-to-bottom, left-to-right). Use `tabindex="0"` only for custom interactive elements, never `tabindex > 0`.
+- **First focus:** After navigation, auto-focus the element with `data-first-focus` attribute.
+- **Focus visible:** All interactive elements use `:focus-visible` (never `:focus`) for ring display.
+- **Focus ring:** `outline: var(--focus-ring)` (solid 2px --accent) with `outline-offset: 2px`. Must have 3:1 contrast with adjacent colors.
+- **Escape key:** Dialogs and menus close with ESC. Traps focus within dialog.
+- **Enter/Space:** Buttons activate on Enter or Space. Links navigate on Enter only.
+- **Arrow keys:** Lists support Up/Down arrows to navigate items. Tab moves between lists.
+- **Testing:** Navigate entire app with Tab/Shift+Tab + Escape + Enter. No mouse allowed.
+
+**Reference**: [W3C Developing a Keyboard Interface](https://www.w3.org/WAI/ARIA/apg/practices/keyboard-interface/), [Yale: Focus & Keyboard](https://usability.yale.edu/web-accessibility/articles/focus-keyboard-operability)
 
 ### RTL Support
 
 Fully bidirectional. Use `:dir(rtl)` pseudo-class for directional overrides. Logical properties preferred where possible, but physical overrides exist for complex layouts (sidebar padding, download button borders, toggle direction).
 
+## Loop Mascot
+
+Loop is OmniGet's mascot — an expressive creature that reacts to download progress and completion in real-time. Loop communicates states visually when text might be unclear:
+
+- **Idle**: Neutral expression, watching
+- **Downloading**: Eyes follow progress, animated (loop moving/pulsing)
+- **Paused**: Loop stops, eyes droop slightly
+- **Complete**: Eyes light up, happy expression, maybe a smile or celebration
+- **Error**: Eyes show concern, sad expression
+- **Rate Limited**: Frustrated look, animated retry timer
+
+Loop is pure visual feedback — never required to understand the app's state. Haptic feedback + toast notifications + progress bars provide accessibility fallbacks. Loop enhances UX for sighted users, not replaces it.
+
+**Note**: Loop design is protected intellectual property. Commercial use prohibited.
+
 ## i18n
 
 Translations loaded lazily per route. File structure: `i18n/{lang}/{namespace}.json`. Access via `$t("namespace.key")`. Default locale: `en`. Language auto-detection from browser with manual override in settings. All user-visible strings MUST go through `$t()` — never hardcode text.
 
+**Download feedback strings must be clear and specific**:
+- ✅ `downloads.phase_preparing: "Preparing download..."`
+- ✅ `downloads.phase_spawning: "Launching downloader..."`
+- ✅ `downloads.phase_waiting_response: "Waiting for response..."`
+- ✅ `toast.download_started: "Download started: {{name}}"`
+- ✅ `toast.rate_limited: "Rate limited (429). Retrying in {{seconds}}s..."`
+
 ## Coding Rules
+
+### Svelte & TypeScript
 
 - Svelte 5 runes only: `$state`, `$derived`, `$effect`, `$props`. No `let x` for reactive declarations in new code.
 - TypeScript strict mode. Use discriminated unions for state variants (see queue types).
 - Generic TypeScript on settings components to enforce compile-time correctness of setting context/id/value.
+
+### Styling & Layout
+
 - Scoped `<style>` in every component. Use `:global()` sparingly and only for child component overrides.
 - Use `$components/` alias for component imports, `$lib/` for lib, `$i18n/` for translations.
 - Global styles only in `app.css`. Component styles always scoped.
@@ -419,7 +581,25 @@ Translations loaded lazily per route. File structure: `i18n/{lang}/{namespace}.j
 - `user-select: auto` globally. Set `user-select: none` on interactive elements (buttons, icons). Set `user-select: text` explicitly on readable content (paragraphs, code blocks, technical text).
 - Scrollbar hidden everywhere: `scrollbar-width: none` + `::-webkit-scrollbar { display: none }`.
 - No `!important` except for accessibility overrides (`reduceMotion`, `reduceTransparency`).
-- Animations: define as `@keyframes` in the component, provide reduced-motion alternative. Prefer `transform` and `opacity` for performance.
 - Safe area: always account for `env(safe-area-inset-*)` in fixed/sticky elements.
-- Focus ring: positive offset (2px), accent color (`--accent`), applied on `:focus-visible` only.
+
+### Interactions & Feedback
+
+- **Immediate feedback:** When user clicks a button, update UI instantly (optimistic). Handle errors in background.
+- **Progress feedback:** Never show "loading..." without context. Always show: phase + percent + bytes + speed.
+- **Error feedback:** Errors are explicit, specific, and actionable. "Cannot access Chrome cookies from browser. Try Firefox instead." not "Error".
+- **Keyboard shortcuts:** Show them in tooltips (e.g., "Download (Ctrl+D)"). Use `aria-label` for screen readers.
+- **Tooltips:** Brief (5-10 words max). Include keyboard shortcut if available. Show on hover + focus for accessibility.
+
+### Focus & Animations
+
+- Focus ring: solid 2px `--accent`, `outline-offset: 2px`, applied on `:focus-visible` only. Test 3:1 contrast.
+- Animations: define as `@keyframes` in the component, provide reduced-motion alternative. Prefer `transform` and `opacity` for performance.
 - Dialog focus: first interactive element receives `autofocus`, focus trap prevents escape, ESC or backdrop click closes.
+
+### Download-Specific
+
+- **Progress bars:** Always determinate (show %). Use `aria-valuenow`, `aria-valuemin`, `aria-valuemax` for screen readers.
+- **Phase indicators:** Combine icon + text. Never rely on color alone. Rotate icons based on phase (preparing → spawning → waiting → downloading).
+- **Error handling:** If download fails after 3 retries, show detailed error with "Retry" button, not just "Failed".
+- **Batch operations:** Show count in sidebar badge ("3 Downloading"). Aggregate progress: "2/5 complete".
