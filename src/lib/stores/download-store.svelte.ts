@@ -31,6 +31,7 @@ export type GenericDownloadItem = BaseItem & {
   phase: string;
   filePath?: string;
   fileCount?: number;
+  thumbnail_url?: string | null;
 };
 
 export type DownloadItem = CourseDownloadItem | GenericDownloadItem;
@@ -178,6 +179,7 @@ type QueueItemInfo = {
   file_path: string | null;
   file_size_bytes: number | null;
   file_count: number | null;
+  thumbnail_url: string | null;
 };
 
 function queueStatusToDownloadStatus(status: { type: string; data?: unknown }): DownloadStatus {
@@ -236,6 +238,7 @@ export function syncQueueState(items: QueueItemInfo[]) {
       lastUpdateAt: now,
       filePath: qi.file_path ?? undefined,
       fileCount: qi.file_count ?? undefined,
+      thumbnail_url: qi.thumbnail_url,
     });
   }
 
