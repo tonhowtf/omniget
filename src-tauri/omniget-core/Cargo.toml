@@ -1,6 +1,6 @@
 [package]
 name = "omniget-core"
-version = "0.2.15"
+version = "0.2.16"
 edition = "2021"
 
 [lib]
