@@ -745,7 +745,8 @@ pub async fn download_video(
     }
 
     let effective_fragments = if is_youtube_url(url) {
-        concurrent_fragments.min(8)
+        let max_frags = if RATE_LIMIT_429_COUNT.load(Ordering::Relaxed) > 0 { 4 } else { 8 };
+        concurrent_fragments.min(max_frags)
     } else {
         concurrent_fragments
     };
