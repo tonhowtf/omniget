@@ -36,7 +36,7 @@ pub async fn udemy_login(
 }
 
 #[tauri::command]
-pub async fn udemy_cookie_login(
+pub async fn udemy_login_cookies(
     state: tauri::State<'_, AppState>,
     cookie_json: String,
 ) -> Result<String, String> {
@@ -133,6 +133,17 @@ pub async fn udemy_check_session(
     } else {
         Err(format!("session_check_failed: {}", status))
     }
+}
+
+#[tauri::command]
+pub async fn udemy_get_portal(
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    let guard = state.udemy_session.lock().await;
+    Ok(guard
+        .as_ref()
+        .map(|s| s.portal_name.clone())
+        .unwrap_or_else(|| "www".into()))
 }
 
 #[tauri::command]
