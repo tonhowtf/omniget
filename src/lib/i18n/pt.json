@@ -28,6 +28,9 @@
     "module_progress": "Módulo {{current}}/{{total}}",
     "phase_fetching_info": "Obtendo informações...",
     "phase_starting": "Iniciando download...",
+    "phase_preparing": "Preparando download...",
+    "phase_spawning": "Iniciando o downloader...",
+    "phase_waiting_response": "Aguardando resposta...",
     "cancel": "Cancelar",
     "clear_finished": "Limpar finalizados"
   },
