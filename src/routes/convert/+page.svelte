@@ -428,6 +428,8 @@
   .actions-row {
     display: flex;
     gap: calc(var(--padding) / 2);
+    justify-content: center;
+    align-items: center;
   }
 
   .card {
