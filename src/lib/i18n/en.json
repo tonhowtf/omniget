@@ -95,7 +95,14 @@
     "choose_folder": "Choose download folder",
     "refresh": "Refresh",
     "unknown_error": "Unknown error",
-    "lectures": "{{count}} lectures"
+    "lectures": "{{count}} lectures",
+    "login_email_tab": "Email (Udemy.com)",
+    "login_cookies_tab": "Cookies (Enterprise)",
+    "cookies_instructions": "For Udemy Business/Enterprise accounts (e.g. company.udemy.com), export your cookies from the browser using an extension like \"Get cookies.txt locally\" in JSON format, then paste or load the file here.",
+    "cookies_placeholder": "Paste cookie JSON here...",
+    "cookies_load_file": "Load JSON file",
+    "cookies_login": "Sign in with Cookies",
+    "logged_as_enterprise": "Logged in as {{email}} ({{portal}}.udemy.com)"
   },
   "telegram": {
     "title": "Telegram",
