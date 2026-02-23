@@ -3,7 +3,7 @@ use tauri::Emitter;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use crate::core::queue::{self, emit_queue_state, emit_queue_state_from_state, QueueItemInfo};
+use crate::core::queue::{self, emit_queue_state_from_state, QueueItemInfo};
 use crate::core::url_parser;
 use crate::platforms::Platform;
 use crate::storage::config;
@@ -289,10 +289,16 @@ pub async fn retry_download(
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
-    let mut q = state.download_queue.lock().await;
-    if q.retry(download_id) {
-        emit_queue_state(&app, &q);
-        drop(q);
+    let state_to_emit = {
+        let mut q = state.download_queue.lock().await;
+        if q.retry(download_id) {
+            Some(q.get_state())
+        } else {
+            None
+        }
+    };
+    if let Some(s) = state_to_emit {
+        emit_queue_state_from_state(&app, s);
         queue::try_start_next(app, state.download_queue.clone()).await;
         Ok("Download re-queued".to_string())
     } else {
@@ -306,10 +312,16 @@ pub async fn remove_download(
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
-    let mut q = state.download_queue.lock().await;
-    if q.remove(download_id) {
-        emit_queue_state(&app, &q);
-        drop(q);
+    let state_to_emit = {
+        let mut q = state.download_queue.lock().await;
+        if q.remove(download_id) {
+            Some(q.get_state())
+        } else {
+            None
+        }
+    };
+    if let Some(s) = state_to_emit {
+        emit_queue_state_from_state(&app, s);
         queue::try_start_next(app, state.download_queue.clone()).await;
         Ok("Download removed".to_string())
     } else {
@@ -334,10 +346,12 @@ pub async fn update_max_concurrent(
     if !(1..=10).contains(&max) {
         return Err("Value must be between 1 and 10".to_string());
     }
-    let mut q = state.download_queue.lock().await;
-    q.max_concurrent = max;
-    emit_queue_state(&app, &q);
-    drop(q);
+    let state_to_emit = {
+        let mut q = state.download_queue.lock().await;
+        q.max_concurrent = max;
+        q.get_state()
+    };
+    emit_queue_state_from_state(&app, state_to_emit);
     queue::try_start_next(app, state.download_queue.clone()).await;
     Ok(format!("Max concurrent set to {}", max))
 }
@@ -347,9 +361,12 @@ pub async fn clear_finished_downloads(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let mut q = state.download_queue.lock().await;
-    q.clear_finished();
-    emit_queue_state(&app, &q);
+    let state_to_emit = {
+        let mut q = state.download_queue.lock().await;
+        q.clear_finished();
+        q.get_state()
+    };
+    emit_queue_state_from_state(&app, state_to_emit);
     Ok("Finished downloads cleared".to_string())
 }
 
