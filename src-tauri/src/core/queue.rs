@@ -420,6 +420,17 @@ async fn spawn_download_inner(
 ) {
     tracing::info!("[queue] download {} started", item_id);
 
+    let _ = app.emit("queue-item-progress", &QueueItemProgress {
+        id: item_id,
+        title: "".to_string(),
+        platform: "".to_string(),
+        percent: 0.0,
+        speed_bytes_per_sec: 0.0,
+        downloaded_bytes: 0,
+        total_bytes: None,
+        phase: "preparing".to_string(),
+    });
+
     let (url, output_dir, download_mode, quality, format_id, referer, cancel_token, media_info, platform_name, downloader, ytdlp_path) = {
         let q = queue.lock().await;
         let item = match q.items.iter().find(|i| i.id == item_id) {
@@ -568,7 +579,12 @@ async fn spawn_download_inner(
             last_bytes = downloaded_bytes;
             last_time = now;
 
-            let phase = if percent > 0.0 { "downloading" } else { "connecting" };
+            let phase = match percent {
+                p if p < -1.5 => "waiting_response",
+                p if p < -0.5 => "spawning",
+                p if p > 0.0 => "downloading",
+                _ => "connecting",
+            };
 
             let _ = app_progress.emit("queue-item-progress", &QueueItemProgress {
                 id: item_id,
