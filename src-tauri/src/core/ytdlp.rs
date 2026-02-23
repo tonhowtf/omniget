@@ -664,6 +664,8 @@ pub async fn download_video(
         yt_rate_limiter().acquire().await;
     }
 
+    let _ = progress.send(-1.0).await;
+
     let mode = download_mode.unwrap_or("auto");
     let is_audio_only = mode == "audio";
     let (ffmpeg_available, ffmpeg_location_result, aria2c_path) = tokio::join!(
@@ -902,6 +904,8 @@ pub async fn download_video(
             .spawn()
             .map_err(|e| anyhow!("Failed to start yt-dlp: {}", e))?;
         tracing::info!("[perf] download_video: yt-dlp process spawned at {:?} (attempt {})", _timer_start.elapsed(), attempt + 1);
+
+        let _ = progress.send(-2.0).await;
 
         let stdout = child.stdout.take().ok_or_else(|| anyhow!("No stdout"))?;
         let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;
