@@ -167,6 +167,7 @@ pub fn run() {
             commands::courses::hotmart_list_courses,
             commands::courses::hotmart_refresh_courses,
             commands::courses::hotmart_get_modules,
+            commands::diagnostics::get_rate_limit_stats,
             commands::downloads::start_course_download,
             commands::downloads::cancel_course_download,
             commands::downloads::get_active_downloads,
