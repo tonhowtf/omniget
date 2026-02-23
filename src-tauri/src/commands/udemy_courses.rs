@@ -5,12 +5,19 @@ use crate::platforms::udemy::webview_api;
 use crate::{AppState, UdemyCoursesCache};
 
 const COURSES_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(10 * 60);
-const DEFAULT_PORTAL: &str = "www";
 
 async fn fetch_courses_via_webview(
     app: &tauri::AppHandle,
     state: &tauri::State<'_, AppState>,
 ) -> Result<Vec<UdemyCourse>, String> {
+    let portal = {
+        let guard = state.udemy_session.lock().await;
+        guard
+            .as_ref()
+            .map(|s| s.portal_name.clone())
+            .unwrap_or_else(|| "www".into())
+    };
+
     let result_store = state.udemy_api_result.clone();
 
     let window = {
@@ -29,7 +36,7 @@ async fn fetch_courses_via_webview(
 
     let url = format!(
         "https://{}.udemy.com/api-2.0/users/me/subscribed-courses?fields[course]=id,url,title,published_title,image_240x135,num_published_lectures&ordering=-last_accessed,-access_time&page=1&page_size=10000",
-        DEFAULT_PORTAL
+        portal
     );
 
     tracing::info!("[udemy-api] fetching courses via webview");
@@ -85,7 +92,7 @@ async fn fetch_courses_via_webview(
 
     let sub_url = format!(
         "https://{}.udemy.com/api-2.0/users/me/subscription-course-enrollments?fields[course]=id,title,published_title,image_240x135,num_published_lectures&page=1&page_size=50",
-        DEFAULT_PORTAL
+        portal
     );
 
     if let Ok(sub_body) = webview_api::webview_get(&window, &sub_url, &result_store).await {
