@@ -386,6 +386,19 @@ pub fn emit_queue_state_from_state(app: &tauri::AppHandle, state: Vec<QueueItemI
     let _ = app.emit("queue-state-update", &state);
     let total = crate::tray::compute_total_active(app);
     crate::tray::update_active_count(app, total);
+
+    let active_items: Vec<_> = state
+        .iter()
+        .filter(|i| i.status == QueueStatus::Active)
+        .collect();
+    let avg_percent = if !active_items.is_empty() {
+        let sum: f64 = active_items.iter().map(|i| i.percent).sum();
+        sum / active_items.len() as f64 / 100.0
+    } else {
+        0.0
+    };
+    crate::tray::update_taskbar_badge(app, total, avg_percent);
+
     if let Some(window) = app.get_webview_window("main") {
         let title = if total > 0 {
             format!("({}) omniget", total)
