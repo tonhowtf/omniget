@@ -411,6 +411,8 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         args.push("--extractor-args".to_string());
         args.push("youtube:player_client=web,default".to_string());
         args.push("--skip-download".to_string());
+        args.push("--sleep-requests".to_string());
+        args.push("1".to_string());
     }
 
     args.push(url.to_string());
@@ -767,6 +769,11 @@ pub async fn download_video(
 
         base_args.push("--throttled-rate".to_string());
         base_args.push("500K".to_string());
+
+        base_args.push("--sleep-subtitles".to_string());
+        base_args.push("5".to_string());
+        base_args.push("--sleep-requests".to_string());
+        base_args.push("1".to_string());
     }
 
     base_args.extend([
@@ -819,20 +826,25 @@ pub async fn download_video(
         base_args.push("--restrict-filenames".to_string());
     }
 
-    if download_subtitles {
-        base_args.push("--write-sub".to_string());
-        base_args.push("--write-auto-sub".to_string());
-        base_args.push("--sub-lang".to_string());
-        base_args.push("en,pt,es".to_string());
-        base_args.push("--sub-format".to_string());
-        base_args.push("best".to_string());
-        base_args.push("--convert-subs".to_string());
-        base_args.push("srt".to_string());
-    }
+    let subtitle_args = if download_subtitles {
+        vec![
+            "--write-sub".to_string(),
+            "--write-auto-sub".to_string(),
+            "--sub-lang".to_string(),
+            "en,pt,es".to_string(),
+            "--sub-format".to_string(),
+            "best".to_string(),
+            "--convert-subs".to_string(),
+            "srt".to_string(),
+        ]
+    } else {
+        Vec::new()
+    };
 
     let max_attempts: usize = 3;
     let mut extra_args: Vec<String> = Vec::new();
     let mut last_error = String::new();
+    let mut use_subtitles = download_subtitles;
 
     for attempt in 0..max_attempts {
         tracing::info!("[yt-dlp] download attempt {}/{}", attempt + 1, max_attempts);
@@ -858,6 +870,10 @@ pub async fn download_video(
         }
 
         let mut args = base_args.clone();
+
+        if use_subtitles {
+            args.extend(subtitle_args.iter().cloned());
+        }
 
         if use_browser_cookies {
             if let Some(ref browser) = browser_cookies {
@@ -1021,16 +1037,9 @@ pub async fn download_video(
                 tracing::warn!("[yt-dlp] rate limited (429), waiting {}s (base={}s + jitter={}s)", wait_secs, base_secs, jitter_secs);
                 tokio::time::sleep(std::time::Duration::from_secs(wait_secs)).await;
 
-                // If 429 is related to subtitle downloads, skip subtitles on retry
-                if stderr_lower.contains("subtitle") && download_subtitles {
+                if stderr_lower.contains("subtitle") && use_subtitles {
                     tracing::warn!("[yt-dlp] 429 on subtitles detected, disabling subtitle download for retry");
-                    // Remove subtitle arguments from base_args
-                    base_args.retain(|arg| {
-                        !arg.starts_with("--write-") &&
-                        !arg.starts_with("--sub-") &&
-                        !arg.starts_with("--convert-subs") &&
-                        arg != "--write-auto-sub"
-                    });
+                    use_subtitles = false;
                 }
             }
 
