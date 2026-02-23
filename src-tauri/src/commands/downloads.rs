@@ -3,7 +3,7 @@ use tauri::Emitter;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use crate::core::queue::{self, emit_queue_state, QueueItemInfo};
+use crate::core::queue::{self, emit_queue_state, emit_queue_state_from_state, QueueItemInfo};
 use crate::core::url_parser;
 use crate::platforms::Platform;
 use crate::storage::config;
@@ -150,7 +150,7 @@ pub async fn download_from_url(
         });
     }
 
-    {
+    let state_to_emit = {
         let mut q = download_queue.lock().await;
         q.enqueue(
             download_id,
@@ -173,8 +173,9 @@ pub async fn download_from_url(
         for nid in &next_ids {
             q.mark_active(*nid);
         }
-        emit_queue_state(&app, &q);
-    }
+        q.get_state()
+    };
+    emit_queue_state_from_state(&app, state_to_emit);
 
     let q_clone = download_queue.clone();
     let app_clone = app.clone();
@@ -219,10 +220,16 @@ pub async fn cancel_generic_download(
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
-    let mut q = state.download_queue.lock().await;
-    if q.cancel(download_id) {
-        emit_queue_state(&app, &q);
-        drop(q);
+    let state_to_emit = {
+        let mut q = state.download_queue.lock().await;
+        if q.cancel(download_id) {
+            Some(q.get_state())
+        } else {
+            None
+        }
+    };
+    if let Some(s) = state_to_emit {
+        emit_queue_state_from_state(&app, s);
         queue::try_start_next(app, state.download_queue.clone()).await;
         Ok("Download cancelled".to_string())
     } else {
@@ -236,10 +243,16 @@ pub async fn pause_download(
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
-    let mut q = state.download_queue.lock().await;
-    if q.pause(download_id) {
-        emit_queue_state(&app, &q);
-        drop(q);
+    let state_to_emit = {
+        let mut q = state.download_queue.lock().await;
+        if q.pause(download_id) {
+            Some(q.get_state())
+        } else {
+            None
+        }
+    };
+    if let Some(s) = state_to_emit {
+        emit_queue_state_from_state(&app, s);
         queue::try_start_next(app, state.download_queue.clone()).await;
         Ok("Download paused".to_string())
     } else {
@@ -253,10 +266,16 @@ pub async fn resume_download(
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
-    let mut q = state.download_queue.lock().await;
-    if q.resume(download_id) {
-        emit_queue_state(&app, &q);
-        drop(q);
+    let state_to_emit = {
+        let mut q = state.download_queue.lock().await;
+        if q.resume(download_id) {
+            Some(q.get_state())
+        } else {
+            None
+        }
+    };
+    if let Some(s) = state_to_emit {
+        emit_queue_state_from_state(&app, s);
         queue::try_start_next(app, state.download_queue.clone()).await;
         Ok("Download resumed".to_string())
     } else {
