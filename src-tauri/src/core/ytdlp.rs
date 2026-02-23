@@ -803,7 +803,7 @@ pub async fn download_video(
         "--socket-timeout".to_string(),
         "30".to_string(),
         "--retries".to_string(),
-        "10".to_string(),
+        "5".to_string(),
         "--fragment-retries".to_string(),
         "10".to_string(),
         "--extractor-retries".to_string(),
@@ -847,6 +847,8 @@ pub async fn download_video(
     let mut extra_args: Vec<String> = Vec::new();
     let mut last_error = String::new();
     let mut use_subtitles = download_subtitles;
+    let mut use_browser_cookies = use_browser_cookies
+        || (is_youtube_url(url) && browser_cookies.is_some());
 
     for attempt in 0..max_attempts {
         tracing::info!("[yt-dlp] download attempt {}/{}", attempt + 1, max_attempts);
@@ -1044,6 +1046,18 @@ pub async fn download_video(
                 if stderr_lower.contains("subtitle") && use_subtitles {
                     tracing::warn!("[yt-dlp] 429 on subtitles detected, disabling subtitle download for retry");
                     use_subtitles = false;
+                }
+
+                if is_youtube_url(url) {
+                    extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                    let client = match attempt {
+                        0 => "youtube:player_client=web",
+                        1 => "youtube:player_client=mweb",
+                        _ => "youtube:player_client=ios",
+                    };
+                    extra_args.push("--extractor-args".to_string());
+                    extra_args.push(client.to_string());
+                    tracing::warn!("[yt-dlp] 429 detected, rotating player_client to {}", client);
                 }
             }
 
