@@ -40,6 +40,15 @@ fn in_flight_map() -> &'static tokio::sync::Mutex<HashMap<String, Arc<tokio::syn
     IN_FLIGHT_FETCHES.get_or_init(|| tokio::sync::Mutex::new(HashMap::new()))
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct MediaPreviewEvent {
+    pub url: String,
+    pub title: String,
+    pub author: String,
+    pub thumbnail_url: Option<String>,
+    pub duration_seconds: Option<f64>,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(tag = "type", content = "data")]
 pub enum QueueStatus {
@@ -720,10 +729,32 @@ pub async fn prefetch_info(
     platform: &str,
     ytdlp_path: Option<&std::path::Path>,
 ) {
+    prefetch_info_with_emit(url, downloader, platform, ytdlp_path, None).await;
+}
+
+pub async fn prefetch_info_with_emit(
+    url: &str,
+    downloader: &dyn PlatformDownloader,
+    platform: &str,
+    ytdlp_path: Option<&std::path::Path>,
+    app: Option<tauri::AppHandle>,
+) {
     let _timer_start = std::time::Instant::now();
     tracing::info!("[perf] prefetch_info: started");
     match fetch_and_cache_info(url, downloader, platform, ytdlp_path).await {
-        Ok(info) => tracing::info!("[perf] prefetch_info: completed in {:?} — {}", _timer_start.elapsed(), info.title),
+        Ok(info) => {
+            tracing::info!("[perf] prefetch_info: completed in {:?} — {}", _timer_start.elapsed(), info.title);
+            if let Some(app) = app {
+                let preview = MediaPreviewEvent {
+                    url: url.to_string(),
+                    title: info.title.clone(),
+                    author: info.author.clone(),
+                    thumbnail_url: info.thumbnail_url.clone(),
+                    duration_seconds: info.duration_seconds,
+                };
+                let _ = app.emit("media-info-preview", preview);
+            }
+        }
         Err(e) => tracing::warn!("[perf] prefetch_info: failed in {:?} — {}", _timer_start.elapsed(), e),
     }
 }
