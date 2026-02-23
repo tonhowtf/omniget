@@ -341,7 +341,7 @@
         url: currentUrl,
         outputDir,
         downloadMode: downloadMode === "auto" ? null : downloadMode,
-        quality: selectedQuality === "best" ? null : selectedQuality,
+        quality: selectedQuality,
         formatId: selectedFormatId,
         referer: referer.trim() || null,
       });
