@@ -409,7 +409,7 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
 
     if is_youtube_url(url) {
         args.push("--extractor-args".to_string());
-        args.push("youtube:player_client=web,default".to_string());
+        args.push("youtube:player_client=web".to_string());
         args.push("--skip-download".to_string());
         args.push("--sleep-requests".to_string());
         args.push("1".to_string());
@@ -472,7 +472,7 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         if stderr_lower.contains("http error 429") {
             RATE_LIMIT_429_COUNT.fetch_add(1, Ordering::Relaxed);
             let sanitized_url = sanitize_log_line(url);
-            let player_client = if is_youtube_url(url) { "web,default" } else { "n/a" };
+            let player_client = if is_youtube_url(url) { "web" } else { "n/a" };
             tracing::warn!(
                 "[yt-429] rate limit in get_video_info: url={} player_client={} retries=3",
                 sanitized_url,
@@ -540,7 +540,7 @@ pub async fn get_playlist_info(
         if stderr_lower.contains("http error 429") {
             RATE_LIMIT_429_COUNT.fetch_add(1, Ordering::Relaxed);
             let sanitized_url = sanitize_log_line(url);
-            let player_client = if is_youtube_url(url) { "web,default" } else { "n/a" };
+            let player_client = if is_youtube_url(url) { "web" } else { "n/a" };
             tracing::warn!(
                 "[yt-429] rate limit in get_playlist_info: url={} player_client={} retries=3",
                 sanitized_url,
@@ -757,7 +757,8 @@ pub async fn download_video(
     }
 
     let effective_fragments = if is_youtube_url(url) {
-        let max_frags = if RATE_LIMIT_429_COUNT.load(Ordering::Relaxed) > 0 { 4 } else { 8 };
+        let rate_limit_count = RATE_LIMIT_429_COUNT.load(Ordering::Relaxed);
+        let max_frags = if rate_limit_count >= 2 { 2 } else if rate_limit_count > 0 { 4 } else { 8 };
         concurrent_fragments.min(max_frags)
     } else {
         concurrent_fragments
@@ -767,7 +768,7 @@ pub async fn download_video(
 
     if is_youtube_url(url) {
         base_args.push("--extractor-args".to_string());
-        base_args.push("youtube:player_client=web,mweb,default".to_string());
+        base_args.push("youtube:player_client=web".to_string());
 
         base_args.push("--throttled-rate".to_string());
         base_args.push("500K".to_string());
@@ -1026,7 +1027,7 @@ pub async fn download_video(
             if stderr_lower.contains("http error 429") {
                 RATE_LIMIT_429_COUNT.fetch_add(1, Ordering::Relaxed);
                 let sanitized_url = sanitize_log_line(url);
-                let player_client = if is_youtube_url(url) { "web,mweb,default" } else { "n/a" };
+                let player_client = if is_youtube_url(url) { "web" } else { "n/a" };
                 let cookies_enabled = use_browser_cookies || cookie_file.is_some();
                 tracing::warn!(
                     "[yt-429] rate limit in download_video: url={} attempt={}/{} player_client={} cookies={} aria2c={}",
