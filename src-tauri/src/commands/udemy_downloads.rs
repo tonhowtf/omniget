@@ -87,6 +87,82 @@ async fn fetch_curriculum_via_webview(
     api::parse_curriculum(course_id, &all_results).map_err(|e| e.to_string())
 }
 
+async fn fetch_curriculum_via_api(
+    state: &tauri::State<'_, AppState>,
+    course_id: u64,
+    portal_name: &str,
+) -> Result<UdemyCurriculum, String> {
+    let client = {
+        let guard = state.udemy_session.lock().await;
+        let session = guard.as_ref().ok_or("not_authenticated")?;
+        session.client.clone()
+    };
+
+    let url = format!(
+        "https://{}.udemy.com/api-2.0/courses/{}/subscriber-curriculum-items/?fields[lecture]=title,object_index,asset,supplementary_assets&fields[quiz]=title,object_index,type&fields[practice]=title,object_index&fields[chapter]=title,object_index&fields[asset]=title,filename,asset_type,status,is_external,media_license_token,course_is_drmed,media_sources,captions,stream_urls,download_urls,external_url,body&page_size=200",
+        portal_name, course_id
+    );
+
+    tracing::info!("[udemy-api] fetching curriculum via direct API for course {}", course_id);
+
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("API request failed: {}", e))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("API returned status {}", resp.status()));
+    }
+
+    let body = resp.text().await.map_err(|e| format!("Read body failed: {}", e))?;
+
+    let mut data: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| format!("JSON parse error: {}", e))?;
+
+    let mut all_results = data.get("results")
+        .and_then(|r| r.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    loop {
+        let next_url = data.get("next").and_then(|n| n.as_str()).map(|s| s.to_string());
+        match next_url {
+            Some(next) if !next.is_empty() => {
+                tracing::info!("[udemy-api] fetching next curriculum page via direct API");
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+                let page_resp = client
+                    .get(&next)
+                    .send()
+                    .await
+                    .map_err(|e| format!("API page request failed: {}", e))?;
+
+                if !page_resp.status().is_success() {
+                    break;
+                }
+
+                let page_body = page_resp.text().await
+                    .map_err(|e| format!("Read page body failed: {}", e))?;
+
+                let page_data: serde_json::Value = serde_json::from_str(&page_body)
+                    .map_err(|e| format!("JSON parse error on page: {}", e))?;
+
+                if let Some(new_results) = page_data.get("results").and_then(|r| r.as_array()) {
+                    all_results.extend(new_results.iter().cloned());
+                }
+
+                data = page_data;
+            }
+            _ => break,
+        }
+    }
+
+    tracing::info!("[udemy-api] curriculum fetched via direct API: {} items total", all_results.len());
+
+    api::parse_curriculum(course_id, &all_results).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn start_udemy_course_download(
     app: tauri::AppHandle,
@@ -120,16 +196,31 @@ pub async fn start_udemy_course_download(
             .unwrap_or_else(|| "www".into())
     };
 
-    let api_webview = state.udemy_api_webview.clone();
-    let result_store = state.udemy_api_result.clone();
-
-    let curriculum = match fetch_curriculum_via_webview(
-        &app, &api_webview, &result_store, course_id, &portal
-    ).await {
-        Ok(c) => c,
-        Err(e) => {
-            active.lock().await.remove(&course_id);
-            return Err(format!("Failed to fetch curriculum: {}", e));
+    let curriculum = if portal != "www" {
+        match fetch_curriculum_via_api(&state, course_id, &portal).await {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!("[udemy-api] direct API curriculum failed for portal={}, falling back to webview: {}", portal, e);
+                let api_webview = state.udemy_api_webview.clone();
+                let result_store = state.udemy_api_result.clone();
+                match fetch_curriculum_via_webview(&app, &api_webview, &result_store, course_id, &portal).await {
+                    Ok(c) => c,
+                    Err(e2) => {
+                        active.lock().await.remove(&course_id);
+                        return Err(format!("Failed to fetch curriculum: {}", e2));
+                    }
+                }
+            }
+        }
+    } else {
+        let api_webview = state.udemy_api_webview.clone();
+        let result_store = state.udemy_api_result.clone();
+        match fetch_curriculum_via_webview(&app, &api_webview, &result_store, course_id, &portal).await {
+            Ok(c) => c,
+            Err(e) => {
+                active.lock().await.remove(&course_id);
+                return Err(format!("Failed to fetch curriculum: {}", e));
+            }
         }
     };
 
