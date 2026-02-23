@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use anyhow::anyhow;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -15,6 +15,39 @@ static YTDLP_PATH_CACHE: tokio::sync::OnceCell<Option<PathBuf>> = tokio::sync::O
 static FFMPEG_LOCATION_CACHE: tokio::sync::OnceCell<Option<String>> = tokio::sync::OnceCell::const_new();
 static COOKIES_BROWSER_CACHE: tokio::sync::OnceCell<Option<String>> = tokio::sync::OnceCell::const_new();
 static RATE_LIMIT_429_COUNT: AtomicU64 = AtomicU64::new(0);
+
+struct YtRateLimiter {
+    semaphore: tokio::sync::Semaphore,
+    last_request_ns: AtomicU64,
+}
+
+impl YtRateLimiter {
+    async fn acquire(&self) {
+        let _permit = self.semaphore.acquire().await.unwrap_or_else(|_| panic!("semaphore closed"));
+        let min_interval_ns = 500_000_000u64;
+        let now_ns = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+        let last = self.last_request_ns.load(Ordering::Relaxed);
+        let elapsed = now_ns.saturating_sub(last);
+        if elapsed < min_interval_ns {
+            let wait_ns = min_interval_ns - elapsed;
+            let wait_duration = std::time::Duration::from_nanos(wait_ns);
+            tokio::time::sleep(wait_duration).await;
+        }
+        self.last_request_ns.store(now_ns, Ordering::Relaxed);
+    }
+}
+
+static YT_RATE_LIMITER: OnceLock<YtRateLimiter> = OnceLock::new();
+
+fn yt_rate_limiter() -> &'static YtRateLimiter {
+    YT_RATE_LIMITER.get_or_init(|| YtRateLimiter {
+        semaphore: tokio::sync::Semaphore::new(3),
+        last_request_ns: AtomicU64::new(0),
+    })
+}
 
 const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
@@ -351,6 +384,11 @@ fn is_youtube_url(url: &str) -> bool {
 
 pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_json::Value> {
     let _timer_start = std::time::Instant::now();
+
+    if is_youtube_url(url) {
+        yt_rate_limiter().acquire().await;
+    }
+
     tracing::info!("[yt-dlp] starting info fetch for URL");
     let mut args = vec![
         "--dump-single-json".to_string(),
@@ -451,6 +489,10 @@ pub async fn get_playlist_info(
     ytdlp: &Path,
     url: &str,
 ) -> anyhow::Result<(String, Vec<PlaylistEntry>)> {
+    if is_youtube_url(url) {
+        yt_rate_limiter().acquire().await;
+    }
+
     let mut args = vec![
         "--flat-playlist".to_string(),
         "--dump-json".to_string(),
@@ -607,6 +649,11 @@ pub async fn download_video(
     download_subtitles: bool,
 ) -> anyhow::Result<DownloadResult> {
     let _timer_start = std::time::Instant::now();
+
+    if is_youtube_url(url) {
+        yt_rate_limiter().acquire().await;
+    }
+
     let mode = download_mode.unwrap_or("auto");
     let is_audio_only = mode == "audio";
     let (ffmpeg_available, ffmpeg_location_result, aria2c_path) = tokio::join!(
@@ -958,8 +1005,10 @@ pub async fn download_video(
                     cookies_enabled,
                     use_aria2c
                 );
-                let wait_secs = 10 * 2u64.pow(attempt as u32);
-                tracing::warn!("[yt-dlp] rate limited (429), waiting {}s", wait_secs);
+                let base_secs = 10u64 * 2u64.pow(attempt as u32);
+                let jitter_secs = (attempt as u64 * 7 + url.len() as u64) % 5;
+                let wait_secs = base_secs + jitter_secs;
+                tracing::warn!("[yt-dlp] rate limited (429), waiting {}s (base={}s + jitter={}s)", wait_secs, base_secs, jitter_secs);
                 tokio::time::sleep(std::time::Duration::from_secs(wait_secs)).await;
             }
 
