@@ -10,6 +10,7 @@
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { onClipboardUrl } from "$lib/stores/clipboard-monitor";
+  import { getMediaPreview, clearMediaPreview } from "$lib/stores/media-preview-store.svelte";
   import { t } from "$lib/i18n";
 
   type PlatformInfo = {
@@ -72,6 +73,8 @@
   let formatsOpen = $state(false);
   let loadingFormats = $state(false);
   let referer = $state("");
+  let mediaPreview = $derived(getMediaPreview());
+  let previewImageLoading = $state(true);
 
   onMount(() => {
     onClipboardUrl((detectedUrl) => {
@@ -93,6 +96,18 @@
   $effect(() => {
     const interval = setInterval(() => { stallTick++; }, 5000);
     return () => clearInterval(interval);
+  });
+
+  $effect(() => {
+    if (omniState.kind !== "detected") {
+      clearMediaPreview();
+    }
+  });
+
+  $effect(() => {
+    if (mediaPreview) {
+      previewImageLoading = true;
+    }
   });
 
   let mascotEmotion = $derived.by((): "idle" | "downloading" | "error" | "stalled" | "queue" => {
@@ -450,6 +465,38 @@
           {/if}
         </span>
       </div>
+
+      {#if mediaPreview}
+        <div class="preview-container feedback-enter">
+          <div class="preview-thumbnail-wrapper">
+            {#if previewImageLoading}
+              <div class="preview-skeleton"></div>
+            {/if}
+            {#if mediaPreview.thumbnail_url}
+              <img
+                class="preview-thumbnail"
+                class:loaded={!previewImageLoading}
+                src={mediaPreview.thumbnail_url}
+                alt={mediaPreview.title}
+                loading="lazy"
+                onload={() => { previewImageLoading = false; }}
+                onerror={() => { previewImageLoading = false; }}
+              />
+            {/if}
+          </div>
+          <div class="preview-info">
+            <p class="preview-title">{mediaPreview.title}</p>
+            {#if mediaPreview.author}
+              <p class="preview-author">{mediaPreview.author}</p>
+            {/if}
+            {#if mediaPreview.duration_seconds}
+              <p class="preview-duration">
+                {formatDuration(mediaPreview.duration_seconds)}
+              </p>
+            {/if}
+          </div>
+        </div>
+      {/if}
 
       {#if omniState.info.platform !== "hotmart"}
         <div class="download-options feedback-enter">
@@ -1366,6 +1413,110 @@
     white-space: nowrap;
   }
 
+  .preview-container {
+    display: flex;
+    gap: calc(var(--padding) * 1.5);
+    align-items: flex-start;
+    padding: 0 calc(var(--padding) * 1.5);
+    max-width: 400px;
+  }
+
+  .preview-thumbnail-wrapper {
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .preview-skeleton {
+    width: 120px;
+    height: 67.5px;
+    border-radius: calc(var(--border-radius) - 4px);
+    background: var(--button-elevated);
+    animation: skeleton-shimmer 2s infinite;
+  }
+
+  @keyframes skeleton-shimmer {
+    0%, 100% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .preview-thumbnail {
+    width: 120px;
+    height: 67.5px;
+    border-radius: calc(var(--border-radius) - 4px);
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .preview-thumbnail.loaded {
+    opacity: 1;
+  }
+
+  .preview-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+    padding-top: 4px;
+  }
+
+  .preview-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-clamp: 2;
+    line-height: 1.4;
+  }
+
+  .preview-author {
+    margin: 0;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--gray);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .preview-duration {
+    margin: 0;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--gray);
+  }
+
+  @media (max-width: 535px) {
+    .preview-container {
+      max-width: 100%;
+      gap: calc(var(--padding));
+    }
+
+    .preview-thumbnail {
+      width: 100px;
+      height: 56.25px;
+    }
+
+    .preview-skeleton {
+      width: 100px;
+      height: 56.25px;
+    }
+
+    .preview-title {
+      font-size: 12px;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .feedback-enter {
       animation: none;
@@ -1380,6 +1531,10 @@
     }
 
     .loop-pulse {
+      animation: none;
+    }
+
+    .preview-skeleton {
       animation: none;
     }
   }
