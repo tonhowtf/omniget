@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use anyhow::anyhow;
@@ -14,6 +14,7 @@ static YTDLP_UPDATING: AtomicBool = AtomicBool::new(false);
 static YTDLP_PATH_CACHE: tokio::sync::OnceCell<Option<PathBuf>> = tokio::sync::OnceCell::const_new();
 static FFMPEG_LOCATION_CACHE: tokio::sync::OnceCell<Option<String>> = tokio::sync::OnceCell::const_new();
 static COOKIES_BROWSER_CACHE: tokio::sync::OnceCell<Option<String>> = tokio::sync::OnceCell::const_new();
+static RATE_LIMIT_429_COUNT: AtomicU64 = AtomicU64::new(0);
 
 const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
@@ -422,6 +423,19 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         } else {
             stderr_content
         };
+
+        let stderr_lower = stderr.to_lowercase();
+        if stderr_lower.contains("http error 429") {
+            RATE_LIMIT_429_COUNT.fetch_add(1, Ordering::Relaxed);
+            let sanitized_url = sanitize_log_line(url);
+            let player_client = if is_youtube_url(url) { "web,default" } else { "n/a" };
+            tracing::warn!(
+                "[yt-429] rate limit in get_video_info: url={} player_client={} retries=3",
+                sanitized_url,
+                player_client
+            );
+        }
+
         tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
         return Err(anyhow!("yt-dlp failed: {}", stderr.trim()));
     }
@@ -470,6 +484,17 @@ pub async fn get_playlist_info(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr_lower = stderr.to_lowercase();
+        if stderr_lower.contains("http error 429") {
+            RATE_LIMIT_429_COUNT.fetch_add(1, Ordering::Relaxed);
+            let sanitized_url = sanitize_log_line(url);
+            let player_client = if is_youtube_url(url) { "web,default" } else { "n/a" };
+            tracing::warn!(
+                "[yt-429] rate limit in get_playlist_info: url={} player_client={} retries=3",
+                sanitized_url,
+                player_client
+            );
+        }
         return Err(anyhow!("yt-dlp playlist failed: {}", stderr.trim()));
     }
 
@@ -920,6 +945,19 @@ pub async fn download_video(
             }
 
             if stderr_lower.contains("http error 429") {
+                RATE_LIMIT_429_COUNT.fetch_add(1, Ordering::Relaxed);
+                let sanitized_url = sanitize_log_line(url);
+                let player_client = if is_youtube_url(url) { "web,mweb,default" } else { "n/a" };
+                let cookies_enabled = use_browser_cookies || cookie_file.is_some();
+                tracing::warn!(
+                    "[yt-429] rate limit in download_video: url={} attempt={}/{} player_client={} cookies={} aria2c={}",
+                    sanitized_url,
+                    attempt + 1,
+                    max_attempts,
+                    player_client,
+                    cookies_enabled,
+                    use_aria2c
+                );
                 let wait_secs = 10 * 2u64.pow(attempt as u32);
                 tracing::warn!("[yt-dlp] rate limited (429), waiting {}s", wait_secs);
                 tokio::time::sleep(std::time::Duration::from_secs(wait_secs)).await;
@@ -1106,6 +1144,12 @@ fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
     };
 
     anyhow!("yt-dlp: {}", msg)
+}
+
+pub fn get_rate_limit_stats() -> serde_json::Value {
+    serde_json::json!({
+        "rate_limit_429_count": RATE_LIMIT_429_COUNT.load(Ordering::Relaxed)
+    })
 }
 
 fn parse_progress_line(line: &str) -> Option<f64> {
