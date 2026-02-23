@@ -398,7 +398,11 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         "--socket-timeout".to_string(),
         "15".to_string(),
         "--retries".to_string(),
-        "3".to_string(),
+        "5".to_string(),
+        "--extractor-retries".to_string(),
+        "5".to_string(),
+        "--retry-sleep".to_string(),
+        "exp=1:60".to_string(),
         "--user-agent".to_string(),
         CHROME_UA.to_string(),
     ];
@@ -439,13 +443,13 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
     });
 
     let result = tokio::time::timeout(
-        std::time::Duration::from_secs(30),
+        std::time::Duration::from_secs(180),
         child.wait_with_output(),
     )
     .await
     .map_err(|_| {
         tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-        anyhow!("Timeout fetching video info (30s)")
+        anyhow!("Timeout fetching video info (180s)")
     })?
     .map_err(|e| {
         tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
@@ -500,7 +504,11 @@ pub async fn get_playlist_info(
         "--socket-timeout".to_string(),
         "30".to_string(),
         "--retries".to_string(),
-        "3".to_string(),
+        "5".to_string(),
+        "--extractor-retries".to_string(),
+        "5".to_string(),
+        "--retry-sleep".to_string(),
+        "exp=1:60".to_string(),
         "--user-agent".to_string(),
         CHROME_UA.to_string(),
     ];
@@ -786,15 +794,15 @@ pub async fn download_video(
         "--socket-timeout".to_string(),
         "30".to_string(),
         "--retries".to_string(),
-        "5".to_string(),
+        "10".to_string(),
         "--fragment-retries".to_string(),
-        "5".to_string(),
+        "10".to_string(),
         "--extractor-retries".to_string(),
         "3".to_string(),
         "--file-access-retries".to_string(),
         "3".to_string(),
         "--retry-sleep".to_string(),
-        "linear=1::2".to_string(),
+        "exp=1:120".to_string(),
         "--trim-filenames".to_string(),
         max_name.to_string(),
         "--no-playlist".to_string(),
@@ -803,6 +811,7 @@ pub async fn download_video(
         "download:%(progress._percent_str)s".to_string(),
         "-o".to_string(),
         output_template,
+        "--skip-unavailable-fragments".to_string(),
     ]);
 
     if cfg!(target_os = "windows") {
@@ -1011,6 +1020,18 @@ pub async fn download_video(
                 let wait_secs = base_secs + jitter_secs;
                 tracing::warn!("[yt-dlp] rate limited (429), waiting {}s (base={}s + jitter={}s)", wait_secs, base_secs, jitter_secs);
                 tokio::time::sleep(std::time::Duration::from_secs(wait_secs)).await;
+
+                // If 429 is related to subtitle downloads, skip subtitles on retry
+                if stderr_lower.contains("subtitle") && download_subtitles {
+                    tracing::warn!("[yt-dlp] 429 on subtitles detected, disabling subtitle download for retry");
+                    // Remove subtitle arguments from base_args
+                    base_args.retain(|arg| {
+                        !arg.starts_with("--write-") &&
+                        !arg.starts_with("--sub-") &&
+                        !arg.starts_with("--convert-subs") &&
+                        arg != "--write-auto-sub"
+                    });
+                }
             }
 
             if stderr_lower.contains("nsig") {
