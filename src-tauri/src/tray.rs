@@ -5,6 +5,7 @@ use tauri::{
     image::Image,
     menu::{MenuBuilder, MenuItem, MenuItemBuilder},
     tray::TrayIconBuilder,
+    window::ProgressBarState,
     AppHandle, Manager, Wry,
 };
 
@@ -309,4 +310,140 @@ fn render_badge(base: &[u8], w: u32, h: u32, count: u32) -> Vec<u8> {
     }
 
     buf
+}
+
+fn render_overlay_badge(_base: &[u8], w: u32, h: u32, count: u32) -> Vec<u8> {
+    let mut buf = vec![0u8; (w * h * 4) as usize];
+
+    let size = w.min(h) as f32;
+    let radius = (size * 0.35).max(2.0);
+    let cx = (w as f32) * 0.75;
+    let cy = (h as f32) * 0.75;
+
+    let (br, bg, bb) = (237u8, 34, 54);
+
+    let imin = (cy - radius - 1.0).max(0.0) as u32;
+    let imax = ((cy + radius + 1.0) as u32).min(h - 1);
+    let jmin = (cx - radius - 1.0).max(0.0) as u32;
+    let jmax = ((cx + radius + 1.0) as u32).min(w - 1);
+
+    for y in imin..=imax {
+        for x in jmin..=jmax {
+            let dx = x as f32 - cx;
+            let dy = y as f32 - cy;
+            let d2 = dx * dx + dy * dy;
+            if d2 <= (radius + 1.0) * (radius + 1.0) {
+                let idx = ((y * w + x) * 4) as usize;
+                if idx + 3 >= buf.len() {
+                    continue;
+                }
+                let dist = d2.sqrt();
+                let edge = radius - dist;
+                let alpha = if edge >= 1.0 {
+                    255.0
+                } else if edge > 0.0 {
+                    edge * 255.0
+                } else {
+                    continue;
+                };
+                let a = alpha / 255.0;
+                buf[idx] = (br as f32 * a) as u8;
+                buf[idx + 1] = (bg as f32 * a) as u8;
+                buf[idx + 2] = (bb as f32 * a) as u8;
+                buf[idx + 3] = (alpha as u8).max(200);
+            }
+        }
+    }
+
+    let chars: Vec<char> = if count > 9 {
+        vec!['9', '+']
+    } else {
+        vec![char::from_digit(count, 10).unwrap_or('0')]
+    };
+
+    let scale = ((size / 12.0).round() as u32).max(1);
+    let gap = if chars.len() > 1 { scale } else { 0 };
+    let text_w = chars.len() as u32 * GLYPH_W * scale + gap;
+    let text_h = GLYPH_H * scale;
+
+    let text_x = cx as i32 - text_w as i32 / 2;
+    let text_y = cy as i32 - text_h as i32 / 2;
+
+    let mut ox = text_x;
+    for ch in &chars {
+        let g = glyph(*ch);
+        for row in 0..GLYPH_H {
+            for col in 0..GLYPH_W {
+                if g[row as usize][col as usize] {
+                    for sy in 0..scale {
+                        for sx in 0..scale {
+                            let px = ox + (col * scale + sx) as i32;
+                            let py = text_y + (row * scale + sy) as i32;
+                            if px >= 0
+                                && py >= 0
+                                && (px as u32) < w
+                                && (py as u32) < h
+                            {
+                                let idx = ((py as u32 * w + px as u32) * 4) as usize;
+                                if idx + 3 < buf.len() {
+                                    buf[idx] = 255;
+                                    buf[idx + 1] = 255;
+                                    buf[idx + 2] = 255;
+                                    buf[idx + 3] = 255;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ox += (GLYPH_W * scale) as i32 + gap as i32;
+    }
+
+    buf
+}
+
+pub fn update_taskbar_badge(app: &AppHandle, active_count: u32, avg_percent: f64) {
+    if let Some(window) = app.get_webview_window("main") {
+        #[cfg(target_os = "macos")]
+        {
+            let badge_count = if active_count > 0 {
+                Some(active_count as usize)
+            } else {
+                None
+            };
+            let _ = window.set_badge_count(badge_count);
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            if active_count > 0 {
+                if let Some((base, _, _)) = BASE_ICON.get() {
+                    let overlay = render_overlay_badge(base, 16, 16, active_count);
+                    let _ = window.set_overlay_icon(Some(Image::new_owned(overlay, 16, 16)));
+                }
+                let progress_val = (avg_percent.clamp(0.0, 1.0) * 100.0) as u64;
+                let _ = window.set_progress_bar(ProgressBarState {
+                    progress: Some(progress_val),
+                    status: None,
+                });
+            } else {
+                let _ = window.set_overlay_icon(None);
+                let _ = window.set_progress_bar(ProgressBarState {
+                    progress: None,
+                    status: None,
+                });
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            let badge_count = if active_count > 0 {
+                Some(active_count as usize)
+            } else {
+                None
+            };
+            let _ = window.set_badge_count(badge_count);
+        }
+    }
 }
