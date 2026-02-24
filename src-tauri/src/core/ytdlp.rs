@@ -688,10 +688,10 @@ pub async fn download_video(
                 if ffmpeg_available {
                     match quality_height {
                         Some(h) if h > 0 => format!(
-                            "bv*[height<={}]+ba/b[height<={}]/bv*+ba/b",
+                            "bv*[height<={}]+ba/b[height<={}]/bv*+ba/b/b",
                             h, h
                         ),
-                        _ => "bv*+ba/b".to_string(),
+                        _ => "bv*+ba/b/b".to_string(),
                     }
                 } else {
                     tracing::warn!("[yt-dlp] ffmpeg not available, using single-stream format");
@@ -731,13 +731,6 @@ pub async fn download_video(
         "-f".to_string(),
         format_selector,
     ];
-
-    if format_id.is_none() && mode != "audio" && ffmpeg_available {
-        base_args.push("--merge-output-format".to_string());
-        base_args.push("mp4".to_string());
-        base_args.push("-S".to_string());
-        base_args.push("ext:mp4:m4a".to_string());
-    }
 
     if let Some(ref_url) = referer {
         base_args.push("--referer".to_string());
