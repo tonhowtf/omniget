@@ -454,13 +454,13 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         });
 
         let result = tokio::time::timeout(
-            std::time::Duration::from_secs(180),
+            std::time::Duration::from_secs(60),
             child.wait_with_output(),
         )
         .await
         .map_err(|_| {
             tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-            anyhow!("Timeout fetching video info (180s)")
+            anyhow!("Timeout fetching video info (60s)")
         })?
         .map_err(|e| {
             tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
