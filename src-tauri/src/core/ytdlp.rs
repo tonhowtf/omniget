@@ -1157,24 +1157,14 @@ pub async fn download_video(
             }
 
             if stderr_lower.contains("requested format") && stderr_lower.contains("not available") {
-                tracing::warn!("[yt-dlp] format not available, fallback attempt {}", attempt);
-                match attempt {
-                    0 => {
-                        base_args.retain(|a| a != "--merge-output-format" && a != "mp4");
-                        if is_youtube_url(url) {
-                            base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
-                            extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
-                        }
-                        tracing::warn!("[yt-dlp] removed --merge-output-format and player_client");
-                    }
-                    _ => {
-                        base_args.retain(|a| a != "--merge-output-format" && a != "mp4");
-                        if let Some(pos) = base_args.iter().position(|a| a == "-f") {
-                            if pos + 1 < base_args.len() {
-                                base_args[pos + 1] = "b".to_string();
-                                tracing::warn!("[yt-dlp] simplified format to: b");
-                            }
-                        }
+                tracing::warn!("[yt-dlp] format not available on attempt {}, simplifying to single-stream", attempt);
+                base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                base_args.retain(|a| a != "--merge-output-format" && a != "mp4");
+                if let Some(pos) = base_args.iter().position(|a| a == "-f") {
+                    if pos + 1 < base_args.len() {
+                        base_args[pos + 1] = "b".to_string();
+                        tracing::warn!("[yt-dlp] format selector changed to: b");
                     }
                 }
             }
