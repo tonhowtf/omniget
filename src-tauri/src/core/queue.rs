@@ -520,6 +520,7 @@ async fn spawn_download_inner(
                 1
             };
             item.file_count = Some(fc);
+            item.media_info = Some(info.clone());
         }
         q.get_state()
     };
@@ -603,7 +604,7 @@ async fn spawn_download_inner(
                 id: item_id,
                 title: item_title.clone(),
                 platform: item_platform.clone(),
-                percent,
+                percent: percent.max(0.0),
                 speed_bytes_per_sec: current_speed,
                 downloaded_bytes,
                 total_bytes,
