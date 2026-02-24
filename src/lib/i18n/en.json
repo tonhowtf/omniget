@@ -31,7 +31,8 @@
     "phase_connecting": "Connecting to server...",
     "phase_preparing": "Preparing download...",
     "cancel": "Cancel",
-    "clear_finished": "Clear finished"
+    "clear_finished": "Clear finished",
+    "show_more": "Show {{count}} more"
   },
   "toast": {
     "download_preparing": "Preparing download...",
