@@ -103,11 +103,6 @@
     return () => clearInterval(interval);
   });
 
-  $effect(() => {
-    if (omniState.kind !== "detected") {
-      clearMediaPreview();
-    }
-  });
 
   $effect(() => {
     if (mediaPreview) {
@@ -164,6 +159,7 @@
 
   function handleInput() {
     if (debounceTimer) clearTimeout(debounceTimer);
+    clearMediaPreview();
     downloadMode = "auto";
     selectedQuality = "best";
     selectedFormatId = null;
@@ -377,6 +373,7 @@
   }
 
   function handleDismiss() {
+    clearMediaPreview();
     omniState = { kind: "idle" };
     url = "";
   }
