@@ -59,7 +59,7 @@
   });
 
   function isYtdlpPlatform(p: string): boolean {
-    return ["youtube", "vimeo", "generic"].includes(p);
+    return !["hotmart", "telegram", "udemy", "unknown"].includes(p);
   }
 </script>
 
