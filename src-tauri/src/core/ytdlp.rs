@@ -763,8 +763,6 @@ pub async fn download_video(
     } else {
         None
     };
-    let use_browser_cookies = false;
-
     let mut base_args = vec![
         "-f".to_string(),
         format_selector,
@@ -882,8 +880,7 @@ pub async fn download_video(
     let mut extra_args: Vec<String> = Vec::new();
     let mut last_error = String::new();
     let mut use_subtitles = should_download_subs;
-    let mut use_browser_cookies = use_browser_cookies
-        || (is_youtube_url(url) && browser_cookies.is_some());
+    let mut use_browser_cookies = false;
 
     for attempt in 0..max_attempts {
         tracing::info!("[yt-dlp] download attempt {}/{}", attempt + 1, max_attempts);
