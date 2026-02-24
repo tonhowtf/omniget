@@ -9,7 +9,6 @@ use tauri::{
     image::Image,
     menu::{MenuBuilder, MenuItem, MenuItemBuilder},
     tray::TrayIconBuilder,
-    window::ProgressBarState,
     AppHandle, Manager, Wry,
 };
 
@@ -452,7 +451,7 @@ pub fn update_taskbar_badge(app: &AppHandle, active_count: u32, avg_percent: f64
         #[cfg(target_os = "macos")]
         {
             let badge_count = if active_count > 0 {
-                Some(active_count as usize)
+                Some(active_count as i64)
             } else {
                 None
             };
@@ -461,6 +460,7 @@ pub fn update_taskbar_badge(app: &AppHandle, active_count: u32, avg_percent: f64
 
         #[cfg(target_os = "windows")]
         {
+            use tauri::window::ProgressBarState;
             if active_count > 0 {
                 if let Some((base, _, _)) = BASE_ICON.get() {
                     let overlay = render_overlay_badge(base, 16, 16, active_count);
@@ -483,7 +483,7 @@ pub fn update_taskbar_badge(app: &AppHandle, active_count: u32, avg_percent: f64
         #[cfg(target_os = "linux")]
         {
             let badge_count = if active_count > 0 {
-                Some(active_count as usize)
+                Some(active_count as i64)
             } else {
                 None
             };
