@@ -282,9 +282,7 @@
       const msg = typeof e === "string" ? e : e.message ?? "";
       formatError = msg || $t("omnibox.formats_error");
     } finally {
-      if (gen === formatFetchGeneration) {
-        loadingFormats = false;
-      }
+      loadingFormats = false;
     }
   }
 
@@ -457,7 +455,7 @@
             platform={omniState.info.platform}
             bind:formats
             bind:selectedFormatId
-            loadingFormats
+            {loadingFormats}
             {formatError}
             onLoadFormats={loadFormats}
             onSelectFormat={selectFormat}
