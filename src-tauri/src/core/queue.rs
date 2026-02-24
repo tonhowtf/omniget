@@ -562,6 +562,7 @@ async fn spawn_download_inner(
     let (tx, mut rx) = mpsc::channel::<f64>(32);
 
     let app_progress = app.clone();
+    let queue_progress = queue.clone();
     let progress_forwarder = tokio::spawn(async move {
         let mut last_bytes: u64 = 0;
         let mut last_time = std::time::Instant::now();
@@ -574,8 +575,9 @@ async fn spawn_download_inner(
             }
 
             let now = std::time::Instant::now();
+            let clamped = percent.max(0.0);
             let downloaded_bytes = total_bytes
-                .map(|total| (percent / 100.0 * total as f64) as u64)
+                .map(|total| (clamped / 100.0 * total as f64) as u64)
                 .unwrap_or(0);
 
             if total_bytes.is_some() && downloaded_bytes > last_bytes {
@@ -600,11 +602,16 @@ async fn spawn_download_inner(
                 _ => "connecting",
             };
 
+            {
+                let mut q = queue_progress.lock().await;
+                q.update_progress(item_id, clamped, current_speed, downloaded_bytes, total_bytes);
+            }
+
             let _ = app_progress.emit("queue-item-progress", &QueueItemProgress {
                 id: item_id,
                 title: item_title.clone(),
                 platform: item_platform.clone(),
-                percent: percent.max(0.0),
+                percent: clamped,
                 speed_bytes_per_sec: current_speed,
                 downloaded_bytes,
                 total_bytes,
@@ -751,6 +758,14 @@ async fn fetch_and_cache_info(
         cache.retain(|_, v| v.cached_at.elapsed() < INFO_CACHE_TTL);
     }
     Ok(info)
+}
+
+pub async fn try_get_cached_info(url: &str) -> Option<MediaInfo> {
+    let cache = info_cache().lock().await;
+    cache
+        .get(url)
+        .filter(|entry| entry.cached_at.elapsed() < INFO_CACHE_TTL)
+        .map(|entry| entry.info.clone())
 }
 
 pub async fn prefetch_info(
