@@ -804,10 +804,6 @@ pub async fn download_video(
 
         base_args.push("--sleep-subtitles".to_string());
         base_args.push("2".to_string());
-        if RATE_LIMIT_429_COUNT.load(Ordering::Relaxed) > 0 {
-            base_args.push("--sleep-requests".to_string());
-            base_args.push("1".to_string());
-        }
     }
 
     base_args.extend([
