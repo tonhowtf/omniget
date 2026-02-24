@@ -389,81 +389,99 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         yt_rate_limiter().acquire().await;
     }
 
-    tracing::info!("[yt-dlp] starting info fetch for URL");
-    let mut args = vec![
-        "--dump-single-json".to_string(),
-        "--no-warnings".to_string(),
-        "--no-playlist".to_string(),
-        "--no-check-certificates".to_string(),
-        "--socket-timeout".to_string(),
-        "15".to_string(),
-        "--retries".to_string(),
-        "5".to_string(),
-        "--extractor-retries".to_string(),
-        "5".to_string(),
-        "--retry-sleep".to_string(),
-        "exp=1:60".to_string(),
-        "--user-agent".to_string(),
-        CHROME_UA.to_string(),
-        "--skip-download".to_string(),
-        "-f".to_string(),
-        "b".to_string(),
-    ];
+    let is_yt = is_youtube_url(url);
+    let clients: &[Option<&str>] = if is_yt {
+        &[Some("youtube:player_client=web"), None]
+    } else {
+        &[None]
+    };
 
-    if is_youtube_url(url) {
-        args.push("--extractor-args".to_string());
-        args.push("youtube:player_client=web".to_string());
-        args.push("--sleep-requests".to_string());
-        args.push("1".to_string());
-    }
+    let mut last_error = String::new();
 
-    args.push(url.to_string());
+    for (attempt, client) in clients.iter().enumerate() {
+        tracing::info!("[yt-dlp] info fetch attempt {}/{} for URL", attempt + 1, clients.len());
 
-    let mut child = crate::core::process::command(ytdlp)
-        .args(&args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| anyhow!("Failed to run yt-dlp: {}", e))?;
-    tracing::info!("[perf] get_video_info: yt-dlp process spawned at {:?}", _timer_start.elapsed());
+        let mut args = vec![
+            "--dump-single-json".to_string(),
+            "--no-warnings".to_string(),
+            "--no-playlist".to_string(),
+            "--no-check-certificates".to_string(),
+            "--socket-timeout".to_string(),
+            "15".to_string(),
+            "--retries".to_string(),
+            "5".to_string(),
+            "--extractor-retries".to_string(),
+            "5".to_string(),
+            "--retry-sleep".to_string(),
+            "exp=1:60".to_string(),
+            "--user-agent".to_string(),
+            CHROME_UA.to_string(),
+            "--skip-download".to_string(),
+        ];
 
-    let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;
-    let stderr_reader = tokio::spawn(async move {
-        let mut buf = String::new();
-        let mut lines = BufReader::new(stderr_pipe).lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            let lower = line.to_lowercase();
-            if lower.contains("extracting url") {
-                tracing::debug!("[yt-dlp info] Extracting URL");
-            } else if lower.contains("downloading") && !lower.contains("download") {
-                tracing::debug!("[yt-dlp info] Downloading metadata");
-            } else if lower.contains("format") {
-                tracing::debug!("[yt-dlp info] Selecting format");
-            }
-            buf.push_str(&line);
-            buf.push('\n');
+        if is_yt {
+            args.push("--sleep-requests".to_string());
+            args.push("1".to_string());
         }
-        buf
-    });
 
-    let result = tokio::time::timeout(
-        std::time::Duration::from_secs(180),
-        child.wait_with_output(),
-    )
-    .await
-    .map_err(|_| {
-        tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-        anyhow!("Timeout fetching video info (180s)")
-    })?
-    .map_err(|e| {
-        tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-        anyhow!("Failed to run yt-dlp: {}", e)
-    })?;
+        if let Some(extractor_args) = client {
+            args.push("--extractor-args".to_string());
+            args.push(extractor_args.to_string());
+        }
 
-    let stderr_content = stderr_reader.await.unwrap_or_default();
-    tracing::info!("[perf] get_video_info: yt-dlp process exited at {:?}", _timer_start.elapsed());
+        args.push(url.to_string());
 
-    if !result.status.success() {
+        let mut child = crate::core::process::command(ytdlp)
+            .args(&args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| anyhow!("Failed to run yt-dlp: {}", e))?;
+        tracing::info!("[perf] get_video_info: yt-dlp process spawned at {:?} (attempt {})", _timer_start.elapsed(), attempt + 1);
+
+        let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;
+        let stderr_reader = tokio::spawn(async move {
+            let mut buf = String::new();
+            let mut lines = BufReader::new(stderr_pipe).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let lower = line.to_lowercase();
+                if lower.contains("extracting url") {
+                    tracing::debug!("[yt-dlp info] Extracting URL");
+                } else if lower.contains("downloading") && !lower.contains("download") {
+                    tracing::debug!("[yt-dlp info] Downloading metadata");
+                } else if lower.contains("format") {
+                    tracing::debug!("[yt-dlp info] Selecting format");
+                }
+                buf.push_str(&line);
+                buf.push('\n');
+            }
+            buf
+        });
+
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(180),
+            child.wait_with_output(),
+        )
+        .await
+        .map_err(|_| {
+            tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
+            anyhow!("Timeout fetching video info (180s)")
+        })?
+        .map_err(|e| {
+            tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
+            anyhow!("Failed to run yt-dlp: {}", e)
+        })?;
+
+        let stderr_content = stderr_reader.await.unwrap_or_default();
+        tracing::info!("[perf] get_video_info: yt-dlp process exited at {:?} (attempt {})", _timer_start.elapsed(), attempt + 1);
+
+        if result.status.success() {
+            let json: serde_json::Value = serde_json::from_slice(&result.stdout)
+                .map_err(|e| anyhow!("yt-dlp returned invalid JSON: {}", e))?;
+            tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
+            return Ok(json);
+        }
+
         let stderr = if stderr_content.is_empty() {
             String::from_utf8_lossy(&result.stderr).to_string()
         } else {
@@ -474,23 +492,41 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         if stderr_lower.contains("http error 429") {
             RATE_LIMIT_429_COUNT.fetch_add(1, Ordering::Relaxed);
             let sanitized_url = sanitize_log_line(url);
-            let player_client = if is_youtube_url(url) { "web" } else { "n/a" };
             tracing::warn!(
-                "[yt-429] rate limit in get_video_info: url={} player_client={} retries=3",
+                "[yt-429] rate limit in get_video_info: url={} attempt={}/{}",
                 sanitized_url,
-                player_client
+                attempt + 1,
+                clients.len()
             );
+        }
+
+        let is_retryable = is_yt
+            && attempt < clients.len() - 1
+            && (stderr_lower.contains("requested format")
+                || stderr_lower.contains("not available")
+                || stderr_lower.contains("http error 403")
+                || stderr_lower.contains("nsig")
+                || stderr_lower.contains("http error 429"));
+
+        if is_retryable {
+            tracing::warn!(
+                "[yt-dlp] info fetch attempt {} failed, retrying without player_client restriction: {}",
+                attempt + 1,
+                stderr.trim().lines().last().unwrap_or("")
+            );
+            if stderr_lower.contains("http error 429") {
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            }
+            last_error = stderr;
+            continue;
         }
 
         tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
         return Err(anyhow!("yt-dlp failed: {}", stderr.trim()));
     }
 
-    let json: serde_json::Value = serde_json::from_slice(&result.stdout)
-        .map_err(|e| anyhow!("yt-dlp returned invalid JSON: {}", e))?;
-
     tracing::info!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-    Ok(json)
+    Err(anyhow!("yt-dlp failed: {}", last_error.trim()))
 }
 
 pub async fn get_playlist_info(
