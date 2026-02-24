@@ -285,10 +285,10 @@
         <div
           class="progress-fill"
           data-status={item.status}
-          style="width: {item.percent.toFixed(1)}%"
+          style="width: {Math.max(0, item.percent).toFixed(1)}%"
         ></div>
       </div>
-      <span class="item-percent">{item.percent.toFixed(0)}%</span>
+      <span class="item-percent">{Math.max(0, item.percent).toFixed(0)}%</span>
     {/if}
   </div>
 {/snippet}
@@ -351,11 +351,11 @@
       <div
         class="progress-fill"
         data-status={item.status}
-        style="width: {item.percent.toFixed(1)}%"
+        style="width: {Math.max(0, item.percent).toFixed(1)}%"
       ></div>
     </div>
 
-    <span class="item-percent">{item.percent.toFixed(1)}%</span>
+    <span class="item-percent">{Math.max(0, item.percent).toFixed(1)}%</span>
   </div>
 {/snippet}
 
