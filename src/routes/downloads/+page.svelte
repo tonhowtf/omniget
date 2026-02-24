@@ -237,14 +237,12 @@
     {#if item.status === "downloading"}
       {#if item.phase === "preparing"}
         <span class="item-detail">{$t('downloads.phase_preparing')}</span>
-      {:else if item.phase === "spawning"}
-        <span class="item-detail">{$t('downloads.phase_spawning')}</span>
-      {:else if item.phase === "waiting_response"}
-        <span class="item-detail">{$t('downloads.phase_waiting_response')}</span>
       {:else if item.phase === "fetching_info"}
         <span class="item-detail">{$t('downloads.phase_fetching_info')}</span>
-      {:else if item.phase === "starting" || item.phase === "connecting"}
+      {:else if item.phase === "starting"}
         <span class="item-detail">{$t('downloads.phase_starting')}</span>
+      {:else if item.phase === "connecting"}
+        <span class="item-detail">{$t('downloads.phase_connecting')}</span>
       {:else}
         <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
         <div class="item-stats">
