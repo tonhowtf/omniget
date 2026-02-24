@@ -39,6 +39,21 @@ export type DownloadItem = CourseDownloadItem | GenericDownloadItem;
 const SPEED_SMOOTHING = 0.3;
 
 let downloads = $state(new Map<number, DownloadItem>());
+let flushScheduled = false;
+
+function scheduleFlush() {
+  if (flushScheduled) return;
+  flushScheduled = true;
+  requestAnimationFrame(() => {
+    flushScheduled = false;
+    downloads = new Map(downloads);
+  });
+}
+
+function flushNow() {
+  flushScheduled = false;
+  downloads = new Map(downloads);
+}
 
 export function getDownloads(): Map<number, DownloadItem> {
   return downloads;
@@ -121,7 +136,7 @@ export function upsertProgress(
     totalModules,
     currentModuleIndex,
   });
-  downloads = new Map(downloads);
+  scheduleFlush();
 }
 
 export function markComplete(courseName: string, success: boolean, error?: string) {
@@ -139,7 +154,7 @@ export function markComplete(courseName: string, success: boolean, error?: strin
       } else {
         downloads.set(id, base as GenericDownloadItem);
       }
-      downloads = new Map(downloads);
+      flushNow();
       break;
     }
   }
@@ -154,7 +169,7 @@ export function clearFinished() {
     }
   }
   if (changed) {
-    downloads = new Map(downloads);
+    flushNow();
   }
 }
 
@@ -242,13 +257,13 @@ export function syncQueueState(items: QueueItemInfo[]) {
     });
   }
 
-  downloads = new Map(downloads);
+  flushNow();
 }
 
 export function removeDownload(id: number) {
   if (downloads.has(id)) {
     downloads.delete(id);
-    downloads = new Map(downloads);
+    flushNow();
   }
 }
 
@@ -267,7 +282,7 @@ export function markGenericComplete(id: number, success: boolean, error?: string
     speed: 0,
     lastUpdateAt: Date.now(),
   });
-  downloads = new Map(downloads);
+  flushNow();
 }
 
 export function upsertGenericProgress(
@@ -302,7 +317,7 @@ export function upsertGenericProgress(
     startedAt: existing?.startedAt ?? now,
     lastUpdateAt: now,
   });
-  downloads = new Map(downloads);
+  scheduleFlush();
 }
 
 export function formatBytes(bytes: number): string {
