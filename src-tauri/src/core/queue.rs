@@ -596,10 +596,10 @@ async fn spawn_download_inner(
             last_time = now;
 
             let phase = match percent {
-                p if p < -1.5 => "waiting_response",
-                p if p < -0.5 => "spawning",
+                p if p < -1.5 => "connecting",
+                p if p < -0.5 => "starting",
                 p if p > 0.0 => "downloading",
-                _ => "connecting",
+                _ => "starting",
             };
 
             {
