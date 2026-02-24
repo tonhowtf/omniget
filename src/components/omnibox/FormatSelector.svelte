@@ -22,6 +22,7 @@
     formats = $bindable([]),
     selectedFormatId = $bindable<string | null>(null),
     loadingFormats = false,
+    formatError = null as string | null,
     onLoadFormats,
     onSelectFormat,
     onClearFormat,
@@ -83,8 +84,17 @@
         <path d="M4 6h16M4 12h16M4 18h16" />
       </svg>
     {/if}
-    {$t('omnibox.view_formats')}
+    {formats.length > 0 ? $t('omnibox.hide_formats') : $t('omnibox.view_formats')}
   </button>
+
+  {#if formatError && formats.length === 0}
+    <div class="formats-error">
+      <span class="formats-error-text">{formatError}</span>
+      <button class="button formats-retry-btn" onclick={onLoadFormats}>
+        {$t('omnibox.retry')}
+      </button>
+    </div>
+  {/if}
 
   {#if formats.length > 0}
     {#if !selectedFormatId}
@@ -183,6 +193,34 @@
     width: 12px;
     height: 12px;
     border-width: 1.5px;
+  }
+
+  .formats-error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--padding);
+    padding: calc(var(--padding) / 2) var(--padding);
+    background: var(--button-elevated);
+    border-radius: calc(var(--border-radius) - 2px);
+    border-left: 3px solid var(--red);
+  }
+
+  .formats-error-text {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--secondary);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .formats-retry-btn {
+    font-size: 12.5px;
+    padding: 4px 10px;
+    flex-shrink: 0;
   }
 
   .formats-panel {
