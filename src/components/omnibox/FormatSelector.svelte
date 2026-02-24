@@ -41,17 +41,9 @@
     return codec.split(".")[0];
   }
 
-  function bestVideoAudio(): FormatInfo | null {
-    return formats.find(f => f.has_video && f.has_audio) ?? null;
-  }
-
-  function bestAudioOnly(): FormatInfo | null {
-    return [...formats].reverse().find(f => f.has_audio && !f.has_video) ?? null;
-  }
-
-  function bestVideoOnly(): FormatInfo | null {
-    return formats.find(f => f.has_video && !f.has_audio) ?? null;
-  }
+  let bestVA = $derived(formats.find(f => f.has_video && f.has_audio) ?? null);
+  let bestAudio = $derived([...formats].reverse().find(f => f.has_audio && !f.has_video) ?? null);
+  let bestVideo = $derived(formats.find(f => f.has_video && !f.has_audio) ?? null);
 
   let selectedFormatLabel = $derived.by(() => {
     if (!selectedFormatId) return null;
@@ -84,7 +76,13 @@
         <path d="M4 6h16M4 12h16M4 18h16" />
       </svg>
     {/if}
-    {formats.length > 0 ? $t('omnibox.hide_formats') : $t('omnibox.view_formats')}
+    {#if loadingFormats}
+      {$t('omnibox.view_formats')}...
+    {:else if formats.length > 0}
+      {$t('omnibox.hide_formats')}
+    {:else}
+      {$t('omnibox.view_formats')}
+    {/if}
   </button>
 
   {#if formatError && formats.length === 0}
@@ -100,29 +98,29 @@
     {#if !selectedFormatId}
       <div class="formats-panel">
         <div class="formats-quick">
-          {#if bestVideoAudio()}
+          {#if bestVA}
             <button
               class="button format-quick-btn"
-              class:active={selectedFormatId === bestVideoAudio()?.format_id}
-              onclick={() => onSelectFormat(bestVideoAudio()!.format_id)}
+              class:active={selectedFormatId === bestVA.format_id}
+              onclick={() => onSelectFormat(bestVA!.format_id)}
             >
               {$t('omnibox.best_va')}
             </button>
           {/if}
-          {#if bestAudioOnly()}
+          {#if bestAudio}
             <button
               class="button format-quick-btn"
-              class:active={selectedFormatId === bestAudioOnly()?.format_id}
-              onclick={() => onSelectFormat(bestAudioOnly()!.format_id)}
+              class:active={selectedFormatId === bestAudio.format_id}
+              onclick={() => onSelectFormat(bestAudio!.format_id)}
             >
               {$t('omnibox.best_audio')}
             </button>
           {/if}
-          {#if bestVideoOnly()}
+          {#if bestVideo}
             <button
               class="button format-quick-btn"
-              class:active={selectedFormatId === bestVideoOnly()?.format_id}
-              onclick={() => onSelectFormat(bestVideoOnly()!.format_id)}
+              class:active={selectedFormatId === bestVideo.format_id}
+              onclick={() => onSelectFormat(bestVideo!.format_id)}
             >
               {$t('omnibox.best_video')}
             </button>
