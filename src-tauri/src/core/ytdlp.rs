@@ -426,8 +426,6 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
 
         args.push(url.to_string());
 
-        tracing::info!("[diag] get_video_info args (attempt {}): {}", attempt + 1, args.join(" "));
-
         let mut child = crate::core::process::command(ytdlp)
             .args(&args)
             .stdout(Stdio::piped())
@@ -541,9 +539,9 @@ pub async fn get_playlist_info(
         "--socket-timeout".to_string(),
         "30".to_string(),
         "--retries".to_string(),
-        "5".to_string(),
+        "3".to_string(),
         "--extractor-retries".to_string(),
-        "5".to_string(),
+        "3".to_string(),
         "--retry-sleep".to_string(),
         "exp=1:60".to_string(),
         "--user-agent".to_string(),
@@ -552,7 +550,7 @@ pub async fn get_playlist_info(
 
     if is_youtube_url(url) {
         args.push("--extractor-args".to_string());
-        args.push("youtube:player_client=web,default".to_string());
+        args.push("youtube:player_client=default".to_string());
     }
 
     args.push(url.to_string());
@@ -575,7 +573,7 @@ pub async fn get_playlist_info(
         if stderr_lower.contains("http error 429") {
             RATE_LIMIT_429_COUNT.fetch_add(1, Ordering::Relaxed);
             let sanitized_url = sanitize_log_line(url);
-            let player_client = if is_youtube_url(url) { "web" } else { "n/a" };
+            let player_client = if is_youtube_url(url) { "default" } else { "n/a" };
             tracing::warn!(
                 "[yt-429] rate limit in get_playlist_info: url={} player_client={} retries=3",
                 sanitized_url,
@@ -879,6 +877,8 @@ pub async fn download_video(
     let mut last_error = String::new();
     let mut use_subtitles = should_download_subs;
     let mut use_browser_cookies = false;
+    let mut format_already_simplified = false;
+    let mut last_was_429 = false;
 
     for attempt in 0..max_attempts {
         tracing::info!("[yt-dlp] download attempt {}/{}", attempt + 1, max_attempts);
@@ -888,16 +888,21 @@ pub async fn download_video(
         }
 
         if attempt > 0 {
-            let wait: u64 = match attempt {
-                1 => 3,
-                2 => 8,
-                _ => 15,
+            let wait: u64 = if last_was_429 {
+                match attempt {
+                    1 => 3,
+                    2 => 8,
+                    _ => 15,
+                }
+            } else {
+                1
             };
             tracing::info!(
-                "[yt-dlp] retry {}/{} after {}s",
+                "[yt-dlp] retry {}/{} after {}s (429={})",
                 attempt,
                 max_attempts - 1,
-                wait
+                wait,
+                last_was_429
             );
             tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
             cleanup_part_files(output_dir).await;
@@ -928,8 +933,6 @@ pub async fn download_video(
 
         args.extend(extra_args.iter().cloned());
         args.push(url.to_string());
-
-        tracing::info!("[diag] download_video args (attempt {}): {}", attempt + 1, args.join(" "));
 
         let mut child = crate::core::process::command(ytdlp)
             .args(&args)
@@ -1055,42 +1058,54 @@ pub async fn download_video(
                 tracing::warn!("[yt-dlp] aria2c failed, retrying with native downloader");
             }
 
-            if stderr_lower.contains("http error 429") {
-                RATE_LIMIT_429_COUNT.fetch_add(1, Ordering::Relaxed);
-                let sanitized_url = sanitize_log_line(url);
-                let player_client = if is_youtube_url(url) { "web" } else { "n/a" };
-                let cookies_enabled = use_browser_cookies || cookie_file.is_some();
-                tracing::warn!(
-                    "[yt-429] rate limit in download_video: url={} attempt={}/{} player_client={} cookies={} aria2c={}",
-                    sanitized_url,
-                    attempt + 1,
-                    max_attempts,
-                    player_client,
-                    cookies_enabled,
-                    use_aria2c
-                );
-                let base_secs = 10u64 * 2u64.pow(attempt as u32);
-                let jitter_secs = (attempt as u64 * 7 + url.len() as u64) % 5;
-                let wait_secs = base_secs + jitter_secs;
-                tracing::warn!("[yt-dlp] rate limited (429), waiting {}s (base={}s + jitter={}s)", wait_secs, base_secs, jitter_secs);
-                tokio::time::sleep(std::time::Duration::from_secs(wait_secs)).await;
+            last_was_429 = stderr_lower.contains("http error 429");
 
-                if stderr_lower.contains("subtitle") && use_subtitles {
-                    tracing::warn!("[yt-dlp] 429 on subtitles detected, disabling subtitle download for retry");
+            if last_was_429 {
+                let is_subtitle_only_429 = last_error.lines().all(|line| {
+                    let ll = line.to_lowercase();
+                    !ll.contains("429") || ll.contains("subtitle")
+                });
+
+                if use_subtitles {
                     use_subtitles = false;
+                    tracing::warn!("[yt-dlp] 429 detected, disabling subtitle download for remaining retries");
                 }
 
-                if is_youtube_url(url) {
-                    base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
-                    extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
-                    let client = match attempt {
-                        0 => "youtube:player_client=mweb",
-                        1 => "youtube:player_client=ios",
-                        _ => "youtube:player_client=ios",
-                    };
-                    extra_args.push("--extractor-args".to_string());
-                    extra_args.push(client.to_string());
-                    tracing::warn!("[yt-dlp] 429 detected, rotating player_client to {}", client);
+                if is_subtitle_only_429 {
+                    tracing::warn!("[yt-dlp] subtitle-only 429, retrying without subtitles (keeping current player_client)");
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                } else {
+                    RATE_LIMIT_429_COUNT.fetch_add(1, Ordering::Relaxed);
+                    let sanitized_url = sanitize_log_line(url);
+                    let player_client = if is_youtube_url(url) { "default" } else { "n/a" };
+                    let cookies_enabled = use_browser_cookies || cookie_file.is_some();
+                    tracing::warn!(
+                        "[yt-429] rate limit in download_video: url={} attempt={}/{} player_client={} cookies={} aria2c={}",
+                        sanitized_url,
+                        attempt + 1,
+                        max_attempts,
+                        player_client,
+                        cookies_enabled,
+                        use_aria2c
+                    );
+                    let base_secs = 10u64 * 2u64.pow(attempt as u32);
+                    let jitter_secs = (attempt as u64 * 7 + url.len() as u64) % 5;
+                    let wait_secs = base_secs + jitter_secs;
+                    tracing::warn!("[yt-dlp] rate limited (429), waiting {}s (base={}s + jitter={}s)", wait_secs, base_secs, jitter_secs);
+                    tokio::time::sleep(std::time::Duration::from_secs(wait_secs)).await;
+
+                    if is_youtube_url(url) {
+                        base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                        extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                        let client = match attempt {
+                            0 => "youtube:player_client=mweb",
+                            1 => "youtube:player_client=ios",
+                            _ => "youtube:player_client=ios",
+                        };
+                        extra_args.push("--extractor-args".to_string());
+                        extra_args.push(client.to_string());
+                        tracing::warn!("[yt-dlp] 429 detected, rotating player_client to {}", client);
+                    }
                 }
             }
 
@@ -1114,7 +1129,7 @@ pub async fn download_video(
                 tracing::warn!("[yt-dlp] 403 forbidden, adding --force-ipv4");
             }
 
-            if stderr_lower.contains("subtitle") && use_subtitles && !stderr_lower.contains("http error 429") {
+            if stderr_lower.contains("subtitle") && use_subtitles && !last_was_429 {
                 tracing::warn!("[yt-dlp] subtitle error detected, disabling subtitles for retry");
                 use_subtitles = false;
             }
@@ -1155,32 +1170,21 @@ pub async fn download_video(
             }
 
             if stderr_lower.contains("requested format") && stderr_lower.contains("not available") {
-                let current_format = base_args.iter().position(|a| a == "-f").and_then(|p| base_args.get(p + 1)).cloned().unwrap_or_default();
-                tracing::warn!("[diag] format_not_available: attempt={} current_format_selector={} stderr={}", attempt + 1, current_format, last_error.trim());
+                if format_already_simplified {
+                    tracing::warn!("[yt-dlp] format not available after simplification, giving up");
+                    break;
+                }
 
                 base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
                 extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
                 base_args.retain(|a| a != "--merge-output-format" && a != "mp4");
 
-                if attempt == 0 {
-                    if let Some(pos) = base_args.iter().position(|a| a == "-f") {
-                        base_args.remove(pos + 1);
-                        base_args.remove(pos);
-                        tracing::warn!("[yt-dlp] format not available on attempt {}, removed -f to use yt-dlp default", attempt + 1);
-                    }
-                } else {
-                    if let Some(pos) = base_args.iter().position(|a| a == "-f") {
-                        if pos + 1 < base_args.len() {
-                            base_args[pos + 1] = "b/bv*".to_string();
-                        }
-                    } else {
-                        base_args.push("-f".to_string());
-                        base_args.push("b/bv*".to_string());
-                    }
-                    extra_args.push("--extractor-args".to_string());
-                    extra_args.push("youtube:player_client=mweb".to_string());
-                    tracing::warn!("[yt-dlp] format not available on attempt {}, using -f b/bv* with player_client=mweb", attempt + 1);
+                if let Some(pos) = base_args.iter().position(|a| a == "-f") {
+                    base_args.remove(pos + 1);
+                    base_args.remove(pos);
                 }
+                tracing::warn!("[yt-dlp] format not available on attempt {}, removed -f and player_client to use yt-dlp defaults", attempt + 1);
+                format_already_simplified = true;
             }
 
             let last_line = last_error.lines().last().unwrap_or("unknown error").trim();
