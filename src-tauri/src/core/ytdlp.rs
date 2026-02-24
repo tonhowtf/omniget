@@ -1435,6 +1435,10 @@ pub fn parse_formats(json: &serde_json::Value) -> Vec<FormatInfo> {
         let has_video = vcodec.as_deref().map(|v| v != "none").unwrap_or(false);
         let has_audio = acodec.as_deref().map(|v| v != "none").unwrap_or(false);
 
+        if !has_video && !has_audio {
+            continue;
+        }
+
         let resolution = match (width, height) {
             (Some(w), Some(h)) if w > 0 && h > 0 => Some(format!("{}x{}", w, h)),
             _ => f
