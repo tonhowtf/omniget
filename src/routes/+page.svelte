@@ -205,6 +205,7 @@
       const result = await invoke<PlatformInfo>("detect_platform", { url: value });
       if (result.supported) {
         omniState = { kind: "detected", info: result };
+        invoke("prefetch_media_info", { url: value }).catch(() => {});
       } else {
         omniState = { kind: "unsupported" };
       }
