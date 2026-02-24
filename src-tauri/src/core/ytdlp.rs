@@ -409,11 +409,11 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
             "--socket-timeout".to_string(),
             "15".to_string(),
             "--retries".to_string(),
-            "5".to_string(),
+            "3".to_string(),
             "--extractor-retries".to_string(),
-            "5".to_string(),
+            "3".to_string(),
             "--retry-sleep".to_string(),
-            "exp=1:60".to_string(),
+            "exp=1:30".to_string(),
             "--user-agent".to_string(),
             CHROME_UA.to_string(),
             "--skip-download".to_string(),
@@ -805,9 +805,11 @@ pub async fn download_video(
         base_args.push("500K".to_string());
 
         base_args.push("--sleep-subtitles".to_string());
-        base_args.push("5".to_string());
-        base_args.push("--sleep-requests".to_string());
-        base_args.push("1".to_string());
+        base_args.push("2".to_string());
+        if RATE_LIMIT_429_COUNT.load(Ordering::Relaxed) > 0 {
+            base_args.push("--sleep-requests".to_string());
+            base_args.push("1".to_string());
+        }
     }
 
     base_args.extend([
@@ -837,13 +839,13 @@ pub async fn download_video(
         "--retries".to_string(),
         "5".to_string(),
         "--fragment-retries".to_string(),
-        "10".to_string(),
+        "5".to_string(),
         "--extractor-retries".to_string(),
         "3".to_string(),
         "--file-access-retries".to_string(),
         "3".to_string(),
         "--retry-sleep".to_string(),
-        "exp=1:120".to_string(),
+        "exp=1:30".to_string(),
         "--trim-filenames".to_string(),
         max_name.to_string(),
         "--no-playlist".to_string(),
@@ -1154,8 +1156,12 @@ pub async fn download_video(
             }
 
             if stderr_lower.contains("requested format") && stderr_lower.contains("not available") {
-                tracing::warn!("[yt-dlp] requested format not available, relaxing format selector");
+                tracing::warn!("[yt-dlp] requested format not available, relaxing format selector and player_client");
                 base_args.retain(|a| a != "-S" && a != "ext:mp4:m4a" && a != "--merge-output-format" && a != "mp4");
+                if is_youtube_url(url) {
+                    base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                    extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                }
                 if attempt >= 1 {
                     if let Some(pos) = base_args.iter().position(|a| a == "-f") {
                         if pos + 1 < base_args.len() {
@@ -1629,7 +1635,8 @@ mod tests {
     #[test]
     fn translate_error_requested_format() {
         let err = translate_ytdlp_error("ERROR: Requested format is not available. Use --list-formats for a list of available formats");
-        assert!(err.to_string().contains("Requested format"));
+        assert!(err.to_string().contains("Requested format"), "Got: {}", err);
+        assert!(!err.to_string().contains("Video unavailable"), "Should not contain 'Video unavailable', got: {}", err);
     }
 
     #[test]
