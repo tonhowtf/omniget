@@ -391,7 +391,7 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
 
     let is_yt = is_youtube_url(url);
     let clients: &[Option<&str>] = if is_yt {
-        &[Some("youtube:player_client=web"), None]
+        &[None, Some("youtube:player_client=default,mweb")]
     } else {
         &[None]
     };
@@ -409,9 +409,9 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
             "--socket-timeout".to_string(),
             "15".to_string(),
             "--retries".to_string(),
-            "3".to_string(),
+            "1".to_string(),
             "--extractor-retries".to_string(),
-            "3".to_string(),
+            "2".to_string(),
             "--retry-sleep".to_string(),
             "exp=1:30".to_string(),
             "--user-agent".to_string(),
@@ -419,18 +419,14 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
             "--skip-download".to_string(),
         ];
 
-        if is_yt {
-            args.push("--sleep-requests".to_string());
-            args.push("1".to_string());
-            args.push("--check-formats".to_string());
-        }
-
         if let Some(extractor_args) = client {
             args.push("--extractor-args".to_string());
             args.push(extractor_args.to_string());
         }
 
         args.push(url.to_string());
+
+        tracing::info!("[diag] get_video_info args (attempt {}): {}", attempt + 1, args.join(" "));
 
         let mut child = crate::core::process::command(ytdlp)
             .args(&args)
@@ -511,7 +507,7 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
 
         if is_retryable {
             tracing::warn!(
-                "[yt-dlp] info fetch attempt {} failed, retrying without player_client restriction: {}",
+                "[yt-dlp] info fetch attempt {} failed, retrying with fallback player_client: {}",
                 attempt + 1,
                 stderr.trim().lines().last().unwrap_or("")
             );
@@ -727,16 +723,16 @@ pub async fn download_video(
                 if ffmpeg_available {
                     match quality_height {
                         Some(h) if h > 0 => format!(
-                            "bv*[height<={}]+ba/b[height<={}]/bv*+ba/b",
+                            "bv*[height<={}]+ba/bv*[height<={}]/bv*+ba/bv*/b",
                             h, h
                         ),
-                        _ => "bv*+ba/b".to_string(),
+                        _ => "bv*+ba/bv*/b".to_string(),
                     }
                 } else {
                     tracing::warn!("[yt-dlp] ffmpeg not available, using single-stream format");
                     match quality_height {
-                        Some(h) if h > 0 => format!("b[height<={}]/b", h),
-                        _ => "b".to_string(),
+                        Some(h) if h > 0 => format!("b[height<={}]/bv*[height<={}]/b/bv*", h, h),
+                        _ => "b/bv*".to_string(),
                     }
                 }
             }
@@ -803,7 +799,7 @@ pub async fn download_video(
 
     if is_youtube_url(url) {
         base_args.push("--extractor-args".to_string());
-        base_args.push("youtube:player_client=web".to_string());
+        base_args.push("youtube:player_client=default".to_string());
 
         base_args.push("--throttled-rate".to_string());
         base_args.push("100K".to_string());
@@ -932,6 +928,8 @@ pub async fn download_video(
 
         args.extend(extra_args.iter().cloned());
         args.push(url.to_string());
+
+        tracing::info!("[diag] download_video args (attempt {}): {}", attempt + 1, args.join(" "));
 
         let mut child = crate::core::process::command(ytdlp)
             .args(&args)
@@ -1157,15 +1155,31 @@ pub async fn download_video(
             }
 
             if stderr_lower.contains("requested format") && stderr_lower.contains("not available") {
-                tracing::warn!("[yt-dlp] format not available on attempt {}, simplifying to single-stream", attempt);
+                let current_format = base_args.iter().position(|a| a == "-f").and_then(|p| base_args.get(p + 1)).cloned().unwrap_or_default();
+                tracing::warn!("[diag] format_not_available: attempt={} current_format_selector={} stderr={}", attempt + 1, current_format, last_error.trim());
+
                 base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
                 extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
                 base_args.retain(|a| a != "--merge-output-format" && a != "mp4");
-                if let Some(pos) = base_args.iter().position(|a| a == "-f") {
-                    if pos + 1 < base_args.len() {
-                        base_args[pos + 1] = "b".to_string();
-                        tracing::warn!("[yt-dlp] format selector changed to: b");
+
+                if attempt == 0 {
+                    if let Some(pos) = base_args.iter().position(|a| a == "-f") {
+                        base_args.remove(pos + 1);
+                        base_args.remove(pos);
+                        tracing::warn!("[yt-dlp] format not available on attempt {}, removed -f to use yt-dlp default", attempt + 1);
                     }
+                } else {
+                    if let Some(pos) = base_args.iter().position(|a| a == "-f") {
+                        if pos + 1 < base_args.len() {
+                            base_args[pos + 1] = "b/bv*".to_string();
+                        }
+                    } else {
+                        base_args.push("-f".to_string());
+                        base_args.push("b/bv*".to_string());
+                    }
+                    extra_args.push("--extractor-args".to_string());
+                    extra_args.push("youtube:player_client=mweb".to_string());
+                    tracing::warn!("[yt-dlp] format not available on attempt {}, using -f b/bv* with player_client=mweb", attempt + 1);
                 }
             }
 
