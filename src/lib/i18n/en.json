@@ -27,10 +27,9 @@
     "page_progress": "Page {{current}}/{{total}}",
     "module_progress": "Module {{current}}/{{total}}",
     "phase_fetching_info": "Fetching video info...",
-    "phase_starting": "Starting download...",
+    "phase_starting": "Starting download engine...",
+    "phase_connecting": "Connecting to server...",
     "phase_preparing": "Preparing download...",
-    "phase_spawning": "Launching downloader...",
-    "phase_waiting_response": "Waiting for response...",
     "cancel": "Cancel",
     "clear_finished": "Clear finished"
   },
