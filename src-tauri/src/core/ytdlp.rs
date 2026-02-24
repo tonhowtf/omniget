@@ -1117,6 +1117,19 @@ pub async fn download_video(
                 tracing::warn!("[yt-dlp] login required, enabling cookies-from-browser");
             }
 
+            if stderr_lower.contains("requested format") && stderr_lower.contains("not available") {
+                tracing::warn!("[yt-dlp] requested format not available, relaxing format selector");
+                base_args.retain(|a| a != "-S" && a != "ext:mp4:m4a" && a != "--merge-output-format" && a != "mp4");
+                if attempt >= 1 {
+                    if let Some(pos) = base_args.iter().position(|a| a == "-f") {
+                        if pos + 1 < base_args.len() {
+                            base_args[pos + 1] = "b".to_string();
+                            tracing::warn!("[yt-dlp] falling back to format selector: b");
+                        }
+                    }
+                }
+            }
+
             let last_line = last_error.lines().last().unwrap_or("unknown error").trim();
             let sanitized = sanitize_log_line(last_line);
             tracing::warn!(
