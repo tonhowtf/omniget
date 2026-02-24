@@ -2,7 +2,7 @@ use tauri::{Emitter, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
-use crate::core::queue::{self, emit_queue_state};
+use crate::core::queue::{self, emit_queue_state_from_state};
 use crate::platforms::Platform;
 use crate::storage::config;
 use crate::AppState;
@@ -132,7 +132,9 @@ async fn enqueue_from_clipboard(app: &tauri::AppHandle, url: String) {
         for nid in &next_ids {
             q.mark_active(*nid);
         }
-        emit_queue_state(app, &q);
+        let state = q.get_state();
+        drop(q);
+        emit_queue_state_from_state(app, state);
     }
 
     let q_clone = download_queue.clone();
