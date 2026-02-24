@@ -422,6 +422,7 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         if is_yt {
             args.push("--sleep-requests".to_string());
             args.push("1".to_string());
+            args.push("--check-formats".to_string());
         }
 
         if let Some(extractor_args) = client {
@@ -726,10 +727,10 @@ pub async fn download_video(
                 if ffmpeg_available {
                     match quality_height {
                         Some(h) if h > 0 => format!(
-                            "bv*[height<={}]+ba/b[height<={}]/bv*+ba/b/b",
+                            "bv*[height<={}]+ba/b[height<={}]/bv*+ba/b",
                             h, h
                         ),
-                        _ => "bv*+ba/b/b".to_string(),
+                        _ => "bv*+ba/b".to_string(),
                     }
                 } else {
                     tracing::warn!("[yt-dlp] ffmpeg not available, using single-stream format");
@@ -805,10 +806,10 @@ pub async fn download_video(
         base_args.push("youtube:player_client=web".to_string());
 
         base_args.push("--throttled-rate".to_string());
-        base_args.push("500K".to_string());
+        base_args.push("100K".to_string());
 
         base_args.push("--sleep-subtitles".to_string());
-        base_args.push("2".to_string());
+        base_args.push("5".to_string());
     }
 
     base_args.extend([
@@ -1082,10 +1083,11 @@ pub async fn download_video(
                 }
 
                 if is_youtube_url(url) {
+                    base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
                     extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
                     let client = match attempt {
-                        0 => "youtube:player_client=web",
-                        1 => "youtube:player_client=mweb",
+                        0 => "youtube:player_client=mweb",
+                        1 => "youtube:player_client=ios",
                         _ => "youtube:player_client=ios",
                     };
                     extra_args.push("--extractor-args".to_string());
@@ -1095,6 +1097,7 @@ pub async fn download_video(
             }
 
             if stderr_lower.contains("nsig") {
+                base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
                 extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
                 let client = if attempt == 0 {
                     "youtube:player_client=ios"
