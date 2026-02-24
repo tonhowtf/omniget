@@ -405,12 +405,14 @@ pub async fn get_video_info(ytdlp: &Path, url: &str) -> anyhow::Result<serde_jso
         "exp=1:60".to_string(),
         "--user-agent".to_string(),
         CHROME_UA.to_string(),
+        "--skip-download".to_string(),
+        "-f".to_string(),
+        "b".to_string(),
     ];
 
     if is_youtube_url(url) {
         args.push("--extractor-args".to_string());
         args.push("youtube:player_client=web".to_string());
-        args.push("--skip-download".to_string());
         args.push("--sleep-requests".to_string());
         args.push("1".to_string());
     }
