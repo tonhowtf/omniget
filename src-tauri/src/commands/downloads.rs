@@ -80,6 +80,39 @@ pub async fn get_media_formats(url: String) -> Result<Vec<FormatInfo>, String> {
     Ok(ytdlp::parse_formats(&json))
 }
 
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub async fn prefetch_media_info(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    url: String,
+) -> Result<(), String> {
+    let platform = Platform::from_url(&url);
+    let platform_name = platform
+        .map(|p| p.to_string())
+        .unwrap_or_else(|| "generic".to_string());
+
+    let downloader = match state.registry.find_platform(&url) {
+        Some(d) => d,
+        None => return Err("No downloader available".to_string()),
+    };
+
+    let ytdlp_path = ytdlp::find_ytdlp_cached().await;
+
+    tokio::spawn(async move {
+        queue::prefetch_info_with_emit(
+            &url,
+            &*downloader,
+            &platform_name,
+            ytdlp_path.as_deref(),
+            Some(app),
+        )
+        .await;
+    });
+
+    Ok(())
+}
+
 #[derive(Clone, Serialize)]
 pub struct DownloadStarted {
     pub id: u64,
@@ -134,23 +167,7 @@ pub async fn download_from_url(
     let title = url.clone();
     let ytdlp_path = ytdlp::find_ytdlp_cached().await;
 
-    if platform_name == "youtube" || platform_name == "generic" {
-        let url_clone = url.clone();
-        let downloader_clone = downloader.clone();
-        let platform_clone = platform_name.clone();
-        let ytdlp_clone = ytdlp_path.clone();
-        let app_clone = app.clone();
-        tokio::spawn(async move {
-            queue::prefetch_info_with_emit(
-                &url_clone,
-                &*downloader_clone,
-                &platform_clone,
-                ytdlp_clone.as_deref(),
-                Some(app_clone),
-            )
-            .await;
-        });
-    }
+    let cached_info = queue::try_get_cached_info(&url).await;
 
     let state_to_emit = {
         let mut q = download_queue.lock().await;
@@ -164,7 +181,7 @@ pub async fn download_from_url(
             quality,
             format_id,
             referer,
-            None,
+            cached_info,
             None,
             None,
             downloader,
