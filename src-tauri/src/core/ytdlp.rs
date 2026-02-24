@@ -1193,6 +1193,9 @@ fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
     if lower.contains("nsig extraction failed") || lower.contains("nsig") {
         return anyhow!("Video extraction failed. Update yt-dlp or try again.");
     }
+    if lower.contains("requested format") && lower.contains("not available") {
+        return anyhow!("Requested format is not available. The download will retry with a compatible format.");
+    }
     if lower.contains("video unavailable") || lower.contains("not available") {
         return anyhow!("Video unavailable or removed.");
     }
@@ -1572,6 +1575,12 @@ mod tests {
     fn translate_error_unavailable() {
         let err = translate_ytdlp_error("Video unavailable");
         assert!(err.to_string().contains("unavailable"));
+    }
+
+    #[test]
+    fn translate_error_requested_format() {
+        let err = translate_ytdlp_error("ERROR: Requested format is not available. Use --list-formats for a list of available formats");
+        assert!(err.to_string().contains("Requested format"));
     }
 
     #[test]
