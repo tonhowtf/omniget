@@ -22,10 +22,28 @@
     [...downloads.values()].filter((d): d is GenericDownloadItem => d.kind === "generic")
   );
 
-  let activeGeneric = $derived(genericList.filter(d => d.status === "downloading"));
-  let pausedGeneric = $derived(genericList.filter(d => d.status === "paused"));
-  let queuedGeneric = $derived(genericList.filter(d => d.status === "queued"));
-  let finishedGeneric = $derived(genericList.filter(d => d.status === "complete" || d.status === "error"));
+  let grouped = $derived.by(() => {
+    const active: GenericDownloadItem[] = [];
+    const paused: GenericDownloadItem[] = [];
+    const queued: GenericDownloadItem[] = [];
+    const finished: GenericDownloadItem[] = [];
+    for (const d of genericList) {
+      if (d.status === "downloading") active.push(d);
+      else if (d.status === "paused") paused.push(d);
+      else if (d.status === "queued") queued.push(d);
+      else finished.push(d);
+    }
+    return { active, paused, queued, finished };
+  });
+
+  const FINISHED_PAGE_SIZE = 20;
+  let finishedVisibleCount = $state(FINISHED_PAGE_SIZE);
+
+  let visibleFinished = $derived(
+    grouped.finished.length <= finishedVisibleCount
+      ? grouped.finished
+      : grouped.finished.slice(0, finishedVisibleCount)
+  );
 
   let hasDownloads = $derived(courseList.length > 0 || genericList.length > 0);
   let finishedCount = $derived(getFinishedCount());
@@ -105,11 +123,11 @@
       {/if}
     </div>
     <div class="download-list">
-      {#each activeGeneric as item (item.id)}
+      {#each grouped.active as item (item.id)}
         {@render genericItem(item)}
       {/each}
 
-      {#each pausedGeneric as item (item.id)}
+      {#each grouped.paused as item (item.id)}
         {@render genericItem(item)}
       {/each}
 
@@ -117,18 +135,26 @@
         {@render courseItem(item)}
       {/each}
 
-      {#if queuedGeneric.length > 0}
+      {#if grouped.queued.length > 0}
         <h5 class="section-label">{$t('downloads.section_queued')}</h5>
-        {#each queuedGeneric as item (item.id)}
+        {#each grouped.queued as item (item.id)}
           {@render genericItem(item)}
         {/each}
       {/if}
 
-      {#if finishedGeneric.length > 0}
+      {#if grouped.finished.length > 0}
         <h5 class="section-label">{$t('downloads.section_finished')}</h5>
-        {#each finishedGeneric as item (item.id)}
+        {#each visibleFinished as item (item.id)}
           {@render genericItem(item)}
         {/each}
+        {#if grouped.finished.length > finishedVisibleCount}
+          <button
+            class="button show-more-btn"
+            onclick={() => { finishedVisibleCount += FINISHED_PAGE_SIZE; }}
+          >
+            {$t('downloads.show_more', { count: grouped.finished.length - finishedVisibleCount })}
+          </button>
+        {/if}
       {/if}
     </div>
   </div>
@@ -623,5 +649,11 @@
     font-weight: 500;
     color: var(--gray);
     font-variant-numeric: tabular-nums;
+  }
+
+  .show-more-btn {
+    align-self: center;
+    font-size: 13px;
+    padding: calc(var(--padding) / 2) var(--padding);
   }
 </style>
