@@ -41,9 +41,9 @@
     return codec.split(".")[0];
   }
 
-  let bestVA = $derived(formats.find(f => f.has_video && f.has_audio) ?? null);
+  let bestVA = $derived([...formats].reverse().find(f => f.has_video && f.has_audio) ?? null);
   let bestAudio = $derived([...formats].reverse().find(f => f.has_audio && !f.has_video) ?? null);
-  let bestVideo = $derived(formats.find(f => f.has_video && !f.has_audio) ?? null);
+  let bestVideo = $derived([...formats].reverse().find(f => f.has_video && !f.has_audio) ?? null);
 
   let selectedFormatLabel = $derived.by(() => {
     if (!selectedFormatId) return null;
