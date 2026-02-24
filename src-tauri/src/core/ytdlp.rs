@@ -1075,6 +1075,11 @@ pub async fn download_video(
                 tracing::warn!("[yt-dlp] 403 forbidden, adding --force-ipv4");
             }
 
+            if stderr_lower.contains("subtitle") && use_subtitles && !stderr_lower.contains("http error 429") {
+                tracing::warn!("[yt-dlp] subtitle error detected, disabling subtitles for retry");
+                use_subtitles = false;
+            }
+
             if stderr_lower.contains("timed out") || stderr_lower.contains("timeout") {
                 tracing::warn!("[yt-dlp] socket timeout on attempt {}", attempt + 1);
             }
