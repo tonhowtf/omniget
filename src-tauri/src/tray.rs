@@ -1,5 +1,9 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::OnceLock;
+use std::collections::HashMap;
+use std::sync::Mutex;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 use tauri::{
     image::Image,
@@ -13,6 +17,41 @@ static DOWNLOADS_ITEM: OnceLock<MenuItem<Wry>> = OnceLock::new();
 static BASE_ICON: OnceLock<(Vec<u8>, u32, u32)> = OnceLock::new();
 static LAST_ACTIVE: AtomicU32 = AtomicU32::new(0);
 static ICON_COUNT: AtomicU32 = AtomicU32::new(0);
+static BADGE_CACHE: OnceLock<Mutex<BadgeCache>> = OnceLock::new();
+
+struct BadgeCache {
+    cache: HashMap<(u32, u32, u32), Vec<u8>>,
+    icon_base_hash: u64,
+}
+
+impl BadgeCache {
+    fn new() -> Self {
+        Self {
+            cache: HashMap::new(),
+            icon_base_hash: 0,
+        }
+    }
+
+    fn get_or_render(&mut self, base: &[u8], w: u32, h: u32, count: u32) -> Vec<u8> {
+        let mut hasher = DefaultHasher::new();
+        base.hash(&mut hasher);
+        let base_hash = hasher.finish();
+
+        if self.icon_base_hash != base_hash {
+            self.cache.clear();
+            self.icon_base_hash = base_hash;
+        }
+
+        let key = (w, h, count);
+        if let Some(cached) = self.cache.get(&key) {
+            cached.clone()
+        } else {
+            let rendered = render_badge(base, w, h, count);
+            self.cache.insert(key, rendered.clone());
+            rendered
+        }
+    }
+}
 
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let open_item = MenuItemBuilder::with_id("open", "OmniGet").build(app)?;
@@ -86,7 +125,12 @@ pub fn update_active_count(app: &AppHandle, count: u32) {
 
         if let Some((base, w, h)) = BASE_ICON.get() {
             let rgba = if count > 0 {
-                render_badge(base, *w, *h, count)
+                let cache = BADGE_CACHE.get_or_init(|| Mutex::new(BadgeCache::new()));
+                if let Ok(mut c) = cache.lock() {
+                    c.get_or_render(base, *w, *h, count)
+                } else {
+                    render_badge(base, *w, *h, count)
+                }
             } else {
                 base.clone()
             };
