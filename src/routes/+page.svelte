@@ -77,6 +77,7 @@
   let selectedFormatId = $state<string | null>(null);
   let formats = $state<FormatInfo[]>([]);
   let loadingFormats = $state(false);
+  let formatError = $state<string | null>(null);
   let referer = $state("");
   let mediaPreview = $derived(getMediaPreview());
   let previewImageLoading = $state(true);
@@ -167,6 +168,7 @@
     selectedQuality = "best";
     selectedFormatId = null;
     formats = [];
+    formatError = null;
     referer = "";
 
     const trimmed = url.trim();
@@ -253,15 +255,24 @@
   }
 
   async function loadFormats() {
-    if (loadingFormats || formats.length > 0) {
+    if (loadingFormats) return;
+    if (formats.length > 0) {
+      formats = [];
+      selectedFormatId = null;
+      formatError = null;
       return;
     }
     loadingFormats = true;
+    formatError = null;
     try {
       const result = await invoke<FormatInfo[]>("get_media_formats", { url: url.trim() });
       formats = result;
-    } catch {
+      if (result.length === 0) {
+        formatError = $t("omnibox.no_formats");
+      }
+    } catch (e: any) {
       formats = [];
+      formatError = typeof e === "string" ? e : e.message ?? $t("omnibox.formats_error");
     } finally {
       loadingFormats = false;
     }
@@ -436,6 +447,7 @@
             bind:formats
             bind:selectedFormatId
             loadingFormats
+            {formatError}
             onLoadFormats={loadFormats}
             onSelectFormat={selectFormat}
             onClearFormat={clearFormatSelection}
