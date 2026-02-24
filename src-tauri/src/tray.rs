@@ -224,7 +224,7 @@ fn render_badge(base: &[u8], w: u32, h: u32, count: u32) -> Vec<u8> {
     let mut buf = base.to_vec();
     let size = w.min(h) as f32;
 
-    let radius = (size * 0.22).max(5.0);
+    let radius = (size * 0.28).max(6.0);
     let cx = w as f32 - radius - 1.0;
     let cy = h as f32 - radius - 1.0;
 
@@ -269,7 +269,7 @@ fn render_badge(base: &[u8], w: u32, h: u32, count: u32) -> Vec<u8> {
         vec![char::from_digit(count, 10).unwrap_or('0')]
     };
 
-    let scale = ((size / 16.0).round() as u32).max(1);
+    let scale = ((size / 13.0).round() as u32).max(1);
 
     let gap = if chars.len() > 1 { scale } else { 0 };
     let text_w = chars.len() as u32 * GLYPH_W * scale + gap;
@@ -316,7 +316,7 @@ fn render_overlay_badge(_base: &[u8], w: u32, h: u32, count: u32) -> Vec<u8> {
     let mut buf = vec![0u8; (w * h * 4) as usize];
 
     let size = w.min(h) as f32;
-    let radius = (size * 0.35).max(2.0);
+    let radius = (size * 0.40).max(3.0);
     let cx = (w as f32) * 0.75;
     let cy = (h as f32) * 0.75;
 
@@ -361,7 +361,7 @@ fn render_overlay_badge(_base: &[u8], w: u32, h: u32, count: u32) -> Vec<u8> {
         vec![char::from_digit(count, 10).unwrap_or('0')]
     };
 
-    let scale = ((size / 12.0).round() as u32).max(1);
+    let scale = ((size / 10.0).round() as u32).max(1);
     let gap = if chars.len() > 1 { scale } else { 0 };
     let text_w = chars.len() as u32 * GLYPH_W * scale + gap;
     let text_h = GLYPH_H * scale;
