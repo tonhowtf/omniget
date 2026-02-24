@@ -768,6 +768,11 @@ pub async fn download_video(
         format_selector,
     ];
 
+    if format_id.is_none() && mode != "audio" && ffmpeg_available {
+        base_args.push("--merge-output-format".to_string());
+        base_args.push("mp4".to_string());
+    }
+
     if let Some(ref_url) = referer {
         base_args.push("--referer".to_string());
         base_args.push(ref_url.to_string());
@@ -1149,17 +1154,23 @@ pub async fn download_video(
             }
 
             if stderr_lower.contains("requested format") && stderr_lower.contains("not available") {
-                tracing::warn!("[yt-dlp] requested format not available, relaxing format selector and player_client");
-                base_args.retain(|a| a != "-S" && a != "ext:mp4:m4a" && a != "--merge-output-format" && a != "mp4");
-                if is_youtube_url(url) {
-                    base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
-                    extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
-                }
-                if attempt >= 1 {
-                    if let Some(pos) = base_args.iter().position(|a| a == "-f") {
-                        if pos + 1 < base_args.len() {
-                            base_args[pos + 1] = "b".to_string();
-                            tracing::warn!("[yt-dlp] falling back to format selector: b");
+                tracing::warn!("[yt-dlp] format not available, fallback attempt {}", attempt);
+                match attempt {
+                    0 => {
+                        base_args.retain(|a| a != "--merge-output-format" && a != "mp4");
+                        if is_youtube_url(url) {
+                            base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                            extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                        }
+                        tracing::warn!("[yt-dlp] removed --merge-output-format and player_client");
+                    }
+                    _ => {
+                        base_args.retain(|a| a != "--merge-output-format" && a != "mp4");
+                        if let Some(pos) = base_args.iter().position(|a| a == "-f") {
+                            if pos + 1 < base_args.len() {
+                                base_args[pos + 1] = "b".to_string();
+                                tracing::warn!("[yt-dlp] simplified format to: b");
+                            }
                         }
                     }
                 }
