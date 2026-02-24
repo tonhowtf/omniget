@@ -78,6 +78,7 @@
   let formats = $state<FormatInfo[]>([]);
   let loadingFormats = $state(false);
   let formatError = $state<string | null>(null);
+  let formatFetchGeneration = $state(0);
   let referer = $state("");
   let mediaPreview = $derived(getMediaPreview());
   let previewImageLoading = $state(true);
@@ -164,7 +165,9 @@
     selectedQuality = "best";
     selectedFormatId = null;
     formats = [];
+    loadingFormats = false;
     formatError = null;
+    formatFetchGeneration++;
     referer = "";
 
     const trimmed = url.trim();
@@ -258,19 +261,30 @@
       formatError = null;
       return;
     }
+    const targetUrl = url.trim();
+    if (!targetUrl) {
+      formatError = $t("omnibox.formats_error");
+      return;
+    }
     loadingFormats = true;
     formatError = null;
+    const gen = ++formatFetchGeneration;
     try {
-      const result = await invoke<FormatInfo[]>("get_media_formats", { url: url.trim() });
+      const result = await invoke<FormatInfo[]>("get_media_formats", { url: targetUrl });
+      if (gen !== formatFetchGeneration) return;
       formats = result;
       if (result.length === 0) {
         formatError = $t("omnibox.no_formats");
       }
     } catch (e: any) {
+      if (gen !== formatFetchGeneration) return;
       formats = [];
-      formatError = typeof e === "string" ? e : e.message ?? $t("omnibox.formats_error");
+      const msg = typeof e === "string" ? e : e.message ?? "";
+      formatError = msg || $t("omnibox.formats_error");
     } finally {
-      loadingFormats = false;
+      if (gen === formatFetchGeneration) {
+        loadingFormats = false;
+      }
     }
   }
 
