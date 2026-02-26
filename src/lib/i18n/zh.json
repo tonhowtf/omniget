@@ -290,6 +290,7 @@
     "best_va": "最佳画音",
     "best_audio": "最佳音频",
     "best_video": "最佳视频",
+    "formats_merge_note": "如果 FFmpeg 可用，视频格式 (V) 将自动与音频 (A) 合并。",
     "referer_label": "Referer（可选）",
     "referer_placeholder": "https://example.com",
     "content_type": {
