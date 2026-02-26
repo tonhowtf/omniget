@@ -84,7 +84,7 @@ impl TikTokDownloader {
             }
         }
 
-        Err(anyhow!("Não foi possível resolver o short link"))
+        Err(anyhow!("Could not resolve short link"))
     }
 
     fn is_captcha_page(html: &str) -> bool {
@@ -122,7 +122,7 @@ impl TikTokDownloader {
         let html = response.text().await?;
 
         if Self::is_captcha_page(&html) {
-            return Err(anyhow!("TikTok está bloqueando requests. Tente novamente em alguns minutos."));
+            return Err(anyhow!("TikTok is blocking requests. Try again in a few minutes."));
         }
 
         let json_str = html
@@ -131,7 +131,7 @@ impl TikTokDownloader {
             )
             .nth(1)
             .and_then(|s| s.split("</script>").next())
-            .ok_or_else(|| anyhow!("TikTok está bloqueando requests. Tente novamente em alguns minutos."))?;
+            .ok_or_else(|| anyhow!("TikTok is blocking requests. Try again in a few minutes."))?;
 
         let data: serde_json::Value = serde_json::from_str(json_str)
             .map_err(|_| anyhow!("Erro ao processar resposta do TikTok"))?;
@@ -139,25 +139,25 @@ impl TikTokDownloader {
         let video_detail = data
             .get("__DEFAULT_SCOPE__")
             .and_then(|s| s.get("webapp.video-detail"))
-            .ok_or_else(|| anyhow!("Dados do vídeo não encontrados na resposta do TikTok"))?;
+            .ok_or_else(|| anyhow!("Video data not found in TikTok response"))?;
 
         if let Some(status_msg) = video_detail
             .get("statusMsg")
             .and_then(|v| v.as_str())
             .filter(|s| !s.is_empty())
         {
-            return Err(anyhow!("Post não disponível: {}", status_msg));
+            return Err(anyhow!("Post not available: {}", status_msg));
         }
 
         if let Some(status_code) = video_detail.get("statusCode").and_then(|v| v.as_u64()) {
             if status_code != 0 {
-                return Err(anyhow!("Post não disponível (status {})", status_code));
+                return Err(anyhow!("Post not available (status {})", status_code));
             }
         }
 
         let detail = video_detail
             .pointer("/itemInfo/itemStruct")
-            .ok_or_else(|| anyhow!("Dados do vídeo não encontrados na resposta do TikTok"))?
+            .ok_or_else(|| anyhow!("Video data not found in TikTok response"))?
             .clone();
 
         if detail
@@ -165,11 +165,11 @@ impl TikTokDownloader {
             .and_then(|v| v.as_bool())
             .unwrap_or(false)
         {
-            return Err(anyhow!("Conteúdo restrito por idade"));
+            return Err(anyhow!("Age-restricted content"));
         }
 
         if detail.get("author").is_none() {
-            return Err(anyhow!("Post não disponível"));
+            return Err(anyhow!("Post not available"));
         }
 
         Ok(detail)
@@ -289,7 +289,7 @@ impl PlatformDownloader for TikTokDownloader {
             None => {
                 let canonical = self.resolve_short_link(url).await?;
                 Self::extract_post_id(&canonical)
-                    .ok_or_else(|| anyhow!("Não foi possível extrair o ID do post"))?
+                    .ok_or_else(|| anyhow!("Could not extract post ID"))?
             }
         };
 
@@ -381,7 +381,7 @@ impl PlatformDownloader for TikTokDownloader {
             });
         }
 
-        Err(anyhow!("Nenhuma mídia encontrada no post"))
+        Err(anyhow!("No media found in post"))
     }
 
     async fn download(
@@ -397,7 +397,7 @@ impl PlatformDownloader for TikTokDownloader {
                 let quality = info
                     .available_qualities
                     .first()
-                    .ok_or_else(|| anyhow!("Nenhum URL de vídeo disponível"))?;
+                    .ok_or_else(|| anyhow!("No video URL available"))?;
 
                 let filename = format!("{}.mp4", sanitize_filename::sanitize(&info.title));
                 let output = opts.output_dir.join(&filename);
@@ -463,7 +463,7 @@ impl PlatformDownloader for TikTokDownloader {
                 let quality = info
                     .available_qualities
                     .first()
-                    .ok_or_else(|| anyhow!("Nenhum URL de áudio disponível"))?;
+                    .ok_or_else(|| anyhow!("No audio URL available"))?;
 
                 let filename = format!("{}.mp3", sanitize_filename::sanitize(&info.title));
                 let output = opts.output_dir.join(&filename);
@@ -484,7 +484,7 @@ impl PlatformDownloader for TikTokDownloader {
                     duration_seconds: 0.0,
                 })
             }
-            _ => Err(anyhow!("Tipo de mídia não suportado para download")),
+            _ => Err(anyhow!("Unsupported media type for download")),
         }
     }
 }
