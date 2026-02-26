@@ -163,7 +163,7 @@ impl PlatformDownloader for GenericYtdlpDownloader {
 
     async fn get_media_info(&self, url: &str) -> anyhow::Result<MediaInfo> {
         let ytdlp_path = ytdlp::ensure_ytdlp().await.map_err(|e| {
-            anyhow!("yt-dlp indisponível: {}", e)
+            anyhow!("yt-dlp unavailable: {}", e)
         })?;
 
         let json = ytdlp::get_video_info(&ytdlp_path, url).await?;
@@ -187,7 +187,7 @@ impl PlatformDownloader for GenericYtdlpDownloader {
         let first = info
             .available_qualities
             .first()
-            .ok_or_else(|| anyhow!("Nenhuma qualidade disponível"))?;
+            .ok_or_else(|| anyhow!("No quality available"))?;
 
         let selected = if let Some(ref wanted) = opts.quality {
             info.available_qualities
