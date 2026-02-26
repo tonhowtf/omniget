@@ -37,10 +37,10 @@ pub async fn mux_video_audio(video: &Path, audio: &Path, output: &Path) -> anyho
         .stderr(std::process::Stdio::null())
         .status()
         .await
-        .map_err(|e| anyhow!("Falha ao executar ffmpeg: {}", e))?;
+        .map_err(|e| anyhow!("Failed to run ffmpeg: {}", e))?;
 
     if !status.success() {
-        return Err(anyhow!("ffmpeg retornou código {}", status));
+        return Err(anyhow!("ffmpeg returned code {}", status));
     }
 
     Ok(())
@@ -113,17 +113,17 @@ pub async fn probe(path: &Path) -> anyhow::Result<MediaProbeInfo> {
         .stderr(std::process::Stdio::piped())
         .output()
         .await
-        .map_err(|e| anyhow!("Falha ao executar ffprobe: {}", e))?;
+        .map_err(|e| anyhow!("Failed to run ffprobe: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow!("ffprobe falhou: {}", stderr));
+        return Err(anyhow!("ffprobe failed: {}", stderr));
     }
 
     let json: serde_json::Value = serde_json::from_slice(&output.stdout)
-        .map_err(|e| anyhow!("Falha ao parsear JSON do ffprobe: {}", e))?;
+        .map_err(|e| anyhow!("Failed to parse ffprobe JSON: {}", e))?;
 
-    let format = json.get("format").ok_or_else(|| anyhow!("Sem campo 'format'"))?;
+    let format = json.get("format").ok_or_else(|| anyhow!("Missing 'format' field"))?;
 
     let duration_seconds = format
         .get("duration")
@@ -327,12 +327,12 @@ pub async fn convert(
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
-        .map_err(|e| anyhow!("Falha ao iniciar ffmpeg: {}", e))?;
+        .map_err(|e| anyhow!("Failed to start ffmpeg: {}", e))?;
 
     let stdout = child
         .stdout
         .take()
-        .ok_or_else(|| anyhow!("Sem stdout do ffmpeg"))?;
+        .ok_or_else(|| anyhow!("No stdout from ffmpeg"))?;
     let reader = BufReader::new(stdout);
     let mut lines = reader.lines();
 
@@ -355,7 +355,7 @@ pub async fn convert(
     let result = tokio::select! {
         status = child.wait() => {
             let _ = line_reader.await;
-            status.map_err(|e| anyhow!("ffmpeg processo falhou: {}", e))
+            status.map_err(|e| anyhow!("ffmpeg process failed: {}", e))
         }
         _ = cancel_token.cancelled() => {
             let _ = child.kill().await;
@@ -365,7 +365,7 @@ pub async fn convert(
                 output_path: opts.output_path.clone(),
                 file_size_bytes: 0,
                 duration_seconds: 0.0,
-                error: Some("Conversão cancelada".to_string()),
+                error: Some("Conversion cancelled".to_string()),
             });
         }
     };
@@ -394,7 +394,7 @@ pub async fn convert(
             output_path: opts.output_path.clone(),
             file_size_bytes: 0,
             duration_seconds: 0.0,
-            error: Some(format!("ffmpeg saiu com código {}", status)),
+            error: Some(format!("ffmpeg exited with code {}", status)),
         }),
         Err(e) => Ok(ConversionResult {
             success: false,
@@ -425,7 +425,7 @@ pub async fn embed_metadata(
     http_client: &reqwest::Client,
 ) -> anyhow::Result<()> {
     if !is_ffmpeg_available().await {
-        return Err(anyhow!("ffmpeg não disponível"));
+        return Err(anyhow!("ffmpeg not available"));
     }
 
     let temp_dir = file.parent().unwrap_or(Path::new("."));
@@ -449,7 +449,7 @@ pub async fn embed_metadata(
             match download_thumbnail(http_client, url, temp_dir).await {
                 Ok(p) => Some(p),
                 Err(e) => {
-                    tracing::warn!("Falha ao baixar thumbnail: {}", e);
+                    tracing::warn!("Failed to download thumbnail: {}", e);
                     None
                 }
             }
@@ -508,7 +508,7 @@ pub async fn embed_metadata(
         .stderr(std::process::Stdio::piped())
         .output()
         .await
-        .map_err(|e| anyhow!("Falha ao executar ffmpeg: {}", e))?;
+        .map_err(|e| anyhow!("Failed to run ffmpeg: {}", e))?;
 
     if let Some(ref thumb) = thumbnail_path {
         let _ = tokio::fs::remove_file(thumb).await;
@@ -517,12 +517,12 @@ pub async fn embed_metadata(
     if !output.status.success() {
         let _ = tokio::fs::remove_file(&temp_output).await;
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow!("ffmpeg metadata falhou: {}", stderr));
+        return Err(anyhow!("ffmpeg metadata failed: {}", stderr));
     }
 
     tokio::fs::rename(&temp_output, file)
         .await
-        .map_err(|e| anyhow!("Falha ao substituir arquivo: {}", e))?;
+        .map_err(|e| anyhow!("Failed to replace file: {}", e))?;
 
     Ok(())
 }
@@ -536,7 +536,7 @@ async fn download_thumbnail(
         .get(url)
         .send()
         .await
-        .map_err(|e| anyhow!("Falha ao baixar thumbnail: {}", e))?;
+        .map_err(|e| anyhow!("Failed to download thumbnail: {}", e))?;
 
     let content_type = response
         .headers()
@@ -548,7 +548,7 @@ async fn download_thumbnail(
     let bytes = response
         .bytes()
         .await
-        .map_err(|e| anyhow!("Falha ao ler thumbnail: {}", e))?;
+        .map_err(|e| anyhow!("Failed to read thumbnail: {}", e))?;
 
     let ext = if content_type.contains("png") {
         "png"
@@ -581,7 +581,7 @@ async fn download_thumbnail(
             }
         }
         let _ = tokio::fs::remove_file(&jpg_path).await;
-        return Err(anyhow!("Falha ao converter thumbnail para JPEG"));
+        return Err(anyhow!("Failed to convert thumbnail to JPEG"));
     }
 
     Ok(thumb_path)
