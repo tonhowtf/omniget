@@ -114,6 +114,25 @@ type UdemyCompletePayload = {
 const seenCourseIds = new Set<number>();
 const seenUdemyCourseIds = new Set<number>();
 
+let throttleTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingPayload: QueueItemInfo[] | null = null;
+
+function throttledSyncQueueState(payload: QueueItemInfo[]) {
+  pendingPayload = payload;
+  if (throttleTimer !== null) return;
+
+  syncQueueState(payload);
+  pendingPayload = null;
+
+  throttleTimer = setTimeout(() => {
+    throttleTimer = null;
+    if (pendingPayload !== null) {
+      syncQueueState(pendingPayload);
+      pendingPayload = null;
+    }
+  }, 250);
+}
+
 export async function initDownloadListener(): Promise<() => void> {
   const unlistenProgress = await listen<ProgressPayload>("download-progress", (event) => {
     const d = event.payload;
@@ -196,7 +215,7 @@ export async function initDownloadListener(): Promise<() => void> {
   const unlistenQueueState = await listen<QueueItemInfo[]>(
     "queue-state-update",
     (event) => {
-      syncQueueState(event.payload);
+      throttledSyncQueueState(event.payload);
     },
   );
 
@@ -270,5 +289,9 @@ export async function initDownloadListener(): Promise<() => void> {
     unlistenConvertProgress();
     unlistenConvertComplete();
     unlistenMediaPreview();
+    if (throttleTimer !== null) {
+      clearTimeout(throttleTimer);
+      throttleTimer = null;
+    }
   };
 }
