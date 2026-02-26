@@ -14,6 +14,26 @@ const config = {
       key: "",
       loader: async () => (await import("./pt.json")).default,
     },
+    {
+      locale: "zh",
+      key: "",
+      loader: async () => (await import("./zh.json")).default,
+    },
+    {
+      locale: "ja",
+      key: "",
+      loader: async () => (await import("./ja.json")).default,
+    },
+    {
+      locale: "it",
+      key: "",
+      loader: async () => (await import("./it.json")).default,
+    },
+    {
+      locale: "fr",
+      key: "",
+      loader: async () => (await import("./fr.json")).default,
+    },
   ],
 };
 
