@@ -189,7 +189,11 @@
       "theme_dark": "Dark",
       "language": "Language",
       "lang_pt": "Português",
-      "lang_en": "English"
+      "lang_en": "English",
+      "lang_zh": "中文",
+      "lang_ja": "日本語",
+      "lang_it": "Italiano",
+      "lang_fr": "Français"
     },
     "download": {
       "title": "Download",
@@ -328,7 +332,7 @@
     "feature_progress": "real-time download progress with ETA and speed",
     "feature_mascot": "Loop, the mascot that reacts to your downloads",
     "feature_themes": "dark and light theme",
-    "feature_i18n": "available in English and Portuguese",
+    "feature_i18n": "available in English, Portuguese, Chinese, Japanese, Italian and French",
     "feature_tech": "built with Tauri + Rust. fast and lightweight",
     "roadmap_intro": "what's planned for the next versions of OmniGet.",
     "roadmap_platforms_title": "integrations",
