@@ -290,6 +290,7 @@
     "best_va": "Meilleur V+A",
     "best_audio": "Meilleur Audio",
     "best_video": "Meilleure Vidéo",
+    "formats_merge_note": "Les formats vidéo (V) seront automatiquement fusionnés avec l'audio (A) si FFmpeg est disponible.",
     "referer_label": "Referer (optionnel)",
     "referer_placeholder": "https://example.com",
     "content_type": {
