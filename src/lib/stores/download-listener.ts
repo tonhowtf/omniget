@@ -242,7 +242,7 @@ export async function initDownloadListener(): Promise<() => void> {
         markFileComplete(d.id, d.result.output_path, d.result.file_size_bytes);
         showToast("success", tr("convert.toast_complete"));
       } else {
-        const errorMsg = d.error ?? d.result?.error ?? "Unknown error";
+        const errorMsg = d.error ?? d.result?.error ?? tr("common.unknown_error");
         markFileError(d.id, errorMsg);
         showToast("error", `${tr("convert.toast_error")} — ${errorMsg}`);
       }
