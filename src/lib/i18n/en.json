@@ -381,6 +381,8 @@
     "auto": "Auto",
     "hwaccel_detected": "GPU acceleration: {{encoder}}",
     "hwaccel_none": "No GPU acceleration detected",
+    "probe_failed": "Probe failed",
+    "conversion_failed": "Conversion failed",
     "toast_complete": "Conversion complete",
     "toast_error": "Conversion failed",
     "no_ffmpeg": "FFmpeg not found. Install FFmpeg to use conversion."
@@ -423,6 +425,7 @@
     "close": "Close",
     "hint": "Hint",
     "error": "Error",
+    "unknown_error": "Unknown error",
     "ytdlp_missing": "yt-dlp is not installed. Install it in Settings to enable downloads.",
     "go_to_settings": "Go to Settings"
   }
