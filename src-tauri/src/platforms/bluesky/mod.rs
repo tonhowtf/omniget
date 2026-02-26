@@ -60,8 +60,8 @@ impl BlueskyDownloader {
 
         if let Some(error) = json.get("error").and_then(|e| e.as_str()) {
             return match error {
-                "NotFound" | "InternalServerError" => Err(anyhow!("Post não disponível")),
-                "InvalidRequest" => Err(anyhow!("Link não suportado")),
+                "NotFound" | "InternalServerError" => Err(anyhow!("Post not available")),
+                "InvalidRequest" => Err(anyhow!("Unsupported link")),
                 _ => Err(anyhow!("Erro da API: {}", error)),
             };
         }
@@ -148,15 +148,15 @@ impl PlatformDownloader for BlueskyDownloader {
 
     async fn get_media_info(&self, url: &str) -> anyhow::Result<MediaInfo> {
         let (user, post_id) = Self::extract_user_and_post(url)
-            .ok_or_else(|| anyhow!("Não foi possível extrair user e post_id da URL"))?;
+            .ok_or_else(|| anyhow!("Could not extract user and post_id from URL"))?;
 
         let json = self.fetch_post(&user, &post_id).await?;
 
         let embed = json
             .pointer("/thread/post/embed")
-            .ok_or_else(|| anyhow!("Post não contém mídia"))?;
+            .ok_or_else(|| anyhow!("Post does not contain media"))?;
 
-        let media = extract_media(embed).ok_or_else(|| anyhow!("Tipo de mídia não suportado"))?;
+        let media = extract_media(embed).ok_or_else(|| anyhow!("Unsupported media type"))?;
 
         let filename_base = format!(
             "bluesky_{}_{}",
@@ -239,7 +239,7 @@ impl PlatformDownloader for BlueskyDownloader {
                 let hls_url = &info
                     .available_qualities
                     .first()
-                    .ok_or_else(|| anyhow!("Nenhum URL HLS disponível"))?
+                    .ok_or_else(|| anyhow!("No HLS URL available"))?
                     .url;
 
                 let filename = format!("{}.mp4", sanitize_filename::sanitize(&info.title));
@@ -300,7 +300,7 @@ impl PlatformDownloader for BlueskyDownloader {
                 let gif_url = &info
                     .available_qualities
                     .first()
-                    .ok_or_else(|| anyhow!("Nenhum URL GIF disponível"))?
+                    .ok_or_else(|| anyhow!("No GIF URL available"))?
                     .url;
 
                 let filename = format!("{}.gif", sanitize_filename::sanitize(&info.title));
@@ -316,7 +316,7 @@ impl PlatformDownloader for BlueskyDownloader {
                     duration_seconds: 0.0,
                 })
             }
-            _ => Err(anyhow!("Tipo de mídia não suportado para download")),
+            _ => Err(anyhow!("Unsupported media type for download")),
         }
     }
 }
