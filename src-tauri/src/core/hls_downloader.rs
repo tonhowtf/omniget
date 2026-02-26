@@ -74,7 +74,7 @@ impl HlsDownloader {
         max_height: Option<u32>,
     ) -> anyhow::Result<HlsDownloadResult> {
         if cancel_token.is_cancelled() {
-            anyhow::bail!("Download cancelado pelo usuário");
+            anyhow::bail!("Download cancelled by user");
         }
 
         let m3u8_text = self.fetch_m3u8_with_retry(m3u8_url, referer, 3).await?;
@@ -96,7 +96,7 @@ impl HlsDownloader {
                 .await;
         }
 
-        anyhow::bail!("Falha ao parsear m3u8: nem master nem media playlist")
+        anyhow::bail!("Failed to parse m3u8: neither master nor media playlist")
     }
 
     async fn fetch_m3u8_with_retry(
@@ -128,7 +128,7 @@ impl HlsDownloader {
             }
         }
         Err(last_err.unwrap_or_else(|| {
-            anyhow::anyhow!("Falha ao buscar m3u8 após {} tentativas", max_retries)
+            anyhow::anyhow!("Failed to fetch m3u8 after {} attempts", max_retries)
         }))
     }
 
@@ -237,7 +237,7 @@ impl HlsDownloader {
 
         if cancel_token.is_cancelled() {
             let _ = tokio::fs::remove_file(&part_path).await;
-            anyhow::bail!("Download cancelado pelo usuário");
+            anyhow::bail!("Download cancelled by user");
         }
 
         let errs = errors.lock().await;
@@ -253,7 +253,7 @@ impl HlsDownloader {
                     }
                 })
                 .collect();
-            anyhow::bail!("Falha no download de segmentos: {}", summary.join("; "));
+            anyhow::bail!("Segment download failed: {}", summary.join("; "));
         }
         drop(errs);
 
@@ -311,7 +311,7 @@ impl HlsDownloader {
             {
                 Ok(resp) => {
                     if !resp.status().is_success() {
-                        last_err = Some(anyhow::anyhow!("HTTP {} ao buscar chave AES", resp.status()));
+                        last_err = Some(anyhow::anyhow!("HTTP {} fetching AES key", resp.status()));
                     } else {
                         match resp.bytes().await {
                             Ok(bytes) => return Ok(bytes.to_vec()),
@@ -328,7 +328,7 @@ impl HlsDownloader {
             }
         }
         Err(last_err.unwrap_or_else(|| {
-            anyhow::anyhow!("Falha ao buscar chave AES após {} tentativas", max_retries)
+            anyhow::anyhow!("Failed to fetch AES key after {} attempts", max_retries)
         }))
     }
 }
@@ -430,7 +430,7 @@ async fn write_segments_ordered(
 
     if next_expected < total_segments {
         anyhow::bail!(
-            "Apenas {} de {} segmentos foram escritos",
+            "Only {} of {} segments were written",
             next_expected,
             total_segments
         );
@@ -451,7 +451,7 @@ async fn download_segment_with_retry(
     let mut last_err = None;
     for attempt in 0..max_retries {
         if cancel.is_cancelled() {
-            anyhow::bail!("Download cancelado");
+            anyhow::bail!("Download cancelled");
         }
 
         let result = tokio::time::timeout(SEGMENT_TIMEOUT, async {
@@ -466,9 +466,9 @@ async fn download_segment_with_retry(
             if !status.is_success() {
                 let code = status.as_u16();
                 if (400..500).contains(&code) && code != 429 && code != 408 {
-                    return Err(anyhow::anyhow!("HTTP {} (fatal) ao baixar segmento", code));
+                    return Err(anyhow::anyhow!("HTTP {} (fatal) downloading segment", code));
                 }
-                return Err(anyhow::anyhow!("HTTP {} ao baixar segmento", code));
+                return Err(anyhow::anyhow!("HTTP {} downloading segment", code));
             }
 
             resp.bytes().await.map(|b| b.to_vec()).map_err(|e| anyhow::anyhow!(e))
@@ -483,7 +483,7 @@ async fn download_segment_with_retry(
                 }
                 last_err = Some(e);
             }
-            Err(_) => last_err = Some(anyhow::anyhow!("Timeout ao baixar segmento")),
+            Err(_) => last_err = Some(anyhow::anyhow!("Timeout downloading segment")),
         }
         if attempt < max_retries - 1 {
             let base = 500 * (attempt as u64 + 1);
@@ -493,7 +493,7 @@ async fn download_segment_with_retry(
         }
     }
     Err(last_err
-        .unwrap_or_else(|| anyhow::anyhow!("Download do segmento falhou após {} tentativas", max_retries)))
+        .unwrap_or_else(|| anyhow::anyhow!("Segment download failed after {} attempts", max_retries)))
 }
 
 fn compute_iv(encryption: &EncryptionInfo, segment_index: usize, media_sequence: u64) -> [u8; 16] {
