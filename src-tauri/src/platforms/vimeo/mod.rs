@@ -153,7 +153,7 @@ impl PlatformDownloader for VimeoDownloader {
         let first = info
             .available_qualities
             .first()
-            .ok_or_else(|| anyhow!("Nenhuma qualidade disponível"))?;
+            .ok_or_else(|| anyhow!("No quality available"))?;
 
         let selected = if let Some(ref wanted) = opts.quality {
             info.available_qualities
