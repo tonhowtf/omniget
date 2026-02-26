@@ -217,8 +217,12 @@
         <div class="setting-row">
           <span class="setting-label">{$t('settings.appearance.language')}</span>
           <select class="select" value={settings.appearance.language} onchange={changeLanguage}>
-            <option value="pt">{$t('settings.appearance.lang_pt')}</option>
             <option value="en">{$t('settings.appearance.lang_en')}</option>
+            <option value="pt">{$t('settings.appearance.lang_pt')}</option>
+            <option value="zh">{$t('settings.appearance.lang_zh')}</option>
+            <option value="ja">{$t('settings.appearance.lang_ja')}</option>
+            <option value="it">{$t('settings.appearance.lang_it')}</option>
+            <option value="fr">{$t('settings.appearance.lang_fr')}</option>
           </select>
         </div>
       </div>
