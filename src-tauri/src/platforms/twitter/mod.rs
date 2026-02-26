@@ -159,7 +159,7 @@ impl TwitterDownloader {
         }
 
         if status == reqwest::StatusCode::NOT_FOUND {
-            return Err(anyhow!("Post não disponível"));
+            return Err(anyhow!("Post not available"));
         }
 
         if !status.is_success() {
@@ -253,24 +253,24 @@ impl TwitterDownloader {
         let instructions = json
             .pointer("/data/threaded_conversation_with_injections_v2/instructions")
             .and_then(|v| v.as_array())
-            .ok_or_else(|| anyhow!("Post não disponível"))?;
+            .ok_or_else(|| anyhow!("Post not available"))?;
 
         let add_insn = instructions
             .iter()
             .find(|i| i.get("type").and_then(|v| v.as_str()) == Some("TimelineAddEntries"))
-            .ok_or_else(|| anyhow!("Post não disponível"))?;
+            .ok_or_else(|| anyhow!("Post not available"))?;
 
         let entry_id = format!("tweet-{}", tweet_id);
         let entries = add_insn
             .get("entries")
             .and_then(|v| v.as_array())
-            .ok_or_else(|| anyhow!("Post não disponível"))?;
+            .ok_or_else(|| anyhow!("Post not available"))?;
 
         let tweet_result = entries
             .iter()
             .find(|e| e.get("entryId").and_then(|v| v.as_str()) == Some(&entry_id))
             .and_then(|e| e.pointer("/content/itemContent/tweet_results/result"))
-            .ok_or_else(|| anyhow!("Post não disponível"))?;
+            .ok_or_else(|| anyhow!("Post not available"))?;
 
         let typename = tweet_result
             .get("__typename")
@@ -295,10 +295,10 @@ impl TwitterDownloader {
                     .unwrap_or("");
 
                 if reason == "NsfwLoggedOut" || tombstone_text.starts_with("Age-restricted") {
-                    return Err(anyhow!("Conteúdo restrito por idade"));
+                    return Err(anyhow!("Age-restricted content"));
                 }
 
-                Err(anyhow!("Post não disponível"))
+                Err(anyhow!("Post not available"))
             }
             "Tweet" | "TweetWithVisibilityResults" => {
                 let base_tweet = if typename == "TweetWithVisibilityResults" {
@@ -308,7 +308,7 @@ impl TwitterDownloader {
                 };
 
                 let base_tweet =
-                    base_tweet.ok_or_else(|| anyhow!("Post não disponível"))?;
+                    base_tweet.ok_or_else(|| anyhow!("Post not available"))?;
 
                 let reposted_media = if typename == "TweetWithVisibilityResults" {
                     tweet_result
@@ -321,11 +321,11 @@ impl TwitterDownloader {
                 let media = reposted_media
                     .or_else(|| base_tweet.pointer("/extended_entities/media"))
                     .and_then(|v| v.as_array())
-                    .ok_or_else(|| anyhow!("Nenhuma mídia encontrada no tweet"))?;
+                    .ok_or_else(|| anyhow!("No media found in tweet"))?;
 
                 Ok(media.clone())
             }
-            _ => Err(anyhow!("Post não disponível")),
+            _ => Err(anyhow!("Post not available")),
         }
     }
 
@@ -335,7 +335,7 @@ impl TwitterDownloader {
         let media = json
             .get("mediaDetails")
             .and_then(|v| v.as_array())
-            .ok_or_else(|| anyhow!("Nenhuma mídia encontrada no tweet"))?;
+            .ok_or_else(|| anyhow!("No media found in tweet"))?;
 
         Ok(media.clone())
     }
@@ -404,7 +404,7 @@ impl TwitterDownloader {
             .collect();
 
         if items.is_empty() {
-            return Err(anyhow!("Nenhuma mídia encontrada no tweet"));
+            return Err(anyhow!("No media found in tweet"));
         }
 
         if items.len() == 1 {
@@ -448,7 +448,7 @@ impl PlatformDownloader for TwitterDownloader {
 
     async fn get_media_info(&self, url: &str) -> anyhow::Result<MediaInfo> {
         let tweet_id = Self::extract_tweet_id(url)
-            .ok_or_else(|| anyhow!("Não foi possível extrair o ID do tweet"))?;
+            .ok_or_else(|| anyhow!("Could not extract tweet ID"))?;
 
         let filename_base = format!("twitter_{}", tweet_id);
 
