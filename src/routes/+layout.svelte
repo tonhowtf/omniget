@@ -5,8 +5,8 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { initDownloadListener } from "$lib/stores/download-listener";
-  import { getActiveCount, getBadgeCount } from "$lib/stores/download-store.svelte";
-  import { loadSettings, getSettings } from "$lib/stores/settings-store.svelte";
+  import { getCounts } from "$lib/stores/download-store.svelte";
+  import { getSettings } from "$lib/stores/settings-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
   import { open } from "@tauri-apps/plugin-shell";
   import { refreshUpdateInfo } from "$lib/stores/update-store.svelte";
@@ -27,9 +27,8 @@
     await open("https://github.com/tonhowtf");
   }
 
-  let activeCount = $derived(getActiveCount());
-  let badgeCount = $derived(getBadgeCount());
-  let badgeLabel = $derived(badgeCount > 99 ? "99+" : String(badgeCount));
+  let counts = $derived(getCounts());
+  let badgeLabel = $derived(counts.badge > 99 ? "99+" : String(counts.badge));
   let settings = $derived(getSettings());
 
   $effect(() => {
@@ -48,7 +47,6 @@
   onMount(() => {
     let cleanup: (() => void) | undefined;
     initDownloadListener().then((fn) => (cleanup = fn));
-    loadSettings();
     refreshUpdateInfo();
     initChangelog();
     invoke<boolean>("check_ytdlp_available").then((ok) => { ytdlpMissing = !ok; }).catch(() => {});
@@ -122,7 +120,7 @@
             <path d="M12 16v-4m0-4h.01" />
           {/if}
         </svg>
-        {#if item.icon === "downloads" && badgeCount > 0}
+        {#if item.icon === "downloads" && counts.badge > 0}
           <span class="badge">{badgeLabel}</span>
         {/if}
       </a>
