@@ -422,7 +422,7 @@ impl HotmartDownloader {
         }
 
         if cancel_token.is_cancelled() {
-            anyhow::bail!("Download cancelado pelo usuário");
+            anyhow::bail!("Download cancelled by user");
         }
 
         if self.download_settings.download_attachments && !lesson.attachments.is_empty() {
@@ -455,7 +455,7 @@ impl HotmartDownloader {
         if self.download_settings.download_descriptions {
             if let Some(content) = &lesson.content {
                 if !content.trim().is_empty() {
-                    let desc_path = format!("{}/Descrição.html", output_dir);
+                    let desc_path = format!("{}/Description.html", output_dir);
                     if !tokio::fs::try_exists(&desc_path).await.unwrap_or(false) {
                         tokio::fs::write(&desc_path, content).await?;
                     }
@@ -502,14 +502,14 @@ impl HotmartDownloader {
             let guard = self.session.lock().await;
             guard
                 .as_ref()
-                .ok_or_else(|| anyhow!("Não autenticado"))?
+                .ok_or_else(|| anyhow!("Not authenticated"))?
                 .clone()
         };
 
         let modules = api::get_modules(&session, slug, course.id).await?;
 
         if modules.is_empty() {
-            return Err(anyhow!("'{}' não possui módulos disponíveis para baixar", course.name));
+            return Err(anyhow!("'{}' has no modules available for download", course.name));
         }
 
         let course_dir = format!(
@@ -633,7 +633,7 @@ impl HotmartDownloader {
                     if let Err(e) = lesson_result {
                         if !cancel_token.is_cancelled() {
                             tracing::error!(
-                                "Erro ao baixar página '{}': {}. Continuando...",
+                                "Error downloading page '{}': {}. Continuing...",
                                 task.page_name,
                                 e
                             );
@@ -660,7 +660,7 @@ impl HotmartDownloader {
             .await;
 
         if cancel_token.is_cancelled() {
-            return Err(anyhow!("Download cancelado pelo usuário"));
+            return Err(anyhow!("Download cancelled by user"));
         }
 
         Ok(())
@@ -682,7 +682,7 @@ async fn retry_hls_download(
     let mut last_err = None;
     for attempt in 0..max_attempts {
         if cancel_token.is_cancelled() {
-            anyhow::bail!("Download cancelado pelo usuário");
+            anyhow::bail!("Download cancelled by user");
         }
         match MediaProcessor::download_hls(
             m3u8_url,
@@ -701,7 +701,7 @@ async fn retry_hls_download(
                 if meta.map(|m| m.len() > 0).unwrap_or(false) {
                     return Ok(result);
                 }
-                last_err = Some(anyhow!("Arquivo de saída vazio após download HLS"));
+                last_err = Some(anyhow!("Output file empty after HLS download"));
             }
             Err(e) => {
                 if cancel_token.is_cancelled() {
@@ -723,7 +723,7 @@ async fn retry_hls_download(
             tokio::time::sleep(backoff).await;
         }
     }
-    Err(last_err.unwrap_or_else(|| anyhow!("HLS download falhou após {} tentativas", max_attempts)))
+    Err(last_err.unwrap_or_else(|| anyhow!("HLS download failed after {} attempts", max_attempts)))
 }
 
 async fn cleanup_part_files(dir: &std::path::Path) {
@@ -758,11 +758,11 @@ async fn download_attachment(
         let lambda_url = info
             .lambda_url
             .as_deref()
-            .ok_or_else(|| anyhow!("lambdaUrl não encontrada para DRM"))?;
+            .ok_or_else(|| anyhow!("lambdaUrl not found for DRM"))?;
         let drm_token = info
             .token
             .as_deref()
-            .ok_or_else(|| anyhow!("token DRM não encontrado"))?;
+            .ok_or_else(|| anyhow!("DRM token not found"))?;
 
         let signed_url = session
             .client
@@ -775,7 +775,7 @@ async fn download_attachment(
             .await?;
 
         if signed_url.is_empty() || signed_url.contains("500") {
-            return Err(anyhow!("Anexo DRM indisponível (resposta vazia ou erro 500)"));
+            return Err(anyhow!("DRM attachment unavailable (empty response or error 500)"));
         }
 
         let bytes = reqwest::get(&signed_url).await?.bytes().await?;
