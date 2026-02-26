@@ -31,7 +31,7 @@ Built with Tauri and Rust for speed and a small footprint.
 - Real-time progress with ETA and speed
 - Clipboard URL detection and batch downloads
 - Dark and light theme
-- Available in English and Portuguese
+- Available in English, Portuguese, Chinese, Japanese, Italian, and French
 - Loop, the mascot that reacts to your downloads
 
 ## Supported Platforms
