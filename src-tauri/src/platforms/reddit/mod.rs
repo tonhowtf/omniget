@@ -132,14 +132,14 @@ impl RedditDownloader {
         let json: serde_json::Value = response.json().await?;
 
         if !json.is_array() {
-            return Err(anyhow!("Post não encontrado"));
+            return Err(anyhow!("Post not found"));
         }
 
         json.as_array()
             .and_then(|arr| arr.first())
             .and_then(|listing| listing.pointer("/data/children/0/data"))
             .cloned()
-            .ok_or_else(|| anyhow!("Post não encontrado"))
+            .ok_or_else(|| anyhow!("Post not found"))
     }
 
     fn construct_audio_url(fallback_url: &str) -> Vec<String> {
@@ -202,7 +202,7 @@ impl RedditDownloader {
         progress_tx: mpsc::Sender<f64>,
     ) -> anyhow::Result<u64> {
         let variants = Self::get_resolution_variants(video_url);
-        let mut last_err = anyhow!("Nenhuma resolução disponível");
+        let mut last_err = anyhow!("No resolution available");
 
         for variant in &variants {
             match direct_downloader::download_direct(
@@ -343,14 +343,14 @@ impl PlatformDownloader for RedditDownloader {
         let canonical = self.resolve_to_canonical(url).await?;
 
         let post_id = Self::extract_post_id(&canonical)
-            .ok_or_else(|| anyhow!("Não foi possível extrair o ID do post"))?;
+            .ok_or_else(|| anyhow!("Could not extract post ID"))?;
 
         let subreddit = Self::extract_subreddit(&canonical).unwrap_or_default();
 
         let data = self.fetch_post_data(&post_id).await?;
 
         let media = Self::parse_media(&data)
-            .ok_or_else(|| anyhow!("Nenhuma mídia encontrada no post"))?;
+            .ok_or_else(|| anyhow!("No media found in post"))?;
 
         let source_id = if subreddit.is_empty() {
             post_id.clone()
@@ -473,7 +473,7 @@ impl PlatformDownloader for RedditDownloader {
                     .available_qualities
                     .iter()
                     .find(|q| q.label == "video")
-                    .ok_or_else(|| anyhow!("Nenhum URL de vídeo"))?;
+                    .ok_or_else(|| anyhow!("No video URL"))?;
 
                 let audio_quality = info
                     .available_qualities
@@ -676,7 +676,7 @@ impl PlatformDownloader for RedditDownloader {
                     duration_seconds: 0.0,
                 })
             }
-            _ => Err(anyhow!("Tipo de mídia não suportado")),
+            _ => Err(anyhow!("Unsupported media type")),
         }
     }
 }
