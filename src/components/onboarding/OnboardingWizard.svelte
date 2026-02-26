@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
-  import { t } from "$lib/i18n";
+  import { t, locale, loadTranslations } from "$lib/i18n";
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { completeOnboarding } from "$lib/stores/onboarding-store.svelte";
   import Mascot from "$components/mascot/Mascot.svelte";
@@ -53,6 +53,13 @@
     for (const dep of missing) {
       await handleInstallDep(dep.name);
     }
+  }
+
+  async function changeLanguage(e: Event) {
+    const value = (e.target as HTMLSelectElement).value;
+    await updateSettings({ appearance: { language: value } });
+    await loadTranslations(value, "/");
+    locale.set(value);
   }
 
   async function chooseFolder() {
@@ -107,6 +114,20 @@
           <Mascot emotion="idle" />
           <h2>{$t("onboarding.welcome_title")}</h2>
           <p class="step-desc">{$t("onboarding.welcome_desc")}</p>
+          <div class="language-row">
+            <label class="language-label" for="onboarding-language">
+              {$t("onboarding.language_label")}
+            </label>
+            <select
+              id="onboarding-language"
+              class="language-select"
+              value={settings?.appearance.language ?? "en"}
+              onchange={changeLanguage}
+            >
+              <option value="en">English</option>
+              <option value="pt">Português</option>
+            </select>
+          </div>
         </div>
       {:else if step === 2}
         <div class="step step-folder">
@@ -313,6 +334,42 @@
     line-height: 1.6;
     max-width: 340px;
     margin: 0;
+  }
+
+  .language-row {
+    display: flex;
+    align-items: center;
+    gap: var(--padding);
+    margin-top: var(--padding);
+    padding: calc(var(--padding) / 2) var(--padding);
+    background: var(--button);
+    border-radius: calc(var(--border-radius) / 2);
+    box-shadow: var(--button-box-shadow);
+  }
+
+  .language-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gray);
+  }
+
+  .language-select {
+    margin-left: auto;
+    padding: calc(var(--padding) / 2) var(--padding);
+    font-size: 14.5px;
+    font-weight: 500;
+    font-family: var(--font-system);
+    color: var(--secondary);
+    background: var(--button-elevated);
+    border: none;
+    border-radius: calc(var(--border-radius) / 2);
+    cursor: pointer;
+    appearance: auto;
+  }
+
+  .language-select:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
   }
 
   .step-icon {
