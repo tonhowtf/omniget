@@ -233,8 +233,11 @@
     padding: 0;
     width: 90%;
     max-width: 440px;
+    max-height: 90vh;
+    max-height: 90dvh;
     animation: dialog-in 0.15s ease-out;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
   }
 
   .onboarding-dialog::backdrop {
@@ -308,9 +311,10 @@
   .wizard-body {
     flex: 1;
     display: flex;
-    align-items: center;
     justify-content: center;
     padding: calc(var(--padding) + 4px);
+    overflow-y: auto;
+    min-height: 0;
   }
 
   .step {
@@ -320,6 +324,7 @@
     text-align: center;
     gap: calc(var(--padding) / 2);
     width: 100%;
+    margin: auto 0;
   }
 
   .step h2 {
@@ -345,6 +350,7 @@
     background: var(--button);
     border-radius: calc(var(--border-radius) / 2);
     box-shadow: var(--button-box-shadow);
+    width: 100%;
   }
 
   .language-label {
