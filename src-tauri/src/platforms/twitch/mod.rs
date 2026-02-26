@@ -91,10 +91,10 @@ impl TwitchClipsDownloader {
 
         let clip = json
             .pointer("/data/clip")
-            .ok_or_else(|| anyhow!("Clip não encontrado: {}", slug))?;
+            .ok_or_else(|| anyhow!("Clip not found: {}", slug))?;
 
         if clip.is_null() {
-            return Err(anyhow!("Clip não encontrado: {}", slug));
+            return Err(anyhow!("Clip not found: {}", slug));
         }
 
         let title = clip.get("title")
@@ -166,7 +166,7 @@ impl TwitchClipsDownloader {
             .as_array()
             .and_then(|arr| arr.first())
             .and_then(|r| r.pointer("/data/clip/playbackAccessToken"))
-            .ok_or_else(|| anyhow!("Token de acesso não disponível para clip: {}", slug))?;
+            .ok_or_else(|| anyhow!("Access token not available for clip: {}", slug))?;
 
         let signature = token_obj.get("signature")
             .and_then(|v| v.as_str())
@@ -216,12 +216,12 @@ impl PlatformDownloader for TwitchClipsDownloader {
 
     async fn get_media_info(&self, url: &str) -> anyhow::Result<MediaInfo> {
         let slug = Self::extract_clip_slug(url)
-            .ok_or_else(|| anyhow!("Não foi possível extrair o slug do clip"))?;
+            .ok_or_else(|| anyhow!("Could not extract clip slug"))?;
 
         let clip = self.fetch_clip_metadata(&slug).await?;
 
         if clip.video_qualities.is_empty() {
-            return Err(anyhow!("Nenhuma qualidade de vídeo disponível"));
+            return Err(anyhow!("No video quality available"));
         }
 
         let broadcaster = clip.broadcaster_login.as_deref()
@@ -268,7 +268,7 @@ impl PlatformDownloader for TwitchClipsDownloader {
         let first = info
             .available_qualities
             .first()
-            .ok_or_else(|| anyhow!("Nenhum URL de mídia disponível"))?;
+            .ok_or_else(|| anyhow!("No media URL available"))?;
 
         let selected = if let Some(ref wanted) = opts.quality {
             info.available_qualities
