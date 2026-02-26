@@ -170,12 +170,12 @@ impl PlatformDownloader for PinterestDownloader {
         let canonical = self.resolve_pin_url(url).await?;
 
         let pin_id = Self::extract_pin_id(&canonical)
-            .ok_or_else(|| anyhow!("Não foi possível extrair o ID do pin"))?;
+            .ok_or_else(|| anyhow!("Could not extract pin ID"))?;
 
         let html = self.fetch_pin_html(&pin_id).await?;
 
         if Self::check_pin_not_found(&html) {
-            return Err(anyhow!("Pin não encontrado"));
+            return Err(anyhow!("Pin not found"));
         }
 
         if let Some(video_url) = Self::extract_video_url(&html) {
@@ -219,7 +219,7 @@ impl PlatformDownloader for PinterestDownloader {
             });
         }
 
-        Err(anyhow!("Nenhuma mídia encontrada no pin {}", pin_id))
+        Err(anyhow!("No media found in pin {}", pin_id))
     }
 
     async fn download(
@@ -231,7 +231,7 @@ impl PlatformDownloader for PinterestDownloader {
         let quality = info
             .available_qualities
             .first()
-            .ok_or_else(|| anyhow!("Nenhum URL de mídia disponível"))?;
+            .ok_or_else(|| anyhow!("No media URL available"))?;
 
         let extension = &quality.format;
         let filename = format!("{}.{}", info.title, extension);
