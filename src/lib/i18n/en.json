@@ -405,6 +405,7 @@
     "deps_desc": "OmniGet uses yt-dlp and FFmpeg to download and process media.",
     "deps_installing": "Installing...",
     "deps_install_all": "Install all",
+    "language_label": "Language",
     "done_title": "All set!",
     "done_desc": "You're ready to start downloading. You can change these settings anytime."
   },
