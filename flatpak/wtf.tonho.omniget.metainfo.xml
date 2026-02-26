@@ -33,7 +33,7 @@
   <screenshots>
     <screenshot type="default">
       <caption>Main download interface</caption>
-      <image>https://raw.githubusercontent.com/tonhowtf/omniget/v0.3.0/flatpak/screenshots/main.png</image>
+      <image>https://raw.githubusercontent.com/tonhowtf/omniget/v0.3.1/flatpak/screenshots/main.png</image>
     </screenshot>
   </screenshots>
   <branding>
@@ -42,6 +42,11 @@
   </branding>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.3.1" date="2026-02-26">
+      <description>
+        <p>Added Chinese, Japanese, Italian, and French translations. Performance improvements and error message cleanup.</p>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-02-24">
       <description>
         <p>Major version bump with new features and improvements.</p>
