@@ -333,7 +333,7 @@
     "feature_progress": "progresso em tempo real com ETA e velocidade",
     "feature_mascot": "Loop, o mascote que reage aos seus downloads",
     "feature_themes": "tema escuro e claro",
-    "feature_i18n": "disponível em inglês, português, chinês, japonês, italiano e francês",
+    "feature_i18n": "disponível em Inglês, Português, Chinês, Japonês, Italiano e Francês",
     "feature_tech": "feito com Tauri + Rust. rápido e leve",
     "roadmap_intro": "o que está planejado para as próximas versões do OmniGet.",
     "roadmap_platforms_title": "integrações",
