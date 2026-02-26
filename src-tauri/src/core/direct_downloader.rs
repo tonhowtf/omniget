@@ -62,7 +62,7 @@ pub async fn download_direct_with_headers(
     for attempt in 0..MAX_RETRIES {
         if let Some(token) = cancel {
             if token.is_cancelled() {
-                return Err(anyhow!("Download cancelado"));
+                return Err(anyhow!("Download cancelled"));
             }
         }
 
@@ -91,7 +91,7 @@ pub async fn download_direct_with_headers(
     }
 
     let _ = tokio::fs::remove_file(&part_path_for(output)).await;
-    Err(last_err.unwrap_or_else(|| anyhow!("Download falhou após {} tentativas", MAX_RETRIES)))
+    Err(last_err.unwrap_or_else(|| anyhow!("Download failed after {} attempts", MAX_RETRIES)))
 }
 
 fn part_path_for(output: &Path) -> PathBuf {
@@ -110,10 +110,10 @@ fn is_fatal_error(err: &anyhow::Error) -> bool {
             return true;
         }
     }
-    if msg.contains("HTML em vez de mídia") {
+    if msg.contains("HTML instead of media") {
         return true;
     }
-    if msg.contains("cancelado") {
+    if msg.contains("cancelled") {
         return true;
     }
     false
@@ -201,7 +201,7 @@ async fn download_attempt(
         if expected > 0 && actual != expected {
             let _ = tokio::fs::remove_file(&part_path).await;
             return Err(anyhow!(
-                "Tamanho incorreto: esperado {} bytes, recebido {}",
+                "Size mismatch: expected {} bytes, got {}",
                 expected,
                 actual
             ));
@@ -252,7 +252,7 @@ async fn download_chunked(
         join_set.spawn(async move {
             let _permit = sem.acquire().await.unwrap();
             if ct.is_cancelled() {
-                return Err(anyhow!("Download cancelado"));
+                return Err(anyhow!("Download cancelled"));
             }
             download_chunk(&client, &url, &path, start, end, &dl, total_size, &ptx, hdrs, &ct)
                 .await
@@ -262,7 +262,7 @@ async fn download_chunked(
     while let Some(result) = join_set.join_next().await {
         if cancel_token.is_cancelled() {
             join_set.abort_all();
-            return Err(anyhow!("Download cancelado"));
+            return Err(anyhow!("Download cancelled"));
         }
         match result {
             Ok(Ok(())) => {}
@@ -272,7 +272,7 @@ async fn download_chunked(
             }
             Err(e) => {
                 join_set.abort_all();
-                return Err(anyhow!("Chunk task falhou: {:?}", e));
+                return Err(anyhow!("Chunk task failed: {:?}", e));
             }
         }
     }
@@ -301,14 +301,14 @@ async fn download_chunk(
 
     let response = tokio::time::timeout(Duration::from_secs(30), request.send())
         .await
-        .map_err(|_| anyhow!("Timeout ao conectar para chunk"))??;
+        .map_err(|_| anyhow!("Timeout connecting to chunk"))??;
 
     let status = response.status();
     if status != reqwest::StatusCode::PARTIAL_CONTENT {
         if status.is_success() {
-            return Err(anyhow!("Servidor não suportou Range request (HTTP 200)"));
+            return Err(anyhow!("Server did not support Range request (HTTP 200)"));
         }
-        return Err(anyhow!("HTTP {} ao baixar chunk", status));
+        return Err(anyhow!("HTTP {} downloading chunk", status));
     }
 
     let mut file = tokio::fs::OpenOptions::new()
@@ -323,14 +323,14 @@ async fn download_chunk(
 
     loop {
         if cancel.is_cancelled() {
-            return Err(anyhow!("Download cancelado"));
+            return Err(anyhow!("Download cancelled"));
         }
 
         let chunk_result = tokio::time::timeout(CHUNK_TIMEOUT, stream.next()).await;
         match chunk_result {
             Ok(Some(Ok(data))) => {
                 file.write_all(&data).await.map_err(|e| {
-                    anyhow!("Erro de escrita (disco cheio?): {}", e)
+                    anyhow!("Write error (disk full?): {}", e)
                 })?;
                 chunk_written += data.len() as u64;
                 let total_dl =
@@ -338,11 +338,11 @@ async fn download_chunk(
                 let percent = (total_dl as f64 / total_size as f64) * 100.0;
                 let _ = progress_tx.send(percent.min(99.9)).await;
             }
-            Ok(Some(Err(e))) => return Err(anyhow!("Erro no stream de chunk: {}", e)),
+            Ok(Some(Err(e))) => return Err(anyhow!("Chunk stream error: {}", e)),
             Ok(None) => break,
             Err(_) => {
                 return Err(anyhow!(
-                    "Chunk timeout — nenhum dado recebido por 30 segundos"
+                    "Chunk timeout — no data received for 30 seconds"
                 ))
             }
         }
@@ -350,7 +350,7 @@ async fn download_chunk(
 
     if chunk_written != expected_size {
         return Err(anyhow!(
-            "Chunk incompleto: esperado {} bytes, recebido {}",
+            "Incomplete chunk: expected {} bytes, got {}",
             expected_size,
             chunk_written
         ));
@@ -393,19 +393,19 @@ async fn download_single_stream(
             offset = existing_bytes;
         } else if response.status() == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
             let _ = tokio::fs::remove_file(part_path).await;
-            return Err(anyhow!("Range não satisfatível, reiniciando"));
+            return Err(anyhow!("Range not satisfiable, restarting"));
         } else if !response.status().is_success() {
-            return Err(anyhow!("HTTP {} ao baixar {}", response.status(), url));
+            return Err(anyhow!("HTTP {} downloading {}", response.status(), url));
         }
     } else if !response.status().is_success() {
-        return Err(anyhow!("HTTP {} ao baixar {}", response.status(), url));
+        return Err(anyhow!("HTTP {} downloading {}", response.status(), url));
     }
 
     if let Some(ct) = response.headers().get("content-type") {
         if let Ok(ct_str) = ct.to_str() {
             if ct_str.contains("text/html") {
                 return Err(anyhow!(
-                    "Servidor retornou HTML em vez de mídia — URL pode ter expirado"
+                    "Server returned HTML instead of media — URL may have expired"
                 ));
             }
         }
@@ -428,7 +428,7 @@ async fn download_single_stream(
         if let Some(token) = cancel {
             if token.is_cancelled() {
                 file.flush().await?;
-                return Err(anyhow!("Download cancelado"));
+                return Err(anyhow!("Download cancelled"));
             }
         }
 
@@ -436,7 +436,7 @@ async fn download_single_stream(
         match chunk_result {
             Ok(Some(Ok(chunk))) => {
                 file.write_all(&chunk).await.map_err(|e| {
-                    anyhow!("Erro de escrita (disco cheio?): {}", e)
+                    anyhow!("Write error (disk full?): {}", e)
                 })?;
                 downloaded += chunk.len() as u64;
 
@@ -453,13 +453,13 @@ async fn download_single_stream(
             }
             Ok(Some(Err(e))) => {
                 file.flush().await?;
-                return Err(anyhow!("Erro no stream de download: {}", e));
+                return Err(anyhow!("Download stream error: {}", e));
             }
             Ok(None) => break,
             Err(_) => {
                 file.flush().await?;
                 return Err(anyhow!(
-                    "Download timeout — nenhum dado recebido por 30 segundos"
+                    "Download timeout — no data received for 30 seconds"
                 ));
             }
         }
@@ -496,34 +496,34 @@ mod tests {
 
     #[test]
     fn is_fatal_http_400() {
-        assert!(is_fatal_error(&anyhow!("HTTP 400 ao baixar url")));
+        assert!(is_fatal_error(&anyhow!("HTTP 400 downloading url")));
     }
 
     #[test]
     fn is_fatal_http_401() {
-        assert!(is_fatal_error(&anyhow!("HTTP 401 ao baixar url")));
+        assert!(is_fatal_error(&anyhow!("HTTP 401 downloading url")));
     }
 
     #[test]
     fn is_fatal_http_403() {
-        assert!(is_fatal_error(&anyhow!("HTTP 403 ao baixar url")));
+        assert!(is_fatal_error(&anyhow!("HTTP 403 downloading url")));
     }
 
     #[test]
     fn is_fatal_http_404() {
-        assert!(is_fatal_error(&anyhow!("HTTP 404 ao baixar url")));
+        assert!(is_fatal_error(&anyhow!("HTTP 404 downloading url")));
     }
 
     #[test]
     fn is_fatal_html_response() {
         assert!(is_fatal_error(&anyhow!(
-            "Servidor retornou HTML em vez de mídia — URL pode ter expirado"
+            "Server returned HTML instead of media — URL may have expired"
         )));
     }
 
     #[test]
     fn is_fatal_cancelled() {
-        assert!(is_fatal_error(&anyhow!("Download cancelado")));
+        assert!(is_fatal_error(&anyhow!("Download cancelled")));
     }
 
     #[test]
