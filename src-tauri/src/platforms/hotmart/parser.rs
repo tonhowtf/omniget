@@ -89,7 +89,7 @@ pub async fn fetch_player_media_assets(
     let script_el = doc
         .select(&sel)
         .next()
-        .ok_or_else(|| anyhow::anyhow!("__NEXT_DATA__ não encontrado no HTML do player"))?;
+        .ok_or_else(|| anyhow::anyhow!("__NEXT_DATA__ not found in player HTML"))?;
 
     let json_text = script_el.text().collect::<String>();
     let data: serde_json::Value = serde_json::from_str(&json_text)?;
