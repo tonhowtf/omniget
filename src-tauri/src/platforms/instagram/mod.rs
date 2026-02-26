@@ -117,7 +117,7 @@ impl InstagramDownloader {
         let final_url = response.url().to_string();
 
         if final_url.contains("/share/") || final_url == url {
-            return Err(anyhow!("Não foi possível resolver o share link"));
+            return Err(anyhow!("Could not resolve share link"));
         }
 
         Ok(final_url)
@@ -385,7 +385,7 @@ impl InstagramDownloader {
 
         match media {
             Some(m) if !m.is_null() => Ok(m.clone()),
-            _ => Err(anyhow!("Post não encontrado via GQL")),
+            _ => Err(anyhow!("Post not found via GQL")),
         }
     }
 
@@ -435,7 +435,7 @@ impl InstagramDownloader {
             return Ok(data);
         }
 
-        Err(anyhow!("Não foi possível extrair dados do embed"))
+        Err(anyhow!("Could not extract data from embed"))
     }
 
     async fn fallback_ytdlp(&self, url: &str) -> anyhow::Result<MediaInfo> {
@@ -491,7 +491,7 @@ impl InstagramDownloader {
             });
         }
 
-        Err(anyhow!("Nenhuma mídia encontrada no post"))
+        Err(anyhow!("No media found in post"))
     }
 
     fn instagram_headers() -> reqwest::header::HeaderMap {
@@ -531,7 +531,7 @@ impl InstagramDownloader {
             });
         }
 
-        Err(anyhow!("Nenhuma mídia encontrada no embed"))
+        Err(anyhow!("No media found in embed"))
     }
 }
 
@@ -561,16 +561,16 @@ impl PlatformDownloader for InstagramDownloader {
 
     async fn get_media_info(&self, url: &str) -> anyhow::Result<MediaInfo> {
         if Self::is_story_url(url) {
-            return Err(anyhow!("Instagram Stories não são suportados. Apenas posts, reels e carrosséis públicos."));
+            return Err(anyhow!("Instagram Stories are not supported. Only public posts, reels and carousels."));
         }
 
         let post_id = if let Some(share_id) = Self::extract_share_id(url) {
             let resolved = self.resolve_share_link(&share_id).await?;
             Self::extract_post_id(&resolved)
-                .ok_or_else(|| anyhow!("Não foi possível extrair o ID do post"))?
+                .ok_or_else(|| anyhow!("Could not extract post ID"))?
         } else {
             Self::extract_post_id(url)
-                .ok_or_else(|| anyhow!("Não foi possível extrair o ID do post"))?
+                .ok_or_else(|| anyhow!("Could not extract post ID"))?
         };
 
         let filename_base = format!("instagram_{}", post_id);
