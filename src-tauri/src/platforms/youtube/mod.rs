@@ -65,7 +65,7 @@ impl YouTubeDownloader {
             let (playlist_title, entries) = ytdlp::get_playlist_info(ytdlp_path, url).await?;
 
             if entries.is_empty() {
-                return Err(anyhow!("Playlist vazia ou indisponível"));
+                return Err(anyhow!("Playlist empty or unavailable"));
             }
 
             let qualities: Vec<MediaVideoQuality> = entries
@@ -93,7 +93,7 @@ impl YouTubeDownloader {
         }
 
         let _video_id = Self::extract_video_id(url)
-            .ok_or_else(|| anyhow!("Não foi possível extrair o ID do vídeo YouTube"))?;
+            .ok_or_else(|| anyhow!("Could not extract YouTube video ID"))?;
 
         let json = ytdlp::get_video_info(ytdlp_path, url).await?;
         Self::parse_video_info(&json)
@@ -141,7 +141,7 @@ impl YouTubeDownloader {
             .unwrap_or(false);
 
         if is_live {
-            return Err(anyhow!("Livestreams não suportados"));
+            return Err(anyhow!("Livestreams not supported"));
         }
 
         let mut qualities: Vec<MediaVideoQuality> = Vec::new();
@@ -242,7 +242,7 @@ impl PlatformDownloader for YouTubeDownloader {
                 ytdlp::get_playlist_info(&ytdlp_path, url).await?;
 
             if entries.is_empty() {
-                return Err(anyhow!("Playlist vazia ou indisponível"));
+                return Err(anyhow!("Playlist empty or unavailable"));
             }
 
             let qualities: Vec<MediaVideoQuality> = entries
@@ -270,7 +270,7 @@ impl PlatformDownloader for YouTubeDownloader {
         }
 
         let _video_id = Self::extract_video_id(url)
-            .ok_or_else(|| anyhow!("Não foi possível extrair o ID do vídeo YouTube"))?;
+            .ok_or_else(|| anyhow!("Could not extract YouTube video ID"))?;
 
         let json = ytdlp::get_video_info(&ytdlp_path, url).await?;
         Self::parse_video_info(&json)
@@ -299,7 +299,7 @@ impl PlatformDownloader for YouTubeDownloader {
         let first = info
             .available_qualities
             .first()
-            .ok_or_else(|| anyhow!("Nenhuma qualidade disponível"))?;
+            .ok_or_else(|| anyhow!("No quality available"))?;
 
         let quality_height = if let Some(ref wanted) = opts.quality {
             if wanted == "best" {
