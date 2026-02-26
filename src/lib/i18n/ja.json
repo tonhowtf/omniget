@@ -290,6 +290,7 @@
     "best_va": "最高 V+A",
     "best_audio": "最高音声",
     "best_video": "最高映像",
+    "formats_merge_note": "FFmpeg が利用可能な場合、動画形式 (V) は自動的に音声 (A) と結合されます。",
     "referer_label": "リファラー（任意）",
     "referer_placeholder": "https://example.com",
     "content_type": {
