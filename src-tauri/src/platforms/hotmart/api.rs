@@ -114,7 +114,7 @@ pub async fn get_subdomains(session: &HotmartSession) -> anyhow::Result<Vec<Subd
     let resources = body
         .get("resources")
         .and_then(|r| r.as_array())
-        .ok_or_else(|| anyhow!("Campo 'resources' não encontrado em check_token"))?;
+        .ok_or_else(|| anyhow!("Field 'resources' not found in check_token"))?;
 
     let mut subdomains = Vec::new();
     for res in resources {
@@ -225,7 +225,7 @@ pub async fn get_course_price(session: &HotmartSession, product_id: u64) -> anyh
 
     let status = resp.status();
     if !status.is_success() {
-        return Err(anyhow!("Preço não disponível (status {})", status));
+        return Err(anyhow!("Price not available (status {})", status));
     }
 
     let body: serde_json::Value = resp.json().await?;
@@ -282,7 +282,7 @@ pub async fn get_modules(
         .get("modules")
         .and_then(|m| m.as_array())
         .or_else(|| body.as_array())
-        .ok_or_else(|| anyhow!("Formato inesperado na resposta de módulos"))?;
+        .ok_or_else(|| anyhow!("Unexpected format in modules response"))?;
 
     let mut modules = Vec::new();
     for m in modules_json {
@@ -348,7 +348,7 @@ pub async fn get_lesson(
     let body: serde_json::Value = resp.json().await?;
 
     if let Some(msg) = body.get("message").and_then(|v| v.as_str()) {
-        return Err(anyhow!("Lição indisponível: {}", msg));
+        return Err(anyhow!("Lesson unavailable: {}", msg));
     }
 
     let hash = body.get("hash").and_then(|v| v.as_str()).unwrap_or(page_hash).to_string();
