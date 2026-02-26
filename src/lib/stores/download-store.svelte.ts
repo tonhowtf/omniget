@@ -59,36 +59,42 @@ export function getDownloads(): Map<number, DownloadItem> {
   return downloads;
 }
 
-export function getActiveCount(): number {
-  let count = 0;
+export type DownloadCounts = {
+  active: number;
+  queued: number;
+  badge: number;
+  paused: number;
+  finished: number;
+};
+
+export function getCounts(): DownloadCounts {
+  let active = 0, queued = 0, paused = 0, finished = 0;
   for (const item of downloads.values()) {
-    if (item.status === "downloading") count++;
+    switch (item.status) {
+      case "downloading": active++; break;
+      case "queued": queued++; break;
+      case "paused": paused++; break;
+      case "complete":
+      case "error": finished++; break;
+    }
   }
-  return count;
+  return { active, queued, badge: active + queued, paused, finished };
+}
+
+export function getActiveCount(): number {
+  return getCounts().active;
 }
 
 export function getQueuedCount(): number {
-  let count = 0;
-  for (const item of downloads.values()) {
-    if (item.status === "queued") count++;
-  }
-  return count;
+  return getCounts().queued;
 }
 
 export function getBadgeCount(): number {
-  let count = 0;
-  for (const item of downloads.values()) {
-    if (item.status === "downloading" || item.status === "queued") count++;
-  }
-  return count;
+  return getCounts().badge;
 }
 
 export function getPausedCount(): number {
-  let count = 0;
-  for (const item of downloads.values()) {
-    if (item.status === "paused") count++;
-  }
-  return count;
+  return getCounts().paused;
 }
 
 export function upsertProgress(
@@ -174,11 +180,7 @@ export function clearFinished() {
 }
 
 export function getFinishedCount(): number {
-  let count = 0;
-  for (const item of downloads.values()) {
-    if (item.status === "complete" || item.status === "error") count++;
-  }
-  return count;
+  return getCounts().finished;
 }
 
 type QueueItemInfo = {
