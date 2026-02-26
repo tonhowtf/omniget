@@ -69,7 +69,7 @@
       const info: ProbeInfo = await invoke("probe_file", { path });
       updateFileProbe(id, info);
     } catch (e: any) {
-      showToast("error", typeof e === "string" ? e : e.message ?? "Probe failed");
+      showToast("error", typeof e === "string" ? e : e.message ?? $t("convert.probe_failed"));
     }
   }
 
@@ -129,7 +129,7 @@
         // Wait for this conversion to complete before starting next
         await waitForConversion(conversionId);
       } catch (e: any) {
-        showToast("error", typeof e === "string" ? e : e.message ?? "Conversion failed");
+        showToast("error", typeof e === "string" ? e : e.message ?? $t("convert.conversion_failed"));
       }
     }
 

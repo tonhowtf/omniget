@@ -52,7 +52,7 @@
     try {
       await invoke("cancel_course_download", { courseId });
     } catch (e: any) {
-      const msg = typeof e === "string" ? e : e.message ?? "Error";
+      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
       showToast("error", msg);
     }
   }
@@ -61,7 +61,7 @@
     try {
       await invoke("cancel_generic_download", { downloadId: id });
     } catch (e: any) {
-      const msg = typeof e === "string" ? e : e.message ?? "Error";
+      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
       showToast("error", msg);
     }
   }
@@ -70,7 +70,7 @@
     try {
       await invoke("pause_download", { downloadId: id });
     } catch (e: any) {
-      const msg = typeof e === "string" ? e : e.message ?? "Error";
+      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
       showToast("error", msg);
     }
   }
@@ -79,7 +79,7 @@
     try {
       await invoke("resume_download", { downloadId: id });
     } catch (e: any) {
-      const msg = typeof e === "string" ? e : e.message ?? "Error";
+      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
       showToast("error", msg);
     }
   }
@@ -88,7 +88,7 @@
     try {
       await invoke("retry_download", { downloadId: id });
     } catch (e: any) {
-      const msg = typeof e === "string" ? e : e.message ?? "Error";
+      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
       showToast("error", msg);
     }
   }
@@ -97,7 +97,7 @@
     try {
       await invoke("remove_download", { downloadId: id });
     } catch (e: any) {
-      const msg = typeof e === "string" ? e : e.message ?? "Error";
+      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
       showToast("error", msg);
     }
   }
@@ -106,7 +106,7 @@
     try {
       await invoke("clear_finished_downloads");
     } catch (e: any) {
-      const msg = typeof e === "string" ? e : e.message ?? "Error";
+      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
       showToast("error", msg);
     }
   }

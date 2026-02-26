@@ -378,7 +378,7 @@
       }
       hasMore = items.length >= 100;
     } catch (e: any) {
-      const msg = typeof e === "string" ? e : e.message ?? "Error";
+      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
       showToast("error", msg);
     } finally {
       loadingMore = false;
@@ -485,7 +485,7 @@
       });
       showToast("info", $t("toast.download_started", { name: item.file_name }));
     } catch (e: any) {
-      const msg = typeof e === "string" ? e : e.message ?? "Error";
+      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
       showToast("error", msg);
       downloadingIds = new Set([...downloadingIds].filter((id) => id !== item.message_id));
     }
@@ -519,7 +519,7 @@
       });
       activeBatchId = batchId;
     } catch (e: any) {
-      const msg = typeof e === "string" ? e : e.message ?? "Error";
+      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
       showToast("error", msg);
       batchStatus = new Map();
       batchTotal = 0;

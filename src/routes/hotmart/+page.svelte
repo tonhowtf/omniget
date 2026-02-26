@@ -176,7 +176,7 @@
       });
       showToast("info", $t("toast.download_preparing"));
     } catch (e: any) {
-      const msg = typeof e === "string" ? e : e.message ?? "Error";
+      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
       showToast("error", msg);
     }
   }
