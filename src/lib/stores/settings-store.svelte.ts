@@ -21,6 +21,15 @@ export type AppSettings = {
     download_subtitles: boolean;
     hotkey_enabled: boolean;
     hotkey_binding: string;
+    extra_ytdlp_flags?: string[];
+  };
+  proxy?: {
+    enabled?: boolean;
+    proxy_type?: string;
+    host?: string;
+    port?: number;
+    username?: string;
+    password?: string;
   };
   advanced: {
     max_concurrent_segments: number;
