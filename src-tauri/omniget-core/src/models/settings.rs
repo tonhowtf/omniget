@@ -15,6 +15,8 @@ pub struct AppSettings {
     pub onboarding_completed: bool,
     #[serde(default)]
     pub start_with_windows: bool,
+    #[serde(default)]
+    pub portable_mode: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -162,6 +164,7 @@ impl Default for AppSettings {
             proxy: ProxySettings::default(),
             onboarding_completed: false,
             start_with_windows: false,
+            portable_mode: false,
         }
     }
 }
