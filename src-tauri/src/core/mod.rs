@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod events;
+pub mod http_client;
 pub use omniget_core::core::registry;
 pub mod hls_downloader;
 pub mod direct_downloader;
