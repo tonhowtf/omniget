@@ -69,7 +69,7 @@ pub fn build_client_from_saved(saved: &SavedSession) -> anyhow::Result<reqwest::
     default_headers.insert("Pragma", HeaderValue::from_static("no-cache"));
     default_headers.insert("cache-control", HeaderValue::from_static("no-cache"));
 
-    let client = reqwest::Client::builder()
+    let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
         .cookie_provider(Arc::new(jar))
         .default_headers(default_headers)
