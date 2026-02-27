@@ -240,6 +240,18 @@
       "update": "Update",
       "installing": "Installing..."
     },
+    "proxy": {
+      "title": "Proxy",
+      "enabled": "Enable proxy",
+      "type": "Type",
+      "host": "Host",
+      "port": "Port",
+      "username": "Username",
+      "password": "Password"
+    },
+    "ytdlp_flags": {
+      "title": "yt-dlp Flags"
+    },
     "advanced": {
       "title": "Advanced",
       "max_concurrent_downloads": "Concurrent downloads",
