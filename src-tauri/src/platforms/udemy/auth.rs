@@ -77,7 +77,7 @@ pub fn build_client_from_saved(saved: &SavedSession) -> anyhow::Result<reqwest::
         HeaderValue::from_static("en_US"),
     );
 
-    let client = reqwest::Client::builder()
+    let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
         .user_agent("okhttp/4.12.0 UdemyAndroid 9.51.2(594) (phone)")
         .default_headers(default_headers)
         .redirect(reqwest::redirect::Policy::limited(10))
@@ -122,7 +122,7 @@ fn build_enterprise_client(saved: &SavedSession) -> anyhow::Result<reqwest::Clie
         HeaderValue::from_static("en_US"),
     );
 
-    let client = reqwest::Client::builder()
+    let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
         .default_headers(default_headers)
         .redirect(reqwest::redirect::Policy::limited(10))
