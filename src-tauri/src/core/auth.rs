@@ -153,7 +153,7 @@ impl SpotifyAuth {
         verifier: &str,
         redirect_uri: &str,
     ) -> anyhow::Result<AuthSession> {
-        let client = reqwest::Client::new();
+        let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder()).build().unwrap_or_default();
         let resp = client
             .post("https://accounts.spotify.com/api/token")
             .form(&[
@@ -241,7 +241,7 @@ impl SpotifyAuth {
             .as_ref()
             .ok_or_else(|| anyhow!("No refresh token available"))?;
 
-        let client = reqwest::Client::new();
+        let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder()).build().unwrap_or_default();
         let resp = client
             .post("https://accounts.spotify.com/api/token")
             .form(&[
