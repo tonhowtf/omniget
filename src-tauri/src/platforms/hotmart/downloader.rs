@@ -109,7 +109,7 @@ impl HotmartDownloader {
         max_retries: u32,
         concurrent_fragments: u32,
     ) -> Self {
-        let hls_client = reqwest::Client::builder()
+        let hls_client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
             .danger_accept_invalid_certs(true)
             .connect_timeout(Duration::from_secs(30))
             .timeout(Duration::from_secs(300))
@@ -320,6 +320,7 @@ impl HotmartDownloader {
                                         None,
                                         concurrent_fragments,
                                         false,
+                                        &[],
                                     ).await {
                                         Ok(result) => {
                                             let _ = bytes_tx.send(result.file_size_bytes);
@@ -391,6 +392,7 @@ impl HotmartDownloader {
                                         None,
                                         concurrent_fragments,
                                         false,
+                                        &[],
                                     ).await {
                                         Ok(result) => {
                                             let _ = bytes_tx.send(result.file_size_bytes);
