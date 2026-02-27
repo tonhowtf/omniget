@@ -45,7 +45,7 @@ pub async fn detect_platform(url: String) -> Result<PlatformInfo, String> {
                 content_id: parsed.as_ref().and_then(|p| p.content_id.clone()),
                 content_type: parsed.map(|p| format!("{:?}", p.content_type).to_lowercase()),
             });
-            tracing::info!("[perf] detect_platform took {:?}", _timer_start.elapsed());
+            tracing::debug!("[perf] detect_platform took {:?}", _timer_start.elapsed());
             result
         }
         None => {
@@ -58,7 +58,7 @@ pub async fn detect_platform(url: String) -> Result<PlatformInfo, String> {
                 content_id: None,
                 content_type: None,
             });
-            tracing::info!("[perf] detect_platform took {:?}", _timer_start.elapsed());
+            tracing::debug!("[perf] detect_platform took {:?}", _timer_start.elapsed());
             result
         }
     }
@@ -72,11 +72,11 @@ pub async fn get_media_formats(url: String) -> Result<Vec<FormatInfo>, String> {
         .await
         .map_err(|e| format!("yt-dlp unavailable: {}", e))?;
 
-    let json = ytdlp::get_video_info(&ytdlp_path, &url)
+    let json = ytdlp::get_video_info(&ytdlp_path, &url, &[])
         .await
         .map_err(|e| format!("Failed to get formats: {}", e))?;
 
-    tracing::info!("[perf] get_media_formats took {:?}", _timer_start.elapsed());
+    tracing::debug!("[perf] get_media_formats took {:?}", _timer_start.elapsed());
     Ok(ytdlp::parse_formats(&json))
 }
 
@@ -148,7 +148,7 @@ pub async fn download_from_url(
         q.max_concurrent = settings.advanced.max_concurrent_downloads.max(1);
         q.stagger_delay_ms = settings.advanced.stagger_delay_ms;
         if q.has_url(&url) {
-            tracing::info!("[perf] download_from_url took {:?}", _timer_start.elapsed());
+            tracing::debug!("[perf] download_from_url took {:?}", _timer_start.elapsed());
             return Err("Download already in progress for this URL".to_string());
         }
     }
@@ -156,7 +156,7 @@ pub async fn download_from_url(
     let downloader = match state.registry.find_platform(&url) {
         Some(d) => d,
         None => {
-            tracing::info!("[perf] download_from_url took {:?}", _timer_start.elapsed());
+            tracing::debug!("[perf] download_from_url took {:?}", _timer_start.elapsed());
             return Err("No downloader available for this URL".to_string());
         }
     };
@@ -226,7 +226,7 @@ pub async fn download_from_url(
         }
     });
 
-    tracing::info!("[perf] download_from_url took {:?}", _timer_start.elapsed());
+    tracing::debug!("[perf] download_from_url took {:?}", _timer_start.elapsed());
     Ok(DownloadStarted {
         id: download_id,
         title,
@@ -526,7 +526,7 @@ pub async fn start_course_download(
         }
     });
 
-    tracing::info!("[perf] start_course_download took {:?}", _timer_start.elapsed());
+    tracing::debug!("[perf] start_course_download took {:?}", _timer_start.elapsed());
     Ok(format!("Download started: {}", course_name))
 }
 
