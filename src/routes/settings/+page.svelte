@@ -99,11 +99,18 @@
   let templateTimer = $state<ReturnType<typeof setTimeout> | null>(null);
   let hotkeyInput = $state("");
   let hotkeyTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+  let proxyHost = $state("");
+  let proxyUsername = $state("");
+  let proxyPassword = $state("");
+  let proxyTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 
   $effect(() => {
     if (settings) {
       templateInput = settings.download.filename_template;
       hotkeyInput = settings.download.hotkey_binding;
+      proxyHost = settings.proxy?.host ?? "";
+      proxyUsername = settings.proxy?.username ?? "";
+      proxyPassword = settings.proxy?.password ?? "";
     }
   });
 
@@ -140,6 +147,81 @@
         await updateSettings({ download: { hotkey_binding: value } });
       }
     }, 800);
+  }
+
+  async function changeProxyType(e: Event) {
+    const value = (e.target as HTMLSelectElement).value;
+    await updateSettings({ proxy: { proxy_type: value } });
+  }
+
+  function handleProxyHost(e: Event) {
+    const value = (e.target as HTMLInputElement).value;
+    proxyHost = value;
+    if (proxyTimer) clearTimeout(proxyTimer);
+    proxyTimer = setTimeout(async () => {
+      await updateSettings({ proxy: { host: value } });
+    }, 800);
+  }
+
+  function handleProxyUsername(e: Event) {
+    const value = (e.target as HTMLInputElement).value;
+    proxyUsername = value;
+    if (proxyTimer) clearTimeout(proxyTimer);
+    proxyTimer = setTimeout(async () => {
+      await updateSettings({ proxy: { username: value } });
+    }, 800);
+  }
+
+  function handleProxyPassword(e: Event) {
+    const value = (e.target as HTMLInputElement).value;
+    proxyPassword = value;
+    if (proxyTimer) clearTimeout(proxyTimer);
+    proxyTimer = setTimeout(async () => {
+      await updateSettings({ proxy: { password: value } });
+    }, 800);
+  }
+
+  const YTDLP_FLAG_CATALOG = [
+    { flag: "--embed-subs", label: "Embed subtitles" },
+    { flag: "--write-thumbnail", label: "Save thumbnail" },
+    { flag: "--write-description", label: "Save description" },
+    { flag: "--write-comments", label: "Save comments" },
+    { flag: "--restrict-filenames", label: "ASCII filenames" },
+    { flag: "--no-overwrites", label: "No overwrites" },
+    { flag: "--prefer-free-formats", label: "Free formats" },
+    { flag: "--force-ipv4", label: "Force IPv4" },
+    { flag: "--geo-bypass", label: "Geo bypass" },
+    { flag: "--limit-rate", label: "Limit rate", hasValue: true, placeholder: "e.g. 1M" },
+    { flag: "--sleep-interval", label: "Sleep interval", hasValue: true, placeholder: "e.g. 5" },
+  ];
+
+  async function toggleFlag(flag: string) {
+    let current = [...(settings?.download?.extra_ytdlp_flags ?? [])];
+    const idx = current.findIndex(f => f === flag || f.startsWith(flag + " "));
+    if (idx >= 0) {
+      current.splice(idx, 1);
+    } else {
+      current.push(flag);
+    }
+    await updateSettings({ download: { extra_ytdlp_flags: current } });
+  }
+
+  async function setFlagValue(flag: string, value: string) {
+    let current = [...(settings?.download?.extra_ytdlp_flags ?? [])];
+    const idx = current.findIndex(f => f === flag || f.startsWith(flag + " "));
+    if (idx >= 0) {
+      current[idx] = value ? `${flag} ${value}` : flag;
+    }
+    await updateSettings({ download: { extra_ytdlp_flags: current } });
+  }
+
+  function isFlagActive(flag: string): boolean {
+    return (settings?.download?.extra_ytdlp_flags ?? []).some(f => f === flag || f.startsWith(flag + " "));
+  }
+
+  function getFlagValue(flag: string): string {
+    const f = (settings?.download?.extra_ytdlp_flags ?? []).find(f => f.startsWith(flag + " "));
+    return f ? f.slice(flag.length + 1) : "";
   }
 
   async function handleReset() {
@@ -517,6 +599,82 @@
     {/if}
 
     <section class="section">
+      <h5 class="section-title">{$t('settings.proxy.title')}</h5>
+      <div class="card">
+        <div class="setting-row">
+          <div class="setting-col">
+            <span class="setting-label">{$t('settings.proxy.enabled')}</span>
+          </div>
+          <button class="toggle" class:on={settings.proxy?.enabled} onclick={() => toggleBool("proxy", "enabled", settings!.proxy?.enabled ?? false)} role="switch" aria-checked={settings.proxy?.enabled ?? false} aria-label={$t('settings.proxy.enabled')}>
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+        {#if settings.proxy?.enabled}
+          <div class="divider"></div>
+          <div class="setting-row">
+            <span class="setting-label">{$t('settings.proxy.type')}</span>
+            <select class="select" value={settings.proxy?.proxy_type ?? 'http'} onchange={changeProxyType}>
+              <option value="http">HTTP</option>
+              <option value="https">HTTPS</option>
+              <option value="socks5">SOCKS5</option>
+            </select>
+          </div>
+          <div class="divider"></div>
+          <div class="setting-row">
+            <span class="setting-label">{$t('settings.proxy.host')}</span>
+            <input type="text" class="input-text" value={proxyHost} oninput={handleProxyHost} placeholder="127.0.0.1" spellcheck="false" />
+          </div>
+          <div class="divider"></div>
+          <div class="setting-row">
+            <span class="setting-label">{$t('settings.proxy.port')}</span>
+            <input type="number" class="input-number" min="1" max="65535" value={settings.proxy?.port ?? 8080} onchange={(e) => changeNumber("proxy", "port", e)} />
+          </div>
+          <div class="divider"></div>
+          <div class="setting-row">
+            <span class="setting-label">{$t('settings.proxy.username')}</span>
+            <input type="text" class="input-text" value={proxyUsername} oninput={handleProxyUsername} placeholder="" spellcheck="false" />
+          </div>
+          <div class="divider"></div>
+          <div class="setting-row">
+            <span class="setting-label">{$t('settings.proxy.password')}</span>
+            <input type="password" class="input-text" value={proxyPassword} oninput={handleProxyPassword} placeholder="" />
+          </div>
+        {/if}
+      </div>
+    </section>
+
+    <section class="section">
+      <h5 class="section-title">{$t('settings.ytdlp_flags.title')}</h5>
+      <div class="card">
+        <div class="flag-grid">
+          {#each YTDLP_FLAG_CATALOG as item}
+            <button
+              class="flag-chip"
+              class:active={isFlagActive(item.flag)}
+              onclick={() => toggleFlag(item.flag)}
+              title={item.flag}
+            >
+              {item.label}
+            </button>
+            {#if item.hasValue && isFlagActive(item.flag)}
+              <input
+                class="flag-value-input"
+                type="text"
+                placeholder={item.placeholder}
+                value={getFlagValue(item.flag)}
+                oninput={(e) => {
+                  const val = (e.target as HTMLInputElement).value;
+                  setFlagValue(item.flag, val);
+                }}
+                spellcheck="false"
+              />
+            {/if}
+          {/each}
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
       <h5 class="section-title">{$t('settings.advanced.title')}</h5>
       <div class="card">
         <div class="setting-row">
@@ -610,8 +768,8 @@
     flex-direction: column;
     align-items: center;
     min-height: calc(100vh - var(--padding) * 4);
-    padding-top: calc(var(--padding) * 2);
-    gap: calc(var(--padding) * 1.5);
+    padding-top: var(--padding);
+    gap: var(--padding);
   }
 
   .settings > :global(*) {
@@ -665,8 +823,8 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--padding);
-    padding: calc(var(--padding) + 2px) 0;
-    min-height: 48px;
+    padding: var(--padding) 0;
+    min-height: 40px;
   }
 
   .setting-col {
@@ -903,6 +1061,66 @@
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
     flex-shrink: 0;
+  }
+
+  .input-text {
+    flex: 1;
+    min-width: 120px;
+    max-width: 200px;
+    padding: calc(var(--padding) / 2);
+    font-size: 13px;
+    font-weight: 500;
+    background: var(--button-elevated);
+    border-radius: calc(var(--border-radius) / 2);
+    color: var(--secondary);
+    border: 1px solid var(--input-border);
+  }
+  .input-text:focus-visible {
+    border-color: var(--blue);
+    outline: none;
+  }
+
+  .flag-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: calc(var(--padding) + 2px);
+  }
+  .flag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 6px;
+    background: var(--button-elevated);
+    color: var(--gray);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  @media (hover: hover) {
+    .flag-chip:hover { opacity: 0.85; }
+  }
+  .flag-chip.active {
+    background: var(--accent);
+    color: var(--on-accent);
+    border-color: var(--accent);
+  }
+  .flag-value-input {
+    width: 70px;
+    padding: 2px 6px;
+    font-size: 11px;
+    background: var(--button-elevated);
+    color: var(--secondary);
+    border: 1px solid var(--input-border);
+    border-radius: 4px;
+  }
+  .flag-value-input:focus-visible {
+    border-color: var(--blue);
+    outline: none;
   }
 
 </style>
