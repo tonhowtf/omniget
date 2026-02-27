@@ -12,7 +12,11 @@ use tokio_util::sync::CancellationToken;
 
 fn shared_http_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
-    CLIENT.get_or_init(reqwest::Client::new)
+    CLIENT.get_or_init(|| {
+        crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
+            .build()
+            .unwrap_or_default()
+    })
 }
 
 use crate::core::ffmpeg::{self, MetadataEmbed};
@@ -381,7 +385,7 @@ pub struct QueueItemProgress {
 pub fn emit_queue_state_from_state(app: &tauri::AppHandle, state: Vec<QueueItemInfo>) {
     let n = EMIT_COUNT.fetch_add(1, Ordering::Relaxed);
     if n.is_multiple_of(10) {
-        tracing::info!("[perf] emit_queue_state called {} times", n);
+        tracing::debug!("[perf] emit_queue_state called {} times", n);
     }
     let _ = app.emit("queue-state-update", &state);
     let total = crate::tray::compute_total_active(app);
@@ -422,7 +426,7 @@ pub fn spawn_download(
     Box::pin(async move {
     let _timer_start = std::time::Instant::now();
     spawn_download_inner(app, queue, item_id).await;
-    tracing::info!("[perf] spawn_download {} took {:?}", item_id, _timer_start.elapsed());
+    tracing::debug!("[perf] spawn_download {} took {:?}", item_id, _timer_start.elapsed());
     })
 }
 
@@ -478,7 +482,7 @@ async fn spawn_download_inner(
             i
         }
         None => {
-            tracing::info!("[perf] spawn_download_inner {}: media_info is None, fetching info", item_id);
+            tracing::debug!("[perf] spawn_download_inner {}: media_info is None, fetching info", item_id);
             let _ = app.emit("queue-item-progress", &QueueItemProgress {
                 id: item_id,
                 title: url.clone(),
@@ -709,7 +713,7 @@ async fn fetch_and_cache_info(
         let cache = info_cache().lock().await;
         if let Some(entry) = cache.get(url) {
             if entry.cached_at.elapsed() < INFO_CACHE_TTL {
-                tracing::info!("[perf] fetch_and_cache_info: cache hit for {}", platform);
+                tracing::debug!("[perf] fetch_and_cache_info: cache hit for {}", platform);
                 return Ok(entry.info.clone());
             }
         }
@@ -727,20 +731,20 @@ async fn fetch_and_cache_info(
         let cache = info_cache().lock().await;
         if let Some(entry) = cache.get(url) {
             if entry.cached_at.elapsed() < INFO_CACHE_TTL {
-                tracing::info!("[perf] fetch_and_cache_info: dedup cache hit for {}", platform);
+                tracing::debug!("[perf] fetch_and_cache_info: dedup cache hit for {}", platform);
                 return Ok(entry.info.clone());
             }
         }
     }
 
-    tracing::info!("[perf] fetch_and_cache_info: fetching for {}", platform);
+    tracing::debug!("[perf] fetch_and_cache_info: fetching for {}", platform);
     let info = if let Some(ytdlp) = ytdlp_path {
         match platform {
             "youtube" => {
                 crate::platforms::youtube::YouTubeDownloader::fetch_with_ytdlp(url, ytdlp).await?
             }
             "generic" => {
-                let json = crate::core::ytdlp::get_video_info(ytdlp, url).await?;
+                let json = crate::core::ytdlp::get_video_info(ytdlp, url, &[]).await?;
                 crate::platforms::generic_ytdlp::GenericYtdlpDownloader::parse_video_info(&json)?
             }
             _ => downloader.get_media_info(url).await?,
@@ -785,10 +789,10 @@ pub async fn prefetch_info_with_emit(
     app: Option<tauri::AppHandle>,
 ) {
     let _timer_start = std::time::Instant::now();
-    tracing::info!("[perf] prefetch_info: started");
+    tracing::debug!("[perf] prefetch_info: started");
     match fetch_and_cache_info(url, downloader, platform, ytdlp_path).await {
         Ok(info) => {
-            tracing::info!("[perf] prefetch_info: completed in {:?} — {}", _timer_start.elapsed(), info.title);
+            tracing::debug!("[perf] prefetch_info: completed in {:?} — {}", _timer_start.elapsed(), info.title);
             if let Some(app) = app {
                 let preview = MediaPreviewEvent {
                     url: url.to_string(),
@@ -841,5 +845,5 @@ pub async fn try_start_next(app: tauri::AppHandle, queue: Arc<tokio::sync::Mutex
             spawn_download(app_c, queue_c, nid).await;
         });
     }
-    tracing::info!("[perf] try_start_next took {:?}", _timer_start.elapsed());
+    tracing::debug!("[perf] try_start_next took {:?}", _timer_start.elapsed());
 }
