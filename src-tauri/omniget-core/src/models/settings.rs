@@ -76,7 +76,7 @@ fn default_true() -> bool {
 }
 
 pub fn default_filename_template() -> String {
-    "omniget-%(title).200s [%(id)s].%(ext)s".into()
+    "%(title).200s [%(id)s].%(ext)s".into()
 }
 
 fn default_hotkey_binding() -> String {
