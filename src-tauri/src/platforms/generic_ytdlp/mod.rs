@@ -166,7 +166,7 @@ impl PlatformDownloader for GenericYtdlpDownloader {
             anyhow!("yt-dlp unavailable: {}", e)
         })?;
 
-        let json = ytdlp::get_video_info(&ytdlp_path, url).await?;
+        let json = ytdlp::get_video_info(&ytdlp_path, url, &[]).await?;
         Self::parse_video_info(&json)
     }
 
@@ -215,6 +215,7 @@ impl PlatformDownloader for GenericYtdlpDownloader {
             None,
             opts.concurrent_fragments,
             opts.download_subtitles,
+            &[],
         )
         .await
     }
