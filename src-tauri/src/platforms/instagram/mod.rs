@@ -59,14 +59,14 @@ impl Default for InstagramDownloader {
 
 impl InstagramDownloader {
     pub fn new() -> Self {
-        let client = reqwest::Client::builder()
+        let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
             .user_agent(USER_AGENT)
             .timeout(std::time::Duration::from_secs(120))
             .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .unwrap_or_default();
 
-        let redirect_client = reqwest::Client::builder()
+        let redirect_client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
             .user_agent("curl/7.88.1")
             .timeout(std::time::Duration::from_secs(120))
             .connect_timeout(std::time::Duration::from_secs(15))
@@ -440,7 +440,7 @@ impl InstagramDownloader {
 
     async fn fallback_ytdlp(&self, url: &str) -> anyhow::Result<MediaInfo> {
         let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
-        let json = crate::core::ytdlp::get_video_info(&ytdlp_path, url).await?;
+        let json = crate::core::ytdlp::get_video_info(&ytdlp_path, url, &[]).await?;
         crate::platforms::generic_ytdlp::GenericYtdlpDownloader::parse_video_info(&json)
     }
 
@@ -677,6 +677,7 @@ impl PlatformDownloader for InstagramDownloader {
                     None,
                     opts.concurrent_fragments,
                     false,
+                    &[],
                 )
                 .await;
             }
