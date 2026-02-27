@@ -721,10 +721,10 @@ pub async fn download_video(
                 if ffmpeg_available {
                     match quality_height {
                         Some(h) if h > 0 => format!(
-                            "bv*[height<={}]+ba/b[height<={}]/b",
-                            h, h
+                            "bv*[height<={}]+ba[ext=m4a]/bv*[height<={}]+ba/b[height<={}]/b",
+                            h, h, h
                         ),
-                        _ => "bv*+ba/b".to_string(),
+                        _ => "bv*+ba[ext=m4a]/bv*+ba/b".to_string(),
                     }
                 } else {
                     tracing::warn!("[yt-dlp] ffmpeg not available, using single-stream format");
@@ -745,7 +745,7 @@ pub async fn download_video(
     };
     let template = filename_template
         .map(|t| t.to_string())
-        .unwrap_or_else(|| format!("omniget-%(title).{}s [%(id)s].%(ext)s", max_name));
+        .unwrap_or_else(|| format!("%(title).{}s [%(id)s].%(ext)s", max_name));
     let output_template = output_dir
         .join(&template)
         .to_string_lossy()
