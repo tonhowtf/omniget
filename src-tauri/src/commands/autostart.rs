@@ -11,6 +11,7 @@ const REG_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
 const APP_NAME: &str = "OmniGet";
 
 pub fn apply_autostart(enabled: bool) -> Result<(), String> {
+    if std::env::var("OMNIGET_PORTABLE").is_ok() { return Ok(()); }
     #[cfg(windows)]
     {
         if enabled {
