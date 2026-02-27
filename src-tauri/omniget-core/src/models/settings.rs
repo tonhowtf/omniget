@@ -47,6 +47,8 @@ pub struct DownloadSettings {
     pub hotkey_enabled: bool,
     #[serde(default = "default_hotkey_binding")]
     pub hotkey_binding: String,
+    #[serde(default)]
+    pub extra_ytdlp_flags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -147,6 +149,7 @@ impl Default for AppSettings {
                 download_subtitles: false,
                 hotkey_enabled: false,
                 hotkey_binding: default_hotkey_binding(),
+                extra_ytdlp_flags: Vec::new(),
             },
             advanced: AdvancedSettings {
                 max_concurrent_segments: 20,
