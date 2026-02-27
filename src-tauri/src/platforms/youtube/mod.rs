@@ -62,7 +62,7 @@ impl YouTubeDownloader {
 
     pub async fn fetch_with_ytdlp(url: &str, ytdlp_path: &std::path::Path) -> anyhow::Result<MediaInfo> {
         if Self::is_playlist_url(url) {
-            let (playlist_title, entries) = ytdlp::get_playlist_info(ytdlp_path, url).await?;
+            let (playlist_title, entries) = ytdlp::get_playlist_info(ytdlp_path, url, &[]).await?;
 
             if entries.is_empty() {
                 return Err(anyhow!("Playlist empty or unavailable"));
@@ -95,7 +95,7 @@ impl YouTubeDownloader {
         let _video_id = Self::extract_video_id(url)
             .ok_or_else(|| anyhow!("Could not extract YouTube video ID"))?;
 
-        let json = ytdlp::get_video_info(ytdlp_path, url).await?;
+        let json = ytdlp::get_video_info(ytdlp_path, url, &[]).await?;
         Self::parse_video_info(&json)
     }
 
@@ -239,7 +239,7 @@ impl PlatformDownloader for YouTubeDownloader {
 
         if Self::is_playlist_url(url) {
             let (playlist_title, entries) =
-                ytdlp::get_playlist_info(&ytdlp_path, url).await?;
+                ytdlp::get_playlist_info(&ytdlp_path, url, &[]).await?;
 
             if entries.is_empty() {
                 return Err(anyhow!("Playlist empty or unavailable"));
@@ -272,7 +272,7 @@ impl PlatformDownloader for YouTubeDownloader {
         let _video_id = Self::extract_video_id(url)
             .ok_or_else(|| anyhow!("Could not extract YouTube video ID"))?;
 
-        let json = ytdlp::get_video_info(&ytdlp_path, url).await?;
+        let json = ytdlp::get_video_info(&ytdlp_path, url, &[]).await?;
         Self::parse_video_info(&json)
     }
 
@@ -339,6 +339,7 @@ impl PlatformDownloader for YouTubeDownloader {
             None,
             opts.concurrent_fragments,
             opts.download_subtitles,
+            &[],
         )
         .await
     }
@@ -393,6 +394,7 @@ impl YouTubeDownloader {
                 None,
                 opts.concurrent_fragments,
                 opts.download_subtitles,
+                &[],
             )
             .await
             {
