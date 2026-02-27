@@ -148,6 +148,8 @@ pub fn run() {
         )
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
+            let settings = storage::config::load_settings(app.handle());
+            core::http_client::init_proxy(settings.proxy.clone());
             tray::setup(app.handle())?;
             hotkey::register_from_settings(app.handle());
             Ok(())
