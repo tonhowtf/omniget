@@ -8,7 +8,7 @@ pub fn is_flatpak() -> bool {
 }
 
 fn managed_bin_dir() -> Option<PathBuf> {
-    Some(dirs::data_dir()?.join("omniget").join("bin"))
+    Some(crate::core::paths::app_data_dir()?.join("bin"))
 }
 
 fn bin_name(tool: &str) -> String {
@@ -28,7 +28,7 @@ pub async fn find_tool(tool: &str) -> Option<PathBuf> {
     {
         let flatpak_path = PathBuf::from("/app/bin").join(&name);
         if flatpak_path.exists() {
-            tracing::info!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
+            tracing::debug!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
             return Some(flatpak_path);
         }
     }
@@ -41,18 +41,18 @@ pub async fn find_tool(tool: &str) -> Option<PathBuf> {
         .await
     {
         if status.success() {
-            tracing::info!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
+            tracing::debug!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
             return Some(PathBuf::from(&name));
         }
     }
 
     let managed = managed_bin_dir()?.join(&name);
     if managed.exists() {
-        tracing::info!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
+        tracing::debug!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
         return Some(managed);
     }
 
-    tracing::info!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
+    tracing::debug!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
     None
 }
 
@@ -76,7 +76,7 @@ pub async fn check_version(tool: &str) -> Option<String> {
         .ok()?;
 
     if !output.status.success() {
-        tracing::info!("[perf] check_version({}) took {:?}", tool, _timer_start.elapsed());
+        tracing::debug!("[perf] check_version({}) took {:?}", tool, _timer_start.elapsed());
         return None;
     }
 
@@ -99,7 +99,7 @@ pub async fn check_version(tool: &str) -> Option<String> {
         Some(first_line.trim().to_string())
     };
 
-    tracing::info!("[perf] check_version({}) took {:?}", tool, _timer_start.elapsed());
+    tracing::debug!("[perf] check_version({}) took {:?}", tool, _timer_start.elapsed());
     result
 }
 
@@ -124,7 +124,7 @@ async fn download_ffmpeg() -> anyhow::Result<PathBuf> {
 
     let (url, archive_type) = ffmpeg_download_url();
 
-    let client = reqwest::Client::builder()
+    let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
         .timeout(std::time::Duration::from_secs(300))
         .build()?;
 
@@ -318,7 +318,7 @@ async fn download_aria2c() -> anyhow::Result<PathBuf> {
 
     let url = "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip";
 
-    let client = reqwest::Client::builder()
+    let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
         .timeout(std::time::Duration::from_secs(120))
         .build()?;
 
