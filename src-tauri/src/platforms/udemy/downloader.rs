@@ -52,7 +52,7 @@ impl UdemyDownloader {
         max_concurrent_segments: u32,
         max_retries: u32,
     ) -> Self {
-        let hls_client = reqwest::Client::builder()
+        let hls_client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
             .user_agent(USER_AGENT)
             .connect_timeout(Duration::from_secs(30))
             .timeout(Duration::from_secs(300))
