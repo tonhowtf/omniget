@@ -10,6 +10,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub telegram: TelegramSettings,
     #[serde(default)]
+    pub proxy: ProxySettings,
+    #[serde(default)]
     pub onboarding_completed: bool,
     #[serde(default)]
     pub start_with_windows: bool,
@@ -98,6 +100,30 @@ impl Default for TelegramSettings {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProxySettings {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_proxy_type")]
+    pub proxy_type: String,
+    #[serde(default)]
+    pub host: String,
+    #[serde(default = "default_proxy_port")]
+    pub port: u16,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub password: String,
+}
+
+fn default_proxy_type() -> String {
+    "http".into()
+}
+
+fn default_proxy_port() -> u16 {
+    8080
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -130,6 +156,7 @@ impl Default for AppSettings {
                 stagger_delay_ms: 150,
             },
             telegram: TelegramSettings::default(),
+            proxy: ProxySettings::default(),
             onboarding_completed: false,
             start_with_windows: false,
         }
