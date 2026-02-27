@@ -2,7 +2,7 @@
 @import '@fontsource/ibm-plex-mono/500.css';
 
 :root {
-  --padding: 12px;
+  --padding: 10px;
   --border-radius: 11px;
   --sidebar-width: 80px;
 
