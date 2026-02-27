@@ -23,7 +23,7 @@ impl Default for TikTokDownloader {
 
 impl TikTokDownloader {
     pub fn new() -> Self {
-        let client = reqwest::Client::builder()
+        let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
             .user_agent(USER_AGENT)
             .cookie_store(true)
             .timeout(std::time::Duration::from_secs(30))
@@ -57,7 +57,7 @@ impl TikTokDownloader {
     }
 
     async fn resolve_short_link(&self, url: &str) -> anyhow::Result<String> {
-        let redirect_client = reqwest::Client::builder()
+        let redirect_client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
             .user_agent(USER_AGENT)
             .redirect(reqwest::redirect::Policy::none())
             .build()
