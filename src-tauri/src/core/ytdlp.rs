@@ -11,9 +11,12 @@ use tokio_util::sync::CancellationToken;
 use crate::models::media::{DownloadResult, FormatInfo};
 
 static YTDLP_UPDATING: AtomicBool = AtomicBool::new(false);
-static YTDLP_PATH_CACHE: tokio::sync::OnceCell<Option<PathBuf>> = tokio::sync::OnceCell::const_new();
-static FFMPEG_LOCATION_CACHE: tokio::sync::OnceCell<Option<String>> = tokio::sync::OnceCell::const_new();
-static COOKIES_BROWSER_CACHE: tokio::sync::OnceCell<Option<String>> = tokio::sync::OnceCell::const_new();
+static YTDLP_PATH_CACHE: tokio::sync::OnceCell<Option<PathBuf>> =
+    tokio::sync::OnceCell::const_new();
+static FFMPEG_LOCATION_CACHE: tokio::sync::OnceCell<Option<String>> =
+    tokio::sync::OnceCell::const_new();
+static COOKIES_BROWSER_CACHE: tokio::sync::OnceCell<Option<String>> =
+    tokio::sync::OnceCell::const_new();
 static RATE_LIMIT_429_COUNT: AtomicU64 = AtomicU64::new(0);
 
 fn proxy_args() -> Vec<String> {
@@ -30,7 +33,11 @@ struct YtRateLimiter {
 
 impl YtRateLimiter {
     async fn acquire(&self) {
-        let _permit = self.semaphore.acquire().await.unwrap_or_else(|_| panic!("semaphore closed"));
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .unwrap_or_else(|_| panic!("semaphore closed"));
         let min_interval_ns = 500_000_000u64;
         let now_ns = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -122,7 +129,9 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
     let _timer_start = std::time::Instant::now();
     if let Some(path) = find_ytdlp_cached().await {
         let path_clone = path.clone();
-        tokio::spawn(async move { check_ytdlp_freshness(&path_clone).await; });
+        tokio::spawn(async move {
+            check_ytdlp_freshness(&path_clone).await;
+        });
         tracing::debug!("[perf] ensure_ytdlp took {:?}", _timer_start.elapsed());
         return Ok(path);
     }
@@ -138,8 +147,8 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
 }
 
 async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
-    let target = managed_ytdlp_path()
-        .ok_or_else(|| anyhow!("Could not determine data directory"))?;
+    let target =
+        managed_ytdlp_path().ok_or_else(|| anyhow!("Could not determine data directory"))?;
 
     if let Some(parent) = target.parent() {
         tokio::fs::create_dir_all(parent).await?;
@@ -194,7 +203,10 @@ async fn check_ytdlp_freshness(path: &Path) {
         if let Ok(modified) = meta.modified() {
             if let Ok(age) = modified.elapsed() {
                 if age > std::time::Duration::from_secs(2 * 24 * 60 * 60) {
-                    if YTDLP_UPDATING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+                    if YTDLP_UPDATING
+                        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                        .is_err()
+                    {
                         return;
                     }
                     tracing::info!("yt-dlp is older than 2 days, updating in background");
@@ -241,14 +253,20 @@ async fn find_ffmpeg_location() -> Option<String> {
         .ok()?;
 
     if !output.status.success() {
-        tracing::debug!("[perf] find_ffmpeg_location took {:?}", _timer_start.elapsed());
+        tracing::debug!(
+            "[perf] find_ffmpeg_location took {:?}",
+            _timer_start.elapsed()
+        );
         return None;
     }
 
     let path_str = String::from_utf8_lossy(&output.stdout);
     let first_line = path_str.lines().next()?.trim().to_string();
     if first_line.is_empty() {
-        tracing::debug!("[perf] find_ffmpeg_location took {:?}", _timer_start.elapsed());
+        tracing::debug!(
+            "[perf] find_ffmpeg_location took {:?}",
+            _timer_start.elapsed()
+        );
         return None;
     }
 
@@ -260,7 +278,10 @@ async fn find_ffmpeg_location() -> Option<String> {
     } else {
         None
     };
-    tracing::debug!("[perf] find_ffmpeg_location took {:?}", _timer_start.elapsed());
+    tracing::debug!(
+        "[perf] find_ffmpeg_location took {:?}",
+        _timer_start.elapsed()
+    );
     result
 }
 
@@ -274,102 +295,144 @@ async fn find_ffmpeg_location_cached() -> Option<String> {
 fn detect_cookies_browser() -> Option<String> {
     let _timer_start = std::time::Instant::now();
     let result = (|| -> Option<String> {
-    #[cfg(target_os = "windows")]
-    {
-        if let Some(local) = dirs::data_local_dir() {
-            if local.join("Google").join("Chrome").join("User Data").is_dir() {
-                return Some("chrome".to_string());
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(local) = dirs::data_local_dir() {
+                if local
+                    .join("Google")
+                    .join("Chrome")
+                    .join("User Data")
+                    .is_dir()
+                {
+                    return Some("chrome".to_string());
+                }
+                if local
+                    .join("Microsoft")
+                    .join("Edge")
+                    .join("User Data")
+                    .is_dir()
+                {
+                    return Some("edge".to_string());
+                }
+                if local
+                    .join("BraveSoftware")
+                    .join("Brave-Browser")
+                    .join("User Data")
+                    .is_dir()
+                {
+                    return Some("brave".to_string());
+                }
             }
-            if local
-                .join("Microsoft")
-                .join("Edge")
-                .join("User Data")
-                .is_dir()
-            {
-                return Some("edge".to_string());
-            }
-            if local
-                .join("BraveSoftware")
-                .join("Brave-Browser")
-                .join("User Data")
-                .is_dir()
-            {
-                return Some("brave".to_string());
-            }
-        }
-        if let Some(roaming) = dirs::data_dir() {
-            if roaming
-                .join("Mozilla")
-                .join("Firefox")
-                .join("Profiles")
-                .is_dir()
-            {
-                return Some("firefox".to_string());
-            }
-        }
-    }
-    #[cfg(target_os = "macos")]
-    {
-        if let Some(home) = dirs::home_dir() {
-            let support = home.join("Library").join("Application Support");
-            if support.join("Google").join("Chrome").is_dir() {
-                return Some("chrome".to_string());
-            }
-            if support.join("Firefox").join("Profiles").is_dir() {
-                return Some("firefox".to_string());
+            if let Some(roaming) = dirs::data_dir() {
+                if roaming
+                    .join("Mozilla")
+                    .join("Firefox")
+                    .join("Profiles")
+                    .is_dir()
+                {
+                    return Some("firefox".to_string());
+                }
             }
         }
-    }
-    #[cfg(target_os = "linux")]
-    {
-        if let Some(config) = dirs::config_dir() {
-            if config.join("google-chrome").is_dir() {
-                return Some("chrome".to_string());
-            }
-            if config.join("chromium").is_dir() {
-                return Some("chromium".to_string());
-            }
-            if config.join("BraveSoftware").join("Brave-Browser").is_dir() {
-                return Some("brave".to_string());
-            }
-            if config.join("microsoft-edge").is_dir() {
-                return Some("edge".to_string());
-            }
-            if config.join("vivaldi").is_dir() {
-                return Some("vivaldi".to_string());
+        #[cfg(target_os = "macos")]
+        {
+            if let Some(home) = dirs::home_dir() {
+                let support = home.join("Library").join("Application Support");
+                if support.join("Google").join("Chrome").is_dir() {
+                    return Some("chrome".to_string());
+                }
+                if support.join("Firefox").join("Profiles").is_dir() {
+                    return Some("firefox".to_string());
+                }
             }
         }
-        if let Some(home) = dirs::home_dir() {
-            let fp = home.join(".var").join("app");
+        #[cfg(target_os = "linux")]
+        {
+            if let Some(config) = dirs::config_dir() {
+                if config.join("google-chrome").is_dir() {
+                    return Some("chrome".to_string());
+                }
+                if config.join("chromium").is_dir() {
+                    return Some("chromium".to_string());
+                }
+                if config.join("BraveSoftware").join("Brave-Browser").is_dir() {
+                    return Some("brave".to_string());
+                }
+                if config.join("microsoft-edge").is_dir() {
+                    return Some("edge".to_string());
+                }
+                if config.join("vivaldi").is_dir() {
+                    return Some("vivaldi".to_string());
+                }
+            }
+            if let Some(home) = dirs::home_dir() {
+                let fp = home.join(".var").join("app");
 
-            if fp.join("com.google.Chrome").join("config").join("google-chrome").is_dir() {
-                return Some("chrome".to_string());
-            }
-            if fp.join("org.chromium.Chromium").join("config").join("chromium").is_dir() {
-                return Some("chromium".to_string());
-            }
-            if fp.join("com.brave.Browser").join("config").join("BraveSoftware").join("Brave-Browser").is_dir() {
-                return Some("brave".to_string());
-            }
+                if fp
+                    .join("com.google.Chrome")
+                    .join("config")
+                    .join("google-chrome")
+                    .is_dir()
+                {
+                    return Some("chrome".to_string());
+                }
+                if fp
+                    .join("org.chromium.Chromium")
+                    .join("config")
+                    .join("chromium")
+                    .is_dir()
+                {
+                    return Some("chromium".to_string());
+                }
+                if fp
+                    .join("com.brave.Browser")
+                    .join("config")
+                    .join("BraveSoftware")
+                    .join("Brave-Browser")
+                    .is_dir()
+                {
+                    return Some("brave".to_string());
+                }
 
-            if home.join("snap").join("chromium").join("common").join("chromium").is_dir() {
-                return Some("chromium".to_string());
-            }
+                if home
+                    .join("snap")
+                    .join("chromium")
+                    .join("common")
+                    .join("chromium")
+                    .is_dir()
+                {
+                    return Some("chromium".to_string());
+                }
 
-            if home.join(".mozilla").join("firefox").is_dir() {
-                return Some("firefox".to_string());
-            }
-            if fp.join("org.mozilla.firefox").join(".mozilla").join("firefox").is_dir() {
-                return Some("firefox".to_string());
-            }
-            if home.join("snap").join("firefox").join("common").join(".mozilla").join("firefox").is_dir() {
-                return Some("firefox".to_string());
+                if home.join(".mozilla").join("firefox").is_dir() {
+                    return Some("firefox".to_string());
+                }
+                if fp
+                    .join("org.mozilla.firefox")
+                    .join(".mozilla")
+                    .join("firefox")
+                    .is_dir()
+                {
+                    return Some("firefox".to_string());
+                }
+                if home
+                    .join("snap")
+                    .join("firefox")
+                    .join("common")
+                    .join(".mozilla")
+                    .join("firefox")
+                    .is_dir()
+                {
+                    return Some("firefox".to_string());
+                }
             }
         }
-    }
-    None
+        None
     })();
-    tracing::debug!("[perf] detect_cookies_browser took {:?}", _timer_start.elapsed());
+    tracing::debug!(
+        "[perf] detect_cookies_browser took {:?}",
+        _timer_start.elapsed()
+    );
     result
 }
 
@@ -389,7 +452,11 @@ fn is_youtube_url(url: &str) -> bool {
     lower.contains("youtube.com") || lower.contains("youtu.be")
 }
 
-pub async fn get_video_info(ytdlp: &Path, url: &str, extra_flags: &[String]) -> anyhow::Result<serde_json::Value> {
+pub async fn get_video_info(
+    ytdlp: &Path,
+    url: &str,
+    extra_flags: &[String],
+) -> anyhow::Result<serde_json::Value> {
     let _timer_start = std::time::Instant::now();
 
     if is_youtube_url(url) {
@@ -406,7 +473,11 @@ pub async fn get_video_info(ytdlp: &Path, url: &str, extra_flags: &[String]) -> 
     let mut last_error = String::new();
 
     for (attempt, client) in clients.iter().enumerate() {
-        tracing::info!("[yt-dlp] info fetch attempt {}/{} for URL", attempt + 1, clients.len());
+        tracing::info!(
+            "[yt-dlp] info fetch attempt {}/{} for URL",
+            attempt + 1,
+            clients.len()
+        );
 
         let mut args = vec![
             "--dump-single-json".to_string(),
@@ -441,7 +512,11 @@ pub async fn get_video_info(ytdlp: &Path, url: &str, extra_flags: &[String]) -> 
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| anyhow!("Failed to run yt-dlp: {}", e))?;
-        tracing::debug!("[perf] get_video_info: yt-dlp process spawned at {:?} (attempt {})", _timer_start.elapsed(), attempt + 1);
+        tracing::debug!(
+            "[perf] get_video_info: yt-dlp process spawned at {:?} (attempt {})",
+            _timer_start.elapsed(),
+            attempt + 1
+        );
 
         let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;
         let stderr_reader = tokio::spawn(async move {
@@ -462,22 +537,24 @@ pub async fn get_video_info(ytdlp: &Path, url: &str, extra_flags: &[String]) -> 
             buf
         });
 
-        let result = tokio::time::timeout(
-            std::time::Duration::from_secs(60),
-            child.wait_with_output(),
-        )
-        .await
-        .map_err(|_| {
-            tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-            anyhow!("Timeout fetching video info (60s)")
-        })?
-        .map_err(|e| {
-            tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-            anyhow!("Failed to run yt-dlp: {}", e)
-        })?;
+        let result =
+            tokio::time::timeout(std::time::Duration::from_secs(60), child.wait_with_output())
+                .await
+                .map_err(|_| {
+                    tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
+                    anyhow!("Timeout fetching video info (60s)")
+                })?
+                .map_err(|e| {
+                    tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
+                    anyhow!("Failed to run yt-dlp: {}", e)
+                })?;
 
         let stderr_content = stderr_reader.await.unwrap_or_default();
-        tracing::debug!("[perf] get_video_info: yt-dlp process exited at {:?} (attempt {})", _timer_start.elapsed(), attempt + 1);
+        tracing::debug!(
+            "[perf] get_video_info: yt-dlp process exited at {:?} (attempt {})",
+            _timer_start.elapsed(),
+            attempt + 1
+        );
 
         if result.status.success() {
             let json: serde_json::Value = serde_json::from_slice(&result.stdout)
@@ -585,7 +662,11 @@ pub async fn get_playlist_info(
         if stderr_lower.contains("http error 429") {
             RATE_LIMIT_429_COUNT.fetch_add(1, Ordering::Relaxed);
             let sanitized_url = sanitize_log_line(url);
-            let player_client = if is_youtube_url(url) { "default" } else { "n/a" };
+            let player_client = if is_youtube_url(url) {
+                "default"
+            } else {
+                "n/a"
+            };
             tracing::warn!(
                 "[yt-429] rate limit in get_playlist_info: url={} player_client={} retries=3",
                 sanitized_url,
@@ -719,7 +800,11 @@ pub async fn download_video(
         find_ffmpeg_location_cached(),
         crate::core::dependencies::ensure_aria2c(),
     );
-    let ffmpeg_location = if ffmpeg_available { ffmpeg_location_result } else { None };
+    let ffmpeg_location = if ffmpeg_available {
+        ffmpeg_location_result
+    } else {
+        None
+    };
 
     let format_selector = if let Some(fid) = format_id {
         fid.to_string()
@@ -759,10 +844,7 @@ pub async fn download_video(
     let template = filename_template
         .map(|t| t.to_string())
         .unwrap_or_else(|| format!("%(title).{}s [%(id)s].%(ext)s", max_name));
-    let output_template = output_dir
-        .join(&template)
-        .to_string_lossy()
-        .to_string();
+    let output_template = output_dir.join(&template).to_string_lossy().to_string();
 
     tokio::fs::create_dir_all(output_dir).await?;
 
@@ -771,10 +853,7 @@ pub async fn download_video(
     } else {
         None
     };
-    let mut base_args = vec![
-        "-f".to_string(),
-        format_selector,
-    ];
+    let mut base_args = vec!["-f".to_string(), format_selector];
 
     if format_id.is_none() && mode != "audio" && ffmpeg_available {
         base_args.push("--merge-output-format".to_string());
@@ -800,7 +879,13 @@ pub async fn download_video(
 
     let effective_fragments = if is_youtube_url(url) {
         let rate_limit_count = RATE_LIMIT_429_COUNT.load(Ordering::Relaxed);
-        let max_frags = if rate_limit_count >= 2 { 2 } else if rate_limit_count > 0 { 4 } else { 8 };
+        let max_frags = if rate_limit_count >= 2 {
+            2
+        } else if rate_limit_count > 0 {
+            4
+        } else {
+            8
+        };
         concurrent_fragments.min(max_frags)
     } else {
         concurrent_fragments
@@ -819,15 +904,9 @@ pub async fn download_video(
         base_args.push("5".to_string());
     }
 
-    base_args.extend([
-        "--buffer-size".to_string(),
-        "4M".to_string(),
-    ]);
+    base_args.extend(["--buffer-size".to_string(), "4M".to_string()]);
     if !is_youtube_url(url) {
-        base_args.extend([
-            "--http-chunk-size".to_string(),
-            "10M".to_string(),
-        ]);
+        base_args.extend(["--http-chunk-size".to_string(), "10M".to_string()]);
     }
 
     let mut use_aria2c = aria2c_path.is_some()
@@ -872,7 +951,8 @@ pub async fn download_video(
         base_args.push("--restrict-filenames".to_string());
     }
 
-    let should_download_subs = download_subtitles && RATE_LIMIT_429_COUNT.load(Ordering::Relaxed) < 2;
+    let should_download_subs =
+        download_subtitles && RATE_LIMIT_429_COUNT.load(Ordering::Relaxed) < 2;
     let subtitle_args = if should_download_subs {
         vec![
             "--write-sub".to_string(),
@@ -939,7 +1019,11 @@ pub async fn download_video(
 
         if use_aria2c && !use_browser_cookies {
             if let Some(ref a2_path) = aria2c_path {
-                let conns = if is_youtube_url(url) { effective_fragments.max(1) } else { effective_fragments.clamp(8, 16) };
+                let conns = if is_youtube_url(url) {
+                    effective_fragments.max(1)
+                } else {
+                    effective_fragments.clamp(8, 16)
+                };
                 args.push("--downloader".to_string());
                 args.push(a2_path.to_string_lossy().to_string());
                 args.push("--downloader-args".to_string());
@@ -960,7 +1044,11 @@ pub async fn download_video(
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| anyhow!("Failed to start yt-dlp: {}", e))?;
-        tracing::debug!("[perf] download_video: yt-dlp process spawned at {:?} (attempt {})", _timer_start.elapsed(), attempt + 1);
+        tracing::debug!(
+            "[perf] download_video: yt-dlp process spawned at {:?} (attempt {})",
+            _timer_start.elapsed(),
+            attempt + 1
+        );
 
         let _ = progress.send(-2.0).await;
 
@@ -984,7 +1072,10 @@ pub async fn download_video(
             while let Ok(Some(line)) = lines.next_line().await {
                 if !first_line_logged {
                     first_line_logged = true;
-                    tracing::debug!("[perf] download_video first_byte_time: {:?}", _timer_start.elapsed());
+                    tracing::debug!(
+                        "[perf] download_video first_byte_time: {:?}",
+                        _timer_start.elapsed()
+                    );
                 }
                 if let Some(dest) = parse_destination_line(&line) {
                     phase += 1;
@@ -1002,7 +1093,10 @@ pub async fn download_video(
                 if let Some(pct) = parse_progress_line(&line) {
                     if !first_progress_logged && pct > 0.0 {
                         first_progress_logged = true;
-                        tracing::debug!("[perf] download_video: first_progress > 0% at {:?}", _timer_start.elapsed());
+                        tracing::debug!(
+                            "[perf] download_video: first_progress > 0% at {:?}",
+                            _timer_start.elapsed()
+                        );
                     }
                     if is_audio_only {
                         if pct >= 99.0 || last_send.elapsed() >= throttle {
@@ -1015,7 +1109,9 @@ pub async fn download_video(
                         } else {
                             50.0 + pct * 0.5
                         };
-                        if adjusted > max_reported && (adjusted >= 99.0 || last_send.elapsed() >= throttle) {
+                        if adjusted > max_reported
+                            && (adjusted >= 99.0 || last_send.elapsed() >= throttle)
+                        {
                             max_reported = adjusted;
                             let _ = progress_tx.send(adjusted).await;
                             last_send = std::time::Instant::now();
@@ -1078,8 +1174,7 @@ pub async fn download_video(
 
         if attempt < max_attempts - 1 {
             if use_aria2c
-                && (stderr_lower.contains("aria2")
-                    || stderr_lower.contains("external downloader"))
+                && (stderr_lower.contains("aria2") || stderr_lower.contains("external downloader"))
             {
                 use_aria2c = false;
                 tracing::warn!("[yt-dlp] aria2c failed, retrying with native downloader");
@@ -1095,7 +1190,9 @@ pub async fn download_video(
 
                 if use_subtitles {
                     use_subtitles = false;
-                    tracing::warn!("[yt-dlp] 429 detected, disabling subtitle download for remaining retries");
+                    tracing::warn!(
+                        "[yt-dlp] 429 detected, disabling subtitle download for remaining retries"
+                    );
                 }
 
                 if is_subtitle_only_429 {
@@ -1104,7 +1201,11 @@ pub async fn download_video(
                 } else {
                     RATE_LIMIT_429_COUNT.fetch_add(1, Ordering::Relaxed);
                     let sanitized_url = sanitize_log_line(url);
-                    let player_client = if is_youtube_url(url) { "default" } else { "n/a" };
+                    let player_client = if is_youtube_url(url) {
+                        "default"
+                    } else {
+                        "n/a"
+                    };
                     let cookies_enabled = use_browser_cookies || cookie_file.is_some();
                     tracing::warn!(
                         "[yt-429] rate limit in download_video: url={} attempt={}/{} player_client={} cookies={} aria2c={}",
@@ -1118,12 +1219,19 @@ pub async fn download_video(
                     let base_secs = 10u64 * 2u64.pow(attempt as u32);
                     let jitter_secs = (attempt as u64 * 7 + url.len() as u64) % 5;
                     let wait_secs = base_secs + jitter_secs;
-                    tracing::warn!("[yt-dlp] rate limited (429), waiting {}s (base={}s + jitter={}s)", wait_secs, base_secs, jitter_secs);
+                    tracing::warn!(
+                        "[yt-dlp] rate limited (429), waiting {}s (base={}s + jitter={}s)",
+                        wait_secs,
+                        base_secs,
+                        jitter_secs
+                    );
                     tokio::time::sleep(std::time::Duration::from_secs(wait_secs)).await;
 
                     if is_youtube_url(url) {
-                        base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
-                        extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                        base_args
+                            .retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                        extra_args
+                            .retain(|a| a != "--extractor-args" && !a.contains("player_client"));
                         let client = match attempt {
                             0 => "youtube:player_client=mweb",
                             1 => "youtube:player_client=ios",
@@ -1131,7 +1239,10 @@ pub async fn download_video(
                         };
                         extra_args.push("--extractor-args".to_string());
                         extra_args.push(client.to_string());
-                        tracing::warn!("[yt-dlp] 429 detected, rotating player_client to {}", client);
+                        tracing::warn!(
+                            "[yt-dlp] 429 detected, rotating player_client to {}",
+                            client
+                        );
                     }
                 }
             }
@@ -1183,9 +1294,7 @@ pub async fn download_video(
                 && use_browser_cookies
             {
                 use_browser_cookies = false;
-                tracing::warn!(
-                    "[yt-dlp] cookies-from-browser failed, retrying without"
-                );
+                tracing::warn!("[yt-dlp] cookies-from-browser failed, retrying without");
             }
 
             if (stderr_lower.contains("sign in") || stderr_lower.contains("login required"))
@@ -1277,9 +1386,7 @@ fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
     let lower = stderr.to_lowercase();
 
     if lower.contains("http error 429") {
-        return anyhow!(
-            "Server returned error 429 (too many requests). Try again later."
-        );
+        return anyhow!("Server returned error 429 (too many requests). Try again later.");
     }
     if lower.contains("http error 403") || lower.contains("forbidden") {
         return anyhow!("Access denied (403). The video may be private or region-restricted.");
@@ -1291,7 +1398,9 @@ fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
         return anyhow!("Video extraction failed. Update yt-dlp or try again.");
     }
     if lower.contains("requested format") && lower.contains("not available") {
-        return anyhow!("Requested format is not available. The download will retry with a compatible format.");
+        return anyhow!(
+            "Requested format is not available. The download will retry with a compatible format."
+        );
     }
     if lower.contains("video unavailable") || lower.contains("not available") {
         return anyhow!("Video unavailable or removed.");
@@ -1308,8 +1417,7 @@ fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
     if lower.contains("timed out") || lower.contains("timeout") {
         return anyhow!("Connection timed out. Check your internet and try again.");
     }
-    if lower.contains("ffmpeg") && (lower.contains("not found") || lower.contains("no such file"))
-    {
+    if lower.contains("ffmpeg") && (lower.contains("not found") || lower.contains("no such file")) {
         return anyhow!("FFmpeg not found. Install FFmpeg to download this format.");
     }
     if lower.contains("unsupported url") || lower.contains("no suitable infojson") {
@@ -1340,7 +1448,11 @@ fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
             .unwrap_or(last_error_line)
     } else {
         let trimmed = stderr.trim();
-        if trimmed.len() > 300 { &trimmed[..300] } else { trimmed }
+        if trimmed.len() > 300 {
+            &trimmed[..300]
+        } else {
+            trimmed
+        }
     };
 
     anyhow!("yt-dlp: {}", msg)
@@ -1503,6 +1615,11 @@ fn extract_id_from_url(url: &str) -> Option<String> {
         return segments.first().map(|s| s.to_string());
     }
 
+    if host.contains("youtube.com") && parsed.path().starts_with("/embed/") {
+        let segments: Vec<&str> = parsed.path().split('/').filter(|s| !s.is_empty()).collect();
+        return segments.last().map(|s| s.to_string());
+    }
+
     if host.contains("youtube.com") {
         let segments: Vec<&str> = parsed.path().split('/').filter(|s| !s.is_empty()).collect();
         if segments.first() == Some(&"shorts") {
@@ -1579,7 +1696,9 @@ mod tests {
 
     #[test]
     fn is_youtube_url_standard() {
-        assert!(is_youtube_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"));
+        assert!(is_youtube_url(
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        ));
     }
 
     #[test]
@@ -1642,6 +1761,14 @@ mod tests {
     }
 
     #[test]
+    fn extract_id_youtube_embed() {
+        assert_eq!(
+            extract_id_from_url("https://www.youtube.com/embed/dQw4w9WgXcQ"),
+            Some("dQw4w9WgXcQ".to_string())
+        );
+    }
+
+    #[test]
     fn extract_id_shorts() {
         assert_eq!(
             extract_id_from_url("https://www.youtube.com/shorts/abc123"),
@@ -1682,7 +1809,11 @@ mod tests {
     fn translate_error_requested_format() {
         let err = translate_ytdlp_error("ERROR: Requested format is not available. Use --list-formats for a list of available formats");
         assert!(err.to_string().contains("Requested format"), "Got: {}", err);
-        assert!(!err.to_string().contains("Video unavailable"), "Should not contain 'Video unavailable', got: {}", err);
+        assert!(
+            !err.to_string().contains("Video unavailable"),
+            "Should not contain 'Video unavailable', got: {}",
+            err
+        );
     }
 
     #[test]
