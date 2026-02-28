@@ -32,6 +32,11 @@ impl YouTubeDownloader {
             return segments.first().map(|s| s.to_string());
         }
 
+        if host.contains("youtube.com") && parsed.path().starts_with("/embed/") {
+            let segments: Vec<&str> = parsed.path().split('/').filter(|s| !s.is_empty()).collect();
+            return segments.last().map(|s| s.to_string());
+        }
+
         if host.contains("youtube.com") || host.contains("youtube-nocookie.com") {
             let segments: Vec<&str> = parsed.path().split('/').filter(|s| !s.is_empty()).collect();
 
@@ -60,7 +65,10 @@ impl YouTubeDownloader {
         false
     }
 
-    pub async fn fetch_with_ytdlp(url: &str, ytdlp_path: &std::path::Path) -> anyhow::Result<MediaInfo> {
+    pub async fn fetch_with_ytdlp(
+        url: &str,
+        ytdlp_path: &std::path::Path,
+    ) -> anyhow::Result<MediaInfo> {
         if Self::is_playlist_url(url) {
             let (playlist_title, entries) = ytdlp::get_playlist_info(ytdlp_path, url, &[]).await?;
 
@@ -107,7 +115,6 @@ impl YouTubeDownloader {
         s.trim_end_matches('p').parse::<u32>().ok()
     }
 
-
     pub fn parse_video_info(json: &serde_json::Value) -> anyhow::Result<MediaInfo> {
         let video_id = json
             .get("id")
@@ -151,14 +158,8 @@ impl YouTubeDownloader {
             for f in formats {
                 let height = f.get("height").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
                 let width = f.get("width").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                let vcodec = f
-                    .get("vcodec")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("none");
-                let acodec = f
-                    .get("acodec")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("none");
+                let vcodec = f.get("vcodec").and_then(|v| v.as_str()).unwrap_or("none");
+                let acodec = f.get("acodec").and_then(|v| v.as_str()).unwrap_or("none");
 
                 if vcodec == "none" || height == 0 {
                     continue;
@@ -238,8 +239,7 @@ impl PlatformDownloader for YouTubeDownloader {
         })?;
 
         if Self::is_playlist_url(url) {
-            let (playlist_title, entries) =
-                ytdlp::get_playlist_info(&ytdlp_path, url, &[]).await?;
+            let (playlist_title, entries) = ytdlp::get_playlist_info(&ytdlp_path, url, &[]).await?;
 
             if entries.is_empty() {
                 return Err(anyhow!("Playlist empty or unavailable"));
@@ -353,7 +353,9 @@ impl YouTubeDownloader {
         progress: mpsc::Sender<f64>,
         ytdlp_path: &std::path::Path,
     ) -> anyhow::Result<DownloadResult> {
-        let playlist_dir = opts.output_dir.join(sanitize_filename::sanitize(&info.title));
+        let playlist_dir = opts
+            .output_dir
+            .join(sanitize_filename::sanitize(&info.title));
         tokio::fs::create_dir_all(&playlist_dir).await?;
 
         let total = info.available_qualities.len();
@@ -373,9 +375,8 @@ impl YouTubeDownloader {
                 let mut max_pct = 0.0_f64;
                 while let Some(pct) = video_rx.recv().await {
                     max_pct = max_pct.max(pct);
-                    let overall =
-                        (video_idx as f64 / video_total as f64) * 100.0
-                            + (max_pct / video_total as f64);
+                    let overall = (video_idx as f64 / video_total as f64) * 100.0
+                        + (max_pct / video_total as f64);
                     let _ = progress_tx.send(overall).await;
                 }
             });
