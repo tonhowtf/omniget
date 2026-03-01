@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use anyhow::anyhow;
+use futures::StreamExt;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -196,8 +197,15 @@ async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
         ));
     }
 
-    let bytes = response.bytes().await?;
-    tokio::fs::write(&target, &bytes).await?;
+    {
+        let mut file = tokio::fs::File::create(&target).await?;
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| anyhow!("Stream error: {}", e))?;
+            tokio::io::AsyncWriteExt::write_all(&mut file, &chunk).await?;
+        }
+        tokio::io::AsyncWriteExt::flush(&mut file).await?;
+    }
 
     #[cfg(unix)]
     {
