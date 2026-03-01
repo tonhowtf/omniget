@@ -33,7 +33,7 @@
   <screenshots>
     <screenshot type="default">
       <caption>Main download interface</caption>
-      <image>https://raw.githubusercontent.com/tonhowtf/omniget/v0.3.2/flatpak/screenshots/main.png</image>
+      <image>https://raw.githubusercontent.com/tonhowtf/omniget/v0.3.3/flatpak/screenshots/main.png</image>
     </screenshot>
   </screenshots>
   <branding>
@@ -42,6 +42,11 @@
   </branding>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.3.3" date="2026-03-01">
+      <description>
+        <p>Dual-mode hotkey binding input, flatpak build fixes, and improvements.</p>
+      </description>
+    </release>
     <release version="0.3.2" date="2026-02-27">
       <description>
         <p>Bug fixes and improvements.</p>
