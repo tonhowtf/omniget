@@ -217,6 +217,9 @@
       "hotkey_enabled": "Scorciatoia globale",
       "hotkey_enabled_desc": "Scarica l'URL negli appunti con una scorciatoia da tastiera",
       "hotkey_binding": "Tasto scorciatoia",
+      "hotkey_record": "Registra",
+      "hotkey_type": "Digita",
+      "hotkey_press": "Premi i tasti...",
       "filename_template": "Modello nome file",
       "filename_template_desc": "Modello di output yt-dlp per i file scaricati",
       "filename_template_preview": "Anteprima: {{preview}}"
