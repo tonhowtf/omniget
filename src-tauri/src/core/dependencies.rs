@@ -110,7 +110,9 @@ pub async fn ensure_ffmpeg() -> anyhow::Result<PathBuf> {
     if is_flatpak() {
         return Err(anyhow!("FFmpeg not found in Flatpak sandbox"));
     }
-    download_ffmpeg().await
+    let path = download_ffmpeg().await?;
+    crate::core::ytdlp::reset_ffmpeg_location_cache();
+    Ok(path)
 }
 
 async fn download_ffmpeg() -> anyhow::Result<PathBuf> {
