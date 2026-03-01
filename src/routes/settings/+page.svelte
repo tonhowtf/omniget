@@ -101,6 +101,8 @@
   let templateTimer = $state<ReturnType<typeof setTimeout> | null>(null);
   let hotkeyInput = $state("");
   let hotkeyTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+  let hotkeyMode = $state<"record" | "type">("record");
+  let hotkeyRecording = $state(false);
   let proxyHost = $state("");
   let proxyUsername = $state("");
   let proxyPassword = $state("");
@@ -149,6 +151,35 @@
         await updateSettings({ download: { hotkey_binding: value } });
       }
     }, 800);
+  }
+
+  function mapKeyName(key: string): string | null {
+    if (key.length === 1 && /[a-zA-Z]/.test(key)) return key.toUpperCase();
+    if (key.length === 1 && /[0-9]/.test(key)) return key;
+    if (/^F([1-9]|1[0-2])$/.test(key)) return key;
+    const map: Record<string, string> = {
+      " ": "Space", ArrowUp: "Up", ArrowDown: "Down", ArrowLeft: "Left", ArrowRight: "Right",
+      Enter: "Enter", Tab: "Tab", Escape: "Escape", Backspace: "Backspace", Delete: "Delete",
+      Home: "Home", End: "End", PageUp: "PageUp", PageDown: "PageDown", Insert: "Insert",
+    };
+    return map[key] ?? null;
+  }
+
+  function handleHotkeyKeyDown(e: KeyboardEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (["Control", "Shift", "Alt", "Meta"].includes(e.key)) return;
+    const keyName = mapKeyName(e.key);
+    if (!keyName) return;
+    const parts: string[] = [];
+    if (e.ctrlKey || e.metaKey) parts.push("CmdOrCtrl");
+    if (e.shiftKey) parts.push("Shift");
+    if (e.altKey) parts.push("Alt");
+    parts.push(keyName);
+    const value = parts.join("+");
+    hotkeyInput = value;
+    hotkeyRecording = false;
+    updateSettings({ download: { hotkey_binding: value } });
   }
 
   async function changeProxyType(e: Event) {
@@ -476,15 +507,41 @@
         </div>
         {#if settings.download.hotkey_enabled}
           <div class="divider"></div>
-          <div class="setting-row">
+          <div class="setting-row hotkey-row">
             <span class="setting-label">{$t('settings.download.hotkey_binding')}</span>
-            <input
-              type="text"
-              class="input-hotkey"
-              value={hotkeyInput}
-              oninput={handleHotkeyInput}
-              spellcheck="false"
-            />
+            <div class="hotkey-controls">
+              <div class="hotkey-mode-switch">
+                <button
+                  class="hotkey-mode-btn"
+                  class:active={hotkeyMode === 'record'}
+                  onclick={() => { hotkeyMode = 'record'; hotkeyRecording = false; }}
+                >{$t('settings.download.hotkey_record')}</button>
+                <button
+                  class="hotkey-mode-btn"
+                  class:active={hotkeyMode === 'type'}
+                  onclick={() => { hotkeyMode = 'type'; hotkeyRecording = false; }}
+                >{$t('settings.download.hotkey_type')}</button>
+              </div>
+              {#if hotkeyMode === 'type'}
+                <input
+                  type="text"
+                  class="input-hotkey"
+                  value={hotkeyInput}
+                  oninput={handleHotkeyInput}
+                  spellcheck="false"
+                />
+              {:else}
+                <button
+                  class="input-hotkey hotkey-record-btn"
+                  class:recording={hotkeyRecording}
+                  onclick={() => { hotkeyRecording = true; }}
+                  onkeydown={hotkeyRecording ? handleHotkeyKeyDown : undefined}
+                  onblur={() => { hotkeyRecording = false; }}
+                >
+                  {hotkeyRecording ? $t('settings.download.hotkey_press') : (hotkeyInput || $t('settings.download.hotkey_press'))}
+                </button>
+              {/if}
+            </div>
           </div>
         {/if}
         <div class="divider"></div>
@@ -913,6 +970,67 @@
   .input-hotkey:focus-visible {
     border-color: var(--blue);
     outline: none;
+  }
+
+  .hotkey-row {
+    flex-wrap: wrap;
+  }
+
+  .hotkey-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-end;
+  }
+
+  .hotkey-mode-switch {
+    display: flex;
+    border-radius: calc(var(--border-radius) / 2);
+    overflow: hidden;
+  }
+
+  .hotkey-mode-btn {
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    background: transparent;
+    color: var(--gray);
+    border: 1px solid var(--input-border);
+    cursor: pointer;
+  }
+
+  .hotkey-mode-btn:first-child {
+    border-radius: calc(var(--border-radius) / 2) 0 0 calc(var(--border-radius) / 2);
+    border-right: none;
+  }
+
+  .hotkey-mode-btn:last-child {
+    border-radius: 0 calc(var(--border-radius) / 2) calc(var(--border-radius) / 2) 0;
+  }
+
+  .hotkey-mode-btn.active {
+    background: var(--button-elevated);
+    color: var(--secondary);
+  }
+
+  .hotkey-mode-btn:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .hotkey-record-btn {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .hotkey-record-btn.recording {
+    border-color: var(--blue);
+    animation: hotkey-pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes hotkey-pulse {
+    0%, 100% { border-color: var(--blue); }
+    50% { border-color: var(--input-border); }
   }
 
   .template-row {
