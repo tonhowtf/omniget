@@ -11,13 +11,25 @@ use tokio_util::sync::CancellationToken;
 use crate::models::media::{DownloadResult, FormatInfo};
 
 static YTDLP_UPDATING: AtomicBool = AtomicBool::new(false);
-static YTDLP_PATH_CACHE: tokio::sync::OnceCell<Option<PathBuf>> =
-    tokio::sync::OnceCell::const_new();
-static FFMPEG_LOCATION_CACHE: tokio::sync::OnceCell<Option<String>> =
-    tokio::sync::OnceCell::const_new();
-static COOKIES_BROWSER_CACHE: tokio::sync::OnceCell<Option<String>> =
-    tokio::sync::OnceCell::const_new();
+static YTDLP_PATH_CACHE: std::sync::RwLock<Option<Option<PathBuf>>> =
+    std::sync::RwLock::new(None);
+static FFMPEG_LOCATION_CACHE: std::sync::RwLock<Option<Option<String>>> =
+    std::sync::RwLock::new(None);
+static COOKIES_BROWSER_CACHE: std::sync::RwLock<Option<Option<String>>> =
+    std::sync::RwLock::new(None);
 static RATE_LIMIT_429_COUNT: AtomicU64 = AtomicU64::new(0);
+
+pub fn reset_ytdlp_cache() {
+    if let Ok(mut cache) = YTDLP_PATH_CACHE.write() {
+        *cache = None;
+    }
+}
+
+pub fn reset_ffmpeg_location_cache() {
+    if let Ok(mut cache) = FFMPEG_LOCATION_CACHE.write() {
+        *cache = None;
+    }
+}
 
 fn proxy_args() -> Vec<String> {
     match crate::core::http_client::proxy_url() {
@@ -107,11 +119,17 @@ pub async fn find_ytdlp() -> Option<PathBuf> {
 
 pub async fn find_ytdlp_cached() -> Option<PathBuf> {
     let _timer_start = std::time::Instant::now();
-    let result = YTDLP_PATH_CACHE
-        .get_or_init(|| async { find_ytdlp().await })
-        .await
-        .clone();
-    tracing::debug!("[perf] find_ytdlp_cached: {:?}", _timer_start.elapsed());
+    if let Ok(cache) = YTDLP_PATH_CACHE.read() {
+        if let Some(ref cached) = *cache {
+            tracing::debug!("[perf] find_ytdlp_cached (hit): {:?}", _timer_start.elapsed());
+            return cached.clone();
+        }
+    }
+    let result = find_ytdlp().await;
+    if let Ok(mut cache) = YTDLP_PATH_CACHE.write() {
+        *cache = Some(result.clone());
+    }
+    tracing::debug!("[perf] find_ytdlp_cached (miss): {:?}", _timer_start.elapsed());
     result
 }
 
@@ -141,9 +159,10 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
         return Err(anyhow!("yt-dlp not found in Flatpak sandbox"));
     }
 
-    let result = download_ytdlp_binary().await;
+    let path = download_ytdlp_binary().await?;
+    reset_ytdlp_cache();
     tracing::debug!("[perf] ensure_ytdlp took {:?}", _timer_start.elapsed());
-    result
+    Ok(path)
 }
 
 async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
@@ -286,10 +305,16 @@ async fn find_ffmpeg_location() -> Option<String> {
 }
 
 async fn find_ffmpeg_location_cached() -> Option<String> {
-    FFMPEG_LOCATION_CACHE
-        .get_or_init(|| async { find_ffmpeg_location().await })
-        .await
-        .clone()
+    if let Ok(cache) = FFMPEG_LOCATION_CACHE.read() {
+        if let Some(ref cached) = *cache {
+            return cached.clone();
+        }
+    }
+    let result = find_ffmpeg_location().await;
+    if let Ok(mut cache) = FFMPEG_LOCATION_CACHE.write() {
+        *cache = Some(result.clone());
+    }
+    result
 }
 
 fn detect_cookies_browser() -> Option<String> {
@@ -437,14 +462,18 @@ fn detect_cookies_browser() -> Option<String> {
 }
 
 async fn detect_cookies_browser_cached() -> Option<String> {
-    COOKIES_BROWSER_CACHE
-        .get_or_init(|| async {
-            tokio::task::spawn_blocking(detect_cookies_browser)
-                .await
-                .unwrap_or(None)
-        })
+    if let Ok(cache) = COOKIES_BROWSER_CACHE.read() {
+        if let Some(ref cached) = *cache {
+            return cached.clone();
+        }
+    }
+    let result = tokio::task::spawn_blocking(detect_cookies_browser)
         .await
-        .clone()
+        .unwrap_or(None);
+    if let Ok(mut cache) = COOKIES_BROWSER_CACHE.write() {
+        *cache = Some(result.clone());
+    }
+    result
 }
 
 fn is_youtube_url(url: &str) -> bool {
