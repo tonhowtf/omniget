@@ -3,6 +3,7 @@ fn enhanced_path() -> Option<String> {
     let sep = if cfg!(windows) { ";" } else { ":" };
     let current = std::env::var("PATH").unwrap_or_default();
 
+    #[allow(unused_mut)]
     let mut extra_dirs: Vec<String> = vec![bin_dir.display().to_string()];
 
     #[cfg(target_os = "macos")]
