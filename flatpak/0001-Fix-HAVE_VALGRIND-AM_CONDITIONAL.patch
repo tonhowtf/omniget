@@ -9,17 +9,13 @@ block so it is always defined, even with --disable-tests.
 diff --git a/configure.ac b/configure.ac
 --- a/configure.ac
 +++ b/configure.ac
-@@ -112,10 +112,11 @@
- AS_IF([test "x$enable_tests" != "xno"],[
- PKG_CHECK_MODULES(DBUSMENUTESTS,  json-glib-1.0 >= $JSON_GLIB_REQUIRED_VERSION
-                                   gio-unix-2.0  >= $GIO_UNIX_REQUIRED_VERSION,
+@@ -120,8 +120,8 @@
                                    [have_tests=yes]
  )
  PKG_CHECK_MODULES(DBUSMENUTESTSVALGRIND, valgrind, have_valgrind=yes, have_valgrind=no)
 -AM_CONDITIONAL([HAVE_VALGRIND], [test "x$have_valgrind" = "xyes"])
  ])
-
 +AM_CONDITIONAL([HAVE_VALGRIND], [test "x$have_valgrind" = "xyes"])
-+
+
  AC_SUBST(DBUSMENUTESTS_CFLAGS)
  AC_SUBST(DBUSMENUTESTS_LIBS)
