@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::process::Stdio;
 
 use anyhow::anyhow;
+use futures::StreamExt;
 
 pub fn is_flatpak() -> bool {
     std::path::Path::new("/.flatpak-info").exists()
@@ -137,12 +138,23 @@ async fn download_ffmpeg() -> anyhow::Result<PathBuf> {
             return Err(anyhow!("Failed to download FFmpeg from {}: HTTP {}", url, response.status()));
         }
 
-        let bytes = response.bytes().await?;
+        let temp_path = bin_dir.join(".ffmpeg_download.tmp");
+        {
+            let mut file = tokio::fs::File::create(&temp_path).await?;
+            let mut stream = response.bytes_stream();
+            while let Some(chunk) = stream.next().await {
+                let chunk = chunk.map_err(|e| anyhow!("Stream error: {}", e))?;
+                tokio::io::AsyncWriteExt::write_all(&mut file, &chunk).await?;
+            }
+            tokio::io::AsyncWriteExt::flush(&mut file).await?;
+        }
 
         match archive_type {
-            ArchiveType::Zip => extract_zip_ffmpeg(&bytes, &bin_dir, &ffmpeg_name, &ffprobe_name).await?,
-            ArchiveType::TarXz => extract_tar_xz_ffmpeg(&bytes, &bin_dir, &ffmpeg_name, &ffprobe_name).await?,
+            ArchiveType::Zip => extract_zip_ffmpeg(&temp_path, &bin_dir, &ffmpeg_name, &ffprobe_name).await?,
+            ArchiveType::TarXz => extract_tar_xz_ffmpeg(&temp_path, &bin_dir, &ffmpeg_name, &ffprobe_name).await?,
         }
+
+        let _ = tokio::fs::remove_file(&temp_path).await;
     }
 
     #[cfg(unix)]
@@ -218,35 +230,35 @@ fn ffmpeg_download_urls() -> Vec<(&'static str, ArchiveType)> {
 }
 
 async fn extract_zip_ffmpeg(
-    data: &[u8],
+    archive_path: &std::path::Path,
     bin_dir: &std::path::Path,
     ffmpeg_name: &str,
     ffprobe_name: &str,
 ) -> anyhow::Result<()> {
-    let data = data.to_vec();
+    let archive_path = archive_path.to_path_buf();
     let bin_dir = bin_dir.to_path_buf();
     let ffmpeg_name = ffmpeg_name.to_string();
     let ffprobe_name = ffprobe_name.to_string();
 
     tokio::task::spawn_blocking(move || {
-        let cursor = std::io::Cursor::new(&data);
-        let mut archive = zip::ZipArchive::new(cursor)
+        let file = std::fs::File::open(&archive_path)
+            .map_err(|e| anyhow!("Failed to open archive: {}", e))?;
+        let mut archive = zip::ZipArchive::new(file)
             .map_err(|e| anyhow!("Failed to open zip: {}", e))?;
 
         let targets = [ffmpeg_name.as_str(), ffprobe_name.as_str()];
 
         for i in 0..archive.len() {
-            let mut file = archive
+            let mut entry = archive
                 .by_index(i)
                 .map_err(|e| anyhow!("Failed to read zip entry: {}", e))?;
 
-            let name = file.name().to_string();
+            let name = entry.name().to_string();
             for target in &targets {
                 if name.ends_with(target) {
                     let dest = bin_dir.join(target);
-                    let mut buf = Vec::new();
-                    std::io::Read::read_to_end(&mut file, &mut buf)?;
-                    std::fs::write(&dest, &buf)?;
+                    let mut out = std::fs::File::create(&dest)?;
+                    std::io::copy(&mut entry, &mut out)?;
                     break;
                 }
             }
