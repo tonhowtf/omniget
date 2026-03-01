@@ -41,7 +41,8 @@
     "download_complete": "Download complete: {{name}}",
     "download_error": "Download failed: {{name}}",
     "download_cancelled": "Download cancelled",
-    "clipboard_url_detected": "URL detected in clipboard"
+    "clipboard_url_detected": "URL detected in clipboard",
+    "file_copied_to_clipboard": "File copied to clipboard"
   },
   "hotmart": {
     "title": "Hotmart",
@@ -220,6 +221,8 @@
       "hotkey_record": "Record",
       "hotkey_type": "Type",
       "hotkey_press": "Press keys...",
+      "copy_to_clipboard_on_hotkey": "Copy file to clipboard after hotkey download",
+      "copy_to_clipboard_on_hotkey_desc": "Automatically copy the downloaded file to clipboard for easy pasting",
       "filename_template": "Filename template",
       "filename_template_desc": "yt-dlp output template for downloaded files",
       "filename_template_preview": "Preview: {{preview}}"
