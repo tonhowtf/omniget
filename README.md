@@ -92,7 +92,7 @@ Prerequisites: [Rust](https://rustup.rs/), [Node.js](https://nodejs.org/) 18+, [
 On Linux, install additional dependencies:
 
 ```bash
-sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 ```
 
 Then build and run:
