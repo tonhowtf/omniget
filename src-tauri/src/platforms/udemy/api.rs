@@ -344,7 +344,22 @@ pub fn parse_curriculum(course_id: u64, results: &[serde_json::Value]) -> Result
                                 .unwrap_or(false);
 
                             if !has_stream_urls && has_media_sources {
-                                drm_video_lectures += 1;
+                                let is_drm = a.get("course_is_drmed")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or(false)
+                                    || a.get("media_license_token").is_some();
+
+                                let has_downloadable = a.get("media_sources")
+                                    .and_then(|v| v.as_array())
+                                    .map(|sources| sources.iter().any(|s| {
+                                        let t = s.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                                        t == "video/mp4" || t == "application/x-mpegURL"
+                                    }))
+                                    .unwrap_or(false);
+
+                                if is_drm && !has_downloadable {
+                                    drm_video_lectures += 1;
+                                }
                             }
                         }
                     }
