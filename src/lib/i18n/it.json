@@ -41,7 +41,8 @@
     "download_complete": "Download completato: {{name}}",
     "download_error": "Download fallito: {{name}}",
     "download_cancelled": "Download annullato",
-    "clipboard_url_detected": "URL rilevato negli appunti"
+    "clipboard_url_detected": "URL rilevato negli appunti",
+    "file_copied_to_clipboard": "File copiato negli appunti"
   },
   "hotmart": {
     "title": "Hotmart",
@@ -220,6 +221,8 @@
       "hotkey_record": "Registra",
       "hotkey_type": "Digita",
       "hotkey_press": "Premi i tasti...",
+      "copy_to_clipboard_on_hotkey": "Copia file negli appunti dopo download da scorciatoia",
+      "copy_to_clipboard_on_hotkey_desc": "Copia automaticamente il file scaricato negli appunti per incollare facilmente",
       "filename_template": "Modello nome file",
       "filename_template_desc": "Modello di output yt-dlp per i file scaricati",
       "filename_template_preview": "Anteprima: {{preview}}"
