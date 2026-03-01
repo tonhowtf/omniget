@@ -217,6 +217,9 @@
       "hotkey_enabled": "グローバルホットキー",
       "hotkey_enabled_desc": "キーボードショートカットでクリップボードのURLをダウンロードします",
       "hotkey_binding": "ホットキーの割り当て",
+      "hotkey_record": "録音",
+      "hotkey_type": "入力",
+      "hotkey_press": "キーを押してください...",
       "filename_template": "ファイル名テンプレート",
       "filename_template_desc": "ダウンロードファイルのyt-dlp出力テンプレート",
       "filename_template_preview": "プレビュー: {{preview}}"
