@@ -32,7 +32,7 @@ pub async fn check_dependencies() -> Result<Vec<DependencyStatus>, String> {
 
 #[tauri::command]
 pub async fn check_ytdlp_available() -> Result<bool, String> {
-    Ok(crate::core::ytdlp::find_ytdlp().await.is_some())
+    Ok(crate::core::ytdlp::find_ytdlp_cached().await.is_some())
 }
 
 #[tauri::command]
