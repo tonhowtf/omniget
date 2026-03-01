@@ -41,7 +41,8 @@
     "download_complete": "Download concluído: {{name}}",
     "download_error": "Falha no download: {{name}}",
     "download_cancelled": "Download cancelado",
-    "clipboard_url_detected": "URL detectada no clipboard"
+    "clipboard_url_detected": "URL detectada no clipboard",
+    "file_copied_to_clipboard": "Arquivo copiado para o clipboard"
   },
   "hotmart": {
     "title": "Hotmart",
@@ -220,6 +221,8 @@
       "hotkey_record": "Gravar",
       "hotkey_type": "Digitar",
       "hotkey_press": "Pressione teclas...",
+      "copy_to_clipboard_on_hotkey": "Copiar arquivo para clipboard após download via hotkey",
+      "copy_to_clipboard_on_hotkey_desc": "Copiar automaticamente o arquivo baixado para o clipboard para fácil colagem",
       "filename_template": "Template de nome",
       "filename_template_desc": "Template yt-dlp para nome dos arquivos baixados",
       "filename_template_preview": "Preview: {{preview}}"
