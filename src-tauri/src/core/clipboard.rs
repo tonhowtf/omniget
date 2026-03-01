@@ -1,5 +1,8 @@
 use std::path::Path;
 
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 const MAX_CLIPBOARD_FILE_SIZE: u64 = 1_073_741_824; // 1 GB
 
 pub async fn copy_file_to_clipboard(path: &Path) -> anyhow::Result<()> {
@@ -134,6 +137,7 @@ async fn copy_file_windows(path: &str) -> anyhow::Result<()> {
 
     let output = tokio::process::Command::new("powershell")
         .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .await?;
 
