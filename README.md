@@ -28,8 +28,12 @@ Built with Tauri and Rust for speed and a small footprint.
 - Convert media files between formats with FFmpeg and GPU acceleration
 - Search YouTube directly from the omnibox
 - Choose quality, format, and download mode (video, audio only, mute)
-- Real-time progress with ETA and speed
+- Real-time progress with speed display
+- Global hotkey to download from clipboard URL
 - Clipboard URL detection and batch downloads
+- System tray with download count badge
+- Built-in auto-updater
+- Proxy support (HTTP/SOCKS5)
 - Dark and light theme
 - Available in English, Portuguese, Chinese, Japanese, Italian, and French
 - Loop, the mascot that reacts to your downloads
@@ -64,7 +68,7 @@ Grab the latest release for your platform:
   <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/badge/-Linux-orange.svg?style=for-the-badge&logo=linux&logoColor=white" alt="Download for Linux" /></a>
 </p>
 
-macOS and Linux builds are available but not fully tested yet. If you run into issues, please [open an issue](https://github.com/tonhowtf/omniget/issues).
+Linux is also available as a Flatpak. If you run into issues on any platform, please [open an issue](https://github.com/tonhowtf/omniget/issues).
 
 ## Windows SmartScreen
 
@@ -72,9 +76,26 @@ Windows SmartScreen may warn you the first time you run OmniGet. This is normal 
 
 The app is fully open source and every line of code is right here in this repository.
 
+## macOS Gatekeeper
+
+macOS may block OmniGet because the app is not yet signed with an Apple Developer certificate. If you see "omniget.app is damaged" or "can't be opened", run this in Terminal:
+
+```bash
+xattr -cr /Applications/omniget.app
+codesign --force --deep --sign - /Applications/omniget.app
+```
+
 ## Building From Source
 
 Prerequisites: [Rust](https://rustup.rs/), [Node.js](https://nodejs.org/) 18+, [pnpm](https://pnpm.io/)
+
+On Linux, install additional dependencies:
+
+```bash
+sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+```
+
+Then build and run:
 
 ```bash
 git clone https://github.com/tonhowtf/omniget.git
