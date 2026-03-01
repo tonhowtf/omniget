@@ -51,6 +51,8 @@ pub struct DownloadSettings {
     pub hotkey_binding: String,
     #[serde(default)]
     pub extra_ytdlp_flags: Vec<String>,
+    #[serde(default = "default_true")]
+    pub copy_to_clipboard_on_hotkey: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -152,6 +154,7 @@ impl Default for AppSettings {
                 hotkey_enabled: false,
                 hotkey_binding: default_hotkey_binding(),
                 extra_ytdlp_flags: Vec::new(),
+                copy_to_clipboard_on_hotkey: true,
             },
             advanced: AdvancedSettings {
                 max_concurrent_segments: 20,
