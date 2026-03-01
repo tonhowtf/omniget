@@ -4,6 +4,7 @@
   import { t, locale, loadTranslations } from "$lib/i18n";
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { completeOnboarding } from "$lib/stores/onboarding-store.svelte";
+  import { refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
   import Mascot from "$components/mascot/Mascot.svelte";
 
   type DependencyStatus = {
@@ -43,6 +44,7 @@
     try {
       await invoke("install_dependency", { name });
       await loadDeps();
+      await refreshYtdlpStatus();
     } catch {} finally {
       installingDep = null;
     }
