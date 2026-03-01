@@ -217,6 +217,9 @@
       "hotkey_enabled": "全局快捷键",
       "hotkey_enabled_desc": "通过键盘快捷键下载剪贴板中的链接",
       "hotkey_binding": "快捷键",
+      "hotkey_record": "录制",
+      "hotkey_type": "输入",
+      "hotkey_press": "按下快捷键...",
       "filename_template": "文件名模板",
       "filename_template_desc": "yt-dlp 下载文件的输出模板",
       "filename_template_preview": "预览：{{preview}}"
