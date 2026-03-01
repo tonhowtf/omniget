@@ -186,6 +186,7 @@ pub async fn download_from_url(
             None,
             downloader,
             ytdlp_path,
+            false,
         );
 
         let next_ids = q.next_queued_ids();
