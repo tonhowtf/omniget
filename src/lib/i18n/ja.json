@@ -41,7 +41,8 @@
     "download_complete": "ダウンロード完了: {{name}}",
     "download_error": "ダウンロード失敗: {{name}}",
     "download_cancelled": "ダウンロードがキャンセルされました",
-    "clipboard_url_detected": "クリップボードでURLを検出しました"
+    "clipboard_url_detected": "クリップボードでURLを検出しました",
+    "file_copied_to_clipboard": "ファイルをクリップボードにコピーしました"
   },
   "hotmart": {
     "title": "Hotmart",
@@ -220,6 +221,8 @@
       "hotkey_record": "録音",
       "hotkey_type": "入力",
       "hotkey_press": "キーを押してください...",
+      "copy_to_clipboard_on_hotkey": "ホットキーダウンロード後にファイルをクリップボードにコピー",
+      "copy_to_clipboard_on_hotkey_desc": "ダウンロードしたファイルを自動的にクリップボードにコピーして貼り付けやすくします",
       "filename_template": "ファイル名テンプレート",
       "filename_template_desc": "ダウンロードファイルのyt-dlp出力テンプレート",
       "filename_template_preview": "プレビュー: {{preview}}"
