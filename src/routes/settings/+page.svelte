@@ -543,6 +543,23 @@
               {/if}
             </div>
           </div>
+          <div class="divider"></div>
+          <div class="setting-row">
+            <div class="setting-col">
+              <span class="setting-label">{$t('settings.download.copy_to_clipboard_on_hotkey')}</span>
+              <span class="setting-path">{$t('settings.download.copy_to_clipboard_on_hotkey_desc')}</span>
+            </div>
+            <button
+              class="toggle"
+              class:on={settings.download.copy_to_clipboard_on_hotkey}
+              onclick={() => toggleBool("download", "copy_to_clipboard_on_hotkey", settings!.download.copy_to_clipboard_on_hotkey)}
+              role="switch"
+              aria-checked={settings.download.copy_to_clipboard_on_hotkey}
+              aria-label={$t('settings.download.copy_to_clipboard_on_hotkey')}
+            >
+              <span class="toggle-knob"></span>
+            </button>
+          </div>
         {/if}
         <div class="divider"></div>
         <div class="setting-row">
