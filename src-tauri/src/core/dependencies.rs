@@ -273,20 +273,20 @@ async fn extract_zip_ffmpeg(
 }
 
 async fn extract_tar_xz_ffmpeg(
-    data: &[u8],
+    archive_path: &std::path::Path,
     bin_dir: &std::path::Path,
     ffmpeg_name: &str,
     ffprobe_name: &str,
 ) -> anyhow::Result<()> {
-    let data = data.to_vec();
+    let archive_path = archive_path.to_path_buf();
     let bin_dir = bin_dir.to_path_buf();
     let ffmpeg_name = ffmpeg_name.to_string();
     let ffprobe_name = ffprobe_name.to_string();
 
     tokio::task::spawn_blocking(move || {
-        use std::io::Read;
-        let cursor = std::io::Cursor::new(&data);
-        let decompressor = xz2::read::XzDecoder::new(cursor);
+        let file = std::fs::File::open(&archive_path)
+            .map_err(|e| anyhow!("Failed to open archive: {}", e))?;
+        let decompressor = xz2::read::XzDecoder::new(file);
         let mut archive = tar::Archive::new(decompressor);
         let targets = [ffmpeg_name.as_str(), ffprobe_name.as_str()];
 
@@ -303,9 +303,8 @@ async fn extract_tar_xz_ffmpeg(
             for target in &targets {
                 if file_name == *target {
                     let dest = bin_dir.join(target);
-                    let mut buf = Vec::new();
-                    entry.read_to_end(&mut buf)?;
-                    std::fs::write(&dest, &buf)?;
+                    let mut out = std::fs::File::create(&dest)?;
+                    std::io::copy(&mut entry, &mut out)?;
                     break;
                 }
             }
