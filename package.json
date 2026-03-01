@@ -11,7 +11,7 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri"
   },
-  "license": "MIT",
+  "license": "GPL-3.0",
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "@tauri-apps/api": "^2",
