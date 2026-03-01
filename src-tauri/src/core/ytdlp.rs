@@ -206,6 +206,15 @@ async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
         tokio::fs::set_permissions(&target, perms).await?;
     }
 
+    #[cfg(target_os = "macos")]
+    {
+        let _ = tokio::process::Command::new("xattr")
+            .args(["-d", "com.apple.quarantine"])
+            .arg(&target)
+            .output()
+            .await;
+    }
+
     Ok(target)
 }
 
