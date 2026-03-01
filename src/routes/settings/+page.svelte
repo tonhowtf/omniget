@@ -6,6 +6,7 @@
   import { getUpdateInfo } from "$lib/stores/update-store.svelte";
   import { installUpdate } from "$lib/updater";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import { refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
   import ContextHint from "$components/hints/ContextHint.svelte";
 
   type DependencyStatus = {
@@ -33,6 +34,7 @@
     try {
       await invoke("install_dependency", { name });
       await loadDeps();
+      await refreshYtdlpStatus();
     } catch (e: any) {
       showToast("error", typeof e === "string" ? e : e.message ?? $t("common.error"));
     } finally {
