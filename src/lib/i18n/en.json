@@ -217,6 +217,9 @@
       "hotkey_enabled": "Global hotkey",
       "hotkey_enabled_desc": "Download clipboard URL with a keyboard shortcut",
       "hotkey_binding": "Hotkey shortcut",
+      "hotkey_record": "Record",
+      "hotkey_type": "Type",
+      "hotkey_press": "Press keys...",
       "filename_template": "Filename template",
       "filename_template_desc": "yt-dlp output template for downloaded files",
       "filename_template_preview": "Preview: {{preview}}"
