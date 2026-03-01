@@ -126,6 +126,7 @@ async fn enqueue_from_clipboard(app: &tauri::AppHandle, url: String) {
             None,
             downloader,
             ytdlp_path,
+            true,
         );
 
         let next_ids = q.next_queued_ids();
