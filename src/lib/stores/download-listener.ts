@@ -268,6 +268,14 @@ export async function initDownloadListener(): Promise<() => void> {
     },
   );
 
+  const unlistenFileCopied = await listen<{ path: string }>(
+    "file-copied-to-clipboard",
+    () => {
+      const tr = get(t);
+      showToast("success", tr("toast.file_copied_to_clipboard"));
+    },
+  );
+
   const unlistenMediaPreview = await listen<{
     url: string;
     title: string;
@@ -288,6 +296,7 @@ export async function initDownloadListener(): Promise<() => void> {
     unlistenBatchFileStatus();
     unlistenConvertProgress();
     unlistenConvertComplete();
+    unlistenFileCopied();
     unlistenMediaPreview();
     if (throttleTimer !== null) {
       clearTimeout(throttleTimer);
