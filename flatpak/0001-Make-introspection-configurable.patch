@@ -1,0 +1,38 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: OmniGet <noreply@tonho.wtf>
+Subject: [PATCH] Make GObject introspection configurable
+
+Add ENABLE_INTROSPECTION cmake option so introspection can be disabled
+with -DENABLE_INTROSPECTION=OFF.
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -10,6 +10,7 @@
+ option(ENABLE_TESTS "Enable all tests and checks" OFF)
+ option(ENABLE_COVERAGE "Enable coverage reports (includes enabling all tests and checks)" OFF)
+ option(ENABLE_WERROR "Treat all build warnings as errors" OFF)
++option(ENABLE_INTROSPECTION "Enable GObject introspection" ON)
+
+ if(ENABLE_COVERAGE)
+     set(ENABLE_TESTS ON)
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -92,7 +92,7 @@
+ install(TARGETS "ayatana-ido3-0.4" LIBRARY DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}")
+
+ # AyatanaIdo3-0.4.gir
+
+-find_package(GObjectIntrospection REQUIRED QUIET)
++if (ENABLE_INTROSPECTION)
++find_package(GObjectIntrospection REQUIRED QUIET)
+
+ if (INTROSPECTION_FOUND)
+
+@@ -158,4 +158,5 @@
+
+     endif ()
+
+ endif ()
++endif ()
