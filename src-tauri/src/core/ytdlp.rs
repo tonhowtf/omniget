@@ -942,7 +942,7 @@ pub async fn download_video(
         base_args.push("5".to_string());
     }
 
-    base_args.extend(["--buffer-size".to_string(), "4M".to_string()]);
+    base_args.extend(["--buffer-size".to_string(), "16M".to_string()]);
     if !is_youtube_url(url) {
         base_args.extend(["--http-chunk-size".to_string(), "10M".to_string()]);
     }
