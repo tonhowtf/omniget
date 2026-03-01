@@ -1,14 +1,25 @@
-use std::path::PathBuf;
-
-fn managed_bin_dir() -> Option<PathBuf> {
-    dirs::data_dir().map(|d| d.join("omniget").join("bin"))
-}
-
 fn enhanced_path() -> Option<String> {
-    let bin_dir = managed_bin_dir()?;
+    let bin_dir = crate::core::paths::app_data_dir()?.join("bin");
     let sep = if cfg!(windows) { ";" } else { ":" };
     let current = std::env::var("PATH").unwrap_or_default();
-    Some(format!("{}{}{}", bin_dir.display(), sep, current))
+
+    let mut extra_dirs: Vec<String> = vec![bin_dir.display().to_string()];
+
+    #[cfg(target_os = "macos")]
+    {
+        extra_dirs.push("/opt/homebrew/bin".into());
+        extra_dirs.push("/usr/local/bin".into());
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(home) = dirs::home_dir() {
+            extra_dirs.push(home.join(".local").join("bin").display().to_string());
+        }
+        extra_dirs.push("/usr/local/bin".into());
+    }
+
+    Some(format!("{}{}{}", extra_dirs.join(sep), sep, current))
 }
 
 pub fn command<S: AsRef<std::ffi::OsStr>>(program: S) -> tokio::process::Command {
