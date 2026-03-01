@@ -21,6 +21,7 @@ export type AppSettings = {
     download_subtitles: boolean;
     hotkey_enabled: boolean;
     hotkey_binding: string;
+    copy_to_clipboard_on_hotkey: boolean;
     extra_ytdlp_flags?: string[];
   };
   proxy?: {
