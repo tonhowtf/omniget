@@ -41,7 +41,8 @@
     "download_complete": "下载完成：{{name}}",
     "download_error": "下载失败：{{name}}",
     "download_cancelled": "下载已取消",
-    "clipboard_url_detected": "检测到剪贴板中的链接"
+    "clipboard_url_detected": "检测到剪贴板中的链接",
+    "file_copied_to_clipboard": "文件已复制到剪贴板"
   },
   "hotmart": {
     "title": "Hotmart",
@@ -220,6 +221,8 @@
       "hotkey_record": "录制",
       "hotkey_type": "输入",
       "hotkey_press": "按下快捷键...",
+      "copy_to_clipboard_on_hotkey": "快捷键下载后复制文件到剪贴板",
+      "copy_to_clipboard_on_hotkey_desc": "自动将下载的文件复制到剪贴板以便粘贴",
       "filename_template": "文件名模板",
       "filename_template_desc": "yt-dlp 下载文件的输出模板",
       "filename_template_preview": "预览：{{preview}}"
