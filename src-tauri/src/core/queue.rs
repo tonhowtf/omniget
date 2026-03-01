@@ -102,6 +102,7 @@ pub struct QueueItem {
     pub media_info: Option<MediaInfo>,
     pub downloader: Arc<dyn PlatformDownloader>,
     pub ytdlp_path: Option<PathBuf>,
+    pub from_hotkey: bool,
 }
 
 impl QueueItem {
@@ -156,6 +157,7 @@ impl DownloadQueue {
         file_count: Option<u32>,
         downloader: Arc<dyn PlatformDownloader>,
         ytdlp_path: Option<PathBuf>,
+        from_hotkey: bool,
     ) {
         let item = QueueItem {
             id,
@@ -179,6 +181,7 @@ impl DownloadQueue {
             media_info,
             downloader,
             ytdlp_path,
+            from_hotkey,
         };
         self.items.push(item);
     }
@@ -448,7 +451,7 @@ async fn spawn_download_inner(
         phase: "preparing".to_string(),
     });
 
-    let (url, output_dir, download_mode, quality, format_id, referer, cancel_token, media_info, platform_name, downloader, ytdlp_path) = {
+    let (url, output_dir, download_mode, quality, format_id, referer, cancel_token, media_info, platform_name, downloader, ytdlp_path, from_hotkey) = {
         let q = queue.lock().await;
         let item = match q.items.iter().find(|i| i.id == item_id) {
             Some(i) => i,
@@ -466,6 +469,7 @@ async fn spawn_download_inner(
             item.platform.clone(),
             item.downloader.clone(),
             item.ytdlp_path.clone(),
+            item.from_hotkey,
         )
     };
 
@@ -672,6 +676,22 @@ async fn spawn_download_inner(
                 .await
                 {
                     tracing::warn!("Metadata embed failed for '{}': {}", info.title, e);
+                }
+            }
+
+            if from_hotkey && settings.download.copy_to_clipboard_on_hotkey {
+                #[cfg(not(target_os = "android"))]
+                {
+                    match crate::core::clipboard::copy_file_to_clipboard(&dl.file_path).await {
+                        Ok(()) => {
+                            let _ = app.emit("file-copied-to-clipboard", serde_json::json!({
+                                "path": dl.file_path.to_string_lossy(),
+                            }));
+                        }
+                        Err(e) => {
+                            tracing::warn!("[clipboard] failed to copy file: {}", e);
+                        }
+                    }
                 }
             }
 
