@@ -31,13 +31,18 @@
   }
 
   .quality-select {
-    padding: 6px 10px;
+    padding: 6px 28px 6px 10px;
     font-size: 14.5px;
     background: var(--button);
     border: 1px solid var(--input-border);
     border-radius: calc(var(--border-radius) - 2px);
     color: var(--secondary);
     cursor: pointer;
+    appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>');
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+    background-size: 14px;
   }
 
   .quality-select:focus-visible {
