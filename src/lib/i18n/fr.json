@@ -217,6 +217,9 @@
       "hotkey_enabled": "Raccourci global",
       "hotkey_enabled_desc": "Télécharger l'URL du presse-papiers avec un raccourci clavier",
       "hotkey_binding": "Raccourci clavier",
+      "hotkey_record": "Enregistrer",
+      "hotkey_type": "Saisir",
+      "hotkey_press": "Appuyez sur les touches...",
       "filename_template": "Modèle de nom de fichier",
       "filename_template_desc": "Modèle de sortie yt-dlp pour les fichiers téléchargés",
       "filename_template_preview": "Aperçu : {{preview}}"
