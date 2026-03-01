@@ -20,6 +20,7 @@
 }
 
 :root, [data-theme="dark"] {
+  color-scheme: dark;
   --primary: #0a0a0a;
   --secondary: #e8e8e8;
   --tertiary: #999999;
@@ -71,6 +72,7 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   --primary: #ffffff;
   --secondary: #1a1a1a;
   --tertiary: #666666;
@@ -176,6 +178,17 @@ input, textarea {
   background: none;
   color: inherit;
   user-select: text;
+}
+
+select {
+  font-family: inherit;
+  color: var(--secondary);
+  background-color: var(--input-bg);
+}
+
+option {
+  color: var(--secondary);
+  background-color: var(--input-bg);
 }
 
 img, svg {
