@@ -9,6 +9,8 @@ pub mod redirect;
 pub mod filename;
 pub mod url_parser;
 pub mod queue;
+#[cfg(not(target_os = "android"))]
+pub mod clipboard;
 
 #[cfg(not(target_os = "android"))]
 pub mod process;
