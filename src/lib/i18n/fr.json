@@ -41,7 +41,8 @@
     "download_complete": "Téléchargement terminé : {{name}}",
     "download_error": "Échec du téléchargement : {{name}}",
     "download_cancelled": "Téléchargement annulé",
-    "clipboard_url_detected": "URL détectée dans le presse-papiers"
+    "clipboard_url_detected": "URL détectée dans le presse-papiers",
+    "file_copied_to_clipboard": "Fichier copié dans le presse-papiers"
   },
   "hotmart": {
     "title": "Hotmart",
@@ -220,6 +221,8 @@
       "hotkey_record": "Enregistrer",
       "hotkey_type": "Saisir",
       "hotkey_press": "Appuyez sur les touches...",
+      "copy_to_clipboard_on_hotkey": "Copier le fichier dans le presse-papiers après téléchargement par raccourci",
+      "copy_to_clipboard_on_hotkey_desc": "Copier automatiquement le fichier téléchargé dans le presse-papiers pour un collage facile",
       "filename_template": "Modèle de nom de fichier",
       "filename_template_desc": "Modèle de sortie yt-dlp pour les fichiers téléchargés",
       "filename_template_preview": "Aperçu : {{preview}}"
