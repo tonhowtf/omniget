@@ -124,24 +124,24 @@ async fn download_ffmpeg() -> anyhow::Result<PathBuf> {
     let ffprobe_name = bin_name("ffprobe");
     let ffmpeg_target = bin_dir.join(&ffmpeg_name);
 
-    let (url, archive_type) = ffmpeg_download_url();
+    let downloads = ffmpeg_download_urls();
 
     let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
         .timeout(std::time::Duration::from_secs(300))
         .build()?;
 
-    let response = client.get(url).send().await?;
-    if !response.status().is_success() {
-        return Err(anyhow!("Failed to download FFmpeg: HTTP {}", response.status()));
-    }
+    for (url, archive_type) in downloads {
+        tracing::info!("Downloading FFmpeg component from {}", url);
+        let response = client.get(url).send().await?;
+        if !response.status().is_success() {
+            return Err(anyhow!("Failed to download FFmpeg from {}: HTTP {}", url, response.status()));
+        }
 
-    let bytes = response.bytes().await?;
+        let bytes = response.bytes().await?;
 
-    match archive_type {
-        ArchiveType::Zip => extract_zip_ffmpeg(&bytes, &bin_dir, &ffmpeg_name, &ffprobe_name).await?,
-        ArchiveType::TarXz => extract_tar_xz_ffmpeg(&bytes, &bin_dir, &ffmpeg_name, &ffprobe_name).await?,
-        ArchiveType::SingleBinary => {
-            tokio::fs::write(&ffmpeg_target, &bytes).await?;
+        match archive_type {
+            ArchiveType::Zip => extract_zip_ffmpeg(&bytes, &bin_dir, &ffmpeg_name, &ffprobe_name).await?,
+            ArchiveType::TarXz => extract_tar_xz_ffmpeg(&bytes, &bin_dir, &ffmpeg_name, &ffprobe_name).await?,
         }
     }
 
@@ -156,47 +156,64 @@ async fn download_ffmpeg() -> anyhow::Result<PathBuf> {
         }
     }
 
+    #[cfg(target_os = "macos")]
+    {
+        let _ = tokio::process::Command::new("xattr")
+            .args(["-d", "com.apple.quarantine"])
+            .arg(&ffmpeg_target)
+            .output()
+            .await;
+        let ffprobe_path = bin_dir.join(&ffprobe_name);
+        if ffprobe_path.exists() {
+            let _ = tokio::process::Command::new("xattr")
+                .args(["-d", "com.apple.quarantine"])
+                .arg(&ffprobe_path)
+                .output()
+                .await;
+        }
+    }
+
     if !ffmpeg_target.exists() {
         return Err(anyhow!("FFmpeg binary not found after extraction"));
     }
 
+    tracing::info!("FFmpeg installed to {}", ffmpeg_target.display());
     Ok(ffmpeg_target)
 }
 
 enum ArchiveType {
     Zip,
     TarXz,
-    SingleBinary,
 }
 
-fn ffmpeg_download_url() -> (&'static str, ArchiveType) {
+fn ffmpeg_download_urls() -> Vec<(&'static str, ArchiveType)> {
     if cfg!(target_os = "windows") {
-        (
+        vec![(
             "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
             ArchiveType::Zip,
-        )
+        )]
     } else if cfg!(target_os = "macos") {
         if cfg!(target_arch = "aarch64") {
-            (
-                "https://www.osxexperts.net/ffmpeg7arm.zip",
-                ArchiveType::SingleBinary,
-            )
+            vec![
+                ("https://www.osxexperts.net/ffmpeg80arm.zip", ArchiveType::Zip),
+                ("https://www.osxexperts.net/ffprobe80arm.zip", ArchiveType::Zip),
+            ]
         } else {
-            (
-                "https://www.osxexperts.net/ffmpeg7intel.zip",
-                ArchiveType::SingleBinary,
-            )
+            vec![
+                ("https://www.osxexperts.net/ffmpeg80intel.zip", ArchiveType::Zip),
+                ("https://www.osxexperts.net/ffprobe80intel.zip", ArchiveType::Zip),
+            ]
         }
     } else if cfg!(target_arch = "aarch64") {
-        (
+        vec![(
             "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz",
             ArchiveType::TarXz,
-        )
+        )]
     } else {
-        (
+        vec![(
             "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz",
             ArchiveType::TarXz,
-        )
+        )]
     }
 }
 
