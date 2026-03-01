@@ -3,7 +3,6 @@
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { onMount } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { initDownloadListener } from "$lib/stores/download-listener";
   import { getCounts } from "$lib/stores/download-store.svelte";
   import { getSettings } from "$lib/stores/settings-store.svelte";
@@ -15,11 +14,12 @@
   import ChangelogDialog from "$components/dialog/ChangelogDialog.svelte";
   import OnboardingWizard from "$components/onboarding/OnboardingWizard.svelte";
   import { needsOnboarding } from "$lib/stores/onboarding-store.svelte";
+  import { isYtdlpAvailable, isDepsChecked, refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
   import { t } from "$lib/i18n";
   import type { Snippet } from "svelte";
 
-  let ytdlpMissing = $state(false);
   let ytdlpDismissed = $state(false);
+  let ytdlpMissing = $derived(isDepsChecked() && !isYtdlpAvailable());
   let showOnboarding = $derived(needsOnboarding());
 
   async function openAuthorGithub(e: Event) {
@@ -49,7 +49,7 @@
     initDownloadListener().then((fn) => (cleanup = fn));
     refreshUpdateInfo();
     initChangelog();
-    invoke<boolean>("check_ytdlp_available").then((ok) => { ytdlpMissing = !ok; }).catch(() => {});
+    refreshYtdlpStatus();
 
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleChange = () => {
