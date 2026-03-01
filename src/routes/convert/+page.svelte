@@ -561,7 +561,7 @@
   }
 
   .select {
-    padding: calc(var(--padding) / 2) var(--padding);
+    padding: calc(var(--padding) / 2) 28px calc(var(--padding) / 2) var(--padding);
     font-size: 14.5px;
     font-weight: 500;
     background: var(--button-elevated);
@@ -570,6 +570,11 @@
     border: none;
     cursor: pointer;
     flex-shrink: 0;
+    appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>');
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 14px;
   }
 
   .select:focus-visible {
