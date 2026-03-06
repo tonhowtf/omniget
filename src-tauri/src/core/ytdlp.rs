@@ -588,25 +588,6 @@ pub async fn get_video_info(
             attempt + 1
         );
 
-        let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;
-        let stderr_reader = tokio::spawn(async move {
-            let mut buf = String::new();
-            let mut lines = BufReader::new(stderr_pipe).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                let lower = line.to_lowercase();
-                if lower.contains("extracting url") {
-                    tracing::debug!("[yt-dlp info] Extracting URL");
-                } else if lower.contains("downloading") && !lower.contains("download") {
-                    tracing::debug!("[yt-dlp info] Downloading metadata");
-                } else if lower.contains("format") {
-                    tracing::debug!("[yt-dlp info] Selecting format");
-                }
-                buf.push_str(&line);
-                buf.push('\n');
-            }
-            buf
-        });
-
         let result =
             tokio::time::timeout(std::time::Duration::from_secs(60), child.wait_with_output())
                 .await
@@ -619,7 +600,6 @@ pub async fn get_video_info(
                     anyhow!("Failed to run yt-dlp: {}", e)
                 })?;
 
-        let stderr_content = stderr_reader.await.unwrap_or_default();
         tracing::debug!(
             "[perf] get_video_info: yt-dlp process exited at {:?} (attempt {})",
             _timer_start.elapsed(),
@@ -633,11 +613,8 @@ pub async fn get_video_info(
             return Ok(json);
         }
 
-        let stderr = if stderr_content.is_empty() {
-            String::from_utf8_lossy(&result.stderr).to_string()
-        } else {
-            stderr_content
-        };
+        let stderr = String::from_utf8_lossy(&result.stderr).to_string();
+        tracing::debug!("[yt-dlp info] stderr ({} bytes): {}", stderr.len(), stderr.trim());
         let stderr_msg = extract_error_message(&stderr);
 
         let stderr_lower = stderr.to_lowercase();
