@@ -261,54 +261,8 @@ async fn check_ytdlp_freshness(path: &Path) {
 
 async fn find_ffmpeg_location() -> Option<String> {
     let _timer_start = std::time::Instant::now();
-    #[cfg(target_os = "windows")]
-    let output = crate::core::process::command("where")
-        .arg("ffmpeg.exe")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .output()
-        .await
-        .ok()?;
-
-    #[cfg(target_os = "macos")]
-    let output = crate::core::process::command("which")
-        .arg("ffmpeg")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .output()
-        .await
-        .ok()?;
-
-    #[cfg(target_os = "linux")]
-    let output = crate::core::process::command("sh")
-        .args(["-c", "command -v ffmpeg"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .output()
-        .await
-        .ok()?;
-
-    if !output.status.success() {
-        tracing::debug!(
-            "[perf] find_ffmpeg_location took {:?}",
-            _timer_start.elapsed()
-        );
-        return None;
-    }
-
-    let path_str = String::from_utf8_lossy(&output.stdout);
-    let first_line = path_str.lines().next()?.trim().to_string();
-    if first_line.is_empty() {
-        tracing::debug!(
-            "[perf] find_ffmpeg_location took {:?}",
-            _timer_start.elapsed()
-        );
-        return None;
-    }
-
-    let p = PathBuf::from(&first_line);
-    let result = if p.exists() {
-        p.parent()
+    let result = if let Some(path) = crate::core::dependencies::find_tool("ffmpeg").await {
+        path.parent()
             .and_then(|dir| dir.to_str())
             .map(|s| s.to_string())
     } else {
@@ -1124,9 +1078,21 @@ pub async fn download_video(
                     );
                 }
                 if let Some(dest) = parse_destination_line(&line) {
-                    phase += 1;
-                    let mut guard = captured_path_writer.lock().unwrap();
-                    *guard = Some(PathBuf::from(dest));
+                    let dest_path = PathBuf::from(&dest);
+                    let ext = dest_path
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .unwrap_or("")
+                        .to_lowercase();
+                    let is_subtitle = matches!(
+                        ext.as_str(),
+                        "vtt" | "srt" | "ass" | "ssa" | "sub" | "lrc"
+                    );
+                    if !is_subtitle {
+                        phase += 1;
+                        let mut guard = captured_path_writer.lock().unwrap();
+                        *guard = Some(dest_path);
+                    }
                 }
                 if line.contains("[Merger]") {
                     if 99.0 > max_reported {
