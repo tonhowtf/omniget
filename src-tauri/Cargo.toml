@@ -73,3 +73,6 @@ tauri-plugin-single-instance = "2"
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
 windows-core = "0.61"
+
+[target.'cfg(macos)'.dependencies]
+macos-accessibility-client = "0.0.1"
