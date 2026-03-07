@@ -99,8 +99,9 @@ pub fn run() {
     registry.register(Arc::new(
         platforms::generic_ytdlp::GenericYtdlpDownloader::new(),
     ));
+    let torrent_session = Arc::new(tokio::sync::Mutex::new(None));
     registry.register(Arc::new(
-        platforms::magnet::MagnetDownloader::new(),
+        platforms::magnet::MagnetDownloader::new(torrent_session),
     ));
 
     let auth_registry = core::auth::AuthRegistry::new();

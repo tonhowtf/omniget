@@ -1,21 +1,21 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use tokio::sync::mpsc;
-use librqbit::{Session, SessionOptions, AddTorrent};
+use librqbit::{Session, SessionOptions, AddTorrent, AddTorrentOptions, api::TorrentIdOrHash};
 
 use crate::models::media::{DownloadOptions, DownloadResult, MediaInfo, MediaType, VideoQuality};
 use crate::platforms::traits::PlatformDownloader;
 
-pub struct MagnetDownloader;
+type SharedSession = Arc<tokio::sync::Mutex<Option<Arc<Session>>>>;
 
-impl MagnetDownloader {
-    pub fn new() -> Self {
-        Self
-    }
+pub struct MagnetDownloader {
+    session: SharedSession,
 }
 
-impl Default for MagnetDownloader {
-    fn default() -> Self {
-        Self::new()
+impl MagnetDownloader {
+    pub fn new(session: SharedSession) -> Self {
+        Self { session }
     }
 }
 
@@ -76,41 +76,58 @@ impl PlatformDownloader for MagnetDownloader {
 
         let output_dir = &opts.output_dir;
 
-        let listen_port = opts.torrent_listen_port.unwrap_or(6881).min(65525);
-        tracing::info!("[magnet] initializing session, output: {}, port: {}", output_dir.display(), listen_port);
-        let session_opts = SessionOptions {
-            listen_port_range: Some(listen_port..listen_port.saturating_add(10)),
-            ..Default::default()
-        };
-        let session = match Session::new_with_opts(output_dir.into(), session_opts).await {
-            Ok(s) => s,
-            Err(e) => anyhow::bail!("Failed to initialize torrent session: {}", e),
+        // Get or create the shared session
+        let session = {
+            let mut guard = self.session.lock().await;
+            if let Some(s) = guard.as_ref() {
+                tracing::info!("[magnet] reusing existing session");
+                s.clone()
+            } else {
+                let listen_port = opts.torrent_listen_port.unwrap_or(6881).min(65525);
+                tracing::info!("[magnet] creating shared session, port: {}", listen_port);
+                let session_opts = SessionOptions {
+                    listen_port_range: Some(listen_port..listen_port.saturating_add(10)),
+                    ..Default::default()
+                };
+                let s = Session::new_with_opts(output_dir.into(), session_opts)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to initialize torrent session: {}", e))?;
+                *guard = Some(s.clone());
+                s
+            }
         };
 
         let add_torrent = AddTorrent::from_url(url);
+        let torrent_opts = AddTorrentOptions {
+            output_folder: Some(output_dir.to_string_lossy().to_string()),
+            overwrite: true,
+            ..Default::default()
+        };
 
-        tracing::info!("[magnet] adding torrent...");
-        let managed_torrent = match session.add_torrent(add_torrent, None).await {
-            Ok(handle) => match handle.into_handle() {
-                Some(h) => h,
-                None => anyhow::bail!("Failed to get torrent handle: torrent might have been added in a paused state or failed initialization"),
+        tracing::info!("[magnet] adding torrent, output: {}", output_dir.display());
+        let (torrent_id, managed_torrent) = match session.add_torrent(add_torrent, Some(torrent_opts)).await {
+            Ok(resp) => match resp {
+                librqbit::AddTorrentResponse::Added(id, handle) => (id, handle),
+                librqbit::AddTorrentResponse::AlreadyManaged(id, handle) => (id, handle),
+                librqbit::AddTorrentResponse::ListOnly(_) => {
+                    anyhow::bail!("Torrent was added in list-only mode");
+                }
             },
             Err(e) => anyhow::bail!("Failed to add torrent: {}", e),
         };
 
-        tracing::info!("[magnet] torrent added, waiting for download...");
+        tracing::info!("[magnet] torrent added (id={}), waiting for download...", torrent_id);
 
-        // Pin the completion future so it persists across select! iterations
         let completion = managed_torrent.wait_until_completed();
         tokio::pin!(completion);
 
         let cancel_rx = opts.cancel_token.clone();
+        let session_for_cancel = session.clone();
 
         loop {
             tokio::select! {
                 _ = tokio::time::sleep(std::time::Duration::from_millis(500)) => {
                     let stats = managed_torrent.stats();
-
                     let total = stats.total_bytes;
                     let downloaded = stats.progress_bytes;
 
@@ -126,7 +143,10 @@ impl PlatformDownloader for MagnetDownloader {
                     }
                 }
                 _ = cancel_rx.cancelled() => {
-                    tracing::info!("[magnet] download cancelled by user");
+                    tracing::info!("[magnet] download cancelled, removing torrent id={}", torrent_id);
+                    if let Err(e) = session_for_cancel.delete(TorrentIdOrHash::Id(torrent_id), false).await {
+                        tracing::warn!("[magnet] failed to delete torrent on cancel: {}", e);
+                    }
                     anyhow::bail!("Download cancelled");
                 }
                 res = &mut completion => {
@@ -134,7 +154,7 @@ impl PlatformDownloader for MagnetDownloader {
                         anyhow::bail!("Torrent download failed: {}", e);
                     }
                     let _ = progress.send(100.0).await;
-                    tracing::info!("[magnet] download complete");
+                    tracing::info!("[magnet] download complete (id={})", torrent_id);
                     break;
                 }
             }
