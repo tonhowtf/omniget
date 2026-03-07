@@ -111,6 +111,15 @@
       showToast("error", msg);
     }
   }
+
+  async function revealFile(path: string) {
+    try {
+      await invoke("reveal_file", { path });
+    } catch (e: any) {
+      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
+      showToast("error", msg);
+    }
+  }
 </script>
 
 {#if hasDownloads}
@@ -235,6 +244,36 @@
               <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
             </svg>
           </button>
+          <button
+            class="action-icon-btn"
+            onclick={() => removeItem(item.id)}
+            aria-label={$t('common.close')}
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        {:else if item.status === "complete" && item.filePath}
+          <button
+            class="action-icon-btn"
+            onclick={() => revealFile(item.filePath!)}
+            aria-label={$t('downloads.open_folder')}
+            title={$t('downloads.open_folder')}
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+            </svg>
+          </button>
+          <button
+            class="action-icon-btn"
+            onclick={() => removeItem(item.id)}
+            aria-label={$t('common.close')}
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        {:else if item.status === "complete"}
           <button
             class="action-icon-btn"
             onclick={() => removeItem(item.id)}
