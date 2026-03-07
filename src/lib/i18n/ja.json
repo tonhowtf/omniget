@@ -440,5 +440,21 @@
     "unknown_error": "不明なエラー",
     "ytdlp_missing": "yt-dlpがインストールされていません。ダウンロードを有効にするには設定からインストールしてください。",
     "go_to_settings": "設定へ移動"
+  },
+  "errors": {
+    "login_required": "ログインが必要です — ブラウザのCookieを使用するか別のURLをお試しください",
+    "rate_limited": "リクエストが多すぎます (429) — しばらく後でお試しください",
+    "access_denied": "アクセス拒否 (403) — 動画が非公開か地域制限されている可能性があります",
+    "extraction_failed": "抽出に失敗しました — yt-dlpを更新するか再試行してください",
+    "format_unavailable": "要求したフォーマットは利用できません",
+    "video_unavailable": "動画は利用できないか削除されています",
+    "video_private": "この動画は非公開です",
+    "copyright_blocked": "著作権によりブロックされています",
+    "geo_restricted": "お住まいの地域では利用できません",
+    "connection_timeout": "接続がタイムアウトしました — インターネット接続を確認してください",
+    "ffmpeg_missing": "FFmpegが見つかりません — 設定からインストールしてください",
+    "unsupported_url": "サポートされていないURL — リンクを確認してください",
+    "page_access_failed": "ページにアクセスできませんでした — リンクと接続を確認してください",
+    "no_formats": "このリンクには動画フォーマットが見つかりません"
   }
 }

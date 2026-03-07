@@ -440,5 +440,21 @@
     "unknown_error": "Erro desconhecido",
     "ytdlp_missing": "yt-dlp não está instalado. Instale nas Configurações para habilitar downloads.",
     "go_to_settings": "Ir para Configurações"
+  },
+  "errors": {
+    "login_required": "Login necessário — use cookies do navegador ou tente outro URL",
+    "rate_limited": "Muitas solicitações (429) — tente novamente mais tarde",
+    "access_denied": "Acesso negado (403) — o vídeo pode ser privado ou bloqueado por região",
+    "extraction_failed": "Extração falhou — atualize o yt-dlp ou tente novamente",
+    "format_unavailable": "Formato solicitado indisponível",
+    "video_unavailable": "Vídeo indisponível ou removido",
+    "video_private": "Este vídeo é privado",
+    "copyright_blocked": "Bloqueado por direitos autorais",
+    "geo_restricted": "Não disponível na sua região",
+    "connection_timeout": "Conexão expirou — verifique sua internet",
+    "ffmpeg_missing": "FFmpeg não encontrado — instale nas Configurações",
+    "unsupported_url": "URL não suportado — verifique o link",
+    "page_access_failed": "Não foi possível acessar a página — verifique o link e a conexão",
+    "no_formats": "Nenhum formato de vídeo encontrado para este link"
   }
 }

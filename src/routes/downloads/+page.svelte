@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
+  import { translateBackendError } from "$lib/error-translate";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import {
     getDownloads,
@@ -301,7 +302,7 @@
     {/if}
 
     {#if item.status === "error" && item.error}
-      <span class="item-error">{item.error}</span>
+      <span class="item-error">{translateBackendError(item.error, $t)}</span>
     {/if}
 
     {#if item.status !== "queued"}
@@ -368,7 +369,7 @@
     {/if}
 
     {#if item.status === "error" && item.error}
-      <span class="item-error">{item.error}</span>
+      <span class="item-error">{translateBackendError(item.error, $t)}</span>
     {/if}
 
     <div class="progress-track">

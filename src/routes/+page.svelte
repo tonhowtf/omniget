@@ -18,6 +18,7 @@
   import { onClipboardUrl } from "$lib/stores/clipboard-monitor";
   import { getMediaPreview, clearMediaPreview } from "$lib/stores/media-preview-store.svelte";
   import { t } from "$lib/i18n";
+  import { translateBackendError } from "$lib/error-translate";
 
   type PlatformInfo = {
     platform: string;
@@ -280,7 +281,7 @@
       if (gen !== formatFetchGeneration) return;
       formats = [];
       const msg = typeof e === "string" ? e : e.message ?? "";
-      formatError = msg || $t("omnibox.formats_error");
+      formatError = msg ? translateBackendError(msg, $t) : $t("omnibox.formats_error");
     } finally {
       loadingFormats = false;
     }

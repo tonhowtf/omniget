@@ -440,5 +440,21 @@
     "unknown_error": "未知错误",
     "ytdlp_missing": "未安装 yt-dlp。请在设置中安装以启用下载功能。",
     "go_to_settings": "前往设置"
+  },
+  "errors": {
+    "login_required": "需要登录 — 请使用浏览器 Cookie 或尝试其他链接",
+    "rate_limited": "请求过多 (429) — 请稍后再试",
+    "access_denied": "访问被拒绝 (403) — 视频可能是私密的或受地区限制",
+    "extraction_failed": "提取失败 — 请更新 yt-dlp 或重试",
+    "format_unavailable": "所请求的格式不可用",
+    "video_unavailable": "视频不可用或已删除",
+    "video_private": "该视频是私密的",
+    "copyright_blocked": "因版权被封锁",
+    "geo_restricted": "在您所在地区不可用",
+    "connection_timeout": "连接超时 — 请检查网络",
+    "ffmpeg_missing": "未找到 FFmpeg — 请在设置中安装",
+    "unsupported_url": "不支持的 URL — 请检查链接",
+    "page_access_failed": "无法访问该页面 — 请检查链接和连接",
+    "no_formats": "此链接未找到视频格式"
   }
 }

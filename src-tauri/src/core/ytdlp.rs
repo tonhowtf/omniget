@@ -498,6 +498,30 @@ fn is_youtube_url(url: &str) -> bool {
     lower.contains("youtube.com") || lower.contains("youtu.be")
 }
 
+/// Extracts the most meaningful error line from yt-dlp stderr output.
+/// Prefers lines starting with "ERROR:", falls back to "WARNING:", then raw trimmed output.
+fn extract_error_message(stderr: &str) -> String {
+    let error_line = stderr
+        .lines()
+        .find(|l| l.to_uppercase().contains("ERROR:"))
+        .map(|l| l.trim().to_string());
+
+    if let Some(msg) = error_line {
+        return msg;
+    }
+
+    let warning_line = stderr
+        .lines()
+        .find(|l| l.to_uppercase().contains("WARNING:"))
+        .map(|l| l.trim().to_string());
+
+    if let Some(msg) = warning_line {
+        return msg;
+    }
+
+    stderr.trim().to_string()
+}
+
 pub async fn get_video_info(
     ytdlp: &Path,
     url: &str,
@@ -552,7 +576,7 @@ pub async fn get_video_info(
         args.extend(extra_flags.iter().cloned());
         args.push(url.to_string());
 
-        let mut child = crate::core::process::command(ytdlp)
+        let child = crate::core::process::command(ytdlp)
             .args(&args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -563,25 +587,6 @@ pub async fn get_video_info(
             _timer_start.elapsed(),
             attempt + 1
         );
-
-        let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;
-        let stderr_reader = tokio::spawn(async move {
-            let mut buf = String::new();
-            let mut lines = BufReader::new(stderr_pipe).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                let lower = line.to_lowercase();
-                if lower.contains("extracting url") {
-                    tracing::debug!("[yt-dlp info] Extracting URL");
-                } else if lower.contains("downloading") && !lower.contains("download") {
-                    tracing::debug!("[yt-dlp info] Downloading metadata");
-                } else if lower.contains("format") {
-                    tracing::debug!("[yt-dlp info] Selecting format");
-                }
-                buf.push_str(&line);
-                buf.push('\n');
-            }
-            buf
-        });
 
         let result =
             tokio::time::timeout(std::time::Duration::from_secs(60), child.wait_with_output())
@@ -595,7 +600,6 @@ pub async fn get_video_info(
                     anyhow!("Failed to run yt-dlp: {}", e)
                 })?;
 
-        let stderr_content = stderr_reader.await.unwrap_or_default();
         tracing::debug!(
             "[perf] get_video_info: yt-dlp process exited at {:?} (attempt {})",
             _timer_start.elapsed(),
@@ -609,12 +613,8 @@ pub async fn get_video_info(
             return Ok(json);
         }
 
-        let stderr = if stderr_content.is_empty() {
-            String::from_utf8_lossy(&result.stderr).to_string()
-        } else {
-            stderr_content
-        };
-
+        let stderr = String::from_utf8_lossy(&result.stderr).to_string();
+        tracing::debug!("[yt-dlp info] stderr ({} bytes): {}", stderr.len(), stderr.trim());
         let stderr_lower = stderr.to_lowercase();
         if stderr_lower.contains("http error 429") {
             RATE_LIMIT_429_COUNT.fetch_add(1, Ordering::Relaxed);
@@ -649,11 +649,11 @@ pub async fn get_video_info(
         }
 
         tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-        return Err(anyhow!("yt-dlp failed: {}", stderr.trim()));
+        return Err(translate_ytdlp_error(&stderr));
     }
 
     tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-    Err(anyhow!("yt-dlp failed: {}", last_error.trim()))
+    Err(translate_ytdlp_error(&last_error))
 }
 
 pub async fn get_playlist_info(
@@ -719,7 +719,7 @@ pub async fn get_playlist_info(
                 player_client
             );
         }
-        return Err(anyhow!("yt-dlp playlist failed: {}", stderr.trim()));
+        return Err(anyhow!("yt-dlp playlist failed: {}", extract_error_message(&stderr)));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
