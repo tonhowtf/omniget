@@ -53,7 +53,7 @@
     padding: calc(var(--padding) * 0.75) var(--padding);
     background: var(--popup-bg);
     border-radius: var(--border-radius);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--content-border) inset;
     pointer-events: auto;
     animation: toast-in 0.2s ease-out;
     opacity: 1;
@@ -133,11 +133,11 @@
   @media (hover: hover) {
     .toast-close:hover {
       color: var(--secondary);
-      background: rgba(255, 255, 255, 0.06);
+      background: var(--button-stroke);
     }
   }
 
   .toast-close:active {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--content-border);
   }
 </style>
