@@ -7,6 +7,9 @@ use platforms::hotmart::auth::HotmartSession;
 use platforms::udemy::api::UdemyCourse;
 use platforms::udemy::auth::UdemySession;
 use platforms::telegram::auth::{TelegramSessionHandle, TelegramState};
+#[cfg(target_os = "macos")]
+use macos_accessibility_client::accessibility::{application_is_trusted, application_is_trusted_with_prompt};
+
 use tokio_util::sync::CancellationToken;
 
 pub mod commands;
@@ -43,6 +46,22 @@ pub struct AppState {
     pub udemy_session_validated_at: Arc<tokio::sync::Mutex<Option<std::time::Instant>>>,
     pub udemy_api_webview: Arc<tokio::sync::Mutex<Option<tauri::WebviewWindow>>>,
     pub udemy_api_result: Arc<std::sync::Mutex<Option<String>>>,
+}
+
+#[tauri::command]
+fn check_macos_accessibility(prompt: bool) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        if prompt {
+            application_is_trusted_with_prompt()
+        } else {
+            application_is_trusted()
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -148,6 +167,12 @@ pub fn run() {
         )
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
+
+            #[cfg(target_os = "macos")]
+            {
+                application_is_trusted_with_prompt();
+            }
+            
             let settings = storage::config::load_settings(app.handle());
             core::http_client::init_proxy(settings.proxy.clone());
             tray::setup(app.handle())?;
@@ -163,6 +188,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            check_macos_accessibility,
             commands::auth::hotmart_login,
             commands::auth::hotmart_check_session,
             commands::auth::hotmart_logout,
@@ -229,6 +255,7 @@ pub fn run() {
             commands::udemy_courses::udemy_refresh_courses,
             commands::udemy_downloads::start_udemy_course_download,
             commands::udemy_downloads::cancel_udemy_course_download,
+            
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
