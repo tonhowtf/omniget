@@ -32,7 +32,8 @@
     "phase_preparing": "Preparando download...",
     "cancel": "Cancelar",
     "clear_finished": "Limpar finalizados",
-    "show_more": "Mostrar mais {{count}}"
+    "show_more": "Mostrar mais {{count}}",
+    "open_folder": "Abrir pasta"
   },
   "toast": {
     "download_preparing": "Preparando download...",
