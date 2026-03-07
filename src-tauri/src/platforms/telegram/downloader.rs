@@ -299,6 +299,7 @@ impl PlatformDownloader for TelegramDownloader {
                         file_path: output_path,
                         file_size_bytes: size,
                         duration_seconds: 0.0,
+                        torrent_id: None,
                     });
                 }
                 Err(e) => {

@@ -825,6 +825,21 @@
         </div>
         <div class="divider"></div>
         <div class="setting-row">
+          <div class="setting-col">
+            <span class="setting-label">{$t('settings.advanced.torrent_listen_port')}</span>
+            <span class="setting-path">{$t('settings.advanced.torrent_listen_port_desc')}</span>
+          </div>
+          <input
+            type="number"
+            class="input-number"
+            min="1024"
+            max="65525"
+            value={settings.advanced.torrent_listen_port}
+            onchange={(e) => changeNumber("advanced", "torrent_listen_port", e)}
+          />
+        </div>
+        <div class="divider"></div>
+        <div class="setting-row">
           <span class="setting-label">{$t('settings.advanced.reset')}</span>
           <button class="button reset-btn" onclick={handleReset} disabled={resetting}>
             {$t('settings.advanced.reset')}

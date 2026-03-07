@@ -1,5 +1,5 @@
 const POLL_INTERVAL = 2000;
-const URL_PATTERN = /^https?:\/\/.+/;
+const URL_PATTERN = /^(https?:\/\/|magnet:\?).+/;
 
 type ClipboardCallback = (url: string) => void;
 

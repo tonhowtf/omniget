@@ -42,6 +42,7 @@ pub fn parse_url(url_str: &str) -> Option<ParsedUrl> {
         Platform::Telegram => parse_telegram(&segments),
         Platform::Vimeo => parse_vimeo(&segments),
         Platform::Udemy => parse_udemy(&segments),
+        Platform::Other(_) => (None, ParsedContentType::Unknown),
     };
 
     Some(ParsedUrl {

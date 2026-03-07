@@ -17,7 +17,8 @@
       "downloading": "En cours",
       "paused": "En pause",
       "complete": "Terminé",
-      "error": "Erreur"
+      "error": "Erreur",
+      "seeding": "En partage"
     },
     "section_queued": "En file d'attente",
     "section_finished": "Terminés",
@@ -33,7 +34,8 @@
     "cancel": "Annuler",
     "clear_finished": "Effacer les terminés",
     "show_more": "Afficher {{count}} de plus",
-    "open_folder": "Afficher dans le dossier"
+    "open_folder": "Afficher dans le dossier",
+    "stop": "Arrêter"
   },
   "toast": {
     "download_preparing": "Préparation du téléchargement...",
@@ -259,7 +261,9 @@
       "stagger_delay": "Délai d'espacement (ms)",
       "stagger_delay_desc": "Délai entre le démarrage des téléchargements simultanés",
       "reset": "Réinitialiser les paramètres",
-      "reset_confirm": "Êtes-vous sûr ? Tous les paramètres seront réinitialisés."
+      "reset_confirm": "Êtes-vous sûr ? Tous les paramètres seront réinitialisés.",
+      "torrent_listen_port": "Port d’écoute torrent",
+      "torrent_listen_port_desc": "Port TCP pour les connexions BitTorrent entrantes"
     }
   },
   "omnibox": {

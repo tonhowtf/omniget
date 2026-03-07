@@ -4,7 +4,7 @@ use std::fmt;
 use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Platform {
     Hotmart,
@@ -19,6 +19,7 @@ pub enum Platform {
     Telegram,
     Vimeo,
     Udemy,
+    Other(String),
 }
 
 impl fmt::Display for Platform {
@@ -36,6 +37,7 @@ impl fmt::Display for Platform {
             Platform::Telegram => "telegram",
             Platform::Vimeo => "vimeo",
             Platform::Udemy => "udemy",
+            Platform::Other(ref name) => name.as_str(),
         };
         write!(f, "{}", name)
     }
@@ -65,6 +67,11 @@ impl FromStr for Platform {
 
 impl Platform {
     pub fn from_url(url_str: &str) -> Option<Self> {
+        // Magnet links have no hostname, detect by scheme prefix
+        if url_str.starts_with("magnet:") {
+            return Some(Platform::Other("magnet".to_string()));
+        }
+
         let parsed = url::Url::parse(url_str).ok()?;
         let host = parsed.host_str()?.to_lowercase();
 

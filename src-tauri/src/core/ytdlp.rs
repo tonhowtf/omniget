@@ -1218,6 +1218,7 @@ pub async fn download_video(
                 file_path,
                 file_size_bytes: meta.len(),
                 duration_seconds: 0.0,
+                torrent_id: None,
             });
         }
 

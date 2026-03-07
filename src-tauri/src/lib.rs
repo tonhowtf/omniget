@@ -43,6 +43,7 @@ pub struct AppState {
     pub udemy_session_validated_at: Arc<tokio::sync::Mutex<Option<std::time::Instant>>>,
     pub udemy_api_webview: Arc<tokio::sync::Mutex<Option<tauri::WebviewWindow>>>,
     pub udemy_api_result: Arc<std::sync::Mutex<Option<String>>>,
+    pub torrent_session: Arc<tokio::sync::Mutex<Option<Arc<librqbit::Session>>>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -95,6 +96,11 @@ pub fn run() {
             telegram_session.clone(),
         ),
     ));
+    let torrent_session: Arc<tokio::sync::Mutex<Option<Arc<librqbit::Session>>>> =
+        Arc::new(tokio::sync::Mutex::new(None));
+    registry.register(Arc::new(
+        platforms::magnet::MagnetDownloader::new(torrent_session.clone()),
+    ));
     // Generic yt-dlp fallback — MUST be last so specific downloaders take priority
     registry.register(Arc::new(
         platforms::generic_ytdlp::GenericYtdlpDownloader::new(),
@@ -118,13 +124,14 @@ pub fn run() {
         udemy_session_validated_at: Arc::new(tokio::sync::Mutex::new(None)),
         udemy_api_webview: Arc::new(tokio::sync::Mutex::new(None)),
         udemy_api_result: Arc::new(std::sync::Mutex::new(None)),
+        torrent_session,
     };
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             tray::show_window(app);
             if let Some(url) = argv.get(1) {
-                if url.starts_with("http://") || url.starts_with("https://") {
+                if url.starts_with("http://") || url.starts_with("https://") || url.starts_with("magnet:") {
                     let _ = app.emit("deep-link", url.clone());
                 }
             }

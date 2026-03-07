@@ -549,6 +549,7 @@ impl PlatformDownloader for TwitterDownloader {
                 file_path: output,
                 file_size_bytes: bytes,
                 duration_seconds: 0.0,
+                torrent_id: None,
             });
         }
 
@@ -585,6 +586,7 @@ impl PlatformDownloader for TwitterDownloader {
             file_path: last_path,
             file_size_bytes: total_bytes,
             duration_seconds: 0.0,
+            torrent_id: None,
         })
     }
 }

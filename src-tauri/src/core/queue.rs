@@ -59,6 +59,7 @@ pub enum QueueStatus {
     Queued,
     Active,
     Paused,
+    Seeding,
     Complete { success: bool },
     Error { message: String },
 }
@@ -103,6 +104,7 @@ pub struct QueueItem {
     pub downloader: Arc<dyn PlatformDownloader>,
     pub ytdlp_path: Option<PathBuf>,
     pub from_hotkey: bool,
+    pub torrent_id: Option<usize>,
 }
 
 impl QueueItem {
@@ -182,6 +184,7 @@ impl DownloadQueue {
             downloader,
             ytdlp_path,
             from_hotkey,
+            torrent_id: None,
         };
         self.items.push(item);
     }
@@ -233,6 +236,23 @@ impl DownloadQueue {
         }
     }
 
+    pub fn mark_seeding(
+        &mut self,
+        id: u64,
+        file_path: Option<String>,
+        file_size_bytes: Option<u64>,
+        torrent_id: Option<usize>,
+    ) {
+        if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
+            item.status = QueueStatus::Seeding;
+            item.percent = 100.0;
+            item.file_path = file_path;
+            item.file_size_bytes = file_size_bytes;
+            item.speed_bytes_per_sec = 0.0;
+            item.torrent_id = torrent_id;
+        }
+    }
+
     pub fn update_progress(
         &mut self,
         id: u64,
@@ -240,6 +260,7 @@ impl DownloadQueue {
         speed: f64,
         downloaded: u64,
         total: Option<u64>,
+        torrent_id: Option<usize>,
     ) {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
             item.percent = percent;
@@ -248,13 +269,18 @@ impl DownloadQueue {
             if let Some(t) = total {
                 item.total_bytes = Some(t);
             }
+            if torrent_id.is_some() && item.torrent_id.is_none() {
+                item.torrent_id = torrent_id;
+            }
         }
     }
 
     pub fn pause(&mut self, id: u64) -> bool {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
             if item.status == QueueStatus::Active {
-                item.cancel_token.cancel();
+                if item.platform != "magnet" {
+                    item.cancel_token.cancel();
+                }
                 item.status = QueueStatus::Paused;
                 item.speed_bytes_per_sec = 0.0;
                 return true;
@@ -266,15 +292,20 @@ impl DownloadQueue {
     pub fn resume(&mut self, id: u64) -> bool {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
             if item.status == QueueStatus::Paused {
-                item.status = QueueStatus::Queued;
-                item.cancel_token = CancellationToken::new();
+                if item.platform == "magnet" {
+                    item.status = QueueStatus::Active;
+                } else {
+                    item.status = QueueStatus::Queued;
+                    item.cancel_token = CancellationToken::new();
+                }
                 return true;
             }
         }
         false
     }
 
-    pub fn cancel(&mut self, id: u64) -> bool {
+    /// Cancel an item. Returns the torrent_id if the item needs torrent cleanup (caller should delete from session).
+    pub fn cancel(&mut self, id: u64) -> (bool, Option<usize>) {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
             match &item.status {
                 QueueStatus::Active => {
@@ -283,18 +314,38 @@ impl DownloadQueue {
                         message: "Cancelled".to_string(),
                     };
                     item.speed_bytes_per_sec = 0.0;
-                    return true;
+                    return (true, None);
                 }
-                QueueStatus::Queued | QueueStatus::Paused => {
+                QueueStatus::Seeding => {
+                    let tid = item.torrent_id;
                     item.status = QueueStatus::Error {
                         message: "Cancelled".to_string(),
                     };
-                    return true;
+                    item.speed_bytes_per_sec = 0.0;
+                    return (true, tid);
+                }
+                QueueStatus::Paused => {
+                    // For magnet downloads, the cancel_token was not cancelled during pause,
+                    // so we must cancel it now to stop the background download loop.
+                    // Also return the torrent_id for session cleanup.
+                    item.cancel_token.cancel();
+                    let tid = if item.platform == "magnet" { item.torrent_id } else { None };
+                    item.status = QueueStatus::Error {
+                        message: "Cancelled".to_string(),
+                    };
+                    item.speed_bytes_per_sec = 0.0;
+                    return (true, tid);
+                }
+                QueueStatus::Queued => {
+                    item.status = QueueStatus::Error {
+                        message: "Cancelled".to_string(),
+                    };
+                    return (true, None);
                 }
                 _ => {}
             }
         }
-        false
+        (false, None)
     }
 
     pub fn retry(&mut self, id: u64) -> bool {
@@ -313,16 +364,28 @@ impl DownloadQueue {
         false
     }
 
-    pub fn remove(&mut self, id: u64) -> bool {
+    /// Remove an item. Returns the torrent_id if the item needs torrent cleanup (caller should delete from session).
+    pub fn remove(&mut self, id: u64) -> Option<Option<usize>> {
         if let Some(pos) = self.items.iter().position(|i| i.id == id) {
             let item = &self.items[pos];
             if item.status == QueueStatus::Active {
                 item.cancel_token.cancel();
             }
+            // For paused magnet items, the cancel_token was not cancelled during pause
+            if item.status == QueueStatus::Paused && item.platform == "magnet" {
+                item.cancel_token.cancel();
+            }
+            let torrent_id = if item.status == QueueStatus::Seeding
+                || (item.status == QueueStatus::Paused && item.platform == "magnet")
+            {
+                item.torrent_id
+            } else {
+                None
+            };
             self.items.remove(pos);
-            return true;
+            return Some(torrent_id);
         }
-        false
+        None
     }
 
     pub fn clear_finished(&mut self) {
@@ -343,7 +406,7 @@ impl DownloadQueue {
             i.url == url
                 && matches!(
                     i.status,
-                    QueueStatus::Queued | QueueStatus::Active | QueueStatus::Paused
+                    QueueStatus::Queued | QueueStatus::Active | QueueStatus::Paused | QueueStatus::Seeding
                 )
         })
     }
@@ -545,6 +608,7 @@ async fn spawn_download_inner(
     if settings.download.organize_by_platform {
         final_output_dir = final_output_dir.join(&platform_name);
     }
+    let torrent_id_slot = Arc::new(tokio::sync::Mutex::new(None));
     let opts = crate::models::media::DownloadOptions {
         quality: quality.or_else(|| Some(settings.download.video_quality.clone())),
         output_dir: final_output_dir,
@@ -556,6 +620,8 @@ async fn spawn_download_inner(
         cancel_token: cancel_token.clone(),
         concurrent_fragments: settings.advanced.concurrent_fragments,
         ytdlp_path,
+        torrent_listen_port: Some(settings.advanced.torrent_listen_port),
+        torrent_id_slot: Some(torrent_id_slot.clone()),
     };
 
     let total_bytes = info.file_size_bytes;
@@ -565,6 +631,7 @@ async fn spawn_download_inner(
 
     let app_progress = app.clone();
     let queue_progress = queue.clone();
+    let torrent_id_slot_progress = torrent_id_slot.clone();
     let progress_forwarder = tokio::spawn(async move {
         let mut last_bytes: u64 = 0;
         let mut last_time = std::time::Instant::now();
@@ -606,7 +673,8 @@ async fn spawn_download_inner(
 
             {
                 let mut q = queue_progress.lock().await;
-                q.update_progress(item_id, clamped, current_speed, downloaded_bytes, total_bytes);
+                let tid = { *torrent_id_slot_progress.lock().await };
+                q.update_progress(item_id, clamped, current_speed, downloaded_bytes, total_bytes, tid);
             }
 
             let _ = app_progress.emit("queue-item-progress", &QueueItemProgress {
@@ -654,7 +722,7 @@ async fn spawn_download_inner(
 
     match result {
         Ok(dl) => {
-            if settings.download.embed_metadata && ffmpeg::is_ffmpeg_available().await {
+            if settings.download.embed_metadata && platform_name != "magnet" && ffmpeg::is_ffmpeg_available().await {
                 let metadata = MetadataEmbed {
                     title: Some(info.title.clone()),
                     artist: Some(info.author.clone()),
@@ -691,13 +759,22 @@ async fn spawn_download_inner(
 
             let state = {
                 let mut q = queue.lock().await;
-                q.mark_complete(
-                    item_id,
-                    true,
-                    None,
-                    Some(dl.file_path.to_string_lossy().to_string()),
-                    Some(dl.file_size_bytes),
-                );
+                if platform_name == "magnet" && dl.torrent_id.is_some() {
+                    q.mark_seeding(
+                        item_id,
+                        Some(dl.file_path.to_string_lossy().to_string()),
+                        Some(dl.file_size_bytes),
+                        dl.torrent_id,
+                    );
+                } else {
+                    q.mark_complete(
+                        item_id,
+                        true,
+                        None,
+                        Some(dl.file_path.to_string_lossy().to_string()),
+                        Some(dl.file_size_bytes),
+                    );
+                }
                 q.get_state()
             };
             emit_queue_state_from_state(&app, state);

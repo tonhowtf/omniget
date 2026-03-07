@@ -251,6 +251,7 @@ impl PlatformDownloader for PinterestDownloader {
             file_path: output_path,
             file_size_bytes: total_bytes,
             duration_seconds: 0.0,
+            torrent_id: None,
         })
     }
 }

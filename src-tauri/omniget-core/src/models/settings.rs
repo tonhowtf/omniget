@@ -65,6 +65,8 @@ pub struct AdvancedSettings {
     pub concurrent_fragments: u32,
     #[serde(default = "default_stagger_delay_ms")]
     pub stagger_delay_ms: u64,
+    #[serde(default = "default_torrent_listen_port")]
+    pub torrent_listen_port: u16,
 }
 
 fn default_concurrent_fragments() -> u32 {
@@ -77,6 +79,10 @@ fn default_max_concurrent_downloads() -> u32 {
 
 fn default_stagger_delay_ms() -> u64 {
     150
+}
+
+fn default_torrent_listen_port() -> u16 {
+    6881
 }
 
 fn default_true() -> bool {
@@ -162,6 +168,7 @@ impl Default for AppSettings {
                 max_concurrent_downloads: 2,
                 concurrent_fragments: 8,
                 stagger_delay_ms: 150,
+                torrent_listen_port: 6881,
             },
             telegram: TelegramSettings::default(),
             proxy: ProxySettings::default(),

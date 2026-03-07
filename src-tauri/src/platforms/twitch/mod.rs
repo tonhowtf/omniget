@@ -299,6 +299,7 @@ impl PlatformDownloader for TwitchClipsDownloader {
             file_path: output_path,
             file_size_bytes: total_bytes,
             duration_seconds: info.duration_seconds.unwrap_or(0.0),
+            torrent_id: None,
         })
     }
 }

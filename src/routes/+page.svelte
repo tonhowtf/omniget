@@ -156,7 +156,7 @@
   );
 
   function isUrl(value: string): boolean {
-    return value.startsWith("http://") || value.startsWith("https://");
+    return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("magnet:");
   }
 
   function handleInput() {

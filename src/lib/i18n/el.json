@@ -17,7 +17,8 @@
       "downloading": "Λήψη",
       "paused": "Σε παύση",
       "complete": "Ολοκληρωμένη",
-      "error": "Σφάλμα"
+      "error": "Σφάλμα",
+      "seeding": "Διαμοιρασμός"
     },
     "section_queued": "Στην ουρά",
     "section_finished": "Ολοκληρωμένη",
@@ -33,7 +34,8 @@
     "cancel": "Ακύρωση",
     "clear_finished": "Εκκαθάριση των ολοκληρωμένων",
     "show_more": "Δείξε {{count}} περισσότερα",
-    "open_folder": "Εμφάνιση στο φάκελο"
+    "open_folder": "Εμφάνιση στο φάκελο",
+    "stop": "Διακοπή"
   },
   "toast": {
     "download_preparing": "Προετοιμασία λήψης...",

@@ -139,7 +139,7 @@
     const item = downloads.get(courseId);
     if (!item) return "idle";
     const s = item.status;
-    if (s === "queued" || s === "paused") return "downloading";
+    if (s === "queued" || s === "paused" || s === "seeding") return "downloading";
     return s;
   }
 

@@ -17,7 +17,8 @@
       "downloading": "Downloading",
       "paused": "Paused",
       "complete": "Complete",
-      "error": "Error"
+      "error": "Error",
+      "seeding": "Seeding"
     },
     "section_queued": "Queued",
     "section_finished": "Finished",
@@ -33,7 +34,8 @@
     "cancel": "Cancel",
     "clear_finished": "Clear finished",
     "show_more": "Show {{count}} more",
-    "open_folder": "Show in folder"
+    "open_folder": "Show in folder",
+    "stop": "Stop"
   },
   "toast": {
     "download_preparing": "Preparing download...",
@@ -271,11 +273,13 @@
       "stagger_delay": "Stagger delay (ms)",
       "stagger_delay_desc": "Delay between starting concurrent downloads",
       "reset": "Reset defaults",
-      "reset_confirm": "Are you sure? All settings will be reset."
+      "reset_confirm": "Are you sure? All settings will be reset.",
+      "torrent_listen_port": "Torrent listen port",
+      "torrent_listen_port_desc": "TCP port for incoming BitTorrent connections"
     }
   },
   "omnibox": {
-    "placeholder": "Paste a URL or search",
+    "placeholder": "Paste a URL, magnet link, or search",
     "search_placeholder": "Search videos...",
     "searching": "Searching...",
     "search_empty": "No results found",

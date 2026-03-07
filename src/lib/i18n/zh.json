@@ -17,7 +17,8 @@
       "downloading": "下载中",
       "paused": "已暂停",
       "complete": "已完成",
-      "error": "错误"
+      "error": "错误",
+      "seeding": "做种中"
     },
     "section_queued": "排队中",
     "section_finished": "已完成",
@@ -33,7 +34,8 @@
     "cancel": "取消",
     "clear_finished": "清除已完成",
     "show_more": "显示更多 {{count}} 项",
-    "open_folder": "在文件夹中显示"
+    "open_folder": "在文件夹中显示",
+    "stop": "停止"
   },
   "toast": {
     "download_preparing": "正在准备下载...",

@@ -29,7 +29,7 @@
     const queued: GenericDownloadItem[] = [];
     const finished: GenericDownloadItem[] = [];
     for (const d of genericList) {
-      if (d.status === "downloading") active.push(d);
+      if (d.status === "downloading" || d.status === "seeding") active.push(d);
       else if (d.status === "paused") paused.push(d);
       else if (d.status === "queued") queued.push(d);
       else finished.push(d);
@@ -214,6 +214,29 @@
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
+        {:else if item.status === "seeding"}
+          {#if item.filePath}
+            <button
+              class="action-icon-btn"
+              onclick={() => revealFile(item.filePath!)}
+              aria-label={$t('downloads.open_folder')}
+              title={$t('downloads.open_folder')}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+              </svg>
+            </button>
+          {/if}
+          <button
+            class="action-icon-btn"
+            onclick={() => removeItem(item.id)}
+            aria-label={$t('downloads.stop')}
+            title={$t('downloads.stop')}
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <rect x="6" y="6" width="12" height="12" />
+            </svg>
+          </button>
         {:else if item.status === "paused"}
           <button
             class="action-icon-btn"
@@ -323,6 +346,17 @@
           {/if}
         </div>
       {/if}
+    {:else if item.status === "seeding"}
+      <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
+      <div class="item-stats">
+        {#if item.totalBytes}
+          <span>{formatBytes(item.totalBytes)}</span>
+          <span class="stats-sep">&middot;</span>
+        {/if}
+        {#if item.speed > 0}
+          <span>{formatSpeed(item.speed)}</span>
+        {/if}
+      </div>
     {:else if item.status === "paused"}
       <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
       {#if item.downloadedBytes > 0}
@@ -605,6 +639,11 @@
     color: var(--on-accent);
   }
 
+  .item-status[data-status="seeding"] {
+    background: var(--green);
+    color: var(--on-success);
+  }
+
   .item-status[data-status="complete"] {
     background: var(--green);
     color: var(--on-success);
@@ -670,6 +709,10 @@
 
   .progress-fill[data-status="downloading"] {
     background: var(--blue);
+  }
+
+  .progress-fill[data-status="seeding"] {
+    background: var(--green);
   }
 
   .progress-fill[data-status="complete"] {

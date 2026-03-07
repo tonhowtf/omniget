@@ -22,3 +22,4 @@ pub mod vimeo;
 pub mod generic_ytdlp;
 #[cfg(not(target_os = "android"))]
 pub mod udemy;
+pub mod magnet;

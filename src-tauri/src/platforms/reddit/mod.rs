@@ -551,6 +551,7 @@ impl PlatformDownloader for RedditDownloader {
                             file_path: output,
                             file_size_bytes: file_size,
                             duration_seconds: info.duration_seconds.unwrap_or(0.0),
+                            torrent_id: None,
                         })
                     } else {
                         let video_final = opts.output_dir.join(format!(
@@ -576,6 +577,7 @@ impl PlatformDownloader for RedditDownloader {
                             file_path: video_final,
                             file_size_bytes: video_bytes,
                             duration_seconds: info.duration_seconds.unwrap_or(0.0),
+                            torrent_id: None,
                         })
                     }
                 } else {
@@ -595,6 +597,7 @@ impl PlatformDownloader for RedditDownloader {
                         file_path: output,
                         file_size_bytes: bytes,
                         duration_seconds: info.duration_seconds.unwrap_or(0.0),
+                        torrent_id: None,
                     })
                 }
             }
@@ -616,6 +619,7 @@ impl PlatformDownloader for RedditDownloader {
                     file_path: output,
                     file_size_bytes: bytes,
                     duration_seconds: 0.0,
+                    torrent_id: None,
                 })
             }
             MediaType::Photo => {
@@ -637,6 +641,7 @@ impl PlatformDownloader for RedditDownloader {
                     file_path: output,
                     file_size_bytes: bytes,
                     duration_seconds: 0.0,
+                    torrent_id: None,
                 })
             }
             MediaType::Carousel => {
@@ -674,6 +679,7 @@ impl PlatformDownloader for RedditDownloader {
                     file_path: last_path,
                     file_size_bytes: total_bytes,
                     duration_seconds: 0.0,
+                    torrent_id: None,
                 })
             }
             _ => Err(anyhow!("Unsupported media type")),

@@ -48,6 +48,8 @@ pub struct DownloadOptions {
     pub cancel_token: CancellationToken,
     pub concurrent_fragments: u32,
     pub ytdlp_path: Option<PathBuf>,
+    pub torrent_listen_port: Option<u16>,
+    pub torrent_id_slot: Option<std::sync::Arc<tokio::sync::Mutex<Option<usize>>>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,6 +74,9 @@ pub struct DownloadResult {
     pub file_path: PathBuf,
     pub file_size_bytes: u64,
     pub duration_seconds: f64,
+    /// Torrent ID within the shared librqbit session (magnet downloads only).
+    #[serde(default)]
+    pub torrent_id: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

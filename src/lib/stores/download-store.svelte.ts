@@ -1,4 +1,4 @@
-export type DownloadStatus = "queued" | "downloading" | "paused" | "complete" | "error";
+export type DownloadStatus = "queued" | "downloading" | "paused" | "complete" | "error" | "seeding";
 
 type BaseItem = {
   id: number;
@@ -71,7 +71,8 @@ export function getCounts(): DownloadCounts {
   let active = 0, queued = 0, paused = 0, finished = 0;
   for (const item of downloads.values()) {
     switch (item.status) {
-      case "downloading": active++; break;
+      case "downloading":
+      case "seeding": active++; break;
       case "queued": queued++; break;
       case "paused": paused++; break;
       case "complete":
@@ -204,6 +205,7 @@ function queueStatusToDownloadStatus(status: { type: string; data?: unknown }): 
     case "Queued": return "queued";
     case "Active": return "downloading";
     case "Paused": return "paused";
+    case "Seeding": return "seeding";
     case "Complete": return "complete";
     case "Error": return "error";
     default: return "queued";
@@ -245,7 +247,7 @@ export function syncQueueState(items: QueueItemInfo[]) {
       name: qi.title,
       platform: qi.platform,
       percent: Math.max(0, qi.percent),
-      speed: dlStatus === "downloading" ? speed : 0,
+      speed: (dlStatus === "downloading" || dlStatus === "seeding") ? speed : 0,
       downloadedBytes: qi.downloaded_bytes,
       totalBytes: qi.total_bytes,
       phase: (existing?.kind === "generic" ? existing.phase : undefined) ?? "queued",
@@ -305,17 +307,23 @@ export function upsertGenericProgress(
     speed = existing.speed * (1 - SPEED_SMOOTHING) + speedBytesPerSec * SPEED_SMOOTHING;
   }
 
+  // Preserve non-downloading statuses (paused, seeding, complete, error)
+  // to avoid race conditions with queue-state-update events
+  const keepStatus = existing?.kind === "generic"
+    && (existing.status === "paused" || existing.status === "seeding" || existing.status === "complete" || existing.status === "error");
+  const resolvedStatus: DownloadStatus = keepStatus ? existing!.status : "downloading";
+
   downloads.set(id, {
     kind: "generic",
     id,
     name: title,
     platform,
     percent: Math.max(0, percent),
-    speed,
+    speed: resolvedStatus === "downloading" ? speed : 0,
     downloadedBytes,
     totalBytes,
     phase,
-    status: "downloading",
+    status: resolvedStatus,
     startedAt: existing?.startedAt ?? now,
     lastUpdateAt: now,
   });

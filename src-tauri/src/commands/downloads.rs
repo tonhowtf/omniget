@@ -240,14 +240,20 @@ pub async fn cancel_generic_download(
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
-    let state_to_emit = {
+    let (state_to_emit, seeding_torrent_id) = {
         let mut q = state.download_queue.lock().await;
-        if q.cancel(download_id) {
-            Some(q.get_state())
+        let (cancelled, torrent_id) = q.cancel(download_id);
+        if cancelled {
+            (Some(q.get_state()), torrent_id)
         } else {
-            None
+            (None, None)
         }
     };
+    if let Some(tid) = seeding_torrent_id {
+        if let Some(session) = state.torrent_session.lock().await.as_ref() {
+            let _ = session.delete(librqbit::api::TorrentIdOrHash::Id(tid), false).await;
+        }
+    }
     if let Some(s) = state_to_emit {
         emit_queue_state_from_state(&app, s);
         queue::try_start_next(app, state.download_queue.clone()).await;
@@ -263,14 +269,22 @@ pub async fn pause_download(
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
-    let state_to_emit = {
+    let (state_to_emit, torrent_id) = {
         let mut q = state.download_queue.lock().await;
         if q.pause(download_id) {
-            Some(q.get_state())
+            let tid = q.items.iter().find(|i| i.id == download_id).and_then(|i| i.torrent_id);
+            (Some(q.get_state()), tid)
         } else {
-            None
+            (None, None)
         }
     };
+    if let Some(tid) = torrent_id {
+        if let Some(session) = state.torrent_session.lock().await.as_ref() {
+            if let Some(handle) = session.get(librqbit::api::TorrentIdOrHash::Id(tid)) {
+                let _ = session.pause(&handle).await;
+            }
+        }
+    }
     if let Some(s) = state_to_emit {
         emit_queue_state_from_state(&app, s);
         queue::try_start_next(app, state.download_queue.clone()).await;
@@ -286,14 +300,22 @@ pub async fn resume_download(
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
-    let state_to_emit = {
+    let (state_to_emit, torrent_id) = {
         let mut q = state.download_queue.lock().await;
         if q.resume(download_id) {
-            Some(q.get_state())
+            let tid = q.items.iter().find(|i| i.id == download_id).and_then(|i| i.torrent_id);
+            (Some(q.get_state()), tid)
         } else {
-            None
+            (None, None)
         }
     };
+    if let Some(tid) = torrent_id {
+        if let Some(session) = state.torrent_session.lock().await.as_ref() {
+            if let Some(handle) = session.get(librqbit::api::TorrentIdOrHash::Id(tid)) {
+                let _ = session.unpause(&handle).await;
+            }
+        }
+    }
     if let Some(s) = state_to_emit {
         emit_queue_state_from_state(&app, s);
         queue::try_start_next(app, state.download_queue.clone()).await;
@@ -332,14 +354,18 @@ pub async fn remove_download(
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
-    let state_to_emit = {
+    let (state_to_emit, seeding_torrent_id) = {
         let mut q = state.download_queue.lock().await;
-        if q.remove(download_id) {
-            Some(q.get_state())
-        } else {
-            None
+        match q.remove(download_id) {
+            Some(torrent_id) => (Some(q.get_state()), torrent_id),
+            None => (None, None),
         }
     };
+    if let Some(tid) = seeding_torrent_id {
+        if let Some(session) = state.torrent_session.lock().await.as_ref() {
+            let _ = session.delete(librqbit::api::TorrentIdOrHash::Id(tid), false).await;
+        }
+    }
     if let Some(s) = state_to_emit {
         emit_queue_state_from_state(&app, s);
         queue::try_start_next(app, state.download_queue.clone()).await;
@@ -395,8 +421,9 @@ pub async fn clear_finished_downloads(
 pub async fn reveal_file(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         std::process::Command::new("explorer")
-            .args(["/select,", &path])
+            .raw_arg(format!("/select,\"{}\"", path))
             .spawn()
             .map_err(|e| e.to_string())?;
     }
@@ -411,31 +438,98 @@ pub async fn reveal_file(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "linux")]
     {
-        let file_path = std::path::Path::new(&path);
-        let dir = file_path.parent().unwrap_or(file_path);
+        use std::path::{Path, PathBuf};
+        use std::process::Stdio;
 
-        let portal_result = tokio::process::Command::new("gdbus")
+        let file_path = Path::new(&path);
+        let abs_path: PathBuf = if file_path.is_absolute() {
+            file_path.to_path_buf()
+        } else {
+            std::env::current_dir()
+                .map(|cwd| cwd.join(file_path))
+                .unwrap_or_else(|_| file_path.to_path_buf())
+        };
+
+        let dir_path = abs_path.parent().unwrap_or(&abs_path);
+        let item_uri = url::Url::from_file_path(&abs_path)
+            .or_else(|_| url::Url::from_file_path(file_path))
+            .map(|u| u.to_string())
+            .unwrap_or_else(|_| format!("file://{}", abs_path.display()));
+        let dir_uri = url::Url::from_directory_path(dir_path)
+            .map(|u| u.to_string())
+            .unwrap_or_else(|_| format!("file://{}", dir_path.display()));
+
+        let gdbus_show_items_arg =
+            format!("[\"{}\"]", item_uri.replace('\\', "\\\\").replace('"', "\\\""));
+        let show_items_with_gdbus = tokio::process::Command::new("gdbus")
             .args([
-                "call", "--session",
-                "--dest", "org.freedesktop.portal.Desktop",
-                "--object-path", "/org/freedesktop/portal/desktop",
-                "--method", "org.freedesktop.portal.OpenURI.OpenDirectory",
+                "call",
+                "--session",
+                "--dest",
+                "org.freedesktop.FileManager1",
+                "--object-path",
+                "/org/freedesktop/FileManager1",
+                "--method",
+                "org.freedesktop.FileManager1.ShowItems",
+                &gdbus_show_items_arg,
                 "",
-                &format!("file://{}", dir.display()),
-                "{}",
             ])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .status()
-            .await;
+            .await
+            .map(|s| s.success())
+            .unwrap_or(false);
 
-        match portal_result {
-            Ok(status) if status.success() => {}
-            _ => {
+        let show_items_ok = if show_items_with_gdbus {
+            true
+        } else {
+            let dbus_send_array_arg = format!("array:string:{}", item_uri);
+            tokio::process::Command::new("dbus-send")
+                .args([
+                    "--session",
+                    "--dest=org.freedesktop.FileManager1",
+                    "--type=method_call",
+                    "/org/freedesktop/FileManager1",
+                    "org.freedesktop.FileManager1.ShowItems",
+                    &dbus_send_array_arg,
+                    "string:",
+                ])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .await
+                .map(|s| s.success())
+                .unwrap_or(false)
+        };
+
+        if !show_items_ok {
+            let portal_ok = tokio::process::Command::new("gdbus")
+                .args([
+                    "call",
+                    "--session",
+                    "--dest",
+                    "org.freedesktop.portal.Desktop",
+                    "--object-path",
+                    "/org/freedesktop/portal/desktop",
+                    "--method",
+                    "org.freedesktop.portal.OpenURI.OpenDirectory",
+                    "",
+                    &dir_uri,
+                    "{}",
+                ])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .await
+                .map(|s| s.success())
+                .unwrap_or(false);
+
+            if !portal_ok {
                 std::process::Command::new("xdg-open")
-                    .arg(dir)
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
+                    .arg(dir_path)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
                     .spawn()
                     .map_err(|e| e.to_string())?;
             }

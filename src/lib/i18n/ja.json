@@ -17,7 +17,8 @@
       "downloading": "ダウンロード中",
       "paused": "一時停止",
       "complete": "完了",
-      "error": "エラー"
+      "error": "エラー",
+      "seeding": "シード中"
     },
     "section_queued": "待機中",
     "section_finished": "完了済み",
@@ -33,7 +34,8 @@
     "cancel": "キャンセル",
     "clear_finished": "完了済みをクリア",
     "show_more": "さらに {{count}} 件を表示",
-    "open_folder": "フォルダーで表示"
+    "open_folder": "フォルダーで表示",
+    "stop": "停止"
   },
   "toast": {
     "download_preparing": "ダウンロードを準備中...",

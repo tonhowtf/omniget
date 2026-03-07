@@ -416,6 +416,7 @@ impl PlatformDownloader for TikTokDownloader {
                     file_path: output,
                     file_size_bytes: bytes,
                     duration_seconds: info.duration_seconds.unwrap_or(0.0),
+                    torrent_id: None,
                 })
             }
             MediaType::Photo | MediaType::Carousel => {
@@ -457,6 +458,7 @@ impl PlatformDownloader for TikTokDownloader {
                     file_path: last_path,
                     file_size_bytes: total_bytes,
                     duration_seconds: 0.0,
+                    torrent_id: None,
                 })
             }
             MediaType::Audio => {
@@ -482,6 +484,7 @@ impl PlatformDownloader for TikTokDownloader {
                     file_path: output,
                     file_size_bytes: bytes,
                     duration_seconds: 0.0,
+                    torrent_id: None,
                 })
             }
             _ => Err(anyhow!("Unsupported media type for download")),
