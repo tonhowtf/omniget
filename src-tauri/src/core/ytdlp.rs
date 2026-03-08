@@ -971,7 +971,6 @@ pub async fn download_video(
 
     if cfg!(target_os = "windows") {
         base_args.push("--windows-filenames".to_string());
-        base_args.push("--restrict-filenames".to_string());
     }
 
     let should_download_subs =
