@@ -67,6 +67,11 @@ impl FromStr for Platform {
 
 impl Platform {
     pub fn from_url(url_str: &str) -> Option<Self> {
+        // P2P share codes: "p2p:word-word-word-word"
+        if url_str.starts_with("p2p:") {
+            return Some(Platform::Other("p2p".to_string()));
+        }
+
         // Magnet links have no hostname, detect by scheme prefix
         // .torrent URLs are also handled by the magnet downloader
         if url_str.starts_with("magnet:") || url_str.ends_with(".torrent") {
