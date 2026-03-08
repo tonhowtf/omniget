@@ -262,11 +262,25 @@
       "stagger_delay": "Atraso entre downloads (ms)",
       "stagger_delay_desc": "Intervalo entre o início de downloads simultâneos",
       "reset": "Restaurar padrões",
-      "reset_confirm": "Tem certeza? Todas as configurações serão restauradas."
+      "reset_confirm": "Tem certeza? Todas as configurações serão restauradas.",
+      "torrent_listen_port": "Porta de escuta torrent",
+      "torrent_listen_port_desc": "Porta TCP para conexões BitTorrent de entrada"
+    },
+    "ytdlp_flags": {
+      "title": "Flags do yt-dlp"
+    },
+    "proxy": {
+      "title": "Proxy",
+      "enabled": "Ativar proxy",
+      "type": "Tipo",
+      "host": "Host",
+      "port": "Porta",
+      "username": "Usuário",
+      "password": "Senha"
     }
   },
   "omnibox": {
-    "placeholder": "Cole uma URL ou pesquise",
+    "placeholder": "Cole uma URL, magnet link, .torrent ou pesquise",
     "search_placeholder": "Pesquisar vídeos...",
     "searching": "Buscando...",
     "search_empty": "Nenhum resultado encontrado",
@@ -460,5 +474,48 @@
     "unsupported_url": "URL não suportado — verifique o link",
     "page_access_failed": "Não foi possível acessar a página — verifique o link e a conexão",
     "no_formats": "Nenhum formato de vídeo encontrado para este link"
+  },
+  "debug": {
+    "title": "Registro de Atividade",
+    "enable": "Registro de atividade",
+    "enable_desc": "Veja o que o OmniGet está fazendo nos bastidores",
+    "filter_all": "Tudo",
+    "filter_downloads": "Downloads",
+    "filter_network": "Rede",
+    "filter_auth": "Autenticação",
+    "filter_system": "Sistema",
+    "filter_convert": "Conversão",
+    "filter_errors": "Apenas erros",
+    "copy_report": "Copiar relatório",
+    "report_copied": "Relatório de diagnóstico copiado",
+    "clear": "Limpar",
+    "no_entries": "Nenhuma atividade ainda. Inicie um download para ver eventos aqui.",
+    "open_panel": "Abrir registro de atividade"
+  },
+  "p2p": {
+    "send_file": "Enviar Arquivo",
+    "send_title": "Enviar Arquivo via P2P",
+    "send_description": "Envie qualquer arquivo para outro usuário do OmniGet. Um código será gerado — o receptor cola no omnibox para baixar.",
+    "select_file": "Selecionar Arquivo",
+    "share_code": "Código de Compartilhamento",
+    "click_to_copy": "Clique para copiar",
+    "share_hint": "Compartilhe este código com o receptor",
+    "code_copied": "Código copiado",
+    "waiting_for_receiver": "Aguardando receptor...",
+    "transferring": "Transferindo...",
+    "transfer_complete": "Transferência concluída",
+    "send_failed": "Falha no envio",
+    "try_again": "Tentar Novamente",
+    "pause": "Pausar",
+    "resume": "Retomar",
+    "paused": "Pausado",
+    "receive_title": "Transferência P2P recebida",
+    "receive_description": "Alguém quer enviar um arquivo para você. Aceite para iniciar o download.",
+    "accept_transfer": "Aceitar e Baixar",
+    "reject_transfer": "Recusar",
+    "searching_sender": "Procurando remetente...",
+    "searching_hint": "Certifique-se de que ambos os dispositivos estão na mesma rede.",
+    "sender_not_found": "Remetente não encontrado",
+    "sender_not_found_hint": "O remetente pode não estar ativo ainda. Verifique se ambos os dispositivos estão na mesma rede Wi-Fi e se o remetente compartilhou o código."
   }
 }
