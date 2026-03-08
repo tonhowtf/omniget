@@ -511,8 +511,19 @@ pub async fn authenticate_with_cookie_json(cookie_json_str: &str) -> anyhow::Res
         cookies: Vec<CookieEntry>,
     }
 
-    let export: CookieExport = serde_json::from_str(cookie_json_str)
-        .map_err(|e| anyhow!("Invalid cookie JSON: {}", e))?;
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum CookieInput {
+        Export(CookieExport),
+        CookieArray(Vec<CookieEntry>),
+    }
+
+    let input: CookieInput = serde_json::from_str(cookie_json_str).map_err(|e| anyhow!("Invalid cookie JSON: {}", e))?;
+
+    let export = match input {
+        CookieInput::Export(export) => export,
+        CookieInput::CookieArray(cookies) => CookieExport { url: None, cookies },
+    };
 
     if export.cookies.is_empty() {
         return Err(anyhow!("No cookies provided"));
