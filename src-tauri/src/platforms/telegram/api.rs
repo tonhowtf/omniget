@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use grammers_client::Client;
 use grammers_client::grammers_tl_types as tl;
-use grammers_client::session::defs::PeerRef;
 use grammers_client::types::Peer;
 use grammers_tl_types::Serializable;
 use serde::Serialize;
@@ -260,10 +259,23 @@ pub async fn list_chats(
                 Peer::Group(_) => "group",
                 Peer::Channel(_) => "channel",
             };
-            let peer_ref = PeerRef::from(peer);
-            let id = peer_ref.id.bare_id();
-            let access_hash = peer_ref.auth.hash();
             let title = peer.name().unwrap_or("Unknown").to_string();
+
+            // PeerRef::from / PeerId::bare_id() can panic on peers with IDs
+            // outside the expected ranges (e.g. monoforums, corrupted sessions).
+            let peer_data = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                use grammers_client::session::defs::PeerRef;
+                let peer_ref = PeerRef::from(peer);
+                (peer_ref.id.bare_id(), peer_ref.auth.hash())
+            }));
+
+            let (id, access_hash) = match peer_data {
+                Ok(data) => data,
+                Err(_) => {
+                    tracing::warn!("[tg-api] skipping peer with unsupported ID (title={:?})", title);
+                    continue;
+                }
+            };
 
             peer_hashes.insert(id, access_hash);
 
