@@ -1,8 +1,10 @@
 use std::path::Path;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI32, Ordering};
 
 use grammers_client::Client;
 use grammers_client::grammers_tl_types as tl;
+use grammers_mtsender::InvocationError;
 use tokio::sync::{Semaphore, mpsc};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -12,6 +14,7 @@ const PARALLEL_THRESHOLD: u64 = 5 * 1024 * 1024;
 
 const MAX_RETRIES: u32 = 3;
 const RETRY_BASE_DELAY_MS: u64 = 1000;
+const FILE_MIGRATE_ERROR: i32 = 303;
 
 pub fn best_threads(file_size: u64, max: usize) -> usize {
     let threads = if file_size < 1024 * 1024 {
@@ -200,6 +203,8 @@ pub async fn download_parallel(
     .map_err(|e| anyhow::anyhow!("File create task panicked: {}", e))??;
     let file = Arc::new(file);
 
+    // 0 = use client.invoke() (home DC); >0 = use invoke_in_dc(dc)
+    let target_dc = Arc::new(AtomicI32::new(0));
     let semaphore = Arc::new(Semaphore::new(threads));
     let downloaded = Arc::new(std::sync::atomic::AtomicU64::new(0));
     let mut join_set = JoinSet::new();
@@ -215,6 +220,7 @@ pub async fn download_parallel(
         let downloaded = Arc::clone(&downloaded);
         let progress_tx = progress_tx.clone();
         let cancel = cancel_token.clone();
+        let target_dc = Arc::clone(&target_dc);
 
         join_set.spawn(async move {
             let _permit = semaphore
@@ -251,7 +257,13 @@ pub async fn download_parallel(
                     limit: PART_SIZE,
                 };
 
-                match client.invoke(&request).await {
+                let dc = target_dc.load(Ordering::Relaxed);
+                let result = if dc > 0 {
+                    client.invoke_in_dc(dc, &request).await
+                } else {
+                    client.invoke(&request).await
+                };
+                match result {
                     Ok(response) => match response {
                         tl::enums::upload::File::File(f) => {
                             bytes_result = Some(f.bytes);
@@ -261,8 +273,22 @@ pub async fn download_parallel(
                             return Err(anyhow::anyhow!("CDN redirect not supported"));
                         }
                     },
+                    Err(InvocationError::Rpc(ref err)) if err.code == FILE_MIGRATE_ERROR => {
+                        if let Some(new_dc) = err.value {
+                            let new_dc = new_dc as i32;
+                            tracing::info!(
+                                "[tg-parallel] FILE_MIGRATE: switching to DC {}",
+                                new_dc
+                            );
+                            target_dc.store(new_dc, Ordering::Relaxed);
+                            // Don't count this as a retry attempt
+                            last_err = None;
+                            continue;
+                        }
+                        last_err = Some(anyhow::anyhow!("FILE_MIGRATE without target DC"));
+                    }
                     Err(e) => {
-                        last_err = Some(e);
+                        last_err = Some(anyhow::anyhow!("{}", e));
                         continue;
                     }
                 }
@@ -298,7 +324,7 @@ pub async fn download_parallel(
                 .map_err(|e| anyhow::anyhow!("Write at offset {} failed: {}", offset, e))?;
 
             let prev =
-                downloaded.fetch_add(chunk_len, std::sync::atomic::Ordering::Relaxed);
+                downloaded.fetch_add(chunk_len, Ordering::Relaxed);
             let new_total = prev + chunk_len;
             if total_size > 0 {
                 let percent = (new_total as f64 / total_size as f64) * 100.0;
@@ -351,6 +377,7 @@ async fn download_sequential(
     let mut file = tokio::fs::File::create(output_path).await?;
     let mut offset: i64 = 0;
     let mut downloaded: u64 = 0;
+    let mut dc = client.session().home_dc_id();
 
     loop {
         if cancel_token.is_cancelled() {
@@ -367,10 +394,23 @@ async fn download_sequential(
             limit: PART_SIZE,
         };
 
-        let response = client
-            .invoke(&request)
-            .await
-            .map_err(|e| anyhow::anyhow!("upload.GetFile at offset {}: {}", offset, e))?;
+        let response = match client.invoke_in_dc(dc, &request).await {
+            Ok(r) => r,
+            Err(InvocationError::Rpc(ref err)) if err.code == FILE_MIGRATE_ERROR => {
+                if let Some(new_dc) = err.value {
+                    tracing::info!(
+                        "[tg-parallel] sequential FILE_MIGRATE: DC {} → DC {}",
+                        dc, new_dc
+                    );
+                    dc = new_dc;
+                    continue;
+                }
+                return Err(anyhow::anyhow!("FILE_MIGRATE without target DC"));
+            }
+            Err(e) => {
+                return Err(anyhow::anyhow!("upload.GetFile at offset {}: {}", offset, e));
+            }
+        };
 
         let bytes = match response {
             tl::enums::upload::File::File(f) => f.bytes,
