@@ -248,31 +248,38 @@ pub async fn list_chats(
         .clone();
     drop(guard);
 
-    let mut dialogs = client.iter_dialogs();
-    let mut chats = Vec::new();
+    let fetch_dialogs = async {
+        let mut dialogs = client.iter_dialogs();
+        let mut chats = Vec::new();
+        let mut peer_hashes = std::collections::HashMap::new();
 
-    let mut peer_hashes = std::collections::HashMap::new();
+        while let Some(dialog) = dialogs.next().await.map_err(|e| anyhow::anyhow!("{}", e))? {
+            let peer = dialog.peer();
+            let chat_type = match peer {
+                Peer::User(_) => "private",
+                Peer::Group(_) => "group",
+                Peer::Channel(_) => "channel",
+            };
+            let peer_ref = PeerRef::from(peer);
+            let id = peer_ref.id.bare_id();
+            let access_hash = peer_ref.auth.hash();
+            let title = peer.name().unwrap_or("Unknown").to_string();
 
-    while let Some(dialog) = dialogs.next().await.map_err(|e| anyhow::anyhow!("{}", e))? {
-        let peer = dialog.peer();
-        let chat_type = match peer {
-            Peer::User(_) => "private",
-            Peer::Group(_) => "group",
-            Peer::Channel(_) => "channel",
-        };
-        let peer_ref = PeerRef::from(peer);
-        let id = peer_ref.id.bare_id();
-        let access_hash = peer_ref.auth.hash();
-        let title = peer.name().unwrap_or("Unknown").to_string();
+            peer_hashes.insert(id, access_hash);
 
-        peer_hashes.insert(id, access_hash);
+            chats.push(TelegramChat {
+                id,
+                title,
+                chat_type: chat_type.to_string(),
+            });
+        }
 
-        chats.push(TelegramChat {
-            id,
-            title,
-            chat_type: chat_type.to_string(),
-        });
-    }
+        Ok::<_, anyhow::Error>((chats, peer_hashes))
+    };
+
+    let (chats, peer_hashes) = tokio::time::timeout(Duration::from_secs(30), fetch_dialogs)
+        .await
+        .map_err(|_| anyhow::anyhow!("Loading chats timed out — please try again"))??;
 
     tracing::info!("[tg-perf] list_chats completed in {:?}, loaded {} chats", _t.elapsed(), chats.len());
 
@@ -405,19 +412,26 @@ pub async fn list_media(
 
     let input_peer = make_input_peer(chat_id, chat_type, access_hash);
 
-    if media_type.is_none() {
-        let (photos, videos, docs, audio) = tokio::join!(
-            fetch_media_page(&client, &input_peer, Some("photo"), "", offset, limit as i32, fix_extensions),
-            fetch_media_page(&client, &input_peer, Some("video"), "", offset, limit as i32, fix_extensions),
-            fetch_media_page(&client, &input_peer, Some("document"), "", offset, limit as i32, fix_extensions),
-            fetch_media_page(&client, &input_peer, Some("audio"), "", offset, limit as i32, fix_extensions),
-        );
-        let items = merge_dedup_media([photos, videos, docs, audio], limit as usize);
-        tracing::info!("[tg-perf] list_media (all) completed in {:?}, found {} items", _t.elapsed(), items.len());
-        return Ok(items);
-    }
+    let fetch = async {
+        if media_type.is_none() {
+            let (photos, videos, docs, audio) = tokio::join!(
+                fetch_media_page(&client, &input_peer, Some("photo"), "", offset, limit as i32, fix_extensions),
+                fetch_media_page(&client, &input_peer, Some("video"), "", offset, limit as i32, fix_extensions),
+                fetch_media_page(&client, &input_peer, Some("document"), "", offset, limit as i32, fix_extensions),
+                fetch_media_page(&client, &input_peer, Some("audio"), "", offset, limit as i32, fix_extensions),
+            );
+            let items = merge_dedup_media([photos, videos, docs, audio], limit as usize);
+            return Ok(items);
+        }
 
-    let items = fetch_media_page(&client, &input_peer, media_type, "", offset, limit as i32, fix_extensions).await?;
+        fetch_media_page(&client, &input_peer, media_type, "", offset, limit as i32, fix_extensions).await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    };
+
+    let items = tokio::time::timeout(Duration::from_secs(30), fetch)
+        .await
+        .map_err(|_| anyhow::anyhow!("Loading media timed out — please try again"))??;
+
     tracing::info!("[tg-perf] list_media completed in {:?}, found {} items", _t.elapsed(), items.len());
     Ok(items)
 }
@@ -441,19 +455,26 @@ pub async fn search_media(
 
     let input_peer = make_input_peer(chat_id, chat_type, access_hash);
 
-    if media_type.is_none() {
-        let (photos, videos, docs, audio) = tokio::join!(
-            fetch_media_page(&client, &input_peer, Some("photo"), query, 0, limit as i32, fix_extensions),
-            fetch_media_page(&client, &input_peer, Some("video"), query, 0, limit as i32, fix_extensions),
-            fetch_media_page(&client, &input_peer, Some("document"), query, 0, limit as i32, fix_extensions),
-            fetch_media_page(&client, &input_peer, Some("audio"), query, 0, limit as i32, fix_extensions),
-        );
-        let items = merge_dedup_media([photos, videos, docs, audio], limit as usize);
-        tracing::info!("[tg-perf] search_media (all) completed in {:?}, found {} items for query={:?}", _t.elapsed(), items.len(), query);
-        return Ok(items);
-    }
+    let fetch = async {
+        if media_type.is_none() {
+            let (photos, videos, docs, audio) = tokio::join!(
+                fetch_media_page(&client, &input_peer, Some("photo"), query, 0, limit as i32, fix_extensions),
+                fetch_media_page(&client, &input_peer, Some("video"), query, 0, limit as i32, fix_extensions),
+                fetch_media_page(&client, &input_peer, Some("document"), query, 0, limit as i32, fix_extensions),
+                fetch_media_page(&client, &input_peer, Some("audio"), query, 0, limit as i32, fix_extensions),
+            );
+            let items = merge_dedup_media([photos, videos, docs, audio], limit as usize);
+            return Ok(items);
+        }
 
-    let items = fetch_media_page(&client, &input_peer, media_type, query, 0, limit as i32, fix_extensions).await?;
+        fetch_media_page(&client, &input_peer, media_type, query, 0, limit as i32, fix_extensions).await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    };
+
+    let items = tokio::time::timeout(Duration::from_secs(30), fetch)
+        .await
+        .map_err(|_| anyhow::anyhow!("Search timed out — please try again"))??;
+
     tracing::info!("[tg-perf] search_media completed in {:?}, found {} items for query={:?}", _t.elapsed(), items.len(), query);
     Ok(items)
 }
