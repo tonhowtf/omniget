@@ -262,7 +262,21 @@
       "stagger_delay": "错峰延迟（毫秒）",
       "stagger_delay_desc": "启动并发下载之间的延迟时间",
       "reset": "恢复默认",
-      "reset_confirm": "确定要恢复吗？所有设置将被重置。"
+      "reset_confirm": "确定要恢复吗？所有设置将被重置。",
+      "torrent_listen_port": "Torrent 监听端口",
+      "torrent_listen_port_desc": "用于接收 BitTorrent 连接的 TCP 端口"
+    },
+    "proxy": {
+      "title": "代理",
+      "enabled": "启用代理",
+      "type": "类型",
+      "host": "主机",
+      "port": "端口",
+      "username": "用户名",
+      "password": "密码"
+    },
+    "ytdlp_flags": {
+      "title": "yt-dlp 参数"
     }
   },
   "omnibox": {
@@ -460,5 +474,48 @@
     "unsupported_url": "不支持的 URL — 请检查链接",
     "page_access_failed": "无法访问该页面 — 请检查链接和连接",
     "no_formats": "此链接未找到视频格式"
+  },
+  "debug": {
+    "title": "活动日志",
+    "enable": "活动日志",
+    "enable_desc": "查看 OmniGet 在后台执行的操作",
+    "filter_all": "全部",
+    "filter_downloads": "下载",
+    "filter_network": "网络",
+    "filter_auth": "认证",
+    "filter_system": "系统",
+    "filter_convert": "转换",
+    "filter_errors": "仅错误",
+    "copy_report": "复制报告",
+    "report_copied": "诊断报告已复制到剪贴板",
+    "clear": "清除",
+    "no_entries": "暂无活动记录。开始下载即可在此查看事件。",
+    "open_panel": "打开活动日志"
+  },
+  "p2p": {
+    "send_file": "发送文件",
+    "send_title": "通过 P2P 发送文件",
+    "send_description": "向另一位 OmniGet 用户发送文件。系统将生成一个共享码 — 接收方将其粘贴到输入框即可下载。",
+    "select_file": "选择文件",
+    "share_code": "共享码",
+    "click_to_copy": "点击复制",
+    "share_hint": "将此共享码发送给接收方",
+    "code_copied": "共享码已复制到剪贴板",
+    "waiting_for_receiver": "等待接收方...",
+    "transferring": "传输中...",
+    "transfer_complete": "传输完成",
+    "send_failed": "发送失败",
+    "try_again": "重试",
+    "pause": "暂停",
+    "resume": "继续",
+    "paused": "已暂停",
+    "receive_title": "收到 P2P 传输",
+    "receive_description": "有人想向你发送文件。接受后即可开始下载。",
+    "accept_transfer": "接受并下载",
+    "reject_transfer": "拒绝",
+    "searching_sender": "正在搜索发送方...",
+    "searching_hint": "请确保两台设备在同一网络中。",
+    "sender_not_found": "未找到发送方",
+    "sender_not_found_hint": "发送方可能尚未上线。请确保两台设备连接到同一 Wi-Fi 网络，且发送方已分享共享码。"
   }
 }
