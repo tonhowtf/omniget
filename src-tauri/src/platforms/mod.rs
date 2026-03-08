@@ -23,3 +23,4 @@ pub mod generic_ytdlp;
 #[cfg(not(target_os = "android"))]
 pub mod udemy;
 pub mod magnet;
+pub mod p2p;
