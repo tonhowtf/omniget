@@ -262,7 +262,21 @@
       "stagger_delay": "Ritardo di avvio (ms)",
       "stagger_delay_desc": "Ritardo tra l'avvio di download simultanei",
       "reset": "Ripristina predefiniti",
-      "reset_confirm": "Sei sicuro? Tutte le impostazioni verranno ripristinate."
+      "reset_confirm": "Sei sicuro? Tutte le impostazioni verranno ripristinate.",
+      "torrent_listen_port": "Porta di ascolto torrent",
+      "torrent_listen_port_desc": "Porta TCP per le connessioni BitTorrent in entrata"
+    },
+    "proxy": {
+      "title": "Proxy",
+      "enabled": "Abilita proxy",
+      "type": "Tipo",
+      "host": "Host",
+      "port": "Porta",
+      "username": "Nome utente",
+      "password": "Password"
+    },
+    "ytdlp_flags": {
+      "title": "Flag di yt-dlp"
     }
   },
   "omnibox": {
@@ -460,5 +474,48 @@
     "unsupported_url": "URL non supportato — controlla il link",
     "page_access_failed": "Impossibile accedere alla pagina — controlla il link e la connessione",
     "no_formats": "Nessun formato video trovato per questo link"
+  },
+  "debug": {
+    "title": "Registro attività",
+    "enable": "Registro attività",
+    "enable_desc": "Visualizza cosa sta facendo OmniGet dietro le quinte",
+    "filter_all": "Tutto",
+    "filter_downloads": "Download",
+    "filter_network": "Rete",
+    "filter_auth": "Autenticazione",
+    "filter_system": "Sistema",
+    "filter_convert": "Conversione",
+    "filter_errors": "Solo errori",
+    "copy_report": "Copia rapporto",
+    "report_copied": "Rapporto diagnostico copiato negli appunti",
+    "clear": "Cancella",
+    "no_entries": "Nessuna attività. Avvia un download per visualizzare gli eventi qui.",
+    "open_panel": "Apri registro attività"
+  },
+  "p2p": {
+    "send_file": "Invia file",
+    "send_title": "Invia file tramite P2P",
+    "send_description": "Invia un file a un altro utente OmniGet. Verrà generato un codice di condivisione — il destinatario lo incolla nella omnibox per scaricarlo.",
+    "select_file": "Seleziona file",
+    "share_code": "Codice di condivisione",
+    "click_to_copy": "Clicca per copiare",
+    "share_hint": "Condividi questo codice con il destinatario",
+    "code_copied": "Codice copiato negli appunti",
+    "waiting_for_receiver": "In attesa del destinatario...",
+    "transferring": "Trasferimento in corso...",
+    "transfer_complete": "Trasferimento completato",
+    "send_failed": "Invio fallito",
+    "try_again": "Riprova",
+    "pause": "Pausa",
+    "resume": "Riprendi",
+    "paused": "In pausa",
+    "receive_title": "Trasferimento P2P in arrivo",
+    "receive_description": "Qualcuno vuole inviarti un file. Accetta per avviare il download.",
+    "accept_transfer": "Accetta e scarica",
+    "reject_transfer": "Rifiuta",
+    "searching_sender": "Ricerca del mittente...",
+    "searching_hint": "Assicurati che entrambi i dispositivi siano sulla stessa rete.",
+    "sender_not_found": "Mittente non trovato",
+    "sender_not_found_hint": "Il mittente potrebbe non essere ancora attivo. Assicurati che entrambi i dispositivi siano sulla stessa rete Wi-Fi e che il mittente abbia condiviso il codice."
   }
 }
