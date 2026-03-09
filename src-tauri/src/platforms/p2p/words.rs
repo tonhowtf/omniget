@@ -65,13 +65,37 @@ pub fn word_index(word: &str) -> Option<u8> {
         .map(|i| i as u8)
 }
 
-/// Validate that a string looks like a P2P share code (exactly 4 Pokémon names separated by dashes).
+pub struct ParsedCode {
+    pub words: String,
+    pub remote_endpoint: Option<std::net::SocketAddr>,
+}
+
+pub fn parse_code(s: &str) -> Option<ParsedCode> {
+    let (word_part, endpoint) = if let Some((words, ep_str)) = s.split_once('@') {
+        (words, ep_str.parse().ok())
+    } else {
+        (s, None)
+    };
+
+    if !validate_words(word_part) {
+        return None;
+    }
+
+    Some(ParsedCode {
+        words: word_part.to_string(),
+        remote_endpoint: endpoint,
+    })
+}
+
 pub fn is_valid_code(s: &str) -> bool {
+    parse_code(s).is_some()
+}
+
+fn validate_words(s: &str) -> bool {
     let parts: Vec<&str> = s.split('-').collect();
     if parts.len() != 4 {
         return false;
     }
-    // All 4 must be valid and unique
     let mut seen = Vec::with_capacity(4);
     for word in &parts {
         match word_index(word) {
