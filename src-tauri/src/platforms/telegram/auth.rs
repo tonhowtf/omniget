@@ -257,8 +257,28 @@ async fn handle_migrate(
 
 pub async fn qr_login_start(handle: &TelegramSessionHandle) -> anyhow::Result<QrLoginResult> {
     tracing::info!("[tg-qr] qr_login_start: creating client");
-    let mut guard = handle.lock().await;
+    let existing_client = {
+        let guard = handle.lock().await;
+        guard.client.clone()
+    };
 
+    if let Some(client) = existing_client {
+        if client.is_authorized().await.unwrap_or(false) {
+            let phone = client
+                .get_me()
+                .await
+                .ok()
+                .and_then(|me| me.phone().map(str::to_string))
+                .unwrap_or_default();
+            let mut guard = handle.lock().await;
+            if !phone.is_empty() {
+                guard.phone = phone;
+            }
+            return Err(anyhow!("already_authenticated"));
+        }
+    }
+
+    let mut guard = handle.lock().await;
     if let Some(old_client) = guard.client.take() {
         old_client.disconnect();
     }
