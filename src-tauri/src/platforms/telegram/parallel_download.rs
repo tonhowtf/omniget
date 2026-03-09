@@ -1,10 +1,10 @@
 use std::path::Path;
+use std::sync::{Arc, OnceLock};
 
 use grammers_client::Client;
 use grammers_client::grammers_tl_types as tl;
-use grammers_client::types::Downloadable;
 use tokio::io::AsyncWriteExt;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 
 pub struct MediaLocation {
@@ -123,23 +123,51 @@ pub async fn fetch_raw_media(
     Ok((raw_media, raw_msg.date))
 }
 
-struct DownloadableLocation {
-    location: tl::enums::InputFileLocation,
-    file_size: u64,
+const MAX_CHUNK_SIZE: i32 = 512 * 1024;
+const FILE_MIGRATE_ERROR: i32 = 303;
+
+fn auth_copied_dcs() -> &'static Arc<Mutex<Vec<i32>>> {
+    static INSTANCE: OnceLock<Arc<Mutex<Vec<i32>>>> = OnceLock::new();
+    INSTANCE.get_or_init(|| Arc::new(Mutex::new(Vec::new())))
 }
 
-impl Downloadable for DownloadableLocation {
-    fn to_raw_input_location(&self) -> Option<tl::enums::InputFileLocation> {
-        Some(self.location.clone())
-    }
-
-    fn size(&self) -> Option<usize> {
-        if self.file_size > 0 {
-            Some(self.file_size as usize)
-        } else {
-            None
+async fn ensure_auth_on_dc(client: &Client, target_dc_id: i32) -> anyhow::Result<()> {
+    {
+        let copied = auth_copied_dcs().lock().await;
+        if copied.contains(&target_dc_id) {
+            return Ok(());
         }
     }
+
+    tracing::info!("[tg-dl] copying auth to DC {}", target_dc_id);
+
+    let tl::enums::auth::ExportedAuthorization::Authorization(exported) = client
+        .invoke(&tl::functions::auth::ExportAuthorization {
+            dc_id: target_dc_id,
+        })
+        .await
+        .map_err(|e| anyhow::anyhow!("ExportAuthorization to DC {}: {}", target_dc_id, e))?;
+
+    let _: tl::enums::auth::Authorization = client
+        .invoke_in_dc(
+            target_dc_id,
+            &tl::functions::auth::ImportAuthorization {
+                id: exported.id,
+                bytes: exported.bytes,
+            },
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("ImportAuthorization on DC {}: {}", target_dc_id, e))?;
+
+    {
+        let mut copied = auth_copied_dcs().lock().await;
+        if !copied.contains(&target_dc_id) {
+            copied.push(target_dc_id);
+        }
+    }
+
+    tracing::info!("[tg-dl] auth copied to DC {} successfully", target_dc_id);
+    Ok(())
 }
 
 pub async fn download_file(
@@ -154,14 +182,13 @@ pub async fn download_file(
         media.size, media.dc_id, output_path.display()
     );
 
-    let downloadable = DownloadableLocation {
-        location: media.location.clone(),
-        file_size: media.size,
-    };
+    let mut dc = media.dc_id;
 
-    let mut download_iter = client.iter_download(&downloadable);
+    ensure_auth_on_dc(client, dc).await?;
+
     let mut file = tokio::fs::File::create(output_path).await?;
     let mut downloaded: u64 = 0;
+    let mut offset: i64 = 0;
 
     loop {
         if cancel_token.is_cancelled() {
@@ -170,26 +197,65 @@ pub async fn download_file(
             return Err(anyhow::anyhow!("Download cancelled"));
         }
 
-        match download_iter.next().await {
-            Ok(Some(chunk)) => {
-                file.write_all(&chunk).await?;
-                downloaded += chunk.len() as u64;
+        let request = tl::functions::upload::GetFile {
+            precise: true,
+            cdn_supported: false,
+            location: media.location.clone(),
+            offset,
+            limit: MAX_CHUNK_SIZE,
+        };
+
+        match client.invoke_in_dc(dc, &request).await {
+            Ok(tl::enums::upload::File::File(f)) => {
+                if f.bytes.is_empty() {
+                    break;
+                }
+
+                file.write_all(&f.bytes).await?;
+                downloaded += f.bytes.len() as u64;
+                offset += MAX_CHUNK_SIZE as i64;
 
                 if media.size > 0 {
                     let percent = (downloaded as f64 / media.size as f64) * 100.0;
                     let _ = progress_tx.send(percent.min(100.0)).await;
                 }
+
+                if f.bytes.len() < MAX_CHUNK_SIZE as usize {
+                    break;
+                }
             }
-            Ok(None) => break,
+            Ok(tl::enums::upload::File::CdnRedirect(_)) => {
+                return Err(anyhow::anyhow!("CDN redirect not supported"));
+            }
+            Err(grammers_mtsender::InvocationError::Rpc(ref err))
+                if err.name == "AUTH_KEY_UNREGISTERED" =>
+            {
+                tracing::warn!("[tg-dl] AUTH_KEY_UNREGISTERED on DC {}, re-copying auth", dc);
+                {
+                    let mut copied = auth_copied_dcs().lock().await;
+                    copied.retain(|&d| d != dc);
+                }
+                ensure_auth_on_dc(client, dc).await?;
+                continue;
+            }
+            Err(grammers_mtsender::InvocationError::Rpc(ref err))
+                if err.code == FILE_MIGRATE_ERROR =>
+            {
+                let new_dc = err.value.map(|v| v as i32).unwrap_or(dc);
+                tracing::info!("[tg-dl] FILE_MIGRATE to DC {}", new_dc);
+                dc = new_dc;
+                ensure_auth_on_dc(client, dc).await?;
+                continue;
+            }
             Err(e) => {
                 drop(file);
                 let _ = tokio::fs::remove_file(output_path).await;
-                return Err(anyhow::anyhow!("Download failed: {}", e));
+                return Err(anyhow::anyhow!("upload.getFile failed: {}", e));
             }
         }
     }
 
     file.flush().await?;
-    tracing::info!("[tg-dl] download complete: {} bytes, dc={}", downloaded, media.dc_id);
+    tracing::info!("[tg-dl] download complete: {} bytes, dc={}", downloaded, dc);
     Ok(downloaded)
 }
