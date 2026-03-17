@@ -16,6 +16,8 @@ pub fn parse_cookie_input(input: &str, target_cookie: &str) -> ParsedInput {
                 arr.clone()
             } else if let Some(arr) = val.as_array() {
                 arr.clone()
+            } else if val.get("name").is_some() && val.get("value").is_some() {
+                vec![val.clone()]
             } else {
                 Vec::new()
             };
