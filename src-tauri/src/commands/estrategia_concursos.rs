@@ -33,6 +33,7 @@ pub async fn estrategia_concursos_login_token(
         .default_headers({
             let mut h = reqwest::header::HeaderMap::new();
             h.insert("Authorization", format!("Bearer {}", token).parse().unwrap());
+            h.insert("Cookie", format!("PHPSESSID={}; __Secure-SID={}", token, token).parse().unwrap());
             h.insert("Accept", "application/json".parse().unwrap());
             h.insert("Personificado", "false".parse().unwrap());
             h.insert("Origin", "https://www.estrategiaconcursos.com.br".parse().unwrap());
