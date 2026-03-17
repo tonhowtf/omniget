@@ -1,3 +1,6 @@
+pub mod api;
+pub mod downloader;
+
 use anyhow::anyhow;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
