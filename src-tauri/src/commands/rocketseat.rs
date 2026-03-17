@@ -29,11 +29,27 @@ pub async fn rocketseat_login_token(
     *state.rocketseat_courses_cache.lock().await = None;
 
     let parsed = crate::core::cookie_parser::parse_cookie_input(&token, "skylab_next_access_token_v4");
+
+    tracing::info!(
+        "[rocketseat] parsed: token_len={}, cookie_count={}, cookie_string_len={}",
+        parsed.token.len(),
+        parsed.cookies.len(),
+        parsed.cookie_string.len()
+    );
+
     let parsed_token = if parsed.token.is_empty() {
-        crate::core::cookie_parser::parse_bearer_input(&token)
+        let bearer = crate::core::cookie_parser::parse_bearer_input(&token);
+        tracing::info!("[rocketseat] fallback to parse_bearer_input: len={}", bearer.len());
+        bearer
     } else {
         parsed.token
     };
+
+    if parsed_token.is_empty() || parsed_token.len() < 10 {
+        return Err("Could not extract token. Paste the value of cookie 'skylab_next_access_token_v4' or the full cookie JSON.".to_string());
+    }
+
+    tracing::info!("[rocketseat] using token: {}...", &parsed_token[..parsed_token.len().min(30)]);
 
     let session = api::create_session(&parsed_token)
         .map_err(|e| format!("Failed to create session: {}", e))?;
