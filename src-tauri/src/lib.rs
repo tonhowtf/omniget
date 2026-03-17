@@ -935,6 +935,7 @@ pub fn run() {
             commands::rocketseat::rocketseat_check_session,
             commands::rocketseat::rocketseat_logout,
             commands::rocketseat::rocketseat_list_courses,
+            commands::rocketseat::rocketseat_search_courses,
             commands::rocketseat::rocketseat_refresh_courses,
             commands::rocketseat::start_rocketseat_course_download,
             commands::pluralsight::pluralsight_login_cookies,
