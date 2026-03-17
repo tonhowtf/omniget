@@ -56,15 +56,17 @@ pub async fn afya_login_token(
     *state.afya_session_validated_at.lock().await = None;
     *state.afya_courses_cache.lock().await = None;
 
+    let parsed_token = crate::core::cookie_parser::parse_bearer_input(&token);
+
     let client = crate::platforms::medcel::api::build_client_with_origin(
-        &token,
+        &parsed_token,
         &api_key,
         "https://alunos-internato.afya.com.br",
     )
     .map_err(|e| format!("Failed to build client: {}", e))?;
 
     let mut session = AfyaSession {
-        token: token.clone(),
+        token: parsed_token.clone(),
         api_key: api_key.clone(),
         student_id: String::new(),
         client,
@@ -251,7 +253,7 @@ pub async fn start_afya_course_download(
         match result {
             Ok(()) => {
                 let _ = app.emit(
-                    "afya-download-complete",
+                    "download-complete",
                     &AfyaDownloadCompleteEvent {
                         course_name: course.name,
                         success: true,
@@ -262,7 +264,7 @@ pub async fn start_afya_course_download(
             Err(e) => {
                 tracing::error!("[afya] download error for '{}': {}", course.name, e);
                 let _ = app.emit(
-                    "afya-download-complete",
+                    "download-complete",
                     &AfyaDownloadCompleteEvent {
                         course_name: course.name,
                         success: false,
