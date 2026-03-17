@@ -33,7 +33,8 @@ export const COURSE_PLATFORMS: CoursePlatform[] = [
     route: "/courses/kiwify",
     icon: "kiwify",
     color: "#22C55E",
-    enabled: false,
+    enabled: true,
+    authCheckCommand: "kiwify_check_session",
   },
   {
     id: "gumroad",
@@ -41,7 +42,7 @@ export const COURSE_PLATFORMS: CoursePlatform[] = [
     route: "/courses/gumroad",
     icon: "gumroad",
     color: "#FF90E8",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "teachable",
@@ -129,7 +130,7 @@ export const COURSE_PLATFORMS: CoursePlatform[] = [
     route: "/courses/kirvano",
     icon: "kirvano",
     color: "#8B5CF6",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "memberkit",
@@ -169,7 +170,7 @@ export const COURSE_PLATFORMS: CoursePlatform[] = [
     route: "/courses/datascienceacademy",
     icon: "datascienceacademy",
     color: "#059669",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "medcel",
@@ -177,7 +178,7 @@ export const COURSE_PLATFORMS: CoursePlatform[] = [
     route: "/courses/medcel",
     icon: "medcel",
     color: "#DC2626",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "medcof",
@@ -193,7 +194,7 @@ export const COURSE_PLATFORMS: CoursePlatform[] = [
     route: "/courses/medway",
     icon: "medway",
     color: "#7C3AED",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "afyainternato",
@@ -201,7 +202,7 @@ export const COURSE_PLATFORMS: CoursePlatform[] = [
     route: "/courses/afyainternato",
     icon: "afyainternato",
     color: "#EF4444",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "alpaclass",
@@ -209,7 +210,7 @@ export const COURSE_PLATFORMS: CoursePlatform[] = [
     route: "/courses/alpaclass",
     icon: "alpaclass",
     color: "#14B8A6",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "areademembros",
@@ -241,7 +242,7 @@ export const COURSE_PLATFORMS: CoursePlatform[] = [
     route: "/courses/entregadigital",
     icon: "entregadigital",
     color: "#4338CA",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "greennclub",
@@ -249,7 +250,7 @@ export const COURSE_PLATFORMS: CoursePlatform[] = [
     route: "/courses/greennclub",
     icon: "greennclub",
     color: "#16A34A",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "themembers",
@@ -257,7 +258,7 @@ export const COURSE_PLATFORMS: CoursePlatform[] = [
     route: "/courses/themembers",
     icon: "themembers",
     color: "#9333EA",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "voompplay",
@@ -265,6 +266,6 @@ export const COURSE_PLATFORMS: CoursePlatform[] = [
     route: "/courses/voompplay",
     icon: "voompplay",
     color: "#0EA5E9",
-    enabled: false,
+    enabled: true,
   },
 ];
