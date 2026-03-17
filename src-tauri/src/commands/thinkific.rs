@@ -29,7 +29,9 @@ pub async fn thinkific_login(
     *state.thinkific_session_validated_at.lock().await = None;
     *state.thinkific_courses_cache.lock().await = None;
 
-    let session = api::create_session(&cookies, &site_url)
+    let parsed = crate::core::cookie_parser::parse_cookie_input(&cookies, "thinkific_session");
+
+    let session = api::create_session(&parsed.cookie_string, &site_url)
         .map_err(|e| format!("Failed to create session: {}", e))?;
 
     match api::validate_session(&session).await {
@@ -211,7 +213,7 @@ pub async fn start_thinkific_course_download(
         match result {
             Ok(()) => {
                 let _ = app.emit(
-                    "thinkific-download-complete",
+                    "download-complete",
                     &ThinkificDownloadCompleteEvent {
                         course_name: course.name,
                         success: true,
@@ -222,7 +224,7 @@ pub async fn start_thinkific_course_download(
             Err(e) => {
                 tracing::error!("[thinkific] download error for '{}': {}", course.name, e);
                 let _ = app.emit(
-                    "thinkific-download-complete",
+                    "download-complete",
                     &ThinkificDownloadCompleteEvent {
                         course_name: course.name,
                         success: false,
