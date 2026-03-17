@@ -28,7 +28,9 @@ pub async fn masterclass_login_cookies(
     *state.masterclass_session_validated_at.lock().await = None;
     *state.masterclass_courses_cache.lock().await = None;
 
-    let session = api::authenticate_cookies(&cookies)
+    let parsed = crate::core::cookie_parser::parse_cookie_input(&cookies, "access_token");
+
+    let session = api::authenticate_cookies(&parsed.cookie_string)
         .await
         .map_err(|e| format!("Authentication failed: {}", e))?;
 
@@ -209,7 +211,7 @@ pub async fn start_masterclass_course_download(
         match result {
             Ok(()) => {
                 let _ = app.emit(
-                    "masterclass-download-complete",
+                    "download-complete",
                     &MasterClassDownloadCompleteEvent {
                         course_name: course.name,
                         success: true,
@@ -220,7 +222,7 @@ pub async fn start_masterclass_course_download(
             Err(e) => {
                 tracing::error!("[masterclass] download error for '{}': {}", course.name, e);
                 let _ = app.emit(
-                    "masterclass-download-complete",
+                    "download-complete",
                     &MasterClassDownloadCompleteEvent {
                         course_name: course.name,
                         success: false,
