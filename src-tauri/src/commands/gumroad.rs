@@ -13,7 +13,7 @@ const COURSES_CACHE_TTL: Duration = Duration::from_secs(10 * 60);
 
 #[derive(Clone, Serialize)]
 struct GumroadDownloadCompleteEvent {
-    product_name: String,
+    course_name: String,
     success: bool,
     error: Option<String>,
 }
@@ -55,14 +55,16 @@ pub async fn gumroad_login_token(
     *state.gumroad_session_validated_at.lock().await = None;
     *state.gumroad_courses_cache.lock().await = None;
 
+    let parsed_token = crate::core::cookie_parser::parse_bearer_input(&token);
+
     let session = GumroadSession {
-        token: token.clone(),
+        token: parsed_token.clone(),
         email: String::new(),
         client: crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
             .user_agent("okhttp/4.8.1")
             .default_headers({
                 let mut h = reqwest::header::HeaderMap::new();
-                h.insert("Authorization", format!("Bearer {}", token).parse().unwrap());
+                h.insert("Authorization", format!("Bearer {}", parsed_token).parse().unwrap());
                 h
             })
             .connect_timeout(Duration::from_secs(30))
@@ -203,14 +205,13 @@ pub async fn start_gumroad_download(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     product_json: String,
-    product_raw_json: String,
     output_dir: String,
 ) -> Result<String, String> {
     let product: GumroadProduct =
         serde_json::from_str(&product_json).map_err(|e| format!("Invalid JSON: {}", e))?;
 
     let product_raw: serde_json::Value =
-        serde_json::from_str(&product_raw_json).map_err(|e| format!("Invalid raw JSON: {}", e))?;
+        serde_json::from_str(&product_json).map_err(|e| format!("Invalid raw JSON: {}", e))?;
 
     let product_name = product.name.clone();
     let product_id_hash = {
@@ -253,9 +254,9 @@ pub async fn start_gumroad_download(
         match result {
             Ok(()) => {
                 let _ = app.emit(
-                    "gumroad-download-complete",
+                    "download-complete",
                     &GumroadDownloadCompleteEvent {
-                        product_name: product.name,
+                        course_name: product.name,
                         success: true,
                         error: None,
                     },
@@ -264,9 +265,9 @@ pub async fn start_gumroad_download(
             Err(e) => {
                 tracing::error!("[gumroad] download error for '{}': {}", product.name, e);
                 let _ = app.emit(
-                    "gumroad-download-complete",
+                    "download-complete",
                     &GumroadDownloadCompleteEvent {
-                        product_name: product.name,
+                        course_name: product.name,
                         success: false,
                         error: Some(e.to_string()),
                     },
