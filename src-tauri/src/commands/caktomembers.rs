@@ -28,7 +28,9 @@ pub async fn caktomembers_login_token(
     *state.caktomembers_session_validated_at.lock().await = None;
     *state.caktomembers_courses_cache.lock().await = None;
 
-    let access_token = api::fetch_access_token(&cookie)
+    let parsed = crate::core::cookie_parser::parse_cookie_input(&cookie, "__Secure-better-auth.session_token");
+
+    let access_token = api::fetch_access_token(&parsed.token)
         .await
         .map_err(|e| format!("Failed to fetch access token: {}", e))?;
 
@@ -48,7 +50,7 @@ pub async fn caktomembers_login_token(
         .map_err(|e| format!("Failed to build client: {}", e))?;
 
     let session = CaktoMembersSession {
-        cookie: cookie.clone(),
+        cookie: parsed.token.clone(),
         access_token,
         client,
     };
@@ -230,7 +232,7 @@ pub async fn start_caktomembers_course_download(
         match result {
             Ok(()) => {
                 let _ = app.emit(
-                    "caktomembers-download-complete",
+                    "download-complete",
                     &CaktoMembersDownloadCompleteEvent {
                         course_name: course.name,
                         success: true,
@@ -241,7 +243,7 @@ pub async fn start_caktomembers_course_download(
             Err(e) => {
                 tracing::error!("[caktomembers] download error for '{}': {}", course.name, e);
                 let _ = app.emit(
-                    "caktomembers-download-complete",
+                    "download-complete",
                     &CaktoMembersDownloadCompleteEvent {
                         course_name: course.name,
                         success: false,
