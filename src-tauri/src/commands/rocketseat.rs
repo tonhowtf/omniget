@@ -170,6 +170,29 @@ pub async fn rocketseat_list_courses(
 }
 
 #[tauri::command]
+pub async fn rocketseat_search_courses(
+    state: tauri::State<'_, AppState>,
+    query: String,
+) -> Result<Vec<RocketseatCourse>, String> {
+    let guard = state.rocketseat_session.lock().await;
+    let session = guard
+        .as_ref()
+        .ok_or_else(|| "Not authenticated. Please log in first.".to_string())?;
+
+    let courses = api::search_courses(session, &query)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let mut cache = state.rocketseat_courses_cache.lock().await;
+    *cache = Some(crate::RocketseatCoursesCache {
+        courses: courses.clone(),
+        fetched_at: Instant::now(),
+    });
+
+    Ok(courses)
+}
+
+#[tauri::command]
 pub async fn rocketseat_refresh_courses(
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<RocketseatCourse>, String> {
