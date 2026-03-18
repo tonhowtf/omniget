@@ -42,11 +42,14 @@ pub async fn install_dependency(name: String) -> Result<String, String> {
             crate::core::ytdlp::ensure_ytdlp()
                 .await
                 .map_err(|e| e.to_string())?;
+            crate::core::ytdlp::reset_ytdlp_cache();
         }
         "FFmpeg" => {
             dependencies::ensure_ffmpeg()
                 .await
                 .map_err(|e| e.to_string())?;
+            crate::core::ytdlp::reset_ffmpeg_location_cache();
+            crate::core::ffmpeg::reset_ffmpeg_available_cache();
         }
         _ => return Err(format!("Unknown dependency: {}", name)),
     }
