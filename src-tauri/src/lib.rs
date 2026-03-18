@@ -439,6 +439,9 @@ pub fn run() {
         platforms::vimeo::VimeoDownloader::new(),
     ));
     registry.register(Arc::new(
+        platforms::bilibili::BilibiliDownloader::new(),
+    ));
+    registry.register(Arc::new(
         platforms::telegram::downloader::TelegramDownloader::new(
             telegram_session.clone(),
         ),
