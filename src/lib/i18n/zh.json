@@ -463,7 +463,12 @@
     "error": "错误",
     "unknown_error": "未知错误",
     "ytdlp_missing": "未安装 yt-dlp。请在设置中安装以启用下载功能。",
-    "go_to_settings": "前往设置"
+    "go_to_settings": "前往设置",
+    "cookie_error_title": "Cookie 访问失败",
+    "cookie_error_message": "自动 Cookie 检测仅适用于 Firefox。Chrome、Edge 等基于 Chromium 的浏览器会阻止 Cookie 访问。解决方法：安装 Firefox 并登录您的账户，或从浏览器导出 cookies.txt 文件并在设置 > 下载 > Cookie 文件中配置。",
+    "cookie_file_label": "Cookie 文件 (cookies.txt)",
+    "cookie_file_choose": "选择文件",
+    "cookie_file_hint": "使用浏览器扩展（如 'Get cookies.txt LOCALLY'）导出 Cookie，然后在此选择文件。Chrome/Edge 用户需要此功能进行需要登录的下载。"
   },
   "errors": {
     "login_required": "需要登录 — 请使用浏览器 Cookie 或尝试其他链接",
