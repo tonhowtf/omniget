@@ -14,8 +14,16 @@
 <section class="card">
   <h5 class="card-title">{$t('about.roadmap_platforms_title')}</h5>
   <div class="checklist">
+    <div class="check-item done"><span class="checkbox checked">✓</span> Kiwify</div>
+    <div class="check-item done"><span class="checkbox checked">✓</span> Teachable</div>
+    <div class="check-item done"><span class="checkbox checked">✓</span> Kajabi</div>
+    <div class="check-item done"><span class="checkbox checked">✓</span> Skool</div>
+    <div class="check-item done"><span class="checkbox checked">✓</span> Pluralsight</div>
+    <div class="check-item done"><span class="checkbox checked">✓</span> MasterClass</div>
+    <div class="check-item done"><span class="checkbox checked">✓</span> Rocketseat</div>
+    <div class="check-item done"><span class="checkbox checked">✓</span> Bilibili</div>
+    <div class="check-item done"><span class="checkbox checked">✓</span> 30+ course platforms</div>
     <div class="check-item"><span class="checkbox"></span> Hubla</div>
-    <div class="check-item"><span class="checkbox"></span> Kiwify</div>
   </div>
 </section>
 
@@ -100,6 +108,16 @@
     flex-shrink: 0;
     border: 1.5px solid var(--input-border);
     color: transparent;
+  }
+
+  .checkbox.checked {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+  }
+
+  .check-item.done {
+    color: var(--secondary);
   }
 
   .community-links {
