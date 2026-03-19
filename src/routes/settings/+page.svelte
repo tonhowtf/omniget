@@ -30,6 +30,17 @@
     } catch {}
   }
 
+  async function chooseCookieFile() {
+    const selected = await open({
+      title: "Select cookies.txt file",
+      filters: [{ name: "Cookies", extensions: ["txt"] }],
+      multiple: false,
+    });
+    if (selected && typeof selected === "string") {
+      await updateSettings({ download: { cookie_file: selected } });
+    }
+  }
+
   async function handleInstallDep(name: string) {
     installingDep = name;
     try {
@@ -489,6 +500,19 @@
           >
             <span class="toggle-knob"></span>
           </button>
+        </div>
+        <div class="divider"></div>
+        <div class="setting-row">
+          <div class="setting-col">
+            <span class="setting-label">{$t('common.cookie_file_label')}</span>
+            <span class="setting-path">{$t('common.cookie_file_hint')}</span>
+          </div>
+          <div class="setting-actions">
+            {#if settings.download.cookie_file}
+              <span class="setting-value">{settings.download.cookie_file.split(/[/\\]/).pop()}</span>
+            {/if}
+            <button class="button" onclick={chooseCookieFile}>{$t('common.cookie_file_choose')}</button>
+          </div>
         </div>
         <div class="divider"></div>
         <div class="setting-row">
