@@ -23,27 +23,6 @@ impl BilibiliDownloader {
         Self
     }
 
-    fn extract_bv_id(url: &str) -> Option<String> {
-        let parsed = url::Url::parse(url).ok()?;
-        let host = parsed.host_str()?.to_lowercase();
-
-        if host == "b23.tv" {
-            return None;
-        }
-
-        if host.contains("bilibili.com") {
-            let path = parsed.path();
-            if let Some(rest) = path.strip_prefix("/video/") {
-                let id = rest.trim_end_matches('/').split('/').next()?;
-                if id.starts_with("BV") || id.starts_with("bv") || id.starts_with("av") || id.starts_with("AV") {
-                    return Some(id.to_string());
-                }
-            }
-        }
-
-        None
-    }
-
     fn is_playlist_or_series(url: &str) -> bool {
         if let Ok(parsed) = url::Url::parse(url) {
             let path = parsed.path();
