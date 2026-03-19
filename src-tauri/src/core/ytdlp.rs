@@ -575,6 +575,12 @@ pub async fn get_video_info(
             args.push(extractor_args.to_string());
         }
 
+        let browser_cookies = detect_cookies_browser_cached().await;
+        if let Some(ref browser) = browser_cookies {
+            args.push("--cookies-from-browser".to_string());
+            args.push(browser.clone());
+        }
+
         args.extend(proxy_args());
         args.extend(extra_flags.iter().cloned());
         args.push(url.to_string());
