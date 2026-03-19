@@ -167,6 +167,10 @@ For a production build:
 pnpm tauri build
 ```
 
+## Notice to Platform Owners
+
+OmniGet is a personal-use tool built in good faith. If you are an authorized representative of a platform listed in this project and have concerns about its inclusion, please send an email to **tonhowtf@gmail.com** from an official company domain address (or include verifiable proof of your role) and the platform will be removed promptly.
+
 ## Legal
 
 OmniGet facilitates downloading publicly available content from the internet. You are responsible for how you use it. Personal use is supported by Article 184, §4 of the Brazilian Penal Code, which allows copying works for private use without profit intent.
