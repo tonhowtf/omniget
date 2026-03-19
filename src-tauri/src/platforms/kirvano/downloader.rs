@@ -51,6 +51,11 @@ pub async fn download_full_course(
     );
     tokio::fs::create_dir_all(&course_dir).await?;
 
+    if crate::core::course_utils::is_course_complete(&course_dir) {
+        tracing::info!("[kirvano] course already complete, skipping");
+        return Ok(());
+    }
+
     let total_lessons: usize = modules.iter().map(|m| m.lessons.len()).sum();
     let total_modules = modules.len();
     let total_bytes = Arc::new(AtomicU64::new(0));
@@ -208,6 +213,8 @@ pub async fn download_full_course(
     if cancel_token.is_cancelled() {
         return Err(anyhow!("Download cancelled by user"));
     }
+
+    crate::core::course_utils::mark_course_complete(&course_dir).await.ok();
 
     Ok(())
 }
