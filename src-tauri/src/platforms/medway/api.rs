@@ -42,6 +42,7 @@ pub struct MedwayLesson {
     pub item_type: String,
     pub video_url: Option<String>,
     pub document_id: Option<String>,
+    pub description: Option<String>,
 }
 
 fn build_client(token: &str) -> anyhow::Result<reqwest::Client> {
@@ -318,6 +319,13 @@ async fn fetch_module_lessons(session: &MedwaySession, module_id: i64) -> anyhow
                 _ => String::new(),
             });
 
+        let description = item
+            .get("description")
+            .or_else(|| item.get("content"))
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.trim().is_empty())
+            .map(String::from);
+
         lessons.push(MedwayLesson {
             id,
             name,
@@ -325,6 +333,7 @@ async fn fetch_module_lessons(session: &MedwaySession, module_id: i64) -> anyhow
             item_type,
             video_url,
             document_id,
+            description,
         });
     }
 
