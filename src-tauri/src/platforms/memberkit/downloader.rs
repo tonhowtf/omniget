@@ -123,6 +123,10 @@ pub async fn download_full_course(
                 }
             };
 
+            if let Some(ref desc) = detail.description {
+                crate::core::course_utils::save_description(&lesson_dir, desc, "html").await.ok();
+            }
+
             if let Some(ref video_url) = detail.video_url {
                 let video_path = format!(
                     "{}/{}. {}.mp4",
