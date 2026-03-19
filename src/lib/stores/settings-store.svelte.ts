@@ -23,6 +23,7 @@ export type AppSettings = {
     hotkey_binding: string;
     copy_to_clipboard_on_hotkey: boolean;
     extra_ytdlp_flags?: string[];
+    cookie_file: string;
   };
   proxy?: {
     enabled?: boolean;
