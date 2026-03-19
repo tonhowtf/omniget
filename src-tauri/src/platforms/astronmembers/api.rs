@@ -237,50 +237,76 @@ pub async fn get_course_content(
 pub async fn get_lesson_video_url(
     session: &AstronSession,
     lesson_url: &str,
-) -> anyhow::Result<Option<String>> {
+) -> anyhow::Result<(Option<String>, Option<String>)> {
     let resp = session.client.get(lesson_url).send().await?;
     let body = resp.text().await?;
+
+    let mut video_url = None;
 
     if let Some(pos) = body.find("streaming-video-url") {
         let rest = &body[pos..];
         if let Some(src) = extract_attr(rest, "src") {
             if src.contains("panda") {
-                let converted = convert_panda_url(&src);
-                return Ok(Some(converted));
-            }
-            return Ok(Some(src));
-        }
-    }
-
-    for line in body.lines() {
-        let trimmed = line.trim();
-        if trimmed.contains("<iframe") {
-            if let Some(src) = extract_attr(trimmed, "src") {
-                if src.contains("youtube") || src.contains("vimeo") || src.contains("player") || src.contains("panda") || src.contains("embed") {
-                    if src.contains("panda") {
-                        return Ok(Some(convert_panda_url(&src)));
-                    }
-                    return Ok(Some(src));
-                }
+                video_url = Some(convert_panda_url(&src));
+            } else {
+                video_url = Some(src);
             }
         }
     }
 
-    if let Some(pos) = body.find("__NEXT_DATA__") {
-        let rest = &body[pos..];
-        if let Some(start) = rest.find('{') {
-            let json_str = &rest[start..];
-            if let Some(end) = find_matching_brace(json_str) {
-                if let Ok(data) = serde_json::from_str::<serde_json::Value>(&json_str[..=end]) {
-                    if let Some(url) = extract_video_from_next_data(&data) {
-                        return Ok(Some(url));
+    if video_url.is_none() {
+        for line in body.lines() {
+            let trimmed = line.trim();
+            if trimmed.contains("<iframe") {
+                if let Some(src) = extract_attr(trimmed, "src") {
+                    if src.contains("youtube") || src.contains("vimeo") || src.contains("player") || src.contains("panda") || src.contains("embed") {
+                        if src.contains("panda") {
+                            video_url = Some(convert_panda_url(&src));
+                        } else {
+                            video_url = Some(src);
+                        }
+                        break;
                     }
                 }
             }
         }
     }
 
-    Ok(None)
+    if video_url.is_none() {
+        if let Some(pos) = body.find("__NEXT_DATA__") {
+            let rest = &body[pos..];
+            if let Some(start) = rest.find('{') {
+                let json_str = &rest[start..];
+                if let Some(end) = find_matching_brace(json_str) {
+                    if let Ok(data) = serde_json::from_str::<serde_json::Value>(&json_str[..=end]) {
+                        if let Some(url) = extract_video_from_next_data(&data) {
+                            video_url = Some(url);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let description = extract_lesson_description(&body);
+
+    Ok((video_url, description))
+}
+
+fn extract_lesson_description(html: &str) -> Option<String> {
+    if let Some(start) = html.find("class=\"conteudo-aula\"").or_else(|| html.find("class=\"lesson-content\"")).or_else(|| html.find("class=\"aula-conteudo\"")) {
+        let rest = &html[start..];
+        if let Some(tag_end) = rest.find('>') {
+            let content = &rest[tag_end + 1..];
+            if let Some(end) = content.find("</div>") {
+                let text = content[..end].trim();
+                if !text.is_empty() {
+                    return Some(text.to_string());
+                }
+            }
+        }
+    }
+    None
 }
 
 fn convert_panda_url(url: &str) -> String {
