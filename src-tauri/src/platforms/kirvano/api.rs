@@ -45,6 +45,7 @@ pub struct KirvanoLesson {
     pub order: i64,
     pub available: bool,
     pub video_url: Option<String>,
+    pub description: Option<String>,
 }
 
 fn build_client(token: &str) -> anyhow::Result<reqwest::Client> {
@@ -425,12 +426,20 @@ async fn get_module_lessons(
                 .and_then(|v| v.as_str())
                 .map(String::from);
 
+            let description = item
+                .get("description")
+                .or_else(|| item.get("content"))
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.trim().is_empty())
+                .map(String::from);
+
             all_lessons.push(KirvanoLesson {
                 id: lesson_uuid,
                 name: lesson_name,
                 order: lesson_order,
                 available,
                 video_url,
+                description,
             });
         }
 
