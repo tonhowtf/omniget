@@ -112,6 +112,12 @@ pub async fn download_full_course(
                 continue;
             }
 
+            if let Some(ref desc) = lesson.description {
+                let lesson_desc_dir = format!("{}/{}. {}", mod_dir, li + 1, filename::sanitize_path_component(&lesson.name));
+                tokio::fs::create_dir_all(&lesson_desc_dir).await?;
+                crate::core::course_utils::save_description(&lesson_desc_dir, desc, "html").await.ok();
+            }
+
             if let Some(ref video_url) = lesson.video_url {
                 if video_url.is_empty() {
                     let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
