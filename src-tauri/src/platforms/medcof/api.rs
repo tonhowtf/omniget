@@ -40,6 +40,7 @@ pub struct MedcofLesson {
     pub name: String,
     pub order: i64,
     pub vimeo_id: Option<String>,
+    pub description: Option<String>,
 }
 
 fn build_client(token: &str) -> anyhow::Result<reqwest::Client> {
@@ -284,11 +285,19 @@ pub async fn get_course_content(session: &MedcofSession, product_id: &str) -> an
                         })
                         .filter(|s| !s.is_empty());
 
+                    let description = video
+                        .get("description")
+                        .or_else(|| video.get("content"))
+                        .and_then(|v| v.as_str())
+                        .filter(|s| !s.trim().is_empty())
+                        .map(String::from);
+
                     lessons.push(MedcofLesson {
                         id: vid_id,
                         name: vid_name,
                         order: lesson_order,
                         vimeo_id,
+                        description,
                     });
                 }
             }
