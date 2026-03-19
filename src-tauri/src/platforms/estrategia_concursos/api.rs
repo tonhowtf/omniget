@@ -47,6 +47,7 @@ pub struct EstrategiaConcursosLesson {
 pub struct EstrategiaConcursosLessonDetail {
     pub id: i64,
     pub name: String,
+    pub description: String,
     pub videos: Vec<EstrategiaConcursosVideo>,
     pub pdf_url: Option<String>,
     pub pdf_grifado_url: Option<String>,
@@ -287,9 +288,23 @@ pub async fn get_lesson_detail(
         if let Some(res_map) = resolucoes {
             let best = pick_best_quality(res_map);
             if let Some((quality, url)) = best {
+                let audio_url = video
+                    .get("audio")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(String::from);
+
+                let slide_url = video
+                    .get("slide")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(String::from);
+
                 videos.push(EstrategiaConcursosVideo {
                     quality,
                     url,
+                    audio_url,
+                    slide_url,
                 });
             }
         }
@@ -313,14 +328,37 @@ pub async fn get_lesson_detail(
         .filter(|s| !s.is_empty())
         .map(String::from);
 
+    let description = extract_description(data);
+
     Ok(EstrategiaConcursosLessonDetail {
         id: lesson_id,
         name,
+        description,
         videos,
         pdf_url,
         pdf_grifado_url,
         pdf_simplificado_url,
     })
+}
+
+pub fn extract_description(data: &serde_json::Value) -> String {
+    let mut parts = Vec::new();
+
+    if let Some(desc) = data.get("descricao").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
+        parts.push(desc.to_string());
+    }
+
+    if let Some(conteudo) = data.get("conteudo").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
+        parts.push(conteudo.to_string());
+    }
+
+    if let Some(html) = data.get("html").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
+        if parts.is_empty() {
+            parts.push(html.to_string());
+        }
+    }
+
+    parts.join("\n\n")
 }
 
 fn pick_best_quality(resolucoes: &serde_json::Map<String, serde_json::Value>) -> Option<(String, String)> {
