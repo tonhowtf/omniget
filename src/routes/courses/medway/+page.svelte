@@ -18,6 +18,18 @@
   let loading = $state(false);
   let error = $state("");
 
+  let fileInput: HTMLInputElement = $state() as HTMLInputElement;
+
+  function onFileSelected(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => { token = reader.result as string; };
+    reader.readAsText(file);
+    input.value = "";
+  }
+
   let checking = $state(true);
   let loggedIn = $state(false);
   let sessionEmail = $state("");
@@ -292,15 +304,26 @@
 
       <div class="form">
         <label class="field">
-          <span class="field-label">Bearer Token</span>
+          <span class="field-label">Cookies JSON</span>
           <textarea
             class="input token-textarea"
-            placeholder="Paste your Bearer token here..."
+            placeholder="Paste cookies JSON from browser extension or a raw token"
             bind:value={token}
             disabled={loading}
-            rows="4"
+            rows="5"
           ></textarea>
         </label>
+
+        <input
+          type="file"
+          accept=".json,.txt"
+          class="hidden-file-input"
+          bind:this={fileInput}
+          onchange={onFileSelected}
+        />
+        <button class="button" onclick={() => fileInput?.click()} disabled={loading}>
+          Import .json file
+        </button>
 
         {#if error}
           <p class="error-msg">{error}</p>
@@ -476,10 +499,15 @@
     margin-block: 0;
   }
 
+  .hidden-file-input {
+    display: none;
+  }
+
   .token-textarea {
     resize: vertical;
     min-height: 80px;
-    font-size: 12px;
+    font-size: 11.5px;
+    font-family: var(--font-mono);
     line-height: 1.5;
   }
 
