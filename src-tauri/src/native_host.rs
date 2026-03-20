@@ -296,6 +296,15 @@ fn write_extension_cookies(cookies: &[NativeCookie]) -> anyhow::Result<()> {
         fs::create_dir_all(parent)?;
     }
 
+    // Session cookies (expires == 0) must be given a future TTL.
+    // Python's MozillaCookieJar treats 0 as "expired at epoch" and discards
+    // the cookie, which strips auth context and breaks yt-dlp downloads.
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let session_ttl = now + 86400; // 24 h, same approach as Cookie-Editor
+
     let mut content = String::from("# Netscape HTTP Cookie File\n");
     for c in cookies {
         let domain = sanitize_cookie_field(&c.domain);
@@ -305,6 +314,7 @@ fn write_extension_cookies(cookies: &[NativeCookie]) -> anyhow::Result<()> {
         let http_only_prefix = if c.http_only { "#HttpOnly_" } else { "" };
         let include_subdomains = if domain.starts_with('.') { "TRUE" } else { "FALSE" };
         let secure = if c.secure { "TRUE" } else { "FALSE" };
+        let expires = if c.expires == 0 { session_ttl } else { c.expires as u64 };
         content.push_str(&format!(
             "{}{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
             http_only_prefix,
@@ -312,7 +322,7 @@ fn write_extension_cookies(cookies: &[NativeCookie]) -> anyhow::Result<()> {
             include_subdomains,
             path_field,
             secure,
-            c.expires,
+            expires,
             name,
             value,
         ));
