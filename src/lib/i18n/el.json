@@ -44,6 +44,8 @@
     "download_error": "Αποτυχία λήψης: {{name}}",
     "download_cancelled": "Ακυρωμένη λήψη",
     "clipboard_url_detected": "Ανιχνεύθηκε σύνδεσμος URL στο πρόχειρο",
+    "external_url_ready": "Το URL λήφθηκε και είναι έτοιμο για λήψη",
+    "external_url_queued": "Η λήψη προστέθηκε από την επέκταση Chrome",
     "file_copied_to_clipboard": "Το αρχείο αντιγράφηκε στο πρόχειρο",
     "drm_skipped": "{{count}} βίντεο παραλείφθηκαν — προστατευμένα DRM (FairPlay/SAMPLE-AES)"
   },
@@ -324,6 +326,7 @@
     "formats_merge_note": "Οι μορφές βίντεο (B) θα συγχωνευθούν αυτόματα με τον ήχο (H) εάν είναι διαθέσιμο το FFmpeg.",
     "referer_label": "Παραπομπή (προαιρετικό)",
     "referer_placeholder": "https://example.com",
+    "external_url_ready": "Το URL λήφθηκε από την επέκταση Chrome",
     "content_type": {
       "video": "Βίντεο",
       "audio": "Ήχος",

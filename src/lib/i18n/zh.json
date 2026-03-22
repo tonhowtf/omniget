@@ -44,6 +44,8 @@
     "download_error": "下载失败：{{name}}",
     "download_cancelled": "下载已取消",
     "clipboard_url_detected": "检测到剪贴板中的链接",
+    "external_url_ready": "已收到 URL，可以开始下载",
+    "external_url_queued": "已从 Chrome 扩展添加下载",
     "file_copied_to_clipboard": "文件已复制到剪贴板",
     "drm_skipped": "{{count}} 个视频已跳过 — 受DRM保护（FairPlay/SAMPLE-AES）"
   },
@@ -324,6 +326,7 @@
     "formats_merge_note": "如果 FFmpeg 可用，视频格式 (V) 将自动与音频 (A) 合并。",
     "referer_label": "Referer（可选）",
     "referer_placeholder": "https://example.com",
+    "external_url_ready": "已从 Chrome 扩展收到 URL",
     "content_type": {
       "video": "视频",
       "audio": "音频",

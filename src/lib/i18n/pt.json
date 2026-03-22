@@ -44,6 +44,8 @@
     "download_error": "Falha no download: {{name}}",
     "download_cancelled": "Download cancelado",
     "clipboard_url_detected": "URL detectada no clipboard",
+    "external_url_ready": "URL recebida e pronta para download",
+    "external_url_queued": "Download adicionado pela extensão do Chrome",
     "file_copied_to_clipboard": "Arquivo copiado para o clipboard",
     "drm_skipped": "{{count}} vídeo(s) ignorados — protegidos por DRM (FairPlay/SAMPLE-AES)"
   },
@@ -326,6 +328,7 @@
     "formats_merge_note": "Formatos de vídeo (V) serão automaticamente combinados com áudio (A) se o FFmpeg estiver disponível.",
     "referer_label": "Referer (opcional)",
     "referer_placeholder": "https://exemplo.com",
+    "external_url_ready": "URL recebida da extensão do Chrome",
     "content_type": {
       "video": "Vídeo",
       "audio": "Áudio",

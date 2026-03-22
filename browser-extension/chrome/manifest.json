@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "OmniGet",
+  "description": "Detect supported media pages and send them to OmniGet with one click.",
+  "version": "0.1.0",
+  "default_locale": "en",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0ribk9X5HR4XBloFk2g/V6kjICK8XWYC/QqrGFTOjKkRhRNDJr8Z14JFLggvWBbrj0D/zYdd5CfHJG01bGWMZC0hxRtm71q5Pbu1jtChEfE4QO/xWvM8WfrXH895nJFcUzxi137eoWq+FtSGxqFnSl6IXg5EZdgYH5LN3t6kL0HTwKnJLB3/8d4JD1uF2tQxHzii+MosIozKyDatqtEaBLprY1gfAfCwfY8Iqr9yehFUm7IDH+TGwjE17GJY1ZhfkpNBRmH/h23hwyk6coocSsWpM9GbCFdBX22iUnZjxZqACO1n+8xw2364Lznqtuot4iawznQGF4ALL7CbIvHPOQIDAQAB",
+  "permissions": [
+    "nativeMessaging",
+    "tabs",
+    "cookies"
+  ],
+  "host_permissions": [
+    "*://*.youtube.com/*",
+    "*://*.google.com/*",
+    "*://*.instagram.com/*",
+    "*://*.tiktok.com/*",
+    "*://*.twitter.com/*",
+    "*://*.x.com/*",
+    "*://*.reddit.com/*",
+    "*://*.twitch.tv/*",
+    "*://*.vimeo.com/*",
+    "*://*.bilibili.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "__MSG_action_title_unsupported__",
+    "default_icon": {
+      "16": "icons/inactive-16.png",
+      "24": "icons/inactive-24.png",
+      "32": "icons/inactive-32.png",
+      "48": "icons/inactive-48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/active-16.png",
+    "24": "icons/active-24.png",
+    "32": "icons/active-32.png",
+    "48": "icons/active-48.png",
+    "128": "icons/active-128.png"
+  }
+}

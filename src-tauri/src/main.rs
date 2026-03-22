@@ -33,6 +33,13 @@ fn setup_environment() {
 }
 
 fn main() {
+    if omniget_lib::native_host::should_run_as_native_host() {
+        if let Err(error) = omniget_lib::native_host::run_native_host() {
+            eprintln!("native host error: {error}");
+        }
+        return;
+    }
+
     check_portable_mode();
     setup_environment();
     omniget_lib::run()

@@ -18,6 +18,8 @@ static FFMPEG_LOCATION_CACHE: std::sync::RwLock<Option<Option<String>>> =
     std::sync::RwLock::new(None);
 static COOKIES_BROWSER_CACHE: std::sync::RwLock<Option<Option<String>>> =
     std::sync::RwLock::new(None);
+static JS_RUNTIME_CACHE: std::sync::RwLock<Option<Option<String>>> =
+    std::sync::RwLock::new(None);
 static RATE_LIMIT_429_COUNT: AtomicU64 = AtomicU64::new(0);
 static RATE_LIMIT_429_LAST_TS: AtomicU64 = AtomicU64::new(0);
 static COOKIE_ERROR_FLAG: AtomicBool = AtomicBool::new(false);
@@ -64,6 +66,12 @@ pub fn reset_ytdlp_cache() {
 
 pub fn reset_ffmpeg_location_cache() {
     if let Ok(mut cache) = FFMPEG_LOCATION_CACHE.write() {
+        *cache = None;
+    }
+}
+
+pub fn reset_js_runtime_cache() {
+    if let Ok(mut cache) = JS_RUNTIME_CACHE.write() {
         *cache = None;
     }
 }
@@ -200,6 +208,8 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
         tokio::spawn(async move {
             check_ytdlp_freshness(&path_clone).await;
         });
+        // Ensure a JS runtime is available in the background (for YouTube nsig).
+        tokio::spawn(async { crate::core::dependencies::ensure_js_runtime().await; });
         tracing::debug!("[perf] ensure_ytdlp took {:?}", _timer_start.elapsed());
         return Ok(path);
     }
@@ -211,6 +221,8 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
 
     let path = download_ytdlp_binary().await?;
     reset_ytdlp_cache();
+    // Ensure a JS runtime is available in the background (for YouTube nsig).
+    tokio::spawn(async { crate::core::dependencies::ensure_js_runtime().await; });
     tracing::debug!("[perf] ensure_ytdlp took {:?}", _timer_start.elapsed());
     Ok(path)
 }
@@ -344,6 +356,26 @@ async fn find_ffmpeg_location_cached() -> Option<String> {
         *cache = Some(result.clone());
     }
     result
+}
+
+/// Returns a disposable copy of the extension cookie file for yt-dlp.
+///
+/// yt-dlp rewrites `--cookies` files after every run, which corrupts the
+/// original cookies written by the Chrome extension. We copy the source
+/// file to a sibling temp file so yt-dlp mutates the copy, not the original.
+fn extension_cookie_file() -> Option<std::path::PathBuf> {
+    let source = crate::native_host::extension_cookie_file_path();
+    if !source.exists() {
+        return None;
+    }
+    let metadata = std::fs::metadata(&source).ok()?;
+    let modified = metadata.modified().ok()?;
+    if modified.elapsed().unwrap_or_default() >= std::time::Duration::from_secs(86400) {
+        return None;
+    }
+    let copy = source.with_file_name("chrome-extension-cookies-session.txt");
+    std::fs::copy(&source, &copy).ok()?;
+    Some(copy)
 }
 
 fn detect_cookies_browser() -> Option<String> {
@@ -505,6 +537,89 @@ async fn detect_cookies_browser_cached() -> Option<String> {
     result
 }
 
+/// Detect a JavaScript runtime for yt-dlp's nsig challenge solver.
+/// yt-dlp standalone binaries cannot discover runtimes from PATH on their
+/// own, so we locate the binary and pass it via `--js-runtimes runtime:path`.
+fn detect_js_runtime() -> Option<String> {
+    let runtimes: &[(&str, &str)] = if cfg!(target_os = "windows") {
+        &[("node", "node.exe"), ("deno", "deno.exe"), ("bun", "bun.exe")]
+    } else {
+        &[("node", "node"), ("deno", "deno"), ("bun", "bun")]
+    };
+
+    // Try system PATH via `where` (Windows) or `which` (Unix).
+    for &(runtime, bin) in runtimes {
+        let finder = if cfg!(target_os = "windows") { "where" } else { "which" };
+        if let Ok(output) = std::process::Command::new(finder)
+            .arg(bin)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .output()
+        {
+            if output.status.success() {
+                if let Some(line) = String::from_utf8_lossy(&output.stdout).lines().next() {
+                    let path = line.trim();
+                    if !path.is_empty() && std::path::Path::new(path).exists() {
+                        return Some(format!("{}:{}", runtime, path));
+                    }
+                }
+            }
+        }
+    }
+
+    // Check managed bin dir (Deno auto-downloaded alongside yt-dlp).
+    if let Some(bin_dir) = crate::core::paths::app_data_dir().map(|d| d.join("bin")) {
+        for &(runtime, bin) in runtimes {
+            let managed = bin_dir.join(bin);
+            if managed.exists() {
+                return Some(format!("{}:{}", runtime, managed.display()));
+            }
+        }
+    }
+
+    // Fallback: well-known install locations on Windows.
+    #[cfg(target_os = "windows")]
+    {
+        let candidates = [
+            ("node", r"C:\Program Files\nodejs\node.exe"),
+            ("node", r"C:\Program Files (x86)\nodejs\node.exe"),
+        ];
+        for (runtime, path) in &candidates {
+            if std::path::Path::new(path).exists() {
+                return Some(format!("{}:{}", runtime, path));
+            }
+        }
+    }
+
+    None
+}
+
+fn js_runtime_args() -> Vec<String> {
+    let cached = {
+        if let Ok(cache) = JS_RUNTIME_CACHE.read() {
+            cache.clone()
+        } else {
+            None
+        }
+    };
+
+    let runtime = match cached {
+        Some(val) => val,
+        None => {
+            let val = detect_js_runtime();
+            if let Ok(mut cache) = JS_RUNTIME_CACHE.write() {
+                *cache = Some(val.clone());
+            }
+            val
+        }
+    };
+
+    match runtime {
+        Some(rt) => vec!["--js-runtimes".to_string(), rt],
+        None => vec![],
+    }
+}
+
 fn is_youtube_url(url: &str) -> bool {
     let lower = url.to_lowercase();
     lower.contains("youtube.com") || lower.contains("youtu.be")
@@ -578,16 +693,23 @@ pub async fn get_video_info(
             CHROME_UA.to_string(),
             "--skip-download".to_string(),
         ];
+        args.extend(js_runtime_args());
 
         if let Some(extractor_args) = client {
             args.push("--extractor-args".to_string());
             args.push(extractor_args.to_string());
         }
 
-        let browser_cookies = detect_cookies_browser_cached().await;
-        if let Some(ref browser) = browser_cookies {
-            args.push("--cookies-from-browser".to_string());
-            args.push(browser.clone());
+        let extension_cookies = extension_cookie_file();
+        if let Some(ref cf) = extension_cookies {
+            args.push("--cookies".to_string());
+            args.push(cf.to_string_lossy().to_string());
+        } else {
+            let browser_cookies = detect_cookies_browser_cached().await;
+            if let Some(ref browser) = browser_cookies {
+                args.push("--cookies-from-browser".to_string());
+                args.push(browser.clone());
+            }
         }
 
         args.extend(proxy_args());
@@ -698,6 +820,7 @@ pub async fn get_playlist_info(
         "--user-agent".to_string(),
         CHROME_UA.to_string(),
     ];
+    args.extend(js_runtime_args());
 
     if is_youtube_url(url) {
         args.push("--extractor-args".to_string());
@@ -920,7 +1043,13 @@ pub async fn download_video(
         }
     };
 
-    let browser_cookies = if cookie_file.is_none() && global_cookie_file.is_none() {
+    let ext_cookies = if cookie_file.is_none() && global_cookie_file.is_none() {
+        extension_cookie_file()
+    } else {
+        None
+    };
+
+    let browser_cookies = if cookie_file.is_none() && global_cookie_file.is_none() && ext_cookies.is_none() {
         detect_cookies_browser_cached().await
     } else {
         None
@@ -928,8 +1057,10 @@ pub async fn download_video(
 
     let effective_cookie_file = cookie_file
         .map(|p| p.to_path_buf())
-        .or_else(|| global_cookie_file.map(std::path::PathBuf::from));
+        .or_else(|| global_cookie_file.map(std::path::PathBuf::from))
+        .or(ext_cookies);
     let mut base_args = vec!["-f".to_string(), format_selector];
+    base_args.extend(js_runtime_args());
 
     if format_id.is_none() {
         base_args.push("-S".to_string());

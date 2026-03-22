@@ -1,0 +1,47 @@
+{
+  "action_title_supported": {
+    "message": "Enviar esta página de mídia para o OmniGet"
+  },
+  "action_title_unsupported": {
+    "message": "Nenhuma mídia compatível detectada nesta página"
+  },
+  "error_page_document_title": {
+    "message": "Extensão OmniGet"
+  },
+  "error_page_eyebrow": {
+    "message": "Extensão OmniGet"
+  },
+  "error_page_install_cta": {
+    "message": "Instalar OmniGet"
+  },
+  "error_page_open_extensions": {
+    "message": "Abrir extensões do Chrome"
+  },
+  "error_host_missing_title": {
+    "message": "Abra o OmniGet uma vez para concluir a configuração do Chrome"
+  },
+  "error_host_missing_body": {
+    "message": "O Chrome ainda não conseguiu encontrar a ponte do OmniGet neste computador."
+  },
+  "error_host_missing_detail": {
+    "message": "Instale o OmniGet se necessário, depois abra o aplicativo de desktop uma vez e clique novamente na extensão."
+  },
+  "error_invalid_url_title": {
+    "message": "A URL desta página não pode ser enviada ao OmniGet"
+  },
+  "error_invalid_url_body": {
+    "message": "A página atual não é uma página de mídia compatível com a extensão OmniGet."
+  },
+  "error_invalid_url_detail": {
+    "message": "Tente novamente a partir de uma página direta de vídeo, reel, publicação, playlist ou curso."
+  },
+  "error_launch_failed_title": {
+    "message": "O OmniGet não pôde ser iniciado pelo Chrome"
+  },
+  "error_launch_failed_body": {
+    "message": "A extensão falou com o host nativo, mas o aplicativo de desktop não iniciou corretamente."
+  },
+  "error_launch_failed_detail": {
+    "message": "Verifique se o OmniGet está instalado e não foi bloqueado pelo sistema, depois tente novamente."
+  }
+}

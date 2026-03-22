@@ -87,6 +87,29 @@ jobs:
           }
         shell: pwsh
 
+  package-chrome-extension:
+    needs: publish-tauri
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Package Chrome extension
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          OUTPUT="omniget-chrome-extension-v${VERSION}.zip"
+          node browser-extension/chrome/scripts/package.mjs --version "$VERSION" --output "$OUTPUT"
+          gh release upload "$TAG" "$OUTPUT" --repo "${{ github.repository }}" --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   upload-updater-json:
     needs: publish-tauri
     runs-on: ubuntu-latest

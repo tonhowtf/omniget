@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use tauri::Emitter;
 
 use platforms::hotmart::api::Course;
 use platforms::hotmart::auth::HotmartSession;
@@ -17,8 +16,10 @@ pub type ActiveP2pSends = Arc<tokio::sync::Mutex<HashMap<String, P2pSendHandle>>
 
 pub mod commands;
 pub mod core;
+pub mod external_url;
 pub mod hotkey;
 pub mod models;
+pub mod native_host;
 pub mod platforms;
 pub mod storage;
 pub mod tray;
@@ -391,6 +392,8 @@ pub struct AppState {
     pub masterclass_session: Arc<tokio::sync::Mutex<Option<platforms::masterclass::api::MasterClassSession>>>,
     pub masterclass_courses_cache: Arc<tokio::sync::Mutex<Option<MasterClassCoursesCache>>>,
     pub masterclass_session_validated_at: Arc<tokio::sync::Mutex<Option<std::time::Instant>>>,
+    pub frontend_ready: Arc<tokio::sync::Mutex<bool>>,
+    pub pending_external_events: Arc<tokio::sync::Mutex<Vec<external_url::ExternalUrlEvent>>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -615,15 +618,21 @@ pub fn run() {
         masterclass_session: Arc::new(tokio::sync::Mutex::new(None)),
         masterclass_courses_cache: Arc::new(tokio::sync::Mutex::new(None)),
         masterclass_session_validated_at: Arc::new(tokio::sync::Mutex::new(None)),
+        frontend_ready: Arc::new(tokio::sync::Mutex::new(false)),
+        pending_external_events: Arc::new(tokio::sync::Mutex::new(Vec::new())),
     };
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            tray::show_window(app);
-            if let Some(url) = argv.get(1) {
-                if url.starts_with("http://") || url.starts_with("https://") || url.starts_with("magnet:") || url.starts_with("p2p:") {
-                    let _ = app.emit("deep-link", url.clone());
-                }
+            if let Some(url) = external_url::find_external_url_arg(argv.iter().skip(1).map(|arg| arg.as_str())) {
+                let app_handle = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(error) = external_url::handle_external_url(&app_handle, url, "command-line").await {
+                        tracing::warn!("Failed to handle external URL from second instance: {}", error);
+                    }
+                });
+            } else {
+                tray::show_window(app);
             }
         }))
         .manage(state)
@@ -649,6 +658,17 @@ pub fn run() {
             core::http_client::init_proxy(settings.proxy.clone());
             tray::setup(app.handle())?;
             hotkey::register_from_settings(app.handle());
+            if let Err(error) = native_host::ensure_registered() {
+                tracing::warn!("Failed to register Chrome native host: {}", error);
+            }
+            if let Some(url) = external_url::find_external_url_arg(std::env::args().skip(1)) {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(error) = external_url::handle_external_url(&app_handle, url, "command-line").await {
+                        tracing::warn!("Failed to handle startup external URL: {}", error);
+                    }
+                });
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -684,6 +704,7 @@ pub fn run() {
             commands::downloads::update_max_concurrent,
             commands::downloads::clear_finished_downloads,
             commands::downloads::reveal_file,
+            commands::integration::register_external_frontend,
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::settings::reset_settings,

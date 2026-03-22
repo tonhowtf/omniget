@@ -1,0 +1,47 @@
+{
+  "action_title_supported": {
+    "message": "將此媒體頁面傳送到 OmniGet"
+  },
+  "action_title_unsupported": {
+    "message": "此頁面未偵測到支援的媒體"
+  },
+  "error_page_document_title": {
+    "message": "OmniGet 擴充功能"
+  },
+  "error_page_eyebrow": {
+    "message": "OmniGet 擴充功能"
+  },
+  "error_page_install_cta": {
+    "message": "安裝 OmniGet"
+  },
+  "error_page_open_extensions": {
+    "message": "開啟 Chrome 擴充功能"
+  },
+  "error_host_missing_title": {
+    "message": "請先開啟一次 OmniGet 以完成 Chrome 設定"
+  },
+  "error_host_missing_body": {
+    "message": "Chrome 目前還找不到這台電腦上的 OmniGet 橋接程式。"
+  },
+  "error_host_missing_detail": {
+    "message": "如有需要請安裝 OmniGet，然後先啟動一次桌面應用程式，再次點擊擴充功能。"
+  },
+  "error_invalid_url_title": {
+    "message": "此頁面的 URL 無法傳送到 OmniGet"
+  },
+  "error_invalid_url_body": {
+    "message": "目前頁面不是 OmniGet 擴充功能支援的媒體頁面。"
+  },
+  "error_invalid_url_detail": {
+    "message": "請從影片、Reel、貼文、播放清單或課程的直接頁面再試一次。"
+  },
+  "error_launch_failed_title": {
+    "message": "Chrome 無法啟動 OmniGet"
+  },
+  "error_launch_failed_body": {
+    "message": "擴充功能已與原生主機通訊，但桌面應用程式未能正確啟動。"
+  },
+  "error_launch_failed_detail": {
+    "message": "請確認 OmniGet 已安裝且未被系統封鎖，然後再試一次。"
+  }
+}

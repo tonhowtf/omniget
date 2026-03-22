@@ -1,0 +1,47 @@
+{
+  "action_title_supported": {
+    "message": "Invia questa pagina multimediale a OmniGet"
+  },
+  "action_title_unsupported": {
+    "message": "Nessun contenuto multimediale supportato rilevato in questa pagina"
+  },
+  "error_page_document_title": {
+    "message": "Estensione OmniGet"
+  },
+  "error_page_eyebrow": {
+    "message": "Estensione OmniGet"
+  },
+  "error_page_install_cta": {
+    "message": "Installa OmniGet"
+  },
+  "error_page_open_extensions": {
+    "message": "Apri estensioni di Chrome"
+  },
+  "error_host_missing_title": {
+    "message": "Apri OmniGet una volta per completare la configurazione di Chrome"
+  },
+  "error_host_missing_body": {
+    "message": "Chrome non riesce ancora a trovare il bridge di OmniGet su questo computer."
+  },
+  "error_host_missing_detail": {
+    "message": "Installa OmniGet se necessario, poi avvia una volta l'app desktop e fai di nuovo clic sull'estensione."
+  },
+  "error_invalid_url_title": {
+    "message": "L'URL di questa pagina non può essere inviato a OmniGet"
+  },
+  "error_invalid_url_body": {
+    "message": "La pagina corrente non è una pagina multimediale supportata dall'estensione OmniGet."
+  },
+  "error_invalid_url_detail": {
+    "message": "Riprova da una pagina diretta di video, reel, post, playlist o corso."
+  },
+  "error_launch_failed_title": {
+    "message": "OmniGet non è stato avviato da Chrome"
+  },
+  "error_launch_failed_body": {
+    "message": "L'estensione ha comunicato con l'host nativo, ma l'app desktop non si è avviata correttamente."
+  },
+  "error_launch_failed_detail": {
+    "message": "Verifica che OmniGet sia installato e non bloccato dal sistema, poi riprova."
+  }
+}

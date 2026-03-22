@@ -3,9 +3,12 @@
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { onMount } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { initDownloadListener } from "$lib/stores/download-listener";
   import { getCounts } from "$lib/stores/download-store.svelte";
   import { getSettings } from "$lib/stores/settings-store.svelte";
+  import { queueExternalPrefill, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
   import DebugPanel from "$components/debug/DebugPanel.svelte";
   import { open } from "@tauri-apps/plugin-shell";
@@ -16,6 +19,7 @@
   import OnboardingWizard from "$components/onboarding/OnboardingWizard.svelte";
   import { needsOnboarding } from "$lib/stores/onboarding-store.svelte";
   import { isYtdlpAvailable, isDepsChecked, refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
+  import { showToast } from "$lib/stores/toast-store.svelte";
   import { t } from "$lib/i18n";
   import type { Snippet } from "svelte";
 
@@ -32,6 +36,21 @@
   let badgeLabel = $derived(counts.badge > 99 ? "99+" : String(counts.badge));
   let settings = $derived(getSettings());
 
+  function handleExternalUrlEvent(event: Omit<ExternalUrlEvent, "id">) {
+    if (event.action === "prefill") {
+      queueExternalPrefill(event);
+      showToast("info", $t("toast.external_url_ready"));
+      if (page.url.pathname !== "/") {
+        goto("/");
+      }
+      return;
+    }
+
+    if (event.action === "queued") {
+      showToast("success", $t("toast.external_url_queued"));
+    }
+  }
+
   $effect(() => {
     if (settings?.download.clipboard_detection) {
       startClipboardMonitor();
@@ -47,7 +66,20 @@
 
   onMount(() => {
     let cleanup: (() => void) | undefined;
+    let unlistenExternal: (() => void) | undefined;
     initDownloadListener().then((fn) => (cleanup = fn));
+    listen<Omit<ExternalUrlEvent, "id">>("external-url", (event) => {
+      handleExternalUrlEvent(event.payload);
+    }).then((fn) => {
+      unlistenExternal = fn;
+      invoke<Omit<ExternalUrlEvent, "id">[]>("register_external_frontend")
+        .then((events) => {
+          for (const event of events) {
+            handleExternalUrlEvent(event);
+          }
+        })
+        .catch(() => {});
+    });
     refreshUpdateInfo();
     initChangelog();
     refreshYtdlpStatus();
@@ -63,6 +95,7 @@
 
     return () => {
       cleanup?.();
+      unlistenExternal?.();
       mediaQuery.removeEventListener("change", handleChange);
     };
   });

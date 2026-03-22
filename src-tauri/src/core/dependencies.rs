@@ -348,6 +348,137 @@ async fn extract_tar_xz_ffmpeg(
 
 // --- aria2c ---
 
+// --- deno (JS runtime for yt-dlp nsig challenge) ---
+
+/// Ensures a JavaScript runtime is available for yt-dlp's YouTube nsig
+/// challenge solver. Checks for any existing runtime first (Node.js, Deno,
+/// Bun), then auto-downloads Deno if none is found.
+pub async fn ensure_js_runtime() -> Option<PathBuf> {
+    // Check system-installed runtimes first.
+    for tool in &["deno", "node", "bun"] {
+        if let Some(path) = find_tool(tool).await {
+            return Some(path);
+        }
+    }
+
+    // Check well-known install locations on Windows.
+    #[cfg(target_os = "windows")]
+    {
+        let candidates = [
+            r"C:\Program Files\nodejs\node.exe",
+            r"C:\Program Files (x86)\nodejs\node.exe",
+        ];
+        for path in &candidates {
+            let p = PathBuf::from(path);
+            if p.exists() {
+                return Some(p);
+            }
+        }
+    }
+
+    // No runtime found — download Deno (recommended by yt-dlp, fast, single binary).
+    match download_deno().await {
+        Ok(path) => {
+            crate::core::ytdlp::reset_js_runtime_cache();
+            Some(path)
+        }
+        Err(e) => {
+            tracing::warn!("Failed to download Deno JS runtime: {}", e);
+            None
+        }
+    }
+}
+
+async fn download_deno() -> anyhow::Result<PathBuf> {
+    let bin_dir = managed_bin_dir()
+        .ok_or_else(|| anyhow!("Could not determine data directory"))?;
+    tokio::fs::create_dir_all(&bin_dir).await?;
+
+    let deno_name = bin_name("deno");
+    let deno_target = bin_dir.join(&deno_name);
+
+    if deno_target.exists() {
+        return Ok(deno_target);
+    }
+
+    let url = if cfg!(target_os = "windows") {
+        "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip"
+    } else if cfg!(target_os = "macos") {
+        if cfg!(target_arch = "aarch64") {
+            "https://github.com/denoland/deno/releases/latest/download/deno-aarch64-apple-darwin.zip"
+        } else {
+            "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-apple-darwin.zip"
+        }
+    } else if cfg!(target_arch = "aarch64") {
+        "https://github.com/denoland/deno/releases/latest/download/deno-aarch64-unknown-linux-gnu.zip"
+    } else {
+        "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip"
+    };
+
+    tracing::info!("Downloading Deno JS runtime from {}", url);
+
+    let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
+        .timeout(std::time::Duration::from_secs(300))
+        .build()?;
+
+    let response = client.get(url).send().await?;
+    if !response.status().is_success() {
+        return Err(anyhow!("Failed to download Deno: HTTP {}", response.status()));
+    }
+
+    let bytes = response.bytes().await?;
+    let data = bytes.to_vec();
+    let bin_dir_clone = bin_dir.clone();
+    let deno_name_clone = deno_name.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let cursor = std::io::Cursor::new(&data);
+        let mut archive = zip::ZipArchive::new(cursor)
+            .map_err(|e| anyhow!("Failed to open Deno zip: {}", e))?;
+
+        for i in 0..archive.len() {
+            let mut file = archive
+                .by_index(i)
+                .map_err(|e| anyhow!("Failed to read zip entry: {}", e))?;
+
+            let name = file.name().to_string();
+            if name.ends_with(&deno_name_clone) || name == "deno" || name == "deno.exe" {
+                let dest = bin_dir_clone.join(&deno_name_clone);
+                let mut buf = Vec::new();
+                std::io::Read::read_to_end(&mut file, &mut buf)?;
+                std::fs::write(&dest, &buf)?;
+                break;
+            }
+        }
+
+        Ok::<(), anyhow::Error>(())
+    })
+    .await
+    .map_err(|e| anyhow!("Spawn blocking failed: {}", e))??;
+
+    if !deno_target.exists() {
+        return Err(anyhow!("Deno binary not found after extraction"));
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = tokio::fs::set_permissions(&deno_target, std::fs::Permissions::from_mode(0o755)).await;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let _ = tokio::process::Command::new("xattr")
+            .args(["-d", "com.apple.quarantine"])
+            .arg(&deno_target)
+            .output()
+            .await;
+    }
+
+    tracing::info!("Deno installed to {}", deno_target.display());
+    Ok(deno_target)
+}
+
 pub async fn ensure_aria2c() -> Option<PathBuf> {
     if let Some(path) = find_tool("aria2c").await {
         return Some(path);

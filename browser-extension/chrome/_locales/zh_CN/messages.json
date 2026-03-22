@@ -1,0 +1,47 @@
+{
+  "action_title_supported": {
+    "message": "将此媒体页面发送到 OmniGet"
+  },
+  "action_title_unsupported": {
+    "message": "此页面未检测到受支持的媒体"
+  },
+  "error_page_document_title": {
+    "message": "OmniGet 扩展程序"
+  },
+  "error_page_eyebrow": {
+    "message": "OmniGet 扩展程序"
+  },
+  "error_page_install_cta": {
+    "message": "安装 OmniGet"
+  },
+  "error_page_open_extensions": {
+    "message": "打开 Chrome 扩展程序"
+  },
+  "error_host_missing_title": {
+    "message": "先打开一次 OmniGet 以完成 Chrome 设置"
+  },
+  "error_host_missing_body": {
+    "message": "Chrome 目前还找不到这台电脑上的 OmniGet 桥接程序。"
+  },
+  "error_host_missing_detail": {
+    "message": "如有需要请安装 OmniGet，然后先启动一次桌面应用，再次点击扩展程序。"
+  },
+  "error_invalid_url_title": {
+    "message": "此页面 URL 无法发送到 OmniGet"
+  },
+  "error_invalid_url_body": {
+    "message": "当前页面不是 OmniGet 扩展程序支持的媒体页面。"
+  },
+  "error_invalid_url_detail": {
+    "message": "请从视频、Reel、帖子、播放列表或课程的直接页面重试。"
+  },
+  "error_launch_failed_title": {
+    "message": "Chrome 无法启动 OmniGet"
+  },
+  "error_launch_failed_body": {
+    "message": "扩展程序已与原生主机通信，但桌面应用未能正确启动。"
+  },
+  "error_launch_failed_detail": {
+    "message": "请确认 OmniGet 已安装且未被系统阻止，然后重试。"
+  }
+}

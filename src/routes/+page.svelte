@@ -19,6 +19,7 @@
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { onClipboardUrl } from "$lib/stores/clipboard-monitor";
   import { getMediaPreview, clearMediaPreview } from "$lib/stores/media-preview-store.svelte";
+  import { clearPendingExternalPrefill, getPendingExternalPrefill, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
   import { t } from "$lib/i18n";
   import { translateBackendError } from "$lib/error-translate";
 
@@ -84,10 +85,13 @@
   let formatFetchGeneration = $state(0);
   let referer = $state("");
   let mediaPreview = $derived(getMediaPreview());
+  let pendingExternalPrefill = $derived(getPendingExternalPrefill());
   let previewImageLoading = $state(true);
   let showP2pSendDialog = $state(false);
   let p2pReceiveCode = $state<string | null>(null);
   let p2pReceiveUrl = $state("");
+  let externalNotice = $state<ExternalUrlEvent | null>(null);
+  let lastExternalPrefillId = $state<number | null>(null);
 
   onMount(() => {
     onClipboardUrl((detectedUrl) => {
@@ -115,6 +119,19 @@
     if (mediaPreview) {
       previewImageLoading = true;
     }
+  });
+
+  $effect(() => {
+    const incoming = pendingExternalPrefill;
+    if (!incoming || incoming.id === lastExternalPrefillId) {
+      return;
+    }
+
+    lastExternalPrefillId = incoming.id;
+    clearPendingExternalPrefill(incoming.id);
+    externalNotice = incoming;
+    url = incoming.url;
+    handleInput();
   });
 
   let mascotEmotion = $derived.by((): "idle" | "downloading" | "error" | "stalled" | "queue" => {
@@ -486,6 +503,26 @@
   <Mascot emotion={mascotEmotion} />
 
   <div class="omnibox-area">
+    {#if externalNotice}
+      <div class="feedback-card feedback-enter external-url-card">
+        <div class="card-row">
+          <svg class="card-status-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14" />
+            <path d="M5 12h14" />
+          </svg>
+          <span class="card-title">{$t('omnibox.external_url_ready')}</span>
+          <button class="dismiss-btn" onclick={() => { externalNotice = null; }} aria-label={$t('common.close')}>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="card-row">
+          <span class="card-subtext external-url-text">{externalNotice.url}</span>
+        </div>
+      </div>
+    {/if}
+
     {#if showLoopIcon}
       <img
         src="/loop.png"
@@ -869,6 +906,11 @@
     border-left-color: var(--red);
   }
 
+  .external-url-card {
+    width: 100%;
+    border-left-color: var(--accent);
+  }
+
   .card-row {
     display: flex;
     align-items: center;
@@ -916,6 +958,13 @@
     font-size: 11.5px;
     font-weight: 500;
     color: var(--gray);
+  }
+
+  .external-url-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .card-action-btn {
