@@ -35,6 +35,29 @@ pub async fn find_tool(tool: &str) -> Option<PathBuf> {
         }
     }
 
+    // Check managed bin dir first — managed binaries are known-good
+    // (e.g. yt-dlp bundles yt-dlp-ejs, correct ffmpeg version, etc.).
+    let managed = managed_bin_dir().map(|d| d.join(&name));
+    if let Some(ref managed_path) = managed {
+        if managed_path.exists() {
+            if let Ok(status) = crate::core::process::command(managed_path)
+                .arg(version_flag)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .await
+            {
+                if status.success() {
+                    tracing::debug!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
+                    return Some(managed_path.clone());
+                }
+            }
+            tracing::warn!("find_tool({}): binary exists at {} but failed to execute", tool, managed_path.display());
+        }
+    }
+
+    // Fall back to system PATH. Resolve to an absolute path so callers
+    // (e.g. find_ffmpeg_location) can derive the parent directory.
     if let Ok(status) = crate::core::process::command(&name)
         .arg(version_flag)
         .stdout(Stdio::null())
@@ -43,30 +66,36 @@ pub async fn find_tool(tool: &str) -> Option<PathBuf> {
         .await
     {
         if status.success() {
+            let abs = resolve_absolute_path(&name);
             tracing::debug!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
-            return Some(PathBuf::from(&name));
+            return Some(abs);
         }
-    }
-
-    let managed = managed_bin_dir()?.join(&name);
-    if managed.exists() {
-        if let Ok(status) = crate::core::process::command(&managed)
-            .arg(version_flag)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .await
-        {
-            if status.success() {
-                tracing::debug!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
-                return Some(managed);
-            }
-        }
-        tracing::warn!("find_tool({}): binary exists at {} but failed to execute", tool, managed.display());
     }
 
     tracing::debug!("[perf] find_tool({}) took {:?}", tool, _timer_start.elapsed());
     None
+}
+
+/// Resolve a bare binary name to its absolute path via `where` (Windows)
+/// or `which` (Unix). Returns the original name as fallback.
+fn resolve_absolute_path(bin_name: &str) -> PathBuf {
+    let finder = if cfg!(target_os = "windows") { "where" } else { "which" };
+    if let Ok(output) = std::process::Command::new(finder)
+        .arg(bin_name)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .output()
+    {
+        if output.status.success() {
+            if let Some(line) = String::from_utf8_lossy(&output.stdout).lines().next() {
+                let path = line.trim();
+                if !path.is_empty() {
+                    return PathBuf::from(path);
+                }
+            }
+        }
+    }
+    PathBuf::from(bin_name)
 }
 
 fn version_flag_for(tool: &str) -> &'static str {
@@ -117,6 +146,19 @@ pub async fn check_version(tool: &str) -> Option<String> {
 }
 
 pub async fn ensure_ffmpeg() -> anyhow::Result<PathBuf> {
+    // Always ensure the managed binary exists — the standalone yt-dlp.exe
+    // cannot discover system FFmpeg from PATH. A managed copy in the same
+    // bin dir is always found via --ffmpeg-location.
+    if !is_flatpak() {
+        let managed = managed_bin_dir().map(|d| d.join(bin_name("ffmpeg")));
+        if managed.as_ref().map_or(true, |p| !p.exists()) {
+            if let Ok(path) = download_ffmpeg().await {
+                crate::core::ytdlp::reset_ffmpeg_location_cache();
+                return Ok(path);
+            }
+        }
+    }
+
     if let Some(path) = find_tool("ffmpeg").await {
         return Ok(path);
     }
