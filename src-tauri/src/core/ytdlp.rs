@@ -145,6 +145,17 @@ pub async fn find_ytdlp() -> Option<PathBuf> {
         }
     }
 
+    // Prefer the managed binary — it bundles yt-dlp-ejs (required for
+    // YouTube nsig challenge). System-installed yt-dlp (e.g. dnf, apt)
+    // often lacks this plugin, causing "Requested format is not available".
+    let managed = managed_ytdlp_path()?;
+    if managed.exists() {
+        tracing::debug!("[perf] find_ytdlp took {:?}", _timer_start.elapsed());
+        return Some(managed);
+    }
+
+    // Fall back to system PATH. Resolve to an absolute path so the cache
+    // check (`path.exists()`) works — a bare "yt-dlp" would always fail.
     if let Ok(output) = crate::core::process::command(bin_name)
         .arg("--version")
         .stdout(Stdio::null())
@@ -153,19 +164,36 @@ pub async fn find_ytdlp() -> Option<PathBuf> {
         .await
     {
         if output.success() {
+            let abs = resolve_absolute_path(bin_name);
             tracing::debug!("[perf] find_ytdlp took {:?}", _timer_start.elapsed());
-            return Some(PathBuf::from(bin_name));
+            return Some(abs);
         }
-    }
-
-    let managed = managed_ytdlp_path()?;
-    if managed.exists() {
-        tracing::debug!("[perf] find_ytdlp took {:?}", _timer_start.elapsed());
-        return Some(managed);
     }
 
     tracing::debug!("[perf] find_ytdlp took {:?}", _timer_start.elapsed());
     None
+}
+
+/// Resolve a bare binary name to its absolute path via `where` (Windows)
+/// or `which` (Unix). Returns the original name as fallback.
+fn resolve_absolute_path(bin_name: &str) -> PathBuf {
+    let finder = if cfg!(target_os = "windows") { "where" } else { "which" };
+    if let Ok(output) = std::process::Command::new(finder)
+        .arg(bin_name)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .output()
+    {
+        if output.status.success() {
+            if let Some(line) = String::from_utf8_lossy(&output.stdout).lines().next() {
+                let path = line.trim();
+                if !path.is_empty() {
+                    return PathBuf::from(path);
+                }
+            }
+        }
+    }
+    PathBuf::from(bin_name)
 }
 
 pub async fn find_ytdlp_cached() -> Option<PathBuf> {
