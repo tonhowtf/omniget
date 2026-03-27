@@ -307,7 +307,7 @@ pub async fn qr_login_start(handle: &TelegramSessionHandle) -> anyhow::Result<Qr
             match handle_migrate(handle, &client, migrate).await? {
                 MigrateResult::NewToken(token_data) => token_to_qr(&token_data),
                 MigrateResult::Success { .. } => Err(anyhow!("already_authenticated")),
-                MigrateResult::PasswordRequired { .. } => Err(anyhow!("already_authenticated")),
+                MigrateResult::PasswordRequired { hint } => Err(anyhow!("password_required:{}", hint)),
             }
         }
     }
