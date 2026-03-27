@@ -1107,13 +1107,8 @@ pub async fn download_video(
         .map(|p| p.to_path_buf())
         .or_else(|| global_cookie_file.map(std::path::PathBuf::from))
         .or(ext_cookies);
-    let js_args = js_runtime_args();
-    tracing::info!(
-        "[yt-dlp] format={} ffmpeg={} ffmpeg_loc={:?} cookies={:?} browser_cookies={:?} js={:?}",
-        &format_selector, ffmpeg_available, &ffmpeg_location, &effective_cookie_file, &browser_cookies, &js_args
-    );
     let mut base_args = vec!["-f".to_string(), format_selector];
-    base_args.extend(js_args);
+    base_args.extend(js_runtime_args());
 
     if format_id.is_none() && mode == "audio" {
         base_args.push("-S".to_string());
@@ -1302,7 +1297,6 @@ pub async fn download_video(
         args.extend(extra_args.iter().cloned());
         args.push(url.to_string());
 
-        tracing::info!("[yt-dlp] full args: {:?}", &args);
         let mut child = crate::core::process::command(ytdlp)
             .args(&args)
             .stdout(Stdio::piped())
