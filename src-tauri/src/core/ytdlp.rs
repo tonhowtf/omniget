@@ -231,12 +231,33 @@ fn managed_ytdlp_path() -> Option<PathBuf> {
 
 pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
     let _timer_start = std::time::Instant::now();
+
+    // Always ensure the managed binary exists — it bundles yt-dlp-ejs and
+    // works reliably with --js-runtimes and --ffmpeg-location. System yt-dlp
+    // (dnf, pip, standalone) often lacks plugins or can't find tools.
+    if !crate::core::dependencies::is_flatpak() {
+        let managed = managed_ytdlp_path();
+        if managed.as_ref().map_or(true, |p| !p.exists()) {
+            tracing::info!("[ytdlp] managed binary missing, downloading...");
+            match download_ytdlp_binary().await {
+                Ok(path) => {
+                    reset_ytdlp_cache();
+                    tokio::spawn(async { crate::core::dependencies::ensure_js_runtime().await; });
+                    tracing::debug!("[perf] ensure_ytdlp took {:?}", _timer_start.elapsed());
+                    return Ok(path);
+                }
+                Err(e) => {
+                    tracing::warn!("[ytdlp] failed to download managed binary, falling back to system: {}", e);
+                }
+            }
+        }
+    }
+
     if let Some(path) = find_ytdlp_cached().await {
         let path_clone = path.clone();
         tokio::spawn(async move {
             check_ytdlp_freshness(&path_clone).await;
         });
-        // Ensure a JS runtime is available in the background (for YouTube nsig).
         tokio::spawn(async { crate::core::dependencies::ensure_js_runtime().await; });
         tracing::debug!("[perf] ensure_ytdlp took {:?}", _timer_start.elapsed());
         return Ok(path);
@@ -249,7 +270,6 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
 
     let path = download_ytdlp_binary().await?;
     reset_ytdlp_cache();
-    // Ensure a JS runtime is available in the background (for YouTube nsig).
     tokio::spawn(async { crate::core::dependencies::ensure_js_runtime().await; });
     tracing::debug!("[perf] ensure_ytdlp took {:?}", _timer_start.elapsed());
     Ok(path)
@@ -1087,8 +1107,13 @@ pub async fn download_video(
         .map(|p| p.to_path_buf())
         .or_else(|| global_cookie_file.map(std::path::PathBuf::from))
         .or(ext_cookies);
+    let js_args = js_runtime_args();
+    tracing::info!(
+        "[yt-dlp] format={} ffmpeg={} ffmpeg_loc={:?} cookies={:?} browser_cookies={:?} js={:?}",
+        &format_selector, ffmpeg_available, &ffmpeg_location, &effective_cookie_file, &browser_cookies, &js_args
+    );
     let mut base_args = vec!["-f".to_string(), format_selector];
-    base_args.extend(js_runtime_args());
+    base_args.extend(js_args);
 
     if format_id.is_none() {
         base_args.push("-S".to_string());
@@ -1281,6 +1306,7 @@ pub async fn download_video(
         args.extend(extra_args.iter().cloned());
         args.push(url.to_string());
 
+        tracing::info!("[yt-dlp] full args: {:?}", &args);
         let mut child = crate::core::process::command(ytdlp)
             .args(&args)
             .stdout(Stdio::piped())

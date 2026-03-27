@@ -146,6 +146,19 @@ pub async fn check_version(tool: &str) -> Option<String> {
 }
 
 pub async fn ensure_ffmpeg() -> anyhow::Result<PathBuf> {
+    // Always ensure the managed binary exists — the standalone yt-dlp.exe
+    // cannot discover system FFmpeg from PATH. A managed copy in the same
+    // bin dir is always found via --ffmpeg-location.
+    if !is_flatpak() {
+        let managed = managed_bin_dir().map(|d| d.join(bin_name("ffmpeg")));
+        if managed.as_ref().map_or(true, |p| !p.exists()) {
+            if let Ok(path) = download_ffmpeg().await {
+                crate::core::ytdlp::reset_ffmpeg_location_cache();
+                return Ok(path);
+            }
+        }
+    }
+
     if let Some(path) = find_tool("ffmpeg").await {
         return Ok(path);
     }
