@@ -1115,13 +1115,9 @@ pub async fn download_video(
     let mut base_args = vec!["-f".to_string(), format_selector];
     base_args.extend(js_args);
 
-    if format_id.is_none() {
+    if format_id.is_none() && mode == "audio" {
         base_args.push("-S".to_string());
-        if mode == "audio" {
-            base_args.push("+codec:aac:m4a".to_string());
-        } else {
-            base_args.push("+codec:avc:m4a".to_string());
-        }
+        base_args.push("+codec:aac:m4a".to_string());
     }
 
     if format_id.is_none() && mode != "audio" && ffmpeg_available {
