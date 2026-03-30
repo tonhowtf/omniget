@@ -598,6 +598,9 @@
     "cap_download_queue": "Υποβολη ληψεων στην ουρα",
     "install": "Εγκατασταση",
     "update_available": "Ενημερωση",
-    "update_hint": "v{{version}} διαθεσιμο"
+    "update_hint": "v{{version}} διαθεσιμο",
+    "plugin_not_installed": "Το plugin δεν ειναι εγκατεστημενο",
+    "plugin_install_hint": "Εγκαταστηστε το απο το Marketplace.",
+    "go_to_marketplace": "Μεταβαση στο Marketplace"
   }
 }
