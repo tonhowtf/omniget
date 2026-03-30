@@ -160,6 +160,21 @@
     return "idle";
   });
 
+  let mascotCompact = $derived(omniState.kind !== "idle");
+
+  let mascotBubble = $derived.by((): string | undefined => {
+    switch (omniState.kind) {
+      case "idle": return $t("mascot.idle");
+      case "detecting": return $t("mascot.detecting");
+      case "detected": return $t("mascot.detected");
+      case "preparing": return $t("mascot.preparing");
+      case "searching":
+      case "search-results": return $t("mascot.search");
+      case "error": return $t("mascot.error");
+      default: return undefined;
+    }
+  });
+
   let showLoopIcon = $derived(
     omniState.kind === "detected" ||
     omniState.kind === "preparing" ||
@@ -500,7 +515,7 @@
 </script>
 
 <div class="home">
-  <Mascot emotion={mascotEmotion} />
+  <Mascot emotion={mascotEmotion} compact={mascotCompact} bubbleText={mascotBubble} />
 
   <div class="omnibox-area">
     {#if externalNotice}
@@ -559,51 +574,52 @@
     {#if omniState.kind === "detected"}
       <MediaPreview bind:mediaPreview bind:imageLoading={previewImageLoading} />
 
-      {#if omniState.info.platform !== "hotmart"}
-        <div class="download-options feedback-enter">
-          <DownloadModeSelector bind:downloadMode onChange={() => { selectedFormatId = null; }} />
-
-          <QualityPicker bind:selectedQuality selectedFormatId />
-
-          {#if omniState.info.platform === "vimeo" || omniState.info.platform === "generic"}
-            <div class="referer-input-wrapper feedback-enter">
-              <label class="referer-label" for="referer-input">{$t('omnibox.referer_label')}</label>
-              <input
-                id="referer-input"
-                class="referer-input"
-                type="text"
-                placeholder={$t('omnibox.referer_placeholder')}
-                bind:value={referer}
-                spellcheck="false"
-              />
-            </div>
-          {/if}
-
-          <FormatSelector
-            platform={omniState.info.platform}
-            bind:formats
-            bind:selectedFormatId
-            {loadingFormats}
-            {formatError}
-            onLoadFormats={loadFormats}
-            onSelectFormat={selectFormat}
-            onClearFormat={clearFormatSelection}
-          />
-        </div>
-
-        {#if omniState.info.platform === "hotmart"}
-          <button class="button action-btn" onclick={handleAction}>
-            {$t('omnibox.go_to_hotmart')}
-          </button>
-        {:else}
-          <button class="button action-btn" onclick={handleAction}>
-            {$t('omnibox.download')}
-          </button>
-        {/if}
-      {:else}
+      {#if omniState.info.platform === "hotmart"}
         <button class="button action-btn" onclick={handleAction}>
           {$t('omnibox.go_to_hotmart')}
         </button>
+      {:else}
+        <button class="download-primary-btn" onclick={handleAction}>
+          {$t('omnibox.download')}
+        </button>
+
+        <details class="options-panel">
+          <summary class="options-toggle">{$t('omnibox.options')}</summary>
+          <div class="options-content">
+            <DownloadModeSelector bind:downloadMode onChange={() => { selectedFormatId = null; }} />
+            <QualityPicker bind:selectedQuality selectedFormatId />
+
+            <details class="options-panel">
+              <summary class="options-toggle">{$t('omnibox.advanced')}</summary>
+              <div class="options-content">
+                {#if omniState.info.platform === "vimeo" || omniState.info.platform === "generic"}
+                  <div class="referer-input-wrapper">
+                    <label class="referer-label" for="referer-input">{$t('omnibox.referer_label')}</label>
+                    <input
+                      id="referer-input"
+                      class="referer-input"
+                      type="text"
+                      placeholder={$t('omnibox.referer_placeholder')}
+                      bind:value={referer}
+                      spellcheck="false"
+                    />
+                  </div>
+                {/if}
+
+                <FormatSelector
+                  platform={omniState.info.platform}
+                  bind:formats
+                  bind:selectedFormatId
+                  {loadingFormats}
+                  {formatError}
+                  onLoadFormats={loadFormats}
+                  onSelectFormat={selectFormat}
+                  onClearFormat={clearFormatSelection}
+                />
+              </div>
+            </details>
+          </div>
+        </details>
       {/if}
 
     {:else if omniState.kind === "batch"}
@@ -668,26 +684,6 @@
     {/if}
   </div>
 
-  <div class="bottom-actions">
-    <button class="action-btn" onclick={() => { showP2pSendDialog = true; }}>
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M22 2L11 13" />
-        <path d="M22 2L15 22 11 13 2 9z" />
-      </svg>
-      {$t("p2p.send_file")}
-    </button>
-    <button class="action-btn" onclick={openTorrentFile}>
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3" />
-        <circle cx="5" cy="6" r="2" />
-        <circle cx="19" cy="6" r="2" />
-        <path d="M9.5 10.5L6.5 7.5" />
-        <path d="M14.5 10.5l3-3" />
-      </svg>
-      Open .torrent
-    </button>
-  </div>
-
   {#if showP2pSendDialog}
     <P2pSendDialog onClose={() => { showP2pSendDialog = false; }} />
   {/if}
@@ -700,7 +696,38 @@
     />
   {/if}
 
-  <SupportedServices />
+  {#if omniState.kind === "idle"}
+    <SupportedServices />
+  {/if}
+
+  <details class="more-actions">
+    <summary class="more-actions-toggle">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="1" />
+        <circle cx="19" cy="12" r="1" />
+        <circle cx="5" cy="12" r="1" />
+      </svg>
+    </summary>
+    <div class="more-actions-content">
+      <button class="action-btn" onclick={() => { showP2pSendDialog = true; }}>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 2L11 13" />
+          <path d="M22 2L15 22 11 13 2 9z" />
+        </svg>
+        {$t("p2p.send_file")}
+      </button>
+      <button class="action-btn" onclick={openTorrentFile}>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3" />
+          <circle cx="5" cy="6" r="2" />
+          <circle cx="19" cy="6" r="2" />
+          <path d="M9.5 10.5L6.5 7.5" />
+          <path d="M14.5 10.5l3-3" />
+        </svg>
+        Open .torrent
+      </button>
+    </div>
+  </details>
 
   <div class="terms-note">
     {$t('terms_note.agreement')}
@@ -825,10 +852,69 @@
     }
   }
 
-  .download-options {
+  .download-primary-btn {
+    background: var(--cta);
+    color: var(--on-cta);
+    font-size: 15px;
+    font-weight: 500;
+    padding: 12px 32px;
+    border-radius: var(--border-radius);
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    max-width: 300px;
+    transition: background 150ms;
+  }
+
+  @media (hover: hover) {
+    .download-primary-btn:hover {
+      background: var(--cta-hover);
+    }
+  }
+
+  .download-primary-btn:active {
+    background: var(--cta-press);
+  }
+
+  .download-primary-btn:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .options-panel {
+    width: 100%;
+  }
+
+  .options-toggle {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray);
+    cursor: pointer;
+    list-style: none;
+    text-align: center;
+    padding: 4px 0;
+    user-select: none;
+  }
+
+  .options-toggle::-webkit-details-marker {
+    display: none;
+  }
+
+  .options-toggle::marker {
+    content: "";
+  }
+
+  @media (hover: hover) {
+    .options-toggle:hover {
+      color: var(--secondary);
+    }
+  }
+
+  .options-content {
     display: flex;
     flex-direction: column;
     gap: var(--padding);
+    padding-top: var(--padding);
     width: 100%;
   }
 
@@ -989,10 +1075,41 @@
     color: var(--gray);
   }
 
-  .bottom-actions {
+  .more-actions {
+    margin-top: calc(var(--padding) * -0.5);
+  }
+
+  .more-actions-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    list-style: none;
+    color: var(--gray);
+    padding: 4px;
+    user-select: none;
+  }
+
+  .more-actions-toggle::-webkit-details-marker {
+    display: none;
+  }
+
+  .more-actions-toggle::marker {
+    content: "";
+  }
+
+  @media (hover: hover) {
+    .more-actions-toggle:hover {
+      color: var(--secondary);
+    }
+  }
+
+  .more-actions-content {
     display: flex;
     gap: calc(var(--padding) / 2);
     flex-wrap: wrap;
+    justify-content: center;
+    padding-top: calc(var(--padding) / 2);
   }
 
   .action-btn {
@@ -1025,9 +1142,10 @@
   }
 
   .terms-note {
-    font-size: 10px;
+    font-size: 9px;
     color: var(--gray);
     text-align: center;
+    opacity: 0.3;
   }
 
   .terms-link {
