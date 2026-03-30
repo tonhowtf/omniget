@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
+  import { pluginInvoke } from "$lib/plugin-invoke";
   import { open } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -66,7 +66,7 @@
   async function probeFile(id: number, path: string) {
     markFileProbing(id);
     try {
-      const info: ProbeInfo = await invoke("probe_file", { path });
+      const info: ProbeInfo = await pluginInvoke("convert", "probe_file", { path });
       updateFileProbe(id, info);
     } catch (e: any) {
       showToast("error", typeof e === "string" ? e : e.message ?? $t("convert.probe_failed"));
@@ -75,7 +75,7 @@
 
   async function loadHwAccel() {
     try {
-      const info: HwAccelInfo = await invoke("get_hwaccel_info");
+      const info: HwAccelInfo = await pluginInvoke("convert", "get_hwaccel_info");
       setHwAccel(info);
     } catch {
       // ffmpeg not available
@@ -123,7 +123,7 @@
       };
 
       try {
-        const conversionId: number = await invoke("convert_file", { options: convOptions });
+        const conversionId: number = await pluginInvoke("convert", "convert_file", { options: convOptions });
         markFileConverting(file.id, conversionId);
 
         // Wait for this conversion to complete before starting next
@@ -153,7 +153,7 @@
     const activeFile = files.find((f) => f.status === "converting");
     if (activeFile?.conversionId) {
       try {
-        await invoke("cancel_conversion", { conversionId: activeFile.conversionId });
+        await pluginInvoke("convert", "cancel_conversion", { conversionId: activeFile.conversionId });
       } catch {}
     }
   }
