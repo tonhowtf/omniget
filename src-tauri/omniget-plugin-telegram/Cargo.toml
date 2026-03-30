@@ -1,0 +1,28 @@
+[package]
+name = "omniget-plugin-telegram"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-store = "2"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+tracing = "0.1"
+async-trait = "0.1"
+tokio-util = { version = "0.7", features = ["rt"] }
+base64 = "0.22.1"
+grammers-client = "0.8"
+grammers-session = "0.8"
+grammers-tl-types = "0.8"
+grammers-mtsender = "0.8"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+dirs = "6"
+sanitize-filename = "0.6"
+url = "2"
+filetime = "0.2.27"
+os_info = "3"
+sys-locale = "0.3"
+omniget-core = { path = "../omniget-core", features = ["desktop"] }
