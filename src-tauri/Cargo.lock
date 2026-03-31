@@ -4847,7 +4847,6 @@ dependencies = [
  "librqbit",
  "m3u8-rs",
  "omniget-core",
- "omniget-plugin-convert",
  "omniget-plugin-courses",
  "omniget-plugin-sdk",
  "omniget-plugin-telegram",
@@ -4940,9 +4939,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "omniget-core",
+ "omniget-plugin-sdk",
  "serde",
  "serde_json",
- "tauri",
  "tokio",
  "tokio-util",
  "tracing",
