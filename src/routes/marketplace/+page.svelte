@@ -80,12 +80,13 @@
     loadingInstalled = false;
 
     if (plugins.length > 0) {
-      try {
-        const updateList = await invoke<UpdateInfo[]>("check_plugin_updates");
-        for (const u of updateList) {
-          if (u.has_update) updates[u.id] = u;
-        }
-      } catch {}
+      invoke<UpdateInfo[]>("check_plugin_updates")
+        .then((updateList) => {
+          for (const u of updateList) {
+            if (u.has_update) updates[u.id] = u;
+          }
+        })
+        .catch(() => {});
     }
   });
 
@@ -94,7 +95,13 @@
     loadingBrowse = true;
     browseError = false;
     try {
-      registry = await invoke<MarketplaceEntry[]>("fetch_marketplace_registry");
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), 15000)
+      );
+      registry = await Promise.race([
+        invoke<MarketplaceEntry[]>("fetch_marketplace_registry"),
+        timeout,
+      ]);
       browseFetched = true;
     } catch {
       browseError = true;
@@ -107,6 +114,14 @@
     if (tab === "browse" && !browseFetched) {
       loadBrowse();
     }
+  }
+
+  async function uninstallPlugin(id: string) {
+    try {
+      await invoke("uninstall_plugin", { pluginId: id });
+      plugins = plugins.filter((p) => p.id !== id);
+      window.location.reload();
+    } catch {}
   }
 
   let installingId = $state<string | null>(null);
@@ -130,10 +145,7 @@
     installingId = id;
     try {
       await invoke("install_plugin_from_registry", { pluginId: id, repo });
-      const idx = registry.findIndex((e) => e.id === id);
-      if (idx >= 0) {
-        registry[idx] = { ...registry[idx], installed: true };
-      }
+      window.location.reload();
     } catch {}
     installingId = null;
   }
@@ -141,10 +153,7 @@
   async function togglePlugin(id: string, enabled: boolean) {
     try {
       await invoke("set_plugin_enabled", { pluginId: id, enabled });
-      const idx = plugins.findIndex((p) => p.id === id);
-      if (idx >= 0) {
-        plugins[idx] = { ...plugins[idx], enabled };
-      }
+      window.location.reload();
     } catch {}
   }
 </script>
@@ -213,6 +222,12 @@
                   onclick={() => togglePlugin(plugin.id, !plugin.enabled)}
                 >
                   {plugin.enabled ? $t("marketplace.enabled") : $t("marketplace.disabled")}
+                </button>
+                <button
+                  class="uninstall-btn"
+                  onclick={() => uninstallPlugin(plugin.id)}
+                >
+                  {$t("marketplace.uninstall")}
                 </button>
               </div>
             </div>
@@ -513,6 +528,24 @@
     font-size: 11px;
     color: var(--cta);
     font-weight: 500;
+  }
+
+  .uninstall-btn {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    border: none;
+    border-radius: calc(var(--border-radius) - 2px);
+    cursor: pointer;
+    background: var(--button);
+    color: var(--red);
+    box-shadow: var(--button-box-shadow);
+  }
+
+  @media (hover: hover) {
+    .uninstall-btn:hover {
+      background: var(--button-hover);
+    }
   }
 
   .install-btn:disabled {
