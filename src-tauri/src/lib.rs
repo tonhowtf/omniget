@@ -279,7 +279,6 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(omniget_plugin_courses::init())
         .plugin(omniget_plugin_telegram::init())
-        .plugin(omniget_plugin_convert::init())
         .setup(|app| {
             let settings = storage::config::load_settings(app.handle());
             core::http_client::init_proxy(settings.proxy.clone());
@@ -635,10 +634,6 @@ pub fn run() {
             omniget_plugin_telegram::commands::telegram::telegram_search_media,
             omniget_plugin_telegram::commands::telegram::telegram_get_chat_photo,
             omniget_plugin_telegram::commands::telegram::telegram_clear_thumbnail_cache,
-            omniget_plugin_convert::commands::convert::probe_file,
-            omniget_plugin_convert::commands::convert::convert_file,
-            omniget_plugin_convert::commands::convert::cancel_conversion,
-            omniget_plugin_convert::commands::convert::get_hwaccel_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
