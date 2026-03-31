@@ -4847,7 +4847,10 @@ dependencies = [
  "librqbit",
  "m3u8-rs",
  "omniget-core",
+ "omniget-plugin-convert",
+ "omniget-plugin-courses",
  "omniget-plugin-sdk",
+ "omniget-plugin-telegram",
  "open",
  "os_info",
  "qrcode",
@@ -4932,6 +4935,56 @@ dependencies = [
 ]
 
 [[package]]
+name = "omniget-plugin-convert"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "omniget-core",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "omniget-plugin-courses"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "cbc",
+ "chromiumoxide",
+ "chrono",
+ "dirs",
+ "filetime",
+ "futures",
+ "m3u8-rs",
+ "omniget-core",
+ "rand 0.10.0",
+ "regex",
+ "reqwest 0.12.28",
+ "sanitize-filename",
+ "scraper",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tauri",
+ "tauri-plugin-store",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "unicode-normalization",
+ "url",
+ "urlencoding",
+ "webview2-com",
+ "windows-core 0.61.2",
+]
+
+[[package]]
 name = "omniget-plugin-sdk"
 version = "0.1.0"
 dependencies = [
@@ -4939,6 +4992,34 @@ dependencies = [
  "async-trait",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "omniget-plugin-telegram"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "dirs",
+ "filetime",
+ "grammers-client",
+ "grammers-mtsender",
+ "grammers-session",
+ "grammers-tl-types",
+ "omniget-core",
+ "os_info",
+ "qrcode",
+ "sanitize-filename",
+ "serde",
+ "serde_json",
+ "sys-locale",
+ "tauri",
+ "tauri-plugin-store",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "url",
 ]
 
 [[package]]
