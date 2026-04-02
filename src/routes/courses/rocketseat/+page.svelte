@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
+  import { pluginInvoke } from "$lib/plugin-invoke";
   import { open } from "@tauri-apps/plugin-dialog";
   import CourseCard from "$components/hotmart/CourseCard.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -73,7 +73,7 @@
 
   async function checkSession() {
     try {
-      await invoke<string>("rocketseat_check_session");
+      await pluginInvoke<string>("courses", "rocketseat_check_session");
       loggedIn = true;
       loadCourses();
     } catch {
@@ -88,7 +88,7 @@
     error = "";
     loading = true;
     try {
-      await invoke<string>("rocketseat_login_token", { token: token.trim() });
+      await pluginInvoke<string>("courses", "rocketseat_login_token", { token: token.trim() });
       loggedIn = true;
       loadCourses();
     } catch (e: any) {
@@ -100,7 +100,7 @@
 
   async function handleLogout() {
     try {
-      await invoke("rocketseat_logout");
+      await pluginInvoke("courses", "rocketseat_logout");
     } catch {
     }
     loggedIn = false;
@@ -115,7 +115,7 @@
     loadingCourses = true;
     coursesError = "";
     try {
-      courses = await invoke("rocketseat_list_courses");
+      courses = await pluginInvoke("courses", "rocketseat_list_courses");
       currentPage = 1;
     } catch (e: any) {
       coursesError = typeof e === "string" ? e : e.message ?? $t('hotmart.courses_error');
@@ -129,7 +129,7 @@
     loadingCourses = true;
     coursesError = "";
     try {
-      courses = await invoke("rocketseat_search_courses", { query: searchQuery.trim() });
+      courses = await pluginInvoke("courses", "rocketseat_search_courses", { query: searchQuery.trim() });
       currentPage = 1;
     } catch (e: any) {
       coursesError = typeof e === "string" ? e : e.message ?? "Search failed";
@@ -185,7 +185,7 @@
     }
 
     try {
-      await invoke("start_rocketseat_course_download", {
+      await pluginInvoke("courses", "start_rocketseat_course_download", {
         courseJson: JSON.stringify(course),
         outputDir,
       });
@@ -203,7 +203,7 @@
     loadingCourses = true;
     coursesError = "";
     try {
-      courses = await invoke("rocketseat_refresh_courses");
+      courses = await pluginInvoke("courses", "rocketseat_refresh_courses");
       currentPage = 1;
     } catch (e: any) {
       coursesError = typeof e === "string" ? e : e.message ?? $t('hotmart.courses_error');
