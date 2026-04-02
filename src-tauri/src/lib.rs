@@ -171,7 +171,6 @@ pub struct AppState {
     pub active_generic_downloads: Arc<tokio::sync::Mutex<HashMap<u64, (String, CancellationToken)>>>,
     pub registry: core::registry::PlatformRegistry,
     pub download_queue: Arc<tokio::sync::Mutex<core::queue::DownloadQueue>>,
-    pub auth_registry: core::auth::AuthRegistry,
     pub torrent_session: Arc<tokio::sync::Mutex<Option<Arc<librqbit::Session>>>>,
     pub active_p2p_sends: ActiveP2pSends,
     pub frontend_ready: Arc<tokio::sync::Mutex<bool>>,
@@ -225,14 +224,11 @@ pub fn run() {
         platforms::generic_ytdlp::GenericYtdlpDownloader::new(),
     ));
 
-    let auth_registry = core::auth::AuthRegistry::new();
-
     let state = AppState {
         active_downloads: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         active_generic_downloads: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         registry,
         download_queue: Arc::new(tokio::sync::Mutex::new(core::queue::DownloadQueue::new(2))),
-        auth_registry,
         torrent_session,
         active_p2p_sends: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         frontend_ready: Arc::new(tokio::sync::Mutex::new(false)),
@@ -349,10 +345,6 @@ pub fn run() {
             commands::dependencies::check_ytdlp_available,
             commands::dependencies::install_dependency,
             commands::search::search_videos,
-            commands::platform_auth::platform_auth_check,
-            commands::platform_auth::platform_auth_login,
-            commands::platform_auth::platform_auth_logout,
-            commands::platform_auth::platform_auth_list,
             commands::plugins::list_plugins,
             commands::plugins::get_plugin_frontend_path,
             commands::plugins::set_plugin_enabled,
