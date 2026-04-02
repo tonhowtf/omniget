@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
+  import { pluginInvoke } from "$lib/plugin-invoke";
   import { open } from "@tauri-apps/plugin-dialog";
   import CourseCard from "$components/hotmart/CourseCard.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -76,7 +76,7 @@
 
   async function checkSession() {
     try {
-      const result = await invoke<string>("wondrium_check_session");
+      const result = await pluginInvoke<string>("courses", "wondrium_check_session");
       sessionEmail = result;
       loggedIn = true;
       loadCourses();
@@ -91,7 +91,7 @@
     error = "";
     loading = true;
     try {
-      const result = await invoke<string>("wondrium_login", { email, password });
+      const result = await pluginInvoke<string>("courses", "wondrium_login", { email, password });
       sessionEmail = result || email;
       loggedIn = true;
       loadCourses();
@@ -107,7 +107,7 @@
     error = "";
     loading = true;
     try {
-      const result = await invoke<string>("wondrium_login_token", { token: token.trim() });
+      const result = await pluginInvoke<string>("courses", "wondrium_login_token", { token: token.trim() });
       sessionEmail = result || "Token";
       loggedIn = true;
       loadCourses();
@@ -120,7 +120,7 @@
 
   async function handleLogout() {
     try {
-      await invoke("wondrium_logout");
+      await pluginInvoke("courses", "wondrium_logout");
     } catch {
     }
     loggedIn = false;
@@ -134,7 +134,7 @@
     loadingCourses = true;
     coursesError = "";
     try {
-      courses = await invoke("wondrium_list_courses");
+      courses = await pluginInvoke("courses", "wondrium_list_courses");
       currentPage = 1;
     } catch (e: any) {
       coursesError = typeof e === "string" ? e : e.message ?? $t('hotmart.courses_error');
@@ -189,7 +189,7 @@
     }
 
     try {
-      await invoke("start_wondrium_course_download", {
+      await pluginInvoke("courses", "start_wondrium_course_download", {
         courseJson: JSON.stringify(course),
         outputDir,
       });
@@ -207,7 +207,7 @@
     loadingCourses = true;
     coursesError = "";
     try {
-      courses = await invoke("wondrium_refresh_courses");
+      courses = await pluginInvoke("courses", "wondrium_refresh_courses");
       currentPage = 1;
     } catch (e: any) {
       coursesError = typeof e === "string" ? e : e.message ?? $t('hotmart.courses_error');

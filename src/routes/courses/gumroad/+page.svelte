@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
+  import { pluginInvoke } from "$lib/plugin-invoke";
   import { open } from "@tauri-apps/plugin-dialog";
   import CourseCard from "$components/hotmart/CourseCard.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -81,7 +81,7 @@
 
   async function checkSession() {
     try {
-      const result = await invoke<string>("gumroad_check_session");
+      const result = await pluginInvoke<string>("courses", "gumroad_check_session");
       sessionEmail = result;
       loggedIn = true;
       loadCourses();
@@ -96,7 +96,7 @@
     error = "";
     loading = true;
     try {
-      const result = await invoke<string>("gumroad_login", { email, password });
+      const result = await pluginInvoke<string>("courses", "gumroad_login", { email, password });
       sessionEmail = result || email;
       loggedIn = true;
       loadCourses();
@@ -112,7 +112,7 @@
     error = "";
     loading = true;
     try {
-      const result = await invoke<string>("gumroad_login_token", { token: token.trim() });
+      const result = await pluginInvoke<string>("courses", "gumroad_login_token", { token: token.trim() });
       sessionEmail = result || "Token";
       loggedIn = true;
       loadCourses();
@@ -125,7 +125,7 @@
 
   async function handleLogout() {
     try {
-      await invoke("gumroad_logout");
+      await pluginInvoke("courses", "gumroad_logout");
     } catch {
     }
     loggedIn = false;
@@ -139,7 +139,7 @@
     loadingCourses = true;
     coursesError = "";
     try {
-      courses = await invoke("gumroad_list_products");
+      courses = await pluginInvoke("courses", "gumroad_list_products");
       currentPage = 1;
     } catch (e: any) {
       coursesError = typeof e === "string" ? e : e.message ?? $t('hotmart.courses_error');
@@ -183,7 +183,7 @@
     }
 
     try {
-      await invoke("start_gumroad_download", {
+      await pluginInvoke("courses", "start_gumroad_download", {
         productJson: JSON.stringify(product),
         outputDir,
       });
@@ -201,7 +201,7 @@
     loadingCourses = true;
     coursesError = "";
     try {
-      courses = await invoke("gumroad_refresh_products");
+      courses = await pluginInvoke("courses", "gumroad_refresh_products");
       currentPage = 1;
     } catch (e: any) {
       coursesError = typeof e === "string" ? e : e.message ?? $t('hotmart.courses_error');
