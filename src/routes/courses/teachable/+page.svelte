@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
+  import { pluginInvoke } from "$lib/plugin-invoke";
   import { open } from "@tauri-apps/plugin-dialog";
   import CourseCard from "$components/hotmart/CourseCard.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -74,7 +74,7 @@
 
   async function checkSession() {
     try {
-      const result = await invoke<string>("teachable_check_session");
+      const result = await pluginInvoke<string>("courses", "teachable_check_session");
       sessionEmail = result;
       loggedIn = true;
       loadCourses();
@@ -90,7 +90,7 @@
     error = "";
     loading = true;
     try {
-      const result = await invoke<string>("teachable_login_token", { token: token.trim() });
+      const result = await pluginInvoke<string>("courses", "teachable_login_token", { token: token.trim() });
       sessionEmail = result || "Token";
       loggedIn = true;
       loadCourses();
@@ -103,7 +103,7 @@
 
   async function handleLogout() {
     try {
-      await invoke("teachable_logout");
+      await pluginInvoke("courses", "teachable_logout");
     } catch {
     }
     loggedIn = false;
@@ -117,7 +117,7 @@
     loadingCourses = true;
     coursesError = "";
     try {
-      courses = await invoke("teachable_list_courses");
+      courses = await pluginInvoke("courses", "teachable_list_courses");
       currentPage = 1;
     } catch (e: any) {
       coursesError = typeof e === "string" ? e : e.message ?? $t('hotmart.courses_error');
@@ -161,7 +161,7 @@
     }
 
     try {
-      await invoke("start_teachable_course_download", {
+      await pluginInvoke("courses", "start_teachable_course_download", {
         courseJson: JSON.stringify(course),
         outputDir,
       });
@@ -179,7 +179,7 @@
     loadingCourses = true;
     coursesError = "";
     try {
-      courses = await invoke("teachable_refresh_courses");
+      courses = await pluginInvoke("courses", "teachable_refresh_courses");
       currentPage = 1;
     } catch (e: any) {
       coursesError = typeof e === "string" ? e : e.message ?? $t('hotmart.courses_error');
