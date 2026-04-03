@@ -57,8 +57,6 @@ omniget-plugin-sdk = { path = "omniget-plugin-sdk" }
 libloading = "0.8"
 which = "7"
 librqbit = "8.1.1"
-iroh = "0.32"
-socket2 = { version = "0.5", features = ["all"] }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-process = "2.3.1"
