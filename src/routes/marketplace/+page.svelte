@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
+  import { showToast } from "$lib/stores/toast-store.svelte";
 
   type PluginNavInfo = {
     route: string;
@@ -146,7 +147,10 @@
     try {
       await invoke("install_plugin_from_registry", { pluginId: id, repo });
       window.location.reload();
-    } catch {}
+    } catch (e: any) {
+      const msg = typeof e === "string" ? e : e?.message ?? "Install failed";
+      showToast("error", msg);
+    }
     installingId = null;
   }
 
