@@ -50,13 +50,16 @@ impl Default for TwitterDownloader {
 
 impl TwitterDownloader {
     pub fn new() -> Self {
-        let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
+        let mut builder = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
             .user_agent(USER_AGENT)
             .timeout(std::time::Duration::from_secs(120))
-            .connect_timeout(std::time::Duration::from_secs(15))
-            .build()
-            .unwrap_or_default();
+            .connect_timeout(std::time::Duration::from_secs(15));
 
+        if let Some(jar) = crate::core::cookie_parser::load_extension_cookies_for_domain("x.com") {
+            builder = builder.cookie_provider(jar);
+        }
+
+        let client = builder.build().unwrap_or_default();
         Self {
             client,
             guest_token: Arc::new(Mutex::new(None)),
