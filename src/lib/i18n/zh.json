@@ -484,9 +484,9 @@
     "accept_transfer": "接受并下载",
     "reject_transfer": "拒绝",
     "searching_sender": "正在搜索发送方...",
-    "searching_hint": "请确保两台设备在同一网络中。",
+    "searching_hint": "正在连接中继服务器...",
     "sender_not_found": "未找到发送方",
-    "sender_not_found_hint": "发送方可能尚未上线。请确保两台设备连接到同一 Wi-Fi 网络，且发送方已分享共享码。"
+    "sender_not_found_hint": "未找到代码。请确保发送方处于活动状态且代码正确。"
   },
   "mascot": {
     "idle": "粘贴链接或搜索开始！",
