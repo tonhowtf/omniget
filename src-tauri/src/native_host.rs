@@ -32,6 +32,10 @@ struct NativeHostRequest {
     referer: Option<String>,
     #[serde(default)]
     headers: Option<std::collections::HashMap<String, String>>,
+    #[serde(default, rename = "mediaType")]
+    media_type: Option<String>,
+    #[serde(default, rename = "contentType")]
+    content_type: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -364,6 +368,8 @@ fn write_extension_metadata(request: &NativeHostRequest) -> anyhow::Result<()> {
         "url": request.url,
         "referer": request.referer,
         "headers": request.headers,
+        "mediaType": request.media_type,
+        "contentType": request.content_type,
         "timestamp": now,
     });
 
@@ -371,7 +377,13 @@ fn write_extension_metadata(request: &NativeHostRequest) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn read_extension_metadata(url: &str) -> Option<String> {
+pub struct ExtensionMetadata {
+    pub referer: Option<String>,
+    pub media_type: Option<String>,
+    pub content_type: Option<String>,
+}
+
+pub fn read_extension_metadata(url: &str) -> Option<ExtensionMetadata> {
     let path = extension_metadata_path();
     let content = fs::read_to_string(&path).ok()?;
     let meta: serde_json::Value = serde_json::from_str(&content).ok()?;
@@ -390,11 +402,15 @@ pub fn read_extension_metadata(url: &str) -> Option<String> {
         return None;
     }
 
-    let referer = meta.get("referer").and_then(|v| v.as_str()).map(String::from);
+    let result = ExtensionMetadata {
+        referer: meta.get("referer").and_then(|v| v.as_str()).map(String::from),
+        media_type: meta.get("mediaType").and_then(|v| v.as_str()).map(String::from),
+        content_type: meta.get("contentType").and_then(|v| v.as_str()).map(String::from),
+    };
 
     let _ = fs::remove_file(&path);
 
-    referer
+    Some(result)
 }
 
 fn handle_request(request: NativeHostRequest) -> NativeHostResponse {
@@ -422,7 +438,7 @@ fn handle_request(request: NativeHostRequest) -> NativeHostResponse {
         }
     }
 
-    if request.referer.is_some() || request.headers.is_some() {
+    if request.referer.is_some() || request.headers.is_some() || request.media_type.is_some() {
         if let Err(e) = write_extension_metadata(&request) {
             eprintln!("[OmniGet] Warning: failed to write extension metadata: {e}");
         }
