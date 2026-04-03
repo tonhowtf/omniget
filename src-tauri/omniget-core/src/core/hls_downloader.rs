@@ -7,7 +7,6 @@ use std::time::Duration;
 use futures::stream::{self, StreamExt};
 use m3u8_rs::{parse_master_playlist, parse_media_playlist, MasterPlaylist, VariantStream};
 use reqwest::Client;
-use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
@@ -169,7 +168,7 @@ impl HlsDownloader {
             PathBuf::from(p)
         };
         if let Some(parent) = output.parent() {
-            tokio::fs::create_dir_all(parent).await?;
+            std::fs::create_dir_all(parent)?;
         }
 
         let (seg_tx, seg_rx) = mpsc::channel::<(usize, Vec<u8>)>(max_concurrent as usize);
@@ -236,13 +235,13 @@ impl HlsDownloader {
             .map_err(|e| anyhow::anyhow!("Writer task panicked: {:?}", e))?;
 
         if cancel_token.is_cancelled() {
-            let _ = tokio::fs::remove_file(&part_path).await;
+            let _ = std::fs::remove_file(&part_path);
             anyhow::bail!("Download cancelled by user");
         }
 
         let errs = errors.lock().await;
         if !errs.is_empty() {
-            let _ = tokio::fs::remove_file(&part_path).await;
+            let _ = std::fs::remove_file(&part_path);
             let summary: Vec<String> = errs
                 .iter()
                 .map(|(msg, count)| {
@@ -259,9 +258,9 @@ impl HlsDownloader {
 
         writer_result?;
 
-        tokio::fs::rename(&part_path, &output).await?;
+        std::fs::rename(&part_path, &output)?;
 
-        let file_size = tokio::fs::metadata(&output).await?.len();
+        let file_size = std::fs::metadata(&output)?.len();
 
         Ok(HlsDownloadResult {
             path: output,
@@ -400,9 +399,10 @@ async fn write_segments_ordered(
     media_sequence: u64,
     total_segments: usize,
 ) -> anyhow::Result<()> {
-    let mut file = tokio::io::BufWriter::with_capacity(
+    use std::io::Write;
+    let mut file = std::io::BufWriter::with_capacity(
         256 * 1024,
-        tokio::fs::File::create(output_path).await?,
+        std::fs::File::create(output_path)?,
     );
     let mut next_expected: usize = 0;
     let mut pending: BTreeMap<usize, Vec<u8>> = BTreeMap::new();
@@ -422,15 +422,15 @@ async fn write_segments_ordered(
                 let decrypted = decryptor
                     .decrypt_padded_mut::<Pkcs7>(&mut buf)
                     .map_err(|e| anyhow::anyhow!("AES decrypt: {:?}", e))?;
-                file.write_all(decrypted).await?;
+                file.write_all(decrypted)?;
             } else {
-                file.write_all(&segment_data).await?;
+                file.write_all(&segment_data)?;
             }
             next_expected += 1;
         }
     }
 
-    file.flush().await?;
+    file.flush()?;
 
     if next_expected < total_segments {
         anyhow::bail!(
