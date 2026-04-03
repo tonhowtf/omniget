@@ -132,15 +132,23 @@
   async function loadConfig(id: string) {
     checking = true;
     configError = "";
+    console.log(`[courses/${id}] loading config...`);
     try {
       config = await pluginInvoke<PlatformConfig>("courses", "get_platform_config", { platform: id });
+      console.log(`[courses/${id}] config loaded:`, JSON.stringify(config));
       if (config.features.captcha_event) {
         const evt = config.features.captcha_event;
         const unlisten = listen(evt, () => { captchaWarning = true; });
         return () => { unlisten.then((fn) => fn()); };
       }
     } catch (e: any) {
-      configError = typeof e === "string" ? e : e.message ?? "Failed to load platform config";
+      const msg = typeof e === "string" ? e : e.message ?? "";
+      console.error(`[courses/${id}] get_platform_config FAILED:`, e, "| raw:", JSON.stringify(e));
+      if (msg.includes("Unknown command") || msg.includes("not found") || msg.includes("No handler")) {
+        configError = $t("courses.update_plugin_for_platform");
+      } else {
+        configError = msg || "Failed to load platform config";
+      }
       checking = false;
       return;
     }
