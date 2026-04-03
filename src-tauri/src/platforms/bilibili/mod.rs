@@ -54,7 +54,7 @@ impl PlatformDownloader for BilibiliDownloader {
         if let Ok(parsed) = url::Url::parse(url) {
             if let Some(host) = parsed.host_str() {
                 let host = host.to_lowercase();
-                return host.contains("bilibili.com") || host == "b23.tv";
+                return host.contains("bilibili.com") || host.contains("bilibili.tv") || host == "b23.tv";
             }
         }
         false
