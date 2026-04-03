@@ -8,10 +8,10 @@ async function readManifest() {
   return JSON.parse(await readFile(manifestUrl, "utf8"));
 }
 
-test("localizes the default action title through manifest i18n", async () => {
+test("declares popup as default action", async () => {
   const manifest = await readManifest();
 
-  assert.equal(manifest.action.default_title, "__MSG_action_title_unsupported__");
+  assert.equal(manifest.action.default_popup, "popup/popup.html");
 });
 
 test("declares the 48px toolbar icon for the inactive action state", async () => {
@@ -26,9 +26,20 @@ test("declares cookies permission for cookie forwarding", async () => {
   assert.ok(manifest.permissions.includes("cookies"));
 });
 
-test("declares host_permissions for supported platforms", async () => {
+test("declares webRequest permission for media sniffing", async () => {
   const manifest = await readManifest();
 
-  assert.ok(manifest.host_permissions.length > 0);
-  assert.ok(manifest.host_permissions.includes("*://*.youtube.com/*"));
+  assert.ok(manifest.permissions.includes("webRequest"));
+});
+
+test("declares storage permission for sniffer toggle", async () => {
+  const manifest = await readManifest();
+
+  assert.ok(manifest.permissions.includes("storage"));
+});
+
+test("declares wildcard host_permissions for media detection", async () => {
+  const manifest = await readManifest();
+
+  assert.ok(manifest.host_permissions.includes("*://*/*"));
 });
