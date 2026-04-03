@@ -545,7 +545,10 @@
     "connection_failed": "Connection failed",
     "connected_as": "Connected as {{email}}",
     "back": "Back to Courses",
-    "coming_soon": "Coming soon"
+    "coming_soon": "Coming soon",
+    "update_plugin_hint": "Update the Courses plugin for the best experience.",
+    "update_plugin_for_platform": "This platform requires an updated Courses plugin. Check the Marketplace for updates.",
+    "search_btn": "Search"
   },
   "hotmart": {
     "title": "Hotmart",
