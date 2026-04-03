@@ -7,7 +7,6 @@ use std::time::Duration;
 
 use anyhow::anyhow;
 use futures::StreamExt;
-use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::{mpsc, Semaphore};
 use tokio_util::sync::CancellationToken;
 
@@ -76,7 +75,7 @@ pub async fn download_direct_with_headers(
             Ok(bytes) => return Ok(bytes),
             Err(e) => {
                 if is_fatal_error(&e) {
-                    let _ = tokio::fs::remove_file(&part_path_for(output)).await;
+                    let _ = std::fs::remove_file(&part_path_for(output));
                     return Err(e);
                 }
                 tracing::warn!(
@@ -90,7 +89,7 @@ pub async fn download_direct_with_headers(
         }
     }
 
-    let _ = tokio::fs::remove_file(&part_path_for(output)).await;
+    let _ = std::fs::remove_file(&part_path_for(output));
     Err(last_err.unwrap_or_else(|| anyhow!("Download failed after {} attempts", MAX_RETRIES)))
 }
 
@@ -159,7 +158,7 @@ async fn download_attempt(
 ) -> anyhow::Result<u64> {
     let part_path = part_path_for(output);
     if let Some(parent) = output.parent() {
-        tokio::fs::create_dir_all(parent).await?;
+        std::fs::create_dir_all(parent)?;
     }
 
     let probe = probe_url(client, url, headers.as_ref()).await;
@@ -169,7 +168,7 @@ async fn download_attempt(
 
     if use_chunked {
         let total = probe.content_length.unwrap();
-        let _ = tokio::fs::remove_file(&part_path).await;
+        let _ = std::fs::remove_file(&part_path);
         if let Err(chunked_err) = download_chunked(
             client, url, &part_path, total, progress_tx, headers.clone(), cancel,
         )
@@ -178,7 +177,7 @@ async fn download_attempt(
             if is_fatal_error(&chunked_err) {
                 return Err(chunked_err);
             }
-            let _ = tokio::fs::remove_file(&part_path).await;
+            let _ = std::fs::remove_file(&part_path);
             tracing::warn!("[direct] chunked failed, falling back: {}", chunked_err);
             download_single_stream(
                 client, url, &part_path, 0, probe.content_length, progress_tx, headers, cancel,
@@ -186,7 +185,7 @@ async fn download_attempt(
             .await?;
         }
     } else {
-        let existing = match tokio::fs::metadata(&part_path).await {
+        let existing = match std::fs::metadata(&part_path) {
             Ok(m) if m.len() > 0 && probe.accept_ranges => m.len(),
             _ => 0,
         };
@@ -197,9 +196,9 @@ async fn download_attempt(
     }
 
     if let Some(expected) = probe.content_length {
-        let actual = tokio::fs::metadata(&part_path).await?.len();
+        let actual = std::fs::metadata(&part_path)?.len();
         if expected > 0 && actual != expected {
-            let _ = tokio::fs::remove_file(&part_path).await;
+            let _ = std::fs::remove_file(&part_path);
             return Err(anyhow!(
                 "Size mismatch: expected {} bytes, got {}",
                 expected,
@@ -208,10 +207,10 @@ async fn download_attempt(
         }
     }
 
-    tokio::fs::rename(&part_path, output).await?;
+    std::fs::rename(&part_path, output)?;
     let _ = progress_tx.send(100.0).await;
 
-    let size = tokio::fs::metadata(output).await?.len();
+    let size = std::fs::metadata(output)?.len();
     Ok(size)
 }
 
@@ -224,8 +223,8 @@ async fn download_chunked(
     headers: Option<reqwest::header::HeaderMap>,
     cancel: Option<&CancellationToken>,
 ) -> anyhow::Result<()> {
-    let file = tokio::fs::File::create(part_path).await?;
-    file.set_len(total_size).await?;
+    let file = std::fs::File::create(part_path)?;
+    file.set_len(total_size)?;
     drop(file);
 
     let num_chunks = total_size.div_ceil(CHUNK_SIZE);
@@ -361,11 +360,11 @@ async fn download_chunk_attempt(
         return Err(anyhow!("HTTP {} downloading chunk", status));
     }
 
-    let mut file = tokio::fs::OpenOptions::new()
+    use std::io::{Seek, Write};
+    let mut file = std::fs::OpenOptions::new()
         .write(true)
-        .open(part_path)
-        .await?;
-    file.seek(std::io::SeekFrom::Start(start)).await?;
+        .open(part_path)?;
+    file.seek(std::io::SeekFrom::Start(start))?;
 
     let expected_size = end - start + 1;
     let mut chunk_written: u64 = 0;
@@ -379,7 +378,7 @@ async fn download_chunk_attempt(
         let chunk_result = tokio::time::timeout(CHUNK_TIMEOUT, stream.next()).await;
         match chunk_result {
             Ok(Some(Ok(data))) => {
-                file.write_all(&data).await.map_err(|e| {
+                file.write_all(&data).map_err(|e| {
                     anyhow!("Write error (disk full?): {}", e)
                 })?;
                 chunk_written += data.len() as u64;
@@ -406,7 +405,7 @@ async fn download_chunk_attempt(
         ));
     }
 
-    file.flush().await?;
+    file.flush()?;
     Ok(())
 }
 
@@ -442,7 +441,7 @@ async fn download_single_stream(
         if response.status() == reqwest::StatusCode::PARTIAL_CONTENT {
             offset = existing_bytes;
         } else if response.status() == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
-            let _ = tokio::fs::remove_file(part_path).await;
+            let _ = std::fs::remove_file(part_path);
             return Err(anyhow!("Range not satisfiable, restarting"));
         } else if !response.status().is_success() {
             return Err(anyhow!("HTTP {} downloading {}", response.status(), url));
@@ -461,23 +460,23 @@ async fn download_single_stream(
         }
     }
 
-    let file = if offset > 0 {
-        tokio::fs::OpenOptions::new()
+    use std::io::Write;
+    let raw_file = if offset > 0 {
+        std::fs::OpenOptions::new()
             .append(true)
-            .open(part_path)
-            .await?
+            .open(part_path)?
     } else {
-        tokio::fs::File::create(part_path).await?
+        std::fs::File::create(part_path)?
     };
 
-    let mut file = tokio::io::BufWriter::with_capacity(256 * 1024, file);
+    let mut file = std::io::BufWriter::with_capacity(256 * 1024, raw_file);
     let mut downloaded = offset;
     let mut stream = response.bytes_stream();
 
     loop {
         if let Some(token) = cancel {
             if token.is_cancelled() {
-                file.flush().await?;
+                file.flush()?;
                 return Err(anyhow!("Download cancelled"));
             }
         }
@@ -485,7 +484,7 @@ async fn download_single_stream(
         let chunk_result = tokio::time::timeout(CHUNK_TIMEOUT, stream.next()).await;
         match chunk_result {
             Ok(Some(Ok(chunk))) => {
-                file.write_all(&chunk).await.map_err(|e| {
+                file.write_all(&chunk).map_err(|e| {
                     anyhow!("Write error (disk full?): {}", e)
                 })?;
                 downloaded += chunk.len() as u64;
@@ -502,12 +501,12 @@ async fn download_single_stream(
                 }
             }
             Ok(Some(Err(e))) => {
-                file.flush().await?;
+                file.flush()?;
                 return Err(anyhow!("Download stream error: {}", e));
             }
             Ok(None) => break,
             Err(_) => {
-                file.flush().await?;
+                file.flush()?;
                 return Err(anyhow!(
                     "Download timeout — no data received for 30 seconds"
                 ));
@@ -515,7 +514,7 @@ async fn download_single_stream(
         }
     }
 
-    file.flush().await?;
+    file.flush()?;
     Ok(())
 }
 
