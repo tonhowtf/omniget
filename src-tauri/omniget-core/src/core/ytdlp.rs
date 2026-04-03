@@ -37,6 +37,7 @@ fn global_cookie_file() -> Option<String> {
 }
 
 static YTDLP_UPDATING: AtomicBool = AtomicBool::new(false);
+static YTDLP_UPDATE_CHECKED: AtomicBool = AtomicBool::new(false);
 static YTDLP_PATH_CACHE: std::sync::RwLock<Option<Option<PathBuf>>> =
     std::sync::RwLock::new(None);
 static FFMPEG_LOCATION_CACHE: std::sync::RwLock<Option<Option<String>>> =
