@@ -341,6 +341,11 @@ pub async fn install_plugin_from_registry(
             if let Some(parent) = outpath.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
             }
+            if outpath.exists() {
+                let old = outpath.with_extension("old");
+                let _ = std::fs::remove_file(&old);
+                let _ = std::fs::rename(&outpath, &old);
+            }
             let mut outfile = std::fs::File::create(&outpath).map_err(|e| e.to_string())?;
             std::io::copy(&mut file, &mut outfile).map_err(|e| e.to_string())?;
         }
