@@ -28,6 +28,10 @@ struct NativeHostRequest {
     url: String,
     #[serde(default)]
     cookies: Option<Vec<NativeCookie>>,
+    #[serde(default)]
+    referer: Option<String>,
+    #[serde(default)]
+    headers: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -339,6 +343,60 @@ fn write_extension_cookies(cookies: &[NativeCookie]) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn extension_metadata_path() -> PathBuf {
+    crate::core::paths::app_data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("extension-metadata.json")
+}
+
+fn write_extension_metadata(request: &NativeHostRequest) -> anyhow::Result<()> {
+    let path = extension_metadata_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    let meta = serde_json::json!({
+        "url": request.url,
+        "referer": request.referer,
+        "headers": request.headers,
+        "timestamp": now,
+    });
+
+    fs::write(&path, serde_json::to_string(&meta)?)?;
+    Ok(())
+}
+
+pub fn read_extension_metadata(url: &str) -> Option<String> {
+    let path = extension_metadata_path();
+    let content = fs::read_to_string(&path).ok()?;
+    let meta: serde_json::Value = serde_json::from_str(&content).ok()?;
+
+    let meta_url = meta.get("url")?.as_str()?;
+    if meta_url != url {
+        return None;
+    }
+
+    let timestamp = meta.get("timestamp")?.as_u64()?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    if now.saturating_sub(timestamp) > 60 {
+        return None;
+    }
+
+    let referer = meta.get("referer").and_then(|v| v.as_str()).map(String::from);
+
+    let _ = fs::remove_file(&path);
+
+    referer
+}
+
 fn handle_request(request: NativeHostRequest) -> NativeHostResponse {
     if request.kind != "enqueue" {
         return NativeHostResponse {
@@ -361,6 +419,12 @@ fn handle_request(request: NativeHostRequest) -> NativeHostResponse {
             if let Err(e) = write_extension_cookies(cookies) {
                 eprintln!("[OmniGet] Warning: failed to write extension cookies: {e}");
             }
+        }
+    }
+
+    if request.referer.is_some() || request.headers.is_some() {
+        if let Err(e) = write_extension_metadata(&request) {
+            eprintln!("[OmniGet] Warning: failed to write extension metadata: {e}");
         }
     }
 
