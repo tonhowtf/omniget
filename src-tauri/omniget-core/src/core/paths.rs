@@ -7,13 +7,24 @@ pub fn app_data_dir() -> Option<std::path::PathBuf> {
     let new_path = base.join("wtf.tonho.omniget");
     let old_path = base.join("omniget");
 
-    if old_path.exists() && !new_path.join("plugins").exists() {
+    if old_path.exists() {
         let _ = std::fs::create_dir_all(&new_path);
+
+        for dir_name in &["bin", "plugins"] {
+            let src = old_path.join(dir_name);
+            let dst = new_path.join(dir_name);
+            if src.exists() && !dst.exists() {
+                let _ = copy_dir_recursive(&src, &dst);
+            }
+        }
+
         if let Ok(entries) = std::fs::read_dir(&old_path) {
             for entry in entries.flatten() {
-                let dest = new_path.join(entry.file_name());
-                if !dest.exists() {
-                    let _ = copy_dir_recursive(&entry.path(), &dest);
+                if entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
+                    let dest = new_path.join(entry.file_name());
+                    if !dest.exists() {
+                        let _ = std::fs::copy(entry.path(), &dest);
+                    }
                 }
             }
         }
