@@ -300,6 +300,17 @@ pub fn run() {
                 mgr.load_all(host);
             }
 
+            tauri::async_runtime::spawn(async {
+                if let Some(ytdlp) = core::ytdlp::find_ytdlp_cached().await {
+                    match core::ytdlp::check_ytdlp_update(&ytdlp).await {
+                        Ok(true) => tracing::info!("yt-dlp updated successfully"),
+                        Ok(false) => tracing::debug!("yt-dlp already up to date"),
+                        Err(e) => tracing::warn!("yt-dlp update check failed: {}", e),
+                    }
+                }
+                core::dependencies::ensure_js_runtime().await;
+            });
+
             if let Some(url) = external_url::find_external_url_arg(std::env::args().skip(1)) {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
