@@ -25,11 +25,24 @@ pub fn set_global_cookie_file_fn(f: impl Fn() -> Option<String> + Send + Sync + 
     let _ = GLOBAL_COOKIE_FILE_FN.set(Box::new(f));
 }
 
-fn ext_cookie_path() -> PathBuf {
+pub fn ext_cookie_path() -> PathBuf {
     EXT_COOKIE_PATH_FN
         .get()
         .map(|f| f())
         .unwrap_or_else(|| PathBuf::from(""))
+}
+
+pub fn ext_cookie_path_if_fresh() -> Option<PathBuf> {
+    let source = ext_cookie_path();
+    if !source.exists() {
+        return None;
+    }
+    let metadata = std::fs::metadata(&source).ok()?;
+    let modified = metadata.modified().ok()?;
+    if modified.elapsed().unwrap_or_default() >= std::time::Duration::from_secs(86400) {
+        return None;
+    }
+    Some(source)
 }
 
 fn global_cookie_file() -> Option<String> {
