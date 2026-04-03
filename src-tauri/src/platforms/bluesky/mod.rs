@@ -23,6 +23,94 @@ impl Default for BlueskyDownloader {
 }
 
 impl BlueskyDownloader {
+    async fn fallback_ytdlp(&self, url: &str) -> anyhow::Result<MediaInfo> {
+        let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
+        let json = crate::core::ytdlp::get_video_info(&ytdlp_path, url, &[]).await?;
+        crate::platforms::generic_ytdlp::GenericYtdlpDownloader::parse_video_info(&json)
+    }
+
+    async fn native_get_media_info(&self, url: &str) -> anyhow::Result<MediaInfo> {
+        let (user, post_id) = Self::extract_user_and_post(url)
+            .ok_or_else(|| anyhow!("Could not extract user and post_id from URL"))?;
+
+        let json = self.fetch_post(&user, &post_id).await?;
+
+        let embed = json
+            .pointer("/thread/post/embed")
+            .ok_or_else(|| anyhow!("Post does not contain media"))?;
+
+        let media = extract_media(embed).ok_or_else(|| anyhow!("Unsupported media type"))?;
+
+        let filename_base = format!(
+            "bluesky_{}_{}",
+            sanitize_filename::sanitize(&user),
+            post_id
+        );
+
+        match media {
+            BlueskyMedia::Video { hls_url } => Ok(MediaInfo {
+                title: filename_base,
+                author: user,
+                platform: "bluesky".to_string(),
+                duration_seconds: None,
+                thumbnail_url: None,
+                available_qualities: vec![VideoQuality {
+                    label: "best".to_string(),
+                    width: 0,
+                    height: 0,
+                    url: hls_url,
+                    format: "hls".to_string(),
+                }],
+                media_type: MediaType::Video,
+                file_size_bytes: None,
+            }),
+            BlueskyMedia::Images { urls } => {
+                let media_type = if urls.len() == 1 {
+                    MediaType::Photo
+                } else {
+                    MediaType::Carousel
+                };
+                let qualities: Vec<VideoQuality> = urls
+                    .iter()
+                    .enumerate()
+                    .map(|(i, u)| VideoQuality {
+                        label: format!("{}", i + 1),
+                        width: 0,
+                        height: 0,
+                        url: u.clone(),
+                        format: "jpg".to_string(),
+                    })
+                    .collect();
+                Ok(MediaInfo {
+                    title: filename_base,
+                    author: user,
+                    platform: "bluesky".to_string(),
+                    duration_seconds: None,
+                    thumbnail_url: None,
+                    available_qualities: qualities,
+                    media_type,
+                    file_size_bytes: None,
+                })
+            }
+            BlueskyMedia::Gif { url: gif_url } => Ok(MediaInfo {
+                title: filename_base,
+                author: user,
+                platform: "bluesky".to_string(),
+                duration_seconds: None,
+                thumbnail_url: None,
+                available_qualities: vec![VideoQuality {
+                    label: "original".to_string(),
+                    width: 0,
+                    height: 0,
+                    url: gif_url,
+                    format: "gif".to_string(),
+                }],
+                media_type: MediaType::Gif,
+                file_size_bytes: None,
+            }),
+        }
+    }
+
     pub fn new() -> Self {
         let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
             .user_agent(USER_AGENT)
@@ -147,84 +235,12 @@ impl PlatformDownloader for BlueskyDownloader {
     }
 
     async fn get_media_info(&self, url: &str) -> anyhow::Result<MediaInfo> {
-        let (user, post_id) = Self::extract_user_and_post(url)
-            .ok_or_else(|| anyhow!("Could not extract user and post_id from URL"))?;
-
-        let json = self.fetch_post(&user, &post_id).await?;
-
-        let embed = json
-            .pointer("/thread/post/embed")
-            .ok_or_else(|| anyhow!("Post does not contain media"))?;
-
-        let media = extract_media(embed).ok_or_else(|| anyhow!("Unsupported media type"))?;
-
-        let filename_base = format!(
-            "bluesky_{}_{}",
-            sanitize_filename::sanitize(&user),
-            post_id
-        );
-
-        match media {
-            BlueskyMedia::Video { hls_url } => Ok(MediaInfo {
-                title: filename_base,
-                author: user,
-                platform: "bluesky".to_string(),
-                duration_seconds: None,
-                thumbnail_url: None,
-                available_qualities: vec![VideoQuality {
-                    label: "best".to_string(),
-                    width: 0,
-                    height: 0,
-                    url: hls_url,
-                    format: "hls".to_string(),
-                }],
-                media_type: MediaType::Video,
-                file_size_bytes: None,
-            }),
-            BlueskyMedia::Images { urls } => {
-                let media_type = if urls.len() == 1 {
-                    MediaType::Photo
-                } else {
-                    MediaType::Carousel
-                };
-                let qualities: Vec<VideoQuality> = urls
-                    .iter()
-                    .enumerate()
-                    .map(|(i, u)| VideoQuality {
-                        label: format!("{}", i + 1),
-                        width: 0,
-                        height: 0,
-                        url: u.clone(),
-                        format: "jpg".to_string(),
-                    })
-                    .collect();
-                Ok(MediaInfo {
-                    title: filename_base,
-                    author: user,
-                    platform: "bluesky".to_string(),
-                    duration_seconds: None,
-                    thumbnail_url: None,
-                    available_qualities: qualities,
-                    media_type,
-                    file_size_bytes: None,
-                })
+        match self.native_get_media_info(url).await {
+            Ok(info) => Ok(info),
+            Err(native_err) => {
+                tracing::warn!("[bluesky] native failed: {}, trying yt-dlp fallback", native_err);
+                self.fallback_ytdlp(url).await.map_err(|_| native_err)
             }
-            BlueskyMedia::Gif { url: gif_url } => Ok(MediaInfo {
-                title: filename_base,
-                author: user,
-                platform: "bluesky".to_string(),
-                duration_seconds: None,
-                thumbnail_url: None,
-                available_qualities: vec![VideoQuality {
-                    label: "original".to_string(),
-                    width: 0,
-                    height: 0,
-                    url: gif_url,
-                    format: "gif".to_string(),
-                }],
-                media_type: MediaType::Gif,
-                file_size_bytes: None,
-            }),
         }
     }
 
@@ -234,6 +250,29 @@ impl PlatformDownloader for BlueskyDownloader {
         opts: &DownloadOptions,
         progress: mpsc::Sender<f64>,
     ) -> anyhow::Result<DownloadResult> {
+        if let Some(quality) = info.available_qualities.first() {
+            if quality.format == "ytdlp" {
+                let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
+                return crate::core::ytdlp::download_video(
+                    &ytdlp_path,
+                    &quality.url,
+                    &opts.output_dir,
+                    None,
+                    progress,
+                    opts.download_mode.as_deref(),
+                    opts.format_id.as_deref(),
+                    opts.filename_template.as_deref(),
+                    None,
+                    opts.cancel_token.clone(),
+                    None,
+                    opts.concurrent_fragments,
+                    false,
+                    &[],
+                )
+                .await;
+            }
+        }
+
         match info.media_type {
             MediaType::Video => {
                 let hls_url = &info
