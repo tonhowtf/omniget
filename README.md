@@ -12,39 +12,34 @@
 
 <h3 align="center">Paste a link. Get your file.</h3>
 
-OmniGet is a free, open source desktop app for downloading videos, media, and full courses from the internet. It natively supports 50+ platforms including YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, and Chinese platforms like Bilibili (哔哩哔哩), Douyin (抖音), Xiaohongshu (小红书), Kuaishou (快手), Youku (优酷视频), Tencent Video (腾讯视频), iQiyi (爱奇艺), and Mango TV (芒果TV). It downloads full courses from 35+ education platforms like Hotmart, Udemy, Kiwify, Teachable, Kajabi, Skool, Pluralsight, MasterClass, Rocketseat, Estratégia Concursos, and more. It also downloads torrents and magnet links natively, and lets you send files directly between computers via P2P transfer over local network or the internet. Any other URL falls back to yt-dlp, covering [1000+ additional sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md).
-
-Built with Tauri and Rust for speed and a small footprint.
+OmniGet is a free, open-source desktop app that downloads videos, courses, and media from the internet. It handles YouTube, Instagram, TikTok, and dozens more platforms out of the box — plus torrents, P2P file transfers, and [1000+ sites via yt-dlp](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md). Built with Rust and Tauri for speed and a small footprint.
 
 <p align="center">
   <img src="assets/screenshot.png" alt="OmniGet screenshot" width="800" />
 </p>
 
+## Download
+
+<p align="center">
+  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/badge/-Windows-blue.svg?style=for-the-badge&logo=windows" alt="Download for Windows" /></a>
+  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/badge/-macOS-black.svg?style=for-the-badge&logo=apple" alt="Download for macOS" /></a>
+  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/badge/-Linux-orange.svg?style=for-the-badge&logo=linux&logoColor=white" alt="Download for Linux" /></a>
+</p>
+
+Also available as a Flatpak on Linux and a portable `.exe` on Windows.
+
 ## Features
 
-- Download from 50+ platforms natively, plus [1000+ more via yt-dlp](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
-- Download torrents and magnet links natively with seeding, pause/resume
-- Open .torrent files directly with file picker or drag-and-drop
-- P2P file transfer between devices — works across different networks via TCP relay (no port forwarding or NAT traversal needed)
-- Download full courses from 35+ platforms with login (videos, attachments, descriptions)
-- Download Telegram media with QR code or phone number login
-- Convert media files between formats with FFmpeg and GPU acceleration
-- Search YouTube directly from the omnibox
-- Choose quality, format, and download mode (video, audio only, mute)
-- Smart format selection with H.264+AAC codec preference for maximum compatibility
-- Real-time progress with speed display
-- Global hotkey to download from clipboard URL
-- Clipboard URL detection and batch downloads
-- System tray with download count badge
-- Built-in auto-updater (AppImage with embedded update information and zsync delta updates on Linux)
-- Windows portable binary available (no installation required)
-- Debug diagnostics export for troubleshooting
-- Proxy support (HTTP/SOCKS5)
-- Firefox-first cookie detection for authenticated downloads
-- Dark and light theme
-- Available in English, Portuguese, Chinese, Japanese, Italian, French, and Greek
-- Chrome extension to send media pages to OmniGet with one click
-- Loop, the mascot that reacts to your downloads
+- 📥 Downloads from YouTube, Instagram, TikTok, Twitter/X, Reddit, and [10+ more platforms](#media-platforms) with native downloaders
+- 🎓 Downloads full courses from [36 education platforms](#course-platforms) — log in once, download all lessons
+- 🧲 Built-in torrent client for magnet links and `.torrent` files (drag-and-drop supported)
+- 📡 P2P file transfer between devices via relay — no port forwarding needed
+- 🔍 Search YouTube directly from the omnibox
+- 🧩 Plugin marketplace for courses, Telegram, format conversion, and more
+- 🌐 Chrome extension detects videos on pages and sends them to the app
+- ⚡ Auto-manages yt-dlp and FFmpeg — no manual setup required
+- 🎨 Dark, light, and system themes in 8 languages
+- 🔄 Built-in auto-updater on all platforms
 
 ## Supported Platforms
 
@@ -59,9 +54,17 @@ Built with Tauri and Rust for speed and a small footprint.
 | Reddit | Videos, Images |
 | Twitch | Clips |
 | Pinterest | Images, Videos |
-| Vimeo | Videos (with referer support) |
+| Vimeo | Videos |
 | Bluesky | Images, Videos |
-| Bilibili (哔哩哔哩) | Videos, Series, Playlists |
+| Bilibili (哔哩哔哩) | Videos, Series |
+| Telegram | Photos, Videos, Files (via plugin) |
+| Torrent / Magnet | Any `.torrent` file or magnet link |
+
+<details>
+<summary><strong>Chinese platforms</strong> (supported via yt-dlp with URL detection)</summary>
+
+| Platform | Content |
+|----------|---------|
 | Douyin (抖音) | Videos |
 | Xiaohongshu (小红书) | Videos, Images |
 | Kuaishou (快手) | Videos |
@@ -69,11 +72,19 @@ Built with Tauri and Rust for speed and a small footprint.
 | Tencent Video (腾讯视频) | Videos |
 | iQiyi (爱奇艺) | Videos |
 | Mango TV (芒果TV) | Videos |
-| Telegram | Photos, Videos, Files, Audio |
-| Torrent / Magnet | Any .torrent file or magnet link |
-| [1000+ more](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) | Anything yt-dlp supports |
+
+These platforms may require a Chinese IP address.
+
+</details>
+
+Any other URL falls back to [yt-dlp](https://github.com/yt-dlp/yt-dlp), covering **1000+ additional sites**.
 
 ### Course Platforms
+
+Downloads full courses (videos, attachments, descriptions) from 36 education platforms via the courses plugin. Top platforms include Hotmart, Udemy, Kiwify, Teachable, Kajabi, Skool, Pluralsight, MasterClass, and Rocketseat.
+
+<details>
+<summary><strong>View all 36 course platforms</strong></summary>
 
 | Platform | Auth | Region |
 |----------|------|--------|
@@ -114,52 +125,39 @@ Built with Tauri and Rust for speed and a small footprint.
 | Voomp Play | Token | BR |
 | Entrega Digital | Token + Metadata | BR |
 
-Platform availability may vary depending on each service. Chinese platforms may require a Chinese IP address (VPN/proxy). Some streaming platforms use DRM on premium content.
+</details>
 
-## Chrome Extension
+## How It Works
 
-OmniGet includes a Chrome extension that detects supported media pages and sends them to the desktop app with one click. The extension activates its icon on 13 platforms (YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Hotmart, Pinterest, Bluesky, Telegram, Vimeo, Udemy, Bilibili) and forwards cookies for authenticated downloads.
+1. **Paste a URL** (or drag a `.torrent`, or search YouTube) into the omnibox
+2. OmniGet detects the platform and shows a preview with quality options
+3. Click download — progress, speed, and ETA update in real time
 
-Install OmniGet and launch it once to register the native messaging host, then load the extension from `browser-extension/chrome/`. See the [extension README](browser-extension/chrome/README.md) for details.
+For courses: log in to the platform, browse your library, and batch-download entire courses with one click.
 
-## Download
+## Browser Extension
 
-Grab the latest release for your platform:
+The Chrome extension detects supported pages and sends them to OmniGet with one click.
 
-<p align="center">
-  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/badge/-Windows-blue.svg?style=for-the-badge&logo=windows" alt="Download for Windows" /></a>
-  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/badge/-macOS-black.svg?style=for-the-badge&logo=apple" alt="Download for macOS" /></a>
-  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/badge/-Linux-orange.svg?style=for-the-badge&logo=linux&logoColor=white" alt="Download for Linux" /></a>
-</p>
+1. Install OmniGet and launch it once (registers the native messaging host)
+2. Load the extension from `browser-extension/chrome/` in `chrome://extensions` (developer mode)
+3. Click the OmniGet icon on any supported page
 
-Linux is also available as a Flatpak. If you run into issues on any platform, please [open an issue](https://github.com/tonhowtf/omniget/issues).
+See the [extension README](browser-extension/chrome/README.md) for details.
 
-## Windows SmartScreen
+## Plugins
 
-Windows SmartScreen may warn you the first time you run OmniGet. This is normal for open source apps without a paid code signing certificate. Click **More info**, then **Run anyway**.
+OmniGet has a plugin system with a built-in marketplace. Plugins are Rust DLLs loaded at startup:
 
-The app is fully open source and every line of code is right here in this repository.
+- **Courses** — 36 education platforms with login, browsing, and batch download
+- **Telegram** — browse chats and download media with QR code or phone login
+- **Convert** — convert media between formats using FFmpeg
 
-## macOS Gatekeeper
+See the [Plugin SDK](src-tauri/omniget-plugin-sdk/) to build your own.
 
-macOS may block OmniGet because the app is not yet signed with an Apple Developer certificate. If you see "omniget.app is damaged" or "can't be opened", run this in Terminal:
+## Building from Source
 
-```bash
-xattr -cr /Applications/omniget.app
-codesign --force --deep --sign - /Applications/omniget.app
-```
-
-## Building From Source
-
-Prerequisites: [Rust](https://rustup.rs/), [Node.js](https://nodejs.org/) 18+, [pnpm](https://pnpm.io/)
-
-On Linux, install additional dependencies:
-
-```bash
-sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
-```
-
-Then build and run:
+**Prerequisites:** [Rust](https://rustup.rs/), [Node.js](https://nodejs.org/) 18+, [pnpm](https://pnpm.io/)
 
 ```bash
 git clone https://github.com/tonhowtf/omniget.git
@@ -168,28 +166,43 @@ pnpm install
 pnpm tauri dev
 ```
 
-For a production build:
+<details>
+<summary>Linux dependencies</summary>
 
 ```bash
-pnpm tauri build
+sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 ```
 
-## Notice to Platform Owners
+</details>
 
-OmniGet is a personal-use tool built in good faith. If you are an authorized representative of a platform listed in this project and have concerns about its inclusion, please send an email to **tonhowtf@gmail.com** from an official company domain address (or include verifiable proof of your role) and the platform will be removed promptly.
+Production build: `pnpm tauri build`
 
-## Legal
+<details>
+<summary><strong>Windows SmartScreen / macOS Gatekeeper</strong></summary>
 
-OmniGet facilitates downloading publicly available content from the internet. You are responsible for how you use it. Personal use is supported by Article 184, §4 of the Brazilian Penal Code, which allows copying works for private use without profit intent.
+**Windows:** SmartScreen may warn you on first run — click **More info** → **Run anyway**. This is normal for open-source apps without a paid code signing certificate.
 
-Respect copyright and each platform's terms of service.
+**macOS:** If Gatekeeper blocks the app, run in Terminal:
+
+```bash
+xattr -cr /Applications/omniget.app
+codesign --force --deep --sign - /Applications/omniget.app
+```
+
+</details>
 
 ## Contributing
 
-Found a bug or want to suggest a feature? [Open an issue](https://github.com/tonhowtf/omniget/issues). Pull requests are welcome.
+Found a bug or want a feature? [Open an issue](https://github.com/tonhowtf/omniget/issues). Pull requests are welcome.
+
+## Notice to Platform Owners
+
+If you represent a listed platform and have concerns, email **tonhowtf@gmail.com** from an official domain — the platform will be removed promptly.
+
+## Legal
+
+OmniGet is a personal-use tool. You are responsible for how you use it — respect copyright and each platform's terms of service.
 
 ## License
 
-OmniGet is licensed under [GPL-3.0](LICENSE). The OmniGet name, logo, and Loop mascot are project trademarks not covered by the code license.
-
-<!-- omniget, video downloader, media downloader, course downloader, youtube downloader, instagram downloader, tiktok downloader, twitter downloader, reddit downloader, twitch downloader, pinterest downloader, vimeo downloader, bluesky downloader, bilibili downloader, douyin downloader, xiaohongshu downloader, hotmart downloader, udemy downloader, kiwify downloader, teachable downloader, kajabi downloader, skool downloader, pluralsight downloader, masterclass downloader, rocketseat downloader, estrategia concursos downloader, telegram downloader, torrent downloader, magnet downloader, desktop app, open source, rust, tauri -->
+[GPL-3.0](LICENSE). The OmniGet name, logo, and Loop mascot are project trademarks not covered by the code license.
