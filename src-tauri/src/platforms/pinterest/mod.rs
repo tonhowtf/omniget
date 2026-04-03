@@ -24,13 +24,16 @@ impl Default for PinterestDownloader {
 
 impl PinterestDownloader {
     pub fn new() -> Self {
-        let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
+        let mut builder = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
             .user_agent(USER_AGENT)
             .timeout(std::time::Duration::from_secs(120))
-            .connect_timeout(std::time::Duration::from_secs(15))
-            .build()
-            .unwrap_or_default();
+            .connect_timeout(std::time::Duration::from_secs(15));
 
+        if let Some(jar) = crate::core::cookie_parser::load_extension_cookies_for_domain("pinterest.com") {
+            builder = builder.cookie_provider(jar);
+        }
+
+        let client = builder.build().unwrap_or_default();
         Self { client }
     }
 
@@ -167,6 +170,80 @@ impl PlatformDownloader for PinterestDownloader {
     }
 
     async fn get_media_info(&self, url: &str) -> anyhow::Result<MediaInfo> {
+        match self.native_get_media_info(url).await {
+            Ok(info) => Ok(info),
+            Err(native_err) => {
+                tracing::warn!("[pinterest] native failed: {}, trying yt-dlp fallback", native_err);
+                self.fallback_ytdlp(url).await.map_err(|_| native_err)
+            }
+        }
+    }
+
+    async fn download(
+        &self,
+        info: &MediaInfo,
+        opts: &DownloadOptions,
+        progress: mpsc::Sender<f64>,
+    ) -> anyhow::Result<DownloadResult> {
+        if let Some(quality) = info.available_qualities.first() {
+            if quality.format == "ytdlp" {
+                let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
+                return crate::core::ytdlp::download_video(
+                    &ytdlp_path,
+                    &quality.url,
+                    &opts.output_dir,
+                    None,
+                    progress,
+                    opts.download_mode.as_deref(),
+                    opts.format_id.as_deref(),
+                    opts.filename_template.as_deref(),
+                    None,
+                    opts.cancel_token.clone(),
+                    None,
+                    opts.concurrent_fragments,
+                    false,
+                    &[],
+                )
+                .await;
+            }
+        }
+
+        let quality = info
+            .available_qualities
+            .first()
+            .ok_or_else(|| anyhow!("No media URL available"))?;
+
+        let extension = &quality.format;
+        let filename = format!("{}.{}", info.title, extension);
+        let safe_filename = sanitize_filename::sanitize(&filename);
+        let output_path = opts.output_dir.join(&safe_filename);
+
+        let total_bytes = direct_downloader::download_direct(
+            &self.client,
+            &quality.url,
+            &output_path,
+            progress,
+            None,
+        )
+        .await?;
+
+        Ok(DownloadResult {
+            file_path: output_path,
+            file_size_bytes: total_bytes,
+            duration_seconds: 0.0,
+            torrent_id: None,
+        })
+    }
+}
+
+impl PinterestDownloader {
+    async fn fallback_ytdlp(&self, url: &str) -> anyhow::Result<MediaInfo> {
+        let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
+        let json = crate::core::ytdlp::get_video_info(&ytdlp_path, url, &[]).await?;
+        crate::platforms::generic_ytdlp::GenericYtdlpDownloader::parse_video_info(&json)
+    }
+
+    async fn native_get_media_info(&self, url: &str) -> anyhow::Result<MediaInfo> {
         let canonical = self.resolve_pin_url(url).await?;
 
         let pin_id = Self::extract_pin_id(&canonical)
@@ -220,38 +297,5 @@ impl PlatformDownloader for PinterestDownloader {
         }
 
         Err(anyhow!("No media found in pin {}", pin_id))
-    }
-
-    async fn download(
-        &self,
-        info: &MediaInfo,
-        opts: &DownloadOptions,
-        progress: mpsc::Sender<f64>,
-    ) -> anyhow::Result<DownloadResult> {
-        let quality = info
-            .available_qualities
-            .first()
-            .ok_or_else(|| anyhow!("No media URL available"))?;
-
-        let extension = &quality.format;
-        let filename = format!("{}.{}", info.title, extension);
-        let safe_filename = sanitize_filename::sanitize(&filename);
-        let output_path = opts.output_dir.join(&safe_filename);
-
-        let total_bytes = direct_downloader::download_direct(
-            &self.client,
-            &quality.url,
-            &output_path,
-            progress,
-            None,
-        )
-        .await?;
-
-        Ok(DownloadResult {
-            file_path: output_path,
-            file_size_bytes: total_bytes,
-            duration_seconds: 0.0,
-            torrent_id: None,
-        })
     }
 }
