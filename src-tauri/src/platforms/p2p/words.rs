@@ -1,5 +1,3 @@
-/// 256 Pokémon names for generating human-friendly share codes.
-/// 4 unique Pokémon = 32 bits of entropy, enough for LAN transfer identification.
 pub static WORDLIST: [&str; 256] = [
     "bulbasaur", "ivysaur", "venusaur", "charmander", "charmeleon", "charizard", "squirtle", "wartortle",
     "blastoise", "caterpie", "butterfree", "weedle", "beedrill", "pidgey", "pidgeot", "rattata",
@@ -35,8 +33,6 @@ pub static WORDLIST: [&str; 256] = [
     "combusken", "blaziken", "mudkip", "marshtomp", "swampert", "ralts", "gardevoir", "absol",
 ];
 
-/// Generate a 4-word share code from random bytes.
-/// Always picks 4 **different** Pokémon (no repeats).
 pub fn generate_code() -> String {
     use rand::RngExt;
     let mut rng = rand::rng();
@@ -56,39 +52,8 @@ pub fn generate_code() -> String {
         .join("-")
 }
 
-/// Look up a word's index in the wordlist. Returns None if not found.
-pub fn word_index(word: &str) -> Option<u8> {
-    let lower = word.to_lowercase();
-    WORDLIST
-        .iter()
-        .position(|w| *w == lower)
-        .map(|i| i as u8)
-}
-
-pub struct ParsedCode {
-    pub words: String,
-    pub remote_endpoint: Option<std::net::SocketAddr>,
-}
-
-pub fn parse_code(s: &str) -> Option<ParsedCode> {
-    let (word_part, endpoint) = if let Some((words, ep_str)) = s.split_once('@') {
-        (words, ep_str.parse().ok())
-    } else {
-        (s, None)
-    };
-
-    if !validate_words(word_part) {
-        return None;
-    }
-
-    Some(ParsedCode {
-        words: word_part.to_string(),
-        remote_endpoint: endpoint,
-    })
-}
-
 pub fn is_valid_code(s: &str) -> bool {
-    parse_code(s).is_some()
+    validate_words(s)
 }
 
 fn validate_words(s: &str) -> bool {
@@ -98,7 +63,8 @@ fn validate_words(s: &str) -> bool {
     }
     let mut seen = Vec::with_capacity(4);
     for word in &parts {
-        match word_index(word) {
+        let lower = word.to_lowercase();
+        match WORDLIST.iter().position(|w| *w == lower) {
             Some(idx) => {
                 if seen.contains(&idx) {
                     return false;
