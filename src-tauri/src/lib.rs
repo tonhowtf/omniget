@@ -282,6 +282,9 @@ pub fn run() {
                 let cf = s.download.cookie_file.clone();
                 if !cf.is_empty() && std::path::Path::new(&cf).exists() { Some(cf) } else { None }
             });
+            core::ytdlp::set_cookies_from_browser_fn(|| {
+                storage::config::load_settings_standalone().advanced.cookies_from_browser
+            });
             tray::setup(app.handle())?;
             hotkey::register_from_settings(app.handle());
             if let Err(error) = native_host::ensure_registered() {
