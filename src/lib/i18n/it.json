@@ -36,7 +36,8 @@
     "show_more": "Mostra altri {{count}}",
     "open_folder": "Mostra nella cartella",
     "stop": "Ferma",
-    "confirm_remove": "Rimuovere questo download?"
+    "confirm_remove": "Rimuovere questo download?",
+    "stats_line": "{{count}} download · {{size}} salvati"
   },
   "toast": {
     "download_preparing": "Preparazione download...",
@@ -505,6 +506,8 @@
     "search": "Guarda cosa ho trovato!|Dai un'occhiata!|Guarda qui!",
     "error": "Oops, qualcosa è andato storto. Riproviamo?|Non ha funzionato. Riproviamo?|Hmm, qualcosa si è rotto...",
     "complete": "Fatto!|Download completato!|Ecco fatto!",
+    "downloading": "Download in corso...|Ci sto lavorando!|Scaricando i tuoi file...",
+    "stalled": "Hmm, ci sta mettendo un po'...|Aspetta, sto ancora scaricando...|La connessione sembra lenta...",
     "queue": "In attesa...|Pazienza, quasi ci siamo...|Il tuo turno sta arrivando!"
   },
   "courses": {

@@ -36,7 +36,8 @@
     "show_more": "Afficher {{count}} de plus",
     "open_folder": "Afficher dans le dossier",
     "stop": "Arrêter",
-    "confirm_remove": "Supprimer ce téléchargement ?"
+    "confirm_remove": "Supprimer ce téléchargement ?",
+    "stats_line": "{{count}} téléchargements · {{size}} enregistrés"
   },
   "toast": {
     "download_preparing": "Préparation du téléchargement...",
@@ -505,6 +506,8 @@
     "search": "Regardez ce que j'ai trouvé !|Jetez un œil !|Regardez ça !",
     "error": "Oups, quelque chose a mal tourné. On réessaie ?|Ça n'a pas marché. On retente ?|Hmm, quelque chose a cassé...",
     "complete": "C'est fait !|Téléchargement terminé !|Voilà pour vous !",
+    "downloading": "Téléchargement en cours...|J'y travaille !|Récupération de vos fichiers...",
+    "stalled": "Hmm, ça prend du temps...|Patience, ça avance...|La connexion semble lente...",
     "queue": "En file d'attente...|Patience, bientôt...|Votre tour arrive !"
   },
   "courses": {
