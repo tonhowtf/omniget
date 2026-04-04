@@ -17,6 +17,10 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
         return ("restricted", "This content is private or age-restricted.");
     }
 
+    if lower.contains("downloaded file") && lower.contains("not found") {
+        return ("file_missing", "Downloaded file could not be located in the output folder.");
+    }
+
     if lower.contains("not found") || lower.contains("404") || lower.contains("unavailable")
         || lower.contains("deleted")
     {

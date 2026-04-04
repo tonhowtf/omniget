@@ -1676,8 +1676,9 @@ async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow::Result<Pa
         "3gp", "aac", "wav",
     ];
     let now = std::time::SystemTime::now();
-    let recency_limit = std::time::Duration::from_secs(600);
+    let recency_limit = std::time::Duration::from_secs(1800);
 
+    std::fs::create_dir_all(output_dir)?;
     let read_dir = std::fs::read_dir(output_dir)?;
     let mut candidates: Vec<(PathBuf, std::time::SystemTime, bool)> = Vec::new();
 
