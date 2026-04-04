@@ -35,7 +35,8 @@
     "clear_finished": "完了済みをクリア",
     "show_more": "さらに {{count}} 件を表示",
     "open_folder": "フォルダーで表示",
-    "stop": "停止"
+    "stop": "停止",
+    "confirm_remove": "このダウンロードを削除しますか？"
   },
   "toast": {
     "download_preparing": "ダウンロードを準備中...",
@@ -123,7 +124,10 @@
     "general": {
       "title": "一般",
       "start_with_windows": "Windows起動時に開始",
-      "start_with_windows_desc": "Windows起動時にOmniGetを自動的に起動します"
+      "start_with_windows_desc": "Windows起動時にOmniGetを自動的に起動します",
+      "reset_hints": "ヒントをリセット",
+      "reset_hints_desc": "非表示にしたヒントをすべて再表示します",
+      "restore": "復元"
     },
     "appearance": {
       "title": "外観",
@@ -550,6 +554,9 @@
     "refresh": "更新",
     "unknown_error": "不明なエラー",
     "captcha_detected": "Captchaが検出されました — ログインウィンドウで解決してください。"
+  },
+  "torrent": {
+    "open_file": ".torrentを開く"
   },
   "udemy": {
     "title": "Udemy",

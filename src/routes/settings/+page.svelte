@@ -430,7 +430,7 @@
             <span class="setting-label">{$t('settings.download.hotkey_enabled')} <ContextHint text={$t('hints.hotkey')} dismissKey="hotkey" /></span>
             <span class="setting-path">{$t('settings.download.hotkey_enabled_desc')}</span>
           </div>
-          <button class="toggle" class:on={settings.download.hotkey_enabled} onclick={() => toggleBool("download", "hotkey_enabled", settings!.download.hotkey_enabled)} role="switch" aria-checked={settings.download.hotkey_enabled}><span class="toggle-knob"></span></button>
+          <button class="toggle" class:on={settings.download.hotkey_enabled} onclick={() => toggleBool("download", "hotkey_enabled", settings!.download.hotkey_enabled)} role="switch" aria-checked={settings.download.hotkey_enabled} aria-label={$t('settings.download.hotkey_enabled')}><span class="toggle-knob"></span></button>
         </div>
         {#if settings.download.hotkey_enabled}
           <div class="divider"></div>
@@ -456,7 +456,7 @@
               <span class="setting-label">{$t('settings.download.copy_to_clipboard_on_hotkey')}</span>
               <span class="setting-path">{$t('settings.download.copy_to_clipboard_on_hotkey_desc')}</span>
             </div>
-            <button class="toggle" class:on={settings.download.copy_to_clipboard_on_hotkey} onclick={() => toggleBool("download", "copy_to_clipboard_on_hotkey", settings!.download.copy_to_clipboard_on_hotkey)} role="switch" aria-checked={settings.download.copy_to_clipboard_on_hotkey}><span class="toggle-knob"></span></button>
+            <button class="toggle" class:on={settings.download.copy_to_clipboard_on_hotkey} onclick={() => toggleBool("download", "copy_to_clipboard_on_hotkey", settings!.download.copy_to_clipboard_on_hotkey)} role="switch" aria-checked={settings.download.copy_to_clipboard_on_hotkey} aria-label={$t('settings.download.copy_to_clipboard_on_hotkey')}><span class="toggle-knob"></span></button>
           </div>
         {/if}
       </div>
@@ -485,7 +485,7 @@
         <div class="divider"></div>
         <div class="setting-row">
           <span class="setting-label">{$t('settings.download.always_ask_path')}</span>
-          <button class="toggle" class:on={settings.download.always_ask_path} onclick={() => toggleBool("download", "always_ask_path", settings!.download.always_ask_path)} role="switch" aria-checked={settings.download.always_ask_path}><span class="toggle-knob"></span></button>
+          <button class="toggle" class:on={settings.download.always_ask_path} onclick={() => toggleBool("download", "always_ask_path", settings!.download.always_ask_path)} role="switch" aria-checked={settings.download.always_ask_path} aria-label={$t('settings.download.always_ask_path')}><span class="toggle-knob"></span></button>
         </div>
       </div>
     </section>
@@ -498,12 +498,12 @@
             <span class="setting-label">{$t('settings.download.organize_by_platform')}</span>
             <span class="setting-path">{$t('settings.download.organize_by_platform_desc')}</span>
           </div>
-          <button class="toggle" class:on={settings.download.organize_by_platform} onclick={() => toggleBool("download", "organize_by_platform", settings!.download.organize_by_platform)} role="switch" aria-checked={settings.download.organize_by_platform}><span class="toggle-knob"></span></button>
+          <button class="toggle" class:on={settings.download.organize_by_platform} onclick={() => toggleBool("download", "organize_by_platform", settings!.download.organize_by_platform)} role="switch" aria-checked={settings.download.organize_by_platform} aria-label={$t('settings.download.organize_by_platform')}><span class="toggle-knob"></span></button>
         </div>
         <div class="divider"></div>
         <div class="setting-row">
           <span class="setting-label">{$t('settings.download.skip_existing')}</span>
-          <button class="toggle" class:on={settings.download.skip_existing} onclick={() => toggleBool("download", "skip_existing", settings!.download.skip_existing)} role="switch" aria-checked={settings.download.skip_existing}><span class="toggle-knob"></span></button>
+          <button class="toggle" class:on={settings.download.skip_existing} onclick={() => toggleBool("download", "skip_existing", settings!.download.skip_existing)} role="switch" aria-checked={settings.download.skip_existing} aria-label={$t('settings.download.skip_existing')}><span class="toggle-knob"></span></button>
         </div>
       </div>
     </details>
@@ -513,12 +513,12 @@
       <div class="card">
         <div class="setting-row">
           <span class="setting-label">{$t('settings.download.download_attachments')}</span>
-          <button class="toggle" class:on={settings.download.download_attachments} onclick={() => toggleBool("download", "download_attachments", settings!.download.download_attachments)} role="switch" aria-checked={settings.download.download_attachments}><span class="toggle-knob"></span></button>
+          <button class="toggle" class:on={settings.download.download_attachments} onclick={() => toggleBool("download", "download_attachments", settings!.download.download_attachments)} role="switch" aria-checked={settings.download.download_attachments} aria-label={$t('settings.download.download_attachments')}><span class="toggle-knob"></span></button>
         </div>
         <div class="divider"></div>
         <div class="setting-row">
           <span class="setting-label">{$t('settings.download.download_descriptions')}</span>
-          <button class="toggle" class:on={settings.download.download_descriptions} onclick={() => toggleBool("download", "download_descriptions", settings!.download.download_descriptions)} role="switch" aria-checked={settings.download.download_descriptions}><span class="toggle-knob"></span></button>
+          <button class="toggle" class:on={settings.download.download_descriptions} onclick={() => toggleBool("download", "download_descriptions", settings!.download.download_descriptions)} role="switch" aria-checked={settings.download.download_descriptions} aria-label={$t('settings.download.download_descriptions')}><span class="toggle-knob"></span></button>
         </div>
         <div class="divider"></div>
         <div class="setting-row">
@@ -526,7 +526,7 @@
             <span class="setting-label">{$t('settings.download.download_subtitles')}</span>
             <span class="setting-path">{$t('settings.download.download_subtitles_desc')}</span>
           </div>
-          <button class="toggle" class:on={settings.download.download_subtitles} onclick={() => toggleBool("download", "download_subtitles", settings!.download.download_subtitles)} role="switch" aria-checked={settings.download.download_subtitles}><span class="toggle-knob"></span></button>
+          <button class="toggle" class:on={settings.download.download_subtitles} onclick={() => toggleBool("download", "download_subtitles", settings!.download.download_subtitles)} role="switch" aria-checked={settings.download.download_subtitles} aria-label={$t('settings.download.download_subtitles')}><span class="toggle-knob"></span></button>
         </div>
         <div class="divider"></div>
         <div class="setting-row">
@@ -534,7 +534,7 @@
             <span class="setting-label">{$t('settings.download.embed_metadata')}</span>
             <span class="setting-path">{$t('settings.download.embed_metadata_desc')}</span>
           </div>
-          <button class="toggle" class:on={settings.download.embed_metadata} onclick={() => toggleBool("download", "embed_metadata", settings!.download.embed_metadata)} role="switch" aria-checked={settings.download.embed_metadata}><span class="toggle-knob"></span></button>
+          <button class="toggle" class:on={settings.download.embed_metadata} onclick={() => toggleBool("download", "embed_metadata", settings!.download.embed_metadata)} role="switch" aria-checked={settings.download.embed_metadata} aria-label={$t('settings.download.embed_metadata')}><span class="toggle-knob"></span></button>
         </div>
         <div class="divider"></div>
         <div class="setting-row">
@@ -542,7 +542,7 @@
             <span class="setting-label">{$t('settings.download.embed_thumbnail')}</span>
             <span class="setting-path">{$t('settings.download.embed_thumbnail_desc')}</span>
           </div>
-          <button class="toggle" class:on={settings.download.embed_thumbnail} onclick={() => toggleBool("download", "embed_thumbnail", settings!.download.embed_thumbnail)} role="switch" aria-checked={settings.download.embed_thumbnail}><span class="toggle-knob"></span></button>
+          <button class="toggle" class:on={settings.download.embed_thumbnail} onclick={() => toggleBool("download", "embed_thumbnail", settings!.download.embed_thumbnail)} role="switch" aria-checked={settings.download.embed_thumbnail} aria-label={$t('settings.download.embed_thumbnail')}><span class="toggle-knob"></span></button>
         </div>
       </div>
     </details>
@@ -555,7 +555,7 @@
             <span class="setting-label">{$t('settings.download.clipboard_detection')} <ContextHint text={$t('hints.clipboard')} dismissKey="clipboard" /></span>
             <span class="setting-path">{$t('settings.download.clipboard_detection_desc')}</span>
           </div>
-          <button class="toggle" class:on={settings.download.clipboard_detection} onclick={() => toggleBool("download", "clipboard_detection", settings!.download.clipboard_detection)} role="switch" aria-checked={settings.download.clipboard_detection}><span class="toggle-knob"></span></button>
+          <button class="toggle" class:on={settings.download.clipboard_detection} onclick={() => toggleBool("download", "clipboard_detection", settings!.download.clipboard_detection)} role="switch" aria-checked={settings.download.clipboard_detection} aria-label={$t('settings.download.clipboard_detection')}><span class="toggle-knob"></span></button>
         </div>
       </div>
     </details>

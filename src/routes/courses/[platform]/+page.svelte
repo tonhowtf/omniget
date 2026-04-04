@@ -88,9 +88,14 @@
     return Math.abs(hash);
   }
 
-  function getItemId(item: any): number {
-    if (typeof item.id === "number") return item.id;
-    return hashCode(String(item.id));
+  function getItemId(item: any): string | number {
+    if (item.id != null && item.id !== "") {
+      if (typeof item.id === "number") return item.id;
+      return String(item.id);
+    }
+    if (item.slug) return String(item.slug);
+    if (item.name) return hashCode(item.name);
+    return Math.random();
   }
 
   function getItemName(item: any): string {
@@ -482,7 +487,7 @@
       </div>
 
       <div class="courses-grid">
-        {#each paginatedItems as item (getItemId(item))}
+        {#each paginatedItems as item, idx (`${getItemId(item)}_${idx}`)}
           <CourseCard
             name={getItemName(item)}
             price={getItemSubtitle(item)}

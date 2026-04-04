@@ -35,7 +35,8 @@
     "clear_finished": "Limpar finalizados",
     "show_more": "Mostrar mais {{count}}",
     "open_folder": "Abrir pasta",
-    "stop": "Parar"
+    "stop": "Parar",
+    "confirm_remove": "Remover este download?"
   },
   "toast": {
     "download_preparing": "Preparando download...",
@@ -123,7 +124,10 @@
     "general": {
       "title": "Geral",
       "start_with_windows": "Iniciar com o Windows",
-      "start_with_windows_desc": "Abrir o OmniGet automaticamente ao iniciar o Windows"
+      "start_with_windows_desc": "Abrir o OmniGet automaticamente ao iniciar o Windows",
+      "reset_hints": "Restaurar dicas",
+      "reset_hints_desc": "Mostrar todas as dicas novamente",
+      "restore": "Restaurar"
     },
     "appearance": {
       "title": "Aparência",
@@ -592,6 +596,9 @@
     "refresh": "Atualizar",
     "unknown_error": "Erro desconhecido",
     "captcha_detected": "Captcha detectado — resolva na janela de login."
+  },
+  "torrent": {
+    "open_file": "Abrir .torrent"
   },
   "udemy": {
     "title": "Udemy",

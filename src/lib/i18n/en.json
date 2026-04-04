@@ -35,7 +35,8 @@
     "clear_finished": "Clear finished",
     "show_more": "Show {{count}} more",
     "open_folder": "Show in folder",
-    "stop": "Stop"
+    "stop": "Stop",
+    "confirm_remove": "Remove this download?"
   },
   "toast": {
     "download_preparing": "Preparing download...",
@@ -123,7 +124,10 @@
     "general": {
       "title": "General",
       "start_with_windows": "Start with Windows",
-      "start_with_windows_desc": "Launch OmniGet automatically when Windows starts"
+      "start_with_windows_desc": "Launch OmniGet automatically when Windows starts",
+      "reset_hints": "Reset hints",
+      "reset_hints_desc": "Show all dismissed tips again",
+      "restore": "Restore"
     },
     "appearance": {
       "title": "Appearance",
@@ -592,6 +596,9 @@
     "refresh": "Refresh",
     "unknown_error": "Unknown error",
     "captcha_detected": "Captcha detected — please solve it in the login window."
+  },
+  "torrent": {
+    "open_file": "Open .torrent"
   },
   "udemy": {
     "title": "Udemy",

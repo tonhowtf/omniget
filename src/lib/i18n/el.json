@@ -35,7 +35,8 @@
     "clear_finished": "Εκκαθάριση των ολοκληρωμένων",
     "show_more": "Δείξε {{count}} περισσότερα",
     "open_folder": "Εμφάνιση στο φάκελο",
-    "stop": "Διακοπή"
+    "stop": "Διακοπή",
+    "confirm_remove": "Αφαίρεση αυτής της λήψης;"
   },
   "toast": {
     "download_preparing": "Προετοιμασία λήψης...",
@@ -123,7 +124,10 @@
     "general": {
       "title": "Γενικά",
       "start_with_windows": "Εκκίνηση με τα Windows",
-      "start_with_windows_desc": "Αυτόματη εκκίνηση του OmniGet όταν ξεκινάν τα Windows"
+      "start_with_windows_desc": "Αυτόματη εκκίνηση του OmniGet όταν ξεκινάν τα Windows",
+      "reset_hints": "Επαναφορά υποδείξεων",
+      "reset_hints_desc": "Εμφάνιση ξανά όλων των απορριφθέντων συμβουλών",
+      "restore": "Επαναφορά"
     },
     "appearance": {
       "title": "Εμφάνιση",
@@ -550,6 +554,9 @@
     "refresh": "Ανανέωση",
     "unknown_error": "Άγνωστο σφάλμα",
     "captcha_detected": "Ανιχνεύθηκε captcha — Παρακαλώ επιλύστε το στην σελίδα εισόδου."
+  },
+  "torrent": {
+    "open_file": "Άνοιγμα .torrent"
   },
   "udemy": {
     "title": "Πλατφόρμα Udemy",

@@ -35,7 +35,8 @@
     "clear_finished": "清除已完成",
     "show_more": "显示更多 {{count}} 项",
     "open_folder": "在文件夹中显示",
-    "stop": "停止"
+    "stop": "停止",
+    "confirm_remove": "移除此下载？"
   },
   "toast": {
     "download_preparing": "正在准备下载...",
@@ -123,7 +124,10 @@
     "general": {
       "title": "通用",
       "start_with_windows": "开机自启",
-      "start_with_windows_desc": "Windows 启动时自动运行 OmniGet"
+      "start_with_windows_desc": "Windows 启动时自动运行 OmniGet",
+      "reset_hints": "重置提示",
+      "reset_hints_desc": "重新显示所有已关闭的提示",
+      "restore": "恢复"
     },
     "appearance": {
       "title": "外观",
@@ -550,6 +554,9 @@
     "refresh": "刷新",
     "unknown_error": "未知错误",
     "captcha_detected": "检测到验证码 — 请在登录窗口中完成验证。"
+  },
+  "torrent": {
+    "open_file": "打开 .torrent"
   },
   "udemy": {
     "title": "Udemy",
