@@ -69,8 +69,7 @@
     }
   }
 
-  async function changeTheme(e: Event) {
-    const value = (e.target as HTMLSelectElement).value;
+  async function changeTheme(value: string) {
     await updateSettings({ appearance: { theme: value } });
   }
 
@@ -352,11 +351,42 @@
       <div class="card">
         <div class="setting-row">
           <span class="setting-label">{$t('settings.appearance.theme')}</span>
-          <select class="select" value={settings.appearance.theme} onchange={changeTheme}>
-            <option value="system">{$t('settings.appearance.theme_system')}</option>
-            <option value="light">{$t('settings.appearance.theme_light')}</option>
-            <option value="dark">{$t('settings.appearance.theme_dark')}</option>
-          </select>
+        </div>
+        <div class="theme-grid">
+          {#each [
+            { id: "system", label: $t("settings.appearance.theme_system"), colors: null },
+            { id: "light", label: "Light", colors: ["#fafafa", "#1a1a1a", "#E05500"] },
+            { id: "dark", label: "Dark", colors: ["#0a0a0a", "#e8e8e8", "#FF7D38"] },
+            { id: "catppuccin-latte", label: "Catppuccin Latte", colors: ["#eff1f5", "#4c4f69", "#1e66f5"] },
+            { id: "catppuccin-frappe", label: "Catppuccin Frappé", colors: ["#303446", "#c6d0f5", "#8caaee"] },
+            { id: "catppuccin-macchiato", label: "Catppuccin Macchiato", colors: ["#24273a", "#cad3f5", "#8aadf4"] },
+            { id: "catppuccin-mocha", label: "Catppuccin Mocha", colors: ["#1e1e2e", "#cdd6f4", "#89b4fa"] },
+            { id: "one-dark-pro", label: "One Dark Pro", colors: ["#282c34", "#abb2bf", "#61afef"] },
+            { id: "dracula", label: "Dracula", colors: ["#22212C", "#F8F8F2", "#9580FF"] },
+            { id: "nyxvamp-veil", label: "NyxVamp Veil", colors: ["#1E1E2E", "#D9E0EE", "#F28FAD"] },
+            { id: "nyxvamp-obsidian", label: "NyxVamp Obsidian", colors: ["#000A0F", "#C0C0CE", "#F28FAD"] },
+            { id: "nyxvamp-radiance", label: "NyxVamp Radiance", colors: ["#F7F7FF", "#1E1E2E", "#9655FF"] },
+          ] as theme (theme.id)}
+            <button
+              class="theme-card"
+              class:active={settings.appearance.theme === theme.id}
+              onclick={() => changeTheme(theme.id)}
+            >
+              {#if theme.colors}
+                <div class="theme-preview">
+                  <div class="preview-bg" style="background: {theme.colors[0]}">
+                    <div class="preview-text" style="color: {theme.colors[1]}">Aa</div>
+                    <div class="preview-accent" style="background: {theme.colors[2]}"></div>
+                  </div>
+                </div>
+              {:else}
+                <div class="theme-preview system-preview">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                </div>
+              {/if}
+              <span class="theme-name">{theme.label}</span>
+            </button>
+          {/each}
         </div>
         <div class="divider"></div>
         <div class="setting-row">
@@ -376,6 +406,46 @@
     {/if}
 
     {#if activeCategory === "downloads"}
+    <section class="section">
+      <h5 class="section-title">{$t('settings.download.hotkey_enabled')}</h5>
+      <div class="card">
+        <div class="setting-row">
+          <div class="setting-col">
+            <span class="setting-label">{$t('settings.download.hotkey_enabled')} <ContextHint text={$t('hints.hotkey')} dismissKey="hotkey" /></span>
+            <span class="setting-path">{$t('settings.download.hotkey_enabled_desc')}</span>
+          </div>
+          <button class="toggle" class:on={settings.download.hotkey_enabled} onclick={() => toggleBool("download", "hotkey_enabled", settings!.download.hotkey_enabled)} role="switch" aria-checked={settings.download.hotkey_enabled}><span class="toggle-knob"></span></button>
+        </div>
+        {#if settings.download.hotkey_enabled}
+          <div class="divider"></div>
+          <div class="setting-row hotkey-row">
+            <span class="setting-label">{$t('settings.download.hotkey_binding')}</span>
+            <div class="hotkey-controls">
+              <div class="hotkey-mode-switch">
+                <button class="hotkey-mode-btn" class:active={hotkeyMode === 'record'} onclick={() => { hotkeyMode = 'record'; hotkeyRecording = false; }}>{$t('settings.download.hotkey_record')}</button>
+                <button class="hotkey-mode-btn" class:active={hotkeyMode === 'type'} onclick={() => { hotkeyMode = 'type'; hotkeyRecording = false; }}>{$t('settings.download.hotkey_type')}</button>
+              </div>
+              {#if hotkeyMode === 'type'}
+                <input type="text" class="input-hotkey" value={hotkeyInput} oninput={handleHotkeyInput} spellcheck="false" />
+              {:else}
+                <button class="input-hotkey hotkey-record-btn" class:recording={hotkeyRecording} onclick={() => { hotkeyRecording = true; }} onkeydown={hotkeyRecording ? handleHotkeyKeyDown : undefined} onblur={() => { hotkeyRecording = false; }}>
+                  {hotkeyRecording ? $t('settings.download.hotkey_press') : (hotkeyInput || $t('settings.download.hotkey_press'))}
+                </button>
+              {/if}
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="setting-row">
+            <div class="setting-col">
+              <span class="setting-label">{$t('settings.download.copy_to_clipboard_on_hotkey')}</span>
+              <span class="setting-path">{$t('settings.download.copy_to_clipboard_on_hotkey_desc')}</span>
+            </div>
+            <button class="toggle" class:on={settings.download.copy_to_clipboard_on_hotkey} onclick={() => toggleBool("download", "copy_to_clipboard_on_hotkey", settings!.download.copy_to_clipboard_on_hotkey)} role="switch" aria-checked={settings.download.copy_to_clipboard_on_hotkey}><span class="toggle-knob"></span></button>
+          </div>
+        {/if}
+      </div>
+    </section>
+
     <section class="section">
       <div class="card">
         <div class="setting-row">
@@ -462,43 +532,8 @@
     </details>
 
     <details class="section">
-      <summary class="section-title">{$t('settings.download.hotkey_enabled')}</summary>
+      <summary class="section-title">{$t('settings.download.clipboard_detection')}</summary>
       <div class="card">
-        <div class="setting-row">
-          <div class="setting-col">
-            <span class="setting-label">{$t('settings.download.hotkey_enabled')} <ContextHint text={$t('hints.hotkey')} dismissKey="hotkey" /></span>
-            <span class="setting-path">{$t('settings.download.hotkey_enabled_desc')}</span>
-          </div>
-          <button class="toggle" class:on={settings.download.hotkey_enabled} onclick={() => toggleBool("download", "hotkey_enabled", settings!.download.hotkey_enabled)} role="switch" aria-checked={settings.download.hotkey_enabled}><span class="toggle-knob"></span></button>
-        </div>
-        {#if settings.download.hotkey_enabled}
-          <div class="divider"></div>
-          <div class="setting-row hotkey-row">
-            <span class="setting-label">{$t('settings.download.hotkey_binding')}</span>
-            <div class="hotkey-controls">
-              <div class="hotkey-mode-switch">
-                <button class="hotkey-mode-btn" class:active={hotkeyMode === 'record'} onclick={() => { hotkeyMode = 'record'; hotkeyRecording = false; }}>{$t('settings.download.hotkey_record')}</button>
-                <button class="hotkey-mode-btn" class:active={hotkeyMode === 'type'} onclick={() => { hotkeyMode = 'type'; hotkeyRecording = false; }}>{$t('settings.download.hotkey_type')}</button>
-              </div>
-              {#if hotkeyMode === 'type'}
-                <input type="text" class="input-hotkey" value={hotkeyInput} oninput={handleHotkeyInput} spellcheck="false" />
-              {:else}
-                <button class="input-hotkey hotkey-record-btn" class:recording={hotkeyRecording} onclick={() => { hotkeyRecording = true; }} onkeydown={hotkeyRecording ? handleHotkeyKeyDown : undefined} onblur={() => { hotkeyRecording = false; }}>
-                  {hotkeyRecording ? $t('settings.download.hotkey_press') : (hotkeyInput || $t('settings.download.hotkey_press'))}
-                </button>
-              {/if}
-            </div>
-          </div>
-          <div class="divider"></div>
-          <div class="setting-row">
-            <div class="setting-col">
-              <span class="setting-label">{$t('settings.download.copy_to_clipboard_on_hotkey')}</span>
-              <span class="setting-path">{$t('settings.download.copy_to_clipboard_on_hotkey_desc')}</span>
-            </div>
-            <button class="toggle" class:on={settings.download.copy_to_clipboard_on_hotkey} onclick={() => toggleBool("download", "copy_to_clipboard_on_hotkey", settings!.download.copy_to_clipboard_on_hotkey)} role="switch" aria-checked={settings.download.copy_to_clipboard_on_hotkey}><span class="toggle-knob"></span></button>
-          </div>
-        {/if}
-        <div class="divider"></div>
         <div class="setting-row">
           <div class="setting-col">
             <span class="setting-label">{$t('settings.download.clipboard_detection')} <ContextHint text={$t('hints.clipboard')} dismissKey="clipboard" /></span>
@@ -1306,5 +1341,75 @@
   .cat-tab:focus-visible {
     outline: var(--focus-ring);
     outline-offset: var(--focus-ring-offset);
+  }
+
+  .theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+    padding: 0 var(--padding) var(--padding);
+  }
+
+  .theme-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px;
+    border: 2px solid transparent;
+    border-radius: var(--border-radius);
+    background: var(--button);
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .theme-card:hover {
+    background: var(--button-hover);
+  }
+
+  .theme-card.active {
+    border-color: var(--accent);
+  }
+
+  .theme-preview {
+    width: 100%;
+    aspect-ratio: 16/10;
+    border-radius: calc(var(--border-radius) / 2);
+    overflow: hidden;
+  }
+
+  .preview-bg {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .preview-text {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .preview-accent {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+  }
+
+  .system-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--button-elevated);
+  }
+
+  .theme-name {
+    font-size: 11px;
+    color: var(--tertiary);
+    text-align: center;
   }
 </style>
