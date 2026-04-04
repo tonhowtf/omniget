@@ -218,6 +218,11 @@ export function registerSnifferListeners(onMediaDetected) {
 
       const contentType = getContentType(details.responseHeaders);
       const contentLength = getContentLength(details.responseHeaders);
+
+      if (isPlatformCdnFragment(url, contentType, contentLength)) {
+        pendingRequests.delete(details.requestId);
+        return;
+      }
       const isOctetStream = contentType.toLowerCase().includes("application/octet-stream");
       const isMedia = isMediaByContentType(contentType) || isMediaByExtension(url);
 

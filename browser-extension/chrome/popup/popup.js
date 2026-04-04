@@ -61,7 +61,7 @@ function render() {
 }
 
 function renderKnownPlatform(container) {
-  const { pageDetected, tabUrl, media } = currentData;
+  const { pageDetected, tabUrl } = currentData;
   const domain = getDomainFromUrl(tabUrl);
   const label = getDownloadLabel(pageDetected.contentType);
   const meta = domain + (pageTitle ? " \u00b7 " + truncate(pageTitle, 35) : "");
@@ -69,8 +69,6 @@ function renderKnownPlatform(container) {
   appendPrimaryButton(container, label, meta, (btn) => {
     handleDownload(btn, tabUrl, pageDetected.platform);
   });
-
-  appendMediaControls(container, media);
 }
 
 function renderMediaDetected(container) {
@@ -139,7 +137,7 @@ function appendMediaControls(container, media) {
   const hlsGroups = groupHlsManifests(media);
   const groups = [...hlsGroups.values()].filter(g => g.master);
   const nonHls = (media || []).filter(m => m.mediaType !== "hls");
-  const directMedia = nonHls.filter(m => m.contentLength > 500 * 1024).slice(0, 10);
+  const directMedia = deduplicateMedia(nonHls.filter(m => m.contentLength > 500 * 1024)).slice(0, 10);
   const totalItems = groups.length + directMedia.length;
 
   if (groups.length >= 2) {
@@ -316,12 +314,13 @@ function sendToApp(url, platform, mediaEntry) {
     if (mediaEntry?.contentType) msg.contentType = mediaEntry.contentType;
 
     if (mediaEntry?.requestHeaders) {
-      const keep = ["authorization", "x-csrf-token", "x-session-id", "cookie", "origin"];
+      const skip = ["host", "connection", "accept-encoding", "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform", "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site", "upgrade-insecure-requests"];
       const extracted = {};
       for (const h of mediaEntry.requestHeaders) {
-        if (keep.includes(h.name.toLowerCase())) {
-          extracted[h.name] = h.value;
-        }
+        const name = h.name.toLowerCase();
+        if (skip.includes(name)) continue;
+        if (name.startsWith("sec-")) continue;
+        extracted[h.name] = h.value;
       }
       if (Object.keys(extracted).length > 0) {
         msg.headers = extracted;
@@ -375,8 +374,11 @@ function groupHlsManifests(media) {
     const group = groups.get(key);
     group.all.push(item);
 
-    if (filename.includes("playlist")) group.master = item;
-    else if (!group.master) group.master = item;
+    if (filename.includes("master") || filename.includes("playlist") || filename === "index.m3u8") {
+      group.master = item;
+    } else if (!group.master) {
+      group.master = item;
+    }
   }
 
   return groups;
@@ -421,10 +423,30 @@ function pickBestMedia(media) {
 
 function getDownloadLabel(contentType) {
   switch (contentType) {
-    case "course": return "Send to OmniGet";
-    case "playlist": return "Send playlist";
+    case "course": return "Send course to OmniGet";
+    case "playlist": return "Send playlist to OmniGet";
+    case "video": return "Send video to OmniGet";
+    case "reel": return "Send reel to OmniGet";
+    case "post": return "Send post to OmniGet";
+    case "short": return "Send short to OmniGet";
+    case "clip": return "Send clip to OmniGet";
+    case "image": return "Send image to OmniGet";
+    case "audio": return "Send audio to OmniGet";
+    case "profile": return "Send profile to OmniGet";
     default: return "Send to OmniGet";
   }
+}
+
+function deduplicateMedia(media) {
+  const seen = new Map();
+  for (const m of media) {
+    const key = getDomainFromUrl(m.url) + "_" + m.mediaType;
+    const existing = seen.get(key);
+    if (!existing || m.contentLength > existing.contentLength) {
+      seen.set(key, m);
+    }
+  }
+  return [...seen.values()].sort((a, b) => b.contentLength - a.contentLength);
 }
 
 function getDomainFromUrl(url) {

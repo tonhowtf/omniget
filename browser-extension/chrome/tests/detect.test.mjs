@@ -82,10 +82,10 @@ test("YouTube: old embed /v/ format", () => {
   assertSupported("https://www.youtube.com/v/abc123", "youtube", "video");
 });
 
-test("YouTube: channel page is unsupported", () => {
-  assertUnsupported("https://www.youtube.com/@omniget", "youtube", "profile");
-  assertUnsupported("https://www.youtube.com/channel/UCxyz", "youtube", "profile");
-  assertUnsupported("https://www.youtube.com/c/omniget", "youtube", "profile");
+test("YouTube: channel page is supported as profile", () => {
+  assertSupported("https://www.youtube.com/@omniget", "youtube", "profile");
+  assertSupported("https://www.youtube.com/channel/UCxyz", "youtube", "profile");
+  assertSupported("https://www.youtube.com/c/omniget", "youtube", "profile");
 });
 
 test("YouTube: youtube-nocookie.com", () => {
@@ -106,8 +106,8 @@ test("Instagram: story", () => {
   assertSupported("https://www.instagram.com/stories/user/12345/", "instagram", "image");
 });
 
-test("Instagram: profile is unsupported", () => {
-  assertUnsupported("https://www.instagram.com/username", "instagram", "profile");
+test("Instagram: profile is supported", () => {
+  assertSupported("https://www.instagram.com/username", "instagram", "profile");
 });
 
 test("Instagram: explore is unknown", () => {
@@ -124,8 +124,8 @@ test("TikTok: user video", () => {
   assertSupported("https://www.tiktok.com/@user/video/1234567890", "tiktok", "video");
 });
 
-test("TikTok: profile is unsupported", () => {
-  assertUnsupported("https://www.tiktok.com/@user", "tiktok", "profile");
+test("TikTok: profile is supported", () => {
+  assertSupported("https://www.tiktok.com/@user", "tiktok", "profile");
 });
 
 test("TikTok: short link /t/<code>", () => {
@@ -166,8 +166,8 @@ test("Twitter: fixvx mirror", () => {
   assertSupported("https://fixvx.com/user/status/123456", "twitter", "post");
 });
 
-test("Twitter: profile is unsupported", () => {
-  assertUnsupported("https://twitter.com/user", "twitter", "profile");
+test("Twitter: profile is supported", () => {
+  assertSupported("https://twitter.com/user", "twitter", "profile");
 });
 
 test("Twitter: search/explore/settings are unknown", () => {
@@ -203,8 +203,8 @@ test("Reddit: /video/ link", () => {
   assertSupported("https://www.reddit.com/video/abc123", "reddit", "video");
 });
 
-test("Reddit: subreddit browse is unsupported profile", () => {
-  assertUnsupported("https://www.reddit.com/r/videos", "reddit", "profile");
+test("Reddit: subreddit browse is supported as profile", () => {
+  assertSupported("https://www.reddit.com/r/videos", "reddit", "profile");
 });
 
 test("Reddit: homepage is unknown", () => {
@@ -282,8 +282,8 @@ test("Bluesky: post", () => {
   assertSupported("https://bsky.app/profile/user.bsky.social/post/abc123", "bluesky", "post");
 });
 
-test("Bluesky: profile is unsupported", () => {
-  assertUnsupported("https://bsky.app/profile/user.bsky.social", "bluesky", "profile");
+test("Bluesky: profile is supported", () => {
+  assertSupported("https://bsky.app/profile/user.bsky.social", "bluesky", "profile");
 });
 
 // ── Telegram ─────────────────────────────────────────────────────────────
@@ -292,8 +292,8 @@ test("Telegram: numbered post", () => {
   assertSupported("https://t.me/channel/123", "telegram", "post");
 });
 
-test("Telegram: channel profile is unsupported", () => {
-  assertUnsupported("https://t.me/channel", "telegram", "profile");
+test("Telegram: channel profile is supported", () => {
+  assertSupported("https://t.me/channel", "telegram", "profile");
 });
 
 test("Telegram: joinchat/addstickers/login/share are unknown", () => {

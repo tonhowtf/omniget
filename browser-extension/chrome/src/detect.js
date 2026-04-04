@@ -5,6 +5,7 @@ const MEDIA_CONTENT_TYPES = new Set([
   "image",
   "playlist",
   "post",
+  "profile",
   "reel",
   "short",
   "video",

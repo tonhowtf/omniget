@@ -167,10 +167,26 @@ async function handleSendToApp(msg) {
     if (platformCookies && platformCookies.length > 0) {
       cookies = platformCookies;
     } else {
+      const cookieMap = new Map();
+
       const urlObj = new URL(url);
-      const allCookies = await chrome.cookies.getAll({ domain: urlObj.hostname });
-      if (allCookies.length > 0) {
-        cookies = allCookies.map(c => ({
+      const cdnCookies = await chrome.cookies.getAll({ domain: urlObj.hostname });
+      for (const c of cdnCookies) {
+        cookieMap.set(`${c.domain}:${c.name}`, c);
+      }
+
+      if (msg.referer) {
+        try {
+          const refererObj = new URL(msg.referer);
+          const pageCookies = await chrome.cookies.getAll({ domain: refererObj.hostname });
+          for (const c of pageCookies) {
+            cookieMap.set(`${c.domain}:${c.name}`, c);
+          }
+        } catch {}
+      }
+
+      if (cookieMap.size > 0) {
+        cookies = [...cookieMap.values()].map(c => ({
           domain: c.domain,
           httpOnly: c.httpOnly,
           path: c.path,
@@ -191,6 +207,21 @@ async function handleSendToApp(msg) {
   if (msg.mediaType) message.mediaType = msg.mediaType;
   if (msg.contentType) message.contentType = msg.contentType;
   if (msg.headers) message.headers = msg.headers;
+  message.pageUrl = msg.referer || "";
+  message.userAgent = navigator.userAgent;
+
+  try {
+    await chrome.storage.local.set({
+      last_download_metadata: {
+        url,
+        referer: msg.referer || "",
+        headers: msg.headers || {},
+        cookies: cookies || [],
+        userAgent: navigator.userAgent,
+        timestamp: Date.now(),
+      },
+    }).catch(() => {});
+  } catch {}
 
   try {
     const response = await sendNativeMessage(message);
