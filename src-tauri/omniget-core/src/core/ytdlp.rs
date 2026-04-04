@@ -13,10 +13,12 @@ use crate::models::media::{DownloadResult, FormatInfo};
 type ExtCookiePathFn = Box<dyn Fn() -> PathBuf + Send + Sync>;
 type GlobalCookieFileFn = Box<dyn Fn() -> Option<String> + Send + Sync>;
 type CookiesFromBrowserFn = Box<dyn Fn() -> String + Send + Sync>;
+type ExtRefererFn = Box<dyn Fn(&str) -> Option<String> + Send + Sync>;
 
 static EXT_COOKIE_PATH_FN: OnceLock<ExtCookiePathFn> = OnceLock::new();
 static GLOBAL_COOKIE_FILE_FN: OnceLock<GlobalCookieFileFn> = OnceLock::new();
 static COOKIES_FROM_BROWSER_FN: OnceLock<CookiesFromBrowserFn> = OnceLock::new();
+static EXT_REFERER_FN: OnceLock<ExtRefererFn> = OnceLock::new();
 
 pub fn set_ext_cookie_path_fn(f: impl Fn() -> PathBuf + Send + Sync + 'static) {
     let _ = EXT_COOKIE_PATH_FN.set(Box::new(f));
@@ -28,6 +30,14 @@ pub fn set_global_cookie_file_fn(f: impl Fn() -> Option<String> + Send + Sync + 
 
 pub fn set_cookies_from_browser_fn(f: impl Fn() -> String + Send + Sync + 'static) {
     let _ = COOKIES_FROM_BROWSER_FN.set(Box::new(f));
+}
+
+pub fn set_ext_referer_fn(f: impl Fn(&str) -> Option<String> + Send + Sync + 'static) {
+    let _ = EXT_REFERER_FN.set(Box::new(f));
+}
+
+fn ext_referer_for_url(url: &str) -> Option<String> {
+    EXT_REFERER_FN.get().and_then(|f| f(url))
 }
 
 fn cookies_from_browser_setting() -> String {
@@ -1473,6 +1483,25 @@ pub async fn download_video(
             {
                 extra_args.push("--restrict-filenames".to_string());
                 tracing::warn!("[yt-dlp] Errno 22, adding --restrict-filenames");
+            }
+
+            if (stderr_lower.contains("403") || stderr_lower.contains("forbidden"))
+                && referer.is_none()
+                && !extra_args.contains(&"--referer".to_string())
+            {
+                let fallback = ext_referer_for_url(url).or_else(|| {
+                    url::Url::parse(url).ok().and_then(|parsed| {
+                        let host = parsed.host_str()?;
+                        Some(format!("{}://{}/", parsed.scheme(), host))
+                    })
+                });
+                if let Some(ref_url) = fallback {
+                    tracing::info!("[yt-dlp] 403, adding fallback referer: {}", ref_url);
+                    extra_args.push("--referer".to_string());
+                    extra_args.push(ref_url.clone());
+                    extra_args.push("--add-headers".to_string());
+                    extra_args.push(format!("Referer:{}", ref_url));
+                }
             }
 
             if ((stderr_lower.contains("could not") && stderr_lower.contains("cookie"))

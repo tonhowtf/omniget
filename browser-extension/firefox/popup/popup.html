@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup">
+    <header class="header">
+      <div class="header-left">
+        <img src="../icons/active-16.png" alt="" class="logo">
+        <span class="title">OmniGet</span>
+      </div>
+      <label class="toggle" title="Media detection">
+        <input type="checkbox" id="sniffer-toggle" role="switch" aria-label="Media detection">
+        <span class="toggle-slider"></span>
+      </label>
+    </header>
+    <div id="content" class="content">
+      <div class="state-empty">
+        <div class="listening-dot"></div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

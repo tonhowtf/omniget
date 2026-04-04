@@ -8,10 +8,9 @@ use serde::{Deserialize, Serialize};
 
 pub const CHROME_HOST_NAME: &str = "wtf.tonho.omniget";
 pub const CHROME_EXTENSION_IDS: &[&str] = &[
-    // Unpacked development extension ID derived from browser-extension/chrome/manifest.json.
     "dkjelkhaaakffpghdfalobccaaipajip",
-    // Add the Chrome Web Store extension ID here once it is assigned.
 ];
+const FIREFOX_EXTENSION_ID: &str = "omniget@tonho.wtf";
 
 #[cfg(target_os = "windows")]
 const HOST_COPY_NAME: &str = "omniget-native-host.exe";
@@ -132,6 +131,14 @@ pub fn ensure_registered() -> anyhow::Result<()> {
 
     write_host_manifest(&manifest_path, &host_exe)?;
     register_host_manifest(&manifest_path)?;
+
+    if let Ok(ff_path) = firefox_manifest_path(&integration_dir) {
+        if let Some(parent) = ff_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = write_firefox_manifest(&ff_path, &host_exe);
+        let _ = register_firefox_manifest(&ff_path);
+    }
 
     Ok(())
 }
@@ -259,6 +266,82 @@ fn register_host_manifest(manifest_path: &Path) -> anyhow::Result<()> {
 // registry key under HKCU\Software\Google\Chrome\NativeMessagingHosts).
 #[cfg(not(target_os = "windows"))]
 fn register_host_manifest(_manifest_path: &Path) -> anyhow::Result<()> {
+    Ok(())
+}
+
+fn build_firefox_manifest(host_exe: &Path) -> serde_json::Value {
+    serde_json::json!({
+        "name": CHROME_HOST_NAME,
+        "description": "OmniGet native host for Firefox",
+        "path": host_exe.to_string_lossy().to_string(),
+        "type": "stdio",
+        "allowed_extensions": [FIREFOX_EXTENSION_ID]
+    })
+}
+
+fn write_firefox_manifest(manifest_path: &Path, host_exe: &Path) -> anyhow::Result<()> {
+    fs::write(manifest_path, serde_json::to_vec_pretty(&build_firefox_manifest(host_exe))?)?;
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn firefox_manifest_path(integration_dir: &Path) -> anyhow::Result<PathBuf> {
+    Ok(integration_dir.join(format!("{}.firefox.json", CHROME_HOST_NAME)))
+}
+
+#[cfg(target_os = "linux")]
+fn firefox_manifest_path(_integration_dir: &Path) -> anyhow::Result<PathBuf> {
+    let home = dirs::home_dir()
+        .context("Could not resolve home directory for Firefox native host registration")?;
+    Ok(home
+        .join(".mozilla")
+        .join("native-messaging-hosts")
+        .join(format!("{}.json", CHROME_HOST_NAME)))
+}
+
+#[cfg(target_os = "macos")]
+fn firefox_manifest_path(_integration_dir: &Path) -> anyhow::Result<PathBuf> {
+    let home = dirs::home_dir()
+        .context("Could not resolve home directory for Firefox native host registration")?;
+    Ok(home
+        .join("Library")
+        .join("Application Support")
+        .join("Mozilla")
+        .join("NativeMessagingHosts")
+        .join(format!("{}.json", CHROME_HOST_NAME)))
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+fn firefox_manifest_path(_integration_dir: &Path) -> anyhow::Result<PathBuf> {
+    anyhow::bail!("Firefox native host registration is unsupported on this platform");
+}
+
+#[cfg(target_os = "windows")]
+fn register_firefox_manifest(manifest_path: &Path) -> anyhow::Result<()> {
+    use std::os::windows::process::CommandExt;
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let _ = std::process::Command::new("reg")
+        .args([
+            "add",
+            &format!(
+                r"HKCU\Software\Mozilla\NativeMessagingHosts\{}",
+                CHROME_HOST_NAME
+            ),
+            "/ve",
+            "/t",
+            "REG_SZ",
+            "/d",
+            &manifest_path.to_string_lossy(),
+            "/f",
+        ])
+        .creation_flags(CREATE_NO_WINDOW)
+        .status();
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn register_firefox_manifest(_manifest_path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 

@@ -285,6 +285,10 @@ pub fn run() {
             core::ytdlp::set_cookies_from_browser_fn(|| {
                 storage::config::load_settings_standalone().advanced.cookies_from_browser
             });
+            core::ytdlp::set_ext_referer_fn(|url| {
+                native_host::read_extension_metadata(url)
+                    .and_then(|m| m.referer)
+            });
             tray::setup(app.handle())?;
             hotkey::register_from_settings(app.handle());
             if let Err(error) = native_host::ensure_registered() {

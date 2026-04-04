@@ -1,0 +1,47 @@
+{
+  "action_title_supported": {
+    "message": "Στείλτε αυτήν τη σελίδα πολυμέσων στο OmniGet"
+  },
+  "action_title_unsupported": {
+    "message": "Δεν εντοπίστηκαν υποστηριζόμενα πολυμέσα σε αυτήν τη σελίδα"
+  },
+  "error_page_document_title": {
+    "message": "Επέκταση OmniGet"
+  },
+  "error_page_eyebrow": {
+    "message": "Επέκταση OmniGet"
+  },
+  "error_page_install_cta": {
+    "message": "Εγκατάσταση του OmniGet"
+  },
+  "error_page_open_extensions": {
+    "message": "Άνοιγμα επεκτάσεων Chrome"
+  },
+  "error_host_missing_title": {
+    "message": "Ανοίξτε το OmniGet μία φορά για να ολοκληρώσετε τη ρύθμιση του Chrome"
+  },
+  "error_host_missing_body": {
+    "message": "Το Chrome δεν μπόρεσε ακόμη να βρει τη γέφυρα OmniGet σε αυτόν τον υπολογιστή."
+  },
+  "error_host_missing_detail": {
+    "message": "Εγκαταστήστε το OmniGet αν χρειάζεται, έπειτα ανοίξτε μία φορά την εφαρμογή υπολογιστή και πατήστε ξανά την επέκταση."
+  },
+  "error_invalid_url_title": {
+    "message": "Η διεύθυνση URL αυτής της σελίδας δεν μπορεί να σταλεί στο OmniGet"
+  },
+  "error_invalid_url_body": {
+    "message": "Η τρέχουσα σελίδα δεν είναι υποστηριζόμενη σελίδα πολυμέσων για την επέκταση OmniGet."
+  },
+  "error_invalid_url_detail": {
+    "message": "Δοκιμάστε ξανά από μια άμεση σελίδα βίντεο, reel, ανάρτησης, λίστας αναπαραγωγής ή μαθήματος."
+  },
+  "error_launch_failed_title": {
+    "message": "Το OmniGet δεν μπόρεσε να εκκινηθεί από το Chrome"
+  },
+  "error_launch_failed_body": {
+    "message": "Η επέκταση επικοινώνησε με το native host, αλλά η εφαρμογή υπολογιστή δεν ξεκίνησε σωστά."
+  },
+  "error_launch_failed_detail": {
+    "message": "Βεβαιωθείτε ότι το OmniGet είναι εγκατεστημένο και δεν έχει αποκλειστεί από το σύστημά σας και δοκιμάστε ξανά."
+  }
+}

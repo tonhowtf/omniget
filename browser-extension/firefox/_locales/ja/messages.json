@@ -1,0 +1,47 @@
+{
+  "action_title_supported": {
+    "message": "このメディアページをOmniGetに送信"
+  },
+  "action_title_unsupported": {
+    "message": "このページでは対応しているメディアが見つかりません"
+  },
+  "error_page_document_title": {
+    "message": "OmniGet 拡張機能"
+  },
+  "error_page_eyebrow": {
+    "message": "OmniGet 拡張機能"
+  },
+  "error_page_install_cta": {
+    "message": "OmniGet をインストール"
+  },
+  "error_page_open_extensions": {
+    "message": "Chrome 拡張機能を開く"
+  },
+  "error_host_missing_title": {
+    "message": "Chrome のセットアップを完了するには OmniGet を一度開いてください"
+  },
+  "error_host_missing_body": {
+    "message": "Chrome はこのコンピューター上の OmniGet ブリッジをまだ見つけられませんでした。"
+  },
+  "error_host_missing_detail": {
+    "message": "必要なら OmniGet をインストールし、デスクトップアプリを一度起動してからもう一度拡張機能をクリックしてください。"
+  },
+  "error_invalid_url_title": {
+    "message": "このページの URL は OmniGet に送信できません"
+  },
+  "error_invalid_url_body": {
+    "message": "現在のページは OmniGet 拡張機能でサポートされているメディアページではありません。"
+  },
+  "error_invalid_url_detail": {
+    "message": "動画、リール、投稿、再生リスト、またはコースの直接ページからもう一度お試しください。"
+  },
+  "error_launch_failed_title": {
+    "message": "Chrome から OmniGet を起動できませんでした"
+  },
+  "error_launch_failed_body": {
+    "message": "拡張機能はネイティブホストと通信しましたが、デスクトップアプリは正しく起動しませんでした。"
+  },
+  "error_launch_failed_detail": {
+    "message": "OmniGet がインストールされていてシステムによってブロックされていないことを確認してから、もう一度お試しください。"
+  }
+}

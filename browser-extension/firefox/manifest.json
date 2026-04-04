@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "OmniGet",
+  "description": "Detect supported media pages and send them to OmniGet with one click.",
+  "version": "0.2.0",
+  "default_locale": "en",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "omniget@tonho.wtf",
+      "strict_min_version": "109.0"
+    }
+  },
+  "permissions": [
+    "nativeMessaging",
+    "tabs",
+    "cookies",
+    "webRequest",
+    "storage",
+    "menus"
+  ],
+  "host_permissions": [
+    "*://*/*"
+  ],
+  "background": {
+    "scripts": ["src/background.js"],
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "OmniGet",
+    "default_icon": {
+      "16": "icons/inactive-16.png",
+      "24": "icons/inactive-24.png",
+      "32": "icons/inactive-32.png",
+      "48": "icons/inactive-48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/active-16.png",
+    "24": "icons/active-24.png",
+    "32": "icons/active-32.png",
+    "48": "icons/active-48.png",
+    "128": "icons/active-128.png"
+  }
+}
