@@ -1,12 +1,15 @@
 const PLATFORM_COOKIE_DOMAINS = Object.freeze({
   youtube: [".youtube.com", ".google.com"],
-  instagram: [".instagram.com"],
-  tiktok: [".tiktok.com"],
+  instagram: [".instagram.com", ".cdninstagram.com", ".fbcdn.net"],
+  tiktok: [".tiktok.com", ".tiktokcdn.com"],
   twitter: [".twitter.com", ".x.com"],
   reddit: [".reddit.com"],
-  twitch: [".twitch.tv"],
-  vimeo: [".vimeo.com"],
-  bilibili: [".bilibili.com"],
+  twitch: [".twitch.tv", ".jtvnw.net"],
+  vimeo: [".vimeo.com", ".vimeocdn.com"],
+  bilibili: [".bilibili.com", ".bilivideo.com"],
+  pinterest: [".pinterest.com"],
+  hotmart: [".hotmart.com"],
+  udemy: [".udemy.com"],
 });
 
 export async function extractCookiesForPlatform(platform, getAllCookies = defaultGetAllCookies) {

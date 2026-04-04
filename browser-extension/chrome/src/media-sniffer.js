@@ -3,18 +3,37 @@ const MEDIA_CONTENT_TYPES = [
   "video/webm",
   "video/x-flv",
   "video/ogg",
+  "video/x-matroska",
+  "video/3gpp",
+  "video/mpeg",
+  "video/x-msvideo",
+  "video/x-ms-wmv",
+  "video/quicktime",
   "audio/mpeg",
   "audio/ogg",
   "audio/mp4",
+  "audio/webm",
+  "audio/aac",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/flac",
+  "audio/x-flac",
+  "audio/x-m4a",
+  "audio/x-ms-wma",
+  "audio/opus",
   "application/vnd.apple.mpegurl",
   "application/x-mpegurl",
   "application/dash+xml",
+  "application/f4m+xml",
 ];
 
 const MEDIA_EXTENSIONS = [
   ".mp4", ".webm", ".m3u8", ".mpd",
   ".flv", ".ogg", ".mp3", ".m4a", ".m4v",
-  ".mkv", ".avi", ".mov",
+  ".mkv", ".avi", ".mov", ".wmv",
+  ".wav", ".flac", ".aac", ".opus",
+  ".3gp", ".mpg", ".mpeg", ".divx",
+  ".f4m", ".f4v", ".ts",
 ];
 
 const BLOCKED_HOSTS = [
@@ -23,9 +42,36 @@ const BLOCKED_HOSTS = [
   "facebook.com",
   "doubleclick.net",
   "analytics",
+  "ads.google.com",
+  "ad.doubleclick.net",
+  "adservice.google.com",
+  "pagead2.googlesyndication.com",
+  "cdn.mxpnl.com",
+  "stats.wp.com",
+  "pixel.facebook.com",
+  "connect.facebook.net",
+  "scorecardresearch.com",
+  "hotjar.com",
+  "sentry.io",
+  "newrelic.com",
+  "nr-data.net",
+  "segment.io",
+  "segment.com",
+  "amplitude.com",
+  "mixpanel.com",
+  "cdn.heapanalytics.com",
 ];
 
-const MIN_CONTENT_LENGTH = 100 * 1024;
+const PLATFORM_CDN_HOSTS = [
+  "cdninstagram.com",
+  "fbcdn.net",
+  "instagram.fna.fbcdn.net",
+  "tiktokcdn.com",
+  "musical.ly",
+  "tiktokcdn-us.com",
+];
+
+const MIN_CONTENT_LENGTH = 50 * 1024;
 
 const detectedMedia = new Map();
 const pendingRequests = new Map();
@@ -91,26 +137,67 @@ function formatSize(bytes) {
 
 function isHlsSegment(url, contentType) {
   const ct = contentType.toLowerCase();
-  if (ct.includes("mp2t") || ct.includes("mpeg2-ts") || ct.includes("mpeg-ts")) {
+  if (ct.includes("mp2t") || ct.includes("mpeg2-ts") || ct.includes("mpeg-ts") || ct.includes("video/mp2t")) {
     return true;
   }
   try {
     const path = new URL(url).pathname.toLowerCase();
-    if (path.endsWith(".ts") || path.match(/\.ts\?/)) {
-      return true;
-    }
-    if (/\/video\d+\.ts/.test(path)) {
-      return true;
+    if (path.match(/\/seg-\d+/)) return true;
+    if (path.match(/\/segment\d+/)) return true;
+    if (path.match(/\/chunk-/)) return true;
+    if (path.match(/\/media_\d+/)) return true;
+    if (path.endsWith(".ts") && !path.endsWith(".m3u8.ts")) {
+      const parts = path.split("/");
+      const filename = parts[parts.length - 1];
+      if (/^\d+\.ts$/.test(filename) || /^seg[-_]\d+\.ts$/.test(filename)) return true;
+      if (/video\d+\.ts/.test(filename)) return true;
     }
   } catch {}
   return false;
+}
+
+function isPlatformCdnFragment(url, contentType, contentLength) {
+  try {
+    const host = new URL(url).hostname;
+    const isPlatformCdn = PLATFORM_CDN_HOSTS.some(cdn => host.includes(cdn));
+    if (!isPlatformCdn) return false;
+    if (contentLength > 0 && contentLength < 5 * 1024 * 1024) return true;
+    const ct = contentType.toLowerCase();
+    if (ct.includes("octet-stream")) return true;
+    return false;
+  } catch { return false; }
+}
+
+function persistMedia(tabId) {
+  const media = detectedMedia.get(tabId);
+  if (!media || media.size === 0) return;
+  const arr = Array.from(media.entries());
+  chrome.storage.session.set({ [`media_${tabId}`]: arr }).catch(() => {});
+}
+
+export async function restoreMedia() {
+  try {
+    const data = await chrome.storage.session.get(null);
+    for (const [key, value] of Object.entries(data)) {
+      if (!key.startsWith("media_")) continue;
+      const tabId = parseInt(key.replace("media_", ""));
+      if (isNaN(tabId)) continue;
+      const map = new Map(value);
+      detectedMedia.set(tabId, map);
+    }
+  } catch {}
 }
 
 export function registerSnifferListeners(onMediaDetected) {
   chrome.webRequest.onSendHeaders.addListener(
     (details) => {
       if (details.tabId < 0) return;
-      if (details.method !== "GET") return;
+      if (details.method !== "GET") {
+        try {
+          const host = new URL(details.url).hostname;
+          if (!host.includes("googlevideo")) return;
+        } catch { return; }
+      }
 
       pendingRequests.set(details.requestId, {
         requestHeaders: details.requestHeaders || [],
@@ -131,9 +218,10 @@ export function registerSnifferListeners(onMediaDetected) {
 
       const contentType = getContentType(details.responseHeaders);
       const contentLength = getContentLength(details.responseHeaders);
+      const isOctetStream = contentType.toLowerCase().includes("application/octet-stream");
       const isMedia = isMediaByContentType(contentType) || isMediaByExtension(url);
 
-      if (!isMedia) {
+      if (!isMedia && !(isOctetStream && isMediaByExtension(url))) {
         pendingRequests.delete(details.requestId);
         return;
       }
@@ -144,7 +232,8 @@ export function registerSnifferListeners(onMediaDetected) {
       }
 
       if (contentLength > 0 && contentLength < MIN_CONTENT_LENGTH) {
-        if (!url.includes(".m3u8") && !contentType.includes("mpegurl")) {
+        if (!url.includes(".m3u8") && !url.includes(".mpd") &&
+            !contentType.includes("mpegurl") && !contentType.includes("dash")) {
           pendingRequests.delete(details.requestId);
           return;
         }
@@ -171,6 +260,7 @@ export function registerSnifferListeners(onMediaDetected) {
         detectedMedia.set(details.tabId, new Map());
       }
       detectedMedia.get(details.tabId).set(url, entry);
+      persistMedia(details.tabId);
 
       onMediaDetected(details.tabId, entry);
     },
@@ -185,11 +275,13 @@ export function registerSnifferListeners(onMediaDetected) {
 
   chrome.tabs.onRemoved.addListener((tabId) => {
     detectedMedia.delete(tabId);
+    chrome.storage.session.remove(`media_${tabId}`).catch(() => {});
   });
 
   chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.url) {
       detectedMedia.delete(tabId);
+      chrome.storage.session.remove(`media_${tabId}`).catch(() => {});
     }
   });
 }

@@ -1,8 +1,9 @@
 import { extractCookiesForPlatform } from "./cookies.js";
 import { detectSupportedMediaUrl } from "./detect.js";
 import { createActionFeedbackController } from "./action-feedback.js";
-import { registerSnifferListeners, getMediaCount, getDetectedMedia } from "./media-sniffer.js";
+import { registerSnifferListeners, getMediaCount, getDetectedMedia, restoreMedia } from "./media-sniffer.js";
 import { loadSnifferState, isSnifferEnabled, setSnifferEnabled } from "./sniffer-toggle.js";
+import { registerContextMenu, getContextMenuId } from "./context-menu.js";
 
 const HOST_NAME = "wtf.tonho.omniget";
 const INSTALL_URL = "https://github.com/tonhowtf/omniget/releases/latest";
@@ -37,7 +38,8 @@ const actionFeedback = createActionFeedbackController({
 
 let snifferRegistered = false;
 
-loadSnifferState().then((enabled) => {
+loadSnifferState().then(async (enabled) => {
+  await restoreMedia();
   if (enabled) {
     registerSnifferListeners(onMediaDetected);
     snifferRegistered = true;
@@ -45,7 +47,26 @@ loadSnifferState().then((enabled) => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
+  registerContextMenu();
   refreshActiveTab().catch(() => {});
+});
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId !== getContextMenuId()) return;
+
+  const url = info.linkUrl || info.srcUrl;
+  if (!url) return;
+
+  const result = await handleSendToApp({
+    type: "sendToOmniGet",
+    url,
+    platform: "generic",
+    referer: tab?.url || "",
+  });
+
+  if (result.ok) {
+    actionFeedback.showSuccessBadge(tab?.id);
+  }
 });
 
 chrome.runtime.onStartup.addListener(() => {
@@ -134,6 +155,12 @@ async function handleSendToApp(msg) {
   const url = msg.url;
   const platform = msg.platform || "generic";
 
+  let pageTitle = "";
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    pageTitle = tab?.title || "";
+  } catch {}
+
   let cookies = null;
   try {
     const platformCookies = await extractCookiesForPlatform(platform);
@@ -159,6 +186,8 @@ async function handleSendToApp(msg) {
   const message = { type: "enqueue", url };
   if (cookies) message.cookies = cookies;
   if (msg.referer) message.referer = msg.referer;
+  if (msg.title) message.title = msg.title;
+  else if (pageTitle) message.title = pageTitle;
   if (msg.mediaType) message.mediaType = msg.mediaType;
   if (msg.contentType) message.contentType = msg.contentType;
   if (msg.headers) message.headers = msg.headers;

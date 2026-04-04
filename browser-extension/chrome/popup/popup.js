@@ -84,11 +84,12 @@ function renderMediaDetected(container) {
   const directVideo = nonHls.filter(m => m.contentLength > 500 * 1024);
   const totalVideos = groups.length + directVideo.filter(m => m.mediaType === "video").length;
 
-  const domain = getDomainFromUrl(best.url);
+  const domain = getDomainFromUrl(currentData.tabUrl || best.url);
+  const title = pageTitle ? truncate(pageTitle, 40) : domain;
   const countText = totalVideos > 1 ? `${totalVideos} videos found` : "Video found";
-  const label = best.mediaType === "audio" ? "Download audio" : "Download video";
+  const label = best.mediaType === "audio" ? "Send audio" : "Send to OmniGet";
 
-  appendPrimaryButton(container, label, domain + " \u00b7 " + countText, (btn) => {
+  appendPrimaryButton(container, label, title + " \u00b7 " + countText, (btn) => {
     handleDownload(btn, best.url, "generic", best);
   });
 
@@ -97,8 +98,8 @@ function renderMediaDetected(container) {
 
 function renderListening(container) {
   container.innerHTML = `
-    <div class="state-empty">
-      <div class="listening-dot"></div>
+    <div class="state-empty" role="status">
+      <div class="listening-dot" aria-hidden="true"></div>
       <span class="state-title">Listening for media\u2026</span>
       <span class="state-hint">Videos and audio will appear here<br>as pages load them.</span>
     </div>
@@ -107,7 +108,7 @@ function renderListening(container) {
 
 function renderSnifferOff(container) {
   container.innerHTML = `
-    <div class="state-empty">
+    <div class="state-empty" role="status">
       <span class="state-title">Media detection is paused</span>
       <span class="state-hint">Turn on the toggle above to<br>detect videos on this page.</span>
     </div>
@@ -147,11 +148,11 @@ function appendMediaControls(container, media) {
 
     const btn = document.createElement("button");
     btn.className = "secondary-btn";
-    btn.setAttribute("aria-label", `Download all ${groups.length} videos`);
+    btn.setAttribute("aria-label", `Send all ${groups.length} videos`);
     btn.innerHTML = `
       <span class="btn-icon">${SVG.download}</span>
       <div class="btn-content">
-        <span class="btn-label">Download all (${groups.length} videos)</span>
+        <span class="btn-label">Send all (${groups.length} videos)</span>
       </div>
     `;
 
@@ -254,7 +255,7 @@ async function handleDownload(btn, url, platform, mediaEntry) {
     btn.classList.remove("sending");
     btn.classList.add("success");
     btn.querySelector(".btn-icon").innerHTML = SVG.check;
-    btn.querySelector(".btn-label").textContent = "Downloaded!";
+    btn.querySelector(".btn-label").textContent = "Sent!";
     setTimeout(() => window.close(), 1000);
   } else {
     showError(btn.closest(".primary-action"));
@@ -274,7 +275,7 @@ async function handleBatchDownload(btn, groups) {
     btn.classList.remove("sending");
     btn.classList.add("success");
     btn.querySelector(".btn-icon").innerHTML = SVG.check;
-    btn.querySelector(".btn-label").textContent = `${result.sent} videos downloaded!`;
+    btn.querySelector(".btn-label").textContent = `${result.sent} videos sent!`;
     setTimeout(() => window.close(), 1200);
   } else if (result.sent > 0) {
     btn.classList.remove("sending");
@@ -309,6 +310,7 @@ function sendToApp(url, platform, mediaEntry) {
   return new Promise((resolve) => {
     const msg = { type: "sendToOmniGet", url, platform };
 
+    if (pageTitle) msg.title = pageTitle;
     if (currentData?.tabUrl) msg.referer = currentData.tabUrl;
     if (mediaEntry?.mediaType) msg.mediaType = mediaEntry.mediaType;
     if (mediaEntry?.contentType) msg.contentType = mediaEntry.contentType;
@@ -419,9 +421,9 @@ function pickBestMedia(media) {
 
 function getDownloadLabel(contentType) {
   switch (contentType) {
-    case "course": return "Download this course";
-    case "playlist": return "Download playlist";
-    default: return "Download this video";
+    case "course": return "Send to OmniGet";
+    case "playlist": return "Send playlist";
+    default: return "Send to OmniGet";
   }
 }
 

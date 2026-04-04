@@ -10,7 +10,8 @@
     "tabs",
     "cookies",
     "webRequest",
-    "storage"
+    "storage",
+    "contextMenus"
   ],
   "host_permissions": [
     "*://*/*"
