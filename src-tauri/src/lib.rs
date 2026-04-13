@@ -156,6 +156,16 @@ pub fn run() {
                     None
                 }
             });
+            core::ytdlp::set_sponsorblock_fn(|| {
+                storage::config::load_settings_standalone()
+                    .download
+                    .youtube_sponsorblock
+            });
+            core::ytdlp::set_split_chapters_fn(|| {
+                storage::config::load_settings_standalone()
+                    .download
+                    .split_by_chapters
+            });
             {
                 let app_handle = app.handle().clone();
                 omniget_core::core::log_hook::set_log_sink(std::sync::Arc::new(
