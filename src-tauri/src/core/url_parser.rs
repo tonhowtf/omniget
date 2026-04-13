@@ -60,7 +60,11 @@ pub fn parse_url(url_str: &str) -> Option<ParsedUrl> {
 }
 
 fn parse_youtube(parsed: &url::Url, segments: &[&str]) -> (Option<String>, ParsedContentType) {
-    if let Some(v) = parsed.query_pairs().find(|(k, _)| k == "v").map(|(_, v)| v.to_string()) {
+    if let Some(v) = parsed
+        .query_pairs()
+        .find(|(k, _)| k == "v")
+        .map(|(_, v)| v.to_string())
+    {
         if parsed.query_pairs().any(|(k, _)| k == "list") {
             return (Some(v), ParsedContentType::Playlist);
         }
@@ -80,11 +84,20 @@ fn parse_youtube(parsed: &url::Url, segments: &[&str]) -> (Option<String>, Parse
     }
 
     if segments.first() == Some(&"playlist") {
-        let list_id = parsed.query_pairs().find(|(k, _)| k == "list").map(|(_, v)| v.to_string());
+        let list_id = parsed
+            .query_pairs()
+            .find(|(k, _)| k == "list")
+            .map(|(_, v)| v.to_string());
         return (list_id, ParsedContentType::Playlist);
     }
 
-    if segments.first() == Some(&"channel") || segments.first() == Some(&"c") || segments.first().map(|s| s.starts_with('@')).unwrap_or(false) {
+    if segments.first() == Some(&"channel")
+        || segments.first() == Some(&"c")
+        || segments
+            .first()
+            .map(|s| s.starts_with('@'))
+            .unwrap_or(false)
+    {
         let id = segments.first().map(|s| s.to_string());
         return (id, ParsedContentType::Profile);
     }
@@ -144,7 +157,8 @@ fn parse_twitter(segments: &[&str]) -> (Option<String>, ParsedContentType) {
 }
 
 fn parse_reddit(segments: &[&str]) -> (Option<String>, ParsedContentType) {
-    if segments.len() >= 4 && segments.first() == Some(&"r") && segments.get(2) == Some(&"comments") {
+    if segments.len() >= 4 && segments.first() == Some(&"r") && segments.get(2) == Some(&"comments")
+    {
         let id = segments.get(3).map(|s| s.to_string());
         return (id, ParsedContentType::Post);
     }
@@ -272,7 +286,10 @@ fn parse_telegram(segments: &[&str]) -> (Option<String>, ParsedContentType) {
     if segments.len() >= 2 {
         let channel = segments[0].to_string();
         if let Ok(msg_id) = segments[1].parse::<u64>() {
-            return (Some(format!("{}/{}", channel, msg_id)), ParsedContentType::Post);
+            return (
+                Some(format!("{}/{}", channel, msg_id)),
+                ParsedContentType::Post,
+            );
         }
     }
 
@@ -307,7 +324,10 @@ fn parse_tencent(segments: &[&str]) -> (Option<String>, ParsedContentType) {
 
 fn parse_xiaohongshu(segments: &[&str]) -> (Option<String>, ParsedContentType) {
     if segments.first() == Some(&"explore") {
-        return (segments.get(1).map(|s| s.to_string()), ParsedContentType::Post);
+        return (
+            segments.get(1).map(|s| s.to_string()),
+            ParsedContentType::Post,
+        );
     }
     if segments.len() >= 3 && segments[0] == "discovery" && segments[1] == "item" {
         return (Some(segments[2].to_string()), ParsedContentType::Post);
