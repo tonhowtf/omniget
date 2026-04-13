@@ -5,6 +5,20 @@
     "cancel": "Manter rodando",
     "confirm": "Fechar mesmo assim"
   },
+  "shortcuts": {
+    "title": "Atalhos de teclado",
+    "section_application": "Aplicativo",
+    "section_downloads": "Downloads",
+    "section_navigation": "Navegação",
+    "paste_url": "Colar URL e baixar",
+    "show_shortcuts": "Mostrar este diálogo",
+    "open_settings": "Abrir configurações",
+    "search_settings": "Buscar configurações",
+    "start_download": "Iniciar download",
+    "cancel_dialog": "Fechar diálogo ou cancelar",
+    "nav_home": "Ir para Início",
+    "nav_downloads": "Ir para Downloads"
+  },
   "nav": {
     "home": "Início",
     "downloads": "Downloads",

@@ -5,6 +5,20 @@
     "cancel": "Keep running",
     "confirm": "Close anyway"
   },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "section_application": "Application",
+    "section_downloads": "Downloads",
+    "section_navigation": "Navigation",
+    "paste_url": "Paste URL and download",
+    "show_shortcuts": "Show this dialog",
+    "open_settings": "Open settings",
+    "search_settings": "Search settings",
+    "start_download": "Start download",
+    "cancel_dialog": "Close dialog or cancel",
+    "nav_home": "Go to Home",
+    "nav_downloads": "Go to Downloads"
+  },
   "nav": {
     "home": "Home",
     "downloads": "Downloads",
