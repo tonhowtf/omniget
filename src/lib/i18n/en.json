@@ -1,4 +1,10 @@
 {
+  "confirm_close": {
+    "title": "Downloads in progress",
+    "message": "You have {{count}} active download(s). Closing now will cancel them.",
+    "cancel": "Keep running",
+    "confirm": "Close anyway"
+  },
   "nav": {
     "home": "Home",
     "downloads": "Downloads",

@@ -1,4 +1,10 @@
 {
+  "confirm_close": {
+    "title": "ダウンロード中",
+    "message": "{{count}} 件のダウンロードが進行中です。今閉じるとキャンセルされます。",
+    "cancel": "続行する",
+    "confirm": "それでも閉じる"
+  },
   "nav": {
     "home": "ホーム",
     "downloads": "ダウンロード",
@@ -228,7 +234,8 @@
     "cat_shortcuts": "ショートカット",
     "cat_network": "ネットワーク",
     "cat_tools": "ツール",
-    "cat_advanced": "詳細"
+    "cat_advanced": "詳細",
+    "search_placeholder": "設定を検索..."
   },
   "omnibox": {
     "placeholder": "URLを貼り付けるか検索",

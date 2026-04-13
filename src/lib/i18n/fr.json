@@ -1,4 +1,10 @@
 {
+  "confirm_close": {
+    "title": "Téléchargements en cours",
+    "message": "Vous avez {{count}} téléchargement(s) actif(s). Fermer maintenant va les annuler.",
+    "cancel": "Continuer",
+    "confirm": "Fermer quand même"
+  },
   "nav": {
     "home": "Accueil",
     "downloads": "Téléchargements",
@@ -228,7 +234,8 @@
     "cat_shortcuts": "Raccourcis",
     "cat_network": "Reseau",
     "cat_tools": "Outils",
-    "cat_advanced": "Avance"
+    "cat_advanced": "Avance",
+    "search_placeholder": "Rechercher des paramètres..."
   },
   "omnibox": {
     "placeholder": "Collez une URL ou recherchez",

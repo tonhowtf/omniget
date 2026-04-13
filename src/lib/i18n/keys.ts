@@ -73,6 +73,11 @@ export type TranslationKeys =
   | 'common.unknown_error'
   | 'common.ytdlp_missing'
 
+  | 'confirm_close.cancel'
+  | 'confirm_close.confirm'
+  | 'confirm_close.message'
+  | 'confirm_close.title'
+
   | 'convert.audio_bitrate'
   | 'convert.audio_codec'
   | 'convert.auto'
@@ -488,6 +493,7 @@ export type TranslationKeys =
   | 'settings.proxy.title'
   | 'settings.proxy.type'
   | 'settings.proxy.username'
+  | 'settings.search_placeholder'
   | 'settings.telegram.concurrent_downloads'
   | 'settings.telegram.concurrent_downloads_desc'
   | 'settings.telegram.fix_file_extensions'

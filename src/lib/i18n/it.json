@@ -1,4 +1,10 @@
 {
+  "confirm_close": {
+    "title": "Download in corso",
+    "message": "Hai {{count}} download attivi. Chiudere ora li annullerà.",
+    "cancel": "Continua",
+    "confirm": "Chiudi comunque"
+  },
   "nav": {
     "home": "Home",
     "downloads": "Download",
@@ -228,7 +234,8 @@
     "cat_shortcuts": "Scorciatoie",
     "cat_network": "Rete",
     "cat_tools": "Strumenti",
-    "cat_advanced": "Avanzato"
+    "cat_advanced": "Avanzato",
+    "search_placeholder": "Cerca impostazioni..."
   },
   "omnibox": {
     "placeholder": "Incolla un URL o cerca",

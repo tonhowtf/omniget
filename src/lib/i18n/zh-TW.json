@@ -1,4 +1,10 @@
 {
+  "confirm_close": {
+    "title": "下載進行中",
+    "message": "您有 {{count}} 個進行中的下載。立即關閉將會取消它們。",
+    "cancel": "繼續執行",
+    "confirm": "仍然關閉"
+  },
   "nav": {
     "home": "首頁",
     "downloads": "下載",
@@ -182,6 +188,7 @@
   },
   "settings": {
     "title": "設定",
+    "search_placeholder": "搜尋設定...",
     "general": {
       "title": "一般",
       "start_with_windows": "與 Windows 一同啟動",

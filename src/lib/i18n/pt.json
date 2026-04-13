@@ -1,4 +1,10 @@
 {
+  "confirm_close": {
+    "title": "Downloads em andamento",
+    "message": "Você tem {{count}} download(s) ativo(s). Fechar agora vai cancelá-los.",
+    "cancel": "Manter rodando",
+    "confirm": "Fechar mesmo assim"
+  },
   "nav": {
     "home": "Início",
     "downloads": "Downloads",
@@ -230,7 +236,8 @@
     "cat_shortcuts": "Atalhos",
     "cat_network": "Rede",
     "cat_tools": "Ferramentas",
-    "cat_advanced": "Avancado"
+    "cat_advanced": "Avancado",
+    "search_placeholder": "Buscar configurações..."
   },
   "omnibox": {
     "placeholder": "Cole uma URL, magnet link, .torrent ou pesquise",

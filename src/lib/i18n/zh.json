@@ -1,4 +1,10 @@
 {
+  "confirm_close": {
+    "title": "下载进行中",
+    "message": "您有 {{count}} 个活动下载。立即关闭将会取消它们。",
+    "cancel": "继续运行",
+    "confirm": "仍然关闭"
+  },
   "nav": {
     "home": "首页",
     "downloads": "下载",
@@ -228,7 +234,8 @@
     "cat_shortcuts": "快捷键",
     "cat_network": "网络",
     "cat_tools": "工具",
-    "cat_advanced": "高级"
+    "cat_advanced": "高级",
+    "search_placeholder": "搜索设置..."
   },
   "omnibox": {
     "placeholder": "粘贴链接或搜索",
