@@ -1,5 +1,5 @@
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 #[tauri::command]
 pub fn get_active_download_count(app: AppHandle) -> u32 {

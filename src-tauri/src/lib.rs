@@ -245,6 +245,7 @@ pub fn run() {
             commands::app_lifecycle::get_active_download_count,
             commands::app_lifecycle::request_app_quit,
             commands::app_lifecycle::force_exit_app,
+            commands::app_lifecycle::get_debug_info,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
