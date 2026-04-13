@@ -16,15 +16,21 @@
 </script>
 
 {#if toasts.length > 0}
-  <div class="toast-container">
+  <div class="toast-container" aria-live="polite" aria-atomic="false">
     {#each toasts as toast (toast.id)}
-      <div class="toast" data-type={toast.type} class:closing={toast.closing}>
-        <svg class="toast-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <div
+        class="toast"
+        data-type={toast.type}
+        class:closing={toast.closing}
+        role={toast.type === "error" ? "alert" : "status"}
+        aria-live={toast.type === "error" ? "assertive" : "polite"}
+      >
+        <svg class="toast-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d={iconPath(toast.type)} />
         </svg>
         <span class="toast-message">{toast.message}</span>
         <button class="toast-close" onclick={() => dismissToast(toast.id)} aria-label="Close">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>

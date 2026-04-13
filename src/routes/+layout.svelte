@@ -354,8 +354,8 @@
 
   .watermark {
     position: fixed;
-    bottom: 8px;
-    right: 12px;
+    bottom: calc(8px + var(--safe-area-bottom));
+    right: calc(12px + var(--safe-area-right));
     font-size: 10px;
     font-weight: 400;
     color: var(--gray);
@@ -440,9 +440,9 @@
       left: 0;
       right: 0;
       padding: 0;
-      padding-left: env(safe-area-inset-left);
-      padding-right: env(safe-area-inset-right);
-      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: var(--safe-area-left);
+      padding-right: var(--safe-area-right);
+      padding-bottom: var(--safe-area-bottom);
       border-top: 1px solid var(--content-border);
       overflow-x: auto;
       overflow-y: hidden;
@@ -490,7 +490,7 @@
 
     .content {
       padding: calc(var(--padding) * 2);
-      padding-bottom: calc(44px + env(safe-area-inset-bottom) + var(--padding));
+      padding-bottom: var(--mobile-nav-clearance);
       order: -1;
     }
   }

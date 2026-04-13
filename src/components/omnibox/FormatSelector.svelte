@@ -41,11 +41,14 @@
     return codec.split(".")[0];
   }
 
-  let showAllFormats = $state(false);
+  type Preset = "best" | "music" | "custom" | null;
+  let activePreset = $state<Preset>(null);
 
   let bestVA = $derived([...formats].reverse().find(f => f.has_video && f.has_audio) ?? null);
   let bestAudio = $derived([...formats].reverse().find(f => f.has_audio && !f.has_video) ?? null);
   let bestVideo = $derived([...formats].reverse().find(f => f.has_video && !f.has_audio) ?? null);
+
+  let hasMusicPreset = $derived(bestAudio !== null);
 
   let selectedFormatLabel = $derived.by(() => {
     if (!selectedFormatId) return null;
@@ -63,6 +66,28 @@
   function isYtdlpPlatform(p: string): boolean {
     return !["hotmart", "telegram", "udemy", "unknown"].includes(p);
   }
+
+  function applyBest() {
+    activePreset = "best";
+    const target = bestVA ?? bestVideo;
+    if (target) onSelectFormat(target.format_id);
+  }
+
+  function applyMusic() {
+    activePreset = "music";
+    if (bestAudio) onSelectFormat(bestAudio.format_id);
+  }
+
+  function toggleCustom() {
+    activePreset = activePreset === "custom" ? null : "custom";
+    if (selectedFormatId) onClearFormat();
+  }
+
+  $effect(() => {
+    if (!formats.length) {
+      activePreset = null;
+    }
+  });
 </script>
 
 {#if isYtdlpPlatform(platform)}
@@ -97,103 +122,118 @@
   {/if}
 
   {#if formats.length > 0}
-    {#if !selectedFormatId}
-      <div class="formats-panel">
-        <div class="formats-quick">
-          {#if bestVA}
-            <button
-              class="button format-quick-btn"
-              class:active={selectedFormatId === bestVA.format_id}
-              onclick={() => onSelectFormat(bestVA!.format_id)}
-            >
-              {$t('omnibox.best_va')}
-            </button>
-          {/if}
-          {#if bestAudio}
-            <button
-              class="button format-quick-btn"
-              class:active={selectedFormatId === bestAudio.format_id}
-              onclick={() => onSelectFormat(bestAudio!.format_id)}
-            >
-              {$t('omnibox.best_audio')}
-            </button>
-          {/if}
-          {#if bestVideo}
-            <button
-              class="button format-quick-btn"
-              class:active={selectedFormatId === bestVideo.format_id}
-              onclick={() => onSelectFormat(bestVideo!.format_id)}
-            >
-              {$t('omnibox.best_video')}
-            </button>
-          {/if}
-        </div>
+    <div class="formats-panel">
+      <div class="formats-presets" role="radiogroup" aria-label={$t('omnibox.formats_presets_label')}>
+        {#if bestVA || bestVideo}
+          <button
+            type="button"
+            class="preset-pill"
+            class:active={activePreset === "best"}
+            onclick={applyBest}
+            role="radio"
+            aria-checked={activePreset === "best"}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+            <span>{$t('omnibox.preset_best')}</span>
+          </button>
+        {/if}
+        {#if hasMusicPreset}
+          <button
+            type="button"
+            class="preset-pill"
+            class:active={activePreset === "music"}
+            onclick={applyMusic}
+            role="radio"
+            aria-checked={activePreset === "music"}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 18V5l12-2v13" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="18" cy="16" r="3" />
+            </svg>
+            <span>{$t('omnibox.preset_music')}</span>
+          </button>
+        {/if}
+        <button
+          type="button"
+          class="preset-pill"
+          class:active={activePreset === "custom"}
+          onclick={toggleCustom}
+          role="radio"
+          aria-checked={activePreset === "custom"}
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+          <span>{$t('omnibox.preset_custom')}</span>
+        </button>
+      </div>
 
+      {#if selectedFormatId}
+        <div class="format-selected">
+          <span class="format-selected-label">{selectedFormatLabel}</span>
+          <button class="format-clear-btn" onclick={() => { onClearFormat(); activePreset = null; }} aria-label={$t('common.close')}>
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      {:else}
         <div class="formats-info">
           <span class="formats-note">
             {$t('omnibox.formats_merge_note')}
           </span>
         </div>
+      {/if}
 
-        <button class="button formats-show-all-btn" onclick={() => { showAllFormats = !showAllFormats; }}>
-          {showAllFormats ? $t('omnibox.hide_all_formats') : $t('omnibox.show_all_formats')}
-        </button>
-
-        {#if showAllFormats}
-          <div class="formats-list">
-            <div class="format-header">
-              <span>ID</span>
-              <span>{$t('omnibox.fmt_type')}</span>
-              <span>{$t('omnibox.fmt_quality')}</span>
-              <span>{$t('omnibox.fmt_streams')}</span>
-              <span>{$t('omnibox.fmt_video')}</span>
-              <span>{$t('omnibox.fmt_audio')}</span>
-              <span>{$t('omnibox.fmt_size')}</span>
-              <span>{$t('omnibox.fmt_speed')}</span>
-            </div>
-            {#each formats as fmt (fmt.format_id)}
-              <button
-                class="format-row"
-                class:format-row-selected={selectedFormatId === fmt.format_id}
-                onclick={() => onSelectFormat(fmt.format_id)}
-              >
-                <span class="format-id">{fmt.format_id}</span>
-                <span class="format-ext">{fmt.ext}</span>
-                <span class="format-res">{fmt.resolution ?? "—"}</span>
-                <span class="format-codec">
-                  {#if fmt.has_video && fmt.has_audio}
-                    V+A
-                  {:else if fmt.has_video}
-                    V
-                  {:else if fmt.has_audio}
-                    A
-                  {:else}
-                    —
-                  {/if}
-                </span>
-                <span class="format-vcodec">{formatCodec(fmt.vcodec)}</span>
-                <span class="format-acodec">{formatCodec(fmt.acodec)}</span>
-                <span class="format-size">{formatFilesize(fmt.filesize)}</span>
-                {#if fmt.tbr}
-                  <span class="format-tbr">{fmt.tbr.toFixed(0)}k</span>
-                {:else}
-                  <span class="format-tbr">—</span>
-                {/if}
-              </button>
-            {/each}
+      {#if activePreset === "custom"}
+        <div class="formats-list">
+          <div class="format-header">
+            <span>ID</span>
+            <span>{$t('omnibox.fmt_type')}</span>
+            <span>{$t('omnibox.fmt_quality')}</span>
+            <span>{$t('omnibox.fmt_streams')}</span>
+            <span>{$t('omnibox.fmt_video')}</span>
+            <span>{$t('omnibox.fmt_audio')}</span>
+            <span>{$t('omnibox.fmt_size')}</span>
+            <span>{$t('omnibox.fmt_speed')}</span>
           </div>
-        {/if}
-      </div>
-    {:else}
-      <div class="format-selected">
-        <span class="format-selected-label">{selectedFormatLabel}</span>
-        <button class="format-clear-btn" onclick={onClearFormat} aria-label={$t('common.close')}>
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-    {/if}
+          {#each formats as fmt (fmt.format_id)}
+            <button
+              class="format-row"
+              class:format-row-selected={selectedFormatId === fmt.format_id}
+              onclick={() => onSelectFormat(fmt.format_id)}
+            >
+              <span class="format-id">{fmt.format_id}</span>
+              <span class="format-ext">{fmt.ext}</span>
+              <span class="format-res">{fmt.resolution ?? "—"}</span>
+              <span class="format-codec">
+                {#if fmt.has_video && fmt.has_audio}
+                  V+A
+                {:else if fmt.has_video}
+                  V
+                {:else if fmt.has_audio}
+                  A
+                {:else}
+                  —
+                {/if}
+              </span>
+              <span class="format-vcodec">{formatCodec(fmt.vcodec)}</span>
+              <span class="format-acodec">{formatCodec(fmt.acodec)}</span>
+              <span class="format-size">{formatFilesize(fmt.filesize)}</span>
+              {#if fmt.tbr}
+                <span class="format-tbr">{fmt.tbr.toFixed(0)}k</span>
+              {:else}
+                <span class="format-tbr">—</span>
+              {/if}
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
   {/if}
 {/if}
 
@@ -252,15 +292,47 @@
     overflow: hidden;
   }
 
-  .formats-quick {
+  .formats-presets {
     display: flex;
     gap: calc(var(--padding) / 2);
     flex-wrap: wrap;
   }
 
-  .format-quick-btn {
+  .preset-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
     font-size: 13px;
-    padding: 6px 12px;
+    font-weight: 500;
+    color: var(--secondary);
+    background: var(--button);
+    border: 1px solid var(--button-stroke);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+
+  @media (hover: hover) {
+    .preset-pill:hover {
+      background: var(--button-hover);
+      border-color: var(--content-border);
+    }
+  }
+
+  .preset-pill:active {
+    background: var(--button-press);
+  }
+
+  .preset-pill.active {
+    background: var(--button-elevated);
+    border-color: var(--accent, var(--secondary));
+    color: var(--primary, var(--secondary));
+  }
+
+  .preset-pill:focus-visible {
+    outline: 2px solid var(--accent, var(--secondary));
+    outline-offset: 2px;
   }
 
   .formats-info {
@@ -274,12 +346,6 @@
     color: var(--gray);
     text-align: center;
     line-height: 1.4;
-  }
-
-  .formats-show-all-btn {
-    font-size: 12px;
-    padding: 4px 10px;
-    opacity: 0.7;
   }
 
   .formats-list {
