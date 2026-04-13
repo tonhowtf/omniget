@@ -28,6 +28,32 @@ pub fn check_cookie_error() -> bool {
     has_error
 }
 
+#[derive(Clone, Serialize)]
+pub struct PathLimitInfo {
+    pub limit: usize,
+    pub current: usize,
+    pub reserve: usize,
+    pub ok: bool,
+}
+
+#[tauri::command]
+pub fn validate_output_path(output_dir: String) -> PathLimitInfo {
+    match crate::core::path_limits::validate_output_dir(&output_dir) {
+        Ok(()) => PathLimitInfo {
+            limit: crate::core::path_limits::MAX_PATH_LEN,
+            current: output_dir.chars().count() + crate::core::path_limits::SEPARATOR_RESERVE,
+            reserve: crate::core::path_limits::MIN_FILENAME_RESERVE,
+            ok: true,
+        },
+        Err(err) => PathLimitInfo {
+            limit: err.limit,
+            current: err.current,
+            reserve: err.reserve,
+            ok: false,
+        },
+    }
+}
+
 #[tauri::command]
 pub async fn detect_platform(url: String) -> Result<PlatformInfo, String> {
     let _timer_start = std::time::Instant::now();
@@ -133,6 +159,13 @@ pub async fn download_from_url(
 ) -> Result<DownloadStarted, String> {
     let _timer_start = std::time::Instant::now();
     let platform = Platform::from_url(&url);
+
+    if let Err(err) = crate::core::path_limits::validate_output_dir(&output_dir) {
+        return Err(format!(
+            "PathTooLong|{}|{}|{}",
+            err.limit, err.current, err.reserve
+        ));
+    }
 
     let download_id = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

@@ -16,5 +16,6 @@ pub use omniget_core::core::registry;
 pub use omniget_core::core::ytdlp;
 
 pub mod events;
+pub mod path_limits;
 pub mod queue;
 pub mod url_parser;

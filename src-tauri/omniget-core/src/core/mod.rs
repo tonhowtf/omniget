@@ -10,6 +10,7 @@ pub mod filename;
 pub mod hls_downloader;
 pub mod http_client;
 pub mod hwaccel;
+pub mod log_hook;
 pub mod media_processor;
 pub mod paths;
 pub mod pokemon_names;

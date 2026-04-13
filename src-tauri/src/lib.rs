@@ -202,6 +202,7 @@ pub fn run() {
             commands::diagnostics::get_rate_limit_stats,
             commands::downloads::detect_platform,
             commands::downloads::check_cookie_error,
+            commands::downloads::validate_output_path,
             commands::downloads::get_media_formats,
             commands::downloads::prefetch_media_info,
             commands::downloads::download_from_url,
