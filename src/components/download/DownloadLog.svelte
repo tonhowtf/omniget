@@ -124,9 +124,9 @@
     gap: 6px;
     padding: 4px 8px;
     background: transparent;
-    border: 1px solid var(--border);
+    border: 1px solid var(--content-border);
     border-radius: var(--border-radius);
-    color: var(--foreground-secondary);
+    color: var(--tertiary);
     font-size: 11px;
     cursor: pointer;
     align-self: flex-start;
@@ -134,14 +134,15 @@
   }
 
   .log-toggle:hover {
-    background: var(--secondary);
-    color: var(--foreground);
+    background: var(--button);
+    color: var(--secondary);
+    border-color: var(--input-border);
   }
 
   .log-panel {
-    border: 1px solid var(--border);
+    border: 1px solid var(--content-border);
     border-radius: var(--border-radius);
-    background: var(--secondary);
+    background: var(--popup-bg);
     overflow: hidden;
   }
 
@@ -150,23 +151,25 @@
     justify-content: space-between;
     align-items: center;
     padding: 6px 8px;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--content-border);
     font-size: 11px;
-    color: var(--foreground-secondary);
+    color: var(--tertiary);
   }
 
   .log-copy {
     padding: 2px 8px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--content-border);
     background: transparent;
     border-radius: var(--border-radius);
-    color: var(--foreground);
+    color: var(--secondary);
     font-size: 11px;
     cursor: pointer;
+    transition: background-color 0.12s, border-color 0.12s;
   }
 
   .log-copy:hover:not(:disabled) {
-    background: var(--background);
+    background: var(--button-hover);
+    border-color: var(--input-border);
   }
 
   .log-copy:disabled {
@@ -181,16 +184,17 @@
     overflow-y: auto;
     font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
     font-size: 11px;
-    color: var(--foreground);
+    line-height: 1.5;
+    color: var(--secondary);
     white-space: pre-wrap;
     word-break: break-all;
-    background: var(--background);
+    background: var(--input-bg);
   }
 
   .log-empty {
     padding: 12px;
     text-align: center;
     font-size: 11px;
-    color: var(--foreground-secondary);
+    color: var(--tertiary);
   }
 </style>

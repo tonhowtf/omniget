@@ -61,12 +61,12 @@
     margin: 0;
     font-size: 17px;
     font-weight: 600;
-    color: var(--foreground);
+    color: var(--secondary);
   }
 
   .legal-body {
     padding: 8px 24px 16px;
-    color: var(--foreground);
+    color: var(--secondary);
     font-size: 13px;
     line-height: 1.55;
     max-height: 50vh;
@@ -86,7 +86,7 @@
   }
 
   .legal-body li {
-    color: var(--foreground-secondary);
+    color: var(--tertiary);
     font-size: 12.5px;
   }
 

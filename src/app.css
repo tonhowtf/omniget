@@ -423,7 +423,7 @@
   --primary: #1E1E2E;
   --secondary: #D9E0EE;
   --tertiary: #6E6A86;
-  --accent: #F28FAD;
+  --accent: #F5C2E7;
   --success: #ABE9B3;
   --error: #E78284;
   --warning: #F8BD96;
@@ -454,9 +454,9 @@
   --green: #ABE9B3;
   --orange: #F8BD96;
   --gray: #6E6A86;
-  --cta: #F28FAD;
-  --cta-hover: #F5C2E7;
-  --cta-press: #C9CBFF;
+  --cta: #F5C2E7;
+  --cta-hover: #F8D7ED;
+  --cta-press: #E8A8D4;
   --on-cta: #1E1E2E;
   --focus-ring: solid 2px var(--accent);
   --focus-ring-offset: 2px;
@@ -469,7 +469,7 @@
   --primary: #000A0F;
   --secondary: #C0C0CE;
   --tertiary: #5E5A76;
-  --accent: #F28FAD;
+  --accent: #F5C2E7;
   --success: #8FBF8F;
   --error: #D78284;
   --warning: #D8A080;
@@ -500,9 +500,9 @@
   --green: #8FBF8F;
   --orange: #D8A080;
   --gray: #5E5A76;
-  --cta: #F28FAD;
-  --cta-hover: #F5C2E7;
-  --cta-press: #A0A0D0;
+  --cta: #F5C2E7;
+  --cta-hover: #F8D7ED;
+  --cta-press: #E0A8D0;
   --on-cta: #000A0F;
   --focus-ring: solid 2px var(--accent);
   --focus-ring-offset: 2px;

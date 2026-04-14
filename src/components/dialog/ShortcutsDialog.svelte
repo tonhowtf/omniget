@@ -121,21 +121,21 @@
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: var(--foreground);
+    color: var(--secondary);
   }
 
   .dialog-close {
     background: transparent;
     border: none;
-    color: var(--foreground-secondary);
+    color: var(--tertiary);
     padding: 4px;
     cursor: pointer;
     border-radius: var(--border-radius);
   }
 
   .dialog-close:hover {
-    background: var(--secondary);
-    color: var(--foreground);
+    background: var(--button-hover);
+    color: var(--secondary);
   }
 
   .shortcuts-body {
@@ -154,7 +154,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--foreground-secondary);
+    color: var(--tertiary);
   }
 
   ul {
@@ -172,12 +172,12 @@
     align-items: center;
     padding: 6px 8px;
     border-radius: var(--border-radius);
-    background: var(--secondary);
+    background: var(--button);
   }
 
   .shortcut-label {
     font-size: 13px;
-    color: var(--foreground);
+    color: var(--secondary);
   }
 
   .shortcut-keys {
@@ -190,11 +190,11 @@
     display: inline-block;
     min-width: 20px;
     padding: 2px 6px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--content-border);
     border-bottom-width: 2px;
     border-radius: 4px;
-    background: var(--background);
-    color: var(--foreground);
+    background: var(--input-bg);
+    color: var(--secondary);
     font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
     font-size: 11px;
     line-height: 1.2;
@@ -202,7 +202,7 @@
   }
 
   .plus {
-    color: var(--foreground-secondary);
+    color: var(--tertiary);
     font-size: 11px;
   }
 </style>
