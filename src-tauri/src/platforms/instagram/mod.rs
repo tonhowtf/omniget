@@ -470,10 +470,22 @@ impl InstagramDownloader {
         Err(anyhow!("Could not extract data from embed"))
     }
 
-    async fn fallback_ytdlp(&self, url: &str) -> anyhow::Result<MediaInfo> {
+    async fn fallback_ytdlp(&self, url: &str, post_id: &str) -> anyhow::Result<MediaInfo> {
         let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
         let json = crate::core::ytdlp::get_video_info(&ytdlp_path, url, &[]).await?;
-        crate::platforms::generic_ytdlp::GenericYtdlpDownloader::parse_video_info(&json)
+        let mut info =
+            crate::platforms::generic_ytdlp::GenericYtdlpDownloader::parse_video_info(&json)?;
+
+        info.title = format!("instagram_{}", post_id);
+        info.platform = "instagram".to_string();
+
+        let post_url = format!("https://www.instagram.com/p/{}/", post_id);
+        for q in &mut info.available_qualities {
+            q.format = "ytdlp".to_string();
+            q.url = post_url.clone();
+        }
+
+        Ok(info)
     }
 
     fn extract_media_from_gql(data: &serde_json::Value) -> anyhow::Result<InstagramMedia> {
@@ -545,6 +557,21 @@ impl InstagramDownloader {
             return None;
         }
         Some(format!("https://www.instagram.com/p/{}/", post_id))
+    }
+
+    fn resolve_fallback_post_url(info: &MediaInfo, opts: &DownloadOptions) -> Option<String> {
+        if let Some(url) = Self::post_url_from_title(&info.title) {
+            return Some(url);
+        }
+        if let Some(page_url) = opts.page_url.as_deref() {
+            if Self::extract_post_id(page_url).is_some() {
+                return Some(page_url.to_string());
+            }
+            if let Some(share_id) = Self::extract_share_id(page_url) {
+                return Some(format!("https://www.instagram.com/share/{}/", share_id));
+            }
+        }
+        None
     }
 
     fn is_html_block_error(err: &anyhow::Error) -> bool {
@@ -654,7 +681,7 @@ impl PlatformDownloader for InstagramDownloader {
             Err(_embed_err) => match self.request_gql(&post_id).await {
                 Ok(data) => Self::extract_media_from_gql(&data),
                 Err(_gql_err) => {
-                    return self.fallback_ytdlp(url).await;
+                    return self.fallback_ytdlp(url, &post_id).await;
                 }
             },
         };
@@ -662,7 +689,7 @@ impl PlatformDownloader for InstagramDownloader {
         let media = match media {
             Ok(m) => m,
             Err(_) => {
-                return self.fallback_ytdlp(url).await;
+                return self.fallback_ytdlp(url, &post_id).await;
             }
         };
 
@@ -767,7 +794,7 @@ impl PlatformDownloader for InstagramDownloader {
                 }
                 Err(e) => {
                     if Self::is_html_block_error(&e) {
-                        if let Some(post_url) = Self::post_url_from_title(&info.title) {
+                        if let Some(post_url) = Self::resolve_fallback_post_url(info, opts) {
                             tracing::warn!(
                                 "[instagram] direct CDN fetch returned HTML for {}; falling back to yt-dlp",
                                 post_url
@@ -816,7 +843,7 @@ impl PlatformDownloader for InstagramDownloader {
                 }
                 Err(e) => {
                     if Self::is_html_block_error(&e) {
-                        if let Some(post_url) = Self::post_url_from_title(&info.title) {
+                        if let Some(post_url) = Self::resolve_fallback_post_url(info, opts) {
                             tracing::warn!(
                                 "[instagram] carousel item {}/{} returned HTML for {}; falling back to yt-dlp for full post",
                                 i + 1,
@@ -837,5 +864,129 @@ impl PlatformDownloader for InstagramDownloader {
             duration_seconds: 0.0,
             torrent_id: None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use tokio_util::sync::CancellationToken;
+
+    fn make_opts(page_url: Option<&str>) -> DownloadOptions {
+        DownloadOptions {
+            quality: None,
+            output_dir: PathBuf::from("."),
+            filename_template: None,
+            download_subtitles: false,
+            include_auto_subtitles: false,
+            download_mode: None,
+            format_id: None,
+            referer: None,
+            extra_headers: None,
+            page_url: page_url.map(String::from),
+            user_agent: None,
+            cancel_token: CancellationToken::new(),
+            concurrent_fragments: 1,
+            ytdlp_path: None,
+            torrent_listen_port: None,
+            torrent_id_slot: None,
+        }
+    }
+
+    fn make_info(title: &str) -> MediaInfo {
+        MediaInfo {
+            title: title.to_string(),
+            author: String::new(),
+            platform: "instagram".to_string(),
+            duration_seconds: None,
+            thumbnail_url: None,
+            available_qualities: vec![],
+            media_type: MediaType::Video,
+            file_size_bytes: None,
+        }
+    }
+
+    #[test]
+    fn post_url_from_title_accepts_prefixed_title() {
+        assert_eq!(
+            InstagramDownloader::post_url_from_title("instagram_ABC123"),
+            Some("https://www.instagram.com/p/ABC123/".to_string())
+        );
+    }
+
+    #[test]
+    fn post_url_from_title_rejects_yt_dlp_default_title() {
+        assert_eq!(
+            InstagramDownloader::post_url_from_title("Video by savadgee"),
+            None
+        );
+    }
+
+    #[test]
+    fn post_url_from_title_rejects_empty_post_id() {
+        assert_eq!(InstagramDownloader::post_url_from_title("instagram_"), None);
+    }
+
+    #[test]
+    fn resolve_fallback_prefers_title_prefix() {
+        let info = make_info("instagram_ABC123");
+        let opts = make_opts(Some("https://www.instagram.com/p/XYZ999/"));
+        assert_eq!(
+            InstagramDownloader::resolve_fallback_post_url(&info, &opts),
+            Some("https://www.instagram.com/p/ABC123/".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_fallback_uses_page_url_for_yt_dlp_titles() {
+        let info = make_info("Video by savadgee");
+        let opts = make_opts(Some("https://www.instagram.com/reel/XYZ999/"));
+        assert_eq!(
+            InstagramDownloader::resolve_fallback_post_url(&info, &opts),
+            Some("https://www.instagram.com/reel/XYZ999/".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_fallback_uses_page_url_share_link() {
+        let info = make_info("Video by savadgee");
+        let opts = make_opts(Some("https://www.instagram.com/share/ABCxyz/"));
+        assert_eq!(
+            InstagramDownloader::resolve_fallback_post_url(&info, &opts),
+            Some("https://www.instagram.com/share/ABCxyz/".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_fallback_returns_none_when_page_url_not_instagram() {
+        let info = make_info("Video by savadgee");
+        let opts = make_opts(Some("https://example.com/foo"));
+        assert_eq!(
+            InstagramDownloader::resolve_fallback_post_url(&info, &opts),
+            None
+        );
+    }
+
+    #[test]
+    fn resolve_fallback_returns_none_when_no_sources_available() {
+        let info = make_info("Video by savadgee");
+        let opts = make_opts(None);
+        assert_eq!(
+            InstagramDownloader::resolve_fallback_post_url(&info, &opts),
+            None
+        );
+    }
+
+    #[test]
+    fn is_html_block_error_matches_direct_downloader_message() {
+        let err = anyhow!("Server returned HTML instead of media — URL may have expired");
+        assert!(InstagramDownloader::is_html_block_error(&err));
+    }
+
+    #[test]
+    fn is_html_block_error_rejects_unrelated_error() {
+        let err = anyhow!("HTTP 404 downloading url");
+        assert!(!InstagramDownloader::is_html_block_error(&err));
     }
 }
