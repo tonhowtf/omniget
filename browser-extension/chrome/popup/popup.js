@@ -1,4 +1,7 @@
 import { loadOpenAppState, isOpenAppEnabled, setOpenAppEnabled } from "../src/open-app-toggle.js";
+import { getHlsGroupKey } from "../src/hls-grouping.js";
+import { normalizePageKey } from "../src/sniffer-storage.js";
+import { formatCookieSummary } from "../src/cookie-summary.js";
 
 const APP_URL = "https://github.com/tonhowtf/omniget/releases/latest";
 
@@ -39,11 +42,30 @@ async function init() {
   });
 
   toggle.addEventListener("change", () => {
-    chrome.runtime.sendMessage({ type: "toggleSniffer", enabled: toggle.checked });
+    const requested = toggle.checked;
+    chrome.runtime.sendMessage({ type: "toggleSniffer", enabled: requested }, (response) => {
+      const effective = response?.enabled ?? requested;
+      if (toggle.checked !== effective) toggle.checked = effective;
+      if (currentData) {
+        currentData.snifferEnabled = effective;
+        render();
+      }
+    });
     if (currentData) {
-      currentData.snifferEnabled = toggle.checked;
+      currentData.snifferEnabled = requested;
       render();
     }
+  });
+
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.type !== "media-detected") return;
+    const currentPageKey = normalizePageKey(currentData?.tabUrl);
+    if (!currentPageKey || currentPageKey !== msg.pageKey) return;
+    chrome.runtime.sendMessage({ type: "getDetectedMedia" }, (response) => {
+      if (!response) return;
+      currentData = response;
+      render();
+    });
   });
 }
 
@@ -265,7 +287,10 @@ async function handleDownload(btn, url, platform, mediaEntry) {
     btn.classList.add("success");
     btn.querySelector(".btn-icon").innerHTML = SVG.check;
     btn.querySelector(".btn-label").textContent = "Sent!";
-    setTimeout(() => window.close(), 1000);
+    const summaryText = formatCookieSummary(result.cookieSummary);
+    const metaEl = btn.querySelector(".btn-meta");
+    if (metaEl) metaEl.textContent = summaryText;
+    setTimeout(() => window.close(), summaryText ? 1600 : 1000);
   } else {
     showError(btn.closest(".primary-action"));
   }
@@ -341,7 +366,7 @@ function sendToApp(url, platform, mediaEntry) {
     }
 
     chrome.runtime.sendMessage(msg, (response) => {
-      resolve({ ok: response?.ok ?? false });
+      resolve({ ok: response?.ok ?? false, cookieSummary: response?.cookieSummary ?? null });
     });
   });
 }
@@ -396,15 +421,6 @@ function groupHlsManifests(media) {
   }
 
   return groups;
-}
-
-function getHlsGroupKey(url) {
-  try {
-    const u = new URL(url);
-    const parts = u.pathname.split("/");
-    parts.pop();
-    return u.origin + parts.join("/");
-  } catch { return url; }
 }
 
 function pickBestMedia(media) {

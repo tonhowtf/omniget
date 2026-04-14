@@ -1,4 +1,5 @@
 const DEFAULT_LAUNCH_FAILED_CODE = "LAUNCH_FAILED";
+const PROTOCOL_VERSION = 1;
 
 export async function handleSupportedActionClick({
   tabId,
@@ -10,6 +11,7 @@ export async function handleSupportedActionClick({
   showSuccessBadge = async () => {},
   openErrorPage,
   mapChromeErrorCode,
+  openSchemeUrl = async () => ({ ok: false, reason: "not-wired" }),
 }) {
   if (tabId !== undefined && tabId !== null) {
     await clearBadge(tabId);
@@ -25,7 +27,7 @@ export async function handleSupportedActionClick({
   }
 
   try {
-    const message = { type: "enqueue", url };
+    const message = { type: "enqueue", url, protocolVersion: PROTOCOL_VERSION };
     if (cookies && cookies.length > 0) {
       message.cookies = cookies;
     }
@@ -47,6 +49,14 @@ export async function handleSupportedActionClick({
 
     return true;
   } catch (error) {
+    const schemeResult = await openSchemeUrl(url);
+    if (schemeResult?.ok) {
+      if (tabId !== undefined && tabId !== null) {
+        await showSuccessBadge(tabId);
+      }
+      return true;
+    }
+
     await openErrorPage({
       code: mapChromeErrorCode(error),
       message: error instanceof Error ? error.message : String(error),

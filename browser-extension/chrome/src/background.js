@@ -1,12 +1,15 @@
 import { extractCookiesForPlatform } from "./cookies.js";
 import { detectSupportedMediaUrl } from "./detect.js";
 import { createActionFeedbackController } from "./action-feedback.js";
-import { registerSnifferListeners, getMediaCount, getDetectedMedia, restoreMedia } from "./media-sniffer.js";
+import { registerSnifferListeners, getMediaCount, getMediaCountForPage, getDetectedMedia, getDetectedMediaForUrl, getPageKeyForTab, restoreMedia } from "./media-sniffer.js";
+import { summarizeCookies } from "./cookie-summary.js";
 import { loadSnifferState, isSnifferEnabled, setSnifferEnabled } from "./sniffer-toggle.js";
 import { registerContextMenu, getContextMenuId } from "./context-menu.js";
+import { openOmnigetScheme } from "./send-via-scheme.js";
 
 const HOST_NAME = "wtf.tonho.omniget";
 const INSTALL_URL = "https://github.com/tonhowtf/omniget/releases/latest";
+const PROTOCOL_VERSION = 1;
 
 function getIconPath(iconSet) {
   return {
@@ -73,6 +76,34 @@ chrome.runtime.onStartup.addListener(() => {
   refreshActiveTab().catch(() => {});
 });
 
+if (chrome.commands && chrome.commands.onCommand) {
+  chrome.commands.onCommand.addListener(async (command) => {
+    if (command !== "send-to-omniget") return;
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.url) return;
+      const detected = detectSupportedMediaUrl(tab.url);
+      if (detected?.supported) {
+        const result = await handleSendToApp({
+          type: "sendToOmniGet",
+          url: tab.url,
+          platform: detected.platform,
+          referer: tab.url,
+        });
+        if (result?.ok && tab.id !== undefined) {
+          actionFeedback.showSuccessBadge(tab.id);
+        }
+        return;
+      }
+      if (chrome.action && typeof chrome.action.openPopup === "function") {
+        try { await chrome.action.openPopup(); } catch {}
+      }
+    } catch (error) {
+      console.error("[OmniGet] command handler failed:", error);
+    }
+  });
+}
+
 chrome.tabs.onActivated.addListener(() => {
   refreshActiveTab().catch(() => {});
 });
@@ -99,12 +130,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "getDetectedMedia") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tabId = tabs[0]?.id;
+      const pageUrl = tabs[0]?.url;
       if (!tabId) { sendResponse({ media: [], snifferEnabled: isSnifferEnabled() }); return; }
 
-      const media = getDetectedMedia(tabId);
+      const media = pageUrl
+        ? getDetectedMediaForUrl(pageUrl)
+        : getDetectedMedia(tabId);
       const list = Array.from(media.values()).sort((a, b) => b.detectedAt - a.detectedAt);
 
-      const pageUrl = tabs[0]?.url;
       const pageDetected = detectSupportedMediaUrl(pageUrl);
 
       sendResponse({
@@ -118,12 +151,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === "toggleSniffer") {
-    setSnifferEnabled(msg.enabled).then(() => {
-      if (msg.enabled && !snifferRegistered) {
+    setSnifferEnabled(msg.enabled).then((result) => {
+      const effective = isSnifferEnabled();
+      if (effective && !snifferRegistered) {
         registerSnifferListeners(onMediaDetected);
         snifferRegistered = true;
       }
-      sendResponse({ ok: true, enabled: msg.enabled });
+      sendResponse({
+        ok: result?.ok !== false,
+        enabled: effective,
+        reason: result?.reason,
+      });
     });
     return true;
   }
@@ -137,6 +175,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 function onMediaDetected(tabId, _entry) {
   if (!isSnifferEnabled()) return;
   updateBadge(tabId);
+  const pageKey = getPageKeyForTab(tabId);
+  if (!pageKey) return;
+  const count = getMediaCountForPage(pageKey);
+  chrome.runtime.sendMessage({
+    type: "media-detected",
+    pageKey,
+    count,
+  }).catch(() => {});
 }
 
 function updateBadge(tabId) {
@@ -171,16 +217,14 @@ async function handleSendToApp(msg) {
     } else {
       const cookieMap = new Map();
 
-      const urlObj = new URL(url);
-      const cdnCookies = await chrome.cookies.getAll({ domain: urlObj.hostname });
+      const cdnCookies = await chrome.cookies.getAll({ url });
       for (const c of cdnCookies) {
         cookieMap.set(`${c.domain}:${c.name}`, c);
       }
 
       if (msg.referer) {
         try {
-          const refererObj = new URL(msg.referer);
-          const pageCookies = await chrome.cookies.getAll({ domain: refererObj.hostname });
+          const pageCookies = await chrome.cookies.getAll({ url: msg.referer });
           for (const c of pageCookies) {
             cookieMap.set(`${c.domain}:${c.name}`, c);
           }
@@ -196,12 +240,14 @@ async function handleSendToApp(msg) {
           expires: c.expirationDate ? Math.floor(c.expirationDate) : 0,
           name: c.name,
           value: c.value,
+          hostOnly: c.hostOnly,
+          sameSite: c.sameSite,
         }));
       }
     }
   } catch {}
 
-  const message = { type: "enqueue", url };
+  const message = { type: "enqueue", url, protocolVersion: PROTOCOL_VERSION };
   if (cookies) message.cookies = cookies;
   if (msg.referer) message.referer = msg.referer;
   if (msg.title) message.title = msg.title;
@@ -228,10 +274,16 @@ async function handleSendToApp(msg) {
     }).catch(() => {});
   } catch {}
 
+  const cookieSummary = summarizeCookies(cookies);
+
   try {
     const response = await sendNativeMessage(message);
-    return { ok: response?.ok ?? false };
+    return { ok: response?.ok ?? false, cookieSummary };
   } catch (e) {
+    const schemeResult = await openOmnigetScheme(url);
+    if (schemeResult?.ok) {
+      return { ok: true, viaScheme: true, cookieSummary };
+    }
     return { ok: false, error: e.message };
   }
 }

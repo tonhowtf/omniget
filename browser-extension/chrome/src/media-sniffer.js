@@ -36,32 +36,6 @@ const MEDIA_EXTENSIONS = [
   ".f4m", ".f4v", ".ts",
 ];
 
-const BLOCKED_HOSTS = [
-  "google-analytics.com",
-  "googletagmanager.com",
-  "facebook.com",
-  "doubleclick.net",
-  "analytics",
-  "ads.google.com",
-  "ad.doubleclick.net",
-  "adservice.google.com",
-  "pagead2.googlesyndication.com",
-  "cdn.mxpnl.com",
-  "stats.wp.com",
-  "pixel.facebook.com",
-  "connect.facebook.net",
-  "scorecardresearch.com",
-  "hotjar.com",
-  "sentry.io",
-  "newrelic.com",
-  "nr-data.net",
-  "segment.io",
-  "segment.com",
-  "amplitude.com",
-  "mixpanel.com",
-  "cdn.heapanalytics.com",
-];
-
 const PLATFORM_CDN_HOSTS = [
   "cdninstagram.com",
   "fbcdn.net",
@@ -83,29 +57,93 @@ const BLOCKED_PATH_PATTERNS = [
   /\/transparent\.gif$/i,
 ];
 
-const MIN_CONTENT_LENGTH = 50 * 1024;
+import { shouldDropBySize } from "./sniffer-filters.js";
+import {
+  classifyStoredPages,
+  normalizePageKey,
+  storageKeyForPage,
+} from "./sniffer-storage.js";
+import {
+  DEFAULT_BLOCKED_HOSTS,
+  USER_BLOCKED_HOSTS_KEY,
+  mergeBlocklists,
+  isUrlHostBlocked,
+} from "./blocked-hosts.js";
+
+let activeBlocklist = mergeBlocklists(DEFAULT_BLOCKED_HOSTS, []);
+
+async function loadUserBlocklist() {
+  try {
+    const data = await chrome.storage.local.get(USER_BLOCKED_HOSTS_KEY);
+    const user = data?.[USER_BLOCKED_HOSTS_KEY];
+    activeBlocklist = mergeBlocklists(DEFAULT_BLOCKED_HOSTS, user);
+  } catch {
+    activeBlocklist = mergeBlocklists(DEFAULT_BLOCKED_HOSTS, []);
+  }
+}
+
+export function getActiveBlocklist() {
+  return activeBlocklist.slice();
+}
+
+export async function refreshUserBlocklist() {
+  await loadUserBlocklist();
+  return getActiveBlocklist();
+}
+
+if (typeof chrome !== "undefined" && chrome?.storage?.local) {
+  loadUserBlocklist();
+  if (chrome.storage.onChanged && typeof chrome.storage.onChanged.addListener === "function") {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== "local") return;
+      if (!(USER_BLOCKED_HOSTS_KEY in changes)) return;
+      loadUserBlocklist();
+    });
+  }
+}
 
 const detectedMedia = new Map();
 const pendingRequests = new Map();
+const tabPageKeys = new Map();
 
 export function getDetectedMedia(tabId) {
-  return detectedMedia.get(tabId) || new Map();
+  const pageKey = tabPageKeys.get(tabId);
+  if (!pageKey) return new Map();
+  return detectedMedia.get(pageKey) || new Map();
+}
+
+export function getDetectedMediaForUrl(url) {
+  const pageKey = normalizePageKey(url);
+  if (!pageKey) return new Map();
+  return detectedMedia.get(pageKey) || new Map();
 }
 
 export function clearTabMedia(tabId) {
-  detectedMedia.delete(tabId);
+  const pageKey = tabPageKeys.get(tabId);
+  if (!pageKey) return;
+  detectedMedia.delete(pageKey);
+  chrome.storage.local.remove(storageKeyForPage(pageKey)).catch(() => {});
 }
 
 export function getMediaCount(tabId) {
-  const media = detectedMedia.get(tabId);
+  const pageKey = tabPageKeys.get(tabId);
+  if (!pageKey) return 0;
+  const media = detectedMedia.get(pageKey);
+  return media ? media.size : 0;
+}
+
+export function getPageKeyForTab(tabId) {
+  return tabPageKeys.get(tabId) || null;
+}
+
+export function getMediaCountForPage(pageKey) {
+  if (!pageKey) return 0;
+  const media = detectedMedia.get(pageKey);
   return media ? media.size : 0;
 }
 
 function isBlockedHost(url) {
-  try {
-    const host = new URL(url).hostname;
-    return BLOCKED_HOSTS.some(b => host.includes(b));
-  } catch { return false; }
+  return isUrlHostBlocked(url, activeBlocklist);
 }
 
 function isBlockedPath(url) {
@@ -188,24 +226,39 @@ function isPlatformCdnFragment(url, contentType, contentLength) {
   } catch { return false; }
 }
 
-const storageArea = chrome.storage.session ?? chrome.storage.local;
-
-function persistMedia(tabId) {
-  const media = detectedMedia.get(tabId);
+function persistPage(pageKey) {
+  const media = detectedMedia.get(pageKey);
   if (!media || media.size === 0) return;
   const arr = Array.from(media.entries());
-  storageArea.set({ [`media_${tabId}`]: arr }).catch(() => {});
+  const payload = { media: arr, savedAt: Date.now() };
+  chrome.storage.local.set({ [storageKeyForPage(pageKey)]: payload }).catch(() => {});
+}
+
+async function resolveTabPageKey(tabId) {
+  if (tabPageKeys.has(tabId)) return tabPageKeys.get(tabId);
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const pageKey = normalizePageKey(tab?.url);
+    if (pageKey) tabPageKeys.set(tabId, pageKey);
+    return pageKey;
+  } catch {
+    return null;
+  }
 }
 
 export async function restoreMedia() {
   try {
-    const data = await storageArea.get(null);
-    for (const [key, value] of Object.entries(data)) {
-      if (!key.startsWith("media_")) continue;
-      const tabId = parseInt(key.replace("media_", ""));
-      if (isNaN(tabId)) continue;
-      const map = new Map(value);
-      detectedMedia.set(tabId, map);
+    const data = await chrome.storage.local.get(null);
+    const { valid, stale } = classifyStoredPages(data, Date.now());
+    for (const entry of valid) {
+      try {
+        detectedMedia.set(entry.pageKey, new Map(entry.media));
+      } catch {
+        stale.push(entry.storageKey);
+      }
+    }
+    if (stale.length > 0) {
+      await chrome.storage.local.remove(stale).catch(() => {});
     }
   } catch {}
 }
@@ -261,12 +314,9 @@ export function registerSnifferListeners(onMediaDetected) {
         return;
       }
 
-      if (contentLength > 0 && contentLength < MIN_CONTENT_LENGTH) {
-        if (!url.includes(".m3u8") && !url.includes(".mpd") &&
-            !contentType.includes("mpegurl") && !contentType.includes("dash")) {
-          pendingRequests.delete(details.requestId);
-          return;
-        }
+      if (shouldDropBySize(url, contentType, contentLength)) {
+        pendingRequests.delete(details.requestId);
+        return;
       }
 
       const reqData = pendingRequests.get(details.requestId);
@@ -286,13 +336,15 @@ export function registerSnifferListeners(onMediaDetected) {
         responseHeaders: details.responseHeaders || [],
       };
 
-      if (!detectedMedia.has(details.tabId)) {
-        detectedMedia.set(details.tabId, new Map());
-      }
-      detectedMedia.get(details.tabId).set(url, entry);
-      persistMedia(details.tabId);
-
-      onMediaDetected(details.tabId, entry);
+      resolveTabPageKey(details.tabId).then((pageKey) => {
+        if (!pageKey) return;
+        if (!detectedMedia.has(pageKey)) {
+          detectedMedia.set(pageKey, new Map());
+        }
+        detectedMedia.get(pageKey).set(url, entry);
+        persistPage(pageKey);
+        onMediaDetected(details.tabId, entry);
+      });
     },
     { urls: ["http://*/*", "https://*/*"] },
     ["responseHeaders"]
@@ -304,14 +356,20 @@ export function registerSnifferListeners(onMediaDetected) {
   );
 
   chrome.tabs.onRemoved.addListener((tabId) => {
-    detectedMedia.delete(tabId);
-    storageArea.remove(`media_${tabId}`).catch(() => {});
+    tabPageKeys.delete(tabId);
   });
 
-  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.url) {
-      detectedMedia.delete(tabId);
-      storageArea.remove(`media_${tabId}`).catch(() => {});
+      const pageKey = normalizePageKey(changeInfo.url);
+      if (pageKey) {
+        tabPageKeys.set(tabId, pageKey);
+      } else {
+        tabPageKeys.delete(tabId);
+      }
+    } else if (tab?.url && !tabPageKeys.has(tabId)) {
+      const pageKey = normalizePageKey(tab.url);
+      if (pageKey) tabPageKeys.set(tabId, pageKey);
     }
   });
 }
