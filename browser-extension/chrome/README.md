@@ -25,7 +25,32 @@ The extension monitors network requests for video and audio streams as pages loa
 
 ### Pairing the localhost bridge
 
-The desktop app starts a local HTTP server on `127.0.0.1:<port>` (default `47720`, falls back to a free port if taken). On first launch it generates a per-installation token; the extension's options page asks you to paste the endpoint URL and token from **OmniGet → Settings → Network → Browser extension**. After pairing, every download reaches the app authenticated with `Authorization: Bearer <token>` — no extension ID involved, so the same app works with any browser, any extension build, and any Chromium fork.
+The desktop app starts a local HTTP server on `127.0.0.1:<port>` (default `47720`, range `47720..47729`, falls back to an OS-picked port if all are taken). On first launch it generates a per-installation token. The extension's options page opens automatically on install/update, **probes the local port range to auto-detect the endpoint**, and asks you to paste only the token from **OmniGet → Settings → Network → Browser extension**. After pairing, every download reaches the app authenticated with `Authorization: Bearer <token>` — no extension ID involved, so the same app works with any browser, any extension build, and any Chromium fork.
+
+The endpoint URL is hidden behind an "Advanced" disclosure for the rare case where the desktop app runs on a different host. If auto-discovery fails (app not running, port out of range), the disclosure opens automatically so you can set the URL by hand.
+
+## Screenshots
+
+### Where the token comes from
+
+OmniGet → Settings → Network → Browser extension. Copy the masked token; the URL is auto-detected by the extension so you don't have to.
+
+![Settings → Network → Browser extension](docs/app-settings.png)
+
+### Pairing flow on the extension side
+
+| State | Screenshot |
+|---|---|
+| **Discovering** the local bridge — first second on a fresh install. | ![Looking for the desktop app](docs/onboarding-discovery.png) |
+| **Found.** Endpoint pre-filled, only the token field is visible. | ![Found OmniGet on http://127.0.0.1:47721](docs/onboarding-found.png) |
+| **Saved.** Token persisted in `chrome.storage.local`, ready for downloads. | ![Saved](docs/onboarding-saved.png) |
+| **App not running.** Discovery banner turns red and the Advanced URL field opens automatically so you can override. | ![OmniGet doesn't seem to be running](docs/onboarding-not-found.png) |
+
+### `omniget://` fallback when the bridge isn't paired
+
+If the user clicks Download before completing the pairing flow, the extension falls back to the `omniget://` URL scheme. Chrome shows its standard external-protocol prompt the first time; tick "Always allow" to skip it on subsequent clicks.
+
+![Open omniget? — Chrome external protocol prompt](docs/chrome-protocol-prompt.png)
 
 ## Supported Platforms
 
@@ -51,7 +76,7 @@ Mirror domains are also recognized: `youtu.be`, `youtube-nocookie.com`, `ddinsta
 
 1. Install the OmniGet desktop app and launch it once (it generates a pairing token and starts the local bridge).
 2. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, select `browser-extension/chrome/`.
-3. The extension's options page opens automatically — paste the endpoint URL and token from **OmniGet → Settings → Network → Browser extension** and click **Save**.
+3. The extension's onboarding tab opens automatically. The endpoint is auto-detected; just copy the token from **OmniGet → Settings → Network → Browser extension** (Copy button), paste it in the **Pairing token** field, and click **Save**.
 4. Click the OmniGet icon on any page.
 
 If the bridge isn't paired (or the app is closed), clicks fall back to the `omniget://` URL scheme, which still queues the URL but won't carry cookies.
@@ -75,7 +100,9 @@ popup/
   popup.css            Dark theme, animations, state-based styles
   popup.js             State machine UI: known platform / media detected / listening / paused
 src/
-  background.js        Service worker: icon switching, native messaging, message routing
+  background.js        Service worker: icon switching, bridge fetch, message routing
+  bridge-client.js     Localhost HTTP client: load/save token, health check, port discovery
+  send-via-scheme.js   omniget:// fallback: hidden tab launches the OS handler
   media-sniffer.js     webRequest listener: detects media streams, filters .ts segments
   sniffer-toggle.js    Persists sniffer on/off state via chrome.storage.local
   detect.js            URL-based platform detection (no content scripts)
@@ -84,12 +111,13 @@ src/
   action-title.js      Tooltip resolution with i18n fallback
   action-click.js      Click handler with DI for testability
 pages/
+  options.html/css/js  Pairing onboarding: welcome state, auto-discovery, token paste
   error.html/css/js    Standalone error page (HOST_MISSING, INVALID_URL, LAUNCH_FAILED)
   error-content.js     Error message resolution with i18n fallback
 scripts/
   package.mjs          ZIP packaging for CWS (strips manifest key)
 tests/
-  *.test.mjs           96 tests across 7 files
+  *.test.mjs           196 tests across 9 files
 ```
 
 ## Packaging
@@ -106,7 +134,7 @@ The packaging script strips the `key` field from `manifest.json` before creating
 node --test browser-extension/chrome/tests/*.test.mjs
 ```
 
-96 tests across 7 files covering platform detection, click handling, badge feedback, tooltip titles, error content, cookie extraction, and manifest validation.
+196 tests across 9 files covering platform detection, click handling, badge feedback, tooltip titles, error content, cookie extraction, manifest validation, the omniget:// scheme builder + hidden-tab fallback, and the localhost bridge client (config IO, health probe, port discovery, fetch with timeout / 401 / network failure paths).
 
 ## Internationalization
 
