@@ -30,6 +30,7 @@ use axum::{
 };
 use base64::Engine;
 use serde::{Deserialize, Serialize};
+use socket2::{Domain, Protocol, Socket, Type};
 use tauri::AppHandle;
 use tokio::net::TcpListener;
 use tower_http::cors::{Any, CorsLayer};
@@ -94,25 +95,37 @@ pub fn generate_token() -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(buf)
 }
 
-/// Try to bind a free TCP listener inside our preferred port range. Falls
-/// back to `0` (let the OS pick) if the whole range is busy.
+/// Bind a TCP listener on `127.0.0.1:port` with `SO_REUSEADDR` enabled so
+/// the port can be re-bound immediately across app restarts (the previous
+/// socket stays in `TIME_WAIT` for ~60 s otherwise, which would otherwise
+/// kick us off our persisted port and force re-pairing).
+fn bind_with_reuse(port: u16) -> std::io::Result<TcpListener> {
+    let addr: SocketAddr = ([127, 0, 0, 1], port).into();
+    let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))?;
+    socket.set_reuse_address(true)?;
+    socket.set_nonblocking(true)?;
+    socket.bind(&addr.into())?;
+    socket.listen(128)?;
+    let std_listener: std::net::TcpListener = socket.into();
+    TcpListener::from_std(std_listener)
+}
+
+/// Try to bind a free TCP listener — first the persisted port, then the
+/// preferred range, finally `0` (OS-picked) as last resort.
 async fn bind_listener(preferred: u16) -> std::io::Result<(u16, TcpListener)> {
     if preferred != 0 {
-        let addr = SocketAddr::from(([127, 0, 0, 1], preferred));
-        if let Ok(listener) = TcpListener::bind(addr).await {
+        if let Ok(listener) = bind_with_reuse(preferred) {
             return Ok((preferred, listener));
         }
     }
 
     for port in PORT_RANGE {
-        let addr = SocketAddr::from(([127, 0, 0, 1], port));
-        if let Ok(listener) = TcpListener::bind(addr).await {
+        if let Ok(listener) = bind_with_reuse(port) {
             return Ok((port, listener));
         }
     }
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 0));
-    let listener = TcpListener::bind(addr).await?;
+    let listener = bind_with_reuse(0)?;
     let port = listener.local_addr()?.port();
     Ok((port, listener))
 }
