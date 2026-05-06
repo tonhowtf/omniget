@@ -19,6 +19,11 @@ const HEALTH_TIMEOUT_MS = 1500;
 const ENQUEUE_TIMEOUT_MS = 8000;
 const PROTOCOL_VERSION = 1;
 const DEFAULT_ENDPOINT = "http://127.0.0.1:47720";
+// Mirrors `PORT_RANGE` in src-tauri/src/local_bridge.rs — kept narrow so the
+// auto-discovery probe is fast.
+export const DEFAULT_PORT_RANGE = [
+  47720, 47721, 47722, 47723, 47724, 47725, 47726, 47727, 47728, 47729,
+];
 
 export function trimEndpoint(value) {
   if (typeof value !== "string") return "";
@@ -78,6 +83,31 @@ function withTimeout(promise, ms, controller) {
       }
     );
   });
+}
+
+// Probes the bridge port range in parallel and returns the first endpoint
+// that answers `/v1/health` with `ok: true`. Used by the options page to
+// pre-fill the URL without making the user discover the port by hand.
+export async function discoverBridgeEndpoint({
+  fetchImpl = typeof fetch !== "undefined" ? fetch : null,
+  ports = DEFAULT_PORT_RANGE,
+  host = "127.0.0.1",
+  timeoutMs = HEALTH_TIMEOUT_MS,
+} = {}) {
+  if (!fetchImpl) return null;
+  const probes = ports.map(async (port) => {
+    const endpoint = `http://${host}:${port}`;
+    const result = await checkBridgeHealth(endpoint, { fetchImpl, timeoutMs });
+    return result.ok ? { endpoint, version: result.version ?? null } : null;
+  });
+
+  const settled = await Promise.allSettled(probes);
+  for (const result of settled) {
+    if (result.status === "fulfilled" && result.value) {
+      return result.value;
+    }
+  }
+  return null;
 }
 
 export async function checkBridgeHealth(

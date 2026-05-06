@@ -8,37 +8,39 @@
   </head>
   <body>
     <main class="shell">
-      <div class="card">
+      <div class="card" id="card">
         <p class="eyebrow">OmniGet Extension</p>
-        <h1>Pair this browser with the desktop app</h1>
-        <p class="body">
-          Open OmniGet, go to <strong>Settings → Browser extension</strong>,
-          and copy the <em>endpoint URL</em> and <em>token</em> shown there
-          into the fields below.
-        </p>
+
+        <header id="welcome-header" hidden>
+          <h1>Welcome to OmniGet</h1>
+          <p class="body">
+            Let's connect this browser to the desktop app. We're looking for it
+            now — almost done.
+          </p>
+        </header>
+
+        <header id="settings-header" hidden>
+          <h1>Pair this browser</h1>
+          <p class="body">
+            Open OmniGet, go to <strong>Settings → Network → Browser
+            extension</strong>, then copy the <em>endpoint URL</em> and
+            <em>token</em> shown there into the fields below.
+          </p>
+        </header>
+
+        <div id="discovery-status" class="discovery" role="status" aria-live="polite">
+          <span class="spinner" aria-hidden="true"></span>
+          <span id="discovery-message">Looking for the desktop app on this machine…</span>
+        </div>
 
         <form id="pair-form" novalidate>
-          <label class="field">
-            <span class="label">Endpoint URL</span>
-            <input
-              id="endpoint"
-              name="endpoint"
-              type="url"
-              placeholder="http://127.0.0.1:47720"
-              autocomplete="off"
-              spellcheck="false"
-              required
-            />
-            <span class="hint">Default: <code>http://127.0.0.1:47720</code></span>
-          </label>
-
           <label class="field">
             <span class="label">Pairing token</span>
             <input
               id="token"
               name="token"
               type="password"
-              placeholder="Paste the token shown in OmniGet Settings"
+              placeholder="Paste the token from OmniGet → Settings → Network → Browser extension"
               autocomplete="off"
               spellcheck="false"
               required
@@ -48,6 +50,22 @@
             </button>
           </label>
 
+          <details id="advanced" class="advanced">
+            <summary>Advanced: change endpoint URL</summary>
+            <label class="field">
+              <span class="label">Endpoint URL</span>
+              <input
+                id="endpoint"
+                name="endpoint"
+                type="url"
+                placeholder="http://127.0.0.1:47720"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <span class="hint" id="endpoint-hint">Default: <code>http://127.0.0.1:47720</code></span>
+            </label>
+          </details>
+
           <div class="actions">
             <button id="save" type="submit" class="button primary">Save</button>
             <button id="test" type="button" class="button">Test connection</button>
@@ -55,6 +73,16 @@
 
           <p id="status" class="status" role="status" aria-live="polite"></p>
         </form>
+
+        <details id="install-help" class="install-help">
+          <summary>Don't have OmniGet installed yet?</summary>
+          <p>
+            Install the desktop app from
+            <a href="https://github.com/tonhowtf/omniget/releases/latest" target="_blank" rel="noreferrer">
+              github.com/tonhowtf/omniget
+            </a>, launch it once, then come back to this page.
+          </p>
+        </details>
       </div>
     </main>
     <script type="module" src="options.js"></script>

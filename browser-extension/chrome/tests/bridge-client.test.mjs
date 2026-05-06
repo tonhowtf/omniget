@@ -6,9 +6,11 @@ import {
   loadBridgeConfig,
   saveBridgeConfig,
   checkBridgeHealth,
+  discoverBridgeEndpoint,
   sendViaBridge,
   STORAGE_KEY_ENDPOINT,
   STORAGE_KEY_TOKEN,
+  DEFAULT_PORT_RANGE,
 } from "../src/bridge-client.js";
 
 function fakeStorage(initial = {}) {
@@ -156,6 +158,58 @@ test("sendViaBridge surfaces network error so the caller can fall back", async (
   assert.equal(result.ok, false);
   assert.equal(result.reason, "fetch-failed");
   assert.equal(result.message, "ECONNREFUSED");
+});
+
+test("DEFAULT_PORT_RANGE matches the Rust bridge's PORT_RANGE", () => {
+  // Sanity: keep the JS probe range narrow and aligned with
+  // src-tauri/src/local_bridge.rs (47720..47730 = 10 ports).
+  assert.equal(DEFAULT_PORT_RANGE[0], 47720);
+  assert.equal(DEFAULT_PORT_RANGE.at(-1), 47729);
+  assert.equal(DEFAULT_PORT_RANGE.length, 10);
+});
+
+test("discoverBridgeEndpoint returns the first port that answers /v1/health", async () => {
+  const seen = [];
+  const fetchImpl = async (url) => {
+    seen.push(url);
+    if (url === "http://127.0.0.1:47722/v1/health") {
+      return { ok: true, json: async () => ({ ok: true, version: "0.5.3" }) };
+    }
+    return { ok: false, json: async () => ({}) };
+  };
+
+  const result = await discoverBridgeEndpoint({
+    fetchImpl,
+    ports: [47720, 47721, 47722, 47723],
+  });
+
+  assert.deepEqual(result, {
+    endpoint: "http://127.0.0.1:47722",
+    version: "0.5.3",
+  });
+  // All four ports were probed in parallel.
+  assert.equal(seen.length, 4);
+});
+
+test("discoverBridgeEndpoint returns null when no port responds", async () => {
+  const fetchImpl = async () => { throw new Error("ECONNREFUSED"); };
+  const result = await discoverBridgeEndpoint({
+    fetchImpl,
+    ports: [47720, 47721],
+  });
+  assert.equal(result, null);
+});
+
+test("discoverBridgeEndpoint ignores 200 responses where ok is false", async () => {
+  const fetchImpl = async () => ({
+    ok: true,
+    json: async () => ({ ok: false }),
+  });
+  const result = await discoverBridgeEndpoint({
+    fetchImpl,
+    ports: [47720],
+  });
+  assert.equal(result, null);
 });
 
 test("sendViaBridge bubbles up app-level error code on a 4xx response", async () => {

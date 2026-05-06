@@ -49,13 +49,27 @@ loadSnifferState().then(async (enabled) => {
   }
 });
 
-chrome.runtime.onInstalled.addListener((details) => {
+chrome.runtime.onInstalled.addListener(async (details) => {
   registerContextMenu();
   refreshActiveTab().catch(() => {});
-  // First install: surface the pairing page so the user can connect to the
-  // desktop app without having to dig through chrome://extensions.
-  if (details?.reason === "install" && typeof chrome.runtime.openOptionsPage === "function") {
-    chrome.runtime.openOptionsPage().catch(() => {});
+  // Surface the pairing page on any install/update *if the user hasn't
+  // already paired this browser*. Reloading an unpacked extension fires
+  // `update`, not `install`, so gating only on `install` would silently
+  // skip the onboarding flow for dev builds and users coming from a
+  // pre-bridge OmniGet version.
+  if (typeof chrome.runtime.openOptionsPage !== "function") return;
+  try {
+    const stored = await chrome.storage.local.get("bridge_token");
+    const token = typeof stored?.bridge_token === "string" ? stored.bridge_token.trim() : "";
+    if (!token) {
+      chrome.runtime.openOptionsPage().catch(() => {});
+    }
+  } catch {
+    // storage unavailable — fall back to the previous behaviour and only
+    // open on a real install.
+    if (details?.reason === "install") {
+      chrome.runtime.openOptionsPage().catch(() => {});
+    }
   }
 });
 

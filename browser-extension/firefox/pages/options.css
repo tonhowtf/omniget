@@ -142,3 +142,84 @@ input:focus {
 
 .status.ok { color: #59d8a0; }
 .status.error { color: #ff7d7d; }
+
+.discovery {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  color: #d9deea;
+  margin-bottom: 4px;
+}
+.discovery.found {
+  background: rgba(89, 216, 160, 0.08);
+  border-color: rgba(89, 216, 160, 0.35);
+  color: #79e1b3;
+}
+.discovery.missing {
+  background: rgba(255, 125, 125, 0.06);
+  border-color: rgba(255, 125, 125, 0.3);
+  color: #ffb1b1;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-top-color: #ff9a66;
+  animation: spin 0.85s linear infinite;
+}
+.discovery.found .spinner,
+.discovery.missing .spinner { display: none; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.install-help {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 13px;
+  color: #95a0b7;
+}
+.install-help summary {
+  cursor: pointer;
+  user-select: none;
+}
+.install-help p {
+  margin: 8px 0 0;
+  line-height: 1.55;
+}
+.install-help a {
+  color: #ff9a66;
+}
+
+.advanced {
+  margin-top: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 13px;
+  color: #95a0b7;
+}
+.advanced summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+.advanced summary::-webkit-details-marker { display: none; }
+.advanced summary::before {
+  content: "▸ ";
+  color: #6b7691;
+}
+.advanced[open] summary::before { content: "▾ "; }
+.advanced .field { margin-top: 10px; }
