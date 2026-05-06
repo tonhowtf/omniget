@@ -85,6 +85,44 @@ pub fn mark_legal_acknowledged(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(serde::Serialize)]
+pub struct BridgeInfo {
+    pub enabled: bool,
+    pub port: u16,
+    pub token: String,
+    pub url: String,
+}
+
+/// Returns the localhost bridge connection info for the Settings UI.
+///
+/// `port == 0` means the bridge has not finished binding yet (the user can
+/// retry shortly). `token` may be empty until the first run completes.
+#[tauri::command]
+pub fn get_bridge_info(app: tauri::AppHandle) -> Result<BridgeInfo, String> {
+    let settings = config::load_settings(&app);
+    let url = if settings.bridge.port == 0 {
+        String::new()
+    } else {
+        crate::local_bridge::build_pairing_url(settings.bridge.port)
+    };
+    Ok(BridgeInfo {
+        enabled: settings.bridge.enabled,
+        port: settings.bridge.port,
+        token: settings.bridge.token,
+        url,
+    })
+}
+
+/// Forces a fresh token to be generated. Used by the Settings UI when the
+/// user wants to revoke a previously-paired browser.
+#[tauri::command]
+pub fn rotate_bridge_token(app: tauri::AppHandle) -> Result<BridgeInfo, String> {
+    let mut current = config::load_settings(&app);
+    current.bridge.token = crate::local_bridge::generate_token();
+    config::save_settings(&app, &current).map_err(|e| format!("Save: {}", e))?;
+    get_bridge_info(app)
+}
+
 fn merge_json(base: &mut serde_json::Value, patch: &serde_json::Value) {
     if let (Some(base_obj), Some(patch_obj)) = (base.as_object_mut(), patch.as_object()) {
         for (key, value) in patch_obj {

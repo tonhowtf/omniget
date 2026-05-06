@@ -15,6 +15,7 @@
   import SettingsNetwork from "$components/settings/SettingsNetwork.svelte";
   import SettingsDownloads from "$components/settings/SettingsDownloads.svelte";
   import SettingsTypography from "$components/settings/SettingsTypography.svelte";
+  import SettingsBrowserExtension from "$components/settings/SettingsBrowserExtension.svelte";
 
   type DependencyStatus = {
     name: string;
@@ -433,6 +434,7 @@
     {/if}
 
     {#if isSearching || activeCategory === "network"}
+      <SettingsBrowserExtension />
       <SettingsNetwork />
     {/if}
 

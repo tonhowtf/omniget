@@ -366,6 +366,23 @@
       "app_id_hint": "Discord application ID. Change only if you know what you're doing.",
       "large_image": "Large image key",
       "large_image_hint": "Asset name uploaded to your Discord application."
+    },
+    "bridge": {
+      "title": "Browser extension",
+      "intro": "Pair the OmniGet browser extension with this app over a private localhost connection. Open the extension's options page, paste the endpoint URL and token below, and click Save.",
+      "endpoint_label": "Endpoint URL",
+      "token_label": "Pairing token",
+      "rotate_label": "Rotate token",
+      "rotate_hint": "Generates a new token. Any browser already paired will need to update its token.",
+      "rotate": "Rotate",
+      "rotating": "Rotating…",
+      "rotated": "New pairing token generated.",
+      "reveal": "Reveal",
+      "hide": "Hide",
+      "copy": "Copy",
+      "copied_url": "Endpoint URL copied to clipboard.",
+      "copied_token": "Token copied to clipboard.",
+      "unavailable": "Bridge unavailable. Try restarting the app."
     }
   },
   "omnibox": {

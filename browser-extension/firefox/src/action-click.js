@@ -1,11 +1,19 @@
 const DEFAULT_LAUNCH_FAILED_CODE = "LAUNCH_FAILED";
 const PROTOCOL_VERSION = 1;
 
+// Reusable click handler factored out of background.js so it can be unit-tested
+// in isolation. Transport is injected as `sendToHost` (the localhost bridge in
+// production), with `openSchemeUrl` providing the cookie-less fallback when the
+// app is unreachable. Both callbacks return `{ ok, ... }` results.
+//
+// `sendToHost` is also accepted under the legacy alias `sendNativeMessage` for
+// backwards-compat with tests written before the native-messaging removal.
 export async function handleSupportedActionClick({
   tabId,
   url,
   platform,
   getCookies,
+  sendToHost,
   sendNativeMessage,
   clearBadge = async () => {},
   showSuccessBadge = async () => {},
@@ -13,6 +21,8 @@ export async function handleSupportedActionClick({
   mapChromeErrorCode,
   openSchemeUrl = async () => ({ ok: false, reason: "not-wired" }),
 }) {
+  const send = sendToHost ?? sendNativeMessage;
+
   if (tabId !== undefined && tabId !== null) {
     await clearBadge(tabId);
   }
@@ -32,7 +42,7 @@ export async function handleSupportedActionClick({
       message.cookies = cookies;
     }
 
-    const response = await sendNativeMessage(message);
+    const response = await send(message);
 
     if (!response?.ok) {
       await openErrorPage({

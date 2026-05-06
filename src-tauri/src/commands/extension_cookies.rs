@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
-use crate::native_host::extension_cookie_file_path;
+use crate::extension_storage::extension_cookie_file_path;
 
 #[derive(Debug, Serialize)]
 pub struct ExtensionCookiesStatus {

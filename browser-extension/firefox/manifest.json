@@ -11,7 +11,6 @@
     }
   },
   "permissions": [
-    "nativeMessaging",
     "tabs",
     "cookies",
     "webRequest",
@@ -19,6 +18,8 @@
     "menus"
   ],
   "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
     "*://*.hotmart.com/*",
     "*://*.youtube.com/*",
     "*://*.youtube-nocookie.com/*",
@@ -107,5 +108,9 @@
       },
       "description": "Send current page to OmniGet"
     }
+  },
+  "options_ui": {
+    "page": "pages/options.html",
+    "open_in_tab": true
   }
 }

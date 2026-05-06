@@ -6,8 +6,8 @@ import { summarizeCookies } from "./cookie-summary.js";
 import { loadSnifferState, isSnifferEnabled, setSnifferEnabled } from "./sniffer-toggle.js";
 import { registerContextMenu, getContextMenuId } from "./context-menu.js";
 import { openOmnigetScheme } from "./send-via-scheme.js";
+import { sendViaBridge, sendCookiesViaBridge } from "./bridge-client.js";
 
-const HOST_NAME = "wtf.tonho.omniget";
 const INSTALL_URL = "https://github.com/tonhowtf/omniget/releases/latest";
 const PROTOCOL_VERSION = 1;
 
@@ -49,9 +49,14 @@ loadSnifferState().then(async (enabled) => {
   }
 });
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   registerContextMenu();
   refreshActiveTab().catch(() => {});
+  // First install: surface the pairing page so the user can connect to the
+  // desktop app without having to dig through chrome://extensions.
+  if (details?.reason === "install" && typeof chrome.runtime.openOptionsPage === "function") {
+    chrome.runtime.openOptionsPage().catch(() => {});
+  }
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -276,16 +281,27 @@ async function handleSendToApp(msg) {
 
   const cookieSummary = summarizeCookies(cookies);
 
-  try {
-    const response = await sendNativeMessage(message);
-    return { ok: response?.ok ?? false, cookieSummary };
-  } catch (e) {
-    const schemeResult = await openOmnigetScheme(url);
-    if (schemeResult?.ok) {
-      return { ok: true, viaScheme: true, cookieSummary };
-    }
-    return { ok: false, error: e.message };
+  // Primary path: localhost HTTP bridge (no extension-ID dependency, full
+  // cookie + metadata payload).
+  const bridgeResult = await sendViaBridge(message);
+  if (bridgeResult?.ok) {
+    return { ok: true, viaBridge: true, cookieSummary };
   }
+
+  // Fallback: omniget:// scheme handler. The desktop app is launched (or
+  // brought to focus) and the URL is queued, but cookies aren't forwarded
+  // — the user can pair the bridge from the extension's options page to
+  // get the full experience.
+  const schemeResult = await openOmnigetScheme(url);
+  if (schemeResult?.ok) {
+    return { ok: true, viaScheme: true, cookieSummary, bridgeReason: bridgeResult?.reason };
+  }
+  return {
+    ok: false,
+    error: bridgeResult?.message || schemeResult?.message || "OmniGet is not reachable",
+    bridgeReason: bridgeResult?.reason,
+    schemeReason: schemeResult?.reason,
+  };
 }
 
 async function refreshActiveTab() {
@@ -325,18 +341,6 @@ async function refreshTabAction(tabId, tab) {
 function isTabGoneError(error) {
   const msg = error instanceof Error ? error.message : String(error);
   return msg.includes("No tab with id");
-}
-
-function sendNativeMessage(message) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendNativeMessage(HOST_NAME, message, (response) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-        return;
-      }
-      resolve(response);
-    });
-  });
 }
 
 const COOKIE_AUTO_CAPTURE_DEBOUNCE_MS = 1500;
@@ -453,25 +457,13 @@ async function capturePlatformCookies(platform, force = false) {
     return { ok: false, reason: "no_cookies" };
   }
 
-  try {
-    const response = await sendNativeMessage({
-      type: "cookies:export",
-      protocolVersion: PROTOCOL_VERSION,
-      platform,
-      cookies,
-      timestamp: Date.now(),
-    });
-    console.info(
-      "[OmniGet] cookies exported",
-      platform,
-      cookies.length,
-      response,
-    );
+  const response = await sendCookiesViaBridge(cookies);
+  if (response.ok) {
+    console.info("[OmniGet] cookies exported", platform, cookies.length, response);
     return { ok: true, count: cookies.length, response };
-  } catch (e) {
-    console.warn("[OmniGet] cookie export failed", platform, e.message);
-    return { ok: false, reason: "host_unreachable", error: e.message };
   }
+  console.warn("[OmniGet] cookie export failed", platform, response.reason ?? response.message);
+  return { ok: false, reason: response.reason ?? "bridge_failed", response };
 }
 
 async function scanOpenTabsForCookies() {

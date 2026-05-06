@@ -14,6 +14,7 @@ const SHARED = [
   "src/action-title.js",
   "src/background.js",
   "src/blocked-hosts.js",
+  "src/bridge-client.js",
   "src/context-menu.js",
   "src/cookie-summary.js",
   "src/cookies.js",
@@ -33,6 +34,9 @@ const SHARED = [
   "pages/error.css",
   "pages/error.js",
   "pages/error-content.js",
+  "pages/options.html",
+  "pages/options.css",
+  "pages/options.js",
 ];
 
 const SHARED_DIRS = ["_locales", "icons"];

@@ -366,6 +366,23 @@
       "app_id_hint": "ID applicazione Discord. Modifica solo se sai cosa stai facendo.",
       "large_image": "Chiave immagine grande",
       "large_image_hint": "Nome dell'asset caricato nella tua applicazione Discord."
+    },
+    "bridge": {
+      "title": "Estensione del browser",
+      "intro": "Associa l'estensione OmniGet a questa app tramite una connessione locale privata. Apri la pagina delle opzioni dell'estensione, incolla URL e token qui sotto, poi clicca Salva.",
+      "endpoint_label": "URL dell'endpoint",
+      "token_label": "Token di abbinamento",
+      "rotate_label": "Rigenera token",
+      "rotate_hint": "Genera un nuovo token. I browser già associati dovranno aggiornare il loro token.",
+      "rotate": "Rigenera",
+      "rotating": "Rigenerazione…",
+      "rotated": "Nuovo token di abbinamento generato.",
+      "reveal": "Mostra",
+      "hide": "Nascondi",
+      "copy": "Copia",
+      "copied_url": "URL dell'endpoint copiato negli appunti.",
+      "copied_token": "Token copiato negli appunti.",
+      "unavailable": "Bridge non disponibile. Riavvia l'app."
     }
   },
   "omnibox": {

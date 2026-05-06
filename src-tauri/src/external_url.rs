@@ -122,7 +122,7 @@ pub async fn queue_url_with_defaults(
 
     let ytdlp_path = crate::core::ytdlp::find_ytdlp_cached().await;
 
-    let ext_meta = crate::native_host::read_extension_metadata(&url);
+    let ext_meta = crate::extension_storage::read_extension_metadata(&url);
 
     let has_ext_media = ext_meta
         .as_ref()
@@ -316,7 +316,7 @@ pub async fn handle_external_url(
         || settings.download.auto_download_on_paste)
         && has_valid_output_dir(&settings.download.default_output_dir);
 
-    let open_app_flag = crate::native_host::peek_extension_open_app(&url);
+    let open_app_flag = crate::extension_storage::peek_extension_open_app(&url);
 
     let action = if can_queue_directly {
         let outcome = queue_url_with_defaults(app, url.clone(), false).await?;

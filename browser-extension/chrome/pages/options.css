@@ -1,0 +1,144 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background:
+    radial-gradient(circle at top, rgba(255, 125, 56, 0.18), transparent 42%),
+    #101114;
+  color: #f5f7fb;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; min-height: 100vh; }
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.card {
+  width: min(100%, 540px);
+  padding: 28px;
+  border-radius: 20px;
+  background: rgba(18, 20, 26, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 80px rgba(0, 0, 0, 0.4);
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ff9a66;
+}
+
+h1 {
+  margin: 0 0 12px;
+  font-size: clamp(22px, 3vw, 28px);
+  line-height: 1.2;
+}
+
+.body {
+  margin: 0 0 18px;
+  color: #d9deea;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+form { display: grid; gap: 16px; }
+
+.field {
+  display: grid;
+  gap: 6px;
+  position: relative;
+}
+
+.label {
+  font-size: 13px;
+  color: #95a0b7;
+}
+
+input[type="url"],
+input[type="text"],
+input[type="password"] {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #f5f7fb;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font: inherit;
+}
+
+input:focus {
+  outline: none;
+  border-color: rgba(255, 125, 56, 0.55);
+}
+
+.hint {
+  font-size: 12px;
+  color: #6b7691;
+}
+
+.hint code {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.reveal {
+  position: absolute;
+  right: 6px;
+  top: 27px;
+  background: transparent;
+  border: none;
+  color: #95a0b7;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.reveal:hover { background: rgba(255, 255, 255, 0.05); color: #f5f7fb; }
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  color: #f5f7fb;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.button.primary {
+  background: #ff7d38;
+  color: #160d06;
+  font-weight: 700;
+}
+
+.status {
+  margin: 6px 0 0;
+  min-height: 18px;
+  font-size: 13px;
+  color: #95a0b7;
+}
+
+.status.ok { color: #59d8a0; }
+.status.error { color: #ff7d7d; }

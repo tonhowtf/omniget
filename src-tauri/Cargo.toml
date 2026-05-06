@@ -37,6 +37,9 @@ anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 uuid = { version = "1", features = ["v4"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+tower-http = { version = "0.6", features = ["cors"] }
+constant_time_eq = "0.4"
 chrono = { version = "0.4", features = ["serde"] }
 dirs = "6"
 sanitize-filename = "0.6"

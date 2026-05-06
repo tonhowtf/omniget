@@ -17,11 +17,15 @@ Detects video and audio streams on any website and sends them to the OmniGet des
 
 ### On known platforms
 
-When you visit YouTube, Instagram, TikTok, or any of the 13 recognized platforms, the toolbar icon switches from gray to colored. Open the popup and click the download button — the page URL, cookies, and platform info are sent to OmniGet via native messaging.
+When you visit YouTube, Instagram, TikTok, or any of the 13 recognized platforms, the toolbar icon switches from gray to colored. Open the popup and click the download button — the page URL, cookies, and platform info are POSTed to the OmniGet desktop app over an authenticated localhost HTTP bridge (or fall through to the `omniget://` deep link if the bridge isn't paired).
 
 ### On any website (media detection)
 
 The extension monitors network requests for video and audio streams as pages load them. Detected media appears in the popup grouped by video session. Click the download button on any entry, or use batch download to send all detected videos at once. Each download includes the page's cookies and referer for authenticated content.
+
+### Pairing the localhost bridge
+
+The desktop app starts a local HTTP server on `127.0.0.1:<port>` (default `47720`, falls back to a free port if taken). On first launch it generates a per-installation token; the extension's options page asks you to paste the endpoint URL and token from **OmniGet → Settings → Network → Browser extension**. After pairing, every download reaches the app authenticated with `Authorization: Bearer <token>` — no extension ID involved, so the same app works with any browser, any extension build, and any Chromium fork.
 
 ## Supported Platforms
 
@@ -45,13 +49,12 @@ Mirror domains are also recognized: `youtu.be`, `youtube-nocookie.com`, `ddinsta
 
 ## Install
 
-1. Install OmniGet desktop app and launch it once (registers the native messaging host).
+1. Install the OmniGet desktop app and launch it once (it generates a pairing token and starts the local bridge).
 2. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, select `browser-extension/chrome/`.
-3. Click the OmniGet icon on any page.
+3. The extension's options page opens automatically — paste the endpoint URL and token from **OmniGet → Settings → Network → Browser extension** and click **Save**.
+4. Click the OmniGet icon on any page.
 
-The unpacked extension keeps a stable ID via the manifest key: `dkjelkhaaakffpghdfalobccaaipajip`
-
-On macOS/Linux, the first launch writes the native messaging manifest to your user profile. On Windows, a registry key is created under `HKCU\Software\Google\Chrome\NativeMessagingHosts`.
+If the bridge isn't paired (or the app is closed), clicks fall back to the `omniget://` URL scheme, which still queues the URL but won't carry cookies.
 
 ## Permissions
 
@@ -59,10 +62,10 @@ On macOS/Linux, the first launch writes the native messaging manifest to your us
 |------------|-----|
 | `webRequest` | Detect video/audio streams in network traffic |
 | `cookies` | Forward session cookies for authenticated downloads |
-| `nativeMessaging` | Communicate with the OmniGet desktop app |
-| `storage` | Remember sniffer on/off preference |
+| `storage` | Remember sniffer on/off preference and the bridge pairing token |
 | `tabs` | Read page URL and title for context |
-| `host_permissions: *://*/*` | Monitor requests on all sites for media detection |
+| `host_permissions: http://127.0.0.1/*` | POST to the desktop app's local bridge |
+| `host_permissions: *://*/*` (optional) | Monitor requests on all sites for media detection |
 
 ## Architecture
 
@@ -95,7 +98,7 @@ tests/
 node browser-extension/chrome/scripts/package.mjs --version 0.2.0 --output omniget-chrome-extension.zip
 ```
 
-The packaging script strips the `key` field from `manifest.json` before creating the ZIP. Once the CWS assigns a store ID, add it to `CHROME_EXTENSION_IDS` in [`src-tauri/src/native_host.rs`](../../src-tauri/src/native_host.rs).
+The packaging script strips the `key` field from `manifest.json` before creating the ZIP. The extension ID is no longer load-bearing on the desktop side — auth flows through the bridge token, so any CWS / unpacked / sideloaded build pairs with the same app instance.
 
 ## Tests
 

@@ -27,6 +27,8 @@ pub struct AppSettings {
     pub typography: TypographySettings,
     #[serde(default)]
     pub rpc: RpcSettings,
+    #[serde(default)]
+    pub bridge: BridgeSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -260,6 +262,41 @@ fn default_spacing_scale() -> f32 {
     1.0
 }
 
+/// Local HTTP bridge that lets the browser extension talk to the desktop app
+/// without depending on a Chrome native-messaging manifest (which would
+/// otherwise force us to maintain an explicit allowlist of extension IDs).
+///
+/// The token is generated lazily on first launch and shown in the app
+/// Settings; the user pastes it into the extension's options page once,
+/// after which the extension authenticates each request with
+/// `Authorization: Bearer <token>`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BridgeSettings {
+    #[serde(default = "default_bridge_enabled")]
+    pub enabled: bool,
+    /// Bound port on `127.0.0.1`. `0` means "pick at startup, then persist".
+    #[serde(default)]
+    pub port: u16,
+    /// Random token used to authenticate extension requests.
+    /// Empty means "regenerate on next launch".
+    #[serde(default)]
+    pub token: String,
+}
+
+impl Default for BridgeSettings {
+    fn default() -> Self {
+        Self {
+            enabled: default_bridge_enabled(),
+            port: 0,
+            token: String::new(),
+        }
+    }
+}
+
+fn default_bridge_enabled() -> bool {
+    true
+}
+
 impl Default for TypographySettings {
     fn default() -> Self {
         Self {
@@ -330,6 +367,7 @@ impl Default for AppSettings {
             last_download_options: LastDownloadOptions::default(),
             typography: TypographySettings::default(),
             rpc: RpcSettings::default(),
+            bridge: BridgeSettings::default(),
         }
     }
 }

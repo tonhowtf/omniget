@@ -366,6 +366,23 @@
       "app_id_hint": "ID de l'application Discord. Ne changez que si vous savez ce que vous faites.",
       "large_image": "Cle de la grande image",
       "large_image_hint": "Nom de l'asset televerse vers votre application Discord."
+    },
+    "bridge": {
+      "title": "Extension de navigateur",
+      "intro": "Associez l'extension OmniGet à l'application via une connexion locale privée. Ouvrez la page d'options de l'extension, collez l'URL et le jeton ci-dessous, puis enregistrez.",
+      "endpoint_label": "URL du point d'accès",
+      "token_label": "Jeton d'appairage",
+      "rotate_label": "Régénérer le jeton",
+      "rotate_hint": "Génère un nouveau jeton. Les navigateurs déjà appairés devront le mettre à jour.",
+      "rotate": "Régénérer",
+      "rotating": "Génération…",
+      "rotated": "Nouveau jeton d'appairage généré.",
+      "reveal": "Afficher",
+      "hide": "Masquer",
+      "copy": "Copier",
+      "copied_url": "URL copiée dans le presse-papier.",
+      "copied_token": "Jeton copié dans le presse-papier.",
+      "unavailable": "Pont indisponible. Redémarrez l'application."
     }
   },
   "omnibox": {

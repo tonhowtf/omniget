@@ -366,6 +366,23 @@
       "app_id_hint": "Discord 应用 ID。如不确定请勿更改。",
       "large_image": "大图键",
       "large_image_hint": "上传到 Discord 应用的资源名称。"
+    },
+    "bridge": {
+      "title": "浏览器扩展",
+      "intro": "通过私有的本地连接将 OmniGet 浏览器扩展与此应用配对。打开扩展的选项页面，粘贴下方的端点 URL 与令牌，然后点击保存。",
+      "endpoint_label": "端点 URL",
+      "token_label": "配对令牌",
+      "rotate_label": "重新生成令牌",
+      "rotate_hint": "生成新的令牌。已配对的浏览器需要更新其令牌。",
+      "rotate": "重新生成",
+      "rotating": "生成中…",
+      "rotated": "已生成新的配对令牌。",
+      "reveal": "显示",
+      "hide": "隐藏",
+      "copy": "复制",
+      "copied_url": "端点 URL 已复制到剪贴板。",
+      "copied_token": "令牌已复制到剪贴板。",
+      "unavailable": "桥接不可用。请重启应用。"
     }
   },
   "omnibox": {

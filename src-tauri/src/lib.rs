@@ -13,10 +13,11 @@ pub type ActiveP2pSends = Arc<tokio::sync::Mutex<HashMap<String, P2pSendHandle>>
 
 pub mod commands;
 pub mod core;
+pub mod extension_storage;
 pub mod external_url;
 pub mod hotkey;
+pub mod local_bridge;
 pub mod models;
-pub mod native_host;
 pub mod pets;
 pub mod platforms;
 pub mod plugin_host;
@@ -130,7 +131,7 @@ pub fn run() {
             core::http_fetcher::set_global_max_concurrent_segments(
                 settings.advanced.max_concurrent_segments as usize,
             );
-            core::ytdlp::set_ext_cookie_path_fn(|| native_host::extension_cookie_file_path());
+            core::ytdlp::set_ext_cookie_path_fn(|| extension_storage::extension_cookie_file_path());
             core::ytdlp::set_global_cookie_file_fn(|| {
                 let s = storage::config::load_settings_standalone();
                 let cf = s.download.cookie_file.clone();
@@ -151,7 +152,7 @@ pub fn run() {
                     .twitter_manual_cookie
             });
             core::ytdlp::set_ext_referer_fn(|url| {
-                native_host::read_extension_metadata(url).and_then(|m| m.referer)
+                extension_storage::read_extension_metadata(url).and_then(|m| m.referer)
             });
             core::ytdlp::set_include_auto_subs_fn(|| {
                 storage::config::load_settings_standalone()
@@ -254,8 +255,21 @@ pub fn run() {
             }
             tray::setup(app.handle())?;
             hotkey::register_from_settings(app.handle());
-            if let Err(error) = native_host::ensure_registered() {
-                tracing::warn!("Failed to register Chrome native host: {}", error);
+
+            // Migration: drop the manifests / binary copies the previous
+            // native-messaging code left under `~/.config/...` so Chrome and
+            // Firefox stop trying to start the legacy host process.
+            extension_storage::cleanup_legacy_native_messaging();
+
+            // Start the localhost HTTP bridge for the browser extension. This
+            // replaces the previous Chrome native-messaging path, which forced
+            // us to maintain a hard-coded extension-ID allowlist. Bridge auth
+            // is via a per-installation token shown in the Settings UI.
+            {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    local_bridge::spawn(app_handle).await;
+                });
             }
             {
                 let plugins_dir = core::paths::app_data_dir()
@@ -387,6 +401,8 @@ pub fn run() {
             commands::rpc::rpc_set_source,
             commands::rpc::rpc_clear_source,
             commands::rpc::rpc_set_idle_stats,
+            commands::settings::get_bridge_info,
+            commands::settings::rotate_bridge_token,
             commands::autostart::set_autostart,
             commands::autostart::get_autostart_status,
             commands::dependencies::check_dependencies,

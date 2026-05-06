@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>OmniGet Extension — Pair with desktop app</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <div class="card">
+        <p class="eyebrow">OmniGet Extension</p>
+        <h1>Pair this browser with the desktop app</h1>
+        <p class="body">
+          Open OmniGet, go to <strong>Settings → Browser extension</strong>,
+          and copy the <em>endpoint URL</em> and <em>token</em> shown there
+          into the fields below.
+        </p>
+
+        <form id="pair-form" novalidate>
+          <label class="field">
+            <span class="label">Endpoint URL</span>
+            <input
+              id="endpoint"
+              name="endpoint"
+              type="url"
+              placeholder="http://127.0.0.1:47720"
+              autocomplete="off"
+              spellcheck="false"
+              required
+            />
+            <span class="hint">Default: <code>http://127.0.0.1:47720</code></span>
+          </label>
+
+          <label class="field">
+            <span class="label">Pairing token</span>
+            <input
+              id="token"
+              name="token"
+              type="password"
+              placeholder="Paste the token shown in OmniGet Settings"
+              autocomplete="off"
+              spellcheck="false"
+              required
+            />
+            <button id="reveal" type="button" class="reveal" aria-pressed="false">
+              Show
+            </button>
+          </label>
+
+          <div class="actions">
+            <button id="save" type="submit" class="button primary">Save</button>
+            <button id="test" type="button" class="button">Test connection</button>
+          </div>
+
+          <p id="status" class="status" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

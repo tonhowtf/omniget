@@ -366,6 +366,23 @@
       "app_id_hint": "Discord 應用程式 ID。除非您知道在做什麼，否則請勿變更。",
       "large_image": "大圖鍵",
       "large_image_hint": "上傳至 Discord 應用程式的資源名稱。"
+    },
+    "bridge": {
+      "title": "瀏覽器擴充功能",
+      "intro": "透過私有的本機連線將 OmniGet 瀏覽器擴充功能與此應用程式配對。打開擴充功能的選項頁面，貼上下方的端點 URL 與權杖，然後按下儲存。",
+      "endpoint_label": "端點 URL",
+      "token_label": "配對權杖",
+      "rotate_label": "重新產生權杖",
+      "rotate_hint": "產生新的權杖。已配對的瀏覽器需要更新其權杖。",
+      "rotate": "重新產生",
+      "rotating": "產生中…",
+      "rotated": "已產生新的配對權杖。",
+      "reveal": "顯示",
+      "hide": "隱藏",
+      "copy": "複製",
+      "copied_url": "端點 URL 已複製到剪貼簿。",
+      "copied_token": "權杖已複製到剪貼簿。",
+      "unavailable": "橋接不可用。請重新啟動應用程式。"
     }
   },
   "omnibox": {
