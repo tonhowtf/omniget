@@ -242,6 +242,16 @@ pub fn run() {
                     }
                 });
             }
+            // Make sure the OS routes `omniget://` to this binary even when the
+            // package didn't ship a desktop file with `MimeType=x-scheme-handler/omniget;`
+            // or when the user is running from an AppImage / unpacked build.
+            // No-op on macOS (which uses Info.plist registered by the bundler).
+            #[cfg(any(target_os = "linux", target_os = "windows"))]
+            {
+                if let Err(error) = app.deep_link().register_all() {
+                    tracing::warn!("Failed to register omniget:// scheme: {}", error);
+                }
+            }
             tray::setup(app.handle())?;
             hotkey::register_from_settings(app.handle());
             if let Err(error) = native_host::ensure_registered() {

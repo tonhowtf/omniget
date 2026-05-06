@@ -56,6 +56,19 @@ pub fn is_external_url(value: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// Returns true when the request originated from the `omniget://` protocol
+/// handler — either via the deep-link event or because the raw URL still
+/// carries the scheme prefix when handed to the second-instance callback.
+///
+/// This is used to decide whether to bring the app window to the front:
+/// the native-messaging path uses metadata written by the host process to
+/// honour the extension's "Open app" toggle, but the scheme path bypasses
+/// the native host entirely, so we treat scheme arrival as the user's
+/// explicit intent.
+pub fn arrived_via_scheme(raw_url: &str, source: &str) -> bool {
+    raw_url.trim_start().starts_with("omniget:") || source == "deep-link"
+}
+
 pub fn normalize_external_url(value: &str) -> Option<String> {
     let trimmed = value.trim();
     let rest = trimmed
@@ -292,6 +305,7 @@ pub async fn handle_external_url(
     url: String,
     source: &str,
 ) -> Result<ExternalUrlAction, String> {
+    let scheme_arrival = arrived_via_scheme(&url, source);
     let url = normalize_external_url(&url).unwrap_or(url);
     if !is_external_url(&url) {
         return Err("Invalid external URL".to_string());
@@ -306,7 +320,11 @@ pub async fn handle_external_url(
 
     let action = if can_queue_directly {
         let outcome = queue_url_with_defaults(app, url.clone(), false).await?;
-        if open_app_flag == Some(true) {
+        // The native-messaging path only shows the window when the extension's
+        // "Open app" toggle is on. When the request arrived via the omniget://
+        // scheme, no metadata exists (it bypasses the native host), so we use
+        // the scheme presence itself as the user's intent to bring up the app.
+        if open_app_flag == Some(true) || scheme_arrival {
             crate::tray::show_window(app);
         }
         match outcome {
@@ -350,10 +368,14 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
+    // Return the raw argument (preserving any `omniget://` prefix). The caller
+    // forwards this string to `handle_external_url`, which normalises it after
+    // recording whether the request arrived through the scheme — preserving
+    // the prefix is what lets that detection work on Linux's single-instance
+    // path, where the OS hands us the omniget:// URL as a plain CLI argument.
     args.into_iter()
         .map(|arg| arg.as_ref().trim().to_string())
         .find(|arg| is_external_url(arg))
-        .map(|arg| normalize_external_url(&arg).unwrap_or(arg))
 }
 
 async fn push_or_emit_event(app: &AppHandle, event: ExternalUrlEvent) {
@@ -373,4 +395,94 @@ async fn push_or_emit_event(app: &AppHandle, event: ExternalUrlEvent) {
 
 fn has_valid_output_dir(path: &PathBuf) -> bool {
     !path.as_os_str().is_empty() && path.is_dir()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_strips_omniget_prefix_and_adds_https() {
+        assert_eq!(
+            normalize_external_url("omniget://www.youtube.com/watch?v=abc"),
+            Some("https://www.youtube.com/watch?v=abc".to_string())
+        );
+    }
+
+    #[test]
+    fn normalize_preserves_explicit_http_inside_scheme_payload() {
+        assert_eq!(
+            normalize_external_url("omniget://https://example.com/v"),
+            Some("https://example.com/v".to_string())
+        );
+    }
+
+    #[test]
+    fn normalize_preserves_magnet_payload() {
+        assert_eq!(
+            normalize_external_url("omniget:magnet:?xt=urn:btih:abc"),
+            Some("magnet:?xt=urn:btih:abc".to_string())
+        );
+    }
+
+    #[test]
+    fn normalize_returns_none_for_non_scheme_input() {
+        assert_eq!(normalize_external_url("https://example.com/v"), None);
+        assert_eq!(normalize_external_url(""), None);
+    }
+
+    #[test]
+    fn arrived_via_scheme_detects_prefix() {
+        assert!(arrived_via_scheme(
+            "omniget://www.youtube.com/watch?v=abc",
+            "command-line"
+        ));
+        assert!(arrived_via_scheme(
+            "  omniget://example.com/v",
+            "command-line"
+        ));
+        assert!(arrived_via_scheme("omniget:magnet:?xt=foo", "command-line"));
+    }
+
+    #[test]
+    fn arrived_via_scheme_detects_deep_link_source() {
+        assert!(arrived_via_scheme(
+            "https://www.youtube.com/watch?v=abc",
+            "deep-link"
+        ));
+    }
+
+    #[test]
+    fn arrived_via_scheme_returns_false_for_plain_cli() {
+        assert!(!arrived_via_scheme(
+            "https://www.youtube.com/watch?v=abc",
+            "command-line"
+        ));
+    }
+
+    #[test]
+    fn find_external_url_arg_preserves_omniget_prefix() {
+        // The single-instance / cold-start callbacks rely on this so the
+        // downstream `arrived_via_scheme` check can still detect the scheme.
+        let args = vec!["--flag", "omniget://www.youtube.com/watch?v=abc"];
+        assert_eq!(
+            find_external_url_arg(args.iter().copied()),
+            Some("omniget://www.youtube.com/watch?v=abc".to_string())
+        );
+    }
+
+    #[test]
+    fn find_external_url_arg_returns_https_url_unchanged() {
+        let args = vec!["https://example.com/video"];
+        assert_eq!(
+            find_external_url_arg(args.iter().copied()),
+            Some("https://example.com/video".to_string())
+        );
+    }
+
+    #[test]
+    fn find_external_url_arg_skips_irrelevant_args() {
+        let args = vec!["--start-hidden", "--config=/etc/foo"];
+        assert_eq!(find_external_url_arg(args.iter().copied()), None);
+    }
 }

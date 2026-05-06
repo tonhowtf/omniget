@@ -2,10 +2,11 @@
 Name=Omniget
 Comment=Download media from multiple platforms
 GenericName=Download Manager
-Exec=omniget
+Exec=omniget %u
 Icon=wtf.tonho.omniget
 Terminal=false
 Type=Application
 Categories=Network;FileTransfer;Utility;
 Keywords=omniget;download;downloader;video;media;udemy;hotmart;youtube;telegram;
 StartupWMClass=omniget
+MimeType=x-scheme-handler/omniget;
