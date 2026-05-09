@@ -117,13 +117,36 @@ impl PlatformDownloader for MagnetDownloader {
                     listen_port,
                     output_dir.display()
                 );
-                let session_opts = SessionOptions {
+                let make_opts = |disable_dht_persistence: bool, disable_dht: bool| SessionOptions {
                     listen_port_range: Some(listen_port..listen_port.saturating_add(10)),
+                    disable_dht,
+                    disable_dht_persistence,
                     ..Default::default()
                 };
                 let cancel_rx = opts.cancel_token.clone();
+                let output_pb: PathBuf = output_dir.into();
                 let s = tokio::select! {
-                    result = Session::new_with_opts(output_dir.into(), session_opts) => {
+                    result = async {
+                        match Session::new_with_opts(output_pb.clone(), make_opts(false, false)).await {
+                            Ok(s) => Ok(s),
+                            Err(e) => {
+                                tracing::warn!(
+                                    "[magnet] persistent DHT init failed ({}); retrying without DHT persistence",
+                                    e
+                                );
+                                match Session::new_with_opts(output_pb.clone(), make_opts(true, false)).await {
+                                    Ok(s) => Ok(s),
+                                    Err(e2) => {
+                                        tracing::warn!(
+                                            "[magnet] DHT init failed ({}); retrying with DHT disabled (trackers/PEX only)",
+                                            e2
+                                        );
+                                        Session::new_with_opts(output_pb, make_opts(true, true)).await
+                                    }
+                                }
+                            }
+                        }
+                    } => {
                         result.map_err(|e| anyhow::anyhow!("Failed to initialize torrent session: {}", e))?
                     }
                     _ = cancel_rx.cancelled() => {
