@@ -119,7 +119,7 @@
     margin: 0;
     font-size: 13px;
     font-weight: 600;
-    color: var(--primary);
+    color: var(--secondary);
     line-height: 1.3;
     display: -webkit-box;
     -webkit-line-clamp: 2;
