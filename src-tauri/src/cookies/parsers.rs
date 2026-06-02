@@ -45,9 +45,92 @@ pub fn parse(content: &str) -> anyhow::Result<Vec<ExtensionCookie>> {
         CookieFormat::Netscape => parse_netscape(content),
         CookieFormat::Json => parse_json(content),
         CookieFormat::Unknown => {
-            anyhow::bail!("Unrecognized cookie format. Accepted: Netscape (yt-dlp), JSON (Edit-This-Cookie, Get-cookies.txt-LOCALLY).")
+            anyhow::bail!("Unrecognized cookie format. Accepted: Netscape (yt-dlp), JSON (Edit-This-Cookie, Get-cookies.txt-LOCALLY), or a Cookie header when a target domain is provided.")
         }
     }
+}
+
+pub fn parse_for_domain(content: &str, domain: &str) -> anyhow::Result<Vec<ExtensionCookie>> {
+    match detect_format(content) {
+        CookieFormat::Netscape => parse_netscape(content),
+        CookieFormat::Json => parse_json(content),
+        CookieFormat::Unknown if looks_like_cookie_header(content) => {
+            parse_cookie_header(content, domain)
+        }
+        CookieFormat::Unknown => {
+            anyhow::bail!("Unrecognized cookie format. Accepted: Netscape (yt-dlp), JSON (Edit-This-Cookie, Get-cookies.txt-LOCALLY), or Cookie header pairs like SESSDATA=...; bili_jct=... when a target domain is provided.")
+        }
+    }
+}
+
+fn looks_like_cookie_header(content: &str) -> bool {
+    let trimmed = content.trim();
+    if trimmed.is_empty() || trimmed.contains('\t') || trimmed.starts_with('#') {
+        return false;
+    }
+    let body = trimmed.strip_prefix("Cookie:").unwrap_or(trimmed).trim();
+    let mut found = 0usize;
+    for part in body.split(';') {
+        let p = part.trim();
+        if p.is_empty() {
+            continue;
+        }
+        let Some((name, value)) = p.split_once('=') else {
+            return false;
+        };
+        let name = name.trim();
+        if name.is_empty() || value.is_empty() || !is_cookie_name(name) {
+            return false;
+        }
+        found += 1;
+    }
+    found > 0
+}
+
+fn is_cookie_name(name: &str) -> bool {
+    name.bytes()
+        .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
+}
+
+pub fn parse_cookie_header(content: &str, domain: &str) -> anyhow::Result<Vec<ExtensionCookie>> {
+    let root = domain.trim().trim_start_matches('.').to_lowercase();
+    if root.is_empty() {
+        anyhow::bail!("Target domain is required for Cookie header import.");
+    }
+    let cookie_domain = format!(".{}", root);
+    let expires = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+        + 60 * 60 * 24 * 3;
+    let body = content.trim().strip_prefix("Cookie:").unwrap_or(content.trim());
+    let mut cookies = Vec::new();
+    for part in body.split(';') {
+        let p = part.trim();
+        if p.is_empty() {
+            continue;
+        }
+        let Some((name, value)) = p.split_once('=') else {
+            continue;
+        };
+        let name = name.trim();
+        let value = value.trim();
+        if name.is_empty() || value.is_empty() || !is_cookie_name(name) {
+            continue;
+        }
+        cookies.push(ExtensionCookie {
+            domain: cookie_domain.clone(),
+            http_only: name.eq_ignore_ascii_case("SESSDATA"),
+            path: "/".to_string(),
+            secure: true,
+            expires,
+            name: name.to_string(),
+            value: value.to_string(),
+            host_only: Some(false),
+            same_site: None,
+        });
+    }
+    Ok(cookies)
 }
 
 pub fn parse_netscape(content: &str) -> anyhow::Result<Vec<ExtensionCookie>> {
@@ -218,6 +301,24 @@ mod tests {
         assert_eq!(cookies[0].expires, 1830000000);
         assert!(cookies[0].http_only);
         assert!(cookies[0].secure);
+    }
+
+    #[test]
+    fn parse_cookie_header_for_domain_marks_sessdata_and_expires_in_three_days() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        let cookies =
+            parse_for_domain("SESSDATA=abc; bili_jct=csrf; DedeUserID=42", "bilibili.com").unwrap();
+
+        assert_eq!(cookies.len(), 3);
+        assert_eq!(cookies[0].domain, ".bilibili.com");
+        assert_eq!(cookies[0].name, "SESSDATA");
+        assert!(cookies[0].http_only);
+        assert!(cookies[0].secure);
+        assert!(cookies[0].expires >= now + 60 * 60 * 24 * 3 - 2);
+        assert!(cookies[0].expires <= now + 60 * 60 * 24 * 3 + 2);
     }
 
     #[test]

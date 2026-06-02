@@ -161,6 +161,7 @@ impl PlatformDownloader for GalleryDlDownloader {
 
         cmd.arg("--").arg(&url);
 
+        cmd.kill_on_drop(true);
         let mut child = cmd
             .spawn()
             .map_err(|e| anyhow!("Failed to start gallery-dl: {}", e))?;

@@ -169,6 +169,34 @@ fn sanitize_field(s: &str) -> String {
         .collect()
 }
 
+fn site_source_url(root: &str) -> Option<String> {
+    let root = root.trim_start_matches('.').to_lowercase();
+    if root.is_empty() {
+        return None;
+    }
+    let host = if root == "bilibili.com" {
+        "www.bilibili.com"
+    } else {
+        root.as_str()
+    };
+    Some(format!("https://{}/", host))
+}
+
+fn normalize_source_url(source_url: Option<&str>, root: &str) -> Option<String> {
+    let root = root_domain_of(root);
+    if root.is_empty() {
+        return None;
+    }
+    if let Some(parsed) = source_url.and_then(|u| url::Url::parse(u).ok()) {
+        if let Some(host) = parsed.host_str() {
+            if root_domain_of(host) == root {
+                return site_source_url(&root);
+            }
+        }
+    }
+    site_source_url(&root)
+}
+
 pub struct IngestSource {
     pub source_url: Option<String>,
     pub source_label: String,
@@ -224,6 +252,7 @@ pub fn ingest_batch(
     for (root, group) in by_root.iter() {
         let count = write_account_file(root, DEFAULT_SLUG, group)?;
         let platform = PlatformKind::from_domain(root);
+        let source_url = normalize_source_url(source.source_url.as_deref(), root);
         let bucket = registry
             .buckets
             .entry(root.clone())
@@ -239,7 +268,7 @@ pub fn ingest_batch(
         if let Some(existing) = bucket.accounts.iter_mut().find(|a| a.slug == DEFAULT_SLUG) {
             existing.captured_at_ms = now;
             existing.cookie_count = count;
-            if let Some(ref u) = source.source_url {
+            if let Some(ref u) = source_url {
                 existing.source_url = Some(u.clone());
             }
             existing.source_label = Some(source.source_label.clone());
@@ -250,7 +279,7 @@ pub fn ingest_batch(
             bucket.accounts.push(AccountEntry {
                 slug: DEFAULT_SLUG.to_string(),
                 alias: new_alias,
-                source_url: source.source_url.clone(),
+                source_url,
                 source_label: Some(source.source_label.clone()),
                 captured_at_ms: now,
                 cookie_count: count,
@@ -409,6 +438,7 @@ pub fn ingest_to_account(
 
     let count = write_account_file(&root, &final_slug, &scoped)?;
     let now = current_unix_ms();
+    let source_url = normalize_source_url(source.source_url.as_deref(), &root);
     let alias = source.alias_hint.clone().unwrap_or_else(|| {
         format!(
             "{} · {}",
@@ -420,7 +450,7 @@ pub fn ingest_to_account(
     bucket.accounts.push(AccountEntry {
         slug: final_slug.clone(),
         alias,
-        source_url: source.source_url.clone(),
+        source_url,
         source_label: Some(source.source_label.clone()),
         captured_at_ms: now,
         cookie_count: count,
@@ -553,4 +583,24 @@ mod tests {
         assert_eq!(parts[0], "youtube.com");
         assert_eq!(parts[1], "FALSE");
     }
+
+    #[test]
+    fn normalize_source_url_uses_site_home_for_bilibili_video_url() {
+        assert_eq!(
+            normalize_source_url(
+                Some("https://www.bilibili.com/bangumi/play/ss48239?t=2"),
+                "bilibili.com"
+            ),
+            Some("https://www.bilibili.com/".to_string())
+        );
+    }
+
+    #[test]
+    fn normalize_source_url_falls_back_to_cookie_root() {
+        assert_eq!(
+            normalize_source_url(Some("not a url"), ".youtube.com"),
+            Some("https://youtube.com/".to_string())
+        );
+    }
+
 }

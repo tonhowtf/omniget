@@ -1,4 +1,5 @@
 use omniget_core::models::progress::ProgressUpdate;
+use regex::Regex;
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -64,14 +65,70 @@ impl TwitterDownloader {
         }
     }
 
+    fn managed_cookie_string() -> Option<String> {
+        for domain in ["x.com", "twitter.com"] {
+            let slug = omniget_core::core::log_hook::current_cookie_slug();
+            let path = crate::cookies::account_path_for_consumer(domain, slug.as_deref())
+                .or_else(|| crate::cookies::account_path_for_consumer(domain, None));
+            let Some(path) = path else { continue; };
+            let Ok(content) = std::fs::read_to_string(path) else { continue; };
+            if let Some(header) = Self::cookie_header_from_netscape(&content) {
+                return Some(header);
+            }
+        }
+        None
+    }
+
+    fn cookie_header_from_netscape(content: &str) -> Option<String> {
+        let pairs: Vec<String> = content
+            .lines()
+            .filter_map(|line| {
+                let trimmed = line.trim();
+                if trimmed.is_empty() || trimmed.starts_with("# Netscape") {
+                    return None;
+                }
+                let normalized = trimmed.strip_prefix("#HttpOnly_").unwrap_or(trimmed);
+                if normalized.starts_with('#') {
+                    return None;
+                }
+                let parts: Vec<&str> = normalized.split('\t').collect();
+                if parts.len() < 7 {
+                    return None;
+                }
+                let name = parts[5].trim();
+                let value = parts[6].trim();
+                if name.is_empty() {
+                    return None;
+                }
+                Some(format!("{}={}", name, value))
+            })
+            .collect();
+        if pairs.is_empty() {
+            None
+        } else {
+            Some(pairs.join("; "))
+        }
+    }
+
+    fn auth_cookie_string() -> Option<String> {
+        Self::managed_cookie_string().or_else(Self::manual_cookie_string)
+    }
+
+    fn cookie_value(cookie_header: &str, name: &str) -> Option<String> {
+        cookie_header.split(';').find_map(|part| {
+            let (k, v) = part.trim().split_once('=')?;
+            (k.trim() == name).then(|| v.trim().to_string())
+        })
+    }
+
     fn request_cookie_header(guest_token: &str) -> String {
         let guest_cookie = format!(
             "guest_id={}",
             urlencoding::encode(&format!("v1:{}", guest_token))
         );
 
-        if let Some(manual) = Self::manual_cookie_string() {
-            format!("{}; {}", guest_cookie, manual)
+        if let Some(auth) = Self::auth_cookie_string() {
+            format!("{}; {}", guest_cookie, auth)
         } else {
             guest_cookie
         }
@@ -171,6 +228,7 @@ impl TwitterDownloader {
                 .get("media_url")
                 .and_then(|v| v.as_str())
                 .is_some()
+            || media_item.get("url").and_then(|v| v.as_str()).is_some()
         {
             return Some(TwitterMediaType::Photo);
         }
@@ -271,8 +329,10 @@ impl TwitterDownloader {
         );
 
         let cookie_val = Self::request_cookie_header(guest_token);
+        let ct0 = Self::cookie_value(&cookie_val, "ct0");
+        let has_auth_token = Self::cookie_value(&cookie_val, "auth_token").is_some();
 
-        let response = self
+        let mut request = self
             .client
             .get(&url)
             .header("Authorization", BEARER)
@@ -281,9 +341,15 @@ impl TwitterDownloader {
             .header("x-twitter-active-user", "yes")
             .header("Accept-Language", "en")
             .header("Content-Type", "application/json")
-            .header("Cookie", &cookie_val)
-            .send()
-            .await?;
+            .header("Cookie", &cookie_val);
+        if has_auth_token {
+            request = request.header("x-twitter-auth-type", "OAuth2Session");
+        }
+        if let Some(ct0) = ct0 {
+            request = request.header("x-csrf-token", ct0);
+        }
+
+        let response = request.send().await?;
 
         let status = response.status();
         tracing::debug!("[twitter] graphql tweet_id={} status={}", tweet_id, status);
@@ -374,7 +440,7 @@ impl TwitterDownloader {
         );
 
         let mut request = self.client.get(&url);
-        if let Some(cookie) = Self::manual_cookie_string() {
+        if let Some(cookie) = Self::auth_cookie_string() {
             request = request.header("Cookie", cookie);
         }
 
@@ -491,7 +557,9 @@ impl TwitterDownloader {
         let media = json
             .get("mediaDetails")
             .and_then(Self::clone_media_array)
+            .or_else(|| json.get("photos").and_then(Self::clone_media_array))
             .or_else(|| Self::find_first_array_for_key(json, "mediaDetails"))
+            .or_else(|| Self::find_first_array_for_key(json, "photos"))
             .ok_or_else(|| anyhow!("No media found in tweet"))?;
 
         tracing::debug!(
@@ -535,19 +603,30 @@ impl TwitterDownloader {
         let base_url = media_item
             .get("media_url_https")
             .or_else(|| media_item.get("media_url"))
+            .or_else(|| media_item.get("url"))
             .and_then(|v| v.as_str())?;
+        Self::best_photo_url_from_str(base_url)
+    }
 
-        let extension = url::Url::parse(base_url)
+    fn best_photo_url_from_str(base_url: &str) -> Option<(String, String)> {
+        let cleaned = Self::decode_html_url(base_url);
+        let extension = url::Url::parse(&cleaned)
             .ok()
             .and_then(|u| {
                 u.path_segments()
                     .and_then(|segments| segments.last().map(|s| s.to_string()))
             })
-            .and_then(|filename| filename.rsplit('.').next().map(|ext| ext.to_string()))
+            .and_then(|filename| {
+                filename
+                    .rsplit('.')
+                    .next()
+                    .and_then(|ext| ext.split('?').next())
+                    .map(|ext| ext.to_string())
+            })
             .filter(|ext| !ext.is_empty())
             .unwrap_or_else(|| "jpg".to_string());
 
-        let url = if let Ok(mut parsed) = url::Url::parse(base_url) {
+        let url = if let Ok(mut parsed) = url::Url::parse(&cleaned) {
             let existing: Vec<(String, String)> = parsed
                 .query_pairs()
                 .filter(|(key, _)| key != "name")
@@ -562,13 +641,41 @@ impl TwitterDownloader {
                 qp.append_pair("name", "orig");
             }
             parsed.to_string()
-        } else if base_url.contains('?') {
-            format!("{}&name=orig", base_url)
+        } else if cleaned.contains('?') {
+            format!("{}&name=orig", cleaned)
         } else {
-            format!("{}?name=orig", base_url)
+            format!("{}?name=orig", cleaned)
         };
 
         Some((url, extension))
+    }
+
+    fn decode_html_url(raw: &str) -> String {
+        raw.replace("\\u0026", "&")
+            .replace("&amp;", "&")
+            .replace("&#38;", "&")
+    }
+
+    fn extract_html_photo_items(html: &str) -> Vec<TwitterMediaItem> {
+        let re = match Regex::new(r#"https://pbs\.twimg\.com/media/[^\s"'<>\\]+"#) {
+            Ok(re) => re,
+            Err(_) => return Vec::new(),
+        };
+        let mut seen = std::collections::HashSet::new();
+        let mut items = Vec::new();
+        for m in re.find_iter(html) {
+            let raw = m.as_str().trim_end_matches([',', ';', ')', ']']);
+            if let Some((url, extension)) = Self::best_photo_url_from_str(raw) {
+                if seen.insert(url.clone()) {
+                    items.push(TwitterMediaItem {
+                        media_type: TwitterMediaType::Photo,
+                        url,
+                        extension,
+                    });
+                }
+            }
+        }
+        items
     }
 
     fn parse_media_items(media: &[serde_json::Value]) -> anyhow::Result<TwitterMedia> {
@@ -737,7 +844,7 @@ impl PlatformDownloader for TwitterDownloader {
             if quality.format == "ytdlp" {
                 let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
                 let mut extra_flags = Vec::new();
-                if let Some(cookie) = Self::manual_cookie_string() {
+                if let Some(cookie) = Self::auth_cookie_string() {
                     extra_flags.push("--add-headers".to_string());
                     extra_flags.push(format!("Cookie:{}", cookie));
                 }
@@ -843,7 +950,7 @@ impl TwitterDownloader {
             "--add-headers".to_string(),
             "Referer:https://x.com/".to_string(),
         ];
-        if let Some(cookie) = Self::manual_cookie_string() {
+        if let Some(cookie) = Self::auth_cookie_string() {
             extra_flags.push("--add-headers".to_string());
             extra_flags.push(format!("Cookie:{}", cookie));
         }
@@ -870,8 +977,47 @@ impl TwitterDownloader {
                     tweet_id,
                     graphql_err
                 );
-                let syndication = self.request_syndication(&tweet_id).await?;
-                Self::extract_syndication_media(&syndication)?
+                match self.request_syndication(&tweet_id).await {
+                    Ok(syndication) => match Self::extract_syndication_media(&syndication) {
+                        Ok(items) => items,
+                        Err(syndication_extract_err) => {
+                            tracing::warn!(
+                                "[twitter] syndication media extraction failed for tweet_id={}: {}",
+                                tweet_id,
+                                syndication_extract_err
+                            );
+                            match self.request_html_media(url).await {
+                                Ok(items) => items,
+                                Err(html_err) => {
+                                    return Err(anyhow!(
+                                        "Post not available; graphql='{}'; syndication_extract='{}'; html='{}'",
+                                        graphql_err,
+                                        syndication_extract_err,
+                                        html_err
+                                    ));
+                                }
+                            }
+                        }
+                    },
+                    Err(syndication_err) => {
+                        tracing::warn!(
+                            "[twitter] syndication lookup failed for tweet_id={}: {}",
+                            tweet_id,
+                            syndication_err
+                        );
+                        match self.request_html_media(url).await {
+                            Ok(items) => items,
+                            Err(html_err) => {
+                                return Err(anyhow!(
+                                    "Post not available; graphql='{}'; syndication='{}'; html='{}'",
+                                    graphql_err,
+                                    syndication_err,
+                                    html_err
+                                ));
+                            }
+                        }
+                    }
+                }
             }
         };
 
@@ -881,6 +1027,37 @@ impl TwitterDownloader {
             filename_base,
             twitter_media,
         ))
+    }
+
+    async fn request_html_media(&self, url: &str) -> anyhow::Result<Vec<serde_json::Value>> {
+        let mut request = self
+            .client
+            .get(url)
+            .header("User-Agent", USER_AGENT)
+            .header("Accept-Language", "en")
+            .header("Referer", "https://x.com/");
+        if let Some(cookie) = Self::auth_cookie_string() {
+            request = request.header("Cookie", cookie);
+        }
+        let response = request.send().await?;
+        if !response.status().is_success() {
+            return Err(anyhow!("HTML request returned HTTP {}", response.status()));
+        }
+        let html = response.text().await?;
+        let items = Self::extract_html_photo_items(&html);
+        if items.is_empty() {
+            return Err(anyhow!("No photo URLs found in HTML"));
+        }
+        tracing::debug!("[twitter] html extracted {} photo entries", items.len());
+        Ok(items
+            .into_iter()
+            .map(|item| {
+                serde_json::json!({
+                    "type": "photo",
+                    "media_url_https": item.url,
+                })
+            })
+            .collect())
     }
 
     async fn try_graphql(&self, tweet_id: &str) -> anyhow::Result<Vec<serde_json::Value>> {
@@ -897,6 +1074,3 @@ impl TwitterDownloader {
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

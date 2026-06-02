@@ -140,7 +140,9 @@ type UdemyCompletePayload = {
 const seenCourseIds = new Set<number>();
 const seenUdemyCourseIds = new Set<number>();
 const loggedQueueTerminal = new Set<number>();
+const queueToastEligibleIds = new Set<number>();
 const seenGenericIds = new Set<number>();
+let queueStateInitialized = false;
 
 let throttleTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingPayload: QueueItemInfo[] | null = null;
@@ -260,16 +262,39 @@ export async function initDownloadListener(): Promise<() => void> {
     "queue-state-update",
     (event) => {
       const payload = event.payload;
+      if (!queueStateInitialized) {
+        for (const item of payload) {
+          if (item.status.type === "Complete" || item.status.type === "Error") {
+            loggedQueueTerminal.add(item.id);
+          } else {
+            queueToastEligibleIds.add(item.id);
+          }
+        }
+        queueStateInitialized = true;
+        throttledSyncQueueState(payload);
+        return;
+      }
+
       for (const item of payload) {
+        if (item.status.type !== "Complete" && item.status.type !== "Error") {
+          queueToastEligibleIds.add(item.id);
+          continue;
+        }
         if (loggedQueueTerminal.has(item.id)) continue;
+        if (!queueToastEligibleIds.has(item.id)) {
+          loggedQueueTerminal.add(item.id);
+          continue;
+        }
         if (item.status.type === "Error") {
           loggedQueueTerminal.add(item.id);
+          queueToastEligibleIds.delete(item.id);
           const errMsg = typeof item.status.data === "string"
             ? item.status.data
             : (item.status.data as { message?: string } | undefined)?.message;
           addLog("error", "download", `Download error: ${item.title}`, errMsg ?? undefined);
         } else if (item.status.type === "Complete") {
           loggedQueueTerminal.add(item.id);
+          queueToastEligibleIds.delete(item.id);
           addLog("info", "download", `Download complete: ${item.title}`, item.file_path ?? undefined);
           const tr = get(t);
           showToast("success", tr("toast.generic_download_complete", { name: item.title }));
@@ -290,6 +315,7 @@ export async function initDownloadListener(): Promise<() => void> {
         seenGenericIds.add(d.id);
         addLog("info", "download", `Download started: ${d.title}`, `Platform: ${d.platform}`);
       }
+      queueToastEligibleIds.add(d.id);
       upsertGenericProgress(
         d.id,
         d.title,

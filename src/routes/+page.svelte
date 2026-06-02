@@ -1051,7 +1051,7 @@
         {@const playlistBlocked = omniState.info.content_type === "playlist" && playlistEntries.length > 0 && selectedPlaylistItems.size === 0}
         {@const torrentBlocked = torrentEntries.length > 0 && selectedTorrentFiles.size === 0}
         {#if omniState.info.platform === "bilibili"}
-          <BilibiliPreviewExtras {url} accountSlug={selectedCookieSlug && !selectedCookieSlug.startsWith("_") ? selectedCookieSlug : null} />
+          <BilibiliPreviewExtras {url} accountSlug={selectedCookieSlug} />
         {/if}
         <button class="download-primary-btn" disabled={playlistBlocked || torrentBlocked} onclick={handleAction}>
           {$t('omnibox.download')}

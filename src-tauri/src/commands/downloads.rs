@@ -869,7 +869,7 @@ pub async fn download_from_url(
         ));
     }
 
-    let download_id = std::time::SystemTime::now()
+    let mut download_id = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64;
@@ -886,6 +886,7 @@ pub async fn download_from_url(
             tracing::debug!("[perf] download_from_url took {:?}", _timer_start.elapsed());
             return Err("Download already in progress for this URL".to_string());
         }
+        download_id = q.next_available_id(download_id);
     }
 
     let downloader = match state.registry.find_platform(&url) {
@@ -1018,7 +1019,7 @@ pub async fn download_with_custom_args(
         ));
     }
 
-    let download_id = std::time::SystemTime::now()
+    let mut download_id = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64;
@@ -1033,6 +1034,7 @@ pub async fn download_with_custom_args(
         if q.has_url(&url) {
             return Err("Download already in progress for this URL".to_string());
         }
+        download_id = q.next_available_id(download_id);
     }
 
     let downloader: Arc<dyn crate::platforms::traits::PlatformDownloader> =

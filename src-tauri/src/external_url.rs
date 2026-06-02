@@ -116,7 +116,7 @@ pub async fn queue_url_with_defaults(
         .map(|p| p.to_string())
         .unwrap_or_else(|| "generic".to_string());
 
-    let download_id = std::time::SystemTime::now()
+    let mut download_id = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64;
@@ -238,6 +238,7 @@ pub async fn queue_url_with_defaults(
 
     {
         let mut q = download_queue.lock().await;
+        download_id = q.next_available_id(download_id);
         q.enqueue(
             download_id,
             url.clone(),

@@ -59,9 +59,19 @@ impl YouTubeDownloader {
             if parsed.path().starts_with("/playlist") {
                 return true;
             }
-            if parsed.query_pairs().any(|(k, _)| k == "list") {
-                return true;
+
+            let mut has_list = false;
+            let mut has_video = false;
+            for (key, value) in parsed.query_pairs() {
+                if key == "list" && !value.is_empty() {
+                    has_list = true;
+                }
+                if key == "v" && !value.is_empty() {
+                    has_video = true;
+                }
             }
+
+            return has_list && !has_video;
         }
         false
     }
@@ -211,6 +221,33 @@ impl YouTubeDownloader {
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::YouTubeDownloader;
+
+    #[test]
+    fn watch_url_with_playlist_param_is_single_video() {
+        assert!(!YouTubeDownloader::is_playlist_url(
+            "https://www.youtube.com/watch?v=abc123&list=PLxyz&index=2",
+        ));
+    }
+
+    #[test]
+    fn playlist_url_is_playlist() {
+        assert!(YouTubeDownloader::is_playlist_url(
+            "https://www.youtube.com/playlist?list=PLxyz",
+        ));
+    }
+
+    #[test]
+    fn list_only_watch_url_is_playlist() {
+        assert!(YouTubeDownloader::is_playlist_url(
+            "https://www.youtube.com/watch?list=PLxyz",
+        ));
+    }
+}
+
 #[async_trait]
 impl PlatformDownloader for YouTubeDownloader {
     fn name(&self) -> &str {
@@ -356,6 +393,8 @@ impl YouTubeDownloader {
         let total = info.available_qualities.len();
         let mut total_bytes = 0u64;
         let mut last_path = playlist_dir.clone();
+        let mut success_count = 0usize;
+        let mut last_error: Option<String> = None;
 
         for (i, entry) in info.available_qualities.iter().enumerate() {
             if opts.cancel_token.is_cancelled() {
@@ -373,7 +412,13 @@ impl YouTubeDownloader {
                     let overall = (video_idx as f64 / video_total as f64) * 100.0
                         + (max_pct / video_total as f64);
                     let _ = progress_tx
-                        .send(ProgressUpdate::rich(overall, None, None, pu.speed_bps, None))
+                        .send(ProgressUpdate::rich(
+                            overall,
+                            None,
+                            None,
+                            pu.speed_bps,
+                            None,
+                        ))
                         .await;
                 }
             });
@@ -398,10 +443,12 @@ impl YouTubeDownloader {
             .await
             {
                 Ok(result) => {
+                    success_count += 1;
                     total_bytes += result.file_size_bytes;
                     last_path = result.file_path;
                 }
                 Err(e) => {
+                    last_error = Some(e.to_string());
                     tracing::warn!("Playlist video {} falhou: {}", i + 1, e);
                 }
             }
@@ -410,6 +457,13 @@ impl YouTubeDownloader {
         }
 
         let _ = progress.send(ProgressUpdate::percent(100.0)).await;
+
+        if success_count == 0 {
+            anyhow::bail!(
+                "Playlist download failed: {}",
+                last_error.unwrap_or_else(|| "no entries were downloaded".to_string())
+            );
+        }
 
         Ok(DownloadResult {
             file_path: last_path,

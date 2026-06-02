@@ -12,6 +12,16 @@ pub fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
+fn append_download_log(app: &tauri::AppHandle, id: u64, line: impl AsRef<str>) {
+    crate::core::download_log::push_line(id, line.as_ref());
+    let _ = app.emit(
+        "download-log-update",
+        serde_json::json!({
+            "id": id,
+        }),
+    );
+}
+
 use serde::Serialize;
 use tauri::{Emitter, Manager};
 use tokio::sync::mpsc;
@@ -407,8 +417,20 @@ impl DownloadQueue {
             .collect()
     }
 
+    pub fn next_available_id(&self, preferred: u64) -> u64 {
+        let mut id = preferred;
+        while self.items.iter().any(|i| i.id == id) {
+            id = id.saturating_add(1);
+        }
+        id
+    }
+
     pub fn mark_active(&mut self, id: u64) {
-        if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
+        if let Some(item) = self
+            .items
+            .iter_mut()
+            .find(|i| i.id == id && i.status == QueueStatus::Queued)
+        {
             item.status = QueueStatus::Active;
             item.cancel_token = CancellationToken::new();
         }
@@ -516,8 +538,8 @@ impl DownloadQueue {
     pub fn pause(&mut self, id: u64) -> bool {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
             if item.status == QueueStatus::Active {
-                if item.platform != "magnet" {
-                    item.cancel_token.cancel();
+                if item.platform != "magnet" && !omniget_core::core::ytdlp::pause_download_process(id) {
+                    return false;
                 }
                 item.status = QueueStatus::Paused;
                 item.speed_bytes_per_sec = 0.0;
@@ -531,12 +553,10 @@ impl DownloadQueue {
     pub fn resume(&mut self, id: u64) -> bool {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
             if item.status == QueueStatus::Paused {
-                if item.platform == "magnet" {
-                    item.status = QueueStatus::Active;
-                } else {
-                    item.status = QueueStatus::Queued;
-                    item.cancel_token = CancellationToken::new();
+                if item.platform != "magnet" && !omniget_core::core::ytdlp::resume_download_process(id) {
+                    return false;
                 }
+                item.status = QueueStatus::Active;
                 return true;
             }
         }
@@ -547,8 +567,8 @@ impl DownloadQueue {
         let mut paused = Vec::new();
         for item in self.items.iter_mut() {
             if item.status == QueueStatus::Active {
-                if item.platform != "magnet" {
-                    item.cancel_token.cancel();
+                if item.platform != "magnet" && !omniget_core::core::ytdlp::pause_download_process(item.id) {
+                    continue;
                 }
                 item.status = QueueStatus::Paused;
                 item.speed_bytes_per_sec = 0.0;
@@ -564,12 +584,10 @@ impl DownloadQueue {
         for item in self.items.iter_mut() {
             if item.status == QueueStatus::Paused {
                 let tid = item.torrent_id;
-                if item.platform == "magnet" {
-                    item.status = QueueStatus::Active;
-                } else {
-                    item.status = QueueStatus::Queued;
-                    item.cancel_token = CancellationToken::new();
+                if item.platform != "magnet" && !omniget_core::core::ytdlp::resume_download_process(item.id) {
+                    continue;
                 }
+                item.status = QueueStatus::Active;
                 resumed.push((item.id, tid));
             }
         }
@@ -1189,6 +1207,7 @@ async fn spawn_download_inner(
 
     let total_bytes = info.file_size_bytes;
     let item_title = info.title.clone();
+    let log_title = item_title.clone();
     let item_platform = platform_name.clone();
     let (tx, mut rx) = mpsc::channel::<omniget_core::models::progress::ProgressUpdate>(32);
 
@@ -1248,13 +1267,41 @@ async fn spawn_download_inner(
             }
 
             let now = std::time::Instant::now();
-            let clamped = percent.max(0.0);
             let resolved_total = update.total_bytes.or(total_bytes);
-            let downloaded_bytes = update.downloaded_bytes.unwrap_or_else(|| {
+            let mut clamped = percent.clamp(0.0, 100.0);
+            if percent >= 0.0 && percent < 100.0 {
+                if clamped < last_percent {
+                    clamped = last_percent;
+                }
+
+                let metric_percent = update.downloaded_bytes.and_then(|downloaded| {
+                    resolved_total
+                        .filter(|total| *total > 0)
+                        .map(|total| (downloaded as f64 / total as f64 * 100.0).clamp(0.0, 100.0))
+                });
+
+                if let Some(metric) = metric_percent {
+                    let metric_ceiling = (metric + 15.0).max(last_percent);
+                    if clamped > metric_ceiling {
+                        clamped = metric_ceiling;
+                    }
+                } else {
+                    let max_step = if update.has_real_metrics() { 12.0 } else { 6.0 };
+                    let ceiling = (last_percent + max_step).min(99.0);
+                    if clamped > ceiling {
+                        clamped = ceiling;
+                    }
+                }
+            }
+
+            let mut downloaded_bytes = update.downloaded_bytes.unwrap_or_else(|| {
                 resolved_total
                     .map(|total| (clamped / 100.0 * total as f64) as u64)
                     .unwrap_or(last_bytes)
             });
+            if downloaded_bytes < last_bytes && percent < 100.0 {
+                downloaded_bytes = last_bytes;
+            }
 
             if let Some(real) = update.speed_bps {
                 current_speed = real;
@@ -1279,7 +1326,8 @@ async fn spawn_download_inner(
             last_time = now;
             last_percent = clamped;
 
-            let phase = match percent {
+            let phase_value = if percent < 0.0 { percent } else { clamped };
+            let phase = match phase_value {
                 p if p < -1.5 => "connecting",
                 p if p < -0.5 => "starting",
                 p if p > 99.5 => "finalizing",
@@ -1342,6 +1390,14 @@ async fn spawn_download_inner(
     }
 
     let dl_start = std::time::Instant::now();
+    append_download_log(
+        &app,
+        item_id,
+        format!(
+            "[omniget] starting download: platform={} title=\"{}\" url={}",
+            platform_name, log_title, url
+        ),
+    );
     let dl_future = async {
         tokio::select! {
             r = downloader.download(&info, &opts, tx) => r,
@@ -1387,6 +1443,15 @@ async fn spawn_download_inner(
 
     match result {
         Ok(dl) => {
+            append_download_log(
+                &app,
+                item_id,
+                format!(
+                    "[omniget] download finished: path={} size={} bytes",
+                    dl.file_path.to_string_lossy(),
+                    dl.file_size_bytes
+                ),
+            );
             if settings.download.embed_metadata
                 && platform_name != "magnet"
                 && ffmpeg::is_ffmpeg_available().await
@@ -1452,6 +1517,11 @@ async fn spawn_download_inner(
         }
         Err(e) => {
             let raw_err = e.to_string();
+            append_download_log(
+                &app,
+                item_id,
+                format!("[omniget] download failed: {}", raw_err),
+            );
             let (category, hint) = omniget_core::core::errors::classify_download_error(&raw_err);
             let user_msg = if category != "unknown" {
                 format!("{} ({})", hint, raw_err)

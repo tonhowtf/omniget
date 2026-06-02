@@ -185,6 +185,16 @@ pub fn run() {
                     .download
                     .include_auto_subtitles
             });
+            core::ytdlp::set_caption_locale_fn(|| {
+                storage::config::load_settings_standalone()
+                    .download
+                    .caption_locale
+            });
+            core::ytdlp::set_keep_vtt_fn(|| {
+                storage::config::load_settings_standalone()
+                    .download
+                    .keep_vtt
+            });
             core::ytdlp::set_translate_metadata_fn(|| {
                 let s = storage::config::load_settings_standalone();
                 if s.download.translate_metadata {
@@ -390,32 +400,38 @@ pub fn run() {
                 let plugins_dir = core::paths::app_data_dir()
                     .unwrap_or_else(|| std::path::PathBuf::from("."))
                     .join("plugins");
-                let host = std::sync::Arc::new(plugin_host::PluginHostImpl::new(
+                let host: std::sync::Arc<dyn omniget_plugin_sdk::PluginHost> =
+                    std::sync::Arc::new(plugin_host::PluginHostImpl::new(
                     app.handle().clone(),
                     plugins_dir,
                 ));
                 let plugin_mgr = app
                     .handle()
                     .state::<std::sync::Arc<tokio::sync::RwLock<plugin_loader::PluginManager>>>();
-
-                let mgr_for_default = std::sync::Arc::clone(&*plugin_mgr);
+                let mgr_for_plugins = std::sync::Arc::clone(&*plugin_mgr);
                 std::thread::Builder::new()
-                    .name("default-plugins".into())
+                    .name("plugins-bootstrap".into())
                     .spawn(move || {
+                        {
+                            let mut mgr = mgr_for_plugins.blocking_write();
+                            mgr.load_all(std::sync::Arc::clone(&host));
+                        }
+
                         let rt = match tokio::runtime::Runtime::new() {
                             Ok(rt) => rt,
                             Err(e) => {
-                                tracing::warn!("default-plugins runtime failed: {}", e);
+                                tracing::warn!("plugins-bootstrap runtime failed: {}", e);
                                 return;
                             }
                         };
-                        rt.block_on(commands::plugins::ensure_default_plugins(mgr_for_default));
-                    })
-                    .ok()
-                    .map(|h| h.join().ok());
+                        rt.block_on(commands::plugins::ensure_default_plugins(
+                            std::sync::Arc::clone(&mgr_for_plugins),
+                        ));
 
-                let mut mgr = plugin_mgr.blocking_write();
-                mgr.load_all(host);
+                        let mut mgr = mgr_for_plugins.blocking_write();
+                        mgr.load_all(host);
+                    })
+                    .ok();
             }
 
             std::thread::Builder::new()

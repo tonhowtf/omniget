@@ -13,6 +13,7 @@
   let preEl: HTMLPreElement | null = $state(null);
   let atBottom = $state(true);
   let unlisten: UnlistenFn | null = null;
+  let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
   async function refresh() {
     try {
@@ -35,9 +36,16 @@
           refresh();
         }
       });
-    } else if (unlisten) {
-      unlisten();
-      unlisten = null;
+      refreshTimer = setInterval(refresh, 1000);
+    } else {
+      if (unlisten) {
+        unlisten();
+        unlisten = null;
+      }
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+      }
     }
   }
 
@@ -69,6 +77,10 @@
       if (unlisten) {
         unlisten();
         unlisten = null;
+      }
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
       }
     };
   });

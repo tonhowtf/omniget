@@ -55,10 +55,18 @@
 
   let testing = $state<Record<string, boolean>>({});
 
+  function cookieTestUrl(domain: string, platformKind: string | undefined): string {
+    if (platformKind === "bilibili") return "https://www.bilibili.com/video/BV1xx411c7mu";
+    if (platformKind === "youtube" || platformKind === "youtube_music") {
+      return "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    }
+    if (platformKind === "twitch") return "https://www.twitch.tv/videos/1";
+    return `https://${domain}`;
+  }
+
   async function handleTest(domain: string, slug: string) {
     const bucket = registry.buckets[domain];
-    const acc = bucket?.accounts.find((a) => a.slug === slug);
-    const url = acc?.source_url || `https://${domain}`;
+    const url = cookieTestUrl(domain, bucket?.platform_kind);
     const key = healthKey(domain, slug);
     testing = { ...testing, [key]: true };
     try {

@@ -23,6 +23,17 @@ pub struct ImportRequest {
     pub alias: Option<String>,
 }
 
+fn domain_from_url(raw: &str) -> Option<String> {
+    let parsed = url::Url::parse(raw).ok()?;
+    let host = parsed.host_str()?;
+    let root = super::platform::root_domain_of(host);
+    if root.is_empty() {
+        None
+    } else {
+        Some(root)
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct ImportResponse {
     pub buckets_written: Vec<BucketWrite>,
@@ -92,7 +103,12 @@ pub async fn cookies_read(request: ReadRequest) -> Result<ReadResponse, String> 
 
 #[tauri::command]
 pub async fn cookies_import(request: ImportRequest) -> Result<ImportResponse, String> {
-    let cookies = parsers::parse(&request.content).map_err(|e| e.to_string())?;
+    let source_domain = request.source_url.as_deref().and_then(domain_from_url);
+    let cookies = match source_domain.as_deref() {
+        Some(domain) => parsers::parse_for_domain(&request.content, domain),
+        None => parsers::parse(&request.content),
+    }
+    .map_err(|e| e.to_string())?;
     if cookies.is_empty() {
         return Err("No cookies found in payload".to_string());
     }
@@ -282,7 +298,8 @@ pub async fn cookies_add_account(request: AddAccountRequest) -> Result<AddAccoun
     if request.alias.trim().is_empty() {
         return Err("Alias is required for a new account".to_string());
     }
-    let cookies = parsers::parse(&request.content).map_err(|e| e.to_string())?;
+    let cookies = parsers::parse_for_domain(&request.content, &request.domain)
+        .map_err(|e| e.to_string())?;
     if cookies.is_empty() {
         return Err("No cookies found in payload".to_string());
     }
@@ -374,8 +391,71 @@ pub struct CookieTestResponse {
     pub message: String,
 }
 
+fn cookie_names_from_netscape(content: &str) -> std::collections::HashSet<String> {
+    let mut names = std::collections::HashSet::new();
+    for raw in content.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with("# Netscape") {
+            continue;
+        }
+        let effective = line.strip_prefix("#HttpOnly_").unwrap_or(line);
+        if effective.starts_with('#') {
+            continue;
+        }
+        let cols: Vec<&str> = effective.split('\t').collect();
+        if cols.len() >= 7 {
+            names.insert(cols[5].to_string());
+        }
+    }
+    names
+}
+
+fn test_x_twitter_cookie(slug: Option<&str>) -> CookieTestResponse {
+    let path = storage::account_path_for_consumer("x.com", slug)
+        .or_else(|| storage::account_path_for_consumer("twitter.com", slug));
+    let Some(path) = path else {
+        return CookieTestResponse {
+            ok: false,
+            message: "No X/Twitter cookie account found".to_string(),
+        };
+    };
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return CookieTestResponse {
+            ok: false,
+            message: "Could not read X/Twitter cookie file".to_string(),
+        };
+    };
+    let names = cookie_names_from_netscape(&content);
+    let has_auth = names.contains("auth_token");
+    let has_csrf = names.contains("ct0");
+    if has_auth && has_csrf {
+        CookieTestResponse {
+            ok: true,
+            message: "ok".to_string(),
+        }
+    } else {
+        let mut missing = Vec::new();
+        if !has_auth {
+            missing.push("auth_token");
+        }
+        if !has_csrf {
+            missing.push("ct0");
+        }
+        CookieTestResponse {
+            ok: false,
+            message: format!("Missing X/Twitter cookie fields: {}", missing.join(", ")),
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn cookies_test(request: CookieTestRequest) -> Result<CookieTestResponse, String> {
+    if let Some(domain) = domain_from_url(&request.url) {
+        if matches!(domain.as_str(), "x.com" | "twitter.com") {
+            return Ok(test_x_twitter_cookie(request.slug.as_deref()));
+        }
+    }
+
     let ytdlp = crate::core::ytdlp::find_ytdlp_cached()
         .await
         .ok_or_else(|| "yt-dlp unavailable".to_string())?;

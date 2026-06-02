@@ -19,6 +19,8 @@ type CookiesFromBrowserFn = Box<dyn Fn() -> String + Send + Sync>;
 type ManualCookieHeaderFn = Box<dyn Fn() -> String + Send + Sync>;
 type ExtRefererFn = Box<dyn Fn(&str) -> Option<String> + Send + Sync>;
 type IncludeAutoSubsFn = Box<dyn Fn() -> bool + Send + Sync>;
+type CaptionLocaleFn = Box<dyn Fn() -> String + Send + Sync>;
+type KeepVttFn = Box<dyn Fn() -> bool + Send + Sync>;
 type TranslateMetadataFn = Box<dyn Fn() -> Option<String> + Send + Sync>;
 type SponsorBlockFn = Box<dyn Fn() -> bool + Send + Sync>;
 type SplitChaptersFn = Box<dyn Fn() -> bool + Send + Sync>;
@@ -39,6 +41,8 @@ static COOKIES_FROM_BROWSER_FN: OnceLock<CookiesFromBrowserFn> = OnceLock::new()
 static MANUAL_COOKIE_HEADER_FN: OnceLock<ManualCookieHeaderFn> = OnceLock::new();
 static EXT_REFERER_FN: OnceLock<ExtRefererFn> = OnceLock::new();
 static INCLUDE_AUTO_SUBS_FN: OnceLock<IncludeAutoSubsFn> = OnceLock::new();
+static CAPTION_LOCALE_FN: OnceLock<CaptionLocaleFn> = OnceLock::new();
+static KEEP_VTT_FN: OnceLock<KeepVttFn> = OnceLock::new();
 static PER_DOMAIN_COOKIE_FN: OnceLock<PerDomainCookieFn> = OnceLock::new();
 static MANAGED_COOKIES_ONLY_FN: OnceLock<ManagedCookiesOnlyFn> = OnceLock::new();
 static TRANSLATE_METADATA_FN: OnceLock<TranslateMetadataFn> = OnceLock::new();
@@ -93,12 +97,103 @@ fn include_auto_subs_setting() -> bool {
     INCLUDE_AUTO_SUBS_FN.get().map(|f| f()).unwrap_or(false)
 }
 
+pub fn set_caption_locale_fn(f: impl Fn() -> String + Send + Sync + 'static) {
+    let _ = CAPTION_LOCALE_FN.set(Box::new(f));
+}
+
+fn caption_locale_setting() -> String {
+    let lang = CAPTION_LOCALE_FN
+        .get()
+        .map(|f| f())
+        .unwrap_or_else(|| "en".to_string());
+    let lang = lang.trim();
+    if lang.is_empty() {
+        "en".to_string()
+    } else {
+        lang.to_string()
+    }
+}
+
+fn requested_caption_locales() -> Vec<String> {
+    caption_locale_setting()
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToString::to_string)
+        .collect()
+}
+
+pub fn set_keep_vtt_fn(f: impl Fn() -> bool + Send + Sync + 'static) {
+    let _ = KEEP_VTT_FN.set(Box::new(f));
+}
+
+fn keep_vtt_setting() -> bool {
+    KEEP_VTT_FN.get().map(|f| f()).unwrap_or(false)
+}
+
 pub fn set_translate_metadata_fn(f: impl Fn() -> Option<String> + Send + Sync + 'static) {
     let _ = TRANSLATE_METADATA_FN.set(Box::new(f));
 }
 
 fn translate_metadata_lang() -> Option<String> {
     TRANSLATE_METADATA_FN.get().and_then(|f| f())
+}
+
+static ACTIVE_PROCESS_PIDS: OnceLock<std::sync::Mutex<HashMap<u64, u32>>> = OnceLock::new();
+
+fn active_process_pids() -> &'static std::sync::Mutex<HashMap<u64, u32>> {
+    ACTIVE_PROCESS_PIDS.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+fn register_download_process(download_id: u64, pid: u32) {
+    if let Ok(mut pids) = active_process_pids().lock() {
+        pids.insert(download_id, pid);
+    }
+}
+
+fn unregister_download_process(download_id: u64) {
+    if let Ok(mut pids) = active_process_pids().lock() {
+        pids.remove(&download_id);
+    }
+}
+
+#[cfg(unix)]
+fn signal_download_process(download_id: u64, signal: &str) -> bool {
+    let pid = active_process_pids()
+        .lock()
+        .ok()
+        .and_then(|pids| pids.get(&download_id).copied());
+    let Some(pid) = pid else {
+        return false;
+    };
+    std::process::Command::new("kill")
+        .arg(signal)
+        .arg(pid.to_string())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+#[cfg(not(unix))]
+fn signal_download_process(_download_id: u64, _signal: &str) -> bool {
+    false
+}
+
+pub fn pause_download_process(download_id: u64) -> bool {
+    signal_download_process(download_id, "-STOP")
+}
+
+pub fn resume_download_process(download_id: u64) -> bool {
+    signal_download_process(download_id, "-CONT")
+}
+
+fn normalize_youtube_lang(lang: &str) -> String {
+    match lang.trim() {
+        "zh" | "zh-CN" | "zh-cn" | "zh-Hans" | "zh-hans" => "zh-CN".to_string(),
+        "zh-TW" | "zh-tw" | "zh-Hant" | "zh-hant" => "zh-TW".to_string(),
+        "zh-HK" | "zh-hk" => "zh-HK".to_string(),
+        other => other.to_string(),
+    }
 }
 
 pub fn set_sponsorblock_fn(f: impl Fn() -> bool + Send + Sync + 'static) {
@@ -418,6 +513,78 @@ fn has_explicit_cookie_header(args: &[String]) -> bool {
 fn append_cookie_header(args: &mut Vec<String>, cookie_header: &str) {
     args.push("--add-headers".to_string());
     args.push(format!("Cookie:{}", cookie_header));
+}
+
+enum MetadataCookieSource {
+    PerDomain(PathBuf),
+    ManualHeader(String),
+    CookieFile(PathBuf),
+    Browser(String),
+    None,
+    ExplicitHeader,
+}
+
+fn metadata_cookie_source(url: &str, extra_flags: &[String]) -> MetadataCookieSource {
+    if has_explicit_cookie_header(extra_flags) {
+        return MetadataCookieSource::ExplicitHeader;
+    }
+
+    if let Some(path) = per_domain_cookie_file(url) {
+        return MetadataCookieSource::PerDomain(path);
+    }
+
+    if let Some(header) = manual_cookie_header_setting() {
+        return MetadataCookieSource::ManualHeader(header);
+    }
+
+    if let Some(path) = extension_cookie_file() {
+        return MetadataCookieSource::CookieFile(path);
+    }
+
+    if let Some(path) = global_cookie_file().map(PathBuf::from) {
+        return MetadataCookieSource::CookieFile(path);
+    }
+
+    let browser = cookies_from_browser_setting();
+    if !browser.is_empty() {
+        return MetadataCookieSource::Browser(browser);
+    }
+
+    MetadataCookieSource::None
+}
+
+fn append_metadata_cookie_args(
+    args: &mut Vec<String>,
+    url: &str,
+    extra_flags: &[String],
+    context: &str,
+) {
+    match metadata_cookie_source(url, extra_flags) {
+        MetadataCookieSource::PerDomain(path) => {
+            args.push("--cookies".to_string());
+            args.push(path.to_string_lossy().to_string());
+            tracing::debug!("[yt-dlp] using per-domain cookies for {}", context);
+        }
+        MetadataCookieSource::ManualHeader(header) => {
+            append_cookie_header(args, &header);
+            tracing::debug!("[yt-dlp] using manual cookie header for {}", context);
+        }
+        MetadataCookieSource::CookieFile(path) => {
+            args.push("--cookies".to_string());
+            args.push(path.to_string_lossy().to_string());
+        }
+        MetadataCookieSource::Browser(browser) => {
+            args.push("--cookies-from-browser".to_string());
+            args.push(browser);
+        }
+        MetadataCookieSource::ExplicitHeader => {
+            tracing::debug!(
+                "[yt-dlp] skipping cookies-from-browser for {} because explicit Cookie header was provided",
+                context
+            );
+        }
+        MetadataCookieSource::None => {}
+    }
 }
 
 struct YtRateLimiter {
@@ -1101,51 +1268,7 @@ pub async fn get_video_info(
             args.push(extractor_args.to_string());
         }
 
-        let explicit_cookie_header = has_explicit_cookie_header(extra_flags);
-        let per_domain_cookies = if explicit_cookie_header {
-            None
-        } else {
-            per_domain_cookie_file(url)
-        };
-        let manual_cookie_header = if explicit_cookie_header || per_domain_cookies.is_some() {
-            None
-        } else {
-            manual_cookie_header_setting()
-        };
-        let extension_cookies = if per_domain_cookies.is_none() && manual_cookie_header.is_none() {
-            extension_cookie_file()
-        } else {
-            None
-        };
-        let global_cf = if per_domain_cookies.is_none() && manual_cookie_header.is_none() {
-            global_cookie_file()
-        } else {
-            None
-        };
-        if let Some(ref cf) = per_domain_cookies {
-            args.push("--cookies".to_string());
-            args.push(cf.to_string_lossy().to_string());
-            tracing::debug!("[yt-dlp] using per-domain cookies from cookies manager");
-        } else if let Some(ref cookie_header) = manual_cookie_header {
-            append_cookie_header(&mut args, cookie_header);
-            tracing::debug!("[yt-dlp] using manual cookie header from settings");
-        } else if let Some(ref cf) = extension_cookies {
-            args.push("--cookies".to_string());
-            args.push(cf.to_string_lossy().to_string());
-        } else if let Some(ref cf) = global_cf {
-            args.push("--cookies".to_string());
-            args.push(cf.clone());
-        } else if !explicit_cookie_header {
-            let cfb = cookies_from_browser_setting();
-            if !cfb.is_empty() {
-                args.push("--cookies-from-browser".to_string());
-                args.push(cfb);
-            }
-        } else {
-            tracing::debug!(
-                "[yt-dlp] skipping cookies-from-browser because explicit Cookie header was provided"
-            );
-        }
+        append_metadata_cookie_args(&mut args, url, extra_flags, "video info");
 
         args.extend(proxy_args());
         args.extend(extra_flags.iter().cloned());
@@ -1235,6 +1358,140 @@ pub async fn get_video_info(
     Err(translate_ytdlp_error(&last_error))
 }
 
+async fn select_available_subtitle_lang(
+    ytdlp: &Path,
+    url: &str,
+    extra_flags: &[String],
+    include_auto: bool,
+) -> anyhow::Result<Option<String>> {
+    let requested = requested_caption_locales();
+    let json = get_video_info(ytdlp, url, extra_flags).await?;
+    let (manual, auto) = subtitle_languages_from_json(&json);
+    let available: Vec<String> = if include_auto {
+        manual.iter().chain(auto.iter()).cloned().collect()
+    } else {
+        manual.clone()
+    };
+
+    let selected = requested
+        .iter()
+        .find_map(|lang| matching_subtitle_lang(lang, &available));
+    if selected.is_some() {
+        return Ok(selected);
+    }
+
+    let requested_label = if requested.is_empty() {
+        "(empty)".to_string()
+    } else {
+        requested.join(", ")
+    };
+    let manual_label = format_lang_list(&manual);
+    let auto_label = format_lang_list(&auto);
+    let line = if manual.is_empty() && auto.is_empty() {
+        format!(
+            "[subtitles] 没有可下载字幕；继续下载视频，不下载字幕。您选择的字幕语言: {}",
+            requested_label
+        )
+    } else if manual.is_empty() && !auto.is_empty() && !include_auto {
+        format!(
+            "[subtitles] 没有手工字幕；自动字幕可用但未启用。继续下载视频，不下载字幕。您选择: {}; 自动字幕: {}",
+            requested_label, auto_label
+        )
+    } else {
+        format!(
+            "[subtitles] 没有您选择的字幕；继续下载视频，不下载字幕。您选择: {}; 可用手工字幕: {}; 可用自动字幕: {}",
+            requested_label, manual_label, auto_label
+        )
+    };
+    tracing::warn!("{}", line);
+    if let Some(dl_id) = log_hook::current_download_id() {
+        log_hook::emit_log(dl_id, &line);
+    }
+
+    Ok(None)
+}
+
+fn subtitle_languages_from_json(json: &serde_json::Value) -> (Vec<String>, Vec<String>) {
+    fn collect(map: Option<&serde_json::Value>) -> Vec<String> {
+        let mut langs = Vec::new();
+        if let Some(obj) = map.and_then(|v| v.as_object()) {
+            for (lang, formats) in obj {
+                if lang == "live_chat" {
+                    continue;
+                }
+                if formats.as_array().map(|a| !a.is_empty()).unwrap_or(false) {
+                    langs.push(lang.clone());
+                }
+            }
+        }
+        langs.sort_by_key(|s| s.to_ascii_lowercase());
+        langs.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+        langs
+    }
+
+    (
+        collect(json.get("subtitles")),
+        collect(json.get("automatic_captions")),
+    )
+}
+
+fn matching_subtitle_lang(requested: &str, available: &[String]) -> Option<String> {
+    available
+        .iter()
+        .find(|lang| normalize_lang_token(lang) == normalize_lang_token(requested))
+        .cloned()
+        .or_else(|| {
+            available
+                .iter()
+                .find(|lang| subtitle_lang_matches(requested, lang))
+                .cloned()
+        })
+}
+
+fn subtitle_lang_matches(requested: &str, available: &str) -> bool {
+    let requested = normalize_lang_token(requested);
+    let available = normalize_lang_token(available);
+    if requested.is_empty() || available.is_empty() {
+        return false;
+    }
+    if requested == available {
+        return true;
+    }
+
+    let req_base = requested.split('-').next().unwrap_or("");
+    let avail_base = available.split('-').next().unwrap_or("");
+    if req_base != avail_base {
+        return false;
+    }
+
+    if req_base == "zh" {
+        return zh_subtitle_group(&requested) == zh_subtitle_group(&available)
+            || requested == "zh"
+            || available == "zh";
+    }
+
+    requested == req_base || available == avail_base
+}
+
+fn normalize_lang_token(lang: &str) -> String {
+    lang.trim().replace('_', "-").to_ascii_lowercase()
+}
+
+fn zh_subtitle_group(lang: &str) -> &'static str {
+    match lang {
+        "zh-tw" | "zh-hant" | "zh-hk" | "zh-mo" => "traditional",
+        _ => "simplified",
+    }
+}
+
+fn format_lang_list(langs: &[String]) -> String {
+    if langs.is_empty() {
+        "none".to_string()
+    } else {
+        langs.join(", ")
+    }
+}
+
 pub async fn get_playlist_info(
     ytdlp: &Path,
     url: &str,
@@ -1267,6 +1524,8 @@ pub async fn get_playlist_info(
         args.push("--extractor-args".to_string());
         args.push("youtube:player_client=default".to_string());
     }
+
+    append_metadata_cookie_args(&mut args, url, extra_flags, "playlist info");
 
     args.extend(proxy_args());
     args.extend(extra_flags.iter().cloned());
@@ -1401,10 +1660,8 @@ pub async fn get_playlist_info_incremental(
         yt_rate_limiter().acquire().await;
     }
 
-    let archive_path = std::env::temp_dir().join(format!(
-        "omniget-chan-archive-{}.txt",
-        std::process::id()
-    ));
+    let archive_path =
+        std::env::temp_dir().join(format!("omniget-chan-archive-{}.txt", std::process::id()));
     {
         let mut content = String::with_capacity(seen_ids.len() * 24);
         for id in seen_ids {
@@ -1550,6 +1807,7 @@ pub async fn download_video(
     }
 
     let _ = progress.send(ProgressUpdate::percent(-1.0)).await;
+    let download_started_at = std::time::SystemTime::now();
 
     let mode = download_mode.unwrap_or("auto");
     let is_audio_only = mode == "audio";
@@ -1851,7 +2109,7 @@ pub async fn download_video(
 
     if let Some(lang) = translate_metadata_lang() {
         base_args.push("--extractor-args".to_string());
-        base_args.push(format!("youtube:lang={}", lang));
+        base_args.push(format!("youtube:lang={}", normalize_youtube_lang(&lang)));
     }
 
     if sponsorblock_enabled() && is_youtube_url(url) {
@@ -1904,20 +2162,51 @@ pub async fn download_video(
         base_args.push("--windows-filenames".to_string());
     }
 
-    let should_download_subs = download_subtitles && rate_limit_429_count() < 2;
+    let include_auto_subs = include_auto_subs_setting();
+    let mut selected_subtitle_lang: Option<String> = None;
+    let mut should_download_subs = download_subtitles && rate_limit_429_count() < 2;
+    if should_download_subs {
+        match select_available_subtitle_lang(ytdlp, url, extra_flags, include_auto_subs).await {
+            Ok(Some(lang)) => {
+                if let Some(dl_id) = log_hook::current_download_id() {
+                    log_hook::emit_log(
+                        dl_id,
+                        &format!("[subtitles] using selected subtitle language: {}", lang),
+                    );
+                }
+                selected_subtitle_lang = Some(lang);
+            }
+            Ok(None) => {
+                should_download_subs = false;
+            }
+            Err(err) => {
+                should_download_subs = false;
+                let line = format!(
+                    "[subtitles] could not check subtitles; continuing without subtitles: {}",
+                    err
+                );
+                tracing::warn!("{}", line);
+                if let Some(dl_id) = log_hook::current_download_id() {
+                    log_hook::emit_log(dl_id, &line);
+                }
+            }
+        }
+    }
     let subtitle_args = if should_download_subs {
         let mut args = vec!["--write-sub".to_string()];
-        if include_auto_subs_setting() {
+        if include_auto_subs {
             args.push("--write-auto-sub".to_string());
         }
+        let caption_locale = selected_subtitle_lang.unwrap_or_else(caption_locale_setting);
         args.extend([
             "--sub-lang".to_string(),
-            "en,pt,es".to_string(),
+            caption_locale,
             "--sub-format".to_string(),
             "best".to_string(),
-            "--convert-subs".to_string(),
-            "srt".to_string(),
         ]);
+        if !keep_vtt_setting() {
+            args.extend(["--convert-subs".to_string(), "srt".to_string()]);
+        }
         args
     } else {
         Vec::new()
@@ -1991,12 +2280,18 @@ pub async fn download_video(
         args.extend(extra_args.iter().cloned());
         args.push(url.to_string());
 
-        let mut child = crate::core::process::command(ytdlp)
-            .args(&args)
+        let mut cmd = crate::core::process::command(ytdlp);
+        cmd.args(&args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
+            .kill_on_drop(true);
+        let mut child = cmd
             .spawn()
             .map_err(|e| anyhow!("Failed to start yt-dlp: {}", e))?;
+        let registered_download_id = log_hook::current_download_id();
+        if let (Some(download_id), Some(pid)) = (registered_download_id, child.id()) {
+            register_download_process(download_id, pid);
+        }
         tracing::debug!(
             "[perf] download_video: yt-dlp process spawned at {:?} (attempt {})",
             _timer_start.elapsed(),
@@ -2060,9 +2355,12 @@ pub async fn download_video(
                     }
                 }
                 if line.contains("[Merger]") {
-                    if 99.0 > max_reported {
-                        max_reported = 99.0;
-                        let _ = progress_tx.send(ProgressUpdate::percent(99.0)).await;
+                    let merging_progress = max_reported.max(95.0).min(98.0);
+                    if merging_progress > max_reported {
+                        max_reported = merging_progress;
+                        let _ = progress_tx
+                            .send(ProgressUpdate::percent(merging_progress))
+                            .await;
                         last_send = std::time::Instant::now();
                     }
                     continue;
@@ -2105,16 +2403,13 @@ pub async fn download_video(
                             last_send = std::time::Instant::now();
                         }
                     }
-                } else if line.trim_start().starts_with("download:")
-                    || line.contains("[download]")
+                } else if line.trim_start().starts_with("download:") || line.contains("[download]")
                 {
                     let dl = parse_downloaded_bytes_line(&line)
                         .or_else(|| parse_default_download_line(&line).map(|(d, _)| d as u64));
                     let speed = parse_speed_line(&line)
                         .or_else(|| parse_default_download_line(&line).map(|(_, s)| s));
-                    if (dl.is_some() || speed.is_some())
-                        && last_send.elapsed() >= throttle
-                    {
+                    if (dl.is_some() || speed.is_some()) && last_send.elapsed() >= throttle {
                         let _ = progress_tx
                             .send(ProgressUpdate::rich(0.0, dl, None, speed, None))
                             .await;
@@ -2143,6 +2438,9 @@ pub async fn download_video(
             s = child.wait() => s.map_err(|e| anyhow!("yt-dlp process failed: {}", e))?,
             _ = cancel_token.cancelled() => {
                 let _ = child.kill().await;
+                if let Some(download_id) = registered_download_id {
+                    unregister_download_process(download_id);
+                }
                 let _ = line_reader.await;
                 let _ = stderr_reader.await;
                 cleanup_part_files(output_dir).await;
@@ -2150,6 +2448,10 @@ pub async fn download_video(
                 anyhow::bail!("Download cancelled");
             }
         };
+
+        if let Some(download_id) = registered_download_id {
+            unregister_download_process(download_id);
+        }
 
         let _ = line_reader.await;
         let stderr_content = stderr_reader.await.unwrap_or_default();
@@ -2183,6 +2485,21 @@ pub async fn download_video(
                 }
                 _ => find_downloaded_file(output_dir, url).await?,
             };
+            if download_subtitles {
+                let moved = ensure_subtitles_next_to_media(
+                    output_dir,
+                    &file_path,
+                    download_started_at,
+                    url,
+                );
+                if moved > 0 {
+                    tracing::info!(
+                        "[yt-dlp] moved {} subtitle file(s) next to {}",
+                        moved,
+                        file_path.display()
+                    );
+                }
+            }
 
             let meta = std::fs::metadata(&file_path)?;
             tracing::debug!("[perf] download_video took {:?}", _timer_start.elapsed());
@@ -2401,6 +2718,130 @@ async fn cleanup_part_files(dir: &Path) {
     }
 }
 
+fn ensure_subtitles_next_to_media(
+    output_dir: &Path,
+    media_path: &Path,
+    started_at: std::time::SystemTime,
+    url: &str,
+) -> usize {
+    let Some(media_dir) = media_path.parent() else {
+        return 0;
+    };
+    let Some(media_stem) = media_path.file_stem().and_then(|s| s.to_str()) else {
+        return 0;
+    };
+    let media_stem = media_stem.to_string();
+    let video_id = extract_id_from_url(url).unwrap_or_default();
+    let cutoff = started_at
+        .checked_sub(std::time::Duration::from_secs(5))
+        .unwrap_or(started_at);
+    let mut candidates = Vec::new();
+    collect_subtitle_candidates(output_dir, cutoff, &mut candidates, 0);
+
+    let mut moved = 0usize;
+    for path in candidates {
+        if path.parent() == Some(media_dir) {
+            continue;
+        }
+        let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+        let matches_media = stem.starts_with(&media_stem)
+            || media_stem.starts_with(stem)
+            || (!video_id.is_empty() && name.contains(&video_id));
+        if !matches_media {
+            continue;
+        }
+        let Some(file_name) = path.file_name() else {
+            continue;
+        };
+        let dest = unique_sidecar_path(media_dir.join(file_name));
+        if move_file_best_effort(&path, &dest) {
+            moved += 1;
+        }
+    }
+    moved
+}
+
+fn collect_subtitle_candidates(
+    dir: &Path,
+    cutoff: std::time::SystemTime,
+    out: &mut Vec<PathBuf>,
+    depth: usize,
+) {
+    if depth > 3 {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_subtitle_candidates(&path, cutoff, out, depth + 1);
+            continue;
+        }
+        if !path.is_file() || !is_subtitle_path(&path) {
+            continue;
+        }
+        let Ok(meta) = entry.metadata() else {
+            continue;
+        };
+        if meta.len() == 0 {
+            continue;
+        }
+        if meta.modified().map(|m| m >= cutoff).unwrap_or(false) {
+            out.push(path);
+        }
+    }
+}
+
+fn is_subtitle_path(path: &Path) -> bool {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    matches!(
+        ext.as_str(),
+        "vtt" | "srt" | "ass" | "ssa" | "sub" | "lrc" | "ttml"
+    )
+}
+
+fn unique_sidecar_path(path: PathBuf) -> PathBuf {
+    if !path.exists() {
+        return path;
+    }
+    let parent = path.parent().map(Path::to_path_buf).unwrap_or_default();
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("subtitle");
+    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+    for idx in 1..1000 {
+        let file_name = if ext.is_empty() {
+            format!("{} ({})", stem, idx)
+        } else {
+            format!("{} ({}).{}", stem, idx, ext)
+        };
+        let candidate = parent.join(file_name);
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    path
+}
+
+fn move_file_best_effort(from: &Path, to: &Path) -> bool {
+    if std::fs::rename(from, to).is_ok() {
+        return true;
+    }
+    if std::fs::copy(from, to).is_ok() {
+        let _ = std::fs::remove_file(from);
+        return true;
+    }
+    false
+}
+
 fn sanitize_log_line(line: &str) -> String {
     let mut result = String::with_capacity(line.len());
     let mut remaining = line;
@@ -2615,9 +3056,7 @@ fn parse_downloaded_bytes_line(line: &str) -> Option<u64> {
 
 fn parse_size_token(token: &str) -> Option<f64> {
     let t = token.trim().trim_end_matches("/s").trim();
-    let split = t
-        .find(|c: char| c.is_ascii_alphabetic())
-        .unwrap_or(t.len());
+    let split = t.find(|c: char| c.is_ascii_alphabetic()).unwrap_or(t.len());
     let (num, unit) = t.split_at(split);
     let value: f64 = num.trim().parse().ok()?;
     let mult = match unit.trim() {

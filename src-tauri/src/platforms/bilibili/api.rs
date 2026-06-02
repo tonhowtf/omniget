@@ -98,7 +98,9 @@ impl ApiClient {
     pub fn with_account(mut self, slug: impl Into<String>) -> Self {
         let slug = slug.into();
         self.cookie_header = build_cookie_header_for_account(&slug);
-        self.account_slug = Some(slug);
+        if self.cookie_header.is_some() {
+            self.account_slug = Some(slug);
+        }
         self
     }
 
@@ -306,13 +308,24 @@ pub fn parse_data<T: DeserializeOwned>(value: &Value) -> Result<T> {
 fn build_cookie_header_for_account(slug: &str) -> Option<String> {
     let path = crate::cookies::account_path_for_consumer("bilibili.com", Some(slug))?;
     let content = std::fs::read_to_string(&path).ok()?;
+    cookie_header_from_netscape(&content)
+}
+
+fn cookie_header_from_netscape(content: &str) -> Option<String> {
     let mut pairs: Vec<String> = Vec::new();
-    for line in content.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
+    for raw in content.lines() {
+        let line = raw.trim_end();
+        if line.is_empty() {
             continue;
         }
-        let mut parts = line.split('\t');
+        let effective = if let Some(rest) = line.strip_prefix("#HttpOnly_") {
+            rest
+        } else if line.starts_with('#') {
+            continue;
+        } else {
+            line
+        };
+        let mut parts = effective.split('\t');
         let _domain = parts.next();
         let _include = parts.next();
         let _path = parts.next();
@@ -328,5 +341,28 @@ fn build_cookie_header_for_account(slug: &str) -> Option<String> {
         None
     } else {
         Some(pairs.join("; "))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cookie_header_keeps_httponly_netscape_cookies() {
+        let raw = "# Netscape HTTP Cookie File\n#HttpOnly_.bilibili.com\tTRUE\t/\tTRUE\t1830000000\tSESSDATA\tabc123\n.bilibili.com\tTRUE\t/\tTRUE\t1830000000\tbili_jct\tcsrf\n";
+        let header = cookie_header_from_netscape(raw).unwrap();
+
+        assert!(header.contains("SESSDATA=abc123"));
+        assert!(header.contains("bili_jct=csrf"));
+        assert!(!header.contains("#HttpOnly_"));
+    }
+
+    #[test]
+    fn cookie_header_skips_regular_comments() {
+        let raw = "# comment\n.bilibili.com\tTRUE\t/\tTRUE\t1830000000\tDedeUserID\t42\n";
+        let header = cookie_header_from_netscape(raw).unwrap();
+
+        assert_eq!(header, "DedeUserID=42");
     }
 }

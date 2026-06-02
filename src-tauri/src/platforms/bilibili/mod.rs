@@ -48,16 +48,27 @@ pub fn has_active_account() -> bool {
     bucket
         .accounts
         .iter()
-        .any(|a| !a.slug.starts_with('_') && a.cookie_count > 0)
+        .any(|a| a.slug != "_anonymous" && a.cookie_count > 0)
 }
 
 fn active_account_slug() -> Option<String> {
     let registry = crate::cookies::load_registry();
     let bucket = registry.buckets.get("bilibili.com")?;
+
+    if let Some(selected) = omniget_core::core::log_hook::current_cookie_slug() {
+        if bucket
+            .accounts
+            .iter()
+            .any(|a| a.slug == selected && a.slug != "_anonymous" && a.cookie_count > 0)
+        {
+            return Some(selected);
+        }
+    }
+
     bucket
         .accounts
         .iter()
-        .filter(|a| !a.slug.starts_with('_') && a.cookie_count > 0)
+        .filter(|a| a.slug != "_anonymous" && a.cookie_count > 0)
         .max_by_key(|a| a.last_used_at_ms.unwrap_or(a.captured_at_ms))
         .map(|a| a.slug.clone())
 }

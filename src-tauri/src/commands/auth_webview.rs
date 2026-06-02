@@ -192,7 +192,7 @@ pub async fn open_auth_webview(
 async fn poll_for_cookie(
     window: &tauri::WebviewWindow,
     default_domain: &str,
-    domains: &[String],
+    _domains: &[String],
     target_cookie: &str,
 ) -> Vec<AuthCookie> {
     let target_lower = target_cookie.to_lowercase();
@@ -208,10 +208,10 @@ async fn poll_for_cookie(
                 "[auth_webview] cookie polling timed out after {:.1}s",
                 elapsed.as_secs_f64()
             );
-            return extract_cookies(window, default_domain, domains).await;
+            return extract_cookies(window, default_domain, _domains).await;
         }
 
-        let cookies = extract_cookies(window, default_domain, domains).await;
+        let cookies = extract_cookies(window, default_domain, _domains).await;
 
         let found = cookies
             .iter()
@@ -245,6 +245,9 @@ async fn extract_cookies(
     default_domain: &str,
     domains: &[String],
 ) -> Vec<AuthCookie> {
+    #[cfg(not(windows))]
+    let _ = domains;
+
     #[cfg(windows)]
     {
         let native = extract_cookies_native(window, domains).await;

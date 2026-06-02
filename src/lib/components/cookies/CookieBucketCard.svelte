@@ -52,6 +52,7 @@
   let inputRef = $state<HTMLInputElement | null>(null);
 
   let primaryHealth = $derived(primaryAccount ? health[primaryAccount.slug] : undefined);
+  let sourceUrl = $derived.by(() => displaySourceUrl(primaryAccount?.source_url ?? null, bucket.domain));
 
   let status = $derived.by(() => {
     if (!primaryAccount) return "empty";
@@ -139,10 +140,33 @@
     }
   }
 
-  async function openSourceUrl() {
-    if (!primaryAccount?.source_url) return;
+  function siteHostForDomain(domain: string): string {
+    const host = domain.trim().replace(/^\./, "").toLowerCase();
+    if (host.endsWith("bilibili.com")) return "www.bilibili.com";
+    const parts = host.split(".").filter(Boolean);
+    if (parts.length >= 2) return parts.slice(-2).join(".");
+    return host;
+  }
+
+  function displaySourceUrl(rawUrl: string | null, domain: string): string | null {
+    const host = siteHostForDomain(domain);
+    if (!host) return rawUrl;
+    const siteUrl = `https://${host}/`;
+    if (!rawUrl) return null;
     try {
-      await openShell(primaryAccount.source_url);
+      const parsed = new URL(rawUrl);
+      const sourceHost = siteHostForDomain(parsed.hostname);
+      if (sourceHost === host) return siteUrl;
+    } catch {
+      return siteUrl;
+    }
+    return siteUrl;
+  }
+
+  async function openSourceUrl() {
+    if (!sourceUrl) return;
+    try {
+      await openShell(sourceUrl);
     } catch (e) {
       console.warn("[cookies] failed to open source url", e);
     }
@@ -189,11 +213,11 @@
       {/if}
     </p>
 
-    {#if primaryAccount?.source_url}
+    {#if sourceUrl}
       <p class="source-line">
         <span class="source-label">{$t("settings.cookies.captured_from")}</span>
-        <button type="button" class="source-link" onclick={openSourceUrl} title={primaryAccount.source_url}>
-          {primaryAccount.source_url}
+        <button type="button" class="source-link" onclick={openSourceUrl} title={sourceUrl}>
+          {sourceUrl}
         </button>
       </p>
     {/if}
