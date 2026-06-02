@@ -26,10 +26,7 @@ pub async fn parse(client: &ApiClient, page: u32) -> Result<ParsedContent> {
     let raw = client.get_json(&url).await?;
     let data = check_api_response(&raw)?;
 
-    let count = data
-        .get("count")
-        .and_then(Value::as_u64)
-        .unwrap_or(0) as u32;
+    let count = data.get("count").and_then(Value::as_u64).unwrap_or(0) as u32;
     let total_pages = ((count + PAGE_SIZE - 1) / PAGE_SIZE).max(1);
     let list = data
         .get("list")
@@ -54,10 +51,7 @@ pub async fn parse(client: &ApiClient, page: u32) -> Result<ParsedContent> {
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
-        let cover = v
-            .get("pic")
-            .and_then(Value::as_str)
-            .map(String::from);
+        let cover = v.get("pic").and_then(Value::as_str).map(String::from);
         let duration = v.get("duration").and_then(Value::as_f64);
         let pub_time = v.get("pubdate").and_then(Value::as_u64);
         let add_at = v.get("add_at").and_then(Value::as_u64);

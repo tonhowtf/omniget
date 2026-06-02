@@ -43,9 +43,7 @@ pub async fn parse(client: &ApiClient, page: u32) -> Result<ParsedContent> {
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
-        let cid = history
-            .and_then(|h| h.get("cid"))
-            .and_then(Value::as_u64);
+        let cid = history.and_then(|h| h.get("cid")).and_then(Value::as_u64);
         if bvid.is_empty() && business == "archive" {
             continue;
         }
@@ -75,15 +73,15 @@ pub async fn parse(client: &ApiClient, page: u32) -> Result<ParsedContent> {
         };
         let ep_id = history
             .and_then(|h| h.get("epid").and_then(Value::as_u64))
-            .or_else(|| {
-                history
-                    .and_then(|h| h.get("ep_id"))
-                    .and_then(Value::as_u64)
-            });
+            .or_else(|| history.and_then(|h| h.get("ep_id")).and_then(Value::as_u64));
         items.push(EpisodeItem {
             episode_id: format!("history:{}:{}", business, bvid),
             title: composed_title,
-            bvid: if bvid.is_empty() { None } else { Some(bvid.clone()) },
+            bvid: if bvid.is_empty() {
+                None
+            } else {
+                Some(bvid.clone())
+            },
             cid,
             ep_id,
             duration_seconds: duration,

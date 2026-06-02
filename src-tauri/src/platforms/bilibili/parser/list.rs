@@ -3,8 +3,7 @@ use serde_json::Value;
 use super::super::api::{check_api_response, ApiClient, BilibiliError, Result};
 use super::{ContentMetadata, EpisodeItem, PaginationInfo, ParsedContent};
 
-const COLLECTION_URL: &str =
-    "https://api.bilibili.com/x/polymer/web-space/seasons_archives_list";
+const COLLECTION_URL: &str = "https://api.bilibili.com/x/polymer/web-space/seasons_archives_list";
 const SERIES_ARCHIVES_URL: &str = "https://api.bilibili.com/x/series/archives";
 const SERIES_META_URL: &str = "https://api.bilibili.com/x/series/series";
 const PAGE_SIZE: u32 = 30;
@@ -148,10 +147,7 @@ fn archives_to_items(archives: &[Value], prefix: String) -> Vec<EpisodeItem> {
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
-        let cover = a
-            .get("pic")
-            .and_then(Value::as_str)
-            .map(String::from);
+        let cover = a.get("pic").and_then(Value::as_str).map(String::from);
         let duration = a.get("duration").and_then(Value::as_f64);
         let pub_time = a.get("pubdate").and_then(Value::as_u64);
         items.push(EpisodeItem {

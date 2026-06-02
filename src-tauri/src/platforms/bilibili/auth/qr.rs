@@ -52,7 +52,11 @@ pub async fn generate(client: &ApiClient) -> Result<QrSession> {
 }
 
 pub async fn poll(client: &ApiClient, qrcode_key: &str) -> Result<QrPollStatus> {
-    let url = format!("{}?qrcode_key={}", QR_POLL_URL, urlencoding::encode(qrcode_key));
+    let url = format!(
+        "{}?qrcode_key={}",
+        QR_POLL_URL,
+        urlencoding::encode(qrcode_key)
+    );
     let raw = client.get_json(&url).await?;
     let data = check_api_response(&raw)?;
     let code = data.get("code").and_then(Value::as_i64).unwrap_or(-1);
@@ -83,10 +87,7 @@ pub async fn poll(client: &ApiClient, qrcode_key: &str) -> Result<QrPollStatus> 
     }
 }
 
-async fn finalize(
-    base_client: &ApiClient,
-    cookies: Vec<(String, String)>,
-) -> Result<QrPollStatus> {
+async fn finalize(base_client: &ApiClient, cookies: Vec<(String, String)>) -> Result<QrPollStatus> {
     let cookie_header = cookies
         .iter()
         .map(|(k, v)| format!("{}={}", k, v))

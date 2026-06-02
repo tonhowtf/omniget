@@ -59,10 +59,7 @@ fn schema(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 fn db_upsert(conn: &Connection, e: &HistoryEntry) -> rusqlite::Result<()> {
-    let kind = e
-        .kind
-        .as_ref()
-        .and_then(|k| serde_json::to_string(k).ok());
+    let kind = e.kind.as_ref().and_then(|k| serde_json::to_string(k).ok());
     conn.execute(
         "INSERT OR REPLACE INTO history
             (id, url, platform, title, file_path, file_size_bytes, total_bytes,

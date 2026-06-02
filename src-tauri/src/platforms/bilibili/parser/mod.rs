@@ -88,15 +88,9 @@ impl ParsedContent {
 pub async fn parse(client: &ApiClient, kind: &UrlKind) -> Result<ParsedContent> {
     match kind {
         UrlKind::Video { bvid_or_av, page } => video::parse(client, bvid_or_av, *page).await,
-        UrlKind::BangumiEpisode { ep_id } => {
-            bangumi::parse_by_ep(client, *ep_id).await
-        }
-        UrlKind::BangumiSeason { season_id } => {
-            bangumi::parse_by_season(client, *season_id).await
-        }
-        UrlKind::BangumiMedia { media_id } => {
-            bangumi::parse_by_media(client, *media_id).await
-        }
+        UrlKind::BangumiEpisode { ep_id } => bangumi::parse_by_ep(client, *ep_id).await,
+        UrlKind::BangumiSeason { season_id } => bangumi::parse_by_season(client, *season_id).await,
+        UrlKind::BangumiMedia { media_id } => bangumi::parse_by_media(client, *media_id).await,
         UrlKind::CheeseEpisode { ep_id } => cheese::parse_by_ep(client, *ep_id).await,
         UrlKind::CheeseSeason { season_id } => cheese::parse_by_season(client, *season_id).await,
         UrlKind::Space { mid } => space::parse(client, *mid, 1).await,

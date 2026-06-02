@@ -116,11 +116,7 @@ async fn api_engine_download(
         cheese: settings.download.bilibili_naming_cheese.clone(),
         collection: settings.download.bilibili_naming_collection.clone(),
     };
-    let first_item_owned = parsed
-        .items
-        .first()
-        .cloned()
-        .unwrap_or_default();
+    let first_item_owned = parsed.items.first().cloned().unwrap_or_default();
     let naming_kind = naming::classify(&kind, &first_item_owned);
     let naming_inputs = naming::NamingInputs {
         item: &first_item_owned,
@@ -185,8 +181,8 @@ fn build_api_client(
     slug: Option<&str>,
     user_agent: Option<&str>,
 ) -> anyhow::Result<api::ApiClient> {
-    let mut client = api::ApiClient::new()
-        .map_err(|e| anyhow!("api client init failed: {}", e.i18n_key()))?;
+    let mut client =
+        api::ApiClient::new().map_err(|e| anyhow!("api client init failed: {}", e.i18n_key()))?;
     if let Some(ua) = user_agent.filter(|s| !s.is_empty()) {
         client = client.with_user_agent(ua);
     }

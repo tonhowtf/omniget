@@ -31,7 +31,11 @@ impl DanmakuFormat {
     }
 }
 
-pub async fn fetch_elems(client: &ApiClient, cid: u64, duration_secs: u64) -> Result<Vec<DanmakuElem>> {
+pub async fn fetch_elems(
+    client: &ApiClient,
+    cid: u64,
+    duration_secs: u64,
+) -> Result<Vec<DanmakuElem>> {
     let segments = ((duration_secs + SEGMENT_DURATION_SECS - 1) / SEGMENT_DURATION_SECS).max(1);
     let mut all: Vec<DanmakuElem> = Vec::new();
     for i in 1..=segments {

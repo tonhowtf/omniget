@@ -24,10 +24,7 @@ pub async fn parse(
         .and_then(Value::as_str)
         .unwrap_or("Bilibili Video")
         .to_string();
-    let cover = data
-        .get("pic")
-        .and_then(Value::as_str)
-        .map(String::from);
+    let cover = data.get("pic").and_then(Value::as_str).map(String::from);
     let uploader = data
         .get("owner")
         .and_then(|o| o.get("name"))
@@ -42,10 +39,7 @@ pub async fn parse(
         .and_then(|o| o.get("face"))
         .and_then(Value::as_str)
         .map(String::from);
-    let description = data
-        .get("desc")
-        .and_then(Value::as_str)
-        .map(String::from);
+    let description = data.get("desc").and_then(Value::as_str).map(String::from);
     let pub_time = data.get("pubdate").and_then(Value::as_u64);
     let bvid_val = data
         .get("bvid")
@@ -84,10 +78,7 @@ pub async fn parse(
         let mut items: Vec<EpisodeItem> = Vec::new();
         if let Some(secs) = sections {
             for sec in secs {
-                let section_title = sec
-                    .get("title")
-                    .and_then(Value::as_str)
-                    .map(String::from);
+                let section_title = sec.get("title").and_then(Value::as_str).map(String::from);
                 if let Some(eps) = sec.get("episodes").and_then(Value::as_array) {
                     for (i, ep) in eps.iter().enumerate() {
                         let ep_bvid = ep
@@ -103,16 +94,12 @@ pub async fn parse(
                             .unwrap_or("")
                             .to_string();
                         let arc = ep.get("arc");
-                        let dur = arc
-                            .and_then(|a| a.get("duration"))
-                            .and_then(Value::as_f64);
+                        let dur = arc.and_then(|a| a.get("duration")).and_then(Value::as_f64);
                         let cover_ep = arc
                             .and_then(|a| a.get("pic"))
                             .and_then(Value::as_str)
                             .map(String::from);
-                        let pub_ep = arc
-                            .and_then(|a| a.get("pubdate"))
-                            .and_then(Value::as_u64);
+                        let pub_ep = arc.and_then(|a| a.get("pubdate")).and_then(Value::as_u64);
                         items.push(EpisodeItem {
                             episode_id: format!("ugc:{}", ep_bvid),
                             title: ep_title,
@@ -193,10 +180,12 @@ pub async fn parse(
         }
     }
 
-    let cid = data
-        .get("cid")
-        .and_then(Value::as_u64)
-        .or_else(|| pages.and_then(|p| p.first()).and_then(|p| p.get("cid")).and_then(Value::as_u64));
+    let cid = data.get("cid").and_then(Value::as_u64).or_else(|| {
+        pages
+            .and_then(|p| p.first())
+            .and_then(|p| p.get("cid"))
+            .and_then(Value::as_u64)
+    });
     let duration = data.get("duration").and_then(Value::as_f64);
     let item = EpisodeItem {
         episode_id: format!("video:{}", bvid_val),

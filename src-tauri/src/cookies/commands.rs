@@ -67,6 +67,11 @@ pub struct ClearRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct ClearBatchRequest {
+    pub items: Vec<ClearRequest>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct RenameRequest {
     pub domain: String,
     #[serde(default)]
@@ -77,6 +82,12 @@ pub struct RenameRequest {
 #[derive(Debug, Serialize)]
 pub struct OkResponse {
     pub ok: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ClearBatchResponse {
+    pub ok: bool,
+    pub cleared: usize,
 }
 
 const DEFAULT_SLUG: &str = "_default";
@@ -144,6 +155,17 @@ pub async fn cookies_clear(request: ClearRequest) -> Result<OkResponse, String> 
     let slug = request.slug.as_deref().unwrap_or(DEFAULT_SLUG);
     storage::move_to_trash(&request.domain, slug).map_err(|e| e.to_string())?;
     Ok(OkResponse { ok: true })
+}
+
+#[tauri::command]
+pub async fn cookies_clear_batch(request: ClearBatchRequest) -> Result<ClearBatchResponse, String> {
+    let mut cleared = 0usize;
+    for item in request.items {
+        let slug = item.slug.as_deref().unwrap_or(DEFAULT_SLUG);
+        storage::move_to_trash(&item.domain, slug).map_err(|e| e.to_string())?;
+        cleared += 1;
+    }
+    Ok(ClearBatchResponse { ok: true, cleared })
 }
 
 #[tauri::command]
@@ -298,8 +320,8 @@ pub async fn cookies_add_account(request: AddAccountRequest) -> Result<AddAccoun
     if request.alias.trim().is_empty() {
         return Err("Alias is required for a new account".to_string());
     }
-    let cookies = parsers::parse_for_domain(&request.content, &request.domain)
-        .map_err(|e| e.to_string())?;
+    let cookies =
+        parsers::parse_for_domain(&request.content, &request.domain).map_err(|e| e.to_string())?;
     if cookies.is_empty() {
         return Err("No cookies found in payload".to_string());
     }

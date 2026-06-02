@@ -5,20 +5,47 @@ use super::api::{ApiClient, BilibiliError, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UrlKind {
-    Video { bvid_or_av: String, page: Option<u32> },
-    BangumiEpisode { ep_id: u64 },
-    BangumiSeason { season_id: u64 },
-    BangumiMedia { media_id: u64 },
-    CheeseEpisode { ep_id: u64 },
-    CheeseSeason { season_id: u64 },
-    Space { mid: u64 },
-    Favlist { fid: u64 },
-    Collection { mid: u64, sid: u64 },
-    Series { mid: u64, sid: u64 },
-    PopularWeek { num: u32 },
+    Video {
+        bvid_or_av: String,
+        page: Option<u32>,
+    },
+    BangumiEpisode {
+        ep_id: u64,
+    },
+    BangumiSeason {
+        season_id: u64,
+    },
+    BangumiMedia {
+        media_id: u64,
+    },
+    CheeseEpisode {
+        ep_id: u64,
+    },
+    CheeseSeason {
+        season_id: u64,
+    },
+    Space {
+        mid: u64,
+    },
+    Favlist {
+        fid: u64,
+    },
+    Collection {
+        mid: u64,
+        sid: u64,
+    },
+    Series {
+        mid: u64,
+        sid: u64,
+    },
+    PopularWeek {
+        num: u32,
+    },
     WatchLater,
     History,
-    Festival { url: String },
+    Festival {
+        url: String,
+    },
 }
 
 impl UrlKind {
@@ -42,24 +69,19 @@ impl UrlKind {
     }
 }
 
-static RE_VIDEO_BV: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"bilibili\.com/video/(BV[a-zA-Z0-9]+|av\d+)").unwrap()
-});
+static RE_VIDEO_BV: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"bilibili\.com/video/(BV[a-zA-Z0-9]+|av\d+)").unwrap());
 static RE_BARE_BV: Lazy<Regex> = Lazy::new(|| Regex::new(r"(BV[a-zA-Z0-9]{8,})").unwrap());
 static RE_BARE_AV: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bav(\d+)\b").unwrap());
-static RE_BANGUMI: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"bilibili\.com/bangumi/(?:play|media)/(ss\d+|ep\d+|md\d+)").unwrap()
-});
+static RE_BANGUMI: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"bilibili\.com/bangumi/(?:play|media)/(ss\d+|ep\d+|md\d+)").unwrap());
 static RE_BARE_BANGUMI: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b(ss\d+|ep\d+|md\d+)\b").unwrap());
-static RE_CHEESE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"bilibili\.com/cheese/play/(ss\d+|ep\d+)").unwrap()
-});
-static RE_LIST_LISTS: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"space\.bilibili\.com/(\d+)/lists(?:/(\d+))?").unwrap()
-});
-static RE_FAVLIST_SPACE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"space\.bilibili\.com/\d+/favlist").unwrap()
-});
+static RE_CHEESE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"bilibili\.com/cheese/play/(ss\d+|ep\d+)").unwrap());
+static RE_LIST_LISTS: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"space\.bilibili\.com/(\d+)/lists(?:/(\d+))?").unwrap());
+static RE_FAVLIST_SPACE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"space\.bilibili\.com/\d+/favlist").unwrap());
 static RE_FAVLIST_LIST: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"bilibili\.com/(?:medialist/detail/)?ml(\d+)|bilibili\.com/list/ml(\d+)").unwrap()
 });
@@ -89,9 +111,15 @@ fn detect_internal(url: &str, query_override: Option<&str>) -> Result<UrlKind> {
 
     if RE_VIDEO_BV.is_match(url) {
         if let Some(cap) = RE_VIDEO_BV.captures(url) {
-            let id = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
+            let id = cap
+                .get(1)
+                .map(|m| m.as_str().to_string())
+                .unwrap_or_default();
             let page = extract_page_query(url, query_override);
-            return Ok(UrlKind::Video { bvid_or_av: id, page });
+            return Ok(UrlKind::Video {
+                bvid_or_av: id,
+                page,
+            });
         }
     }
 
@@ -191,7 +219,10 @@ fn detect_internal(url: &str, query_override: Option<&str>) -> Result<UrlKind> {
     }
 
     if let Some(cap) = RE_BARE_BV.captures(url) {
-        let id = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
+        let id = cap
+            .get(1)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_default();
         return Ok(UrlKind::Video {
             bvid_or_av: id,
             page: None,
@@ -298,9 +329,8 @@ pub fn parse_video_id(input: &str) -> (Option<String>, Option<u64>) {
 }
 
 pub fn extract_festival_bvid(html: &str) -> Option<String> {
-    static RE_STATE: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r"window\.__INITIAL_STATE__\s*=\s*(\{.*?\});").unwrap()
-    });
+    static RE_STATE: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"window\.__INITIAL_STATE__\s*=\s*(\{.*?\});").unwrap());
     let cap = RE_STATE.captures(html)?;
     let json_str = cap.get(1)?.as_str();
     let v: serde_json::Value = serde_json::from_str(json_str).ok()?;
@@ -413,10 +443,7 @@ mod tests {
     #[test]
     fn detects_series() {
         let url = "https://space.bilibili.com/123/lists/456?type=series";
-        assert_eq!(
-            detect(url).unwrap(),
-            UrlKind::Series { mid: 123, sid: 456 }
-        );
+        assert_eq!(detect(url).unwrap(), UrlKind::Series { mid: 123, sid: 456 });
     }
 
     #[test]

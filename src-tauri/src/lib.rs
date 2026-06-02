@@ -400,11 +400,9 @@ pub fn run() {
                 let plugins_dir = core::paths::app_data_dir()
                     .unwrap_or_else(|| std::path::PathBuf::from("."))
                     .join("plugins");
-                let host: std::sync::Arc<dyn omniget_plugin_sdk::PluginHost> =
-                    std::sync::Arc::new(plugin_host::PluginHostImpl::new(
-                    app.handle().clone(),
-                    plugins_dir,
-                ));
+                let host: std::sync::Arc<dyn omniget_plugin_sdk::PluginHost> = std::sync::Arc::new(
+                    plugin_host::PluginHostImpl::new(app.handle().clone(), plugins_dir),
+                );
                 let plugin_mgr = app
                     .handle()
                     .state::<std::sync::Arc<tokio::sync::RwLock<plugin_loader::PluginManager>>>();
@@ -500,6 +498,7 @@ pub fn run() {
             cookies::commands::cookies_read,
             cookies::commands::cookies_import,
             cookies::commands::cookies_clear,
+            cookies::commands::cookies_clear_batch,
             cookies::commands::cookies_rename,
             cookies::commands::cookies_accounts_for_url,
             cookies::commands::cookies_read_as_json,

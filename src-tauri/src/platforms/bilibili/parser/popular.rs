@@ -51,10 +51,7 @@ pub async fn parse(client: &ApiClient, num: u32) -> Result<ParsedContent> {
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
-        let cover = v
-            .get("pic")
-            .and_then(Value::as_str)
-            .map(String::from);
+        let cover = v.get("pic").and_then(Value::as_str).map(String::from);
         let duration = v.get("duration").and_then(Value::as_f64);
         let pub_time = v.get("pubdate").and_then(Value::as_u64);
         items.push(EpisodeItem {

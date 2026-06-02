@@ -1,16 +1,17 @@
 use std::io::Cursor;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use hmac::{Hmac, Mac};
 use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::Sha256;
-use hmac::{Hmac, Mac};
 
 use super::api::{check_api_response, ApiClient, Result};
 
 const FINGER_SPI_URL: &str = "https://api.bilibili.com/x/frontend/finger/spi";
-const GEN_TICKET_URL: &str = "https://api.bilibili.com/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket";
+const GEN_TICKET_URL: &str =
+    "https://api.bilibili.com/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket";
 const EXCLIMB_URL: &str = "https://api.bilibili.com/x/internal/gaia-gateway/ExClimbWuzhi";
 const ANONYMOUS_SLUG: &str = "_anonymous";
 const HMAC_KEY: &[u8] = b"XgwSnGZ1p";
@@ -42,7 +43,11 @@ impl AnonymousCookieState {
 
 pub fn meta_file_path() -> Option<std::path::PathBuf> {
     let root = crate::core::paths::app_data_dir()?;
-    Some(root.join("cookies").join("bilibili.com").join("_anonymous_meta.json"))
+    Some(
+        root.join("cookies")
+            .join("bilibili.com")
+            .join("_anonymous_meta.json"),
+    )
 }
 
 pub fn load_state() -> AnonymousCookieState {
@@ -64,9 +69,8 @@ pub fn save_state(state: &AnonymousCookieState) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let serialized = serde_json::to_string_pretty(state).map_err(|e| {
-        std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
-    })?;
+    let serialized = serde_json::to_string_pretty(state)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
     std::fs::write(path, serialized)
 }
 
@@ -184,10 +188,7 @@ pub fn build_cookie_header(state: &AnonymousCookieState) -> String {
     }
     if !state.bili_ticket.is_empty() {
         pairs.push(format!("bili_ticket={}", state.bili_ticket));
-        pairs.push(format!(
-            "bili_ticket_expires={}",
-            state.bili_ticket_expires
-        ));
+        pairs.push(format!("bili_ticket_expires={}", state.bili_ticket_expires));
     }
     pairs.push("CURRENT_FNVAL=4048".to_string());
     pairs.push("CURRENT_QUALITY=0".to_string());
@@ -224,10 +225,7 @@ fn write_netscape_for_anonymous(state: &AnonymousCookieState) -> std::io::Result
         ("buvid3", state.buvid3.clone()),
         ("buvid4", state.buvid4.clone()),
         ("bili_ticket", state.bili_ticket.clone()),
-        (
-            "bili_ticket_expires",
-            state.bili_ticket_expires.to_string(),
-        ),
+        ("bili_ticket_expires", state.bili_ticket_expires.to_string()),
         ("CURRENT_FNVAL", "4048".to_string()),
         ("CURRENT_QUALITY", "0".to_string()),
     ];

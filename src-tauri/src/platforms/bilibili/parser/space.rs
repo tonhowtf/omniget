@@ -66,10 +66,7 @@ pub async fn parse(client: &ApiClient, mid: u64, page: u32) -> Result<ParsedCont
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
-        let cover = v
-            .get("pic")
-            .and_then(Value::as_str)
-            .map(String::from);
+        let cover = v.get("pic").and_then(Value::as_str).map(String::from);
         let duration = v
             .get("length")
             .and_then(Value::as_str)

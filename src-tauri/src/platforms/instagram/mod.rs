@@ -1,6 +1,6 @@
-use omniget_core::models::progress::ProgressUpdate;
 use anyhow::anyhow;
 use async_trait::async_trait;
+use omniget_core::models::progress::ProgressUpdate;
 use rand::RngExt;
 use regex::Regex;
 use tokio::sync::mpsc;

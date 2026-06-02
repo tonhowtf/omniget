@@ -70,8 +70,12 @@ impl TwitterDownloader {
             let slug = omniget_core::core::log_hook::current_cookie_slug();
             let path = crate::cookies::account_path_for_consumer(domain, slug.as_deref())
                 .or_else(|| crate::cookies::account_path_for_consumer(domain, None));
-            let Some(path) = path else { continue; };
-            let Ok(content) = std::fs::read_to_string(path) else { continue; };
+            let Some(path) = path else {
+                continue;
+            };
+            let Ok(content) = std::fs::read_to_string(path) else {
+                continue;
+            };
             if let Some(header) = Self::cookie_header_from_netscape(&content) {
                 return Some(header);
             }

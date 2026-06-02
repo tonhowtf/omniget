@@ -225,11 +225,7 @@ pub fn audio_qn_label(qn: u32) -> &'static str {
     }
 }
 
-pub async fn fetch(
-    client: &ApiClient,
-    item: &EpisodeItem,
-    kind: &UrlKind,
-) -> Result<PreviewInfo> {
+pub async fn fetch(client: &ApiClient, item: &EpisodeItem, kind: &UrlKind) -> Result<PreviewInfo> {
     match kind {
         UrlKind::BangumiEpisode { .. }
         | UrlKind::BangumiSeason { .. }
@@ -295,7 +291,11 @@ fn build_preview(data: &Value) -> Result<PreviewInfo> {
     let accepted_qns: Vec<u32> = data
         .get("accept_quality")
         .and_then(Value::as_array)
-        .map(|arr| arr.iter().filter_map(|v| v.as_u64().map(|n| n as u32)).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_u64().map(|n| n as u32))
+                .collect()
+        })
         .unwrap_or_default();
     let accepted_qn_labels: Vec<String> = data
         .get("accept_description")
@@ -323,10 +323,7 @@ fn build_preview(data: &Value) -> Result<PreviewInfo> {
     }
 
     if let Some(durl) = data.get("durl").and_then(Value::as_array) {
-        let format = data
-            .get("format")
-            .and_then(Value::as_str)
-            .unwrap_or("mp4");
+        let format = data.get("format").and_then(Value::as_str).unwrap_or("mp4");
         let container = if format.starts_with("flv") {
             MediaContainer::Flv
         } else {
@@ -383,7 +380,10 @@ fn parse_dash_video(dash: &serde_json::Map<String, Value>) -> Vec<VideoStream> {
         let qn = entry.get("id").and_then(Value::as_u64).unwrap_or(0) as u32;
         let codec_id = entry.get("codecid").and_then(Value::as_u64).unwrap_or(0) as u32;
         let width = entry.get("width").and_then(Value::as_u64).map(|n| n as u32);
-        let height = entry.get("height").and_then(Value::as_u64).map(|n| n as u32);
+        let height = entry
+            .get("height")
+            .and_then(Value::as_u64)
+            .map(|n| n as u32);
         let frame_rate = entry
             .get("frame_rate")
             .or_else(|| entry.get("frameRate"))

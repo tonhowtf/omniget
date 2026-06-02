@@ -60,10 +60,7 @@ pub async fn parse(client: &ApiClient, fid: u64, page: u32) -> Result<ParsedCont
             .unwrap_or("")
             .to_string();
         let duration = m.get("duration").and_then(Value::as_f64);
-        let cover = m
-            .get("cover")
-            .and_then(Value::as_str)
-            .map(String::from);
+        let cover = m.get("cover").and_then(Value::as_str).map(String::from);
         let pub_time = m.get("pubtime").and_then(Value::as_u64);
         let fav_time = m.get("fav_time").and_then(Value::as_u64);
         let is_ogv = m.get("ogv").is_some() && !m.get("ogv").unwrap_or(&Value::Null).is_null();
@@ -86,7 +83,10 @@ pub async fn parse(client: &ApiClient, fid: u64, page: u32) -> Result<ParsedCont
             pub_time_secs: fav_time.or(pub_time),
             badge,
             url: Some(if is_ogv {
-                format!("https://www.bilibili.com/bangumi/play/ep{}", ep_id.unwrap_or(0))
+                format!(
+                    "https://www.bilibili.com/bangumi/play/ep{}",
+                    ep_id.unwrap_or(0)
+                )
             } else {
                 format!("https://www.bilibili.com/video/{}", bvid)
             }),

@@ -28,7 +28,10 @@ pub async fn fetch_account_info(client: &ApiClient) -> Result<AccountInfo> {
         Some(&raw)
     }
     .ok_or(BilibiliError::ContentUnavailable)?;
-    let is_login = data.get("isLogin").and_then(Value::as_bool).unwrap_or(false);
+    let is_login = data
+        .get("isLogin")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     if !is_login {
         return Err(BilibiliError::NotLoggedIn);
     }
@@ -38,14 +41,8 @@ pub async fn fetch_account_info(client: &ApiClient) -> Result<AccountInfo> {
         .unwrap_or("")
         .to_string();
     let mid = data.get("mid").and_then(Value::as_u64).unwrap_or(0);
-    let face = data
-        .get("face")
-        .and_then(Value::as_str)
-        .map(String::from);
-    let vip_status = data
-        .get("vipStatus")
-        .and_then(Value::as_u64)
-        .unwrap_or(0);
+    let face = data.get("face").and_then(Value::as_str).map(String::from);
+    let vip_status = data.get("vipStatus").and_then(Value::as_u64).unwrap_or(0);
     let vip_due_ms = data
         .get("vip_due_date")
         .or_else(|| data.get("vipDueDate"))
@@ -134,17 +131,15 @@ pub fn persist_account(
         existing.source_label = Some(source_label.to_string());
         existing.alias = alias;
     } else {
-        bucket
-            .accounts
-            .push(crate::cookies::storage::AccountEntry {
-                slug: slug.clone(),
-                alias,
-                source_url: Some("https://www.bilibili.com".to_string()),
-                source_label: Some(source_label.to_string()),
-                captured_at_ms: now_ms,
-                cookie_count: entries.len(),
-                last_used_at_ms: Some(now_ms),
-            });
+        bucket.accounts.push(crate::cookies::storage::AccountEntry {
+            slug: slug.clone(),
+            alias,
+            source_url: Some("https://www.bilibili.com".to_string()),
+            source_label: Some(source_label.to_string()),
+            captured_at_ms: now_ms,
+            cookie_count: entries.len(),
+            last_used_at_ms: Some(now_ms),
+        });
     }
 
     crate::cookies::storage::save_registry(&registry).map_err(|e| e.to_string())?;

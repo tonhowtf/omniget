@@ -172,10 +172,7 @@ impl ApiClient {
                     last_err = Some(BilibiliError::Network(e));
                 }
             }
-            tokio::time::sleep(Duration::from_millis(
-                RETRY_BACKOFF_MS * 2u64.pow(attempt),
-            ))
-            .await;
+            tokio::time::sleep(Duration::from_millis(RETRY_BACKOFF_MS * 2u64.pow(attempt))).await;
         }
         Err(last_err.unwrap_or(BilibiliError::ContentUnavailable))
     }

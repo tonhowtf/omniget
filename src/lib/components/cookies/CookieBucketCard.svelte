@@ -31,6 +31,8 @@
     onClear: (domain: string, slug: string) => void;
     onAddAccount?: (domain: string) => void;
     onTest?: (domain: string, slug: string) => void;
+    selected?: Record<string, boolean>;
+    onToggleSelection?: (domain: string, slug: string, checked: boolean) => void;
   };
 
   let {
@@ -43,6 +45,8 @@
     onClear,
     onAddAccount,
     onTest,
+    selected = {},
+    onToggleSelection,
   }: Props = $props();
 
   let primaryAccount = $derived(bucket.accounts.find((a) => a.slug === "_default") ?? bucket.accounts[0]);
@@ -171,6 +175,10 @@
       console.warn("[cookies] failed to open source url", e);
     }
   }
+
+  function keyFor(slug: string): string {
+    return `${bucket.domain}__${slug}`;
+  }
 </script>
 
 <article class="bucket-card" data-status={status}>
@@ -242,6 +250,15 @@
 
     {#if primaryAccount}
       <div class="actions">
+        {#if onToggleSelection}
+          <label class="select-account">
+            <input
+              type="checkbox"
+              checked={!!selected[keyFor(primaryAccount.slug)]}
+              onchange={(e) => onToggleSelection?.(bucket.domain, primaryAccount.slug, e.currentTarget.checked)}
+            />
+          </label>
+        {/if}
         <button type="button" class="ghost-btn" onclick={() => onView(bucket.domain, primaryAccount.slug)}>
           {$t("settings.cookies.action_view")}
         </button>
@@ -272,7 +289,16 @@
     {#if extraAccounts.length > 0}
       <ul class="extra-accounts">
         {#each extraAccounts as account (account.slug)}
-          <li class="extra-account">
+          <li class="extra-account" class:selectable={!!onToggleSelection}>
+            {#if onToggleSelection}
+              <label class="select-extra">
+                <input
+                  type="checkbox"
+                  checked={!!selected[keyFor(account.slug)]}
+                  onchange={(e) => onToggleSelection?.(bucket.domain, account.slug, e.currentTarget.checked)}
+                />
+              </label>
+            {/if}
             <span class="extra-alias">{account.alias}</span>
             <span class="extra-count">{$t("settings.cookies.count_cookies", { count: String(account.cookie_count) })}</span>
             <div class="extra-actions">
@@ -433,6 +459,20 @@
     gap: 6px;
     margin-top: 8px;
     flex-wrap: wrap;
+    align-items: center;
+  }
+  .select-account,
+  .select-extra {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .select-account input,
+  .select-extra input {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--accent);
+    cursor: pointer;
   }
   .ghost-btn {
     padding: 5px 12px;
@@ -480,6 +520,9 @@
     align-items: center;
     padding: 4px 0;
     font-size: 12px;
+  }
+  .extra-account.selectable {
+    grid-template-columns: auto 1fr auto auto;
   }
   .extra-alias {
     color: var(--secondary);

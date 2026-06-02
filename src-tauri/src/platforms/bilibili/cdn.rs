@@ -23,7 +23,10 @@ pub fn filter_blocked(urls: &[String]) -> Vec<String> {
 }
 
 pub fn host_is_blocked(url: &str) -> bool {
-    let host = match url::Url::parse(url).ok().and_then(|u| u.host_str().map(String::from)) {
+    let host = match url::Url::parse(url)
+        .ok()
+        .and_then(|u| u.host_str().map(String::from))
+    {
         Some(h) => h.to_lowercase(),
         None => return false,
     };
@@ -36,7 +39,10 @@ pub fn replace_host(url: &str, new_host: &str) -> Option<String> {
     let parsed = url::Url::parse(url).ok()?;
     let scheme = parsed.scheme();
     let path = parsed.path();
-    let query = parsed.query().map(|q| format!("?{}", q)).unwrap_or_default();
+    let query = parsed
+        .query()
+        .map(|q| format!("?{}", q))
+        .unwrap_or_default();
     Some(format!("{}://{}{}{}", scheme, new_host, path, query))
 }
 

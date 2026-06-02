@@ -25,10 +25,7 @@ fn build_parsed_content(data: &Value) -> Result<ParsedContent> {
         .and_then(Value::as_str)
         .unwrap_or("Bilibili Course")
         .to_string();
-    let cover = data
-        .get("cover")
-        .and_then(Value::as_str)
-        .map(String::from);
+    let cover = data.get("cover").and_then(Value::as_str).map(String::from);
     let description = data
         .get("subtitle")
         .and_then(Value::as_str)
@@ -54,10 +51,7 @@ fn build_parsed_content(data: &Value) -> Result<ParsedContent> {
     let mut first_release: Option<u64> = None;
     if let Some(secs) = data.get("sections").and_then(Value::as_array) {
         for sec in secs {
-            let section_title = sec
-                .get("title")
-                .and_then(Value::as_str)
-                .map(String::from);
+            let section_title = sec.get("title").and_then(Value::as_str).map(String::from);
             if let Some(eps) = sec.get("episodes").and_then(Value::as_array) {
                 for ep in eps {
                     let aid = ep.get("aid").and_then(Value::as_u64);
@@ -72,10 +66,7 @@ fn build_parsed_content(data: &Value) -> Result<ParsedContent> {
                         .unwrap_or("")
                         .to_string();
                     let dur = ep.get("duration").and_then(Value::as_f64);
-                    let cover_ep = ep
-                        .get("cover")
-                        .and_then(Value::as_str)
-                        .map(String::from);
+                    let cover_ep = ep.get("cover").and_then(Value::as_str).map(String::from);
                     let release = ep.get("release_date").and_then(Value::as_u64);
                     if first_release.is_none() && release.is_some() {
                         first_release = release;
@@ -100,9 +91,8 @@ fn build_parsed_content(data: &Value) -> Result<ParsedContent> {
                         episode_number: Some(counter),
                         section_title: section_title.clone(),
                         badge,
-                        url: ep_id.map(|id| {
-                            format!("https://www.bilibili.com/cheese/play/ep{}", id)
-                        }),
+                        url: ep_id
+                            .map(|id| format!("https://www.bilibili.com/cheese/play/ep{}", id)),
                         ..EpisodeItem::default()
                     });
                 }

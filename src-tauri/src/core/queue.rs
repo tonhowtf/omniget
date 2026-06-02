@@ -538,7 +538,9 @@ impl DownloadQueue {
     pub fn pause(&mut self, id: u64) -> bool {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
             if item.status == QueueStatus::Active {
-                if item.platform != "magnet" && !omniget_core::core::ytdlp::pause_download_process(id) {
+                if item.platform != "magnet"
+                    && !omniget_core::core::ytdlp::pause_download_process(id)
+                {
                     return false;
                 }
                 item.status = QueueStatus::Paused;
@@ -553,7 +555,9 @@ impl DownloadQueue {
     pub fn resume(&mut self, id: u64) -> bool {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
             if item.status == QueueStatus::Paused {
-                if item.platform != "magnet" && !omniget_core::core::ytdlp::resume_download_process(id) {
+                if item.platform != "magnet"
+                    && !omniget_core::core::ytdlp::resume_download_process(id)
+                {
                     return false;
                 }
                 item.status = QueueStatus::Active;
@@ -567,7 +571,9 @@ impl DownloadQueue {
         let mut paused = Vec::new();
         for item in self.items.iter_mut() {
             if item.status == QueueStatus::Active {
-                if item.platform != "magnet" && !omniget_core::core::ytdlp::pause_download_process(item.id) {
+                if item.platform != "magnet"
+                    && !omniget_core::core::ytdlp::pause_download_process(item.id)
+                {
                     continue;
                 }
                 item.status = QueueStatus::Paused;
@@ -584,7 +590,9 @@ impl DownloadQueue {
         for item in self.items.iter_mut() {
             if item.status == QueueStatus::Paused {
                 let tid = item.torrent_id;
-                if item.platform != "magnet" && !omniget_core::core::ytdlp::resume_download_process(item.id) {
+                if item.platform != "magnet"
+                    && !omniget_core::core::ytdlp::resume_download_process(item.id)
+                {
                     continue;
                 }
                 item.status = QueueStatus::Active;
@@ -1341,9 +1349,8 @@ async fn spawn_download_inner(
                 .or_else(|| {
                     if current_speed > 0.0 {
                         resolved_total.and_then(|total| {
-                            (total > downloaded_bytes).then(|| {
-                                ((total - downloaded_bytes) as f64 / current_speed) as u64
-                            })
+                            (total > downloaded_bytes)
+                                .then(|| ((total - downloaded_bytes) as f64 / current_speed) as u64)
                         })
                     } else {
                         None

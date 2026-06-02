@@ -28,9 +28,7 @@ pub fn classify(kind: &UrlKind) -> Option<NfoKind> {
 pub fn season_uses_tvshow(kind: &UrlKind) -> bool {
     matches!(
         kind,
-        UrlKind::BangumiSeason { .. }
-            | UrlKind::BangumiMedia { .. }
-            | UrlKind::CheeseSeason { .. }
+        UrlKind::BangumiSeason { .. } | UrlKind::BangumiMedia { .. } | UrlKind::CheeseSeason { .. }
     )
 }
 
@@ -75,7 +73,11 @@ fn render_movie(item: &EpisodeItem, metadata: &ContentMetadata, tags: &[String])
         write_tag(&mut buf, "plot", plot);
     }
     if let Some(d) = item.duration_seconds {
-        write_tag(&mut buf, "runtime", &format!("{}", (d / 60.0).round() as i64));
+        write_tag(
+            &mut buf,
+            "runtime",
+            &format!("{}", (d / 60.0).round() as i64),
+        );
     }
     if let Some((year, ymd)) = parse_date(item.pub_time_secs.or(metadata.premiered_secs)) {
         write_tag(&mut buf, "premiered", &ymd);
@@ -90,7 +92,10 @@ fn render_movie(item: &EpisodeItem, metadata: &ContentMetadata, tags: &[String])
         write_tag(&mut buf, "genre", tag);
     }
     if let Some(b) = item.bvid.as_deref() {
-        buf.push_str(&format!("  <uniqueid type=\"bilibili\">{}</uniqueid>\n", escape(b)));
+        buf.push_str(&format!(
+            "  <uniqueid type=\"bilibili\">{}</uniqueid>\n",
+            escape(b)
+        ));
     }
     buf.push_str("</movie>\n");
     buf
@@ -119,7 +124,11 @@ fn render_tvshow(metadata: &ContentMetadata) -> String {
         write_tag(&mut buf, "director", uname);
     }
     if let Some(actors) = metadata.actors.as_deref() {
-        for actor in actors.split(['\n', ',', '/', '、']).map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        for actor in actors
+            .split(['\n', ',', '/', '、'])
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+        {
             buf.push_str("  <actor>\n");
             write_tag_indented(&mut buf, "    ", "name", actor);
             buf.push_str("  </actor>\n");
@@ -135,10 +144,16 @@ fn render_tvshow(metadata: &ContentMetadata) -> String {
         write_tag(&mut buf, "country", area);
     }
     if let Some(sid) = metadata.season_id {
-        buf.push_str(&format!("  <uniqueid type=\"bilibili-ss\">{}</uniqueid>\n", sid));
+        buf.push_str(&format!(
+            "  <uniqueid type=\"bilibili-ss\">{}</uniqueid>\n",
+            sid
+        ));
     }
     if let Some(mid) = metadata.media_id {
-        buf.push_str(&format!("  <uniqueid type=\"bilibili-md\">{}</uniqueid>\n", mid));
+        buf.push_str(&format!(
+            "  <uniqueid type=\"bilibili-md\">{}</uniqueid>\n",
+            mid
+        ));
     }
     buf.push_str("</tvshow>\n");
     buf
@@ -153,7 +168,11 @@ fn render_episode(item: &EpisodeItem, metadata: &ContentMetadata) -> String {
         write_tag(&mut buf, "plot", plot);
     }
     if let Some(d) = item.duration_seconds {
-        write_tag(&mut buf, "runtime", &format!("{}", (d / 60.0).round() as i64));
+        write_tag(
+            &mut buf,
+            "runtime",
+            &format!("{}", (d / 60.0).round() as i64),
+        );
     }
     if let Some((year, ymd)) = parse_date(item.pub_time_secs.or(metadata.premiered_secs)) {
         write_tag(&mut buf, "premiered", &ymd);
@@ -176,7 +195,10 @@ fn render_episode(item: &EpisodeItem, metadata: &ContentMetadata) -> String {
         write_tag(&mut buf, "country", area);
     }
     if let Some(ep_id) = item.ep_id {
-        buf.push_str(&format!("  <uniqueid type=\"bilibili-ep\">{}</uniqueid>\n", ep_id));
+        buf.push_str(&format!(
+            "  <uniqueid type=\"bilibili-ep\">{}</uniqueid>\n",
+            ep_id
+        ));
     }
     buf.push_str("</episodedetails>\n");
     buf
@@ -187,7 +209,13 @@ fn write_tag(buf: &mut String, name: &str, value: &str) {
 }
 
 fn write_tag_indented(buf: &mut String, indent: &str, name: &str, value: &str) {
-    buf.push_str(&format!("{}<{}>{}</{}>\n", indent, name, escape(value), name));
+    buf.push_str(&format!(
+        "{}<{}>{}</{}>\n",
+        indent,
+        name,
+        escape(value),
+        name
+    ));
 }
 
 fn escape(s: &str) -> String {

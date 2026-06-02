@@ -15,9 +15,7 @@ pub fn is_playlist_or_series(url: &str) -> bool {
         if path.starts_with("/bangumi/") || path.starts_with("/cheese/") {
             return true;
         }
-        if path.contains("/channel/")
-            || path.contains("/favlist/")
-            || path.contains("/medialist/")
+        if path.contains("/channel/") || path.contains("/favlist/") || path.contains("/medialist/")
         {
             return true;
         }

@@ -103,7 +103,10 @@ pub fn parse_cookie_header(content: &str, domain: &str) -> anyhow::Result<Vec<Ex
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
         + 60 * 60 * 24 * 3;
-    let body = content.trim().strip_prefix("Cookie:").unwrap_or(content.trim());
+    let body = content
+        .trim()
+        .strip_prefix("Cookie:")
+        .unwrap_or(content.trim());
     let mut cookies = Vec::new();
     for part in body.split(';') {
         let p = part.trim();

@@ -147,10 +147,7 @@ fn build_parsed_content(result: &Value, highlight_ep: Option<u64>) -> Result<Par
     }
     if let Some(secs) = result.get("section").and_then(Value::as_array) {
         for sec in secs {
-            let section_title = sec
-                .get("title")
-                .and_then(Value::as_str)
-                .map(String::from);
+            let section_title = sec.get("title").and_then(Value::as_str).map(String::from);
             let is_preview = section_title
                 .as_deref()
                 .map(|t| t.contains("预告") || t.contains("PV"))
@@ -187,7 +184,10 @@ fn build_episode_item(
     let bvid = ep.get("bvid").and_then(Value::as_str)?;
     let cid = ep.get("cid").and_then(Value::as_u64);
     let aid = ep.get("aid").and_then(Value::as_u64);
-    let ep_id = ep.get("id").and_then(Value::as_u64).or_else(|| ep.get("ep_id").and_then(Value::as_u64));
+    let ep_id = ep
+        .get("id")
+        .and_then(Value::as_u64)
+        .or_else(|| ep.get("ep_id").and_then(Value::as_u64));
     let title = ep
         .get("long_title")
         .and_then(Value::as_str)
@@ -198,14 +198,10 @@ fn build_episode_item(
         .to_string();
     let duration_ms = ep.get("duration").and_then(Value::as_f64);
     let duration_seconds = duration_ms.map(|ms| ms / 1000.0);
-    let cover = ep
-        .get("cover")
-        .and_then(Value::as_str)
-        .map(String::from);
+    let cover = ep.get("cover").and_then(Value::as_str).map(String::from);
     let pub_time = ep.get("pub_time").and_then(Value::as_u64);
     let badge_raw = ep.get("badge").and_then(Value::as_str).unwrap_or("");
-    let is_preview =
-        is_preview_section || badge_raw.contains("预告") || badge_raw.contains("PV");
+    let is_preview = is_preview_section || badge_raw.contains("预告") || badge_raw.contains("PV");
     let badge = if is_preview {
         Some("badge.bilibili.preview".to_string())
     } else if badge_raw.contains("充电") {

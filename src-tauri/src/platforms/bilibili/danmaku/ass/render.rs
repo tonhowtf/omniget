@@ -105,7 +105,9 @@ pub fn render_ass(elems: &[DanmakuElem], opts: &AssRenderOptions) -> String {
     ));
 
     out.push_str("[Events]\n");
-    out.push_str("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n");
+    out.push_str(
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n",
+    );
     for ev in events {
         out.push_str(&ev);
         out.push('\n');

@@ -221,7 +221,6 @@ impl YouTubeDownloader {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::YouTubeDownloader;

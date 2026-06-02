@@ -62,13 +62,9 @@ pub async fn run_single(
         alt_hosts: opts.cdn_alt_hosts.clone(),
         prefer_alternatives: opts.cdn_prefer_alternatives,
     };
-    let video_url = query::resolve_best_url_with_cdn(
-        client,
-        &video.base_url,
-        &video.backup_urls,
-        &cdn_prefs,
-    )
-    .await?;
+    let video_url =
+        query::resolve_best_url_with_cdn(client, &video.base_url, &video.backup_urls, &cdn_prefs)
+            .await?;
     let audio_resolved = if let Some(a) = audio {
         Some(
             query::resolve_best_url_with_cdn(client, &a.base_url, &a.backup_urls, &cdn_prefs)
@@ -81,15 +77,9 @@ pub async fn run_single(
     std::fs::create_dir_all(&opts.output_dir).ok();
     let temp_stem = sanitize_for_temp(&opts.filename);
 
-    let temp_video = opts
-        .output_dir
-        .join(format!(".{}.video.tmp", temp_stem));
-    let temp_audio = opts
-        .output_dir
-        .join(format!(".{}.audio.tmp", temp_stem));
-    let temp_cover = opts
-        .output_dir
-        .join(format!(".{}.cover.tmp", temp_stem));
+    let temp_video = opts.output_dir.join(format!(".{}.video.tmp", temp_stem));
+    let temp_audio = opts.output_dir.join(format!(".{}.audio.tmp", temp_stem));
+    let temp_cover = opts.output_dir.join(format!(".{}.cover.tmp", temp_stem));
 
     let (ua, cookie_header) = (
         client.user_agent().to_string(),
@@ -190,10 +180,7 @@ pub async fn run_single(
         .await
         .map_err(|_| BilibiliError::ContentUnavailable)??;
     let audio_result = match audio_handle {
-        Some(h) => Some(
-            h.await
-                .map_err(|_| BilibiliError::ContentUnavailable)??,
-        ),
+        Some(h) => Some(h.await.map_err(|_| BilibiliError::ContentUnavailable)??),
         None => None,
     };
 
@@ -214,9 +201,9 @@ pub async fn run_single(
 
     let _ = progress.send(ProgressUpdate::percent(95.0)).await;
 
-    let final_path = opts
-        .output_dir
-        .join(format!("{}.{}", opts.filename, opts.container.extension()));
+    let final_path =
+        opts.output_dir
+            .join(format!("{}.{}", opts.filename, opts.container.extension()));
     if let Some(parent) = final_path.parent() {
         std::fs::create_dir_all(parent).ok();
     }
@@ -231,8 +218,7 @@ pub async fn run_single(
         })
         .await?;
     } else {
-        std::fs::rename(&temp_video, &final_path)
-            .map_err(|_| BilibiliError::ContentUnavailable)?;
+        std::fs::rename(&temp_video, &final_path).map_err(|_| BilibiliError::ContentUnavailable)?;
     }
 
     if !opts.keep_streams {
@@ -251,7 +237,11 @@ pub async fn run_single(
     if opts.danmaku_enabled {
         let cid = item.cid;
         let duration = item.duration_seconds.unwrap_or(0.0).max(0.0) as u64;
-        if let (Some(cid_v), format) = (cid, opts.danmaku_format.unwrap_or(super::danmaku::DanmakuFormat::Xml)) {
+        if let (Some(cid_v), format) = (
+            cid,
+            opts.danmaku_format
+                .unwrap_or(super::danmaku::DanmakuFormat::Xml),
+        ) {
             if duration > 0 {
                 match super::danmaku::fetch_elems(client, cid_v, duration).await {
                     Ok(elems) => {
@@ -381,16 +371,12 @@ async fn run_progressive(
         alt_hosts: opts.cdn_alt_hosts.clone(),
         prefer_alternatives: opts.cdn_prefer_alternatives,
     };
-    let resolved = query::resolve_best_url_with_cdn(
-        client,
-        &stream.base_url,
-        &stream.backup_urls,
-        &cdn_prefs,
-    )
-    .await?;
-    let final_path = opts
-        .output_dir
-        .join(format!("{}.{}", opts.filename, opts.container.extension()));
+    let resolved =
+        query::resolve_best_url_with_cdn(client, &stream.base_url, &stream.backup_urls, &cdn_prefs)
+            .await?;
+    let final_path =
+        opts.output_dir
+            .join(format!("{}.{}", opts.filename, opts.container.extension()));
     let referer = item
         .url
         .clone()

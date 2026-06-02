@@ -115,7 +115,11 @@ pub async fn verify(client: &ApiClient, input: SmsVerifyInput) -> Result<SmsVeri
 
 fn extract_cookies(data: &Value) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
-    if let Some(arr) = data.get("cookie_info").and_then(|v| v.get("cookies")).and_then(Value::as_array) {
+    if let Some(arr) = data
+        .get("cookie_info")
+        .and_then(|v| v.get("cookies"))
+        .and_then(Value::as_array)
+    {
         for c in arr {
             if let (Some(name), Some(value)) = (
                 c.get("name").and_then(Value::as_str),

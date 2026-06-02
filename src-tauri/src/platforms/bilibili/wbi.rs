@@ -70,7 +70,9 @@ async fn fetch_keys(client: &ApiClient) -> Result<WbiKeys> {
     let raw = client.get_json(NAV_URL).await?;
     let data = match check_api_response(&raw) {
         Ok(d) => d,
-        Err(BilibiliError::NotLoggedIn) => raw.get("data").ok_or(BilibiliError::ContentUnavailable)?,
+        Err(BilibiliError::NotLoggedIn) => {
+            raw.get("data").ok_or(BilibiliError::ContentUnavailable)?
+        }
         Err(e) => return Err(e),
     };
     let wbi_img = data
@@ -116,10 +118,7 @@ pub fn sign(params: &[(&str, String)], keys: &WbiKeys) -> String {
     format!("{}&w_rid={}", query, w_rid)
 }
 
-pub async fn signed_query(
-    client: &ApiClient,
-    params: &[(&str, String)],
-) -> Result<String> {
+pub async fn signed_query(client: &ApiClient, params: &[(&str, String)]) -> Result<String> {
     let k = keys(client).await?;
     Ok(sign(params, &k))
 }
@@ -174,7 +173,8 @@ mod tests {
             sub_key: "4932caff0ff746eab6f01bf08b70ac45".to_string(),
             fetched_at_secs: 0,
         };
-        let params: Vec<(&str, String)> = vec![("foo", "114".to_string()), ("bar", "514".to_string())];
+        let params: Vec<(&str, String)> =
+            vec![("foo", "114".to_string()), ("bar", "514".to_string())];
         let query = sign(&params, &k);
         assert!(query.contains("w_rid="));
         assert!(query.contains("wts="));

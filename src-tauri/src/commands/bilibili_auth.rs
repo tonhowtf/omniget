@@ -84,9 +84,7 @@ pub async fn bilibili_webview_login(
 }
 
 #[tauri::command]
-pub async fn bilibili_qr_generate(
-    user_agent: Option<String>,
-) -> Result<qr::QrSession, String> {
+pub async fn bilibili_qr_generate(user_agent: Option<String>) -> Result<qr::QrSession, String> {
     let _ = crate::platforms::bilibili::cookie::ensure_fresh().await;
     let client = build_anonymous_client(user_agent)?;
     qr::generate(&client)
@@ -321,7 +319,9 @@ pub async fn bilibili_import_history(slug: String) -> Result<BilibiliImportResul
 }
 
 #[tauri::command]
-pub async fn bilibili_account_status(slug: Option<String>) -> Result<BilibiliAccountStatus, String> {
+pub async fn bilibili_account_status(
+    slug: Option<String>,
+) -> Result<BilibiliAccountStatus, String> {
     let client = match slug.as_deref() {
         Some(s) if !s.is_empty() => ApiClient::new()
             .map_err(|e| e.i18n_key().to_string())?

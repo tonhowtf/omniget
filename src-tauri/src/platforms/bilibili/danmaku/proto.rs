@@ -24,8 +24,7 @@ pub fn decode_segment(bytes: &[u8]) -> Result<Vec<DanmakuElem>> {
         let field = (key >> 3) as u32;
         let wire = (key & 0x07) as u8;
         if field == 1 && wire == 2 {
-            let (len, l_len) =
-                read_varint(bytes, idx).ok_or(BilibiliError::ContentUnavailable)?;
+            let (len, l_len) = read_varint(bytes, idx).ok_or(BilibiliError::ContentUnavailable)?;
             idx += l_len;
             let end = idx
                 .checked_add(len as usize)
@@ -78,14 +77,14 @@ fn decode_elem(bytes: &[u8]) -> Result<DanmakuElem> {
                 elem.color = v as u32;
             }
             (6, 2) => {
-                let (v, vl) = read_length_delimited(bytes, idx)
-                    .ok_or(BilibiliError::ContentUnavailable)?;
+                let (v, vl) =
+                    read_length_delimited(bytes, idx).ok_or(BilibiliError::ContentUnavailable)?;
                 idx += vl;
                 elem.mid_hash = String::from_utf8(v.to_vec()).unwrap_or_default();
             }
             (7, 2) => {
-                let (v, vl) = read_length_delimited(bytes, idx)
-                    .ok_or(BilibiliError::ContentUnavailable)?;
+                let (v, vl) =
+                    read_length_delimited(bytes, idx).ok_or(BilibiliError::ContentUnavailable)?;
                 idx += vl;
                 elem.content = String::from_utf8(v.to_vec()).unwrap_or_default();
             }

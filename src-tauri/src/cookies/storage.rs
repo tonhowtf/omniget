@@ -602,5 +602,4 @@ mod tests {
             Some("https://youtube.com/".to_string())
         );
     }
-
 }
