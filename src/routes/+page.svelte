@@ -24,6 +24,7 @@
   import { onClipboardUrl } from "$lib/stores/clipboard-monitor";
   import { getMediaPreview, clearMediaPreview } from "$lib/stores/media-preview-store.svelte";
   import { clearPendingExternalPrefill, getPendingExternalPrefill, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
+  import { getOmniboxDraftUrl, setOmniboxDraftUrl } from "$lib/stores/omnibox-draft-store.svelte";
   import { t } from "$lib/i18n";
   import { translateBackendError } from "$lib/error-translate";
   import { platformDisplayName } from "$lib/platform-display-names";
@@ -79,7 +80,7 @@
     | { kind: "search-empty" }
     | { kind: "error"; message: string; originalUrl: string; platform: string };
 
-  let url = $state("");
+  let url = $state(getOmniboxDraftUrl());
   let omniState = $state<OmniState>({ kind: "idle" });
   let debounceTimer = $state<ReturnType<typeof setTimeout> | null>(null);
   let downloadMode = $state<"auto" | "audio" | "mute">("auto");
@@ -141,9 +142,16 @@
       handleInput();
       showToast("info", $t(autoDownload ? "toast.auto_download_started" : "toast.clipboard_url_detected"));
     });
+    if (url.trim()) {
+      queueMicrotask(() => handleInput());
+    }
     return () => {
       onClipboardUrl(null);
     };
+  });
+
+  $effect(() => {
+    setOmniboxDraftUrl(url);
   });
 
   const AUTO_DOWNLOAD_DELAY_MS = 2000;

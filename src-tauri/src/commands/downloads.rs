@@ -878,6 +878,10 @@ pub async fn download_from_url(
 
     {
         let settings = config::load_settings(&app);
+        crate::core::http_client::init_proxy(settings.proxy.clone());
+        crate::core::http_fetcher::set_global_max_concurrent_segments(
+            settings.advanced.max_concurrent_segments as usize,
+        );
         let mut q = download_queue.lock().await;
         q.max_concurrent = settings.advanced.max_concurrent_downloads.max(1);
         q.stagger_delay_ms = settings.advanced.stagger_delay_ms;
@@ -1471,26 +1475,11 @@ pub async fn clear_finished_downloads(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let (state_to_emit, finished_ids) = {
+    let state_to_emit = {
         let mut q = state.download_queue.lock().await;
-        let ids = q
-            .items
-            .iter()
-            .filter(|i| {
-                matches!(
-                    i.status,
-                    crate::core::queue::QueueStatus::Complete { .. }
-                        | crate::core::queue::QueueStatus::Error { .. }
-                )
-            })
-            .map(|i| i.id)
-            .collect::<Vec<_>>();
         q.clear_finished();
-        (q.get_state(), ids)
+        q.get_state()
     };
-    for id in finished_ids {
-        crate::core::download_log::clear(id);
-    }
     emit_queue_state_from_state(&app, state_to_emit);
     Ok("Finished downloads cleared".to_string())
 }

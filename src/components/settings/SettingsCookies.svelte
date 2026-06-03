@@ -544,7 +544,7 @@
           {$t("common.clear")}
         </button>
         <button type="button" class="danger-btn" onclick={askBulkClear} disabled={selectedCount === 0}>
-          {$t("settings.cookies.action_clear")}
+          delete
         </button>
       </div>
     </div>
@@ -693,7 +693,7 @@
           {$t("settings.cookies.confirm_clear_cancel")}
         </button>
         <button type="button" class="danger-btn" onclick={confirmBulkClear}>
-          {$t("settings.cookies.confirm_clear_action")}
+          delete
         </button>
       </div>
     </div>

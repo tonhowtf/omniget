@@ -179,9 +179,54 @@
   function keyFor(slug: string): string {
     return `${bucket.domain}__${slug}`;
   }
+
+  function isInteractiveTarget(target: EventTarget | null): boolean {
+    return target instanceof HTMLElement
+      && !!target.closest("button,input,label,a,textarea,select");
+  }
+
+  function toggleAccountSelection(slug: string) {
+    if (!onToggleSelection) return;
+    onToggleSelection(bucket.domain, slug, !selected[keyFor(slug)]);
+  }
+
+  function handleCardClick(event: MouseEvent) {
+    if (!primaryAccount || isInteractiveTarget(event.target)) return;
+    toggleAccountSelection(primaryAccount.slug);
+  }
+
+  function handleCardKeydown(event: KeyboardEvent) {
+    if (!primaryAccount || isInteractiveTarget(event.target)) return;
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    toggleAccountSelection(primaryAccount.slug);
+  }
+
+  function handleExtraAccountClick(event: MouseEvent, slug: string) {
+    event.stopPropagation();
+    if (isInteractiveTarget(event.target)) return;
+    toggleAccountSelection(slug);
+  }
+
+  function handleExtraAccountKeydown(event: KeyboardEvent, slug: string) {
+    if (isInteractiveTarget(event.target)) return;
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    event.stopPropagation();
+    toggleAccountSelection(slug);
+  }
 </script>
 
-<article class="bucket-card" data-status={status}>
+<article
+  class="bucket-card"
+  class:selectable={!!onToggleSelection && !!primaryAccount}
+  class:selected={!!primaryAccount && !!selected[keyFor(primaryAccount.slug)]}
+  data-status={status}
+  role={onToggleSelection && primaryAccount ? "button" : undefined}
+  tabindex={onToggleSelection && primaryAccount ? 0 : undefined}
+  onclick={handleCardClick}
+  onkeydown={handleCardKeydown}
+>
   <PlatformLogo kind={bucket.platform_kind as never} domain={bucket.domain} size={56} />
 
   <div class="meta">
@@ -289,7 +334,15 @@
     {#if extraAccounts.length > 0}
       <ul class="extra-accounts">
         {#each extraAccounts as account (account.slug)}
-          <li class="extra-account" class:selectable={!!onToggleSelection}>
+          <li
+            class="extra-account"
+            class:selectable={!!onToggleSelection}
+            class:selected={!!selected[keyFor(account.slug)]}
+            role={onToggleSelection ? "button" : undefined}
+            tabindex={onToggleSelection ? 0 : undefined}
+            onclick={(e) => handleExtraAccountClick(e, account.slug)}
+            onkeydown={(e) => handleExtraAccountKeydown(e, account.slug)}
+          >
             {#if onToggleSelection}
               <label class="select-extra">
                 <input
@@ -339,8 +392,19 @@
     border-radius: 14px;
     transition: border-color 120ms;
   }
+  .bucket-card.selectable {
+    cursor: pointer;
+  }
   .bucket-card:hover {
     border-color: color-mix(in oklab, var(--content-border) 70%, transparent);
+  }
+  .bucket-card.selected {
+    border-color: color-mix(in oklab, var(--accent) 70%, transparent);
+    background: color-mix(in oklab, var(--accent) 8%, var(--button) 22%);
+  }
+  .bucket-card:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--accent) 70%, transparent);
+    outline-offset: 2px;
   }
   .meta {
     min-width: 0;
@@ -520,9 +584,20 @@
     align-items: center;
     padding: 4px 0;
     font-size: 12px;
+    border-radius: 6px;
   }
   .extra-account.selectable {
     grid-template-columns: auto 1fr auto auto;
+    cursor: pointer;
+    padding: 5px 6px;
+  }
+  .extra-account.selectable:hover,
+  .extra-account.selected {
+    background: color-mix(in oklab, var(--accent) 8%, transparent);
+  }
+  .extra-account:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--accent) 60%, transparent);
+    outline-offset: 1px;
   }
   .extra-alias {
     color: var(--secondary);

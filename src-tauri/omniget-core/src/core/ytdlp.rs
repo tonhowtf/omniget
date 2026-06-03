@@ -504,6 +504,31 @@ fn proxy_args() -> Vec<String> {
     }
 }
 
+fn redacted_proxy_url(url: &str) -> String {
+    if let Some(at) = url.find('@') {
+        if let Some(scheme_end) = url.find("://") {
+            return format!("{}***{}", &url[..scheme_end + 3], &url[at..]);
+        }
+    }
+    url.to_string()
+}
+
+fn proxy_log_label(proxy_url: Option<&str>) -> String {
+    match proxy_url {
+        Some(url) => format!("proxy={}", redacted_proxy_url(url)),
+        None => {
+            let proxy = crate::core::http_client::get_proxy_snapshot();
+            if proxy.enabled && proxy.host.trim().is_empty() {
+                "proxy=disabled (enabled but host is empty)".to_string()
+            } else if proxy.enabled {
+                "proxy=disabled (invalid proxy settings)".to_string()
+            } else {
+                "proxy=disabled".to_string()
+            }
+        }
+    }
+}
+
 fn has_explicit_cookie_header(args: &[String]) -> bool {
     args.windows(2).any(|pair| {
         pair[0] == "--add-headers" && pair[1].to_ascii_lowercase().starts_with("cookie:")
@@ -625,6 +650,9 @@ fn yt_rate_limiter() -> &'static YtRateLimiter {
 }
 
 const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+pub const VIDEO_INFO_PROCESS_TIMEOUT_SECS: u64 = 90;
+pub const YOUTUBE_VIDEO_INFO_TOTAL_TIMEOUT_SECS: u64 = 190;
+pub const DEFAULT_VIDEO_INFO_TOTAL_TIMEOUT_SECS: u64 = 110;
 
 pub async fn find_ytdlp() -> Option<PathBuf> {
     let _timer_start = std::time::Instant::now();
@@ -1270,7 +1298,20 @@ pub async fn get_video_info(
 
         append_metadata_cookie_args(&mut args, url, extra_flags, "video info");
 
-        args.extend(proxy_args());
+        let proxy = crate::core::http_client::proxy_url();
+        if attempt == 0 {
+            if let Some(dl_id) = log_hook::current_download_id() {
+                let line = format!(
+                    "[network] yt-dlp metadata {}",
+                    proxy_log_label(proxy.as_deref())
+                );
+                log_hook::emit_log(dl_id, &line);
+            }
+        }
+        if let Some(url) = proxy {
+            args.push("--proxy".to_string());
+            args.push(url);
+        }
         args.extend(extra_flags.iter().cloned());
         args.push(url.to_string());
 
@@ -1287,11 +1328,17 @@ pub async fn get_video_info(
         );
 
         let result =
-            tokio::time::timeout(std::time::Duration::from_secs(60), child.wait_with_output())
+            tokio::time::timeout(
+                std::time::Duration::from_secs(VIDEO_INFO_PROCESS_TIMEOUT_SECS),
+                child.wait_with_output(),
+            )
                 .await
                 .map_err(|_| {
                     tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-                    anyhow!("Timeout fetching video info (60s)")
+                    anyhow!(
+                        "Timeout fetching video info ({}s)",
+                        VIDEO_INFO_PROCESS_TIMEOUT_SECS
+                    )
                 })?
                 .map_err(|e| {
                     tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());

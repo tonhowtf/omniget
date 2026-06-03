@@ -1063,6 +1063,11 @@ async fn spawn_download_inner(
         )
     };
 
+    {
+        let settings = crate::storage::config::load_settings(&app);
+        crate::core::http_client::init_proxy(settings.proxy);
+    }
+
     let info_start = std::time::Instant::now();
     let info = match media_info {
         Some(i) if !i.available_qualities.is_empty() => {
@@ -1071,6 +1076,14 @@ async fn spawn_download_inner(
                 item_id,
                 info_start.elapsed()
             );
+            append_download_log(
+                &app,
+                item_id,
+                format!(
+                    "[omniget] using cached video info: platform={} title=\"{}\"",
+                    platform_name, i.title
+                ),
+            );
             i
         }
         _ => {
@@ -1078,6 +1091,21 @@ async fn spawn_download_inner(
                 "[perf] spawn_download_inner {}: media_info is None, fetching info",
                 item_id
             );
+            append_download_log(
+                &app,
+                item_id,
+                format!(
+                    "[omniget] fetching video info: platform={} url={}",
+                    platform_name, url
+                ),
+            );
+            if let Some(slug) = cookie_slug.as_deref() {
+                append_download_log(
+                    &app,
+                    item_id,
+                    format!("[cookies] selected managed cookie account: {}", slug),
+                );
+            }
             let _ = app.emit(
                 "queue-item-progress",
                 &QueueItemProgress {
@@ -1093,15 +1121,53 @@ async fn spawn_download_inner(
                 },
             );
 
+            let info_future = fetch_and_cache_info(
+                &url,
+                &*downloader,
+                &platform_name,
+                ytdlp_path.as_deref(),
+            );
+            let scoped_info_future = omniget_core::core::log_hook::CURRENT_COOKIE_SLUG.scope(
+                cookie_slug.clone(),
+                omniget_core::core::log_hook::CURRENT_DOWNLOAD_ID.scope(item_id, info_future),
+            );
+            let info_timeout_secs = if platform_name == "youtube"
+                || url.to_ascii_lowercase().contains("youtube.com")
+                || url.to_ascii_lowercase().contains("youtu.be")
+            {
+                omniget_core::core::ytdlp::YOUTUBE_VIDEO_INFO_TOTAL_TIMEOUT_SECS
+            } else {
+                omniget_core::core::ytdlp::DEFAULT_VIDEO_INFO_TOTAL_TIMEOUT_SECS
+            };
             let info_result = tokio::time::timeout(
-                std::time::Duration::from_secs(60),
-                fetch_and_cache_info(&url, &*downloader, &platform_name, ytdlp_path.as_deref()),
+                std::time::Duration::from_secs(info_timeout_secs),
+                scoped_info_future,
             )
             .await;
 
             match info_result {
-                Ok(Ok(i)) => i,
+                Ok(Ok(i)) => {
+                    append_download_log(
+                        &app,
+                        item_id,
+                        format!(
+                            "[omniget] video info fetched in {:.1}s: title=\"{}\"",
+                            info_start.elapsed().as_secs_f64(),
+                            i.title
+                        ),
+                    );
+                    i
+                }
                 Ok(Err(e)) => {
+                    append_download_log(
+                        &app,
+                        item_id,
+                        format!(
+                            "[omniget] failed fetching video info after {:.1}s: {}",
+                            info_start.elapsed().as_secs_f64(),
+                            e
+                        ),
+                    );
                     let state = {
                         let mut q = queue.lock().await;
                         q.mark_complete(item_id, false, Some(e.to_string()), None, None);
@@ -1112,7 +1178,19 @@ async fn spawn_download_inner(
                     return;
                 }
                 Err(_) => {
-                    tracing::warn!("[queue] info fetch timed out for {} after 60s", item_id);
+                    tracing::warn!(
+                        "[queue] info fetch timed out for {} after {}s",
+                        item_id,
+                        info_timeout_secs
+                    );
+                    append_download_log(
+                        &app,
+                        item_id,
+                        format!(
+                            "[omniget] video info timed out after {}s",
+                            info_timeout_secs
+                        ),
+                    );
                     let state = {
                         let mut q = queue.lock().await;
                         q.mark_complete(
