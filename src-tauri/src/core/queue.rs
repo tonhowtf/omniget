@@ -1065,7 +1065,20 @@ async fn spawn_download_inner(
 
     {
         let settings = crate::storage::config::load_settings(&app);
-        crate::core::http_client::init_proxy(settings.proxy);
+        let proxy = settings.proxy.clone();
+        crate::core::http_client::init_proxy(proxy.clone());
+        let proxy_status = if !proxy.enabled {
+            "disabled; direct connection enforced".to_string()
+        } else if proxy.host.trim().is_empty() {
+            "enabled but host is empty; direct connection enforced".to_string()
+        } else {
+            format!("enabled; {}://{}:{}", proxy.proxy_type, proxy.host, proxy.port)
+        };
+        append_download_log(
+            &app,
+            item_id,
+            format!("[network] proxy setting: {}", proxy_status),
+        );
     }
 
     let info_start = std::time::Instant::now();
@@ -1136,6 +1149,8 @@ async fn spawn_download_inner(
                 || url.to_ascii_lowercase().contains("youtu.be")
             {
                 omniget_core::core::ytdlp::YOUTUBE_VIDEO_INFO_TOTAL_TIMEOUT_SECS
+            } else if platform_name == "douyin" {
+                30
             } else {
                 omniget_core::core::ytdlp::DEFAULT_VIDEO_INFO_TOTAL_TIMEOUT_SECS
             };
@@ -1780,8 +1795,13 @@ pub async fn prefetch_info_with_emit(
 ) {
     let _timer_start = std::time::Instant::now();
     tracing::debug!("[perf] prefetch_info: started");
-    match fetch_and_cache_info(url, downloader, platform, ytdlp_path).await {
-        Ok(info) => {
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(15),
+        fetch_and_cache_info(url, downloader, platform, ytdlp_path),
+    )
+    .await;
+    match result {
+        Ok(Ok(info)) => {
             tracing::debug!(
                 "[perf] prefetch_info: completed in {:?} — {}",
                 _timer_start.elapsed(),
@@ -1798,10 +1818,14 @@ pub async fn prefetch_info_with_emit(
                 let _ = app.emit("media-info-preview", preview);
             }
         }
-        Err(e) => tracing::warn!(
+        Ok(Err(e)) => tracing::warn!(
             "[perf] prefetch_info: failed in {:?} — {}",
             _timer_start.elapsed(),
             e
+        ),
+        Err(_) => tracing::warn!(
+            "[perf] prefetch_info: timed out after {:?}",
+            _timer_start.elapsed()
         ),
     }
 }

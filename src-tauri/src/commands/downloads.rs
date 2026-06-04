@@ -114,6 +114,9 @@ pub async fn prefetch_media_info(
     state: tauri::State<'_, AppState>,
     url: String,
 ) -> Result<(), String> {
+    let settings = config::load_settings(&app);
+    crate::core::http_client::init_proxy(settings.proxy);
+
     let platform = Platform::from_url(&url);
     let platform_name = platform
         .map(|p| p.to_string())
