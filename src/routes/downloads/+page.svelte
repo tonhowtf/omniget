@@ -48,12 +48,33 @@
     }
   });
 
+  const VIDEO_EXTENSIONS = new Set([
+    "mp4", "mkv", "webm", "mov", "avi", "ts", "m4v", "flv", "wmv", "mpg", "mpeg", "3gp", "ogv", "m2ts", "mts",
+  ]);
+
+  function fileExtension(path: string): string | null {
+    const name = path.replace(/\\/g, "/").split("/").pop() ?? "";
+    const dot = name.lastIndexOf(".");
+    if (dot <= 0 || dot === name.length - 1) return null;
+    return name.slice(dot + 1).toLowerCase();
+  }
+
+  function isVideoItem(item: GenericDownloadItem): boolean {
+    if (item.filePath && (item.fileCount ?? 1) <= 1) {
+      const ext = fileExtension(item.filePath);
+      if (ext) return VIDEO_EXTENSIONS.has(ext);
+    }
+    if (item.downloadMode === "video") return true;
+    return item.queueKind === "video";
+  }
+
   function qualityChip(item: GenericDownloadItem): string | null {
     if (item.downloadMode === "audio") return $t('omnibox.quality_audio') as string;
     if (!item.quality) return null;
     const q = item.quality.toLowerCase();
-    if (q === "best" || q === "highest") return $t('omnibox.quality_best_short') as string;
     if (q === "audio") return $t('omnibox.quality_audio') as string;
+    if (!isVideoItem(item)) return null;
+    if (q === "best" || q === "highest") return $t('omnibox.quality_best_short') as string;
     return item.quality;
   }
 

@@ -21,6 +21,7 @@ export const PLATFORM_DISPLAY_NAMES: Record<string, string> = {
   udemy: "Udemy",
   magnet: "BitTorrent",
   p2p: "P2P",
+  direct_file: "Direct file",
 };
 
 export function platformDisplayName(s: string): string {

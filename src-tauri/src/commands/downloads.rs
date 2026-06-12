@@ -62,11 +62,19 @@ pub async fn detect_platform(url: String) -> Result<PlatformInfo, String> {
     match Platform::from_url(&url) {
         Some(platform) => {
             let parsed = url_parser::parse_url(&url);
+            let platform_name = platform.to_string();
+            let content_type = if platform_name == "direct_file" {
+                Some("file".to_string())
+            } else {
+                parsed
+                    .as_ref()
+                    .map(|p| format!("{:?}", p.content_type).to_lowercase())
+            };
             let result = Ok(PlatformInfo {
-                platform: platform.to_string(),
+                platform: platform_name,
                 supported: true,
                 content_id: parsed.as_ref().and_then(|p| p.content_id.clone()),
-                content_type: parsed.map(|p| format!("{:?}", p.content_type).to_lowercase()),
+                content_type,
             });
             tracing::debug!("[perf] detect_platform took {:?}", _timer_start.elapsed());
             result

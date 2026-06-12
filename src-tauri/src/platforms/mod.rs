@@ -2,6 +2,7 @@ pub use omniget_core::platforms::traits;
 pub use omniget_core::platforms::Platform;
 
 pub mod bluesky;
+pub mod direct_file;
 pub mod noop;
 pub mod pinterest;
 pub mod tiktok;

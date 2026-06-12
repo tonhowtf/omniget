@@ -1552,6 +1552,33 @@ async fn spawn_download_inner(
                     dl.file_size_bytes
                 ),
             );
+            let is_seeding = platform_name == "magnet" && dl.torrent_id.is_some();
+            if !is_seeding {
+                if let Err(msg) = validate_download_output(&dl.file_path).await {
+                    tracing::error!(
+                        "[queue] download {} reported success but output is missing or empty: {:?}",
+                        item_id,
+                        dl.file_path
+                    );
+                    append_download_log(
+                        &app,
+                        item_id,
+                        format!(
+                            "[omniget] download reported success but output missing or empty: {}",
+                            dl.file_path.to_string_lossy()
+                        ),
+                    );
+                    let state = {
+                        let mut q = queue.lock().await;
+                        q.mark_complete(item_id, false, Some(msg), None, None);
+                        q.get_state()
+                    };
+                    emit_queue_state_from_state(&app, state);
+                    try_start_next(app, queue).await;
+                    return;
+                }
+            }
+
             if settings.download.embed_metadata
                 && platform_name != "magnet"
                 && ffmpeg::is_ffmpeg_available().await
@@ -1700,6 +1727,33 @@ async fn spawn_download_inner(
 
 fn is_retryable_category(category: &str) -> bool {
     matches!(category, "unknown" | "rate_limited")
+}
+
+const OUTPUT_MISSING_ERROR: &str =
+    "Download reported success but the file is missing or empty. Check disk space and antivirus exclusions, then retry.";
+
+async fn validate_download_output(path: &std::path::Path) -> Result<(), String> {
+    if path.as_os_str().is_empty() {
+        return Err(OUTPUT_MISSING_ERROR.to_string());
+    }
+    let meta = match tokio::fs::metadata(path).await {
+        Ok(m) => m,
+        Err(_) => return Err(OUTPUT_MISSING_ERROR.to_string()),
+    };
+    if meta.is_dir() {
+        let mut entries = match tokio::fs::read_dir(path).await {
+            Ok(e) => e,
+            Err(_) => return Err(OUTPUT_MISSING_ERROR.to_string()),
+        };
+        match entries.next_entry().await {
+            Ok(Some(_)) => Ok(()),
+            _ => Err(OUTPUT_MISSING_ERROR.to_string()),
+        }
+    } else if meta.len() > 0 {
+        Ok(())
+    } else {
+        Err(OUTPUT_MISSING_ERROR.to_string())
+    }
 }
 
 async fn fetch_and_cache_info(

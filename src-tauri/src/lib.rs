@@ -60,6 +60,7 @@ pub fn run() {
     )));
     registry.register(Arc::new(platforms::p2p::P2pDownloader::new()));
     registry.register(Arc::new(platforms::gallerydl::GalleryDlDownloader::new()));
+    registry.register(Arc::new(platforms::direct_file::DirectFileDownloader::new()));
     registry.register(Arc::new(
         platforms::generic_ytdlp::GenericYtdlpDownloader::new(),
     ));
@@ -186,14 +187,21 @@ pub fn run() {
                     .include_auto_subtitles
             });
             core::ytdlp::set_caption_locale_fn(|| {
-                storage::config::load_settings_standalone()
-                    .download
-                    .caption_locale
+                let s = storage::config::load_settings_standalone();
+                let locale = s.download.caption_locale.trim().to_string();
+                if locale.is_empty() || locale.eq_ignore_ascii_case("auto") {
+                    let lang = s.appearance.language.trim().to_string();
+                    if lang.is_empty() {
+                        "en".to_string()
+                    } else {
+                        lang
+                    }
+                } else {
+                    locale
+                }
             });
             core::ytdlp::set_keep_vtt_fn(|| {
-                storage::config::load_settings_standalone()
-                    .download
-                    .keep_vtt
+                storage::config::load_settings_standalone().download.keep_vtt
             });
             core::ytdlp::set_translate_metadata_fn(|| {
                 let s = storage::config::load_settings_standalone();

@@ -393,7 +393,7 @@ impl YouTubeDownloader {
         let mut total_bytes = 0u64;
         let mut last_path = playlist_dir.clone();
         let mut success_count = 0usize;
-        let mut last_error: Option<String> = None;
+        let mut last_err: Option<anyhow::Error> = None;
 
         for (i, entry) in info.available_qualities.iter().enumerate() {
             if opts.cancel_token.is_cancelled() {
@@ -447,22 +447,24 @@ impl YouTubeDownloader {
                     last_path = result.file_path;
                 }
                 Err(e) => {
-                    last_error = Some(e.to_string());
                     tracing::warn!("Playlist video {} falhou: {}", i + 1, e);
+                    last_err = Some(e);
                 }
             }
 
             let _ = forwarder.await;
         }
 
-        let _ = progress.send(ProgressUpdate::percent(100.0)).await;
-
         if success_count == 0 {
-            anyhow::bail!(
-                "Playlist download failed: {}",
-                last_error.unwrap_or_else(|| "no entries were downloaded".to_string())
-            );
+            return Err(last_err
+                .unwrap_or_else(|| anyhow!("Playlist download finished without any files")));
         }
+
+        if success_count > 1 {
+            last_path = playlist_dir.clone();
+        }
+
+        let _ = progress.send(ProgressUpdate::percent(100.0)).await;
 
         Ok(DownloadResult {
             file_path: last_path,

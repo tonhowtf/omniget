@@ -26,6 +26,7 @@ pub enum MediaType {
     Carousel,
     Playlist,
     Course,
+    File,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

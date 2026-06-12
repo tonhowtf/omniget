@@ -4,6 +4,30 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
+const DIRECT_FILE_EXTENSIONS: &[&str] = &[
+    "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz", "zst", "exe", "msi", "dmg", "pkg", "deb",
+    "rpm", "appimage", "apk", "iso", "pdf", "epub", "mobi", "doc", "docx", "xls", "xlsx", "ppt",
+    "pptx", "odt", "ods", "odp", "rtf", "txt", "csv", "jpg", "jpeg", "png", "gif", "webp", "bmp",
+    "tiff", "svg", "heic", "avif",
+];
+
+pub fn is_direct_file_url(url_str: &str) -> bool {
+    let Ok(parsed) = url::Url::parse(url_str) else {
+        return false;
+    };
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        return false;
+    }
+    let path = parsed.path().to_lowercase();
+    let Some(last) = path.rsplit('/').next() else {
+        return false;
+    };
+    let Some((name, ext)) = last.rsplit_once('.') else {
+        return false;
+    };
+    !name.is_empty() && DIRECT_FILE_EXTENSIONS.contains(&ext)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Platform {
@@ -133,7 +157,7 @@ impl Platform {
             Some(Platform::Other("thinkific".to_string()))
         } else if matches("rocketseat.com.br") {
             Some(Platform::Other("rocketseat".to_string()))
-        } else if matches("douyin.com") || matches("iesdouyin.com") {
+        } else if matches("douyin.com") || matches("iesdouyin.com") || matches("amemv.com") {
             Some(Platform::Other("douyin".to_string()))
         } else if matches("kuaishou.com") {
             Some(Platform::Other("kuaishou".to_string()))
@@ -147,6 +171,8 @@ impl Platform {
             Some(Platform::Other("mgtv".to_string()))
         } else if matches("youku.com") {
             Some(Platform::Other("youku".to_string()))
+        } else if is_direct_file_url(url_str) {
+            Some(Platform::Other("direct_file".to_string()))
         } else {
             None
         }

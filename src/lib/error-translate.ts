@@ -37,6 +37,8 @@ const BACKEND_ERROR_MAP: Record<string, string> = {
     "errors.console_encoding",
   "yt-dlp extractor is broken for this site. Update yt-dlp in Settings → Dependencies, then retry.":
     "errors.extractor_broken",
+  "Download reported success but the file is missing or empty. Check disk space and antivirus exclusions, then retry.":
+    "errors.output_missing",
 };
 
 /**

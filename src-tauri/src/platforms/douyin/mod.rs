@@ -44,7 +44,8 @@ impl DouyinDownloader {
             || host.ends_with(".douyin.com")
             || host == "iesdouyin.com"
             || host.ends_with(".iesdouyin.com")
-            || host == "webcast.amemv.com"
+            || host == "amemv.com"
+            || host.ends_with(".amemv.com")
     }
 
     fn is_short_link(url: &str) -> bool {
@@ -52,16 +53,53 @@ impl DouyinDownloader {
             if let Some(host) = parsed.host_str() {
                 let host = host.to_lowercase();
                 return host == "v.douyin.com"
-                    || host == "webcast.amemv.com"
-                    || (host == "iesdouyin.com" || host.ends_with(".iesdouyin.com"));
+                    || host == "amemv.com"
+                    || host.ends_with(".amemv.com")
+                    || host == "iesdouyin.com"
+                    || host.ends_with(".iesdouyin.com");
             }
         }
         false
     }
 
+    fn canonicalize(url: &str) -> String {
+        let Ok(parsed) = url::Url::parse(url) else {
+            return url.to_string();
+        };
+        let host = parsed.host_str().unwrap_or("").to_lowercase();
+        if !Self::host_matches(&host) {
+            return url.to_string();
+        }
+
+        let segments: Vec<&str> = parsed.path().split('/').filter(|s| !s.is_empty()).collect();
+        let target = match segments.as_slice() {
+            ["share", kind @ ("video" | "note" | "slides"), id, ..] => Some((*kind, *id)),
+            [kind @ ("video" | "note"), id, ..] => Some((*kind, *id)),
+            _ => None,
+        };
+        if let Some((kind, id)) = target {
+            if !id.is_empty() && id.chars().all(|c| c.is_ascii_digit()) {
+                let kind = if kind == "slides" { "note" } else { kind };
+                return format!("https://www.douyin.com/{}/{}", kind, id);
+            }
+        }
+
+        if let Some(id) = parsed
+            .query_pairs()
+            .find(|(k, _)| k == "modal_id")
+            .map(|(_, v)| v.to_string())
+        {
+            if !id.is_empty() && id.chars().all(|c| c.is_ascii_digit()) {
+                return format!("https://www.douyin.com/video/{}", id);
+            }
+        }
+
+        url.to_string()
+    }
+
     async fn resolve_url(url: &str) -> String {
         if !Self::is_short_link(url) {
-            return url.to_string();
+            return Self::canonicalize(url);
         }
         let builder = reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
@@ -69,13 +107,13 @@ impl DouyinDownloader {
             .user_agent(DOUYIN_UA);
         let client = match http_client::apply_global_proxy(builder).build() {
             Ok(c) => c,
-            Err(_) => return url.to_string(),
+            Err(_) => return Self::canonicalize(url),
         };
         match client.get(url).send().await {
-            Ok(resp) => resp.url().to_string(),
+            Ok(resp) => Self::canonicalize(resp.url().as_str()),
             Err(e) => {
                 tracing::warn!("[douyin] short-link resolve failed: {}", e);
-                url.to_string()
+                Self::canonicalize(url)
             }
         }
     }
@@ -225,6 +263,7 @@ impl PlatformDownloader for DouyinDownloader {
         if canonical.is_empty() {
             return Err(anyhow!("No URL available"));
         }
+        let canonical = Self::resolve_url(canonical).await;
 
         let quality_height = opts
             .quality
@@ -235,7 +274,7 @@ impl PlatformDownloader for DouyinDownloader {
 
         ytdlp::download_video(
             &ytdlp_path,
-            canonical,
+            &canonical,
             &opts.output_dir,
             quality_height,
             progress,

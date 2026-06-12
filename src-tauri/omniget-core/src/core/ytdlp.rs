@@ -861,6 +861,17 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
     Ok(path)
 }
 
+pub async fn update_ytdlp() -> anyhow::Result<PathBuf> {
+    if crate::core::dependencies::is_flatpak() {
+        return Err(anyhow!(
+            "yt-dlp is provided by the Flatpak runtime and cannot be updated from inside the app"
+        ));
+    }
+    let path = download_ytdlp_binary().await?;
+    reset_ytdlp_cache();
+    Ok(path)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum YtdlpChannel {
     Stable,
@@ -976,10 +987,19 @@ async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
         _ => tracing::warn!("[ytdlp] could not fetch SHA2-256SUMS — skipping verification"),
     }
 
-    let target_clone = target.clone();
-    tokio::task::spawn_blocking(move || std::fs::write(&target_clone, &bytes))
+    let temp = target.with_file_name(format!(
+        "{}.new",
+        target
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("yt-dlp")
+    ));
+    let temp_clone = temp.clone();
+    tokio::task::spawn_blocking(move || std::fs::write(&temp_clone, &bytes))
         .await
         .map_err(|e| anyhow!("spawn_blocking failed: {}", e))??;
+
+    crate::core::dependencies::replace_managed_binary(&temp, &target)?;
 
     #[cfg(unix)]
     {
@@ -2573,6 +2593,10 @@ pub async fn download_video(
                 }
             }
 
+            if use_subtitles && keep_vtt_setting() {
+                convert_vtt_sidecars_to_srt(&file_path).await;
+            }
+
             let meta = std::fs::metadata(&file_path)?;
             tracing::debug!("[perf] download_video took {:?}", _timer_start.elapsed());
             return Ok(DownloadResult {
@@ -2776,6 +2800,52 @@ pub async fn download_video(
 
     tracing::debug!("[perf] download_video took {:?}", _timer_start.elapsed());
     Err(translate_ytdlp_error(&last_error))
+}
+
+async fn convert_vtt_sidecars_to_srt(video_path: &Path) {
+    let dir = match video_path.parent() {
+        Some(d) => d.to_path_buf(),
+        None => return,
+    };
+    let stem = match video_path.file_stem().and_then(|s| s.to_str()) {
+        Some(s) => s.to_string(),
+        None => return,
+    };
+    let ffmpeg = match crate::core::dependencies::find_tool("ffmpeg").await {
+        Some(p) => p,
+        None => return,
+    };
+    let entries = match std::fs::read_dir(&dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.starts_with(&stem) || !name.to_lowercase().ends_with(".vtt") {
+            continue;
+        }
+        let vtt_path = entry.path();
+        let srt_path = vtt_path.with_extension("srt");
+        if srt_path.exists() {
+            continue;
+        }
+        let result = crate::core::process::command(&ffmpeg)
+            .arg("-y")
+            .arg("-i")
+            .arg(&vtt_path)
+            .arg(&srt_path)
+            .output()
+            .await;
+        match result {
+            Ok(out) if out.status.success() => {
+                tracing::info!("[yt-dlp] converted subtitle sidecar {} to srt (vtt kept)", name);
+            }
+            _ => {
+                tracing::warn!("[yt-dlp] failed to convert subtitle sidecar {} to srt", name);
+                let _ = std::fs::remove_file(&srt_path);
+            }
+        }
+    }
 }
 
 async fn cleanup_part_files(dir: &Path) {

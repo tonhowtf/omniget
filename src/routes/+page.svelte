@@ -1059,12 +1059,13 @@
         {@const playlistBlocked = omniState.info.content_type === "playlist" && playlistEntries.length > 0 && selectedPlaylistItems.size === 0}
         {@const torrentBlocked = torrentEntries.length > 0 && selectedTorrentFiles.size === 0}
         {#if omniState.info.platform === "bilibili"}
-          <BilibiliPreviewExtras {url} accountSlug={selectedCookieSlug} />
+          <BilibiliPreviewExtras {url} accountSlug={selectedCookieSlug && selectedCookieSlug !== "_anonymous" ? selectedCookieSlug : null} />
         {/if}
         <button class="download-primary-btn" disabled={playlistBlocked || torrentBlocked} onclick={handleAction}>
           {$t('omnibox.download')}
         </button>
 
+        {#if omniState.info.platform !== "direct_file"}
         <details class="options-panel">
           <summary class="options-toggle">{$t('omnibox.options')}</summary>
           <div class="options-content">
@@ -1164,6 +1165,7 @@
             </details>
           </div>
         </details>
+        {/if}
       {/if}
 
     {:else if omniState.kind === "batch"}
