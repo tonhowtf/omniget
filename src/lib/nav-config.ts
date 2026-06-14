@@ -4,7 +4,7 @@ export interface NavItem {
   label?: string;
   icon: string;
   iconSvg?: string;
-  group: "primary" | "secondary";
+  group: "primary" | "app" | "plugins" | "secondary";
   badge?: "downloads";
   pluginId?: string;
   order?: number;
@@ -13,7 +13,7 @@ export interface NavItem {
 export const CORE_NAV_ITEMS: NavItem[] = [
   { href: "/", labelKey: "nav.home", icon: "home", group: "primary", order: 10 },
   { href: "/downloads", labelKey: "nav.downloads", icon: "downloads", group: "primary", badge: "downloads", order: 20 },
-  { href: "/marketplace", labelKey: "nav.marketplace", icon: "marketplace", group: "primary", order: 30 },
-  { href: "/settings", labelKey: "nav.settings", icon: "settings", group: "primary", order: 40 },
-  { href: "/about", labelKey: "nav.about", icon: "about", group: "secondary", order: 999 },
+  { href: "/marketplace", labelKey: "nav.marketplace", icon: "marketplace", group: "app", order: 30 },
+  { href: "/settings", labelKey: "nav.settings", icon: "settings", group: "app", order: 40 },
+  { href: "/about", labelKey: "nav.about", icon: "about", group: "app", order: 50 },
 ];
