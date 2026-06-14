@@ -73,51 +73,46 @@
 </script>
 
 {#if settings}
-  <section class="section">
-    <h5 class="section-title">{$t("settings.rpc.title")}</h5>
-    <p class="setting-path" style="margin: 0 0 8px 4px">{$t("settings.rpc.desc")}</p>
-    <div class="card">
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t("settings.rpc.enable")}</span>
-          <span class="setting-path">{$t("settings.rpc.privacy_note")}</span>
-        </div>
-        <button
-          class="toggle"
-          class:on={settings.rpc.enabled}
-          onclick={toggleEnabled}
-          disabled={busy}
-          role="switch"
-          aria-checked={settings.rpc.enabled}
-          aria-label={$t("settings.rpc.enable") as string}
-        ><span class="toggle-knob"></span></button>
+  <div class="card">
+    <div class="setting-row">
+      <div class="setting-col">
+        <span class="setting-label">{$t("settings.rpc.enable")}</span>
+        <span class="setting-path">{$t("settings.rpc.privacy_note")}</span>
       </div>
-      <div class="divider"></div>
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t("settings.rpc.test")}</span>
-          <span class="setting-path">{$t("settings.rpc.test_desc")}</span>
-        </div>
-        <div class="rpc-test-row">
-          <button
-            class="button"
-            onclick={testConnection}
-            disabled={busy || !settings.rpc.enabled}
-            type="button"
-          >{$t("settings.rpc.test_button")}</button>
-          {#if testResult === "ok"}
-            <span class="badge ok">✓</span>
-          {:else if testResult === "fail"}
-            <span class="badge fail">✗</span>
-          {/if}
-        </div>
+      <button
+        class="toggle"
+        class:on={settings.rpc.enabled}
+        onclick={toggleEnabled}
+        disabled={busy}
+        role="switch"
+        aria-checked={settings.rpc.enabled}
+        aria-label={$t("settings.rpc.enable") as string}
+      ><span class="toggle-knob"></span></button>
+    </div>
+    <div class="divider"></div>
+    <div class="setting-row">
+      <div class="setting-col">
+        <span class="setting-label">{$t("settings.rpc.test")}</span>
+        <span class="setting-path">{$t("settings.rpc.test_desc")}</span>
+      </div>
+      <div class="rpc-test-row">
+        <button
+          class="button"
+          onclick={testConnection}
+          disabled={busy || !settings.rpc.enabled}
+          type="button"
+        >{$t("settings.rpc.test_button")}</button>
+        {#if testResult === "ok"}
+          <span class="badge ok">✓</span>
+        {:else if testResult === "fail"}
+          <span class="badge fail">✗</span>
+        {/if}
       </div>
     </div>
-  </section>
+  </div>
 
-  <details class="section">
-    <summary class="section-title">{$t("settings.rpc.advanced")}</summary>
-    <div class="card">
+  <p class="settings-subsection-head">{$t("settings.rpc.advanced")}</p>
+  <div class="card">
       <div class="setting-row stack">
         <div class="setting-col">
           <span class="setting-label">{$t("settings.rpc.app_id")}</span>
@@ -141,7 +136,6 @@
         </button>
       </div>
     </div>
-  </details>
 {/if}
 
 <style>
@@ -167,8 +161,10 @@
     font-size: 12.5px;
     outline: none;
   }
-  .rpc-input:focus {
+  .rpc-input:focus-visible {
     border-color: var(--accent);
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
   }
   .setting-row.stack {
     flex-direction: column;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import { t, locale, loadTranslations } from "$lib/i18n";
@@ -149,6 +150,38 @@
   }
 
   type SettingsCategory = "downloads" | "appearance" | "typography" | "network" | "cookies" | "channels" | "ai" | "plugins" | "advanced";
+
+  const SETTINGS_NAV_GROUPS: {
+    labelKey: string;
+    items: [SettingsCategory, string][];
+  }[] = [
+    {
+      labelKey: "settings.group_general",
+      items: [
+        ["appearance", "settings.cat_appearance"],
+        ["typography", "settings.cat_typography"],
+      ],
+    },
+    {
+      labelKey: "settings.group_media",
+      items: [["downloads", "settings.cat_downloads"]],
+    },
+    {
+      labelKey: "settings.group_integrations",
+      items: [
+        ["network", "settings.cat_network"],
+        ["cookies", "settings.cat_cookies"],
+        ["channels", "settings.cat_channels"],
+        ["ai", "settings.cat_ai"],
+        ["plugins", "settings.cat_plugins"],
+      ],
+    },
+    {
+      labelKey: "settings.group_advanced",
+      items: [["advanced", "settings.cat_advanced"]],
+    },
+  ];
+
   let activeCategory = $state<SettingsCategory>("downloads");
 
   let tabApplied = false;
@@ -165,49 +198,155 @@
   let searchQuery = $state("");
   let normalizedQuery = $derived(searchQuery.trim().toLowerCase());
   let isSearching = $derived(normalizedQuery.length > 0);
+  let categoryMatchCounts = $state<Partial<Record<SettingsCategory, number>>>({});
+
+  const PANEL_MATCH_SELECTORS =
+    ".setting-row, .preset-card, .settings-section-head, .section-title, .deps-table-row";
+
+  function clearSearchHighlights(root: ParentNode) {
+    root.querySelectorAll("mark.settings-search-hit").forEach((mark) => {
+      const parent = mark.parentNode;
+      if (!parent) return;
+      parent.replaceChild(document.createTextNode(mark.textContent ?? ""), mark);
+      parent.normalize();
+    });
+  }
+
+  function highlightPlainText(el: HTMLElement, query: string) {
+    if (el.children.length > 0) return;
+    const text = el.textContent ?? "";
+    const lower = text.toLowerCase();
+    const idx = lower.indexOf(query);
+    if (idx === -1) return;
+    const before = text.slice(0, idx);
+    const match = text.slice(idx, idx + query.length);
+    const after = text.slice(idx + query.length);
+    el.textContent = "";
+    if (before) el.appendChild(document.createTextNode(before));
+    const mark = document.createElement("mark");
+    mark.className = "settings-search-hit";
+    mark.textContent = match;
+    el.appendChild(mark);
+    if (after) el.appendChild(document.createTextNode(after));
+  }
+
+  function applySearchHighlights(container: HTMLElement, query: string) {
+    clearSearchHighlights(container);
+    if (!query) return;
+    const highlightSelectors =
+      ".setting-path, .settings-section-hint, .preset-desc, .preset-label";
+    container.querySelectorAll<HTMLElement>(highlightSelectors).forEach((el) => {
+      if (el.style.display === "none") return;
+      highlightPlainText(el, query);
+    });
+    container.querySelectorAll<HTMLElement>(".setting-label").forEach((el) => {
+      if (el.style.display === "none" || el.children.length > 0) return;
+      highlightPlainText(el, query);
+    });
+  }
+
+  function countPanelMatches(panel: HTMLElement, query: string): number {
+    let count = 0;
+    panel.querySelectorAll<HTMLElement>(PANEL_MATCH_SELECTORS).forEach((el) => {
+      if ((el.textContent ?? "").toLowerCase().includes(query)) count += 1;
+    });
+    return count;
+  }
+
+  function resetSettingsSearchDisplay(content: HTMLElement) {
+    content
+      .querySelectorAll<HTMLElement>(
+        ".setting-row, .section-title, .settings-section-head, .card, .preset-card, .section, .deps-table-row",
+      )
+      .forEach((el) => {
+        el.style.display = "";
+      });
+    clearSearchHighlights(content);
+    categoryMatchCounts = {};
+  }
+
+  function applySettingsPanelFilter(content: HTMLElement, query: string) {
+    const rows = content.querySelectorAll<HTMLElement>(
+      ".setting-row, .section-title, .settings-section-head, .deps-table-row",
+    );
+    rows.forEach((row) => {
+      const text = (row.textContent ?? "").toLowerCase();
+      row.style.display = text.includes(query) ? "" : "none";
+    });
+    content.querySelectorAll<HTMLElement>(".preset-card").forEach((card) => {
+      const text = (card.textContent ?? "").toLowerCase();
+      card.style.display = text.includes(query) ? "" : "none";
+    });
+    content.querySelectorAll<HTMLElement>(".card").forEach((card) => {
+      const hasVisibleRow = Array.from(
+        card.querySelectorAll<HTMLElement>(".setting-row"),
+      ).some((r) => r.style.display !== "none");
+      card.style.display = hasVisibleRow ? "" : "none";
+    });
+    content.querySelectorAll<HTMLElement>(".section").forEach((section) => {
+      const titleEl = section.querySelector<HTMLElement>(
+        ".section-title, .settings-section-head",
+      );
+      const hasVisibleRow = Array.from(
+        section.querySelectorAll<HTMLElement>(".setting-row, .deps-table-row"),
+      ).some((r) => r.style.display !== "none");
+      const hasVisibleCard = Array.from(
+        section.querySelectorAll<HTMLElement>(".card"),
+      ).some((c) => c.style.display !== "none");
+      const hasVisiblePreset = Array.from(
+        section.querySelectorAll<HTMLElement>(".preset-card"),
+      ).some((p) => p.style.display !== "none");
+      const hasMatchingTitle = (titleEl?.textContent ?? "")
+        .toLowerCase()
+        .includes(query);
+      section.style.display =
+        hasVisibleRow || hasVisibleCard || hasVisiblePreset || hasMatchingTitle
+          ? ""
+          : "none";
+    });
+  }
 
   $effect(() => {
     const q = normalizedQuery;
     if (typeof document === "undefined") return;
-    const rows = document.querySelectorAll<HTMLElement>(
-      ".settings-content .setting-row, .settings-content .section-title",
-    );
-    if (!q) {
-      rows.forEach((row) => {
-        row.style.display = "";
+    let cancelled = false;
+
+    (async () => {
+      await tick();
+      if (cancelled) return;
+      const content = document.querySelector<HTMLElement>(".settings-content");
+      if (!content) return;
+
+      if (!q) {
+        resetSettingsSearchDisplay(content);
+        return;
+      }
+
+      if (isSearching) await tick();
+      if (cancelled) return;
+
+      applySettingsPanelFilter(content, q);
+
+      const counts: Partial<Record<SettingsCategory, number>> = {};
+      content.querySelectorAll<HTMLElement>("[data-settings-cat]").forEach((panel) => {
+        const cat = panel.dataset.settingsCat as SettingsCategory | undefined;
+        if (!cat) return;
+        counts[cat] = countPanelMatches(panel, q);
       });
-      document
-        .querySelectorAll<HTMLElement>(".settings-content .card")
-        .forEach((card) => (card.style.display = ""));
-      document
-        .querySelectorAll<HTMLElement>(".settings-content .section")
-        .forEach((section) => (section.style.display = ""));
-      return;
-    }
-    rows.forEach((row) => {
-      const text = (row.textContent || "").toLowerCase();
-      row.style.display = text.includes(q) ? "" : "none";
-    });
-    document
-      .querySelectorAll<HTMLElement>(".settings-content .card")
-      .forEach((card) => {
-        const hasVisibleRow = Array.from(
-          card.querySelectorAll<HTMLElement>(".setting-row"),
-        ).some((r) => r.style.display !== "none");
-        card.style.display = hasVisibleRow ? "" : "none";
-      });
-    document
-      .querySelectorAll<HTMLElement>(".settings-content .section")
-      .forEach((section) => {
-        const titleEl = section.querySelector<HTMLElement>(".section-title");
-        const hasVisibleCard = Array.from(
-          section.querySelectorAll<HTMLElement>(".card"),
-        ).some((c) => c.style.display !== "none");
-        const hasMatchingTitle =
-          (titleEl?.textContent || "").toLowerCase().includes(q);
-        section.style.display = hasVisibleCard || hasMatchingTitle ? "" : "none";
-      });
+      categoryMatchCounts = counts;
+
+      applySearchHighlights(content, q);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   });
+
+  function groupHasSearchMatch(group: (typeof SETTINGS_NAV_GROUPS)[number]): boolean {
+    if (!isSearching) return true;
+    return group.items.some(([cat]) => (categoryMatchCounts[cat] ?? 0) > 0);
+  }
 
   let templateInput = $state("");
   let templateTimer = $state<ReturnType<typeof setTimeout> | null>(null);
@@ -340,9 +479,7 @@
 </script>
 
 {#if settings}
-  <div class="settings">
-    <h2 class="page-title">{$t('settings.title')}</h2>
-
+  <div class="settings settings-mac">
     {#if updateInfo.available}
       <div class="update-banner">
         <span class="update-text">
@@ -362,79 +499,105 @@
       </div>
     {/if}
 
-    <div class="settings-search-row">
-      <input
-        type="search"
-        class="settings-search"
-        placeholder={$t('settings.search_placeholder')}
-        value={searchQuery}
-        oninput={(e) => searchQuery = (e.target as HTMLInputElement).value}
-        spellcheck="false"
-        aria-label={$t('settings.search_placeholder')}
-      />
-    </div>
+    <div class="settings-mac-body">
+      <aside class="settings-mac-sidebar">
+        <div class="settings-search-row">
+          <input
+            type="search"
+            class="settings-search"
+            placeholder={$t('settings.search_placeholder')}
+            value={searchQuery}
+            oninput={(e) => searchQuery = (e.target as HTMLInputElement).value}
+            spellcheck="false"
+            aria-label={$t('settings.search_placeholder')}
+          />
+        </div>
+        {#each SETTINGS_NAV_GROUPS as group (group.labelKey)}
+          {#if groupHasSearchMatch(group)}
+            <div class="settings-mac-nav-group">
+              <div class="mac-nav-section-header">{$t(group.labelKey)}</div>
+              {#each group.items as [cat, key] (cat)}
+                {#if !isSearching || (categoryMatchCounts[cat] ?? 0) > 0}
+                  <button
+                    class="settings-mac-cat"
+                    class:active={!isSearching && activeCategory === cat}
+                    class:search-match={isSearching && (categoryMatchCounts[cat] ?? 0) > 0}
+                    onclick={() => { activeCategory = cat; searchQuery = ""; }}
+                  >
+                    <span class="settings-mac-cat-label">{$t(key)}</span>
+                    {#if isSearching && (categoryMatchCounts[cat] ?? 0) > 0}
+                      <span class="settings-cat-match-count">{categoryMatchCounts[cat]}</span>
+                    {/if}
+                  </button>
+                {/if}
+              {/each}
+            </div>
+          {/if}
+        {/each}
+      </aside>
 
-    <div class="category-tabs" class:searching={isSearching}>
-      {#each [
-        ["downloads", "settings.cat_downloads"],
-        ["appearance", "settings.cat_appearance"],
-        ["typography", "settings.cat_typography"],
-        ["network", "settings.cat_network"],
-        ["cookies", "settings.cat_cookies"],
-        ["channels", "settings.cat_channels"],
-        ["ai", "settings.cat_ai"],
-        ["plugins", "settings.cat_plugins"],
-        ["advanced", "settings.cat_advanced"],
-      ] as [cat, key] (cat)}
-        <button class="cat-tab" class:active={!isSearching && activeCategory === cat} onclick={() => { activeCategory = cat as SettingsCategory; searchQuery = ""; }}>
-          {$t(key)}
-        </button>
-      {/each}
-    </div>
-
-    <div class="settings-content">
+      <div class="settings-mac-content settings-content">
 
     {#if isSearching || activeCategory === "appearance"}
-      <SettingsAppearance />
+      <div class="settings-panel" data-settings-cat="appearance">
+        <SettingsAppearance searchActive={isSearching} />
+      </div>
     {/if}
 
     {#if isSearching || activeCategory === "typography"}
-      <SettingsTypography />
+      <div class="settings-panel" data-settings-cat="typography">
+        <SettingsTypography />
+      </div>
     {/if}
 
     {#if isSearching || activeCategory === "downloads"}
-      <SettingsDownloads />
+      <div class="settings-panel" data-settings-cat="downloads">
+        <SettingsDownloads searchActive={isSearching} />
+      </div>
     {/if}
 
     {#if isSearching || activeCategory === "plugins"}
-      <SettingsPlugins
-        {deps}
-        {installingDep}
-        onInstallDep={handleInstallDep}
-        onRefresh={loadDeps}
-      />
+      <div class="settings-panel" data-settings-cat="plugins">
+        <SettingsPlugins
+          {deps}
+          {installingDep}
+          onInstallDep={handleInstallDep}
+          onRefresh={loadDeps}
+        />
+      </div>
     {/if}
 
     {#if isSearching || activeCategory === "network"}
-      <SettingsBrowserExtension />
-      <SettingsNetwork />
+      <div class="settings-panel" data-settings-cat="network">
+        <SettingsBrowserExtension />
+        <SettingsNetwork />
+      </div>
     {/if}
 
     {#if isSearching || activeCategory === "cookies"}
-      <SettingsCookies />
+      <div class="settings-panel" data-settings-cat="cookies">
+        <SettingsCookies />
+      </div>
     {/if}
 
     {#if isSearching || activeCategory === "channels"}
-      <SettingsChannels />
+      <div class="settings-panel" data-settings-cat="channels">
+        <SettingsChannels />
+      </div>
     {/if}
 
     {#if isSearching || activeCategory === "ai"}
-      <SettingsAI />
+      <div class="settings-panel" data-settings-cat="ai">
+        <SettingsAI />
+      </div>
     {/if}
 
     {#if isSearching || activeCategory === "advanced"}
-      <SettingsAdvanced {resetting} onReset={handleReset} />
+      <div class="settings-panel" data-settings-cat="advanced">
+        <SettingsAdvanced {resetting} onReset={handleReset} searchActive={isSearching} />
+      </div>
     {/if}
+      </div>
     </div>
   </div>
 {:else}

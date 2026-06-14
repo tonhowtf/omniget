@@ -2,6 +2,8 @@
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import RichPresencePanel from "./RichPresencePanel.svelte";
+  import SettingsDrillBack from "./SettingsDrillBack.svelte";
+  import SettingsDrillItem from "./SettingsDrillItem.svelte";
   import {
     getSettings,
     updateSettings,
@@ -12,8 +14,20 @@
     MORE_THEME_IDS,
   } from "./settings-helpers";
 
+  let { searchActive = false }: { searchActive?: boolean } = $props();
+
   let settings = $derived(getSettings());
   let selectedInMore = $derived(MORE_THEME_IDS.has(settings?.appearance?.theme ?? ""));
+  let moreThemesOpen = $state(false);
+  let rpcDrillOpen = $state(false);
+
+  $effect(() => {
+    if (selectedInMore) moreThemesOpen = true;
+  });
+
+  $effect(() => {
+    if (searchActive) rpcDrillOpen = false;
+  });
 </script>
 
 {#if settings}
@@ -85,26 +99,31 @@
           </button>
         {/each}
       </div>
-      <details class="more-themes" open={selectedInMore}>
-        <summary>{$t("settings.appearance.more_themes")}</summary>
-        <div class="theme-grid">
-          {#each MORE_THEMES as theme (theme.id)}
-            <button
-              class="theme-card"
-              class:active={settings.appearance.theme === theme.id}
-              onclick={() => changeTheme(theme.id)}
-            >
-              <div class="theme-preview">
-                <div class="preview-bg" style="background: {theme.colors[0]}">
-                  <div class="preview-text" style="color: {theme.colors[1]}">Aa</div>
-                  <div class="preview-accent" style="background: {theme.colors[2]}"></div>
+      {#if !moreThemesOpen}
+        <button type="button" class="more-themes-toggle" onclick={() => { moreThemesOpen = true; }}>
+          {$t("settings.appearance.more_themes")}
+        </button>
+      {:else}
+        <div class="more-themes">
+          <div class="theme-grid">
+            {#each MORE_THEMES as theme (theme.id)}
+              <button
+                class="theme-card"
+                class:active={settings.appearance.theme === theme.id}
+                onclick={() => changeTheme(theme.id)}
+              >
+                <div class="theme-preview">
+                  <div class="preview-bg" style="background: {theme.colors[0]}">
+                    <div class="preview-text" style="color: {theme.colors[1]}">Aa</div>
+                    <div class="preview-accent" style="background: {theme.colors[2]}"></div>
+                  </div>
                 </div>
-              </div>
-              <span class="theme-name">{theme.label}</span>
-            </button>
-          {/each}
+                <span class="theme-name">{theme.label}</span>
+              </button>
+            {/each}
+          </div>
         </div>
-      </details>
+      {/if}
       <div class="divider"></div>
       <div class="setting-row">
         <span class="setting-label">{$t('settings.appearance.language')}</span>
@@ -142,5 +161,22 @@
     </div>
   </section>
 
-  <RichPresencePanel />
+  {#if searchActive || rpcDrillOpen}
+    {#if rpcDrillOpen && !searchActive}
+      <SettingsDrillBack
+        title={$t('settings.rpc.title')}
+        hint={$t('settings.rpc.desc')}
+        onBack={() => { rpcDrillOpen = false; }}
+      />
+    {/if}
+    <RichPresencePanel />
+  {:else}
+    <nav class="settings-drill-list">
+      <SettingsDrillItem
+        title={$t('settings.rpc.title')}
+        hint={$t('settings.rpc.desc')}
+        onclick={() => { rpcDrillOpen = true; }}
+      />
+    </nav>
+  {/if}
 {/if}

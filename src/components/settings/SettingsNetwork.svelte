@@ -48,48 +48,6 @@
       await updateSettings({ proxy: { password: value } });
     }, 800);
   }
-
-  const YTDLP_FLAG_CATALOG = [
-    { flag: "--embed-subs", key: "embed_subs" },
-    { flag: "--write-thumbnail", key: "write_thumbnail" },
-    { flag: "--write-description", key: "write_description" },
-    { flag: "--write-comments", key: "write_comments" },
-    { flag: "--restrict-filenames", key: "restrict_filenames" },
-    { flag: "--no-overwrites", key: "no_overwrites" },
-    { flag: "--prefer-free-formats", key: "prefer_free_formats" },
-    { flag: "--force-ipv4", key: "force_ipv4" },
-    { flag: "--geo-bypass", key: "geo_bypass" },
-    { flag: "--limit-rate", key: "limit_rate", hasValue: true, phKey: "limit_rate_ph" },
-    { flag: "--sleep-interval", key: "sleep_interval", hasValue: true, phKey: "sleep_interval_ph" },
-  ];
-
-  async function toggleFlag(flag: string) {
-    if (!settings) return;
-    let current = [...(settings.download?.extra_ytdlp_flags ?? [])];
-    const idx = current.findIndex((f) => f === flag || f.startsWith(flag + " "));
-    if (idx >= 0) current.splice(idx, 1);
-    else current.push(flag);
-    await updateSettings({ download: { extra_ytdlp_flags: current } });
-  }
-
-  async function setFlagValue(flag: string, value: string) {
-    if (!settings) return;
-    let current = [...(settings.download?.extra_ytdlp_flags ?? [])];
-    const idx = current.findIndex((f) => f === flag || f.startsWith(flag + " "));
-    if (idx >= 0) {
-      current[idx] = value ? `${flag} ${value}` : flag;
-    }
-    await updateSettings({ download: { extra_ytdlp_flags: current } });
-  }
-
-  function isFlagActive(flag: string): boolean {
-    return (settings?.download?.extra_ytdlp_flags ?? []).some((f) => f === flag || f.startsWith(flag + " "));
-  }
-
-  function getFlagValue(flag: string): string {
-    const f = (settings?.download?.extra_ytdlp_flags ?? []).find((f) => f.startsWith(flag + " "));
-    return f ? f.slice(flag.length + 1) : "";
-  }
 </script>
 
 {#if settings}
@@ -142,37 +100,6 @@
         <input type="password" class="input-text" value={proxyPassword} oninput={handleProxyPassword} placeholder="" />
       </div>
     {/if}
-  </div>
-</section>
-
-<section class="section">
-  <h5 class="section-title">{$t('settings.ytdlp_flags.title')}</h5>
-  <div class="card">
-    <div class="flag-grid">
-      {#each YTDLP_FLAG_CATALOG as item (item.flag)}
-        <button
-          class="flag-chip"
-          class:active={isFlagActive(item.flag)}
-          onclick={() => toggleFlag(item.flag)}
-          title={item.flag}
-        >
-          {$t(`settings.ytdlp_flags.${item.key}`)}
-        </button>
-        {#if item.hasValue && isFlagActive(item.flag)}
-          <input
-            class="flag-value-input"
-            type="text"
-            placeholder={item.phKey ? ($t(`settings.ytdlp_flags.${item.phKey}`) as string) : ""}
-            value={getFlagValue(item.flag)}
-            oninput={(e) => {
-              const val = (e.target as HTMLInputElement).value;
-              setFlagValue(item.flag, val);
-            }}
-            spellcheck="false"
-          />
-        {/if}
-      {/each}
-    </div>
   </div>
 </section>
 {/if}

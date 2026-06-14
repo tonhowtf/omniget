@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
-  import { getSettings, toggleBool, changeNumber, type DependencyStatus } from "./settings-helpers";
+  import { getSettings, type DependencyStatus } from "./settings-helpers";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import DependencyRow from "./DependencyRow.svelte";
 
@@ -79,43 +79,6 @@
 
 {#if settings}
   <section class="section">
-    <h5 class="section-title">{$t('settings.download.telegram_plugin_section')}</h5>
-    <div class="card">
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t('settings.telegram.concurrent_downloads')}</span>
-          <span class="setting-path">{$t('settings.telegram.concurrent_downloads_desc')}</span>
-        </div>
-        <input
-          type="number"
-          class="input-number"
-          min="1"
-          max="10"
-          value={settings.telegram.concurrent_downloads}
-          onchange={(e) => changeNumber("telegram", "concurrent_downloads", e)}
-        />
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t('settings.telegram.fix_file_extensions')}</span>
-          <span class="setting-path">{$t('settings.telegram.fix_file_extensions_desc')}</span>
-        </div>
-        <button
-          class="toggle"
-          class:on={settings.telegram.fix_file_extensions}
-          onclick={() => toggleBool("telegram", "fix_file_extensions", settings.telegram.fix_file_extensions)}
-          role="switch"
-          aria-checked={settings.telegram.fix_file_extensions}
-          aria-label={$t('settings.telegram.fix_file_extensions') as string}
-        >
-          <span class="toggle-knob"></span>
-        </button>
-      </div>
-    </div>
-  </section>
-
-  <section class="section">
     <h5 class="section-title">Extensão de navegador</h5>
     <p class="muted">A extensão envia cookies e URLs do seu navegador para o OmniGet. Auto-update direto pelo app só funciona via lojas oficiais — enquanto não publicamos, use os botões abaixo para extrair a versão atual e (re)instalar manualmente.</p>
     <div class="card">
@@ -152,19 +115,32 @@
 
   {#if deps.length > 0}
     <section class="section">
-      <h5 class="section-title">{$t('settings.dependencies.title')}</h5>
-      <div class="card">
-        {#each deps as dep, i (dep.name)}
-          {#if i > 0}<div class="divider"></div>{/if}
-          <DependencyRow
-            name={dep.name}
-            installed={dep.installed}
-            version={dep.version}
-            busy={installingDep === dep.name}
-            onInstall={(variant) => onInstallDep(dep.name, variant)}
-            onAfterCustomFile={onRefresh}
-          />
-        {/each}
+      <div class="settings-section-head section-title">
+        <h5 class="section-title">{$t('settings.dependencies.title')}</h5>
+      </div>
+      <div class="deps-table-wrap">
+        <table class="deps-table">
+          <thead>
+            <tr>
+              <th scope="col">{$t('settings.dependencies.col_name')}</th>
+              <th scope="col">{$t('settings.dependencies.col_version')}</th>
+              <th scope="col">{$t('settings.dependencies.col_status')}</th>
+              <th scope="col" class="deps-col-action">{$t('settings.dependencies.col_action')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each deps as dep (dep.name)}
+              <DependencyRow
+                name={dep.name}
+                installed={dep.installed}
+                version={dep.version}
+                busy={installingDep === dep.name}
+                onInstall={(variant) => onInstallDep(dep.name, variant)}
+                onAfterCustomFile={onRefresh}
+              />
+            {/each}
+          </tbody>
+        </table>
       </div>
     </section>
   {/if}
