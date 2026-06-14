@@ -1,9 +1,19 @@
 use std::sync::Arc;
 
-use omniget_plugin_sdk::{PluginManifest, RegistryEntry};
+use omniget_plugin_sdk::{PluginHost, PluginManifest, RegistryEntry};
 use serde::{Deserialize, Serialize};
+use tauri::Emitter;
 
+use crate::plugin_host::PluginHostImpl;
 use crate::plugin_loader::{PluginLoadError, PluginManager};
+
+fn emit_plugins_changed(app: &tauri::AppHandle) {
+    let _ = app.emit("plugins-changed", ());
+}
+
+fn build_plugin_host(app: &tauri::AppHandle, plugins_dir: std::path::PathBuf) -> Arc<dyn PluginHost> {
+    Arc::new(PluginHostImpl::new(app.clone(), plugins_dir))
+}
 
 #[derive(Debug, Serialize)]
 pub struct PluginInfo {
@@ -138,23 +148,38 @@ pub fn get_plugin_frontend_path(
 
 #[tauri::command]
 pub fn set_plugin_enabled(
+    app: tauri::AppHandle,
     state: tauri::State<'_, Arc<tokio::sync::RwLock<PluginManager>>>,
     plugin_id: String,
     enabled: bool,
 ) -> Result<(), String> {
-    let mut manager = state.blocking_write();
-    manager
-        .set_enabled(&plugin_id, enabled)
-        .map_err(|e| e.to_string())
+    {
+        let mut manager = state.blocking_write();
+        manager
+            .set_enabled(&plugin_id, enabled)
+            .map_err(|e| e.to_string())?;
+        if enabled && !manager.is_loaded(&plugin_id) {
+            let plugins_dir = manager.plugins_dir().to_path_buf();
+            let host = build_plugin_host(&app, plugins_dir);
+            let _ = manager.load_one(&plugin_id, host);
+        }
+    }
+    emit_plugins_changed(&app);
+    Ok(())
 }
 
 #[tauri::command]
 pub fn uninstall_plugin(
+    app: tauri::AppHandle,
     state: tauri::State<'_, Arc<tokio::sync::RwLock<PluginManager>>>,
     plugin_id: String,
 ) -> Result<(), String> {
-    let mut manager = state.blocking_write();
-    manager.unregister(&plugin_id).map_err(|e| e.to_string())
+    {
+        let mut manager = state.blocking_write();
+        manager.unregister(&plugin_id).map_err(|e| e.to_string())?;
+    }
+    emit_plugins_changed(&app);
+    Ok(())
 }
 
 #[tauri::command]
@@ -419,49 +444,129 @@ pub async fn install_plugin_zip_from_repo(
 
 #[tauri::command]
 pub async fn install_plugin_from_registry(
+    app: tauri::AppHandle,
     state: tauri::State<'_, Arc<tokio::sync::RwLock<PluginManager>>>,
     plugin_id: String,
     repo: String,
 ) -> Result<String, String> {
-    install_plugin_zip_from_repo(&state.inner().clone(), plugin_id, repo).await
+    let version =
+        install_plugin_zip_from_repo(&state.inner().clone(), plugin_id.clone(), repo).await?;
+    {
+        let mut manager = state.write().await;
+        if !manager.is_loaded(&plugin_id) {
+            let plugins_dir = manager.plugins_dir().to_path_buf();
+            let host = build_plugin_host(&app, plugins_dir);
+            let _ = manager.load_one(&plugin_id, host);
+        }
+    }
+    emit_plugins_changed(&app);
+    Ok(version)
 }
 
-const DEFAULT_PLUGINS: &[(&str, &str)] = &[("study", "tonhowtf/omniget-study-release")];
+async fn fetch_registry_entries() -> Result<Vec<RegistryEntry>, String> {
+    let client = crate::core::http_client::apply_global_proxy(
+        reqwest::Client::builder()
+            .user_agent("OmniGet")
+            .timeout(std::time::Duration::from_secs(15)),
+    )
+    .build()
+    .map_err(|e| e.to_string())?;
+
+    #[derive(Deserialize)]
+    struct RegistryFile {
+        plugins: Vec<RegistryEntry>,
+    }
+
+    let mut last_err = String::from("Failed to fetch registry");
+    for url in REGISTRY_URLS {
+        match client.get(*url).send().await {
+            Ok(resp) => match resp.error_for_status() {
+                Ok(resp) => match resp.text().await {
+                    Ok(body) => match serde_json::from_str::<RegistryFile>(&body) {
+                        Ok(parsed) => return Ok(parsed.plugins),
+                        Err(e) => last_err = format!("Invalid registry: {}", e),
+                    },
+                    Err(e) => last_err = format!("Failed to read registry: {}", e),
+                },
+                Err(e) => last_err = format!("Registry request failed: {}", e),
+            },
+            Err(e) => last_err = format!("Failed to fetch registry: {}", e),
+        }
+    }
+    Err(last_err)
+}
 
 pub async fn ensure_default_plugins(state: Arc<tokio::sync::RwLock<PluginManager>>) {
-    for (plugin_id, repo) in DEFAULT_PLUGINS {
-        let already_installed = {
+    let entries = match fetch_registry_entries().await {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::warn!("ensure_default_plugins: registry unavailable: {}", e);
+            return;
+        }
+    };
+
+    for entry in entries {
+        let skip = {
             let manager = state.read().await;
-            manager
-                .installed_plugins()
-                .iter()
-                .any(|p| p.id == *plugin_id)
+            manager.installed_plugins().iter().any(|p| p.id == entry.id)
+                || manager.is_user_removed(&entry.id)
         };
-        if already_installed {
-            tracing::debug!("default plugin '{}' already installed, skipping", plugin_id);
+        if skip {
+            continue;
+        }
+        tracing::info!("installing default plugin '{}' from {}", entry.id, entry.repo);
+        match install_plugin_zip_from_repo(&state, entry.id.clone(), entry.repo.clone()).await {
+            Ok(v) => tracing::info!("default plugin '{}' installed ({})", entry.id, v),
+            Err(e) => tracing::warn!("failed to install default plugin '{}': {}", entry.id, e),
+        }
+    }
+}
+
+pub async fn auto_update_plugins(state: Arc<tokio::sync::RwLock<PluginManager>>) {
+    let installed = {
+        let manager = state.read().await;
+        manager.installed_plugins().to_vec()
+    };
+
+    let client = match crate::core::http_client::apply_global_proxy(
+        reqwest::Client::builder()
+            .user_agent("OmniGet")
+            .timeout(std::time::Duration::from_secs(15)),
+    )
+    .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("auto_update_plugins: client build failed: {}", e);
+            return;
+        }
+    };
+
+    for plugin in installed {
+        let repo = match plugin.repo {
+            Some(r) => r,
+            None => continue,
+        };
+        let api_url = format!("https://api.github.com/repos/{}/releases/latest", repo);
+        let latest = match client.get(&api_url).send().await {
+            Ok(resp) => match resp.json::<GitHubRelease>().await {
+                Ok(r) => r.tag_name.trim_start_matches('v').to_string(),
+                Err(_) => continue,
+            },
+            Err(_) => continue,
+        };
+        if latest.is_empty() || latest == plugin.version {
             continue;
         }
         tracing::info!(
-            "default plugin '{}' missing, installing from {}",
-            plugin_id,
-            repo
+            "auto-updating plugin '{}' {} -> {}",
+            plugin.id,
+            plugin.version,
+            latest
         );
-        match install_plugin_zip_from_repo(&state, plugin_id.to_string(), repo.to_string()).await {
-            Ok(version) => {
-                tracing::info!(
-                    "default plugin '{}' installed (version {})",
-                    plugin_id,
-                    version
-                );
-            }
-            Err(e) => {
-                tracing::warn!(
-                    "failed to install default plugin '{}' from {}: {}",
-                    plugin_id,
-                    repo,
-                    e
-                );
-            }
+        match install_plugin_zip_from_repo(&state, plugin.id.clone(), repo).await {
+            Ok(v) => tracing::info!("plugin '{}' updated to {}", plugin.id, v),
+            Err(e) => tracing::warn!("auto-update failed for '{}': {}", plugin.id, e),
         }
     }
 }
@@ -526,9 +631,10 @@ pub async fn check_plugin_updates(
 
 #[tauri::command]
 pub async fn update_plugin(
+    app: tauri::AppHandle,
     state: tauri::State<'_, Arc<tokio::sync::RwLock<PluginManager>>>,
     plugin_id: String,
     repo: String,
 ) -> Result<String, String> {
-    install_plugin_from_registry(state, plugin_id, repo).await
+    install_plugin_from_registry(app, state, plugin_id, repo).await
 }

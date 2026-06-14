@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -40,16 +40,19 @@ pub struct PluginManager {
     loaded: HashMap<String, LoadedPlugin>,
     installed: Vec<InstalledPlugin>,
     load_errors: HashMap<String, PluginLoadError>,
+    user_removed: HashSet<String>,
 }
 
 impl PluginManager {
     pub fn new(plugins_dir: PathBuf) -> Self {
         let installed = load_installed_list(&plugins_dir);
+        let user_removed = load_removed_list(&plugins_dir);
         Self {
             plugins_dir,
             loaded: HashMap::new(),
             installed,
             load_errors: HashMap::new(),
+            user_removed,
         }
     }
 
@@ -82,6 +85,35 @@ impl PluginManager {
                     tracing::warn!("Plugin {} not loaded ({}): {}", entry.id, e.kind, e.message);
                     self.load_errors.insert(entry.id.clone(), e);
                 }
+            }
+        }
+    }
+
+    pub fn is_loaded(&self, id: &str) -> bool {
+        self.loaded.contains_key(id)
+    }
+
+    pub fn load_one(
+        &mut self,
+        id: &str,
+        host: Arc<dyn PluginHost>,
+    ) -> Result<(), PluginLoadError> {
+        let plugin_dir = self.plugins_dir.join(id);
+        match load_single_plugin(&plugin_dir, host) {
+            Ok(loaded) => {
+                tracing::info!(
+                    "Loaded plugin at runtime: {} v{}",
+                    loaded.manifest.id,
+                    loaded.manifest.version
+                );
+                self.loaded.insert(id.to_string(), loaded);
+                self.load_errors.remove(id);
+                Ok(())
+            }
+            Err(e) => {
+                tracing::warn!("Plugin {} not loaded ({}): {}", id, e.kind, e.message);
+                self.load_errors.insert(id.to_string(), e.clone());
+                Err(e)
             }
         }
     }
@@ -133,9 +165,16 @@ impl PluginManager {
     }
 
     pub fn register_installed(&mut self, entry: InstalledPlugin) -> anyhow::Result<()> {
+        if self.user_removed.remove(&entry.id) {
+            let _ = save_removed_list(&self.plugins_dir, &self.user_removed);
+        }
         self.installed.retain(|p| p.id != entry.id);
         self.installed.push(entry);
         self.save_installed()
+    }
+
+    pub fn is_user_removed(&self, id: &str) -> bool {
+        self.user_removed.contains(id)
     }
 
     pub fn unregister(&mut self, plugin_id: &str) -> anyhow::Result<()> {
@@ -147,6 +186,9 @@ impl PluginManager {
         self.load_errors.remove(plugin_id);
         self.installed.retain(|p| p.id != plugin_id);
         self.save_installed()?;
+
+        self.user_removed.insert(plugin_id.to_string());
+        save_removed_list(&self.plugins_dir, &self.user_removed)?;
 
         let plugin_dir = self.plugins_dir.join(plugin_id);
         if plugin_dir.exists() {
@@ -324,6 +366,40 @@ fn save_installed_list(plugins_dir: &Path, plugins: &[InstalledPlugin]) -> anyho
     }
 
     let content = serde_json::to_string_pretty(&InstalledFile { plugins })?;
+    fs::write(&path, content)?;
+    Ok(())
+}
+
+fn load_removed_list(plugins_dir: &Path) -> HashSet<String> {
+    let path = plugins_dir.join("removed-plugins.json");
+    let content = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return HashSet::new(),
+    };
+    #[derive(serde::Deserialize)]
+    struct RemovedFile {
+        #[serde(default)]
+        removed: Vec<String>,
+    }
+    match serde_json::from_str::<RemovedFile>(&content) {
+        Ok(f) => f.removed.into_iter().collect(),
+        Err(e) => {
+            tracing::warn!("[plugins] cannot parse removed-plugins.json: {e}");
+            HashSet::new()
+        }
+    }
+}
+
+fn save_removed_list(plugins_dir: &Path, removed: &HashSet<String>) -> anyhow::Result<()> {
+    fs::create_dir_all(plugins_dir)?;
+    let path = plugins_dir.join("removed-plugins.json");
+    #[derive(serde::Serialize)]
+    struct RemovedFile<'a> {
+        removed: Vec<&'a String>,
+    }
+    let mut list: Vec<&String> = removed.iter().collect();
+    list.sort();
+    let content = serde_json::to_string_pretty(&RemovedFile { removed: list })?;
     fs::write(&path, content)?;
     Ok(())
 }

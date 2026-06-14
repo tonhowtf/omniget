@@ -415,27 +415,33 @@ pub fn run() {
                     .handle()
                     .state::<std::sync::Arc<tokio::sync::RwLock<plugin_loader::PluginManager>>>();
                 let mgr_for_plugins = std::sync::Arc::clone(&*plugin_mgr);
+                let app_emit = app.handle().clone();
                 std::thread::Builder::new()
                     .name("plugins-bootstrap".into())
                     .spawn(move || {
-                        {
-                            let mut mgr = mgr_for_plugins.blocking_write();
-                            mgr.load_all(std::sync::Arc::clone(&host));
-                        }
-
                         let rt = match tokio::runtime::Runtime::new() {
                             Ok(rt) => rt,
                             Err(e) => {
                                 tracing::warn!("plugins-bootstrap runtime failed: {}", e);
+                                let mut mgr = mgr_for_plugins.blocking_write();
+                                mgr.load_all(host);
                                 return;
                             }
                         };
                         rt.block_on(commands::plugins::ensure_default_plugins(
                             std::sync::Arc::clone(&mgr_for_plugins),
                         ));
+                        rt.block_on(commands::plugins::auto_update_plugins(
+                            std::sync::Arc::clone(&mgr_for_plugins),
+                        ));
 
-                        let mut mgr = mgr_for_plugins.blocking_write();
-                        mgr.load_all(host);
+                        {
+                            let mut mgr = mgr_for_plugins.blocking_write();
+                            mgr.load_all(host);
+                        }
+
+                        use tauri::Emitter;
+                        let _ = app_emit.emit("plugins-changed", ());
                     })
                     .ok();
             }
