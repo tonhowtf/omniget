@@ -133,6 +133,10 @@
       await invoke("uninstall_plugin", { pluginId: id });
       plugins = plugins.filter((p) => p.id !== id);
       delete updates[id];
+      const idx = registry.findIndex((p) => p.id === id);
+      if (idx >= 0) {
+        registry[idx] = { ...registry[idx], installed: false, installed_version: null };
+      }
     } catch (e: any) {
       const msg = typeof e === "string" ? e : e?.message ?? $t("common.error");
       showToast("error", msg);
@@ -161,6 +165,15 @@
     try {
       await invoke("install_plugin_from_registry", { pluginId: id, repo });
       await refreshPlugins();
+      const idx = registry.findIndex((p) => p.id === id);
+      if (idx >= 0) {
+        const installed = plugins.find((p) => p.id === id);
+        registry[idx] = {
+          ...registry[idx],
+          installed: true,
+          installed_version: installed?.version ?? registry[idx].installed_version,
+        };
+      }
     } catch (e: any) {
       const raw = typeof e === "string" ? e : e?.message ?? $t("common.error");
       const msg = raw.startsWith("NetworkUnreachable|")
@@ -181,10 +194,12 @@
       showToast("error", msg);
     }
   }
+
+  let sidebarPlugins = $derived(plugins.filter((p) => p.enabled));
+  let hiddenPlugins = $derived(plugins.filter((p) => !p.enabled));
 </script>
 
 <div class="marketplace-page">
-  <h1 class="page-title">{$t("marketplace.title")}</h1>
 
   <div class="tabs">
     <button
@@ -216,76 +231,23 @@
         </button>
       </div>
     {:else}
-      <div class="plugin-list">
-        {#each plugins as plugin (plugin.id)}
-          <div class="plugin-card">
-            <div class="plugin-header">
-              <div class="plugin-info">
-                <span class="plugin-name">{plugin.name}</span>
-                <span class="plugin-meta">
-                  {$t("marketplace.version", { version: plugin.version })}
-                  {#if plugin.author}
-                    <span class="meta-sep">&middot;</span>
-                    {$t("marketplace.by_author", { author: plugin.author })}
-                  {/if}
-                </span>
-              </div>
-              <div class="plugin-actions">
-                {#if updates[plugin.id]}
-                  <button
-                    class="update-btn"
-                    disabled={updatingId === plugin.id}
-                    onclick={() => updatePlugin(plugin.id)}
-                  >
-                    {#if updatingId === plugin.id}
-                      {$t("marketplace.browse_loading")}
-                    {:else}
-                      {$t("marketplace.update_available")}
-                    {/if}
-                  </button>
-                {/if}
-                <button
-                  class="toggle-btn"
-                  class:enabled={plugin.enabled}
-                  onclick={() => togglePlugin(plugin.id, !plugin.enabled)}
-                >
-                  {plugin.enabled ? $t("marketplace.enabled") : $t("marketplace.disabled")}
-                </button>
-                <button
-                  class="uninstall-btn"
-                  onclick={() => uninstallPlugin(plugin.id)}
-                >
-                  {$t("marketplace.uninstall")}
-                </button>
-              </div>
-            </div>
-            {#if updates[plugin.id]}
-              <span class="update-hint">{$t("marketplace.update_hint", { version: updates[plugin.id].latest_version })}</span>
-            {/if}
-            {#if plugin.enabled && !plugin.loaded && plugin.load_error}
-              {@const incompatible =
-                plugin.load_error.kind === "abi_mismatch" ||
-                plugin.load_error.kind === "missing_abi_symbol"}
-              <div class="load-error" class:incompatible>
-                <strong>
-                  {incompatible
-                    ? $t("marketplace.plugin_incompatible_title")
-                    : $t("marketplace.plugin_load_failed_title")}
-                </strong>
-                <span>
-                  {incompatible
-                    ? $t("marketplace.plugin_incompatible_hint")
-                    : $t("marketplace.plugin_load_failed_hint")}
-                </span>
-                <code>{plugin.load_error.message}</code>
-              </div>
-            {/if}
-            {#if plugin.description}
-              <p class="plugin-desc">{plugin.description}</p>
-            {/if}
-          </div>
-        {/each}
-      </div>
+      <p class="installed-hint">{$t("marketplace.installed_hint")}</p>
+      {#if sidebarPlugins.length > 0}
+        <h5 class="plugin-section-label">{$t("marketplace.section_in_sidebar")}</h5>
+        <div class="plugin-list">
+          {#each sidebarPlugins as plugin (plugin.id)}
+            {@render installedCard(plugin)}
+          {/each}
+        </div>
+      {/if}
+      {#if hiddenPlugins.length > 0}
+        <h5 class="plugin-section-label">{$t("marketplace.section_hidden")}</h5>
+        <div class="plugin-list">
+          {#each hiddenPlugins as plugin (plugin.id)}
+            {@render installedCard(plugin)}
+          {/each}
+        </div>
+      {/if}
     {/if}
 
   {:else}
@@ -382,14 +344,94 @@
   {/if}
 </div>
 
+{#snippet installedCard(plugin: PluginInfo)}
+  <div class="plugin-card" class:active-sidebar={plugin.enabled}>
+    <div class="plugin-header">
+      <div class="plugin-info">
+        <div class="plugin-name-row">
+          <span class="plugin-name">{plugin.name}</span>
+          <span class="status-pill" class:on={plugin.enabled}>
+            {plugin.enabled ? $t("marketplace.status_in_sidebar") : $t("marketplace.status_hidden")}
+          </span>
+        </div>
+        <span class="plugin-meta">
+          {$t("marketplace.version", { version: plugin.version })}
+          {#if plugin.author}
+            <span class="meta-sep">&middot;</span>
+            {$t("marketplace.by_author", { author: plugin.author })}
+          {/if}
+        </span>
+      </div>
+      <div class="plugin-actions">
+        {#if updates[plugin.id]}
+          <button
+            class="update-btn"
+            disabled={updatingId === plugin.id}
+            onclick={() => updatePlugin(plugin.id)}
+          >
+            {#if updatingId === plugin.id}
+              {$t("marketplace.browse_loading")}
+            {:else}
+              {$t("marketplace.update_available")}
+            {/if}
+          </button>
+        {/if}
+        <div class="sidebar-toggle-row">
+          <span class="sidebar-toggle-label">{$t("marketplace.show_in_sidebar")}</span>
+          <button
+            class="toggle"
+            class:on={plugin.enabled}
+            role="switch"
+            aria-checked={plugin.enabled}
+            aria-label={$t("marketplace.show_in_sidebar")}
+            onclick={() => togglePlugin(plugin.id, !plugin.enabled)}
+          >
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+        <button
+          class="uninstall-btn"
+          onclick={() => uninstallPlugin(plugin.id)}
+        >
+          {$t("marketplace.uninstall")}
+        </button>
+      </div>
+    </div>
+    {#if updates[plugin.id]}
+      <span class="update-hint">{$t("marketplace.update_hint", { version: updates[plugin.id].latest_version })}</span>
+    {/if}
+    {#if plugin.enabled && !plugin.loaded && plugin.load_error}
+      {@const incompatible =
+        plugin.load_error.kind === "abi_mismatch" ||
+        plugin.load_error.kind === "missing_abi_symbol"}
+      <div class="load-error" class:incompatible>
+        <strong>
+          {incompatible
+            ? $t("marketplace.plugin_incompatible_title")
+            : $t("marketplace.plugin_load_failed_title")}
+        </strong>
+        <span>
+          {incompatible
+            ? $t("marketplace.plugin_incompatible_hint")
+            : $t("marketplace.plugin_load_failed_hint")}
+        </span>
+        <code>{plugin.load_error.message}</code>
+      </div>
+    {/if}
+    {#if plugin.description}
+      <p class="plugin-desc">{plugin.description}</p>
+    {/if}
+  </div>
+{/snippet}
+
 <style>
   .marketplace-page {
     display: flex;
     flex-direction: column;
     gap: calc(var(--padding) * 2);
     width: 100%;
-    max-width: 700px;
-    margin: 0 auto;
+    max-width: 720px;
+    align-items: stretch;
   }
 
   h1 {
@@ -398,15 +440,19 @@
   }
 
   .tabs {
-    display: flex;
+    display: inline-flex;
+    align-self: flex-start;
     gap: 2px;
     background: var(--button);
     border-radius: var(--border-radius);
     padding: 3px;
+    width: fit-content;
+    max-width: 100%;
   }
 
   .tab {
-    flex: 1;
+    flex: 0 1 auto;
+    min-width: 7rem;
     padding: 8px 16px;
     font-size: 13px;
     font-weight: 500;
@@ -624,6 +670,102 @@
 
   .plugin-actions {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .installed-hint {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .plugin-section-label {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 0 0 var(--space-2);
+  }
+
+  .plugin-card.active-sidebar {
+    background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  }
+
+  .status-pill {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: var(--radius-full);
+    background: var(--surface-hi);
+    color: var(--text-muted);
+  }
+
+  .status-pill.on {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--accent);
+  }
+
+  .sidebar-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .sidebar-toggle-label {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    border-radius: var(--radius-full);
+    background: var(--surface-hi);
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+    transition: background var(--duration-base) var(--ease-out);
+  }
+
+  .toggle.on {
+    background: var(--accent);
+  }
+
+  .toggle-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-full);
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    transition: transform var(--duration-base) var(--ease-out);
+    pointer-events: none;
+  }
+
+  .toggle.on .toggle-knob {
+    transform: translateX(20px);
+  }
+
+  .toggle:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toggle, .toggle-knob {
+      transition: none;
+    }
   }
 
   .install-btn,
@@ -702,40 +844,6 @@
     .install-btn:not(:disabled):hover {
       background: var(--cta-hover);
     }
-  }
-
-  .toggle-btn {
-    padding: 6px 14px;
-    font-size: 12px;
-    font-weight: 500;
-    border: none;
-    border-radius: calc(var(--border-radius) - 2px);
-    cursor: pointer;
-    background: var(--button);
-    color: var(--gray);
-    box-shadow: var(--button-box-shadow);
-  }
-
-  .toggle-btn.enabled {
-    background: var(--cta);
-    color: var(--on-cta);
-    box-shadow: none;
-  }
-
-  @media (hover: hover) {
-    .toggle-btn:not(.enabled):hover {
-      background: var(--button-hover);
-      color: var(--secondary);
-    }
-
-    .toggle-btn.enabled:hover {
-      background: var(--cta-hover);
-    }
-  }
-
-  .toggle-btn:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
   }
 
   .tag-list {
