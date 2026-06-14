@@ -16,24 +16,42 @@
             .join(" · ")
     );
 
+    const cards = [
+        { href: "/about/changelog", titleKey: "about.card_changelog_title", descKey: "about.card_changelog_desc" },
+        { href: "/about/project", titleKey: "about.card_project_title", descKey: "about.card_project_desc" },
+        { href: "/about/terms", titleKey: "about.card_terms_title", descKey: "about.card_terms_desc" },
+    ] as const;
+
     async function openAuthorGithub(e: Event) {
         e.preventDefault();
         await open("https://github.com/tonhowtf");
     }
 </script>
 
-<div class="about-page">
-    <div class="about-hero">
-        <img src="/loop.png" alt="Loop" class="about-loop" draggable="false" />
-        <h1>OmniGet</h1>
-        <p class="about-tagline">{$t("about.tagline")}</p>
-        <p class="about-desc">{$t("about.description")}</p>
-        {#if version}
-            <span class="about-version">{$t("about.version")} {version}</span>
-        {/if}
-        {#if buildDetails}
-            <span class="about-build">{buildDetails}</span>
-        {/if}
+<div class="about-overview">
+    <header class="about-hero">
+        <img src="/favicon.png" alt="" class="about-app-icon" width="64" height="64" draggable="false" />
+        <div class="about-identity">
+            <h1>OmniGet</h1>
+            {#if version}
+                <span class="about-version">{$t("about.version")} {version}</span>
+            {/if}
+            <p class="about-tagline">{$t("about.tagline")}</p>
+            <p class="about-desc">{$t("about.description")}</p>
+            {#if buildDetails}
+                <span class="about-build">{buildDetails}</span>
+            {/if}
+        </div>
+    </header>
+
+    <div class="about-cards">
+        {#each cards as card}
+            <a href={card.href} class="about-card">
+                <span class="about-card-title">{$t(card.titleKey)}</span>
+                <span class="about-card-desc">{$t(card.descKey)}</span>
+                <span class="about-card-chevron" aria-hidden="true">›</span>
+            </a>
+        {/each}
     </div>
 
     <div class="about-external">
@@ -51,40 +69,44 @@
         </a>
     </div>
 
-    <p class="about-credit">{$t("about.credit")}</p>
-
-    <a href="https://github.com/tonhowtf" class="about-watermark" onclick={openAuthorGithub} title="@tonhowtf">
-        @tonhowtf
-    </a>
+    <footer class="about-footer">
+        <p class="about-credit">{$t("about.credit")}</p>
+        <a href="https://github.com/tonhowtf" class="about-watermark" onclick={openAuthorGithub} title="@tonhowtf">
+            @tonhowtf
+        </a>
+    </footer>
 </div>
 
 <style>
-    .about-page {
+    .about-overview {
         display: flex;
         flex-direction: column;
-        align-items: center;
         gap: calc(var(--padding) * 2);
-        padding: calc(var(--padding) * 3);
-        text-align: center;
     }
 
     .about-hero {
         display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: var(--padding);
+        align-items: flex-start;
+        gap: var(--space-4);
     }
 
-    .about-loop {
-        width: 200px;
-        height: 200px;
-        border-radius: var(--radius-full);
+    .about-app-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: var(--radius-lg);
         object-fit: cover;
-        pointer-events: none;
-        user-select: none;
+        box-shadow: var(--elev-1);
+        flex-shrink: 0;
     }
 
-    .about-hero h1 {
+    .about-identity {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+        min-width: 0;
+    }
+
+    .about-identity h1 {
         font-family: var(--font-display);
         font-size: var(--text-display);
         line-height: var(--leading-display);
@@ -103,15 +125,14 @@
         font-size: var(--text-sm);
         color: var(--text);
         margin: 0;
-        max-width: 360px;
+        max-width: 420px;
+        line-height: 1.5;
     }
 
     .about-version {
         font-size: var(--text-xs);
         color: var(--text-dim);
-        background: var(--surface);
-        padding: var(--space-1) var(--space-3);
-        border-radius: var(--radius-full);
+        width: fit-content;
     }
 
     .about-build {
@@ -123,10 +144,59 @@
         user-select: all;
     }
 
+    .about-cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-3);
+    }
+
+    .about-card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+        padding: var(--space-4);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        text-decoration: none;
+        color: inherit;
+        transition: background var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+    }
+
+    @media (hover: hover) {
+        .about-card:hover {
+            background: var(--surface-hi);
+            border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
+        }
+    }
+
+    .about-card-title {
+        font-size: var(--text-sm);
+        font-weight: 600;
+        color: var(--text);
+    }
+
+    .about-card-desc {
+        font-size: var(--text-xs);
+        color: var(--text-muted);
+        line-height: 1.45;
+        padding-right: var(--space-4);
+    }
+
+    .about-card-chevron {
+        position: absolute;
+        top: var(--space-4);
+        right: var(--space-3);
+        font-size: 18px;
+        color: var(--text-dim);
+        line-height: 1;
+    }
+
     .about-external {
         display: flex;
-        gap: 12px;
-        justify-content: center;
+        gap: var(--space-3);
+        flex-wrap: wrap;
     }
 
     .about-ext-link {
@@ -140,48 +210,57 @@
         color: var(--text);
         font-size: var(--text-sm);
         text-decoration: none;
-        transition: background var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+        transition: background var(--duration-fast) var(--ease-out);
     }
 
     @media (hover: hover) {
         .about-ext-link:hover {
             background: var(--surface-hi);
-            transform: translateY(-1px);
         }
     }
 
-    @media (prefers-reduced-motion: reduce) {
-        .about-ext-link {
-            transition: background var(--duration-fast) var(--ease-out);
-        }
-        .about-ext-link:hover {
-            transform: none;
-        }
-    }
-
-    .about-ext-link svg {
-        flex-shrink: 0;
+    .about-footer {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+        padding-top: var(--space-2);
+        border-top: 1px solid var(--border);
     }
 
     .about-credit {
-        font-size: 12px;
-        color: var(--tertiary);
+        font-size: var(--text-xs);
+        color: var(--text-muted);
         margin: 0;
     }
 
     .about-watermark {
         font-size: var(--text-xs);
-        font-weight: 400;
         color: var(--text-dim);
-        opacity: 0.5;
+        opacity: 0.6;
         text-decoration: none;
-        margin-top: var(--space-3);
+        width: fit-content;
         transition: opacity var(--duration-fast) var(--ease-out);
     }
 
     @media (hover: hover) {
         .about-watermark:hover {
-            opacity: 0.9;
+            opacity: 1;
+        }
+    }
+
+    @media (max-width: 520px) {
+        .about-cards {
+            grid-template-columns: 1fr;
+        }
+
+        .about-hero {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .about-desc {
+            max-width: none;
         }
     }
 </style>
