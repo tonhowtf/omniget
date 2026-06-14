@@ -4,7 +4,6 @@
   import { goto } from "$app/navigation";
   import { onMount } from "svelte";
   import SupportedServices from "$components/services/SupportedServices.svelte";
-  import OmniboxInput from "$components/omnibox/OmniboxInput.svelte";
   import BilibiliPreviewExtras from "$components/omnibox/BilibiliPreviewExtras.svelte";
   import DownloadModeSelector from "$components/omnibox/DownloadModeSelector.svelte";
   import QualityPicker from "$components/omnibox/QualityPicker.svelte";
@@ -17,7 +16,17 @@
   import P2pSendDialog from "$components/p2p/P2pSendDialog.svelte";
   import P2pReceiveDialog from "$components/p2p/P2pReceiveDialog.svelte";
   import HomeHero from "$components/home/HomeHero.svelte";
-  // Mascot is consumed by HomeHero; keep direct import path live for backward compat if needed
+  import HomeUrlBar from "$components/home/HomeUrlBar.svelte";
+  import HomeInspector from "$components/home/HomeInspector.svelte";
+  import {
+    type OmniState,
+    type PlatformInfo,
+    type SearchResult,
+    type HomeInputMode,
+    showInspectorForState,
+    showOmniboxForState,
+    isUrl,
+  } from "$lib/home/omnibox-controller";
   import { getDownloads, formatBytes } from "$lib/stores/download-store.svelte";
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -29,13 +38,6 @@
   import { translateBackendError } from "$lib/error-translate";
   import { platformDisplayName } from "$lib/platform-display-names";
   import { STUDY_MAINTENANCE_NOTICE } from "$lib/study-feature-flags";
-
-  type PlatformInfo = {
-    platform: string;
-    supported: boolean;
-    content_id: string | null;
-    content_type: string | null;
-  };
 
   type DownloadStarted = {
     id: number;
@@ -58,29 +60,9 @@
     format_note: string | null;
   };
 
-  type SearchResult = {
-    id: string;
-    title: string;
-    author: string;
-    duration: number | null;
-    thumbnail_url: string | null;
-    url: string;
-    platform: string;
-  };
-
-  type OmniState =
-    | { kind: "idle" }
-    | { kind: "detecting" }
-    | { kind: "detected"; info: PlatformInfo }
-    | { kind: "unsupported" }
-    | { kind: "preparing"; platform: string }
-    | { kind: "batch"; urls: string[] }
-    | { kind: "searching" }
-    | { kind: "search-results"; results: SearchResult[] }
-    | { kind: "search-empty" }
-    | { kind: "error"; message: string; originalUrl: string; platform: string };
 
   let url = $state(getOmniboxDraftUrl());
+  let homeInputMode = $state<HomeInputMode>("url");
   let omniState = $state<OmniState>({ kind: "idle" });
   let debounceTimer = $state<ReturnType<typeof setTimeout> | null>(null);
   let downloadMode = $state<"auto" | "audio" | "mute">("auto");
@@ -313,20 +295,8 @@
     omniState.kind === "batch"
   );
 
-  let showOmnibox = $derived(
-    omniState.kind === "idle" ||
-    omniState.kind === "detecting" ||
-    omniState.kind === "detected" ||
-    omniState.kind === "unsupported" ||
-    omniState.kind === "batch" ||
-    omniState.kind === "searching" ||
-    omniState.kind === "search-results" ||
-    omniState.kind === "search-empty"
-  );
-
-  function isUrl(value: string): boolean {
-    return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("magnet:") || value.startsWith("p2p:") || value.endsWith(".torrent");
-  }
+  let showOmnibox = $derived(showOmniboxForState(omniState));
+  let showInspector = $derived(showInspectorForState(omniState));
 
   function isValidTimeBound(v: string): boolean {
     return /^(\d+:)?\d{1,2}:\d{1,2}(\.\d+)?$|^\d+(\.\d+)?$/.test(v.trim());
@@ -848,6 +818,16 @@
     }
   }
 
+  function handleHomeModeChange(mode: HomeInputMode) {
+    if (mode === "p2p") {
+      showP2pSendDialog = true;
+    } else if (mode === "torrent") {
+      void openTorrentFile();
+    } else if (mode === "batch") {
+      void openBatchFile();
+    }
+  }
+
   function handleDismiss() {
     clearMediaPreview();
     omniState = { kind: "idle" };
@@ -855,7 +835,7 @@
   }
 </script>
 
-<div class="home">
+<div class="home-mac">
   {#if STUDY_MAINTENANCE_NOTICE && !studyNoticeDismissed}
     <div class="study-maintenance-banner" role="status">
       <div class="study-maintenance-text">
@@ -875,36 +855,38 @@
     </div>
   {/if}
 
-  <HomeHero
-    emotion={mascotEmotion}
-    compact={mascotCompact}
-    bubbleText={bubbleText || undefined}
-    celebrate={mascotEmotion === "amazed"}
-  />
-
-  <div class="omnibox-area">
-    <div class="mode-toggle-row">
-      <button
-        type="button"
-        class="mode-toggle-btn"
-        class:active={!advancedMode}
-        onclick={() => { advancedMode = false; }}
-      >
-        {$t('omnibox.mode_normal')}
-      </button>
-      <button
-        type="button"
-        class="mode-toggle-btn"
-        class:active={advancedMode}
-        onclick={() => { advancedMode = true; }}
-      >
-        {$t('omnibox.mode_advanced')}
-      </button>
+  <div class="home-mac-workspace">
+    <div class="home-mac-hero">
+      <HomeHero
+        emotion={mascotEmotion}
+        compact={mascotCompact}
+        bubbleText={bubbleText || undefined}
+        celebrate={mascotEmotion === "amazed"}
+      />
     </div>
+    <div class="home-mac-main">
+      <div class="mode-toggle-row">
+        <button
+          type="button"
+          class="mode-toggle-btn"
+          class:active={!advancedMode}
+          onclick={() => { advancedMode = false; }}
+        >
+          {$t('omnibox.mode_normal')}
+        </button>
+        <button
+          type="button"
+          class="mode-toggle-btn"
+          class:active={advancedMode}
+          onclick={() => { advancedMode = true; }}
+        >
+          {$t('omnibox.mode_advanced')}
+        </button>
+      </div>
 
-    {#if advancedMode}
-      <OmniboxAdvanced />
-    {:else}
+      {#if advancedMode}
+        <OmniboxAdvanced />
+      {:else}
     {#if externalNotice}
       <div class="feedback-card feedback-enter external-url-card">
         <div class="card-row">
@@ -954,221 +936,11 @@
       </div>
     {/if}
 
-    {#if showOmnibox}
-      <OmniboxInput bind:url onInput={handleInput} />
+    {#if showOmnibox && homeInputMode === "url"}
+      <HomeUrlBar bind:url bind:mode={homeInputMode} onInput={handleInput} onModeChange={handleHomeModeChange} />
     {/if}
 
-    {#if omniState.kind === "detected"}
-      <MediaPreview bind:mediaPreview bind:imageLoading={previewImageLoading} />
-
-      {#if omniState.info.content_type === "playlist"}
-        <div class="playlist-picker">
-          <div class="playlist-head">
-            <span class="playlist-count">
-              {$t('omnibox.playlist_selected', { selected: selectedPlaylistItems.size, total: playlistEntries.length })}
-            </span>
-            {#if !playlistLoading && playlistEntries.length > 0}
-              <div class="playlist-bulk">
-                <button type="button" class="playlist-link" onclick={selectAllPlaylist}>{$t('omnibox.playlist_all')}</button>
-                <button type="button" class="playlist-link" onclick={selectNonePlaylist}>{$t('omnibox.playlist_none')}</button>
-              </div>
-            {/if}
-          </div>
-          {#if playlistLoading}
-            <div class="playlist-status"><span class="feedback-spinner"></span> {$t('omnibox.playlist_loading')}</div>
-          {:else if playlistEntries.length === 0}
-            <span class="playlist-status">{$t('omnibox.playlist_empty')}</span>
-          {:else}
-            <ul class="playlist-list">
-              {#each playlistEntries as entry (entry.index)}
-                <li>
-                  <label class="playlist-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedPlaylistItems.has(entry.index)}
-                      onchange={() => togglePlaylistItem(entry.index)}
-                    />
-                    <span class="playlist-idx">{entry.index}.</span>
-                    <span class="playlist-title">{entry.title}</span>
-                  </label>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </div>
-      {/if}
-
-      {#if torrentLoading || torrentEntries.length > 0}
-        <div class="playlist-picker">
-          <div class="playlist-head">
-            <span class="playlist-count">
-              {$t('omnibox.torrent_selected', { selected: selectedTorrentFiles.size, total: torrentEntries.length })}
-            </span>
-            {#if !torrentLoading && torrentEntries.length > 0}
-              <div class="playlist-bulk">
-                <button type="button" class="playlist-link" onclick={selectAllTorrent}>{$t('omnibox.playlist_all')}</button>
-                <button type="button" class="playlist-link" onclick={selectNoneTorrent}>{$t('omnibox.playlist_none')}</button>
-              </div>
-            {/if}
-          </div>
-          {#if torrentLoading}
-            <div class="playlist-status"><span class="feedback-spinner"></span> {$t('omnibox.torrent_loading')}</div>
-          {:else}
-            <ul class="playlist-list">
-              {#each torrentEntries as entry (entry.index)}
-                <li>
-                  <label class="playlist-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedTorrentFiles.has(entry.index)}
-                      onchange={() => toggleTorrentFile(entry.index)}
-                    />
-                    <span class="playlist-title">{entry.path}</span>
-                    <span class="torrent-size">{formatBytes(entry.size_bytes)}</span>
-                  </label>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </div>
-      {/if}
-
-      {#if cookieHint}
-        <p class="cookie-hint" class:expired={cookieHint === "expired"} role="status">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-          <span>
-            {cookieHint === "expired"
-              ? $t("omnibox.cookie_hint_expired")
-              : $t("omnibox.cookie_hint_stale")}
-          </span>
-          <button type="button" class="cookie-hint-link" onclick={() => goto("/settings?tab=cookies")}>
-            {$t("omnibox.cookie_hint_action")}
-          </button>
-        </p>
-      {/if}
-
-      {#if omniState.info.platform === "hotmart"}
-        <button class="button action-btn" onclick={handleAction}>
-          {$t('omnibox.go_to_hotmart')}
-        </button>
-      {:else}
-        {@const playlistBlocked = omniState.info.content_type === "playlist" && playlistEntries.length > 0 && selectedPlaylistItems.size === 0}
-        {@const torrentBlocked = torrentEntries.length > 0 && selectedTorrentFiles.size === 0}
-        {#if omniState.info.platform === "bilibili"}
-          <BilibiliPreviewExtras {url} accountSlug={selectedCookieSlug && selectedCookieSlug !== "_anonymous" ? selectedCookieSlug : null} />
-        {/if}
-        <button class="download-primary-btn" disabled={playlistBlocked || torrentBlocked} onclick={handleAction}>
-          {$t('omnibox.download')}
-        </button>
-
-        {#if omniState.info.platform !== "direct_file"}
-        <details class="options-panel">
-          <summary class="options-toggle">{$t('omnibox.options')}</summary>
-          <div class="options-content">
-            <DownloadModeSelector bind:downloadMode onChange={() => { selectedFormatId = null; }} />
-            <QualityPicker bind:selectedQuality selectedFormatId />
-            {#if cookieAccounts.length > 1}
-              <CookieAccountPicker accounts={cookieAccounts} bind:selectedSlug={selectedCookieSlug} />
-            {/if}
-
-            <details class="options-panel">
-              <summary class="options-toggle">{$t('omnibox.advanced')}</summary>
-              <div class="options-content">
-                {#if omniState.info.platform === "vimeo" || omniState.info.platform === "generic"}
-                  <div class="referer-input-wrapper">
-                    <label class="referer-label" for="referer-input">{$t('omnibox.referer_label')}</label>
-                    <input
-                      id="referer-input"
-                      class="referer-input"
-                      type="text"
-                      placeholder={$t('omnibox.referer_placeholder')}
-                      bind:value={referer}
-                      spellcheck="false"
-                    />
-                  </div>
-                {/if}
-
-                {#if omniState.info.content_type !== "playlist"}
-                  <div class="timerange-wrapper">
-                    <span class="timerange-label">{$t('omnibox.timerange_label')}</span>
-                    <div class="timerange-inputs">
-                      <input
-                        class="timerange-input"
-                        type="text"
-                        placeholder={$t('omnibox.timerange_start')}
-                        bind:value={clipStart}
-                        spellcheck="false"
-                        inputmode="numeric"
-                        aria-label={$t('omnibox.timerange_start') as string}
-                      />
-                      <span class="timerange-sep" aria-hidden="true">—</span>
-                      <input
-                        class="timerange-input"
-                        type="text"
-                        placeholder={$t('omnibox.timerange_end')}
-                        bind:value={clipEnd}
-                        spellcheck="false"
-                        inputmode="numeric"
-                        aria-label={$t('omnibox.timerange_end') as string}
-                      />
-                    </div>
-                    <span class="timerange-hint">{$t('omnibox.timerange_hint')}</span>
-                  </div>
-                {/if}
-
-                <div class="timerange-wrapper">
-                  <span class="timerange-label">{$t('omnibox.schedule_label')}</span>
-                  <div class="schedule-presets">
-                    <button type="button" class="schedule-preset" onclick={() => setSchedulePreset('1h')}>{$t('omnibox.schedule_1h')}</button>
-                    <button type="button" class="schedule-preset" onclick={() => setSchedulePreset('tonight')}>{$t('omnibox.schedule_tonight')}</button>
-                    <button type="button" class="schedule-preset" onclick={() => setSchedulePreset('1d')}>{$t('omnibox.schedule_1d')}</button>
-                    {#if scheduleAt || scheduleStop}
-                      <button type="button" class="schedule-preset" onclick={() => { scheduleAt = ""; scheduleStop = ""; }}>{$t('omnibox.schedule_clear')}</button>
-                    {/if}
-                  </div>
-                  <div class="timerange-inputs">
-                    <input
-                      class="timerange-input schedule-input"
-                      type="datetime-local"
-                      bind:value={scheduleAt}
-                      aria-label={$t('omnibox.schedule_start') as string}
-                    />
-                    <span class="timerange-sep" aria-hidden="true">—</span>
-                    <input
-                      class="timerange-input schedule-input"
-                      type="datetime-local"
-                      bind:value={scheduleStop}
-                      aria-label={$t('omnibox.schedule_stop') as string}
-                    />
-                  </div>
-                  <span class="timerange-hint">{$t('omnibox.schedule_hint')}</span>
-                </div>
-
-                <FormatSelector
-                  platform={omniState.info.platform}
-                  isPlaylist={omniState.info.content_type === "playlist"}
-                  bind:formats
-                  bind:selectedFormatId
-                  {loadingFormats}
-                  {formatError}
-                  onLoadFormats={loadFormats}
-                  onSelectFormat={selectFormat}
-                  onClearFormat={clearFormatSelection}
-                  onPresetBest={presetBest}
-                  onPresetMusic={presetMusic}
-                />
-              </div>
-            </details>
-          </div>
-        </details>
-        {/if}
-      {/if}
-
-    {:else if omniState.kind === "batch"}
+    {#if omniState.kind === "batch"}
       <BatchDownload count={omniState.urls.length} onDownload={handleBatchDownload} />
 
     {:else if omniState.kind === "searching"}
@@ -1197,38 +969,177 @@
         </svg>
         <span class="feedback-text">{$t('omnibox.unsupported')}</span>
       </div>
-
-    {:else if omniState.kind === "preparing"}
-      <div class="feedback-card feedback-enter">
-        <div class="card-row">
-          <span class="feedback-spinner"></span>
-          <span class="card-text">{$t('omnibox.preparing')}</span>
-        </div>
-      </div>
-
-    {:else if omniState.kind === "error"}
-      <div class="feedback-card feedback-enter" data-status="error">
-        <div class="card-row">
-          <svg class="card-status-icon error" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 8v4m0 4h.01" />
-          </svg>
-          <span class="card-title card-error-text">{omniState.message}</span>
-          <button class="dismiss-btn" onclick={handleDismiss} aria-label={$t('common.close')}>
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div class="card-row card-actions">
-          <span class="card-subtext">{$t('omnibox.error')}</span>
-          <button class="button card-action-btn" onclick={handleRetry}>
-            {$t('omnibox.retry')}
-          </button>
-        </div>
-      </div>
     {/if}
     {/if}
+
+      {#if omniState.kind === "idle"}
+        <SupportedServices />
+      {/if}
+    </div>
+
+    <HomeInspector open={showInspector} title={$t('home.inspector_title')}>
+      {#if omniState.kind === "detected"}
+        <MediaPreview bind:mediaPreview bind:imageLoading={previewImageLoading} />
+        {#if omniState.info.content_type === "playlist"}
+          <div class="playlist-picker">
+            <div class="playlist-head">
+              <span class="playlist-count">
+                {$t('omnibox.playlist_selected', { selected: selectedPlaylistItems.size, total: playlistEntries.length })}
+              </span>
+              {#if !playlistLoading && playlistEntries.length > 0}
+                <div class="playlist-bulk">
+                  <button type="button" class="playlist-link" onclick={selectAllPlaylist}>{$t('omnibox.playlist_all')}</button>
+                  <button type="button" class="playlist-link" onclick={selectNonePlaylist}>{$t('omnibox.playlist_none')}</button>
+                </div>
+              {/if}
+            </div>
+            {#if playlistLoading}
+              <div class="playlist-status"><span class="feedback-spinner"></span> {$t('omnibox.playlist_loading')}</div>
+            {:else if playlistEntries.length === 0}
+              <span class="playlist-status">{$t('omnibox.playlist_empty')}</span>
+            {:else}
+              <ul class="playlist-list">
+                {#each playlistEntries as entry (entry.index)}
+                  <li>
+                    <label class="playlist-item">
+                      <input type="checkbox" checked={selectedPlaylistItems.has(entry.index)} onchange={() => togglePlaylistItem(entry.index)} />
+                      <span class="playlist-idx">{entry.index}.</span>
+                      <span class="playlist-title">{entry.title}</span>
+                    </label>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
+        {/if}
+        {#if torrentLoading || torrentEntries.length > 0}
+          <div class="playlist-picker">
+            <div class="playlist-head">
+              <span class="playlist-count">
+                {$t('omnibox.torrent_selected', { selected: selectedTorrentFiles.size, total: torrentEntries.length })}
+              </span>
+              {#if !torrentLoading && torrentEntries.length > 0}
+                <div class="playlist-bulk">
+                  <button type="button" class="playlist-link" onclick={selectAllTorrent}>{$t('omnibox.playlist_all')}</button>
+                  <button type="button" class="playlist-link" onclick={selectNoneTorrent}>{$t('omnibox.playlist_none')}</button>
+                </div>
+              {/if}
+            </div>
+            {#if torrentLoading}
+              <div class="playlist-status"><span class="feedback-spinner"></span> {$t('omnibox.torrent_loading')}</div>
+            {:else}
+              <ul class="playlist-list">
+                {#each torrentEntries as entry (entry.index)}
+                  <li>
+                    <label class="playlist-item">
+                      <input type="checkbox" checked={selectedTorrentFiles.has(entry.index)} onchange={() => toggleTorrentFile(entry.index)} />
+                      <span class="playlist-title">{entry.path}</span>
+                      <span class="torrent-size">{formatBytes(entry.size_bytes)}</span>
+                    </label>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
+        {/if}
+        {#if cookieHint}
+          <p class="cookie-hint" class:expired={cookieHint === "expired"} role="status">
+            <span>{cookieHint === "expired" ? $t("omnibox.cookie_hint_expired") : $t("omnibox.cookie_hint_stale")}</span>
+            <button type="button" class="cookie-hint-link" onclick={() => goto("/settings?tab=cookies")}>{$t("omnibox.cookie_hint_action")}</button>
+          </p>
+        {/if}
+        {#if omniState.info.platform === "hotmart"}
+          <button class="button action-btn" onclick={handleAction}>{$t('omnibox.go_to_hotmart')}</button>
+        {:else}
+          {@const playlistBlocked = omniState.info.content_type === "playlist" && playlistEntries.length > 0 && selectedPlaylistItems.size === 0}
+          {@const torrentBlocked = torrentEntries.length > 0 && selectedTorrentFiles.size === 0}
+          {#if omniState.info.platform === "bilibili"}
+            <BilibiliPreviewExtras {url} accountSlug={selectedCookieSlug && selectedCookieSlug !== "_anonymous" ? selectedCookieSlug : null} />
+          {/if}
+          <button class="download-primary-btn" disabled={playlistBlocked || torrentBlocked} onclick={handleAction}>{$t('omnibox.download')}</button>
+          {#if omniState.info.platform !== "direct_file"}
+            <details class="options-panel">
+              <summary class="options-toggle">{$t('omnibox.options')}</summary>
+              <div class="options-content">
+                <DownloadModeSelector bind:downloadMode onChange={() => { selectedFormatId = null; }} />
+                <QualityPicker bind:selectedQuality selectedFormatId />
+                {#if cookieAccounts.length > 1}
+                  <CookieAccountPicker accounts={cookieAccounts} bind:selectedSlug={selectedCookieSlug} />
+                {/if}
+                <details class="options-panel">
+                  <summary class="options-toggle">{$t('omnibox.advanced')}</summary>
+                  <div class="options-content">
+                    {#if omniState.info.platform === "vimeo" || omniState.info.platform === "generic"}
+                      <div class="referer-input-wrapper">
+                        <label class="referer-label" for="referer-input">{$t('omnibox.referer_label')}</label>
+                        <input id="referer-input" class="referer-input" type="text" placeholder={$t('omnibox.referer_placeholder')} bind:value={referer} spellcheck="false" />
+                      </div>
+                    {/if}
+                    {#if omniState.info.content_type !== "playlist"}
+                      <div class="timerange-wrapper">
+                        <span class="timerange-label">{$t('omnibox.timerange_label')}</span>
+                        <div class="timerange-inputs">
+                          <input class="timerange-input" type="text" placeholder={$t('omnibox.timerange_start')} bind:value={clipStart} spellcheck="false" inputmode="numeric" aria-label={$t('omnibox.timerange_start') as string} />
+                          <span class="timerange-sep" aria-hidden="true">—</span>
+                          <input class="timerange-input" type="text" placeholder={$t('omnibox.timerange_end')} bind:value={clipEnd} spellcheck="false" inputmode="numeric" aria-label={$t('omnibox.timerange_end') as string} />
+                        </div>
+                        <span class="timerange-hint">{$t('omnibox.timerange_hint')}</span>
+                      </div>
+                    {/if}
+                    <div class="timerange-wrapper">
+                      <span class="timerange-label">{$t('omnibox.schedule_label')}</span>
+                      <div class="schedule-presets">
+                        <button type="button" class="schedule-preset" onclick={() => setSchedulePreset('1h')}>{$t('omnibox.schedule_1h')}</button>
+                        <button type="button" class="schedule-preset" onclick={() => setSchedulePreset('tonight')}>{$t('omnibox.schedule_tonight')}</button>
+                        <button type="button" class="schedule-preset" onclick={() => setSchedulePreset('1d')}>{$t('omnibox.schedule_1d')}</button>
+                        {#if scheduleAt || scheduleStop}
+                          <button type="button" class="schedule-preset" onclick={() => { scheduleAt = ""; scheduleStop = ""; }}>{$t('omnibox.schedule_clear')}</button>
+                        {/if}
+                      </div>
+                      <div class="timerange-inputs">
+                        <input class="timerange-input schedule-input" type="datetime-local" bind:value={scheduleAt} aria-label={$t('omnibox.schedule_start') as string} />
+                        <span class="timerange-sep" aria-hidden="true">—</span>
+                        <input class="timerange-input schedule-input" type="datetime-local" bind:value={scheduleStop} aria-label={$t('omnibox.schedule_stop') as string} />
+                      </div>
+                      <span class="timerange-hint">{$t('omnibox.schedule_hint')}</span>
+                    </div>
+                    <FormatSelector
+                      platform={omniState.info.platform}
+                      isPlaylist={omniState.info.content_type === "playlist"}
+                      bind:formats
+                      bind:selectedFormatId
+                      {loadingFormats}
+                      {formatError}
+                      onLoadFormats={loadFormats}
+                      onSelectFormat={selectFormat}
+                      onClearFormat={clearFormatSelection}
+                      onPresetBest={presetBest}
+                      onPresetMusic={presetMusic}
+                    />
+                  </div>
+                </details>
+              </div>
+            </details>
+          {/if}
+        {/if}
+      {:else if omniState.kind === "preparing"}
+        <div class="feedback-card feedback-enter">
+          <div class="card-row">
+            <span class="feedback-spinner"></span>
+            <span class="card-text">{$t('omnibox.preparing')}</span>
+          </div>
+        </div>
+      {:else if omniState.kind === "error"}
+        <div class="feedback-card feedback-enter" data-status="error">
+          <div class="card-row">
+            <span class="card-title card-error-text">{omniState.message}</span>
+          </div>
+          <div class="card-row card-actions">
+            <button class="button card-action-btn" onclick={handleRetry}>{$t('omnibox.retry')}</button>
+          </div>
+        </div>
+      {/if}
+    </HomeInspector>
   </div>
 
   {#if showP2pSendDialog}
@@ -1243,39 +1154,6 @@
     />
   {/if}
 
-  {#if omniState.kind === "idle"}
-    <SupportedServices />
-  {/if}
-
-  <div class="quick-actions">
-    <button class="quick-action-btn" onclick={() => { showP2pSendDialog = true; }}>
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M22 2L11 13" />
-        <path d="M22 2L15 22 11 13 2 9z" />
-      </svg>
-      {$t("p2p.send_file")}
-    </button>
-    <button class="quick-action-btn" onclick={openTorrentFile}>
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3" />
-        <circle cx="5" cy="6" r="2" />
-        <circle cx="19" cy="6" r="2" />
-        <path d="M9.5 10.5L6.5 7.5" />
-        <path d="M14.5 10.5l3-3" />
-      </svg>
-      {$t("torrent.open_file")}
-    </button>
-    <button class="quick-action-btn" onclick={openBatchFile}>
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-        <line x1="8" y1="13" x2="16" y2="13" />
-        <line x1="8" y1="17" x2="16" y2="17" />
-      </svg>
-      {$t("omnibox.batch_file_open")}
-    </button>
-  </div>
-
   <div class="terms-note">
     {$t('terms_note.agreement')}
     <a href="/about/terms" class="terms-link">{$t('terms_note.link')}</a>
@@ -1283,14 +1161,8 @@
 </div>
 
 <style>
-  .home {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: calc(100vh - var(--space-7));
-    gap: var(--space-6);
-    padding: var(--space-5) var(--space-3);
+  .home-mac {
+    width: 100%;
   }
 
   .study-maintenance-banner {
@@ -1959,10 +1831,12 @@
   }
 
   .terms-note {
+    flex-shrink: 0;
     font-size: 9px;
     color: var(--gray);
-    text-align: center;
-    opacity: 0.3;
+    text-align: left;
+    opacity: 0.35;
+    padding: 0 var(--space-1);
   }
 
   .terms-link {

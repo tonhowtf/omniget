@@ -17,7 +17,7 @@
   } = $props();
 </script>
 
-<div class="home-hero">
+<div class="home-hero" class:compact>
   <Mascot {emotion} {compact} {bubbleText} />
   <Confetti active={celebrate} />
 </div>
@@ -28,6 +28,13 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .home-hero.compact {
+    max-height: none;
   }
 </style>
