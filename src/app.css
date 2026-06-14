@@ -1,12 +1,6 @@
 @import './lib/style/buttons.css';
 @import './lib/style/settings.css';
-@import '@fontsource-variable/bricolage-grotesque';
-@import '@fontsource/inter/400.css';
-@import '@fontsource/inter/500.css';
-@import '@fontsource/inter/600.css';
-@import '@fontsource/dm-sans/400.css';
-@import '@fontsource/dm-sans/500.css';
-@import '@fontsource/dm-sans/600.css';
+@import './lib/style/macos-shell.css';
 @import '@fontsource/ibm-plex-mono/400.css';
 @import '@fontsource/ibm-plex-mono/500.css';
 
@@ -73,14 +67,13 @@
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  --font-display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
-  --font-body: 'Inter', 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', 'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono', 'Ubuntu Mono', 'Courier New', monospace;
   --font-system: var(--font-body);
 
   --padding: var(--space-3);
   --border-radius: var(--radius-sm);
-  --sidebar-width: 80px;
   --bottom-nav-height: 44px;
   --mobile-nav-clearance: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + var(--padding));
   --safe-area-top: env(safe-area-inset-top, 0px);
@@ -447,6 +440,7 @@
 [data-theme="eink-sepia"],
 [data-theme="nyxvamp-radiance"] {
   --bg-overlay: black;
+  --on-warning: #5c3d00;
 }
 
 :root, [data-theme="dark"] {
@@ -515,7 +509,7 @@
   --accent: #E05500;
   --success: #1a7a3a;
   --error: #c41e3a;
-  --warning: #c47a06;
+  --warning: #e8940a;
 
   --button: #eaeaea;
   --button-hover: #dfdfdf;

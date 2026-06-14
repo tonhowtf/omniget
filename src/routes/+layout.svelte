@@ -11,20 +11,13 @@
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import { queueExternalPrefill, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
-  import DebugPanel from "$components/debug/DebugPanel.svelte";
-  import BilibiliSessionExpiredBanner from "$lib/components/BilibiliSessionExpiredBanner.svelte";
+  import AppSidebar from "$components/shell/AppSidebar.svelte";
+  import AppToolbar from "$components/shell/AppToolbar.svelte";
+  import CommandPalette from "$components/shell/CommandPalette.svelte";
+  import { setCommandPaletteItems } from "$lib/stores/command-palette-store.svelte";
   import { refreshUpdateInfo } from "$lib/stores/update-store.svelte";
   import { startClipboardMonitor, stopClipboardMonitor } from "$lib/stores/clipboard-monitor";
   import { initChangelog } from "$lib/stores/changelog-store.svelte";
-  import ChangelogDialog from "$components/dialog/ChangelogDialog.svelte";
-  import ConfirmCloseDialog from "$components/dialog/ConfirmCloseDialog.svelte";
-  import ShortcutsDialog from "$components/dialog/ShortcutsDialog.svelte";
-  import BandwidthPill from "$lib/study-components/BandwidthPill.svelte";
-  import NotificationBell from "$lib/study-components/shelves/NotificationBell.svelte";
-  import { studySettingsGet, studyLibraryVacuum } from "$lib/study-bridge";
-  import LegalDialog from "$components/dialog/LegalDialog.svelte";
-  import RecoveryDialog from "$components/dialog/RecoveryDialog.svelte";
-  import OnboardingWizard from "$components/onboarding/OnboardingWizard.svelte";
   import { needsOnboarding } from "$lib/stores/onboarding-store.svelte";
   import { isYtdlpAvailable, isDepsChecked, refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -39,12 +32,14 @@
     STUDY_NOTES_ENABLED,
   } from "$lib/study-feature-flags";
   import type { Snippet } from "svelte";
+  import type { Component } from "svelte";
 
   let pluginNavItems = $state<NavItem[]>([]);
 
   let allNav = $derived([...CORE_NAV_ITEMS, ...pluginNavItems].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)));
   let primaryNav = $derived(allNav.filter((item) => item.group === "primary"));
-  let secondaryNav = $derived(allNav.filter((item) => item.group === "secondary"));
+  let appNav = $derived(allNav.filter((item) => item.group === "app"));
+  let pluginNav = $derived(allNav.filter((item) => item.group === "plugins"));
 
   let ytdlpDismissed = $state(false);
   let ytdlpMissing = $derived(isDepsChecked() && !isYtdlpAvailable());
@@ -53,6 +48,26 @@
   let counts = $derived(getCounts());
   let badgeLabel = $derived(counts.badge > 99 ? "99+" : String(counts.badge));
   let settings = $derived(getSettings());
+
+  let isStudyRoute = $derived(page.url.pathname.startsWith("/study"));
+  let isCoreRoute = $derived(
+    page.url.pathname === "/" ||
+    page.url.pathname.startsWith("/downloads") ||
+    page.url.pathname.startsWith("/settings") ||
+    page.url.pathname.startsWith("/marketplace") ||
+    page.url.pathname.startsWith("/about"),
+  );
+
+  let DebugPanel = $state<Component | null>(null);
+  let OnboardingWizard = $state<Component | null>(null);
+  let BandwidthPill = $state<Component | null>(null);
+  let NotificationBell = $state<Component | null>(null);
+  let ChangelogDialog = $state<Component | null>(null);
+  let ConfirmCloseDialog = $state<Component | null>(null);
+  let ShortcutsDialog = $state<Component | null>(null);
+  let LegalDialog = $state<Component | null>(null);
+  let RecoveryDialog = $state<Component | null>(null);
+  let BilibiliSessionExpiredBanner = $state<Component | null>(null);
 
   function handleExternalUrlEvent(event: Omit<ExternalUrlEvent, "id">) {
     if (event.action === "prefill") {
@@ -69,6 +84,41 @@
     }
   }
 
+  function buildCommandPaletteItems() {
+    const navItems = [...CORE_NAV_ITEMS, ...pluginNavItems].map((item) => ({
+      id: `nav-${item.href}`,
+      label: item.label || (item.labelKey ? get(t)(item.labelKey) : item.href),
+      group: get(t)("command_palette.group_nav"),
+      keywords: item.href,
+      action: () => goto(item.href),
+    }));
+
+    setCommandPaletteItems([
+      ...navItems,
+      {
+        id: "action-paste",
+        label: get(t)("command_palette.action_paste"),
+        group: get(t)("command_palette.group_action"),
+        keywords: "clipboard url paste",
+        action: () => goto("/"),
+      },
+      {
+        id: "action-downloads",
+        label: get(t)("command_palette.action_downloads"),
+        group: get(t)("command_palette.group_action"),
+        keywords: "queue",
+        action: () => goto("/downloads"),
+      },
+      {
+        id: "action-settings",
+        label: get(t)("command_palette.action_settings"),
+        group: get(t)("command_palette.group_action"),
+        keywords: "preferences",
+        action: () => goto("/settings"),
+      },
+    ]);
+  }
+
   $effect(() => {
     if (settings?.download.clipboard_detection) {
       startClipboardMonitor();
@@ -80,16 +130,23 @@
     };
   });
 
+  $effect(() => {
+    document.documentElement.setAttribute("data-shell", "mac");
+    void $locale;
+    buildCommandPaletteItems();
+  });
+
   let { children }: { children: Snippet } = $props();
 
   const VACUUM_LAST_RUN_KEY = "study.library.auto_vacuum.last_run";
 
   async function checkAutoVacuum() {
     try {
-      const settings = await studySettingsGet();
-      const enabled = settings.library?.auto_vacuum ?? true;
+      const { studySettingsGet, studyLibraryVacuum } = await import("$lib/study-bridge");
+      const studySettings = await studySettingsGet();
+      const enabled = studySettings.library?.auto_vacuum ?? true;
       if (!enabled) return;
-      const intervalDays = settings.library?.auto_vacuum_interval_days ?? 30;
+      const intervalDays = studySettings.library?.auto_vacuum_interval_days ?? 30;
       const intervalMs = intervalDays * 86400 * 1000;
       const last = Number(localStorage.getItem(VACUUM_LAST_RUN_KEY) ?? "0");
       const now = Date.now();
@@ -117,6 +174,17 @@
     void ensureTrackerNotifications();
     import("$lib/rpc").then(({ rpcSyncIdleStats }) => rpcSyncIdleStats());
 
+    void import("$components/dialog/ChangelogDialog.svelte").then((m) => { ChangelogDialog = m.default; });
+    void import("$components/dialog/ConfirmCloseDialog.svelte").then((m) => { ConfirmCloseDialog = m.default; });
+    void import("$components/dialog/ShortcutsDialog.svelte").then((m) => { ShortcutsDialog = m.default; });
+    void import("$components/dialog/LegalDialog.svelte").then((m) => { LegalDialog = m.default; });
+    void import("$components/dialog/RecoveryDialog.svelte").then((m) => { RecoveryDialog = m.default; });
+    void import("$lib/components/BilibiliSessionExpiredBanner.svelte").then((m) => { BilibiliSessionExpiredBanner = m.default; });
+    if (showOnboarding) {
+      void import("$components/onboarding/OnboardingWizard.svelte").then((m) => { OnboardingWizard = m.default; });
+    }
+    void import("$components/debug/DebugPanel.svelte").then((m) => { DebugPanel = m.default; });
+
     invoke<{ id: string; enabled: boolean; nav: { route: string; label: Record<string, string>; icon_svg: string | null; group: string; order: number }[] }[]>("list_plugins")
       .then((plugins) => {
         const items: NavItem[] = [];
@@ -132,13 +200,14 @@
               label: n.label[get(locale)] || n.label["en"] || p.id,
               icon: "plugin",
               iconSvg: n.icon_svg || undefined,
-              group: n.group === "primary" ? "primary" : "secondary",
+              group: "plugins",
               pluginId: p.id,
               order: n.order,
             });
           }
         }
         pluginNavItems = items;
+        buildCommandPaletteItems();
       })
       .catch(() => {});
     listen<Omit<ExternalUrlEvent, "id">>("external-url", (event) => {
@@ -193,132 +262,94 @@
     };
   });
 
-  function isActive(href: string): boolean {
-    if (href === "/") return page.url.pathname === "/";
-    return page.url.pathname.startsWith(href);
-  }
+  $effect(() => {
+    if (isStudyRoute) {
+      void import("$lib/study-components/BandwidthPill.svelte").then((m) => { BandwidthPill = m.default; });
+      void import("$lib/study-components/shelves/NotificationBell.svelte").then((m) => { NotificationBell = m.default; });
+    } else {
+      BandwidthPill = null;
+      NotificationBell = null;
+    }
+  });
 </script>
 
-<div class="layout">
-  <nav class="sidebar">
-    {#each primaryNav as item}
-      {@const itemTitle = item.label || (item.labelKey ? $t(item.labelKey) : '')}
-      <a
-        href={item.href}
-        class="nav-item"
-        class:active={isActive(item.href)}
-        title={itemTitle}
-      >
-        <span class="indicator"></span>
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          {#if item.iconSvg}
-            {#each item.iconSvg.split(' M').map((d, i) => i === 0 ? d : 'M' + d) as pathD}
-              <path d={pathD} />
-            {/each}
-          {:else if item.icon === "home"}
-            <path d="M3 12L12 3l9 9" />
-            <path d="M5 10v9a1 1 0 001 1h3v-5h6v5h3a1 1 0 001-1v-9" />
-          {:else if item.icon === "downloads"}
-            <path d="M12 3v12m0 0l-4-4m4 4l4-4" />
-            <path d="M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2" />
-          {:else if item.icon === "marketplace"}
-            <path d="M3 21h18" />
-            <path d="M3 7v1a3 3 0 0 0 6 0V7" />
-            <path d="M9 7v1a3 3 0 0 0 6 0V7" />
-            <path d="M15 7v1a3 3 0 0 0 6 0V7" />
-            <path d="M3 7h18l-1.5-4H4.5z" />
-            <path d="M5 21V10" />
-            <path d="M19 21V10" />
-          {:else if item.icon === "settings"}
-            <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <circle cx="12" cy="12" r="3" />
-          {:else}
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 8v4m0 4h.01" />
-          {/if}
-        </svg>
-        <span class="nav-label">{itemTitle}</span>
-        {#if item.badge === "downloads" && counts.badge > 0}
-          <span class="badge">{badgeLabel}</span>
-        {/if}
-      </a>
-    {/each}
-
-    {#if secondaryNav.length > 0}
-      <div class="nav-divider"></div>
-    {/if}
-
-    {#each secondaryNav as item}
-      {@const itemTitle = item.label || (item.labelKey ? $t(item.labelKey) : '')}
-      <a
-        href={item.href}
-        class="nav-item"
-        class:active={isActive(item.href)}
-        title={itemTitle}
-      >
-        <span class="indicator"></span>
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          {#if item.iconSvg}
-            {#each item.iconSvg.split(' M').map((d, i) => i === 0 ? d : 'M' + d) as pathD}
-              <path d={pathD} />
-            {/each}
-          {:else if item.icon === "about"}
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 16v-4m0-4h.01" />
-          {:else}
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-          {/if}
-        </svg>
-        <span class="nav-label">{itemTitle}</span>
-      </a>
-    {/each}
-  </nav>
-
-  <main class="content">
-    {#if ytdlpMissing && !ytdlpDismissed}
-      <div class="ytdlp-banner">
-        <span class="ytdlp-banner-text">{$t('common.ytdlp_missing')}</span>
-        <button class="button ytdlp-banner-link" onclick={() => goto('/settings#dependencies')}>
-          {$t('common.go_to_settings')}
-        </button>
-        <button class="ytdlp-banner-close" onclick={() => ytdlpDismissed = true} aria-label={$t('common.close')}>
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-    {/if}
-    {@render children()}
-  </main>
+<div class="mac-shell">
+  <AppToolbar />
+  <div class="mac-shell-body">
+    <AppSidebar
+      {primaryNav}
+      {appNav}
+      {pluginNav}
+      {badgeLabel}
+      badgeCount={counts.badge}
+    />
+    <main
+      class="mac-content"
+      class:mac-content--home={page.url.pathname === "/"}
+      class:mac-content--pane={
+        page.url.pathname.startsWith("/settings") ||
+        page.url.pathname.startsWith("/downloads")
+      }
+    >
+      {#if ytdlpMissing && !ytdlpDismissed && isCoreRoute}
+        <div class="ytdlp-banner">
+          <span class="ytdlp-banner-text">{$t('common.ytdlp_missing')}</span>
+          <button class="button ytdlp-banner-link" onclick={() => goto('/settings#dependencies')}>
+            {$t('common.go_to_settings')}
+          </button>
+          <button class="ytdlp-banner-close" onclick={() => ytdlpDismissed = true} aria-label={$t('common.close')}>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      {/if}
+      {@render children()}
+    </main>
+  </div>
 </div>
 
-<div class="bandwidth-pill-mount">
-  <BandwidthPill />
-</div>
+<CommandPalette />
 
-<div class="notification-bell-mount">
-  <NotificationBell />
-</div>
+{#if isStudyRoute && BandwidthPill}
+  <div class="bandwidth-pill-mount">
+    <BandwidthPill />
+  </div>
+{/if}
+
+{#if isStudyRoute && NotificationBell}
+  <div class="notification-bell-mount">
+    <NotificationBell />
+  </div>
+{/if}
 
 <Toast />
-<DebugPanel />
-<BilibiliSessionExpiredBanner />
-<ChangelogDialog />
-<ConfirmCloseDialog />
-<ShortcutsDialog />
-<LegalDialog />
-<RecoveryDialog />
-{#if showOnboarding}
+{#if DebugPanel}
+  <DebugPanel />
+{/if}
+{#if BilibiliSessionExpiredBanner}
+  <BilibiliSessionExpiredBanner />
+{/if}
+{#if ChangelogDialog}
+  <ChangelogDialog />
+{/if}
+{#if ConfirmCloseDialog}
+  <ConfirmCloseDialog />
+{/if}
+{#if ShortcutsDialog}
+  <ShortcutsDialog />
+{/if}
+{#if LegalDialog}
+  <LegalDialog />
+{/if}
+{#if RecoveryDialog}
+  <RecoveryDialog />
+{/if}
+{#if showOnboarding && OnboardingWizard}
   <OnboardingWizard />
 {/if}
 
 <style>
-  .layout {
-    display: flex;
-    height: 100vh;
-    overflow: hidden;
-  }
-
   .bandwidth-pill-mount {
     position: fixed;
     bottom: 12px;
@@ -326,128 +357,12 @@
     z-index: 50;
     pointer-events: none;
   }
+
   .notification-bell-mount {
     position: fixed;
-    top: 16px;
+    top: calc(var(--titlebar-height) + 8px);
     right: 16px;
     z-index: 60;
-  }
-
-  .sidebar {
-    width: var(--sidebar-width);
-    min-width: var(--sidebar-width);
-    height: 100vh;
-    background: var(--sidebar-bg);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding-top: var(--padding);
-    gap: 4px;
-  }
-
-  .nav-item {
-    position: relative;
-    width: 60px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    padding: 6px 0;
-    border-radius: var(--radius-md);
-    color: var(--text-dim);
-    transition: color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
-  }
-
-  .nav-label {
-    font-size: 9px;
-    font-weight: 500;
-    line-height: 1;
-    text-align: center;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  @media (hover: hover) {
-    .nav-item:hover {
-      color: var(--text);
-      background-color: var(--surface-hi);
-    }
-  }
-
-  .nav-item:active {
-    background-color: var(--surface-hi);
-  }
-
-  .nav-item:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
-  }
-
-  .nav-item.active {
-    color: var(--accent);
-    background-color: var(--accent-soft);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .nav-item {
-      transition: none;
-    }
-  }
-
-  .nav-divider {
-    width: 24px;
-    height: 1px;
-    background: var(--content-border);
-    margin: 6px 0;
-    flex-shrink: 0;
-  }
-
-  .indicator {
-    position: absolute;
-    left: -8px;
-    width: 3px;
-    height: 0;
-    background: var(--accent);
-    border-radius: 0 2px 2px 0;
-    transition: height var(--duration-base) var(--ease-out);
-  }
-
-  .nav-item.active .indicator {
-    height: 24px;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .indicator {
-      transition: none;
-    }
-  }
-
-  .badge {
-    position: absolute;
-    top: 4px;
-    right: 2px;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 var(--space-1);
-    font-size: var(--text-xs);
-    font-weight: 600;
-    line-height: 16px;
-    text-align: center;
-    color: var(--on-accent);
-    background: var(--accent);
-    border-radius: var(--radius-full);
-    pointer-events: none;
-    box-shadow: 0 0 0 2px var(--sidebar-bg);
-  }
-
-  .content {
-    flex: 1;
-    overflow-y: auto;
-    padding: calc(var(--padding) * 2);
-    box-shadow: inset 1px 0 0 0 var(--content-border);
   }
 
   .ytdlp-banner {
@@ -456,11 +371,20 @@
     gap: 10px;
     padding: 10px 14px;
     margin-bottom: var(--padding);
-    background: var(--warning);
-    color: var(--on-warning);
+    background: color-mix(in srgb, var(--warning) 18%, var(--surface));
+    color: color-mix(in srgb, var(--warning) 82%, var(--text));
+    border: 1px solid color-mix(in srgb, var(--warning) 34%, var(--border));
     border-radius: var(--border-radius);
     font-size: 12.5px;
     font-weight: 500;
+  }
+
+  :global([data-theme="light"]) .ytdlp-banner,
+  :global([data-theme="catppuccin-latte"]) .ytdlp-banner,
+  :global([data-theme="eink-day"]) .ytdlp-banner,
+  :global([data-theme="eink-sepia"]) .ytdlp-banner,
+  :global([data-theme="nyxvamp-radiance"]) .ytdlp-banner {
+    color: var(--on-warning);
   }
 
   .ytdlp-banner-text {
@@ -468,8 +392,8 @@
   }
 
   .ytdlp-banner-link {
-    background: color-mix(in srgb, var(--warning) 80%, black);
-    color: var(--on-warning);
+    background: var(--warning);
+    color: #fff;
     border: none;
     font-size: 12px;
     padding: 4px 10px;
@@ -488,10 +412,10 @@
   .ytdlp-banner-close {
     background: none;
     border: none;
-    color: #000;
+    color: inherit;
     cursor: pointer;
     padding: 2px;
-    opacity: 0.6;
+    opacity: 0.7;
     display: flex;
     align-items: center;
   }
@@ -499,82 +423,6 @@
   @media (hover: hover) {
     .ytdlp-banner-close:hover {
       opacity: 1;
-    }
-  }
-
-  @media (max-width: 535px) {
-    .layout {
-      grid-template-columns: unset;
-      grid-template-rows: 1fr auto;
-    }
-
-    .sidebar {
-      width: 100%;
-      height: auto;
-      flex-direction: row;
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      padding: 0;
-      padding-left: var(--safe-area-left);
-      padding-right: var(--safe-area-right);
-      padding-bottom: var(--safe-area-bottom);
-      border-top: 1px solid var(--content-border);
-      overflow-x: auto;
-      overflow-y: hidden;
-      gap: 0;
-    }
-
-    .sidebar::after {
-      content: "";
-      position: absolute;
-      right: 0;
-      top: 0;
-      bottom: 0;
-      width: 32px;
-      pointer-events: none;
-      background: linear-gradient(to right, transparent 0%, var(--sidebar-bg) 100%);
-    }
-
-    .nav-item {
-      width: auto;
-      height: 44px;
-      padding: 0 calc(var(--padding) * 1.5);
-      flex-shrink: 0;
-    }
-
-    .nav-divider {
-      width: 1px;
-      height: 24px;
-      margin: 0 4px;
-    }
-
-    .indicator {
-      position: absolute;
-      bottom: -8px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 20px;
-      height: 3px;
-      border-radius: 0 0 2px 2px;
-    }
-
-    .nav-item.active .indicator {
-      width: 20px;
-      height: 3px;
-    }
-
-    .content {
-      padding: calc(var(--padding) * 2);
-      padding-bottom: var(--mobile-nav-clearance);
-      order: -1;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .indicator {
-      transition: none;
     }
   }
 </style>
