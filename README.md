@@ -103,7 +103,7 @@ Free and open source under GPL-3.0. Updates run quietly in the background. The b
 This is the part people fall in love with. Copy any link, a YouTube video, a tweet, a Discord message, a track, a magnet, then press the global hotkey **`Ctrl+Shift+D`** (**`Cmd+Shift+D`** on macOS). OmniGet reads your clipboard and downloads it in the background. You do not even open the window.
 
 <p align="center">
-  <img src="assets/readme/hotkey-illustration.png" alt="OmniGet global download hotkey, press the shortcut and the link in your clipboard downloads into your folder" width="760" />
+  <img src="assets/readme/global-hotkey.png" alt="OmniGet global download hotkey, press the shortcut and the link in your clipboard downloads into your folder" width="760" />
 </p>
 
 It works from anywhere on your system. Browsing, chatting, reading, it does not matter which app is in front. Copy, press, done. The file lands in your folder and the queue handles the rest. If you would rather see a preview first, just paste the link into the omnibox on the home screen, glance at the quality options, and click download.
