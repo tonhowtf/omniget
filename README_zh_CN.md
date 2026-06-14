@@ -103,7 +103,7 @@ codesign --force --deep --sign - /Applications/omniget.app
 这是最让人着迷的部分。复制任意链接，无论是 YouTube 视频、一条推文、一条 Discord 消息、一首歌还是一个磁力链接，然后按下全局快捷键 **`Ctrl+Shift+D`**（macOS 上为 **`Cmd+Shift+D`**）。OmniGet 会读取你的剪贴板并在后台下载，你甚至不需要打开窗口。
 
 <p align="center">
-  <img src="assets/readme/hotkey-illustration.png" alt="OmniGet 全局下载快捷键，按下快捷键即可把剪贴板里的链接下载到文件夹" width="760" />
+  <img src="assets/readme/global-hotkey.png" alt="OmniGet 全局下载快捷键，按下快捷键即可把剪贴板里的链接下载到文件夹" width="760" />
 </p>
 
 它在系统的任何地方都能用。无论你正在浏览、聊天还是阅读，当前是哪个应用都没关系。复制、按键、完成。文件会落到你的文件夹里，剩下的交给下载队列。如果你想先看预览，把链接粘贴到主界面的输入框，看一眼画质选项，再点下载即可。
