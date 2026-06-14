@@ -96,7 +96,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     height: 100px;
     position: relative;
     transition: height 0.2s ease;
