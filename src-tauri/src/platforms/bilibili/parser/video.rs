@@ -74,58 +74,58 @@ pub async fn parse(
             .map(String::from);
         metadata.collection_title = series_title.clone();
         metadata.series_title = series_title;
-        let sections = season.get("sections").and_then(Value::as_array);
-        let mut items: Vec<EpisodeItem> = Vec::new();
-        if let Some(secs) = sections {
-            for sec in secs {
-                let section_title = sec.get("title").and_then(Value::as_str).map(String::from);
+
+        // Try to match the requested bvid against ugc_season episodes.
+        // If found, return only that single episode (preserving user intent).
+        // If not found, fall through to normal single-video handling below.
+        if let Some(sections) = season.get("sections").and_then(Value::as_array) {
+            for sec in sections {
                 if let Some(eps) = sec.get("episodes").and_then(Value::as_array) {
-                    for (i, ep) in eps.iter().enumerate() {
+                    for ep in eps {
                         let ep_bvid = ep
                             .get("bvid")
                             .and_then(Value::as_str)
-                            .unwrap_or("")
-                            .to_string();
-                        let ep_aid = ep.get("aid").and_then(Value::as_u64);
-                        let ep_cid = ep.get("cid").and_then(Value::as_u64);
-                        let ep_title = ep
-                            .get("title")
-                            .and_then(Value::as_str)
-                            .unwrap_or("")
-                            .to_string();
-                        let arc = ep.get("arc");
-                        let dur = arc.and_then(|a| a.get("duration")).and_then(Value::as_f64);
-                        let cover_ep = arc
-                            .and_then(|a| a.get("pic"))
-                            .and_then(Value::as_str)
-                            .map(String::from);
-                        let pub_ep = arc.and_then(|a| a.get("pubdate")).and_then(Value::as_u64);
-                        items.push(EpisodeItem {
-                            episode_id: format!("ugc:{}", ep_bvid),
-                            title: ep_title,
-                            aid: ep_aid,
-                            bvid: Some(ep_bvid.clone()),
-                            cid: ep_cid,
-                            duration_seconds: dur,
-                            cover_url: cover_ep,
-                            pub_time_secs: pub_ep,
-                            episode_number: Some((i as u32) + 1),
-                            section_title: section_title.clone(),
-                            url: Some(format!("https://www.bilibili.com/video/{}", ep_bvid)),
-                            ..EpisodeItem::default()
-                        });
+                            .unwrap_or("");
+                        if ep_bvid == bvid {
+                            let ep_aid = ep.get("aid").and_then(Value::as_u64);
+                            let ep_cid = ep.get("cid").and_then(Value::as_u64);
+                            let ep_title = ep
+                                .get("title")
+                                .and_then(Value::as_str)
+                                .unwrap_or("")
+                                .to_string();
+                            let arc = ep.get("arc");
+                            let dur = arc.and_then(|a| a.get("duration")).and_then(Value::as_f64);
+                            let cover_ep = arc
+                                .and_then(|a| a.get("pic"))
+                                .and_then(Value::as_str)
+                                .map(String::from);
+                            let pub_ep = arc.and_then(|a| a.get("pubdate")).and_then(Value::as_u64);
+                            let item = EpisodeItem {
+                                episode_id: format!("ugc:{}", ep_bvid),
+                                title: ep_title,
+                                aid: ep_aid,
+                                bvid: Some(ep_bvid.to_string()),
+                                cid: ep_cid,
+                                duration_seconds: dur,
+                                cover_url: cover_ep,
+                                pub_time_secs: pub_ep,
+                                section_title: sec.get("title").and_then(Value::as_str).map(String::from),
+                                url: Some(format!("https://www.bilibili.com/video/{}", ep_bvid)),
+                                ..EpisodeItem::default()
+                            };
+                            return Ok(ParsedContent {
+                                title,
+                                items: vec![item],
+                                metadata,
+                                pagination: None,
+                            });
+                        }
                     }
                 }
             }
         }
-        if !items.is_empty() {
-            return Ok(ParsedContent {
-                title,
-                items,
-                metadata,
-                pagination: None,
-            });
-        }
+        // No match found in ugc_season — fall through to single-video handling.
     }
 
     let pages = data.get("pages").and_then(Value::as_array);
