@@ -82,10 +82,7 @@ pub async fn parse(
             for sec in sections {
                 if let Some(eps) = sec.get("episodes").and_then(Value::as_array) {
                     for ep in eps {
-                        let ep_bvid = ep
-                            .get("bvid")
-                            .and_then(Value::as_str)
-                            .unwrap_or("");
+                        let ep_bvid = ep.get("bvid").and_then(Value::as_str).unwrap_or("");
                         if ep_bvid == bvid {
                             let ep_aid = ep.get("aid").and_then(Value::as_u64);
                             let ep_cid = ep.get("cid").and_then(Value::as_u64);
@@ -110,7 +107,10 @@ pub async fn parse(
                                 duration_seconds: dur,
                                 cover_url: cover_ep,
                                 pub_time_secs: pub_ep,
-                                section_title: sec.get("title").and_then(Value::as_str).map(String::from),
+                                section_title: sec
+                                    .get("title")
+                                    .and_then(Value::as_str)
+                                    .map(String::from),
                                 url: Some(format!("https://www.bilibili.com/video/{}", ep_bvid)),
                                 ..EpisodeItem::default()
                             };
