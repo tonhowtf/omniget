@@ -67,7 +67,7 @@ impl PlatformDownloader for P2pDownloader {
 
     fn can_handle(&self, url: &str) -> bool {
         if let Some(code) = url.strip_prefix("p2p:") {
-            return crate::platforms::p2p_words::is_valid_code(code);
+            return super::p2p_words::is_valid_code(code);
         }
         false
     }
@@ -77,7 +77,7 @@ impl PlatformDownloader for P2pDownloader {
             .strip_prefix("p2p:")
             .ok_or_else(|| anyhow!("Invalid P2P URL: {}", url))?;
 
-        if !crate::platforms::p2p_words::is_valid_code(code) {
+        if !super::p2p_words::is_valid_code(code) {
             anyhow::bail!("Invalid share code: {}", code);
         }
 
@@ -227,7 +227,7 @@ pub async fn start_send(
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "file".to_string());
 
-    let code = crate::platforms::p2p_words::generate_code();
+    let code = super::p2p_words::generate_code();
 
     tracing::info!("[p2p] share code generated: {}", code);
 
