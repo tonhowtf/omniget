@@ -4,7 +4,7 @@ use tokio::sync::Semaphore;
 
 use crate::output;
 
-pub async fn execute(file: String, max_concurrent: usize, output_dir: Option<String>) -> Result<()> {
+pub async fn execute(file: String, max_concurrent: usize, output_dir: Option<String>, proxy: Option<String>) -> Result<()> {
     let content = tokio::fs::read_to_string(&file)
         .await
         .with_context(|| format!("Failed to read {}", file))?;
@@ -31,11 +31,12 @@ pub async fn execute(file: String, max_concurrent: usize, output_dir: Option<Str
     for url in &urls {
         let permit = semaphore.clone().acquire_owned().await?;
         let dir = output_dir.clone();
+        let px = proxy.clone();
         let url = url.clone();
 
         handles.push(tokio::spawn(async move {
             let _permit = permit;
-            crate::commands::download::execute(url, None, dir, false, None, None).await
+            crate::commands::download::execute(url, None, dir, false, None, None, px).await
         }));
     }
 
@@ -46,7 +47,7 @@ pub async fn execute(file: String, max_concurrent: usize, output_dir: Option<Str
         match handle.await {
             Ok(Ok(())) => success += 1,
             Ok(Err(e)) => {
-                eprintln!("Download error: {}", e);
+                eprintln!("Error: {}", e);
                 failed += 1;
             }
             Err(e) => {
@@ -57,13 +58,9 @@ pub async fn execute(file: String, max_concurrent: usize, output_dir: Option<Str
     }
 
     if output::is_json_mode() {
-        output::print_json(&serde_json::json!({
-            "total": total,
-            "success": success,
-            "failed": failed,
-        }));
+        println!(r#"{{"total":{},"success":{},"failed":{}}}"#, total, success, failed);
     } else {
-        println!("Batch complete: {} succeeded, {} failed", success, failed);
+        println!("Done: {} ok, {} failed", success, failed);
     }
 
     Ok(())

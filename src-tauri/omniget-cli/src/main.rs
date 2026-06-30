@@ -10,6 +10,9 @@ struct Cli {
     #[arg(long, global = true, help = "Output in JSON format")]
     json: bool,
 
+    #[arg(long, global = true, help = "Proxy URL (e.g. http://127.0.0.1:7897)")]
+    proxy: Option<String>,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -75,17 +78,17 @@ async fn main() -> anyhow::Result<()> {
             subs,
             format,
         } => {
-            commands::download::execute(url, quality, output, audio_only, subs, format).await?;
+            commands::download::execute(url, quality, output, audio_only, subs, format, cli.proxy).await?;
         }
         Commands::Info { url } => {
-            commands::info::execute(url).await?;
+            commands::info::execute(url, cli.proxy).await?;
         }
         Commands::Batch {
             file,
             max_concurrent,
             output,
         } => {
-            commands::batch::execute(file, max_concurrent, output).await?;
+            commands::batch::execute(file, max_concurrent, output, cli.proxy).await?;
         }
     }
 

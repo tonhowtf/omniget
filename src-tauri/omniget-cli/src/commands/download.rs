@@ -1,6 +1,6 @@
 use anyhow::Result;
+use indicatif::{ProgressBar, ProgressStyle};
 use std::path::PathBuf;
-use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -8,47 +8,72 @@ use omniget_core::core::ytdlp;
 use omniget_core::models::progress::ProgressUpdate;
 
 use crate::output;
-use crate::reporter::{self, CliReporter};
+use crate::reporter;
+
+const PROGRESS_STYLE: &str = "{spinner:.cyan} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, ETA {eta})";
+const SPINNER_STYLE: &str = "{spinner:.cyan} {msg:.dim}";
 
 pub async fn execute(
     url: String,
     quality: Option<u32>,
     output_dir: Option<String>,
     audio_only: bool,
-    _subs: Option<String>,
+    subs: Option<String>,
     format: Option<String>,
+    proxy: Option<String>,
 ) -> Result<()> {
-    let reporter = Arc::new(CliReporter::new(output::is_json_mode()));
+    let json_mode = output::is_json_mode();
+    let pb = ProgressBar::new(100);
+    pb.set_style(ProgressStyle::default_bar().template(SPINNER_STYLE).unwrap());
+    pb.set_message("Searching for yt-dlp...");
 
-    // 1. Find yt-dlp binary
-    reporter.message("Searching for yt-dlp...");
     let ytdlp = reporter::find_yt_dlp().await?;
+    pb.set_message("yt-dlp found");
 
-    // 2. Determine output directory
     let output_path = match output_dir {
         Some(dir) => PathBuf::from(dir),
         None => reporter::default_output_dir(),
     };
     tokio::fs::create_dir_all(&output_path).await.ok();
 
-    // 3. Set up progress channel
     let (tx, mut rx) = mpsc::channel::<ProgressUpdate>(100);
-    let reporter_arc = reporter.clone();
-    let progress_handle = tokio::spawn(async move {
+
+    let pb_clone = pb.clone();
+    let progress_task = tokio::spawn(async move {
         while let Some(update) = rx.recv().await {
-            reporter_arc.update(&update);
+            if json_mode {
+                println!(
+                    r#"{{"type":"progress","percent":{},"downloaded_bytes":{:?},"total_bytes":{:?}}}"#,
+                    update.percent, update.downloaded_bytes, update.total_bytes
+                );
+            } else if update.percent >= 0.0 {
+                pb_clone.set_position((update.percent * 100.0) as u64);
+                pb_clone.set_style(
+                    ProgressStyle::default_bar()
+                        .template(PROGRESS_STYLE)
+                        .unwrap(),
+                );
+            }
         }
     });
 
-    // 4. Determine download mode
     let download_mode = if audio_only { Some("audio") } else { None };
+    let msg = format!("Starting: {}", url);
+    pb.set_message(msg);
 
-    // 5. Set up cancellation
-    let cancel_token = CancellationToken::new();
+    // Build extra flags for proxy and subtitles
+    let mut extra_flags: Vec<String> = Vec::new();
+    if let Some(p) = &proxy {
+        extra_flags.push("--proxy".to_string());
+        extra_flags.push(p.clone());
+    }
 
-    // 6. Execute download
-    reporter.message(&format!("Starting download from: {}", url));
-    reporter.message(&format!("Output: {}", output_path.display()));
+    let download_subtitles = subs.is_some();
+    if let Some(lang) = &subs {
+        extra_flags.push("--write-subs".to_string());
+        extra_flags.push("--sub-langs".to_string());
+        extra_flags.push(lang.clone());
+    }
 
     let result = ytdlp::download_video(
         &ytdlp,
@@ -58,43 +83,40 @@ pub async fn execute(
         tx.clone(),
         download_mode,
         format.as_deref(),
-        None, // filename_template
-        None, // referer
-        cancel_token,
+        None,
+        None,
+        CancellationToken::new(),
         reporter::default_cookie_path().as_deref(),
-        4,     // concurrent_fragments
-        false, // download_subtitles
-        &[],   // extra_flags
-        None,  // audio_format
+        4,
+        download_subtitles,
+        &extra_flags,
+        None,
     )
     .await;
 
     drop(tx);
-    progress_handle.await.ok();
+    let _ = progress_task.await;
+    pb.finish();
 
     match result {
         Ok(dl_result) => {
-            reporter.finish(
-                true,
-                &format!("Downloaded to: {}", dl_result.file_path.display()),
-            );
-            if output::is_json_mode() {
-                output::print_json(&serde_json::json!({
-                    "success": true,
-                    "file_path": dl_result.file_path,
-                    "size": dl_result.file_size_bytes,
-                    "duration": dl_result.duration_seconds,
-                }));
+            if json_mode {
+                println!(
+                    r#"{{"type":"complete","success":true,"file_path":"{}","size":{},"duration":{}}}"#,
+                    dl_result.file_path.display(),
+                    dl_result.file_size_bytes,
+                    dl_result.duration_seconds
+                );
+            } else {
+                println!("✓ Downloaded to: {}", dl_result.file_path.display());
             }
             Ok(())
         }
         Err(e) => {
-            reporter.finish(false, &format!("Download failed: {}", e));
-            if output::is_json_mode() {
-                output::print_json(&serde_json::json!({
-                    "success": false,
-                    "error": format!("{}", e),
-                }));
+            if json_mode {
+                println!(r#"{{"type":"complete","success":false,"error":"{}"}}"#, e);
+            } else {
+                eprintln!("✗ Failed: {}", e);
             }
             Err(e)
         }
