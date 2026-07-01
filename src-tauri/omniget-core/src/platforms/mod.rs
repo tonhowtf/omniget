@@ -1,4 +1,36 @@
+pub mod bilibili;
+pub mod bluesky;
+pub mod cookie_provider;
+pub mod direct_file;
+pub mod douyin;
+pub mod generic_ytdlp;
+pub mod instagram;
+pub mod p2p;
+pub mod p2p_words;
+pub mod pinterest;
+pub mod reddit;
+pub mod tiktok;
 pub mod traits;
+pub mod twitch;
+pub mod twitter;
+pub mod vimeo;
+pub mod youtube;
+
+pub use bilibili::BilibiliDownloader;
+pub use bluesky::BlueskyDownloader;
+pub use direct_file::DirectFileDownloader;
+pub use douyin::DouyinDownloader;
+pub use generic_ytdlp::GenericYtdlpDownloader;
+pub use instagram::InstagramDownloader;
+pub use p2p::P2pDownloader;
+pub use pinterest::PinterestDownloader;
+pub use reddit::RedditDownloader;
+pub use tiktok::TikTokDownloader;
+pub use traits::PlatformDownloader;
+pub use twitch::TwitchClipsDownloader;
+pub use twitter::TwitterDownloader;
+pub use vimeo::VimeoDownloader;
+pub use youtube::YouTubeDownloader;
 
 use serde::{Deserialize, Serialize};
 use std::fmt;

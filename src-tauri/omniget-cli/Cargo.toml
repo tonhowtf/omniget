@@ -1,0 +1,23 @@
+[package]
+name = "omniget-cli"
+version = "0.1.0"
+edition = "2021"
+description = "CLI for Omniget media downloader"
+
+[dependencies]
+omniget-core = { path = "../omniget-core" }
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+clap = { version = "4", features = ["derive"] }
+indicatif = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+directories = "6"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

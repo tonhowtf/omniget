@@ -1807,7 +1807,7 @@ async fn fetch_and_cache_info(
     let info = if let Some(ytdlp) = ytdlp_path {
         match platform {
             "youtube" => {
-                crate::platforms::youtube::YouTubeDownloader::fetch_with_ytdlp(url, ytdlp).await?
+                omniget_core::platforms::YouTubeDownloader::fetch_with_ytdlp(url, ytdlp).await?
             }
             "generic" => {
                 let json = crate::core::ytdlp::get_video_info(ytdlp, url, &[]).await?;

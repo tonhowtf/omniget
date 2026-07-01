@@ -17,10 +17,10 @@ describe("CORE_NAV_ITEMS", () => {
     expect(downloads?.badge).toBe("downloads");
   });
 
-  it("About is in the secondary group and sorted last", () => {
+  it("About is in the app group after settings", () => {
     const about = CORE_NAV_ITEMS.find((i) => i.href === "/about");
-    expect(about?.group).toBe("secondary");
-    expect(about?.order).toBe(999);
+    expect(about?.group).toBe("app");
+    expect(about?.order).toBe(50);
   });
 
   it("order is strictly increasing among primary items", () => {

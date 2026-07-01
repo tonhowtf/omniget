@@ -1,14 +1,14 @@
 use serde::{Deserialize, Serialize};
 
-use crate::platforms::bilibili::api::ApiClient;
-use crate::platforms::bilibili::auth::{self, qr, sms};
-use crate::platforms::bilibili::parser;
-use crate::platforms::bilibili::preview;
-use crate::platforms::bilibili::url_kind::{self, UrlKind};
+use omniget_core::platforms::bilibili::api::ApiClient;
+use omniget_core::platforms::bilibili::auth::{self, qr, sms};
+use omniget_core::platforms::bilibili::parser;
+use omniget_core::platforms::bilibili::preview;
+use omniget_core::platforms::bilibili::url_kind::{self, UrlKind};
 
 fn resolve_account_slug(slug: Option<String>) -> Option<String> {
     slug.filter(|s| !s.is_empty())
-        .or_else(crate::platforms::bilibili::active_account_slug)
+        .or_else(omniget_core::platforms::bilibili::active_account_slug)
 }
 
 fn build_anonymous_client(user_agent: Option<String>) -> Result<ApiClient, String> {
@@ -16,7 +16,7 @@ fn build_anonymous_client(user_agent: Option<String>) -> Result<ApiClient, Strin
     if let Some(ua) = user_agent.filter(|s| !s.is_empty()) {
         client = client.with_user_agent(ua);
     }
-    let _ = crate::platforms::bilibili::cookie::ensure_fresh();
+    let _ = omniget_core::platforms::bilibili::cookie::ensure_fresh();
     client = client.with_anonymous_cookies();
     Ok(client)
 }
@@ -90,7 +90,7 @@ pub async fn bilibili_webview_login(
 
 #[tauri::command]
 pub async fn bilibili_qr_generate(user_agent: Option<String>) -> Result<qr::QrSession, String> {
-    let _ = crate::platforms::bilibili::cookie::ensure_fresh().await;
+    let _ = omniget_core::platforms::bilibili::cookie::ensure_fresh().await;
     let client = build_anonymous_client(user_agent)?;
     qr::generate(&client)
         .await
@@ -183,7 +183,7 @@ pub async fn bilibili_preview_info(
     url: String,
     slug: Option<String>,
 ) -> Result<BilibiliPreviewSummary, String> {
-    let _ = crate::platforms::bilibili::cookie::ensure_fresh().await;
+    let _ = omniget_core::platforms::bilibili::cookie::ensure_fresh().await;
     let mut client = ApiClient::new().map_err(|e| e.i18n_key().to_string())?;
     client = match resolve_account_slug(slug) {
         Some(s) => client.with_account(s),
@@ -260,7 +260,7 @@ pub struct BilibiliImportResult {
 }
 
 async fn run_import(slug: String, kind: UrlKind) -> Result<BilibiliImportResult, String> {
-    let _ = crate::platforms::bilibili::cookie::ensure_fresh().await;
+    let _ = omniget_core::platforms::bilibili::cookie::ensure_fresh().await;
     let client = ApiClient::new()
         .map_err(|e| e.i18n_key().to_string())?
         .with_account(&slug);
@@ -275,10 +275,12 @@ async fn run_import(slug: String, kind: UrlKind) -> Result<BilibiliImportResult,
         };
         let parsed = match kind_ref {
             UrlKind::WatchLater => {
-                crate::platforms::bilibili::parser::watch_later::parse(&client, current_page).await
+                omniget_core::platforms::bilibili::parser::watch_later::parse(&client, current_page)
+                    .await
             }
             UrlKind::History => {
-                crate::platforms::bilibili::parser::history::parse(&client, current_page).await
+                omniget_core::platforms::bilibili::parser::history::parse(&client, current_page)
+                    .await
             }
             _ => return Err("errors.bilibili.content_unavailable".to_string()),
         }
@@ -313,16 +315,18 @@ async fn run_import(slug: String, kind: UrlKind) -> Result<BilibiliImportResult,
 }
 
 #[tauri::command]
-pub async fn bilibili_import_watch_later(slug: Option<String>) -> Result<BilibiliImportResult, String> {
-    let slug = resolve_account_slug(slug)
-        .ok_or_else(|| "errors.bilibili.not_logged_in".to_string())?;
+pub async fn bilibili_import_watch_later(
+    slug: Option<String>,
+) -> Result<BilibiliImportResult, String> {
+    let slug =
+        resolve_account_slug(slug).ok_or_else(|| "errors.bilibili.not_logged_in".to_string())?;
     run_import(slug, UrlKind::WatchLater).await
 }
 
 #[tauri::command]
 pub async fn bilibili_import_history(slug: Option<String>) -> Result<BilibiliImportResult, String> {
-    let slug = resolve_account_slug(slug)
-        .ok_or_else(|| "errors.bilibili.not_logged_in".to_string())?;
+    let slug =
+        resolve_account_slug(slug).ok_or_else(|| "errors.bilibili.not_logged_in".to_string())?;
     run_import(slug, UrlKind::History).await
 }
 

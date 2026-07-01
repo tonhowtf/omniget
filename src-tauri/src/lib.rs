@@ -25,6 +25,171 @@ pub mod plugin_loader;
 pub mod storage;
 pub mod tray;
 
+struct DesktopCookieProvider;
+
+impl omniget_core::platforms::cookie_provider::CookieProvider for DesktopCookieProvider {
+    fn cookie_path_for(&self, domain: &str) -> Option<std::path::PathBuf> {
+        let root = crate::cookies::root_domain_of(domain);
+        if root.is_empty() {
+            return None;
+        }
+
+        let slug = omniget_core::core::log_hook::current_cookie_slug();
+        let path = crate::cookies::account_path_for_consumer(&root, slug.as_deref())
+            .or_else(|| crate::cookies::account_path_for_consumer(&root, None))?;
+        crate::cookies::touch_last_used(&root, slug.as_deref().unwrap_or("_default"));
+        Some(path)
+    }
+
+    fn cookie_path_for_account(&self, domain: &str, slug: &str) -> Option<std::path::PathBuf> {
+        let root = crate::cookies::root_domain_of(domain);
+        if root.is_empty() {
+            return None;
+        }
+        let path = crate::cookies::account_path_for_consumer(&root, Some(slug))?;
+        crate::cookies::touch_last_used(&root, slug);
+        Some(path)
+    }
+
+    fn manual_cookie_header(&self, domain: &str) -> Option<String> {
+        let root = crate::cookies::root_domain_of(domain);
+        if root != "x.com" && root != "twitter.com" {
+            return None;
+        }
+
+        let raw = storage::config::load_settings_standalone()
+            .advanced
+            .twitter_manual_cookie;
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        let parsed = core::cookie_parser::parse_cookie_input(trimmed, "");
+        if !parsed.cookie_string.trim().is_empty() {
+            Some(parsed.cookie_string)
+        } else {
+            Some(trimmed.to_string())
+        }
+    }
+}
+
+struct DesktopBilibiliRuntimeProvider;
+
+impl omniget_core::platforms::bilibili::BilibiliRuntimeProvider for DesktopBilibiliRuntimeProvider {
+    fn active_account_slug(&self) -> Option<String> {
+        let registry = crate::cookies::load_registry();
+        let bucket = registry.buckets.get("bilibili.com")?;
+
+        if let Some(selected) = omniget_core::core::log_hook::current_cookie_slug() {
+            if bucket
+                .accounts
+                .iter()
+                .any(|a| a.slug == selected && a.slug != "_anonymous" && a.cookie_count > 0)
+            {
+                return Some(selected);
+            }
+        }
+
+        let native = bucket
+            .accounts
+            .iter()
+            .filter(|a| a.slug != "_anonymous" && a.slug != "_default" && a.cookie_count > 0)
+            .max_by_key(|a| a.last_used_at_ms.unwrap_or(a.captured_at_ms))
+            .map(|a| a.slug.clone());
+        if native.is_some() {
+            return native;
+        }
+
+        bucket
+            .accounts
+            .iter()
+            .filter(|a| a.slug == "_default" && a.cookie_count > 0)
+            .find(|a| desktop_bilibili_slug_has_session_cookie(&a.slug))
+            .map(|a| a.slug.clone())
+    }
+
+    fn settings(&self) -> omniget_core::models::settings::AppSettings {
+        storage::config::load_settings_standalone()
+    }
+
+    fn persist_account(
+        &self,
+        cookies: &[omniget_core::platforms::bilibili::BilibiliAuthCookie],
+        uname: &str,
+        source_label: &str,
+    ) -> Result<String, String> {
+        let slug = omniget_core::platforms::bilibili::auth::slug_from_uname(uname);
+        let entries: Vec<crate::extension_storage::ExtensionCookie> = cookies
+            .iter()
+            .map(|cookie| crate::extension_storage::ExtensionCookie {
+                domain: cookie.domain.clone(),
+                http_only: cookie.http_only,
+                path: cookie.path.clone(),
+                secure: cookie.secure,
+                expires: cookie.expires,
+                name: cookie.name.clone(),
+                value: cookie.value.clone(),
+                host_only: cookie.host_only,
+                same_site: cookie.same_site.clone(),
+            })
+            .collect();
+
+        crate::cookies::storage::write_account_file("bilibili.com", &slug, &entries)
+            .map_err(|e| e.to_string())?;
+
+        let mut registry = crate::cookies::storage::load_registry();
+        let now_ms = crate::cookies::storage::current_unix_ms();
+        let bucket = registry
+            .buckets
+            .entry("bilibili.com".to_string())
+            .or_insert_with(|| crate::cookies::storage::BucketEntry {
+                platform_kind: "bilibili".to_string(),
+                accounts: Vec::new(),
+            });
+        bucket.platform_kind = "bilibili".to_string();
+
+        let alias = format!("{} · {}", uname, source_label);
+        if let Some(existing) = bucket.accounts.iter_mut().find(|a| a.slug == slug) {
+            existing.captured_at_ms = now_ms;
+            existing.cookie_count = entries.len();
+            existing.source_label = Some(source_label.to_string());
+            existing.alias = alias;
+        } else {
+            bucket.accounts.push(crate::cookies::storage::AccountEntry {
+                slug: slug.clone(),
+                alias,
+                source_url: Some("https://www.bilibili.com".to_string()),
+                source_label: Some(source_label.to_string()),
+                captured_at_ms: now_ms,
+                cookie_count: entries.len(),
+                last_used_at_ms: Some(now_ms),
+            });
+        }
+
+        crate::cookies::storage::save_registry(&registry).map_err(|e| e.to_string())?;
+        Ok(slug)
+    }
+}
+
+fn desktop_bilibili_slug_has_session_cookie(slug: &str) -> bool {
+    let path = match crate::cookies::account_path_for_consumer("bilibili.com", Some(slug)) {
+        Some(p) => p,
+        None => return false,
+    };
+    let content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    content.lines().any(|line| {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            return false;
+        }
+        line.split('\t').nth(5) == Some("SESSDATA")
+    })
+}
+
 pub struct AppState {
     pub active_downloads: Arc<tokio::sync::Mutex<HashMap<u64, CancellationToken>>>,
     pub active_generic_downloads:
@@ -42,25 +207,29 @@ pub fn run() {
     tracing_subscriber::fmt::init();
 
     let mut registry = core::registry::PlatformRegistry::new();
-    registry.register(Arc::new(platforms::instagram::InstagramDownloader::new()));
-    registry.register(Arc::new(platforms::pinterest::PinterestDownloader::new()));
-    registry.register(Arc::new(platforms::tiktok::TikTokDownloader::new()));
-    registry.register(Arc::new(platforms::twitter::TwitterDownloader::new()));
-    registry.register(Arc::new(platforms::twitch::TwitchClipsDownloader::new()));
-    registry.register(Arc::new(platforms::bluesky::BlueskyDownloader::new()));
-    registry.register(Arc::new(platforms::reddit::RedditDownloader::new()));
-    registry.register(Arc::new(platforms::youtube::YouTubeDownloader::new()));
-    registry.register(Arc::new(platforms::vimeo::VimeoDownloader::new()));
-    registry.register(Arc::new(platforms::bilibili::BilibiliDownloader::new()));
-    registry.register(Arc::new(platforms::douyin::DouyinDownloader::new()));
+    registry.register(Arc::new(omniget_core::platforms::InstagramDownloader::new()));
+    registry.register(Arc::new(omniget_core::platforms::PinterestDownloader::new()));
+    registry.register(Arc::new(omniget_core::platforms::TikTokDownloader::new()));
+    registry.register(Arc::new(omniget_core::platforms::TwitterDownloader::new()));
+    registry.register(Arc::new(
+        omniget_core::platforms::TwitchClipsDownloader::new(),
+    ));
+    registry.register(Arc::new(omniget_core::platforms::BlueskyDownloader::new()));
+    registry.register(Arc::new(omniget_core::platforms::RedditDownloader::new()));
+    registry.register(Arc::new(omniget_core::platforms::YouTubeDownloader::new()));
+    registry.register(Arc::new(omniget_core::platforms::VimeoDownloader::new()));
+    registry.register(Arc::new(omniget_core::platforms::BilibiliDownloader::new()));
+    registry.register(Arc::new(omniget_core::platforms::DouyinDownloader::new()));
     let torrent_session: Arc<tokio::sync::Mutex<Option<Arc<librqbit::Session>>>> =
         Arc::new(tokio::sync::Mutex::new(None));
     registry.register(Arc::new(platforms::magnet::MagnetDownloader::new(
         torrent_session.clone(),
     )));
-    registry.register(Arc::new(platforms::p2p::P2pDownloader::new()));
+    registry.register(Arc::new(omniget_core::platforms::P2pDownloader::new()));
     registry.register(Arc::new(platforms::gallerydl::GalleryDlDownloader::new()));
-    registry.register(Arc::new(platforms::direct_file::DirectFileDownloader::new()));
+    registry.register(Arc::new(
+        omniget_core::platforms::DirectFileDownloader::new(),
+    ));
     registry.register(Arc::new(
         platforms::generic_ytdlp::GenericYtdlpDownloader::new(),
     ));
@@ -137,11 +306,26 @@ pub fn run() {
                     },
                 ));
             }
+            {
+                let handle = app.handle().clone();
+                omniget_core::platforms::bilibili::notify::set_emitter(Box::new(
+                    move |event: &str, payload: serde_json::Value| {
+                        use tauri::Emitter;
+                        let _ = handle.emit(event, payload);
+                    },
+                ));
+            }
             let settings = storage::config::load_settings(app.handle());
             core::http_client::init_proxy(settings.proxy.clone());
             core::http_fetcher::set_global_max_concurrent_segments(
                 settings.advanced.max_concurrent_segments as usize,
             );
+            omniget_core::platforms::cookie_provider::set_cookie_provider(Arc::new(
+                DesktopCookieProvider,
+            ));
+            omniget_core::platforms::bilibili::set_runtime_provider(Arc::new(
+                DesktopBilibiliRuntimeProvider,
+            ));
             core::ytdlp::set_per_domain_cookie_fn(|url| {
                 let parsed = url::Url::parse(url).ok()?;
                 let host = parsed.host_str()?;
@@ -201,7 +385,9 @@ pub fn run() {
                 }
             });
             core::ytdlp::set_keep_vtt_fn(|| {
-                storage::config::load_settings_standalone().download.keep_vtt
+                storage::config::load_settings_standalone()
+                    .download
+                    .keep_vtt
             });
             core::ytdlp::set_translate_metadata_fn(|| {
                 let s = storage::config::load_settings_standalone();

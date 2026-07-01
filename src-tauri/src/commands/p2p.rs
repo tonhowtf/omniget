@@ -2,7 +2,7 @@ use serde::Serialize;
 use tauri::Emitter;
 use tokio_util::sync::CancellationToken;
 
-use crate::platforms::p2p;
+use omniget_core::platforms::p2p;
 use crate::{AppState, P2pSendHandle};
 
 #[derive(Clone, Serialize)]

@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "omniget-core", "omniget-plugin-sdk"]
+members = [".", "omniget-core", "omniget-plugin-sdk", "omniget-cli"]
 resolver = "2"
 
 [package]
