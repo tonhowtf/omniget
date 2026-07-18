@@ -954,7 +954,10 @@
     {/if}
 
     {#if omniState.kind === "batch"}
-      <BatchDownload count={omniState.urls.length} onDownload={handleBatchDownload} />
+      <div class="batch-options">
+        <DownloadModeSelector bind:downloadMode />
+        <BatchDownload count={omniState.urls.length} onDownload={handleBatchDownload} />
+      </div>
 
     {:else if omniState.kind === "searching"}
       <div class="feedback feedback-enter">
@@ -1305,6 +1308,12 @@
       opacity: 0.7;
       transform: scale(0.95);
     }
+  }
+
+  .batch-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--padding);
   }
 
   .feedback {

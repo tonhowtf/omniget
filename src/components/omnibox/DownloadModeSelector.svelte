@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
 
-  let { downloadMode = $bindable("auto" as "auto" | "audio" | "mute"), onChange } = $props();
+  let { downloadMode = $bindable("auto" as "auto" | "audio" | "mute"), onChange = undefined } = $props();
 </script>
 
 <div class="mode-group">
