@@ -1,9 +1,11 @@
 <!--
 SEO / discovery: OmniGet 是适用于 Windows、macOS 和 Linux 的免费开源下载器。
 建议的 GitHub topics（在仓库 Settings > Topics 中设置）:
-video-downloader, youtube-downloader, media-downloader, course-downloader, udemy-downloader,
-music-downloader, ebook-reader, yt-dlp, yt-dlp-gui, tauri, svelte, rust, desktop-app,
-cross-platform, open-source, instagram-downloader, tiktok-downloader, bilibili, torrent, p2p
+downloader, download-manager, media-downloader, video-downloader, youtube-downloader,
+yt-dlp, yt-dlp-gui, course-downloader, udemy-downloader, hotmart-downloader,
+bilibili-downloader, tiktok-downloader, instagram-downloader, twitter-downloader,
+reddit-downloader, telegram-downloader, twitch-downloader, subtitle-downloader,
+epub-reader, spaced-repetition
 -->
 
 <p align="center">
@@ -12,7 +14,7 @@ cross-platform, open-source, instagram-downloader, tiktok-downloader, bilibili, 
 
 <h1 align="center">OmniGet</h1>
 
-<h3 align="center">一个应用，下载 Udemy 课程、YouTube、音乐、电子书，以及 1,800+ 网站。无需终端。</h3>
+<h3 align="center">一个应用搞定 B 站、抖音、YouTube、网课、音乐与电子书下载，支持 1800+ 网站。无需终端。</h3>
 
 <p align="center">
   <a href="README.md">English</a>
@@ -29,7 +31,7 @@ cross-platform, open-source, instagram-downloader, tiktok-downloader, bilibili, 
 </p>
 
 <p align="center">
-  <b>OmniGet</b> 是一款适用于 Windows、macOS 和 Linux 的免费开源桌面应用。它可以下载在线课程（Udemy、Hotmart、Kiwify、Skool、Teachable 等），下载来自 YouTube、TikTok、Instagram、Twitter/X、Reddit 以及 1,800+ 其他网站的视频和音频，还能管理你的音乐和电子书。所有内容都能在应用内播放。无需命令行，无需 Python，无需配置，你的文件始终留在本地电脑上。
+  <b>OmniGet 是一款适用于 Windows、macOS 和 Linux 的免费开源桌面应用。</b>它可以下载在线课程（Udemy、Hotmart、Kiwify、Skool、Teachable 等），下载来自 YouTube、TikTok、Instagram、Twitter/X、Reddit 以及 1800+ 其他网站的视频和音频，还能管理你的音乐和电子书。所有内容都能在应用内播放。无需命令行，无需 Python，无需配置，你的文件始终留在本地电脑上。基于 GPL-3.0 许可证发布。
 </p>
 
 <p align="center">
@@ -58,7 +60,7 @@ cross-platform, open-source, instagram-downloader, tiktok-downloader, bilibili, 
     <td>
       <a href="https://github.com/tonhowtf/omniget/releases/latest"><img alt="下载 Windows 版 OmniGet" src="https://img.shields.io/badge/Windows-Portable_EXE-0078D6?style=for-the-badge&logo=windows&logoColor=white" height="38"></a>
       <br/>
-      <sub>从 Releases 下载 <code>.exe</code> 并双击运行。它是便携版，放在哪里都能运行。</sub>
+      <sub>从 Releases 下载 <code>.exe</code> 并双击运行。它是便携版，放在哪里都能运行。也提供 <code>.msi</code> 安装包；习惯命令行的话可以用 <code>winget install -e --id tonhowtf.OmniGet</code>。</sub>
     </td>
   </tr>
   <tr>
@@ -72,12 +74,14 @@ cross-platform, open-source, instagram-downloader, tiktok-downloader, bilibili, 
   <tr>
     <td><strong>Linux</strong></td>
     <td>
-      <a href="https://github.com/tonhowtf/omniget/releases/latest"><img alt="下载 Linux 版 OmniGet" src="https://img.shields.io/badge/Linux-Flatpak-FFAA33?style=for-the-badge&logo=linux&logoColor=white" height="38"></a>
+      <a href="https://github.com/tonhowtf/omniget/releases/latest"><img alt="下载 Linux 版 OmniGet，提供 deb、rpm 与 AppImage" src="https://img.shields.io/badge/Linux-deb_·_rpm_·_AppImage-FFAA33?style=for-the-badge&logo=linux&logoColor=white" height="38"></a>
       <br/>
-      <sub>运行 <code>flatpak install wtf.tonho.omniget</code>，或从 Releases 下载安装包。</sub>
+      <sub>Debian 与 Ubuntu 用 <code>.deb</code>，Fedora 与 openSUSE 用 <code>.rpm</code>，其他发行版用 <code>.AppImage</code>。x86_64 与 ARM64 均已提供。</sub>
     </td>
   </tr>
 </table>
+
+<sub><strong>Debian 12+ / Ubuntu 24.04+ 使用 AppImage：</strong>这些版本默认不再自带 FUSE 2，而 AppImage 需要它。若 <code>./omniget.AppImage</code> 报 libfuse 错误，请运行 <code>sudo apt install libfuse2</code>，或改用 <code>./omniget.AppImage --appimage-extract-and-run</code> 启动。直接下载 <code>.deb</code> 则完全没有这个问题。</sub>
 
 ### ⚠️ 首次启动前请务必阅读
 
@@ -93,6 +97,10 @@ codesign --force --deep --sign - /Applications/omniget.app
 然后正常打开 OmniGet 即可。只需操作一次。
 
 **Windows。** 首次运行时 SmartScreen 可能会显示蓝色警告。点击 **More info（更多信息）**，然后点击 **Run anyway（仍要运行）**。对于没有付费代码签名证书的开源应用，这是很常见的。
+
+### 便携模式：U 盘或受限电脑
+
+在 `.exe` 同级目录新建一个名为 `portable.txt`（或 `.portable`）的空文件，然后重新启动。OmniGet 会把设置、数据库、Cookie、插件、缓存以及自带的 yt-dlp 和 FFmpeg 全部放在可执行文件旁边的 `data` 文件夹里，不会写入 `AppData\Roaming` 或任何其他用户目录，整套程序可以随 U 盘带走。没有这个文件时，OmniGet 使用系统标准的用户数据目录。
 
 本软件基于 GPL-3.0 免费开源。更新会在后台静默进行。内置工具（yt-dlp 和 FFmpeg）会自行安装，yt-dlp 在运行前会通过 SHA256 校验。插件会在首次启动时安装并自动更新，无需你做任何配置。
 
@@ -116,7 +124,27 @@ codesign --force --deep --sign - /Applications/omniget.app
 
 OmniGet 在一个窗口里搞定这一切。粘贴课程链接、YouTube 链接、TikTok、磁力链接、播客，它会自动判断该怎么做。文件落到你的文件夹，并且就在应用里播放。
 
-它是唯一一款能在同一处、无需命令行就完整下载 Udemy 或 Hotmart 课程、下载来自 1,800+ 网站的视频和音频、还能管理音乐库的开源应用。它在上线头几个月就收获了数千个 GitHub star，正是因为这种组合此前别处没有。
+它是唯一一款能在同一处、无需命令行就完整下载 Udemy 或 Hotmart 课程、下载来自 1800+ 网站的视频和音频、还能管理音乐库的开源应用。它在上线头几个月就收获了数千个 GitHub star，正是因为这种组合此前别处没有。
+
+---
+
+## OmniGet 与 yt-dlp 及其他下载器的区别
+
+工具各有分工，这里说的是 OmniGet 的位置，不是谁高谁低。
+
+### OmniGet 与 yt-dlp
+
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) 是解析引擎，OmniGet 正是基于它。yt-dlp 是命令行工具：装 Python、记参数、写格式选择表达式，换来的是对 1800+ 网站无与伦比的控制力。它在这件事上做得极好，没有它就没有 OmniGet。
+
+OmniGet 是围绕它做的应用。下载一个文件、粘贴链接、看到带画质选项的预览就行。yt-dlp 和 FFmpeg 会自我安装并更新，yt-dlp 每次运行前都会经过 SHA256 校验。在这之上还有会重试和续传的队列、下载历史、课程播放器、阅读器和音乐库。如果你熟悉终端且只要文件，直接用 yt-dlp；如果你想要一个能真正观看和阅读的媒体库，用 OmniGet。
+
+### OmniGet 与单平台下载器
+
+大多数下载器把一个站点做透。OmniGet 把网课、视频、音频、图集、种子和 Telegram 放进同一个队列，下完还能直接播放。代价也说清楚：专攻单一平台的工具，有时会更早支持某些边缘情况。
+
+### OmniGet 与付费课程下载器
+
+付费课程下载器通常对你本来就有权限的内容按月收费。OmniGet 采用 GPL-3.0，无账号、无广告、无付费档，且只下载你自己已登录的会话本来就能打开的内容。
 
 ---
 
@@ -131,6 +159,7 @@ OmniGet 在一个窗口里搞定这一切。粘贴课程链接、YouTube 链接�
 | 哔哩哔哩（深度支持） | 登录后可下 4K、HDR、杜比视界、Hi-Res 无损、杜比全景声。弹幕（XML/ASS/JSON）、用于 Kodi 和 Jellyfin 的 NFO、11 种链接类型（UGC、番剧、课程、收藏夹、UP主、每周必看、稍后再看、历史记录、b23.tv） |
 | 亚洲平台 | 抖音、小红书、快手、优酷、爱奇艺、腾讯视频、芒果 TV |
 | 图集 | DeviantArt、Pixiv、ArtStation、Flickr、Tumblr、Imgur 相册、Kemono、Newgrounds、各类图床 |
+| 主页批量 | 整个 subreddit 及其排序页、Reddit 用户主页、X/Twitter 主页 |
 | 文件与传输 | `.torrent` 和磁力链接，以及两台电脑之间用短代码直接 P2P 传输 |
 
 大家常搜、OmniGet 都能做到的：
@@ -138,7 +167,7 @@ OmniGet 在一个窗口里搞定这一切。粘贴课程链接、YouTube 链接�
 - **下载完整的在线课程**，包括每节课和附带的 PDF，然后在应用内观看，并从上次停下的地方继续。
 - **下载 YouTube 视频或整个播放列表**，自选画质，或只提取音频，格式可选 MP3、M4A、Opus、FLAC 或 WAV。
 - **下载 TikTok、Instagram、Twitter/X、Reddit** 的帖子、短视频、快拍、轮播图和图集。
-- **批量下载** 文本文件里的链接列表，或某个创作者的整个主页。
+- **批量下载** 文本文件里的链接列表、整个 subreddit、Reddit 用户主页，或 X/Twitter 主页。
 - **只下载视频的一部分**，设置开始和结束时间即可。
 - **下载任意语言的字幕**，可嵌入，也可在没有字幕时用 Whisper 自动生成。
 - **跳过赞助片段**（SponsorBlock），并自动嵌入元数据和缩略图。
@@ -259,6 +288,21 @@ OmniGet 自带完整的插件（课程、学习、Telegram、转换等等），�
 
 ## 常见问题
 
+**使用 OmniGet 需要注册账号吗？**
+不需要。OmniGet 本身不需要任何账号或注册。只有当内容本身要求登录时才需要登录对应平台，比如你已购买的付费课程或哔哩哔哩大会员视频，而这些登录状态只保存在你自己的电脑上。
+
+**OmniGet 能下载 YouTube 播放列表或整个频道吗？**
+可以。粘贴播放列表链接，OmniGet 会把其中每个视频加入队列。你也可以关注某个频道，OmniGet 会自动下载新发布的内容并弹出托盘通知。
+
+**下载中断后 OmniGet 会续传吗？**
+会。队列会保留已下载的部分文件并从中断处继续，而不是从头再来；遇到网站限速时会按退避策略重试。关闭应用或断网都不会让已下载的进度白费。
+
+**OmniGet 支持哪些文件格式？**
+视频支持 MP4、MKV、WebM；音频支持 MP3、M4A、Opus、FLAC、WAV。字幕可保存为 SRT、VTT、ASS，也可以直接嵌入视频。电子书支持 PDF、EPUB、CBZ、TXT 和 HTML。
+
+**OmniGet 能下载我已经购买的付费内容吗？**
+OmniGet 只下载你自己已登录的会话本来就能打开的内容，例如你已购买的 Udemy 或 Hotmart 课程。它不会绕过 DRM、不会破解付费墙、也不会共享账号凭据。你本来无权访问的内容仍然无法访问。
+
 **OmniGet 免费吗？**
 免费。基于 GPL-3.0 开源，无需账号，没有广告，也没有付费档位。
 
@@ -269,16 +313,19 @@ OmniGet 自带完整的插件（课程、学习、Telegram、转换等等），�
 运行[首次启动说明](#️-首次启动前请务必阅读)里的两条终端命令。Gatekeeper 会拦截未签名的开源应用，那两行命令会清除这个标记。只需操作一次。
 
 **这只是 yt-dlp 的图形界面吗？**
-对于那 1,800+ 个通用网站，它底层使用 yt-dlp，同时为大平台配有原生解析器，并在其上提供真正的界面、下载队列、媒体库和内置播放器。所以可以说是，但远不止一个图形界面。
+对于那 1800+ 个通用网站，它底层使用 yt-dlp，同时为大平台配有原生解析器，并在其上提供真正的界面、下载队列、媒体库和内置播放器。所以可以说是，但远不止一个图形界面。
 
 **它能下载完整的 Udemy 或 Hotmart 课程吗？**
 可以。你在平台上登录一次，选择课程，OmniGet 就会下载每节课和每个附件，然后用带时间戳笔记的播放器回放。
 
 **支持哪些网站？**
-在线课程、YouTube、TikTok、Instagram、Twitter/X、Reddit、Twitch、Vimeo、哔哩哔哩、Pinterest、Bluesky、各大亚洲平台、图集、种子和磁力，以及通过 yt-dlp 支持的约 1,800 个网站。
+在线课程、YouTube、TikTok、Instagram、Twitter/X、Reddit、Twitch、Vimeo、哔哩哔哩、Pinterest、Bluesky、各大亚洲平台、图集、种子和磁力，以及通过 yt-dlp 支持的约 1800 个网站。
 
 **它能在 Windows、macOS 和 Linux 上运行吗？**
-都可以。Windows 是便携版 `.exe`，macOS 是 `.dmg`，Linux 是 Flatpak 或安装包。
+都可以，且同时提供 x86_64 与 ARM64 版本。Windows 提供便携版 `.exe`、`.msi` 安装包和 winget 包；macOS 提供 Apple Silicon 与 Intel 的 `.dmg`；Linux 提供 `.deb`、`.rpm` 与 `.AppImage`。
+
+**支持哪些 Linux 发行版？**
+OmniGet 可在任何主流桌面 Linux 上运行。Debian 与 Ubuntu 建议用 `.deb`，Fedora 与 openSUSE 用 `.rpm`，其他发行版用 `.AppImage`。在 Debian 12+ 与 Ubuntu 24.04+ 上使用 AppImage 需要先 `sudo apt install libfuse2`，因为这些版本移除了 FUSE 2；用 `.deb` 则无此要求。
 
 **能只下载音频，或者只下一个片段吗？**
 可以。提取音频为 MP3、M4A、Opus、FLAC 或 WAV，或者设置开始和结束时间，只下载你需要的那一段。
@@ -314,6 +361,24 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file lib
 </details>
 
 生产构建：`pnpm tauri build`。
+
+### 命令行工具（需自行构建）
+
+仓库中还包含 `omniget-cli`，一个让 OmniGet 可被脚本调用的小型 Rust 程序。**它目前尚未随 Release 一起发布**，需要你从本仓库自行构建：
+
+```bash
+cargo build --release -p omniget-cli
+```
+
+```bash
+omniget info <url>                     # 只预览标题、格式和体积，不下载
+omniget download <url> -q 1080 -o ~/Videos
+omniget download <url> --audio-only --subs zh-Hans,en
+omniget batch links.txt -m 3           # 每行一个链接，同时 3 个
+omniget import-cookies cookies.txt     # Netscape 格式
+```
+
+桌面应用完全不需要它。它是给定时任务、dotfiles 和脚本用的。
 
 ---
 
