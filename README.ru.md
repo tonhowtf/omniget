@@ -1,9 +1,11 @@
 <!--
 SEO / discovery: OmniGet - бесплатный загрузчик с открытым исходным кодом для Windows, macOS и Linux.
 Рекомендуемые GitHub topics (задайте их в репозитории: Settings > Topics):
-video-downloader, youtube-downloader, media-downloader, course-downloader, udemy-downloader,
-music-downloader, ebook-reader, yt-dlp, yt-dlp-gui, tauri, svelte, rust, desktop-app,
-cross-platform, open-source, instagram-downloader, tiktok-downloader, bilibili, torrent, p2p
+downloader, download-manager, media-downloader, video-downloader, youtube-downloader,
+yt-dlp, yt-dlp-gui, course-downloader, udemy-downloader, hotmart-downloader,
+bilibili-downloader, tiktok-downloader, instagram-downloader, twitter-downloader,
+reddit-downloader, telegram-downloader, twitch-downloader, subtitle-downloader,
+epub-reader, spaced-repetition
 -->
 
 <p align="center">
@@ -29,7 +31,7 @@ cross-platform, open-source, instagram-downloader, tiktok-downloader, bilibili, 
 </p>
 
 <p align="center">
-  <b>OmniGet</b> - это бесплатное настольное приложение с открытым исходным кодом для Windows, macOS и Linux. Оно скачивает онлайн-курсы (Udemy, Hotmart, Kiwify, Skool, Teachable и другие), видео и аудио с YouTube, TikTok, Instagram, Twitter/X, Reddit и 1800+ других сайтов, а также вашу музыку и книги. Всё воспроизводится прямо в приложении. Без командной строки, без Python, без настройки, и ваши файлы остаются на вашем компьютере.
+  <b>OmniGet — это бесплатное настольное приложение с открытым исходным кодом для Windows, macOS и Linux.</b> Оно скачивает онлайн-курсы (Udemy, Hotmart, Kiwify, Skool, Teachable и другие), видео и аудио с YouTube, TikTok, Instagram, Twitter/X, Reddit и 1800+ других сайтов, а также вашу музыку и книги. Всё воспроизводится прямо в приложении. Без командной строки, без Python, без настройки, и ваши файлы остаются на вашем компьютере. Распространяется по лицензии GPL-3.0.
 </p>
 
 <p align="center">
@@ -58,7 +60,7 @@ cross-platform, open-source, instagram-downloader, tiktok-downloader, bilibili, 
     <td>
       <a href="https://github.com/tonhowtf/omniget/releases/latest"><img alt="Скачать OmniGet для Windows" src="https://img.shields.io/badge/Windows-Portable_EXE-0078D6?style=for-the-badge&logo=windows&logoColor=white" height="38"></a>
       <br/>
-      <sub>Скачайте <code>.exe</code> из Releases и дважды кликните. Это портативная версия, она запускается откуда угодно.</sub>
+      <sub>Скачайте <code>.exe</code> из Releases и дважды кликните. Это портативная версия, она запускается откуда угодно. Есть также установщик <code>.msi</code>, а если привычнее командная строка — <code>winget install -e --id tonhowtf.OmniGet</code>.</sub>
     </td>
   </tr>
   <tr>
@@ -72,12 +74,14 @@ cross-platform, open-source, instagram-downloader, tiktok-downloader, bilibili, 
   <tr>
     <td><strong>Linux</strong></td>
     <td>
-      <a href="https://github.com/tonhowtf/omniget/releases/latest"><img alt="Скачать OmniGet для Linux" src="https://img.shields.io/badge/Linux-Flatpak-FFAA33?style=for-the-badge&logo=linux&logoColor=white" height="38"></a>
+      <a href="https://github.com/tonhowtf/omniget/releases/latest"><img alt="Скачать OmniGet для Linux в формате deb, rpm или AppImage" src="https://img.shields.io/badge/Linux-deb_·_rpm_·_AppImage-FFAA33?style=for-the-badge&logo=linux&logoColor=white" height="38"></a>
       <br/>
-      <sub>Выполните <code>flatpak install wtf.tonho.omniget</code> или возьмите сборку из Releases.</sub>
+      <sub>Debian и Ubuntu — <code>.deb</code>, Fedora и openSUSE — <code>.rpm</code>, остальные дистрибутивы — <code>.AppImage</code>. Собираются сборки для x86_64 и ARM64.</sub>
     </td>
   </tr>
 </table>
+
+<sub><strong>AppImage на Debian 12+ и Ubuntu 24.04+:</strong> в этих выпусках больше нет FUSE 2, который нужен AppImage. Если <code>./omniget.AppImage</code> завершается с ошибкой libfuse, выполните <code>sudo apt install libfuse2</code> или запустите с ключом <code>./omniget.AppImage --appimage-extract-and-run</code>. С <code>.deb</code> этой проблемы нет вовсе.</sub>
 
 ### ⚠️ Обязательно прочитайте перед первым запуском
 
@@ -93,6 +97,10 @@ codesign --force --deep --sign - /Applications/omniget.app
 Затем откройте OmniGet как обычно. Это делается один раз.
 
 **Windows.** При первом запуске SmartScreen может показать синее предупреждение. Нажмите **More info (Подробнее)**, затем **Run anyway (Выполнить в любом случае)**. Это стандартно для приложений с открытым исходным кодом без платного сертификата подписи кода.
+
+### Портативный режим: флешка или рабочий компьютер с ограничениями
+
+Создайте рядом с `.exe` пустой файл с именем `portable.txt` (или `.portable`) и перезапустите приложение. После этого OmniGet держит настройки, базу данных, cookie, плагины, кеш и встроенные yt-dlp и FFmpeg в папке `data` рядом с исполняемым файлом. Ничего не пишется в `AppData\Roaming` или другие пользовательские каталоги, поэтому вся установка переносится вместе с флешкой. Без этого файла OmniGet использует стандартный пользовательский каталог данных.
 
 Бесплатно и с открытым исходным кодом под лицензией GPL-3.0. Обновления идут тихо в фоне. Встроенные инструменты (yt-dlp и FFmpeg) устанавливаются сами, а yt-dlp проверяется по SHA256 перед запуском. Плагины устанавливаются при первом запуске и обновляются сами, настраивать ничего не нужно.
 
@@ -120,6 +128,26 @@ OmniGet делает всё это в одном окне. Вставьте сс
 
 ---
 
+## Чем OmniGet отличается от yt-dlp и других загрузчиков
+
+У разных инструментов разные задачи. Здесь о том, где место OmniGet, а не о том, кто лучше.
+
+### OmniGet и yt-dlp
+
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) — это движок извлечения, и OmniGet работает на нём. yt-dlp — инструмент командной строки: нужно поставить Python, разобраться с ключами, написать выражение выбора формата, и взамен вы получаете непревзойдённый контроль над 1800+ сайтами. Он отлично с этим справляется, и без него OmniGet бы не было.
+
+OmniGet — это приложение вокруг него. Вы скачиваете один файл, вставляете ссылку и видите превью с вариантами качества. yt-dlp и FFmpeg ставятся и обновляются сами, а yt-dlp перед запуском проверяется по SHA256. Сверху — очередь загрузок с повторными попытками и докачкой, история, плеер курсов, читалка и музыкальная библиотека. Если вам привычен терминал и нужны только файлы, берите yt-dlp напрямую. Если нужна библиотека, которую можно смотреть и читать, берите OmniGet.
+
+### OmniGet и загрузчики под одну платформу
+
+Большинство загрузчиков хорошо делают один сайт. OmniGet собирает курсы, видео, аудио, изображения, торренты и Telegram в одну очередь, а потом воспроизводит результат. Компромисс честный: узкоспециализированный инструмент иногда раньше поддержит редкий случай.
+
+### OmniGet и платные загрузчики курсов
+
+Платные загрузчики курсов обычно берут подписку за то, к чему у вас уже есть доступ. OmniGet распространяется по GPL-3.0, без аккаунта, без рекламы и без платных тарифов, и скачивает только то, что уже открывается в вашей собственной авторизованной сессии.
+
+---
+
 ## Что скачивает OmniGet
 
 Вставьте ссылку. OmniGet определит сайт, покажет предпросмотр с вариантами качества и скачает. Если сайт поддерживается [yt-dlp](https://github.com/yt-dlp/yt-dlp), OmniGet качает с него, а это примерно на тысячу сайтов больше, чем в таблице ниже.
@@ -131,6 +159,7 @@ OmniGet делает всё это в одном окне. Вставьте сс
 | Bilibili (глубоко) | Войдите для 4K, HDR, Dolby Vision, Hi-Res lossless, Dolby Atmos. Данмаку (XML/ASS/JSON), NFO для Kodi и Jellyfin, 11 типов ссылок (UGC, 番剧, 课程, 收藏夹, UP主, 每周必看, 稍后再看, 历史记录, b23.tv) |
 | Азиатские платформы | Douyin (抖音), Xiaohongshu (小红书), Kuaishou (快手), Youku (优酷), iQiyi (爱奇艺), Tencent Video, Mango TV |
 | Галереи изображений | DeviantArt, Pixiv, ArtStation, Flickr, Tumblr, альбомы Imgur, Kemono, Newgrounds, имиджборды |
+| Массовые профили | Целые сабреддиты и их страницы сортировки, профили пользователей Reddit, профили X/Twitter |
 | Файлы и передача | `.torrent` и магнет-ссылки, а также прямая P2P-передача между двумя компьютерами по короткому коду |
 
 То, что люди ищут, и что OmniGet умеет:
@@ -138,7 +167,7 @@ OmniGet делает всё это в одном окне. Вставьте сс
 - **Скачать полный онлайн-курс**, каждый урок и приложенный PDF, затем смотреть его внутри приложения и продолжать с места остановки.
 - **Скачать видео с YouTube или целый плейлист**, выбрать качество или взять только аудио в MP3, M4A, Opus, FLAC или WAV.
 - **Скачать TikTok, Instagram, Twitter/X, Reddit**: посты, reels, истории, карусели и галереи.
-- **Пакетная загрузка** списка ссылок из текстового файла или целого профиля автора.
+- **Пакетная загрузка** списка ссылок из текстового файла, целого сабреддита, профиля пользователя Reddit или профиля X/Twitter.
 - **Скачать только часть видео**, задав начало и конец.
 - **Скачать субтитры** на любом языке, встроить их или сгенерировать через Whisper, если их нет.
 - **Пропускать спонсорские вставки** через SponsorBlock, автоматически встраивать метаданные и обложки.
@@ -259,6 +288,21 @@ OmniGet поставляется с полным набором плагинов
 
 ## Частые вопросы
 
+**Нужен ли аккаунт, чтобы пользоваться OmniGet?**
+Нет. Собственный аккаунт или регистрация OmniGet не нужны. Входить на платформу приходится только тогда, когда этого требует сам контент — например, купленный вами курс или премиум-поток Bilibili, — и эта сессия остаётся на вашем компьютере.
+
+**Может ли OmniGet скачать плейлист или целый канал YouTube?**
+Да. Вставьте ссылку на плейлист, и OmniGet поставит в очередь каждое видео из него. Можно также подписаться на канал, и OmniGet будет автоматически скачивать новые загрузки и показывать уведомление в трее.
+
+**Продолжит ли OmniGet прерванную загрузку?**
+Да. Очередь сохраняет частично скачанные файлы и продолжает с того места, где остановилась, а при ограничении скорости со стороны сайта повторяет попытки с нарастающей паузой. Закрытие приложения или обрыв связи не обнуляют прогресс.
+
+**Какие форматы файлов сохраняет OmniGet?**
+Видео — MP4, MKV или WebM, аудио — MP3, M4A, Opus, FLAC или WAV. Субтитры сохраняются как SRT, VTT или ASS и могут встраиваться в видеофайл. Книги открываются в форматах PDF, EPUB, CBZ, TXT и HTML.
+
+**Может ли OmniGet скачать платный контент, который я уже купил?**
+OmniGet скачивает то, что уже открывается в вашей собственной авторизованной сессии, например купленный курс Udemy или Hotmart. Он не обходит DRM, не взламывает платный доступ и не передаёт чужие учётные данные. То, к чему у вас нет доступа, останется недоступным.
+
 **OmniGet бесплатный?**
 Да. Бесплатно и с открытым исходным кодом под GPL-3.0, без аккаунта, без рекламы и без платных тарифов.
 
@@ -278,7 +322,10 @@ OmniGet поставляется с полным набором плагинов
 Онлайн-курсы, YouTube, TikTok, Instagram, Twitter/X, Reddit, Twitch, Vimeo, Bilibili, Pinterest, Bluesky, крупные азиатские платформы, галереи изображений, торренты и магнеты, плюс около 1800 других через yt-dlp.
 
 **Работает ли на Windows, macOS и Linux?**
-Да, на всех трёх. Windows это портативный `.exe`, macOS это `.dmg`, Linux это Flatpak или сборка.
+Да, на всех трёх, в сборках для x86_64 и ARM64. Для Windows есть портативный `.exe`, установщик `.msi` и пакет winget. Для macOS — `.dmg` для Apple Silicon и Intel. Для Linux — `.deb`, `.rpm` и `.AppImage`.
+
+**Какие дистрибутивы Linux поддерживаются?**
+OmniGet работает на любом современном настольном Linux. Для Debian и Ubuntu лучше взять `.deb`, для Fedora и openSUSE — `.rpm`, для остальных — `.AppImage`. На Debian 12+ и Ubuntu 24.04+ для AppImage сначала нужно выполнить `sudo apt install libfuse2`, потому что в этих выпусках убрали FUSE 2; для `.deb` это не требуется.
 
 **Можно скачать только аудио или только фрагмент?**
 Да. Извлеките аудио в MP3, M4A, Opus, FLAC или WAV, или задайте начало и конец, чтобы скачать только нужную часть.
@@ -314,6 +361,24 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file lib
 </details>
 
 Продакшен-сборка: `pnpm tauri build`.
+
+### Интерфейс командной строки (собирается вручную)
+
+В репозитории также есть `omniget-cli` — небольшая программа на Rust, которая делает OmniGet пригодным для скриптов. **В готовые сборки она пока не входит**, её нужно собрать из этого репозитория:
+
+```bash
+cargo build --release -p omniget-cli
+```
+
+```bash
+omniget info <url>                     # только превью: название, форматы, размер
+omniget download <url> -q 1080 -o ~/Videos
+omniget download <url> --audio-only --subs ru,en
+omniget batch links.txt -m 3           # по одной ссылке в строке, по 3 одновременно
+omniget import-cookies cookies.txt     # формат Netscape
+```
+
+Настольному приложению это не нужно совсем. Оно существует для cron, dotfiles и скриптов.
 
 ---
 
