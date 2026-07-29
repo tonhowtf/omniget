@@ -1,92 +1,71 @@
-# ENTREGA — sessão autônoma 2026-07-29
+# ENTREGA — sessão autônoma 2026-07-29 (Ondas 1 e 2)
 
-Continuação do backlog. `docs/backlog.md` é a fonte de verdade pública; este arquivo registra a sessão.
+`docs/backlog.md` é a fonte de verdade pública; este arquivo é o registro da sessão.
 
-**Placar: 4 `CONCLUIDO`, 1 `BLOQUEADO`, 12 `PENDENTE`.** Próximo item: **B49**.
+**Placar: 8 `CONCLUIDO`, 0 `BLOQUEADO`, 12 `PENDENTE`.** Próximo item: **B52**.
+
+> ⚠️ **A v0.7.8 não deve ser tagueada antes da issue #209.** O B49 reestrutura a criação da janela principal e a CI não sobe o app.
 
 ---
 
 ## 1. Itens entregues
 
-Todos com CI 6/6 verde antes de qualquer merge. Nenhum marcado por auto-relato.
+Todos com CI 6/6 verde antes do merge. Nenhum marcado por auto-relato.
 
-### B47 + B48 + B41 — PR #204 · mergeada · CI 6/6
+| Item | PR | CI | Testes |
+|---|---|---|---|
+| B47 + B48 + B41 | #204 | 6/6 | — |
+| B50 · baseline de clippy | #205 | 6/6 | — |
+| B51 · campo Website | #205 | 6/6 | — |
+| B36 · Smart Speed / Voice Boost | #205 | 6/6 | +7 |
+| B45 · caminho de binário | #197 | 6/6 | — |
+| B50-b · baseline reconciliado | #207 | 6/6 | — |
+| B49 · modo portátil | #208 | 6/6 | +4 |
+| B53 · validação do B36 | #210 | 6/6 | +2 |
 
-Herdados da sessão anterior, mergeados no início desta. CI verde em `frontend`, `metainfo`, `rust` nas três plataformas e `rust-debian`.
+Testes **460 → 473**. Clippy: 92 warnings reais, portão ativo nas três plataformas. `pnpm check`: 0 erros.
 
-### B50 — Baseline de clippy · PR #205 · CI 6/6 · mergeada
+### O que cada um virou, quando divergiu do plano
 
-Clippy era informativo porque o workspace carrega **177 warnings herdados** e `-D warnings` reprovaria toda PR no dia um. O baseline commitado (`src-tauri/clippy-baseline.json`, 51 lints) congela o que existe e reprova só o que é novo. Chave `crate|lint`, sem arquivo nem linha — mover código não pode reprovar CI.
+**B45 — o bloqueio nunca foi o autor.** Vim rebasar a branch dele e não havia o que rebasar: @gtxPrime tinha sincronizado com `main` sozinho, corrigido o ponto 4 e rodado `cargo fmt`. O bloqueio real era **`action_required`** — o GitHub segura workflow de contribuidor externo até o mantenedor aprovar, e o CI tinha nascido no dia anterior, então ninguém tinha notado a fila. Aprovei, verde, mergeada, issue #196 fechada.
 
-**Escrito contra:** clippy do Rust 1.90 (imagem `rust:1.90-bookworm`), Node 20+ (pré-instalado no runner ubuntu).
+**B50-b — os 177 eram contagem dupla.** `1+1+34+8+8+37+42+46 = 177` exatamente: `--all-targets` compila `lib` e `lib test` e o mesmo warning sai uma vez por target. O portão funcionava, mas o número mentia e um warning novo aparecia como +2. Dedup por origem → **92 reais**. Três baselines por plataforma; **os três dão 92/51 e zero lints diferem**, o que é honesto reportar: o split não rende nada hoje.
 
-**Critério de aceite provado, não presumido:** injetei um argumento `&Vec<String>`, o check reprovou nomeando `omniget_lib: clippy::ptr_arg 2 -> 4`; revertido, voltou a `177 warnings, none new`. As duas execuções em container Debian, igual à CI.
+**B49 — o CI destravou menos do que parecia.** Ter job de Windows torna a compilação verificável, não o comportamento. O job roda `cargo test`, não sobe o app. Implementei e mergeei, mas abri a **issue #209** com os três casos de teste manual, porque um erro aqui não quebra o modo portátil — quebra a abertura do app para todo mundo.
 
-**Erro meu no caminho, corrigido:** o primeiro baseline foi gerado no macOS e rotulado `linux` à mão. O script agora grava `process.platform` sozinho, e recusa comparar entre plataformas em vez de reprovar alguém por warning que só existe no SO dele.
-
-### B51 — Campo Website · PR #205 · CI 6/6 · mergeada
-
-Apontava para um convite do Discord, que não passa autoridade nenhuma. Agora aponta para `releases/latest`.
-
-**O achado que mudou a ordem de execução:** o convite existia **só** nesse campo. Os três READMEs citavam Discord apenas como feature (Discord presence, baixar link do Discord), nunca como porta da comunidade. Trocar o campo primeiro teria apagado a entrada da comunidade — então o convite foi para a seção Contribute dos três READMEs **antes** da troca.
-
-Não existe GitHub Pages (`/repos/.../pages` → 404), então não havia ganho de SEO disponível de qualquer forma.
-
-### B36 — Smart Speed e Voice Boost · PR #205 · CI 6/6 · mergeada · +7 testes
-
-**Escrito contra:** ffmpeg com filtros `loudnorm`, `silenceremove` e `silencedetect` (presentes desde o ffmpeg 4.x; a allowlist do projeto já permitia `loudnorm`).
-
-Voice Boost normaliza para EBU R128 (−16 LUFS, −1.5 dBTP) e copia o vídeo intacto.
-
-**Smart Speed sai como áudio, e isso é restrição real, não simplificação.** `silenceremove` descarta amostras de áudio sem tocar no PTS do vídeo, então aplicar sobre mp4 dessincroniza imagem e som. Cortar as duas streams nos mesmos pontos exigiria `select`/`aselect` com expressões — outra ordem de grandeza, e o caso de uso de origem (Overcast) consome aula como áudio. Há teste travando essa decisão para ninguém "melhorar" para mp4 depois.
-
-Preview antes de converter: `silencedetect` mede o silêncio sem escrever arquivo.
-
-**Decisão de segurança registrada:** a sonda **não** passa pela allowlist de ffmpeg. Ela precisa de `-f null`, e liberar `-f` deixaria o caminho de proposta por IA escolher muxer arbitrário — ampliar superfície de segurança para ganhar nada. A sonda é montada só pelo app com argumentos constantes, e um teste afirma as duas metades desse raciocínio.
-
-**Um teste reprovou e estava certo:** `os_presets_novos_passam_pela_allowlist_de_seguranca` pegou que a sonda quebraria em runtime. A correção foi tirar a sonda do caminho da allowlist, não alargar a allowlist.
+**B53 — a validação achou um bug.** Duas das três promessas do B36 se sustentaram. A terceira não: a sonda previa 20,0% e o corte real foi 18,5%, porque `silenceremove` preserva `stop_duration` de cada trecho (12 × 0,35 s = 1,4%, que fecha a conta). Estimativa corrigida.
 
 ---
 
-## 2. Bloqueados, com evidência
+## 2. Bloqueados
 
-### B45 — Caminho customizado de binário · PR #197 · bola com o autor
-
-O autor (**@gtxPrime**) voltou durante a sessão e pediu re-check. Verifiquei linha a linha em vez de aceitar o diff:
-
-| Ponto | Estado | Onde verifiquei |
-|---|---|---|
-| `telegramGetChats` ausente | corrigido | `study-telegram-bridge.ts:333` |
-| `source` faltando | corrigido | `+layout.svelte:240` |
-| 37 chaves i18n faltando | corrigido | 43 chaves em todos os 9 locales, **zero faltando** |
-| Progresso podia regredir | corrigido | `ytdlp.rs:2529` |
-| `CHANGELOG_MERGE_REQUEST.md` | removido | — |
-| Spawn duplicado | **aberto** | `commands/dependencies.rs:29-39` |
-
-**O bloqueio mudou de natureza:** a PR não mergeia mais — conflita em `src-tauri/src/core/queue.rs` depois da v0.7.7 e do remake visual. Precisa de rebase do autor.
-
-Não empurrei commit na branch dele e não abri PR concorrente. Autoria intacta.
+**Nenhum.** O único item que estava bloqueado (B45) foi destravado e mergeado.
 
 ---
 
 ## 3. O que NÃO foi verificado
 
-- **O baseline de clippy só cobre Linux.** Warning novo que só aparece no Windows ou no macOS passa despercebido. O script recusa comparar entre plataformas de propósito — o contrário reprovaria gente por warning de outro SO. Baseline por SO é possível e fica como dívida.
-- **Smart Speed e Voice Boost não foram exercitados contra mídia real.** Os 7 testes cobrem o parser de `silencedetect` com log real capturado, a construção dos presets e a allowlist. Nenhum roda ffmpeg. Os alvos EBU R128 vêm da especificação, não de medição minha.
-- **A estimativa de silêncio não foi comparada com o resultado real da conversão.** O preview diz quanto `silencedetect` encontrou com os mesmos parâmetros do `silenceremove`, o que deve bater — mas não medi as duas pontas.
-- **Não rodei o app.** Tudo é build, teste unitário e CI. Os três botões novos no `VideoOpsOverlay` nunca foram clicados.
-- **Traduções de es/fr/it/ja/ru/zh/zh-TW/el** são de boa-fé, não revisadas por falante nativo. pt-BR e inglês eu escrevi diretamente.
-- **B49 não foi iniciado**, por decisão de contexto e não por bloqueio técnico — ver seção 7.
+- **O B49 nunca abriu uma janela.** É a lacuna mais séria desta sessão. A CI prova compilação nas três plataformas e a lógica de diretório (4 testes). Não prova que o app sobe, nem que `%LOCALAPPDATA%\wtf.tonho.omniget` para de aparecer. Issue #209, com os passos exatos.
+- **O B53 usou mídia sintética, não uma aula real.** Construí 300 s com 60 s de silêncio conhecido — mais rigoroso para checar a aritmética, mas não é uma aula. O download real do YouTube estourou 10 minutos.
+- **Os três botões do B36 continuam sem nunca terem sido clicados.** Validei os filtros por linha de comando, não pela UI.
+- **O baseline de clippy do Windows veio do log da CI**, não de uma máquina Windows minha. É o output do próprio script rodando lá, então é legítimo, mas não fui eu que rodei.
+- **`pnpm check` subiu de 107 para 109 warnings.** Não fui eu: são dois a11y warnings em `TelegramUploadModal.svelte`, da #197. Verifiquei a origem em vez de adotar o número novo em silêncio.
+- **Traduções** de es/fr/it/ja/ru/zh/zh-TW/el continuam sem revisão nativa.
 
 ---
 
 ## 4. Cenários de teste manual
 
-1. **Voice Boost.** Baixe um vídeo com áudio baixo, abra as ferramentas de vídeo no item da lista, clique em "Nivelar voz". Sai um `.mp4` novo com o vídeo idêntico e o áudio em volume de podcast. O original não é tocado.
-2. **Medir silêncio.** Numa aula longa, clique em "Medir silêncio". Deve aparecer algo como "Cerca de 18 min de silêncio — cortar removeria uns 21%". Num vídeo sem silêncio, a mensagem muda para "Quase não há silêncio para cortar aqui".
-3. **Cortar silêncio.** Clique em "Cortar silêncio" na mesma aula. Sai um `.m4a` — **áudio, não vídeo, e isso é esperado**. Confira que a duração caiu perto do que o preview previu e que a fala não ficou picotada entre palavras.
-4. **Campo Website.** Abra a página do repositório: o link no topo deve levar a `releases/latest`, e o Discord deve estar na seção Contribute dos três READMEs.
-5. **Baseline de clippy, se quiser conferir o portão.** Adicione um `fn x(v: &Vec<String>) -> usize { v.len() }` em qualquer crate, abra PR: o job `rust (ubuntu-latest)` reprova nomeando o lint. Remova e ele volta a passar.
+**Bloqueantes para a v0.7.8** (issue #209, Windows):
+
+1. **Portátil.** `portable.txt` ao lado do `.exe`, apague `%LOCALAPPDATA%\wtf.tonho.omniget`, abra. A janela precisa abrir, a pasta não pode voltar, e `<app>\data\webview` precisa existir.
+2. **Instalação normal — o risco de regressão.** Abra **sem** `portable.txt`. A janela precisa abrir e se comportar como antes. Esse caminho é o de todo mundo.
+3. **Segunda abertura** nos dois modos: settings e tamanho de janela persistem.
+
+**Não bloqueantes:**
+
+4. **Smart Speed pela UI.** Numa aula real, "Medir silêncio" → deve estimar um pouco **menos** que antes (a correção do B53). Depois "Cortar silêncio": sai `.m4a`, e a duração deve bater com a estimativa agora.
+5. **Voice Boost.** Sai `.mp4` com vídeo idêntico e áudio nivelado.
 
 ---
 
@@ -94,30 +73,30 @@ Não empurrei commit na branch dele e não abri PR concorrente. Autoria intacta.
 
 | Feature | Inspirada em | Licença | Como foi usado |
 |---|---|---|---|
-| B36 Smart Speed / Voice Boost | Overcast | proprietário | Só a descrição pública do que as features fazem. Nenhum código lido ou copiado; os filtros são do ffmpeg e os alvos são da especificação EBU R128. |
-| B50 baseline de lint | prática de `golangci-lint` e `ruff` (baseline/`--diff`) | MIT / MIT | Só o padrão de comportamento: congelar o herdado, reprovar o novo. Implementação própria. |
-| B51 | — | — | Não é feature. |
+| B36 / B53 Smart Speed e Voice Boost | Overcast | proprietário | Só a descrição pública. Filtros são do ffmpeg, alvos são da EBU R128. |
+| B50 / B50-b baseline de lint | `golangci-lint`, `ruff` | MIT / MIT | Só o padrão: congelar o herdado, reprovar o novo. |
+| B49 modo portátil | — | — | Diagnóstico próprio sobre a fonte do Tauri 2.10.2. |
 
-Nenhum trecho copiado de projeto algum. Nenhuma dependência nova adicionada — `Cargo.toml`, `Cargo.lock` e `pnpm-lock.yaml` intocados.
+Nenhum trecho copiado. Nenhuma dependência nova — `Cargo.toml`, `Cargo.lock` e `pnpm-lock.yaml` intocados nas duas ondas.
 
 ---
 
 ## 6. Dívida introduzida e riscos abertos
 
-1. **O baseline de clippy é só de Linux.** Já explicado. É a dívida mais concreta desta sessão.
-2. **O baseline pode ficar velho para baixo.** Quando alguém corrigir warnings, o script avisa que melhorou e sugere regravar, mas não força. Um baseline inflado protege menos do que parece.
-3. **`silence_probe_args()` fica fora da allowlist por design.** Está documentado no código e travado por teste, mas é uma exceção — se alguém acrescentar entrada de usuário ali, o raciocínio quebra em silêncio.
-4. **Smart Speed descarta o vídeo sem avisar antes.** O botão diz "Cortar silêncio" e o resultado é `.m4a`. A copy não deixa isso óbvio de antemão. Candidato a ajuste de UX.
-5. **O `check_dependencies` do `main` e o da PR #197 divergiram.** O `main` ganhou `outdated: bool` na v0.7.7; o rebase do autor vai encontrar isso. Avisei na PR.
+1. **O B49 está em `main` sem nunca ter sido executado.** Risco de startup, não de feature. A issue #209 existe para isso, mas depende de alguém com Windows.
+2. **Os três baselines de clippy são idênticos hoje**, então mantê-los é custo triplo sem benefício até o código condicional divergir. Se em três meses continuarem iguais, vale reconsiderar.
+3. **O baseline pode inflar sem ninguém notar.** O script avisa quando melhora e sugere regravar, mas não força.
+4. **`silence_probe_args()` segue fora da allowlist por design**, documentado e travado por teste. Se alguém acrescentar entrada de usuário ali, o raciocínio quebra em silêncio.
+5. **Smart Speed descarta o vídeo sem avisar antes de clicar.** O botão diz "Cortar silêncio" e devolve `.m4a`. O B52 resolve isso movendo a feature para o player, que é a camada certa.
 
 ---
 
 ## 7. PRs abertas e próximo passo
 
-**Nenhuma PR minha aguardando merge.** #204 e #205 foram mergeadas com CI verde.
+**Nenhuma PR aguardando merge.** #197, #204, #205, #207, #208 e #210 foram mergeadas com CI verde.
 
-**PR #197** (@gtxPrime) está com o autor, aguardando rebase.
+**Issues abertas por esta sessão:** #209 (validação do B49 em Windows — bloqueia a v0.7.8), além de #202 e #203 de ontem.
 
-**Próximo item: B49** (modo portátil, issue #195). Não foi iniciado — decisão de contexto, não bloqueio técnico. O escopo foi revisado durante a sessão e está em `docs/backlog.md`: custo subiu de P para M porque o job `rust (windows-latest)` prova que **compila**, não que o modo portátil **funciona** — ele roda `cargo test`, não sobe o app. O conserto reestrutura o bootstrap da janela principal, e começar isso com contexto no fim é como se deixa o repo pela metade.
+**Próximo item: B52** — Smart Speed no player em vez de no arquivo. Não iniciado, decisão de contexto. É Custo M e mexe no player de curso; o mapa de silêncio já existe e já está fora do caminho da allowlist, então o trabalho é persistir como metadado da aula e pular na reprodução.
 
-Depois dele, a ordem segue: B42 → B43 → B44 (bloco de sobrevivência de plataforma), depois a Onda 4.
+Depois: Onda 3 (B42 → B43 → B44), e o B42 ganhou evidência nova nesta sessão — o download de aula do YouTube estourou dez minutos.

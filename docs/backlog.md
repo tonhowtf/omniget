@@ -5,7 +5,28 @@ Itens abertos por ordem de retorno. Numeração contínua; concluídos não são
 **Legenda.** Custo P/M/G · Impacto 1–5 · Status: `aberto` · `bloqueado` · `em análise`
 
 **Concluído em v0.7.7:** B21–B31 (11 itens).
-**Concluído e aguardando release:** B47, B48, B41 (PR #204) · B50, B51, B36 (PR #205).
+**Concluído e aguardando release:** B47, B48, B41 (#204) · B50, B51, B36 (#205) · B45 (#197) · B50-b (#207) · B49 (#208) · B53 (#210).
+
+⚠️ **v0.7.8 não deve ser tagueada antes da issue #209** — o B49 reestrutura o boot do app e o CI não sobe o app.
+
+---
+
+## Onda 2 (2026-07-29) — 5 de 6 concluídos
+
+### B45 — Caminho customizado de binário ✅ · #197 mergeada
+O bloqueio nunca foi o autor. @gtxPrime fechou os 6 pontos sozinho — incluindo o ponto 4 que eu disse que não seguraria a PR. O bloqueio real era **`action_required`**: o GitHub segura workflow de contribuidor externo até o mantenedor aprovar, e o CI tinha nascido no dia anterior. Aprovei, CI 6/6 verde, mergeada. Issue #196 fechada. **Lição: quando um contribuidor externo diz que corrigiu e os checks estão mudos, olhe a fila de aprovação antes de olhar o código dele.**
+
+### B50-b — Baseline de clippy reconciliado ✅ · #207
+Os 177 eram **contagem dupla**: `1+1+34+8+8+37+42+46 = 177`, porque `--all-targets` compila `lib` e `lib test` e o mesmo warning é emitido uma vez por target. Autoconsistente, mas o número mentia e um warning novo aparecia como +2. Dedup por origem (arquivo, linha, coluna, lint) → **92 reais**. Três baselines (`linux`/`darwin`/`win32`), todos 92/51, **zero lints diferem hoje** — o split ainda não rende nada, e rende no instante em que o B49 aterrissa. Plataforma sem baseline não reprova: imprime o JSON a commitar.
+
+### B49 — Modo portátil ✅ · #208 · ⚠️ validação manual pendente
+O `WEBVIEW2_USER_DATA_FOLDER` era código morto. Janela principal saiu do `tauri.conf.json` (`"create": false`) para o `setup()`, único lugar onde `.data_directory()` pode ser passado. **O CI prova que compila, não que funciona** — o job de Windows roda `cargo test`, não sobe o app. Rastreado na issue **#209**.
+
+### B53 — Validação do B36 contra mídia real ✅ · #210
+Duas das três promessas se sustentaram (corte de 18,5%, loudnorm em −15,9 LUFS). **A terceira não:** a sonda previa 20,0%. `silenceremove` preserva `stop_duration` de cada trecho — 12 × 0,35 s = 1,4%, que explica a lacuna. Estimativa corrigida. Mídia sintética: o download de aula real do YouTube estourou 10 min, o que é evidência a favor do B42.
+
+### B52 — Smart Speed no player ⬜ próximo
+Não iniciado. Custo M.
 
 ---
 
@@ -92,7 +113,7 @@ Ainda assim **não é release de segurança isolada**: explorar exige compromete
 
 ### B45 — Caminho customizado de binário
 
-**Status:** bloqueado · **Origem:** issue #196, PR #197 · **Bola com o autor**
+**Status:** concluído · **Origem:** issue #196, PR #197 · mergeada em 2026-07-29
 
 O autor voltou em 2026-07-29 e corrigiu **5 dos 6 pontos**, verificados linha a linha: `telegramGetChats` exportado (`study-telegram-bridge.ts:333`), `source: "clipboard"` presente (`+layout.svelte:240`), **43 chaves em todos os 9 locales, zero faltando**, guarda de monotonicidade do progresso restaurada (`ytdlp.rs:2529`), changelog de PR removido.
 
@@ -102,7 +123,7 @@ Com o CI de pé, ele agora vê os portões sozinho. Re-check comentado na PR.
 
 ### B49 — Modo portátil
 
-**Status:** aberto · **Origem:** issue #195 · **Custo:** M (revisado de P)
+**Status:** concluído no código (#208), **validação manual pendente** (issue #209) · **Origem:** issue #195
 
 Diagnóstico completo e inalterado: o `WEBVIEW2_USER_DATA_FOLDER` definido em `main.rs` é código morto porque o Tauri resolve `data_directory` para `LocalData/{identifier}` antes de a variável ser lida, e o `tauri.conf.json` só aceita caminho relativo sob `data_local_dir()`.
 
