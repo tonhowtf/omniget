@@ -163,8 +163,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: dtolnay/rust-toolchain@stable
+      # `@master` com a versao fixada, e nao `@stable`: o rust-toolchain.toml da
+      # raiz forca 1.97.0, entao instalar o alvo no `stable` deixa a build usando
+      # um toolchain que nao tem o alvo — `can't find crate for core` na primeira
+      # release. O publish-tauri ja fazia assim; este job nao seguiu o padrao.
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: 1.97.0
           targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
