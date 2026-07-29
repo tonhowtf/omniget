@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { translateBackendError } from "$lib/error-translate";
+  import { featureById, needsBadge } from "./registry";
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { CDRAGON, type Champion } from "./shared";
 
@@ -125,6 +126,7 @@
     }
   });
 
+  const buildFeature = featureById("build-reference");
   let metaInfo = $state<any>(null);
   let metaLoading = $state(false);
   let metaError = $state("");
@@ -335,7 +337,12 @@
   {/if}
   <div class="divider"></div>
   <div class="card-head">
-    <h4 class="section-title">{$t("league.meta_reference")}</h4>
+    <h4 class="section-title">
+      {$t("league.meta_reference")}
+      {#if buildFeature && needsBadge(buildFeature)}
+        <span class="feature-badge">{$t(`league.badge_${buildFeature.state}`)}</span>
+      {/if}
+    </h4>
     <button
       class="button"
       onclick={() => loadMeta(champSelectChampionId || (buildChampionId ?? 0))}

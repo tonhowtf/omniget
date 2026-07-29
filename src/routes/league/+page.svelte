@@ -20,6 +20,7 @@
   import AutomationTab from "$components/league/AutomationTab.svelte";
   import HistoryTab from "$components/league/HistoryTab.svelte";
   import type { Champion, GoalKey, LobbyQueue, RankedEntry, Role, ScoutPlayer } from "$components/league/shared";
+  import type { Platform } from "$components/league/registry";
 
   type LeagueStatus = { connected: boolean; port: number | null; region: string | null };
 
@@ -136,6 +137,15 @@
   let liveMetrics = $state<any>(null);
   let cooldowns = $state<any>(null);
   let liveEvents = $state<any>(null);
+
+  // The registry needs to know where it runs to explain platform limits.
+  let platform = $derived<Platform>(
+    navigator.userAgent.includes("Windows")
+      ? "windows"
+      : navigator.userAgent.includes("Mac")
+        ? "macos"
+        : "linux",
+  );
 
   const GOALS_KEY = "league-role-goals";
 
@@ -453,7 +463,7 @@
         <OverviewTab {summoner} {ranked} {phase} {champSelect} {liveGame} {lobby} {queues} {actionError} {champions} {championById} {championByAlias} onAction={action} />
       </div>
       <div class="tab-panel" class:active={tab === "analysis"}>
-        <AnalysisTab {analysis} {analysisLoading} onRefreshAnalysis={loadAnalysis} {phase} {scoutPlayers} {scoutReports} {scoutLoading} onRefreshScouting={loadScouting} {championById} {notes} onSaveNote={saveNote} {timesSeenBefore} />
+        <AnalysisTab {analysis} {analysisLoading} onRefreshAnalysis={loadAnalysis} {phase} {scoutPlayers} {scoutReports} {scoutLoading} onRefreshScouting={loadScouting} {championById} {notes} onSaveNote={saveNote} {timesSeenBefore} {platform} clientConnected={status.connected} />
       </div>
       <div class="tab-panel" class:active={tab === "meta"}>
         <MetaTab {champSelectChampionId} {myAssignedPosition} {championById} {champions} region={status.region} />
@@ -462,7 +472,7 @@
         <SearchTab {championById} />
       </div>
       <div class="tab-panel" class:active={tab === "live"}>
-        <LiveTab {liveMetrics} {cooldowns} {liveEvents} {goalValue} />
+        <LiveTab {liveMetrics} {cooldowns} {liveEvents} {goalValue} {platform} clientConnected={status.connected} />
       </div>
       <div class="tab-panel" class:active={tab === "goals"}>
         <GoalsTab {goalValue} {setGoal} {resetGoals} />
@@ -1920,6 +1930,17 @@
   .league-page :global(.button.subtle:hover) {
     color: var(--text);
     background: var(--surface-hover);
+    }
+
+  .league-page :global(.feature-badge) {
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 1px 6px;
+    margin-left: 6px;
+    vertical-align: middle;
     }
 
   .league-page :global(.profile-tools) {
