@@ -112,6 +112,8 @@
     "win_disclaimer": "匹配系统按 50% 胜率组建对局，因此诚实的估计都接近五五开。请当作倾向参考，而非定论。",
     "win_unavailable": "在英雄选择和对局中可用。",
     "premades": "开黑小队",
+    "premade_source_party": "游戏提供的信息",
+    "premade_source_history": "根据共同战绩推测",
     "players": "名玩家",
     "gold_title": "实时经济",
     "gold_unavailable": "进入对局后可查看经济与对线差距。",

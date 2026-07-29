@@ -1008,6 +1008,11 @@
     margin-top: 10px;
     }
 
+  .league-page :global(.premade-source) {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    }
+
   .league-page :global(.gold-summary) {
     display: flex;
     align-items: center;

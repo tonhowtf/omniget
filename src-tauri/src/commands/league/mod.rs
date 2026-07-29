@@ -520,7 +520,19 @@ fn player_identity(entry: &Value, is_ally: bool) -> Value {
         "championId": entry.get("championId").and_then(Value::as_i64).unwrap_or(0),
         "cellId": entry.get("cellId").and_then(Value::as_i64),
         "isAlly": is_ally,
+        "partyId": party_id(entry),
     })
+}
+
+/// The gameflow session tags every player with the party it queued in, which is
+/// the server's own grouping — far better than guessing from shared history.
+/// Champ select does not carry it, so it stays null there.
+fn party_id(entry: &Value) -> Value {
+    match entry.get("teamParticipantId") {
+        Some(Value::String(s)) if !s.is_empty() => json!(s),
+        Some(Value::Number(n)) => json!(n.to_string()),
+        _ => Value::Null,
+    }
 }
 
 #[tauri::command]
@@ -1148,18 +1160,29 @@ pub async fn league_match_analysis() -> Result<Value, String> {
 
     let win = stats::team_win_probability(&ally_strengths, &enemy_strengths);
 
-    // Two players who keep appearing in the same games are queueing together.
-    let mut pairs: Vec<(usize, usize, u32)> = Vec::new();
-    for i in 0..players.len() {
-        for j in (i + 1)..players.len() {
-            let a: HashSet<i64> = histories[i].iter().copied().collect();
-            let shared = histories[j].iter().filter(|id| a.contains(id)).count() as u32;
-            if shared > 0 {
-                pairs.push((i, j, shared));
+    let party_ids: Vec<Option<String>> = players
+        .iter()
+        .map(|p| p.get("partyId").and_then(Value::as_str).map(str::to_string))
+        .collect();
+    let official = stats::party_groups(&party_ids);
+    let from_party = !official.is_empty();
+    let groups = if from_party {
+        official
+    } else {
+        // Fallback for champ select, where the party id is absent: two players
+        // who keep appearing in the same games are queueing together.
+        let mut pairs: Vec<(usize, usize, u32)> = Vec::new();
+        for i in 0..players.len() {
+            for j in (i + 1)..players.len() {
+                let a: HashSet<i64> = histories[i].iter().copied().collect();
+                let shared = histories[j].iter().filter(|id| a.contains(id)).count() as u32;
+                if shared > 0 {
+                    pairs.push((i, j, shared));
+                }
             }
         }
-    }
-    let groups = stats::premade_groups(players.len(), &pairs, 3);
+        stats::premade_groups(players.len(), &pairs, 3)
+    };
     let premades: Vec<Value> = groups
         .iter()
         .enumerate()
@@ -1183,6 +1206,7 @@ pub async fn league_match_analysis() -> Result<Value, String> {
         "totalPlayers": win.total_players,
         "players": detail,
         "premades": premades,
+        "premadeSource": if from_party { "party" } else { "history" },
     }))
 }
 

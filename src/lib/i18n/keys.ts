@@ -497,6 +497,8 @@ export type TranslationKeys =
   | 'league.pref_top'
   | 'league.pref_top_mid'
   | 'league.pref_unknown'
+  | 'league.premade_source_history'
+  | 'league.premade_source_party'
   | 'league.premades'
   | 'league.ranked_flex'
   | 'league.ranked_solo'

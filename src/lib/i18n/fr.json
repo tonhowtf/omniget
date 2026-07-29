@@ -112,6 +112,8 @@
     "win_disclaimer": "Le matchmaking crée des parties avec une attente de 50%, donc les estimations honnêtes restent proches de l'égalité. À prendre comme une tendance, pas un verdict.",
     "win_unavailable": "Disponible pendant la sélection et en partie.",
     "premades": "Groupes (premades)",
+    "premade_source_party": "Indiqué par le jeu",
+    "premade_source_history": "Estimé d'après l'historique commun",
     "players": "joueurs",
     "gold_title": "Économie en direct",
     "gold_unavailable": "Lancez une partie pour voir l'or et les écarts de voie.",

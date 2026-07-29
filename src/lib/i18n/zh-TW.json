@@ -112,6 +112,8 @@
     "win_disclaimer": "配對系統以 50% 勝率組建對戰，因此誠實的估計都接近五五開。請當作傾向參考，而非定論。",
     "win_unavailable": "在英雄選擇與對戰中可用。",
     "premades": "開黑小隊",
+    "premade_source_party": "遊戲提供的資訊",
+    "premade_source_history": "根據共同戰績推測",
     "players": "名玩家",
     "gold_title": "即時經濟",
     "gold_unavailable": "進入對戰後可查看經濟與對線差距。",

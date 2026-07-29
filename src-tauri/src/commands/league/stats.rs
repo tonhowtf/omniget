@@ -483,6 +483,24 @@ pub fn impact_score(input: &ImpactInput) -> f64 {
         .clamp(0.0, 10.0)
 }
 
+/// Groups players that share a party id, which the gameflow session reports
+/// directly. Solo players carry a unique id, so single-player groups are
+/// dropped just like in the history-based detection.
+pub fn party_groups(party_ids: &[Option<String>]) -> Vec<Vec<usize>> {
+    let mut buckets: std::collections::HashMap<&str, Vec<usize>> = std::collections::HashMap::new();
+    for (index, id) in party_ids.iter().enumerate() {
+        if let Some(id) = id.as_deref().filter(|s| !s.is_empty()) {
+            buckets.entry(id).or_default().push(index);
+        }
+    }
+    let mut groups: Vec<Vec<usize>> = buckets.into_values().filter(|g| g.len() > 1).collect();
+    for group in groups.iter_mut() {
+        group.sort_unstable();
+    }
+    groups.sort_by(|a, b| a[0].cmp(&b[0]));
+    groups
+}
+
 /// Disjoint-set forest used to merge overlapping premade pairs.
 struct DisjointSet {
     parent: Vec<usize>,
@@ -845,6 +863,35 @@ mod tests {
         let pairs = [(0usize, 1usize, 8u32), (2, 3, 9)];
         let groups = premade_groups(5, &pairs, 5);
         assert_eq!(groups, vec![vec![0, 1], vec![2, 3]]);
+    }
+
+    fn ids(values: &[&str]) -> Vec<Option<String>> {
+        values
+            .iter()
+            .map(|v| {
+                if v.is_empty() {
+                    None
+                } else {
+                    Some(v.to_string())
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn party_ids_group_a_duo_and_a_trio_and_drop_solos() {
+        // Solo queuers each carry their own party id.
+        let groups = party_groups(&ids(&["p1", "p2", "p1", "p3", "p2", "p2"]));
+        assert_eq!(groups, vec![vec![0, 2], vec![1, 4, 5]]);
+    }
+
+    #[test]
+    fn missing_party_ids_are_never_grouped_together() {
+        // Champ select carries no party id: absent must not read as "same party".
+        assert!(party_groups(&ids(&["", "", "", "", ""])).is_empty());
+        assert!(party_groups(&[]).is_empty());
+        let groups = party_groups(&ids(&["", "p9", "", "p9"]));
+        assert_eq!(groups, vec![vec![1, 3]]);
     }
 
     #[test]

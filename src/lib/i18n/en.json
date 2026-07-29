@@ -130,6 +130,8 @@
     "win_disclaimer": "Matchmaking builds games around a 50% expectation, so honest estimates stay close to even. Treat this as a lean, not a verdict.",
     "win_unavailable": "Available during champion select and in game.",
     "premades": "Premade groups",
+    "premade_source_party": "Reported by the game",
+    "premade_source_history": "Estimated from shared history",
     "players": "players",
     "gold_title": "Live economy",
     "gold_unavailable": "Open a game to see live gold and lane differences.",

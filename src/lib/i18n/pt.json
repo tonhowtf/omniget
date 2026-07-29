@@ -112,6 +112,8 @@
     "win_disclaimer": "O emparelhamento monta partidas com expectativa de 50%, então estimativas honestas ficam perto do empate. Trate como uma tendência, não como veredito.",
     "win_unavailable": "Disponível na seleção de campeões e em partida.",
     "premades": "Grupos (premades)",
+    "premade_source_party": "Informado pelo jogo",
+    "premade_source_history": "Estimado pelo histórico em comum",
     "players": "jogadores",
     "gold_title": "Economia ao vivo",
     "gold_unavailable": "Entre em uma partida para ver ouro e diferenças de lane.",

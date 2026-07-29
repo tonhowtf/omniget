@@ -115,6 +115,11 @@
         {#each analysis.premades as group (group.label)}
           <span class="scout-tag">{group.label}: {group.puuids.length} {$t("league.players")}</span>
         {/each}
+        <span class="premade-source">
+          {analysis.premadeSource === "party"
+            ? $t("league.premade_source_party")
+            : $t("league.premade_source_history")}
+        </span>
       </div>
     {/if}
   </section>

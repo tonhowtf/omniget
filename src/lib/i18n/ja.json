@@ -112,6 +112,8 @@
     "win_disclaimer": "マッチメイキングは勝率50%を目標に組まれるため、誠実な推定は互角付近に留まります。傾向として見てください。",
     "win_unavailable": "チャンピオン選択中と試合中に利用できます。",
     "premades": "パーティー",
+    "premade_source_party": "ゲームからの情報",
+    "premade_source_history": "共通の試合履歴からの推定",
     "players": "人",
     "gold_title": "ライブ経済",
     "gold_unavailable": "試合に入るとゴールドとレーン差が表示されます。",
