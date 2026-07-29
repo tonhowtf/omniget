@@ -19,6 +19,12 @@
   let banSearch = $state("");
 
   let acceptDelay = $derived(settings?.league?.auto_accept_delay ?? 0);
+  let banDelay = $derived(settings?.league?.auto_ban_delay ?? 0);
+
+  function changeBanDelay(event: Event) {
+    const value = Number((event.currentTarget as HTMLInputElement).value);
+    updateSettings({ league: { auto_ban_delay: value } });
+  }
 
   function changeAcceptDelay(event: Event) {
     const value = Number((event.currentTarget as HTMLInputElement).value);
@@ -174,6 +180,28 @@
     </button>
   </div>
   {#if settings?.league?.auto_ban}
+    <div class="delay-block">
+      <span class="list-label">
+        {$t("league.ban_delay")}
+        <span class="list-hint">
+          {banDelay === 0 ? $t("league.accept_delay_instant") : `${banDelay}s`}
+        </span>
+      </span>
+      <div class="slider-row">
+        <span class="slider-edge">0s</span>
+        <input
+          type="range"
+          min="0"
+          max="25"
+          step="1"
+          value={banDelay}
+          oninput={changeBanDelay}
+          aria-label={$t("league.ban_delay") as string}
+        />
+        <span class="slider-edge">25s</span>
+      </div>
+      <span class="action-hint">{$t("league.ban_delay_desc")}</span>
+    </div>
     <div class="champ-list-block">
       <span class="list-label">{$t("league.ban_list")} <span class="list-hint">({$t("league.list_hint")})</span></span>
       <div class="champ-chips">
