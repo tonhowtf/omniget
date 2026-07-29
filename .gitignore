@@ -25,10 +25,12 @@ src-tauri/gen/schemas
 .DS_Store
 Thumbs.db
 Desktop.ini
-/docs
+# /docs e /.github contem arquivos do projeto (docs/backlog.md,
+# docs/plugin-development.md, .github/workflows/). Ignora-los inteiros fazia
+# qualquer arquivo novo falhar em silencio no `git add` — os que existem hoje
+# so entraram com `git add -f`. Ignorar apenas o que e de fato local.
 settings.local.json
 /.claude
-/.github
 claude.md
 
 

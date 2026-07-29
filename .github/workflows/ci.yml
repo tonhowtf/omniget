@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.user.login != 'weblate' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri'
+
+      - name: Format
+        if: matrix.platform == 'ubuntu-latest'
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+
+      # Informativo por enquanto: o workspace tem warnings pre-existentes, entao
+      # `-D warnings` reprovaria toda PR no primeiro dia. Fica visivel no log; ver
+      # docs/backlog.md B47 para o baseline que torna isso um portao de verdade.
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --workspace --all-targets
+
+      - name: Test
+        working-directory: src-tauri
+        run: cargo test --workspace
+
+  rust-debian:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.user.login != 'weblate' }}
+    runs-on: ubuntu-latest
+    container: debian:bookworm
+    steps:
+      - name: Install base tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl wget git build-essential pkg-config \
+            libssl-dev file unzip xz-utils
+
+      - uses: actions/checkout@v4
+
+      - name: Install Debian system dependencies
+        run: |
+          apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            patchelf xdg-utils
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri'
+          key: debian
+
+      - name: Cargo check (Debian compat)
+        working-directory: src-tauri
+        run: cargo check --workspace --all-targets
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Este e o portao que faltava: `pnpm check` sai com 1 em erro de tipo, que
+      # foi exatamente o que passou despercebido na PR #197.
+      - name: svelte-check
+        run: pnpm check
+
+      - name: Unit tests (vitest)
+        run: pnpm test
+
+      # `--strict` reprova quando algum locale esta fora de sincronia com en.json.
+      - name: Locales in sync with en.json
+        run: pnpm check:i18n
+
+      - name: Generated i18n keys are committed
+        run: |
+          pnpm generate:i18n-keys
+          git diff --exit-code -- src/lib/i18n/keys.ts
+
+  metainfo:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.user.login != 'weblate' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install appstreamcli
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y appstream
+
+      - name: Validate flatpak metainfo
+        run: appstreamcli validate flatpak/wtf.tonho.omniget.metainfo.xml
