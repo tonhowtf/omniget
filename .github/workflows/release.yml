@@ -139,6 +139,75 @@ jobs:
           }
         shell: pwsh
 
+  build-cli:
+    # O omniget-cli existe no workspace desde sempre mas nunca saiu numa
+    # release, entao a unica forma de usar era compilar da fonte (issue #202).
+    # Nao depende do publish-tauri: sao binarios independentes, e o CLI nao
+    # precisa de webkit/gtk (arvore de dependencias sem openssl-sys), so do
+    # toolchain — por isso nao ha instalacao de dependencia de sistema aqui.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Build CLI
+        working-directory: src-tauri
+        run: cargo build -p omniget-cli --release --target ${{ matrix.target }}
+
+      - name: Package and upload (unix)
+        if: matrix.os != 'windows-latest'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          BIN="src-tauri/target/${{ matrix.target }}/release/omniget-cli"
+          # Falha alto se o binario nao existe: subir uma release sem o
+          # artefato e pior do que o job ficar vermelho.
+          test -x "$BIN"
+          "$BIN" --version
+          OUT="omniget-cli-${VERSION}-${{ matrix.target }}.tar.gz"
+          tar -czf "$OUT" -C "$(dirname "$BIN")" omniget-cli
+          gh release upload "$TAG" "$OUT" --repo "${{ github.repository }}" --clobber
+
+      - name: Package and upload (windows)
+        if: matrix.os == 'windows-latest'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $TAG = "${{ github.ref_name }}"
+          $VERSION = $TAG -replace '^v', ''
+          $BIN = "src-tauri/target/${{ matrix.target }}/release/omniget-cli.exe"
+          if (-not (Test-Path $BIN)) { throw "binario nao encontrado: $BIN" }
+          & $BIN --version
+          $OUT = "omniget-cli-${VERSION}-${{ matrix.target }}.zip"
+          Compress-Archive -Path $BIN -DestinationPath $OUT -Force
+          gh release upload $TAG $OUT --repo ${{ github.repository }} --clobber
+        shell: pwsh
+
   package-chrome-extension:
     needs: publish-tauri
     runs-on: ubuntu-latest

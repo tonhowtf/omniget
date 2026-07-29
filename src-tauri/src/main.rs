@@ -56,8 +56,32 @@ fn setup_environment() {
     }
 }
 
+/// Usa um WebView2 Fixed Version Runtime descompactado ao lado do executavel.
+///
+/// Issue #218. O Tauri so define `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` quando o
+/// bundle e compilado em modo `fixedRuntime` (`app.rs`), e nunca a limpa — entao
+/// definir aqui funciona, ao contrario do `WEBVIEW2_USER_DATA_FOLDER`, que o
+/// Tauri sobrescrevia (ver `core/portable.rs`). Nao mexe se o usuario ja definiu.
+#[cfg(windows)]
+fn check_fixed_webview_runtime() {
+    if std::env::var_os("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER").is_some() {
+        return;
+    }
+    let Some(dir) = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(|p| p.to_path_buf()))
+    else {
+        return;
+    };
+    if let Some(runtime) = omniget_lib::core::portable::find_fixed_runtime(&dir) {
+        std::env::set_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER", &runtime);
+    }
+}
+
 fn main() {
     check_portable_mode();
+    #[cfg(windows)]
+    check_fixed_webview_runtime();
     setup_environment();
     omniget_lib::run()
 }
