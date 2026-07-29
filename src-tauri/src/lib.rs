@@ -824,6 +824,7 @@ pub fn run() {
             commands::league::league_play_again,
             commands::league::league_champ_select_session,
             commands::league::league_bench_swap,
+            commands::league::league_restart_ux,
             commands::league::league_reroll,
             commands::league::league_reroll_keeping_champion,
             commands::league::league_live_game,
