@@ -1922,6 +1922,24 @@
     background: var(--surface-hover);
     }
 
+  .league-page :global(.objective-line) {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    margin: 4px 0;
+    }
+
+  .league-page :global(.ban-line) {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    font-size: 11.5px;
+    margin-bottom: 6px;
+    }
+
   .league-page :global(.repair-row) {
     display: flex;
     align-items: center;

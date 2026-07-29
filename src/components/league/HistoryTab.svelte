@@ -4,6 +4,7 @@
   import timeAgo from "$lib/time-ago";
   import { CDRAGON, type Champion } from "./shared";
   import { filterByQueue, queuesInGames, summarise } from "$lib/league-history";
+  import { findTeam, teamBans, teamObjectives } from "$lib/league-match-detail";
 
   let {
     games,
@@ -163,10 +164,35 @@
           {:else if gameDetails[game.gameId]}
             <div class="scoreboard">
               {#each scoreboardTeams(gameDetails[game.gameId]) as team (team.teamId)}
+                {@const objectives = teamObjectives(findTeam(gameDetails[game.gameId]?.teams, team.teamId))}
+                {@const bans = teamBans(findTeam(gameDetails[game.gameId]?.teams, team.teamId))}
                 <div class="scoreboard-team">
                   <span class="scoreboard-result" class:win={team.players[0]?.win} class:loss={!team.players[0]?.win}>
                     {team.players[0]?.win ? $t("league.victory") : $t("league.defeat")}
                   </span>
+                  {#if objectives}
+                    <div class="objective-line">
+                      <span>{$t("league.obj_towers")} <strong>{objectives.towers}</strong></span>
+                      <span>{$t("league.obj_inhibitors")} <strong>{objectives.inhibitors}</strong></span>
+                      <span>{$t("league.objective_baron")} <strong>{objectives.barons}</strong></span>
+                      <span>{$t("league.objective_dragon")} <strong>{objectives.dragons}</strong></span>
+                      <span>{$t("league.obj_heralds")} <strong>{objectives.heralds}</strong></span>
+                    </div>
+                  {/if}
+                  {#if bans.length > 0}
+                    <div class="ban-line">
+                      <span class="dim">{$t("league.obj_bans")}</span>
+                      {#each bans as banId, i (`${banId}-${i}`)}
+                        <img
+                          class="champ-icon tiny"
+                          src={`${CDRAGON}/champion-icons/${banId}.png`}
+                          alt=""
+                          title={championById.get(banId)?.name ?? ""}
+                          loading="lazy"
+                        />
+                      {/each}
+                    </div>
+                  {/if}
                   {#each team.players as sp (sp.participantId)}
                     <div class="scoreboard-row">
                       <img class="champ-icon tiny" src={`${CDRAGON}/champion-icons/${sp.championId}.png`} alt="" loading="lazy" />
