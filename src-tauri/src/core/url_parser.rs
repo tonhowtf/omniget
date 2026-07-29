@@ -129,11 +129,9 @@ fn parse_instagram(segments: &[&str]) -> (Option<String>, ParsedContentType) {
 
 fn parse_threads(segments: &[&str]) -> (Option<String>, ParsedContentType) {
     // Format: /@user/post/POST_ID or /t/POST_ID
-    if segments.len() >= 3 {
-        if segments[0].starts_with('@') && segments[1] == "post" {
-            let id = segments[2].to_string();
-            return (Some(id), ParsedContentType::Post);
-        }
+    if segments.len() >= 3 && segments[0].starts_with('@') && segments[1] == "post" {
+        let id = segments[2].to_string();
+        return (Some(id), ParsedContentType::Post);
     }
 
     if segments.len() >= 2 && segments[0] == "t" {

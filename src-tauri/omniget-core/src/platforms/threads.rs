@@ -70,10 +70,8 @@ impl ThreadsDownloader {
         let segments: Vec<&str> = parsed.path().split('/').filter(|s| !s.is_empty()).collect();
 
         // Formato: /@user/post/POST_ID
-        if segments.len() >= 3 {
-            if segments[0].starts_with('@') && segments[1] == "post" {
-                return Some(segments[2].to_string());
-            }
+        if segments.len() >= 3 && segments[0].starts_with('@') && segments[1] == "post" {
+            return Some(segments[2].to_string());
         }
 
         // Formato: /t/POST_ID
@@ -198,9 +196,7 @@ impl ThreadsDownloader {
     /// Per post di tipo share (media_type=19) i campi media diretti sono vuoti
     /// e il media vive in text_post_app_info.linked_inline_media (o nel post
     /// quotato/repostato). Ritorna l'oggetto che porta il media effettivo.
-    pub(crate) fn resolve_media_container<'a>(
-        post: &'a serde_json::Value,
-    ) -> &'a serde_json::Value {
+    pub(crate) fn resolve_media_container(post: &serde_json::Value) -> &serde_json::Value {
         if Self::has_usable_media(post) {
             return post;
         }
