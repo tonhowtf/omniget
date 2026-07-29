@@ -1,6 +1,7 @@
 pub mod analysis;
 pub mod champ_select;
 pub mod live;
+pub mod lobby;
 pub mod locator;
 pub mod stats;
 pub mod ws;
