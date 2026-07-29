@@ -384,6 +384,8 @@ omniget import-cookies cookies.txt     # Netscape 格式
 
 ## 参与贡献
 
+**社区。** 提问、求助和版本讨论都在 [Discord](https://discord.gg/jgdxyPy7Vn)。
+
 发现 bug 或有功能建议？[提交 issue](https://github.com/tonhowtf/omniget/issues)。欢迎提交 PR，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 OmniGet 在 [Weblate](https://hosted.weblate.org/engage/omniget/) 上进行翻译。选择一种语言，在浏览器里翻译，Weblate 会自动开 PR。

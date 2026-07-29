@@ -384,6 +384,8 @@ omniget import-cookies cookies.txt     # формат Netscape
 
 ## Участие
 
+**Сообщество.** Вопросы, помощь и обсуждение релизов — в [Discord](https://discord.gg/jgdxyPy7Vn).
+
 Нашли баг или есть идея? [Откройте issue](https://github.com/tonhowtf/omniget/issues). Pull request приветствуются, см. [CONTRIBUTING.md](CONTRIBUTING.md).
 
 OmniGet переводится на [Weblate](https://hosted.weblate.org/engage/omniget/). Выберите язык, переводите в браузере, и Weblate сам откроет pull request.

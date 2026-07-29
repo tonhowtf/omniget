@@ -392,6 +392,8 @@ The desktop app never needs this. It exists for cron jobs, dotfiles, and scripts
 
 ## Contribute
 
+**Community.** Questions, help and release chatter happen on [Discord](https://discord.gg/jgdxyPy7Vn).
+
 Found a bug or have a feature idea? [Open an issue](https://github.com/tonhowtf/omniget/issues). Pull requests are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 OmniGet is translated on [Weblate](https://hosted.weblate.org/engage/omniget/). Pick a language, translate in your browser, and Weblate opens a pull request automatically.
