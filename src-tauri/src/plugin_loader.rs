@@ -98,7 +98,12 @@ impl PluginManager {
         id: &str,
         host: Arc<dyn PluginHost>,
     ) -> Result<(), PluginLoadError> {
-        let plugin_dir = self.plugins_dir.join(id);
+        let plugin_dir = self.plugin_dir(id).map_err(|e| PluginLoadError {
+            message: e.to_string(),
+            kind: "invalid_id".to_string(),
+            plugin_abi: None,
+            expected_abi: None,
+        })?;
         match load_single_plugin(&plugin_dir, host) {
             Ok(loaded) => {
                 tracing::info!(
@@ -190,7 +195,7 @@ impl PluginManager {
         self.user_removed.insert(plugin_id.to_string());
         save_removed_list(&self.plugins_dir, &self.user_removed)?;
 
-        let plugin_dir = self.plugins_dir.join(plugin_id);
+        let plugin_dir = self.plugin_dir(plugin_id)?;
         if plugin_dir.exists() {
             fs::remove_dir_all(&plugin_dir)?;
         }
@@ -207,6 +212,43 @@ impl PluginManager {
     pub fn plugins_dir(&self) -> &Path {
         &self.plugins_dir
     }
+
+    /// Diretorio de um plugin, com o id validado.
+    ///
+    /// Todo caminho derivado de `plugin_id` passa por aqui. O id chega de fora
+    /// — registro remoto -> `installed.json` -> frontend -> comando Tauri — e
+    /// nenhum ponto dessa cadeia o sanitizava, entao um id com `..` escapava do
+    /// diretorio de plugins e o `remove_dir_all` do `unregister` apagava
+    /// caminho arbitrario.
+    pub fn plugin_dir(&self, plugin_id: &str) -> anyhow::Result<PathBuf> {
+        validate_plugin_id(plugin_id)?;
+        Ok(self.plugins_dir.join(plugin_id))
+    }
+}
+
+/// Aceita apenas `[A-Za-z0-9._-]`, recusando separador de caminho, byte nulo,
+/// componente relativo e id vazio.
+///
+/// Allowlist e nao blocklist de proposito: o conjunto de ids reais e pequeno e
+/// conhecido (`courses`, `study`, `telegram`, `convert`, `misc`), e uma
+/// blocklist erra por omissao a cada codificacao nova.
+pub fn validate_plugin_id(plugin_id: &str) -> anyhow::Result<()> {
+    if plugin_id.is_empty() {
+        anyhow::bail!("plugin id must not be empty");
+    }
+    if plugin_id == "." || plugin_id == ".." || plugin_id.starts_with('.') {
+        anyhow::bail!("plugin id must not be a relative path component: {plugin_id:?}");
+    }
+    if let Some(bad) = plugin_id
+        .chars()
+        .find(|c| !c.is_ascii_alphanumeric() && !matches!(c, '.' | '_' | '-'))
+    {
+        anyhow::bail!("plugin id contains an illegal character {bad:?}: {plugin_id:?}");
+    }
+    if plugin_id.contains("..") {
+        anyhow::bail!("plugin id must not contain '..': {plugin_id:?}");
+    }
+    Ok(())
 }
 
 fn load_single_plugin(
@@ -509,4 +551,55 @@ fn save_removed_list(plugins_dir: &Path, removed: &HashSet<String>) -> anyhow::R
     let content = serde_json::to_string_pretty(&RemovedFile { removed: list })?;
     fs::write(&path, content)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod plugin_id_tests {
+    use super::*;
+
+    #[test]
+    fn aceita_os_ids_reais() {
+        for id in ["courses", "study", "telegram", "convert", "misc", "my-plugin_2", "wtf.tonho.x"] {
+            assert!(validate_plugin_id(id).is_ok(), "recusou id valido {id:?}");
+        }
+    }
+
+    #[test]
+    fn recusa_travessia_de_caminho() {
+        // Criterio de aceite do B48: um id relativo falha explicitamente em vez
+        // de virar um caminho fora do diretorio de plugins.
+        for id in [
+            "../../algo",
+            "..",
+            ".",
+            "../etc",
+            "a/../../b",
+            ".oculto",
+            "sub/dir",
+            "sub\\dir",
+            "com:dois",
+            "nulo\0byte",
+            "",
+        ] {
+            assert!(
+                validate_plugin_id(id).is_err(),
+                "aceitou id perigoso {id:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn plugin_dir_nunca_escapa_do_diretorio_base() {
+        let base = std::path::PathBuf::from("/tmp/omniget-plugins");
+        let manager = PluginManager::new(base.clone());
+
+        let ok = manager.plugin_dir("courses").expect("id valido");
+        assert_eq!(ok, base.join("courses"));
+        assert!(ok.starts_with(&base));
+
+        // Sem o guard, `join("../../etc")` normalizaria para fora de `base` e o
+        // `remove_dir_all` do `unregister` apagaria caminho arbitrario.
+        assert!(manager.plugin_dir("../../etc").is_err());
+        assert!(manager.plugin_dir("..").is_err());
+    }
 }

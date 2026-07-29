@@ -139,7 +139,10 @@ pub fn get_plugin_frontend_path(
     plugin_id: String,
 ) -> Result<String, String> {
     let manager = state.blocking_read();
-    let frontend_dir = manager.plugins_dir().join(&plugin_id).join("frontend");
+    let frontend_dir = manager
+        .plugin_dir(&plugin_id)
+        .map_err(|e| e.to_string())?
+        .join("frontend");
     if !frontend_dir.exists() {
         return Err(format!("Plugin '{}' has no frontend", plugin_id));
     }
@@ -197,7 +200,10 @@ pub fn get_plugin_i18n(
     locale: String,
 ) -> Result<serde_json::Value, String> {
     let manager = state.blocking_read();
-    let i18n_dir = manager.plugins_dir().join(&plugin_id).join("i18n");
+    let i18n_dir = manager
+        .plugin_dir(&plugin_id)
+        .map_err(|e| e.to_string())?
+        .join("i18n");
     let locale_file = i18n_dir.join(format!("{}.json", locale));
     if !locale_file.exists() {
         let fallback = i18n_dir.join("en.json");
@@ -401,7 +407,7 @@ pub async fn install_plugin_zip_from_repo(
 
     let plugin_dir = {
         let manager = state.read().await;
-        manager.plugins_dir().join(&plugin_id)
+        manager.plugin_dir(&plugin_id).map_err(|e| e.to_string())?
     };
     std::fs::create_dir_all(&plugin_dir).map_err(|e| e.to_string())?;
 
