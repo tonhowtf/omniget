@@ -737,6 +737,7 @@
       "dedupe_label": "Deduplica i download",
       "pick_files": "Scegli i file",
       "dedupe_empty": "Ancora niente in archivio — provalo su una cartella dove scarichi spesso.",
+      "dedupe_unmeasurable": "{{objects}} file in archivio — il risparmio non è misurabile su questa piattaforma",
       "dedupe_stats": "{{objects}} file in archivio, {{saved}} risparmiati",
       "dedupe_action": "Deduplica…",
       "dedupe_running": "In corso…",

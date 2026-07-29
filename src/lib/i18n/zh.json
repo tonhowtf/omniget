@@ -737,6 +737,7 @@
       "dedupe_label": "去重下载文件",
       "pick_files": "选择文件",
       "dedupe_empty": "尚未存储任何内容 —— 在你常下载的文件夹上试试。",
+      "dedupe_unmeasurable": "已存储 {{objects}} 个文件 —— 该平台无法测量节省量",
       "dedupe_stats": "已存储 {{objects}} 个文件，节省 {{saved}}",
       "dedupe_action": "去重…",
       "dedupe_running": "处理中…",

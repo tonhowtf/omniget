@@ -1444,6 +1444,7 @@ export type TranslationKeys =
   | 'settings.storage.dedupe_nothing'
   | 'settings.storage.dedupe_running'
   | 'settings.storage.dedupe_stats'
+  | 'settings.storage.dedupe_unmeasurable'
   | 'settings.storage.description'
   | 'settings.storage.pick_files'
   | 'settings.storage.pick_media'

@@ -8,6 +8,7 @@
     objects: number;
     bytes_on_disk: number;
     bytes_without_dedupe: number;
+    savings_measurable: boolean;
   };
 
   type DedupeReport = {
@@ -130,11 +131,15 @@
       <div class="setting-col">
         <span class="setting-label">{$t("settings.storage.dedupe_label")}</span>
         <span class="setting-path">
-          {#if stats && stats.objects > 0}
+          {#if stats && stats.objects > 0 && stats.savings_measurable}
             {$t("settings.storage.dedupe_stats", {
               objects: stats.objects,
               saved: humanBytes(saved),
             })}
+          {:else if stats && stats.objects > 0}
+            <!-- Windows não sabe contar links. Dizer "0 economizado" seria dar
+                 cara de medição a algo que não foi medido. -->
+            {$t("settings.storage.dedupe_unmeasurable", { objects: stats.objects })}
           {:else}
             {$t("settings.storage.dedupe_empty")}
           {/if}

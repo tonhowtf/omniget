@@ -737,6 +737,7 @@
       "dedupe_label": "Deduplicar descargas",
       "pick_files": "Elegir archivos",
       "dedupe_empty": "Nada guardado aún: ejecútalo en una carpeta donde descargues a menudo.",
+      "dedupe_unmeasurable": "{{objects}} archivos guardados: el ahorro no se puede medir en esta plataforma",
       "dedupe_stats": "{{objects}} archivos guardados, {{saved}} ahorrados",
       "dedupe_action": "Deduplicar…",
       "dedupe_running": "Trabajando…",

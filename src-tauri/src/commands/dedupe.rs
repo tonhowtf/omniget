@@ -14,7 +14,25 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::core::cas::{ingest, link_count, materialize, same_file, LinkOutcome};
+use crate::core::cas::{ingest, materialize, same_file, LinkOutcome};
+
+/// Quantos caminhos apontam para o mesmo objeto.
+///
+/// So o Unix responde: `link_count` do `core::cas` esta atras de `cfg(unix)`
+/// porque le `nlink` do metadata. No Windows nao ha equivalente barato, e
+/// **inventar 1 seria pior que nao saber** — o app reportaria economia zero com
+/// a mesma cara de quem mediu. Por isso devolve `None`, e quem chama distingue.
+fn quantos_links(object: &Path) -> Option<u64> {
+    #[cfg(unix)]
+    {
+        crate::core::cas::link_count(object)
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = object;
+        None
+    }
+}
 
 fn store_root() -> Option<PathBuf> {
     crate::core::paths::app_data_dir().map(|d| d.join("content-store"))
@@ -112,6 +130,9 @@ pub struct StoreStats {
     pub bytes_on_disk: u64,
     /// Quanto seria ocupado se cada link fosse uma copia de verdade.
     pub bytes_without_dedupe: u64,
+    /// `false` quando a plataforma nao sabe contar links (Windows). A interface
+    /// precisa distinguir "economizou zero" de "nao da para medir".
+    pub savings_measurable: bool,
 }
 
 /// Quanto o store esta economizando hoje.
@@ -121,7 +142,10 @@ pub async fn content_store_stats() -> Result<StoreStats, String> {
         return Ok(StoreStats::default());
     };
     tokio::task::spawn_blocking(move || {
-        let mut s = StoreStats::default();
+        let mut s = StoreStats {
+            savings_measurable: cfg!(unix),
+            ..Default::default()
+        };
         let Ok(niveis) = std::fs::read_dir(&root) else {
             return s;
         };
@@ -137,7 +161,7 @@ pub async fn content_store_stats() -> Result<StoreStats, String> {
                 s.objects += 1;
                 s.bytes_on_disk += meta.len();
                 // Cada link extra e uma copia que nao foi feita.
-                let links = link_count(&obj.path()).unwrap_or(1).max(1);
+                let links = quantos_links(&obj.path()).unwrap_or(1).max(1);
                 s.bytes_without_dedupe += meta.len() * links;
             }
         }

@@ -737,6 +737,7 @@
       "dedupe_label": "Dédupliquer les téléchargements",
       "pick_files": "Choisir des fichiers",
       "dedupe_empty": "Rien encore stocké — lancez-le sur un dossier où vous téléchargez souvent.",
+      "dedupe_unmeasurable": "{{objects}} fichiers stockés — l'économie n'est pas mesurable sur cette plateforme",
       "dedupe_stats": "{{objects}} fichiers stockés, {{saved}} économisés",
       "dedupe_action": "Dédupliquer…",
       "dedupe_running": "En cours…",

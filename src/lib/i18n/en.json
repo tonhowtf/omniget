@@ -783,6 +783,7 @@
       "dedupe_label": "Deduplicate downloads",
       "pick_files": "Pick files",
       "dedupe_empty": "Nothing stored yet — run it on a folder you download to often.",
+      "dedupe_unmeasurable": "{{objects}} files stored — savings cannot be measured on this platform",
       "dedupe_stats": "{{objects}} files stored, {{saved}} saved",
       "dedupe_action": "Deduplicate…",
       "dedupe_running": "Working…",

@@ -737,6 +737,7 @@
       "dedupe_label": "ダウンロードを重複排除",
       "pick_files": "ファイルを選択",
       "dedupe_empty": "まだ何も保存されていません — よくダウンロードするフォルダーで実行してみてください。",
+      "dedupe_unmeasurable": "{{objects}} 件保存 — このプラットフォームでは節約量を測定できません",
       "dedupe_stats": "{{objects}} 件保存、{{saved}} 節約",
       "dedupe_action": "重複排除…",
       "dedupe_running": "処理中…",
