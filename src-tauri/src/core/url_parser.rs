@@ -32,6 +32,7 @@ pub fn parse_url(url_str: &str) -> Option<ParsedUrl> {
     let (content_id, content_type) = match platform {
         Platform::YouTube => parse_youtube(&parsed, &segments),
         Platform::Instagram => parse_instagram(&segments),
+        Platform::Threads => parse_threads(&segments),
         Platform::TikTok => parse_tiktok(&segments),
         Platform::Twitter => parse_twitter(&segments),
         Platform::Reddit => parse_reddit(&segments),
@@ -124,6 +125,30 @@ fn parse_instagram(segments: &[&str]) -> (Option<String>, ParsedContentType) {
         }
         _ => (None, ParsedContentType::Unknown),
     }
+}
+
+fn parse_threads(segments: &[&str]) -> (Option<String>, ParsedContentType) {
+    // Format: /@user/post/POST_ID or /t/POST_ID
+    if segments.len() >= 3 {
+        if segments[0].starts_with('@') && segments[1] == "post" {
+            let id = segments[2].to_string();
+            return (Some(id), ParsedContentType::Post);
+        }
+    }
+
+    if segments.len() >= 2 && segments[0] == "t" {
+        let id = segments[1].to_string();
+        return (Some(id), ParsedContentType::Post);
+    }
+
+    // Profile: /@user
+    if let Some(user) = segments.first() {
+        if user.starts_with('@') {
+            return (Some(user.to_string()), ParsedContentType::Profile);
+        }
+    }
+
+    (None, ParsedContentType::Unknown)
 }
 
 fn parse_tiktok(segments: &[&str]) -> (Option<String>, ParsedContentType) {

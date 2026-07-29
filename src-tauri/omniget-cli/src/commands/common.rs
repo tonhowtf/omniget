@@ -10,8 +10,8 @@ use omniget_core::models::settings::ProxySettings;
 use omniget_core::platforms::{
     BilibiliDownloader, BlueskyDownloader, DirectFileDownloader, DouyinDownloader,
     GenericYtdlpDownloader, InstagramDownloader, P2pDownloader, PinterestDownloader,
-    PlatformDownloader, RedditDownloader, TikTokDownloader, TwitchClipsDownloader,
-    TwitterDownloader, VimeoDownloader, YouTubeDownloader,
+    PlatformDownloader, RedditDownloader, ThreadsDownloader, TikTokDownloader,
+    TwitchClipsDownloader, TwitterDownloader, VimeoDownloader, YouTubeDownloader,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -81,6 +81,7 @@ fn parse_proxy(raw: &str) -> Result<ProxySettings> {
 pub fn core_platform_registry() -> PlatformRegistry {
     let mut registry = PlatformRegistry::new();
     registry.register(Arc::new(InstagramDownloader::new()));
+    registry.register(Arc::new(ThreadsDownloader::new()));
     registry.register(Arc::new(PinterestDownloader::new()));
     registry.register(Arc::new(TikTokDownloader::new()));
     registry.register(Arc::new(TwitchClipsDownloader::new()));

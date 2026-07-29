@@ -9,6 +9,7 @@ pub mod p2p;
 pub mod p2p_words;
 pub mod pinterest;
 pub mod reddit;
+pub mod threads;
 pub mod tiktok;
 pub mod traits;
 pub mod twitch;
@@ -25,6 +26,7 @@ pub use instagram::InstagramDownloader;
 pub use p2p::P2pDownloader;
 pub use pinterest::PinterestDownloader;
 pub use reddit::RedditDownloader;
+pub use threads::ThreadsDownloader;
 pub use tiktok::TikTokDownloader;
 pub use traits::PlatformDownloader;
 pub use twitch::TwitchClipsDownloader;
@@ -66,6 +68,7 @@ pub enum Platform {
     Hotmart,
     YouTube,
     Instagram,
+    Threads,
     TikTok,
     Twitter,
     Reddit,
@@ -85,6 +88,7 @@ impl fmt::Display for Platform {
             Platform::Hotmart => "hotmart",
             Platform::YouTube => "youtube",
             Platform::Instagram => "instagram",
+            Platform::Threads => "threads",
             Platform::TikTok => "tiktok",
             Platform::Twitter => "twitter",
             Platform::Reddit => "reddit",
@@ -109,6 +113,7 @@ impl FromStr for Platform {
             "hotmart" => Ok(Platform::Hotmart),
             "youtube" | "yt" => Ok(Platform::YouTube),
             "instagram" | "ig" => Ok(Platform::Instagram),
+            "threads" => Ok(Platform::Threads),
             "tiktok" | "tt" => Ok(Platform::TikTok),
             "twitter" | "x" => Ok(Platform::Twitter),
             "reddit" => Ok(Platform::Reddit),
@@ -147,8 +152,10 @@ impl Platform {
             Some(Platform::Hotmart)
         } else if matches("youtube.com") || matches("youtube-nocookie.com") || host == "youtu.be" {
             Some(Platform::YouTube)
-        } else if matches("instagram.com") || matches("ddinstagram.com") {
+} else if matches("instagram.com") || matches("ddinstagram.com") {
             Some(Platform::Instagram)
+        } else if matches("threads.net") || matches("threads.com") {
+            Some(Platform::Threads)
         } else if matches("tiktok.com") {
             Some(Platform::TikTok)
         } else if matches("twitter.com")
@@ -210,11 +217,12 @@ impl Platform {
         }
     }
 
-    pub fn all() -> &'static [Platform] {
+pub fn all() -> &'static [Platform] {
         &[
             Platform::Hotmart,
             Platform::YouTube,
             Platform::Instagram,
+            Platform::Threads,
             Platform::TikTok,
             Platform::Twitter,
             Platform::Reddit,

@@ -223,6 +223,7 @@ pub fn run() {
     // that the single-post Twitter/Reddit downloaders would otherwise match
     registry.register(Arc::new(platforms::gallerydl::GalleryDlDownloader::new()));
     registry.register(Arc::new(omniget_core::platforms::InstagramDownloader::new()));
+    registry.register(Arc::new(omniget_core::platforms::ThreadsDownloader::new()));
     registry.register(Arc::new(omniget_core::platforms::PinterestDownloader::new()));
     registry.register(Arc::new(omniget_core::platforms::TikTokDownloader::new()));
     registry.register(Arc::new(omniget_core::platforms::TwitterDownloader::new()));

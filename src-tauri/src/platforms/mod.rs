@@ -9,6 +9,7 @@ pub use omniget_core::platforms::P2pDownloader;
 pub use omniget_core::platforms::PinterestDownloader;
 pub use omniget_core::platforms::Platform;
 pub use omniget_core::platforms::RedditDownloader;
+pub use omniget_core::platforms::ThreadsDownloader;
 pub use omniget_core::platforms::TikTokDownloader;
 pub use omniget_core::platforms::TwitchClipsDownloader;
 pub use omniget_core::platforms::TwitterDownloader;
