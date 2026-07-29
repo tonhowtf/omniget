@@ -25,6 +25,7 @@ pub mod download_log;
 pub mod events;
 pub mod host_limiter;
 pub mod path_limits;
+pub mod portable;
 pub mod queue;
 pub mod queue_history;
 pub mod recovery;

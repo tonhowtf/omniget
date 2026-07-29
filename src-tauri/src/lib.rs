@@ -298,6 +298,42 @@ pub fn run() {
             None,
         ))
         .setup(|app| {
+            // A janela principal e criada aqui, e nao pelo `tauri.conf.json`
+            // (`"create": false`), porque so daqui da para passar
+            // `.data_directory(...)` ao WebView2. O Tauri resolve esse caminho
+            // para `LocalData/{identifier}` e cria o diretorio *antes* do setup
+            // rodar, entao a variavel de ambiente que o `main.rs` define nunca
+            // chega a ser lida — que e a causa da issue #195, o modo portatil
+            // deixando uma pasta fora do diretorio do app.
+            {
+                // `mut` so e usado no ramo Windows abaixo; sem o cfg_attr isto
+                // vira warning novo em macOS e Linux e reprova o portao de clippy.
+                #[cfg_attr(not(windows), allow(unused_mut))]
+                let mut builder = tauri::WebviewWindowBuilder::from_config(
+                    app.handle(),
+                    &app.config().app.windows[0],
+                )?;
+
+                #[cfg(windows)]
+                if let Some(webview_dir) = core::portable::portable_webview_dir_from_env() {
+                    if let Err(e) = std::fs::create_dir_all(&webview_dir) {
+                        tracing::warn!(
+                            "[portable] nao foi possivel criar {}: {} — o WebView2 vai usar o diretorio padrao",
+                            webview_dir.display(),
+                            e
+                        );
+                    } else {
+                        tracing::info!(
+                            "[portable] WebView2 apontado para {}",
+                            webview_dir.display()
+                        );
+                        builder = builder.data_directory(webview_dir);
+                    }
+                }
+
+                builder.build()?;
+            }
+
             commands::host_queue::register_event_listeners(app.handle());
             {
                 let handle = app.handle().clone();
