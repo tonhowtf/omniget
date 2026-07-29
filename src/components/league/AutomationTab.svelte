@@ -59,7 +59,7 @@
     });
   }
 
-  function toggleLeagueFlag(field: "auto_pick" | "auto_ban" | "auto_honor" | "auto_play_again" | "auto_reconnect" | "notify_ready_check") {
+  function toggleLeagueFlag(field: "auto_pick" | "auto_ban" | "auto_honor" | "auto_play_again" | "auto_requeue" | "auto_accept_swaps" | "auto_reconnect" | "notify_ready_check") {
     const current = (settings?.league as any)?.[field] ?? false;
     updateSettings({ league: { [field]: !current } });
   }
@@ -312,6 +312,27 @@
         >{$t(`league.${key}`)}</button>
       {/each}
     </div>
+  </div>
+  {#if settings?.league?.auto_play_again}
+    <div class="action-row">
+      <div class="action-col">
+        <span class="action-label">{$t("league.auto_requeue")}</span>
+        <span class="action-hint">{$t("league.auto_requeue_desc")}</span>
+      </div>
+      <button class="toggle" class:on={settings?.league?.auto_requeue} onclick={() => toggleLeagueFlag("auto_requeue")} role="switch" aria-checked={settings?.league?.auto_requeue ?? false} aria-label={$t("league.auto_requeue") as string}>
+        <span class="toggle-knob"></span>
+      </button>
+    </div>
+  {/if}
+  <div class="divider"></div>
+  <div class="action-row">
+    <div class="action-col">
+      <span class="action-label">{$t("league.auto_swaps")}</span>
+      <span class="action-hint">{$t("league.auto_swaps_desc")}</span>
+    </div>
+    <button class="toggle" class:on={settings?.league?.auto_accept_swaps} onclick={() => toggleLeagueFlag("auto_accept_swaps")} role="switch" aria-checked={settings?.league?.auto_accept_swaps ?? false} aria-label={$t("league.auto_swaps") as string}>
+      <span class="toggle-knob"></span>
+    </button>
   </div>
   <div class="divider"></div>
   <div class="action-row stacked">

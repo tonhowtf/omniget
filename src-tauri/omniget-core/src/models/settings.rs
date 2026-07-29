@@ -72,6 +72,10 @@ pub struct LeagueSettings {
     #[serde(default)]
     pub auto_play_again: bool,
     #[serde(default)]
+    pub auto_requeue: bool,
+    #[serde(default)]
+    pub auto_accept_swaps: bool,
+    #[serde(default)]
     pub auto_reconnect: bool,
     #[serde(default)]
     pub auto_trade: String,
@@ -106,6 +110,8 @@ impl Default for LeagueSettings {
             auto_runes: false,
             auto_honor: false,
             auto_play_again: false,
+            auto_requeue: false,
+            auto_accept_swaps: false,
             auto_reconnect: false,
             auto_trade: String::new(),
             auto_message: String::new(),

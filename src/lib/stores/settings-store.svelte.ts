@@ -103,6 +103,8 @@ export type AppSettings = {
     auto_runes?: boolean;
     auto_honor?: boolean;
     auto_play_again?: boolean;
+    auto_requeue?: boolean;
+    auto_accept_swaps?: boolean;
     auto_reconnect?: boolean;
     auto_trade?: string;
     auto_message?: string;
