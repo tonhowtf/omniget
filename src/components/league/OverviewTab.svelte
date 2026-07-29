@@ -71,6 +71,20 @@
     };
   }
 
+  const LOBBY_ROLES = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY", "FILL"] as const;
+  let firstRole = $state("FILL");
+  let secondRole = $state("FILL");
+  let roleError = $state("");
+
+  async function saveRoles() {
+    roleError = "";
+    try {
+      await invoke("league_set_positions", { first: firstRole, second: secondRole });
+    } catch (e: any) {
+      roleError = typeof e === "string" ? e : (e?.message ?? String(e));
+    }
+  }
+
   let profileOpen = $state(false);
   let iconInput = $state<number | null>(null);
   let statusMessage = $state("");
@@ -350,6 +364,23 @@
       <div class="lobby-actions">
         <button class="button primary" onclick={() => onAction("league_start_matchmaking")}>{$t("league.start_queue")}</button>
         <button class="button" onclick={() => onAction("league_leave_lobby")}>{$t("league.leave_lobby")}</button>
+      </div>
+      {#if roleError}
+        <p class="action-error" role="alert">{roleError}</p>
+      {/if}
+      <div class="profile-tool-row">
+        <span class="list-label">{$t("league.role_preference")}</span>
+        <select class="select-role" bind:value={firstRole} aria-label={$t("league.role_first") as string}>
+          {#each LOBBY_ROLES as role (role)}
+            <option value={role}>{$t(`league.role_${role.toLowerCase()}`)}</option>
+          {/each}
+        </select>
+        <select class="select-role" bind:value={secondRole} aria-label={$t("league.role_second") as string}>
+          {#each LOBBY_ROLES as role (role)}
+            <option value={role}>{$t(`league.role_${role.toLowerCase()}`)}</option>
+          {/each}
+        </select>
+        <button class="button" onclick={saveRoles}>{$t("league.apply")}</button>
       </div>
     {:else if phase === "EndOfGame" || phase === "PreEndOfGame" || phase === "WaitingForStats"}
       <div class="lobby-actions">
