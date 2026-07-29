@@ -70,7 +70,7 @@ pub fn request_order(plan: &StreamPlan, have: &[bool]) -> Vec<u32> {
     let last = plan.total_pieces - 1;
     let mut order: Vec<u32> = Vec::new();
     let mut queued = std::collections::HashSet::new();
-    let mut push = |order: &mut Vec<u32>, queued: &mut std::collections::HashSet<u32>, p: u32| {
+    let push = |order: &mut Vec<u32>, queued: &mut std::collections::HashSet<u32>, p: u32| {
         if missing(&p) && queued.insert(p) {
             order.push(p);
         }
@@ -195,8 +195,8 @@ mod tests {
         let mut have = vec![false; 100];
         have[0] = true;
         have[99] = true;
-        for i in 0..20 {
-            have[i] = true;
+        for h in have.iter_mut().take(20) {
+            *h = true;
         }
         assert!(can_start_playback(&plan(100, 0), &have));
         assert!(
@@ -204,8 +204,8 @@ mod tests {
             "sem a janela do meio"
         );
 
-        for i in 60..68 {
-            have[i] = true;
+        for h in have.iter_mut().take(68).skip(60) {
+            *h = true;
         }
         assert!(can_start_playback(&plan(100, 60), &have));
     }
