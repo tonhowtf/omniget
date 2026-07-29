@@ -17,6 +17,7 @@ pub use omniget_core::core::redirect;
 pub use omniget_core::core::registry;
 pub use omniget_core::core::ytdlp;
 
+pub mod adaptive_concurrency;
 pub mod awake;
 pub mod binary_versions;
 pub mod cas;
@@ -41,5 +42,6 @@ pub mod rpc;
 pub mod rules;
 pub mod silence_map;
 pub mod state_file;
+pub mod torrent_stream;
 pub mod trackers;
 pub mod url_parser;
