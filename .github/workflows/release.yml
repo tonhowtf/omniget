@@ -142,9 +142,13 @@ jobs:
   build-cli:
     # O omniget-cli existe no workspace desde sempre mas nunca saiu numa
     # release, entao a unica forma de usar era compilar da fonte (issue #202).
-    # Nao depende do publish-tauri: sao binarios independentes, e o CLI nao
-    # precisa de webkit/gtk (arvore de dependencias sem openssl-sys), so do
-    # toolchain — por isso nao ha instalacao de dependencia de sistema aqui.
+    #
+    # `needs: publish-tauri` porque o upload precisa da release existir — quem a
+    # cria e o publish-tauri. A *compilacao* e independente (o CLI nao precisa de
+    # webkit/gtk: a arvore nao tem openssl-sys), e foi essa independencia que me
+    # fez omitir o needs na #221. O resultado foi `release not found` na v0.8.0,
+    # com o binario compilado e jogado fora.
+    needs: publish-tauri
     strategy:
       fail-fast: false
       matrix:
