@@ -1,4 +1,5 @@
 pub mod analysis;
+pub mod live;
 pub mod locator;
 pub mod stats;
 pub mod ws;
@@ -1207,6 +1208,49 @@ pub async fn league_match_analysis() -> Result<Value, String> {
         "players": detail,
         "premades": premades,
         "premadeSource": if from_party { "party" } else { "history" },
+    }))
+}
+
+/// Objective respawn estimates and a readable feed of what just happened,
+/// derived from the in-game event log.
+#[tauri::command]
+pub async fn league_live_events() -> Result<Value, String> {
+    ensure_enabled()?;
+    let http = http_client()?;
+    let base = "https://127.0.0.1:2999/liveclientdata";
+    let raw = http
+        .get(format!("{}/eventdata", base))
+        .send()
+        .await
+        .map_err(|e| format!("live client not reachable: {}", e))?
+        .json::<Value>()
+        .await
+        .map_err(|e| format!("invalid live client response: {}", e))?;
+    let game_time = http
+        .get(format!("{}/gamestats", base))
+        .send()
+        .await
+        .ok()
+        .and_then(|r| r.error_for_status().ok());
+    let game_time = match game_time {
+        Some(response) => response
+            .json::<Value>()
+            .await
+            .ok()
+            .and_then(|v| v.get("gameTime").and_then(Value::as_f64))
+            .unwrap_or(0.0),
+        None => 0.0,
+    };
+    let events: Vec<Value> = raw
+        .get("Events")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    Ok(json!({
+        "gameTime": game_time,
+        "objectives": live::objective_timers(&events, game_time),
+        "events": live::game_events(&events, 12),
     }))
 }
 

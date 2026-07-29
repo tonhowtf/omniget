@@ -5,10 +5,12 @@
   let {
     liveMetrics,
     cooldowns,
+    liveEvents,
     goalValue,
   }: {
     liveMetrics: any;
     cooldowns: any;
+    liveEvents: any;
     goalValue: (role: Role, key: GoalKey) => number;
   } = $props();
 
@@ -96,6 +98,49 @@
     if (!end) return null;
     return Math.max(0, Math.ceil((end - timerNow) / 1000));
   }
+
+  // The objective payload only refreshes every few seconds, so the countdown is
+  // continued locally instead of jumping in steps.
+  let eventsFetchedAt = $state(Date.now());
+  let objectiveNow = $state(Date.now());
+
+  $effect(() => {
+    void liveEvents;
+    eventsFetchedAt = Date.now();
+    objectiveNow = Date.now();
+  });
+
+  $effect(() => {
+    if (!liveEvents?.objectives?.length) return;
+    const tick = setInterval(() => {
+      objectiveNow = Date.now();
+    }, 1000);
+    return () => clearInterval(tick);
+  });
+
+  let objectives = $derived.by(() => {
+    const elapsed = (objectiveNow - eventsFetchedAt) / 1000;
+    return (liveEvents?.objectives ?? [])
+      .map((o: any) => ({ ...o, left: Math.max(0, Math.round(o.remaining - elapsed)) }))
+      .filter((o: any) => o.left > 0);
+  });
+
+  const EVENT_LABELS: Record<string, string> = {
+    ChampionKill: "league.event_kill",
+    TurretKilled: "league.event_turret",
+    InhibKilled: "league.event_inhib",
+    DragonKill: "league.event_dragon",
+    BaronKill: "league.event_baron",
+    HeraldKill: "league.event_herald",
+    Multikill: "league.event_multikill",
+    Ace: "league.event_ace",
+    FirstBrick: "league.event_first_turret",
+    FirstBlood: "league.event_first_blood",
+  };
+
+  let feed = $derived(
+    (liveEvents?.events ?? []).filter((e: any) => EVENT_LABELS[e.name])
+  );
 </script>
 
 {#if liveMetrics?.players?.length}
@@ -188,6 +233,40 @@
           </div>
         {/each}
       </div>
+    </section>
+  {/if}
+
+  {#if objectives.length > 0 || feed.length > 0}
+    <section class="card">
+      <div class="card-head">
+        <h3>{$t("league.objectives_title")}</h3>
+      </div>
+      {#if objectives.length > 0}
+        <div class="objective-row">
+          {#each objectives as objective (objective.kind)}
+            <span class="objective-chip">
+              <strong>{$t(`league.objective_${objective.kind}`)}</strong>
+              {formatGameTime(objective.left)}
+            </span>
+          {/each}
+        </div>
+        <p class="win-disclaimer">{$t("league.objectives_estimate")}</p>
+      {/if}
+      {#if feed.length > 0}
+        <ul class="event-feed">
+          {#each feed as event (`${event.id}:${event.at}`)}
+            <li class="event-item">
+              <span class="event-time">{formatGameTime(event.at)}</span>
+              <span class="event-text">
+                {$t(EVENT_LABELS[event.name])}
+                {#if event.actor}<strong>{event.actor}</strong>{/if}
+                {#if event.target}<span class="dim">→ {event.target}</span>{/if}
+                {#if event.detail}<span class="dim">({event.detail})</span>{/if}
+              </span>
+            </li>
+          {/each}
+        </ul>
+      {/if}
     </section>
   {/if}
 
