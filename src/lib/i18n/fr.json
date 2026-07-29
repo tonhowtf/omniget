@@ -742,6 +742,7 @@
       "dedupe_action": "Dédupliquer…",
       "dedupe_running": "En cours…",
       "dedupe_done": "{{count}} fichiers liés, {{size}} économisés",
+      "dedupe_done_unmeasured": "{{count}} fichiers liés",
       "dedupe_nothing": "{{examined}} fichiers vérifiés, rien à lier",
       "dedupe_errors": "{{count}} fichiers illisibles",
       "silence_label": "Carte des silences",

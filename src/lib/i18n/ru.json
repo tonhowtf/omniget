@@ -742,6 +742,7 @@
       "dedupe_action": "Дедуплицировать…",
       "dedupe_running": "Обработка…",
       "dedupe_done": "Связано файлов: {{count}}, сэкономлено {{size}}",
+      "dedupe_done_unmeasured": "Связано файлов: {{count}}",
       "dedupe_nothing": "Проверено файлов: {{examined}}, связывать нечего",
       "dedupe_errors": "Не удалось прочитать файлов: {{count}}",
       "silence_label": "Карта тишины",

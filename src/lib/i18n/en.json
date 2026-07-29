@@ -788,6 +788,7 @@
       "dedupe_action": "Deduplicate…",
       "dedupe_running": "Working…",
       "dedupe_done": "Linked {{count}} files, {{size}} saved",
+      "dedupe_done_unmeasured": "Linked {{count}} files",
       "dedupe_nothing": "Checked {{examined}} files, nothing to link",
       "dedupe_errors": "{{count}} files could not be read",
       "silence_label": "Silence map",

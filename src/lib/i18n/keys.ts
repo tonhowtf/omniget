@@ -1438,6 +1438,7 @@ export type TranslationKeys =
   | 'settings.search_placeholder'
   | 'settings.storage.dedupe_action'
   | 'settings.storage.dedupe_done'
+  | 'settings.storage.dedupe_done_unmeasured'
   | 'settings.storage.dedupe_empty'
   | 'settings.storage.dedupe_errors'
   | 'settings.storage.dedupe_label'

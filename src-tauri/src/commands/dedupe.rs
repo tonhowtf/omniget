@@ -50,8 +50,14 @@ fn sha256_of(path: &Path) -> std::io::Result<String> {
 pub struct DedupeReport {
     pub examined: usize,
     pub deduplicated: usize,
-    /// Bytes que deixaram de ser ocupados duas vezes.
+    /// Bytes que deixaram de ser ocupados duas vezes. Zero quando a plataforma
+    /// nao sabe distinguir link de copia — ver `savings_measurable`.
     pub bytes_saved: u64,
+    /// `false` no Windows. `cas::same_file` nao tem como responder ali
+    /// (`volume_serial_number` e `file_index` seguem unstable), entao um arquivo
+    /// que **ja** era link e re-linkado e contaria como economia nova a cada
+    /// execucao. Preferimos nao dar numero a inflar um.
+    pub savings_measurable: bool,
     pub errors: Vec<String>,
 }
 
@@ -64,7 +70,10 @@ pub async fn deduplicate_files(paths: Vec<String>) -> Result<DedupeReport, Strin
     let root = store_root().ok_or_else(|| "sem diretorio de dados".to_string())?;
 
     tokio::task::spawn_blocking(move || {
-        let mut rep = DedupeReport::default();
+        let mut rep = DedupeReport {
+            savings_measurable: cfg!(unix),
+            ..Default::default()
+        };
         for raw in paths {
             let path = PathBuf::from(&raw);
             if !path.is_file() {
@@ -104,7 +113,12 @@ pub async fn deduplicate_files(paths: Vec<String>) -> Result<DedupeReport, Strin
             match materialize(&objeto, &path) {
                 Ok(LinkOutcome::Linked) => {
                     rep.deduplicated += 1;
-                    rep.bytes_saved += tamanho;
+                    // So soma onde `same_file` consegue garantir que o destino
+                    // ainda nao era um link para este objeto. Sem isso, a
+                    // segunda execucao no Windows somaria tudo de novo.
+                    if rep.savings_measurable {
+                        rep.bytes_saved += tamanho;
+                    }
                 }
                 Ok(LinkOutcome::AlreadyPresent) => {
                     // Ja estava ligado. Nao conta como economia nova, senao o
@@ -224,20 +238,39 @@ mod tests {
     }
 
     #[test]
-    fn rodar_duas_vezes_nao_conta_economia_duas_vezes() {
-        // O usuario vai clicar duas vezes. Se a segunda contasse de novo, o
-        // numero de "espaco economizado" viraria ficcao crescente.
+    fn rodar_duas_vezes_nao_corrompe_o_arquivo() {
+        // A propriedade que vale nas tres plataformas: materializar duas vezes e
+        // seguro e o conteudo continua certo. Este teste ja pegou um defeito
+        // real — a primeira versao afirmava identidade de inode via `same_file`,
+        // que no Windows sempre diz "diferente", e foi assim que apareceu que a
+        // contagem de economia dobrava por lá.
         let d = tempdir("idempotente");
         let root = d.join("store");
         let a = d.join("a.mp4");
-        std::fs::write(&a, b"x").unwrap();
+        std::fs::write(&a, b"conteudo").unwrap();
         let h = sha256_of(&a).unwrap();
         let obj = ingest(&root, &a, &h).unwrap();
         materialize(&obj, &a).unwrap();
-        assert!(
-            same_file(&obj, &a),
-            "depois de materializar, o arquivo ja e o objeto"
+        materialize(&obj, &a).unwrap();
+        assert_eq!(
+            std::fs::read(&a).unwrap(),
+            b"conteudo",
+            "materializar duas vezes nao pode estragar o arquivo"
         );
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn economia_so_e_somada_onde_da_para_medir() {
+        // O numero e reportado como nao-medido em vez de zerado por acidente:
+        // "nao sei" e uma resposta diferente de "nao economizou".
+        let rep = DedupeReport {
+            savings_measurable: cfg!(unix),
+            ..Default::default()
+        };
+        assert_eq!(rep.savings_measurable, cfg!(unix));
+        if !rep.savings_measurable {
+            assert_eq!(rep.bytes_saved, 0, "sem medicao nao se inventa numero");
+        }
     }
 }

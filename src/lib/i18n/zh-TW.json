@@ -742,6 +742,7 @@
       "dedupe_action": "去重…",
       "dedupe_running": "處理中…",
       "dedupe_done": "已連結 {{count}} 個檔案，節省 {{size}}",
+      "dedupe_done_unmeasured": "已連結 {{count}} 個檔案",
       "dedupe_nothing": "檢查了 {{examined}} 個檔案，沒有可連結的",
       "dedupe_errors": "{{count}} 個檔案無法讀取",
       "silence_label": "靜音圖譜",

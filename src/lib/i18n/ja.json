@@ -742,6 +742,7 @@
       "dedupe_action": "重複排除…",
       "dedupe_running": "処理中…",
       "dedupe_done": "{{count}} 件をリンク、{{size}} 節約",
+      "dedupe_done_unmeasured": "{{count}} 件をリンクしました",
       "dedupe_nothing": "{{examined}} 件を確認、リンクするものなし",
       "dedupe_errors": "{{count}} 件のファイルを読めませんでした",
       "silence_label": "無音マップ",

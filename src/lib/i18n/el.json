@@ -742,6 +742,7 @@
       "dedupe_action": "Αφαίρεση διπλότυπων…",
       "dedupe_running": "Σε εξέλιξη…",
       "dedupe_done": "Συνδέθηκαν {{count}} αρχεία, {{size}} εξοικονόμηση",
+      "dedupe_done_unmeasured": "Συνδέθηκαν {{count}} αρχεία",
       "dedupe_nothing": "Ελέγχθηκαν {{examined}} αρχεία, τίποτα προς σύνδεση",
       "dedupe_errors": "{{count}} αρχεία δεν διαβάστηκαν",
       "silence_label": "Χάρτης σιωπής",

@@ -742,6 +742,7 @@
       "dedupe_action": "Deduplica…",
       "dedupe_running": "In corso…",
       "dedupe_done": "{{count}} file collegati, {{size}} risparmiati",
+      "dedupe_done_unmeasured": "{{count}} file collegati",
       "dedupe_nothing": "{{examined}} file controllati, niente da collegare",
       "dedupe_errors": "{{count}} file non leggibili",
       "silence_label": "Mappa del silenzio",

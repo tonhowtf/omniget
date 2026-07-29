@@ -15,6 +15,7 @@
     examined: number;
     deduplicated: number;
     bytes_saved: number;
+    savings_measurable: boolean;
     errors: string[];
   };
 
@@ -70,13 +71,20 @@
       const rep = await invoke<DedupeReport>("deduplicate_files", { paths });
       if (rep.deduplicated === 0) {
         showToast("info", $t("settings.storage.dedupe_nothing", { examined: rep.examined }) as string);
-      } else {
+      } else if (rep.savings_measurable) {
         showToast(
           "success",
           $t("settings.storage.dedupe_done", {
             count: rep.deduplicated,
             size: humanBytes(rep.bytes_saved),
           }) as string,
+        );
+      } else {
+        // Sem medição, dizer quantos foram ligados é verdade; dizer quanto
+        // economizou não seria.
+        showToast(
+          "success",
+          $t("settings.storage.dedupe_done_unmeasured", { count: rep.deduplicated }) as string,
         );
       }
       // Erros não podem sumir: um arquivo ilegível é exatamente o que o usuário

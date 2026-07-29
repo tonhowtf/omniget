@@ -742,6 +742,7 @@
       "dedupe_action": "Deduplicar…",
       "dedupe_running": "Trabajando…",
       "dedupe_done": "{{count}} archivos enlazados, {{size}} ahorrados",
+      "dedupe_done_unmeasured": "{{count}} archivos enlazados",
       "dedupe_nothing": "{{examined}} archivos revisados, nada que enlazar",
       "dedupe_errors": "{{count}} archivos no se pudieron leer",
       "silence_label": "Mapa de silencio",
