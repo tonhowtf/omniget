@@ -120,6 +120,21 @@ export async function exportDiagnostics(): Promise<string> {
     }
   }
 
+  // B33: a caixa-preta do backend. Guarda as ultimas linhas de log de download
+  // ja redigidas (sem token, cookie ou caminho com nome de usuario), que e
+  // justamente o que falta quando alguem diz "parou de funcionar" e o log da
+  // interface so tem o resultado final.
+  try {
+    const flight = await invoke<string[]>("flight_recorder_dump");
+    if (flight.length > 0) {
+      lines.push("");
+      lines.push(`--- Download Trace (${flight.length} lines, redacted) ---`);
+      lines.push(...flight);
+    }
+  } catch {
+    lines.push("Download trace: unavailable");
+  }
+
   lines.push("---");
   return lines.join("\n");
 }

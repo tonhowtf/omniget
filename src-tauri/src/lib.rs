@@ -522,6 +522,11 @@ pub fn run() {
             {
                 let app_handle = app.handle().clone();
                 omniget_core::core::log_hook::set_log_sink(std::sync::Arc::new(move |id, line| {
+                    // B33: caixa-preta. Toda linha de log de download passa por
+                    // aqui, e o `record` redige antes de guardar — e o unico
+                    // ponto onde da para capturar o historico sem instrumentar
+                    // cada chamada uma por uma.
+                    core::flight_recorder::record(line);
                     let should_emit = core::download_log::push_line(id, line);
                     if should_emit {
                         let _ = tauri::Emitter::emit(
@@ -904,6 +909,8 @@ pub fn run() {
             commands::dependencies::check_ytdlp_available,
             commands::dependencies::install_dependency,
             commands::dependencies::dependency_archived_versions,
+            commands::diagnostics::flight_recorder_dump,
+            commands::diagnostics::flight_recorder_clear,
             commands::dependencies::rollback_dependency,
             commands::dependencies::dependency_variants,
             commands::dependencies::dependency_install_dir,

@@ -1,3 +1,4 @@
+pub use omniget_core::core::adaptive_concurrency;
 pub use omniget_core::core::clipboard;
 pub use omniget_core::core::cookie_parser;
 pub use omniget_core::core::course_utils;
@@ -19,7 +20,6 @@ pub use omniget_core::core::redirect;
 pub use omniget_core::core::registry;
 pub use omniget_core::core::ytdlp;
 
-pub mod adaptive_concurrency;
 pub mod awake;
 pub mod binary_versions;
 pub mod cas;

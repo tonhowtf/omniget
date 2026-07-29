@@ -239,9 +239,21 @@ async fn run_http_fetcher(
     headers: Option<reqwest::header::HeaderMap>,
     cancel: Option<&CancellationToken>,
 ) -> anyhow::Result<u64> {
-    let concurrent = get_global_max_concurrent_segments()
+    // B35: o numero de Config vira **teto**, nao valor fixo. Um CDN que estrangula
+    // com 8 conexoes entrega mais com 4, e so medindo da para saber qual e o caso
+    // deste host. Sem historico, o comportamento e identico ao anterior.
+    let teto = get_global_max_concurrent_segments()
         .unwrap_or(MAX_PARALLEL)
         .clamp(1, 32);
+    let host = host_of(url);
+    let concurrent = match &host {
+        Some(h) => concurrency_tuner()
+            .lock()
+            .await
+            .suggest(h, teto as u32, teto as u32) as usize,
+        None => teto,
+    };
+    let inicio = std::time::Instant::now();
     let cfg = HttpFetcherConfig {
         min_size_for_chunked: 0,
         concurrent_segments: concurrent,
@@ -258,7 +270,40 @@ async fn run_http_fetcher(
         fetcher = fetcher.with_cancel(c.clone());
     }
     let result = fetcher.download(progress_tx.clone()).await?;
+
+    // So conta como amostra o que durou o suficiente para a medida significar
+    // alguma coisa: um arquivo de 200 KB mede latencia, nao vazao.
+    if let Some(h) = host {
+        let secs = inicio.elapsed().as_secs_f64();
+        if secs >= 1.0 && result.bytes_written > 0 {
+            let bps = result.bytes_written as f64 / secs;
+            concurrency_tuner()
+                .lock()
+                .await
+                .record(&h, concurrent as u32, bps);
+        }
+    }
+
     Ok(result.bytes_written)
+}
+
+/// Historico de vazao por host, para o B35.
+///
+/// `tokio::sync::Mutex` e nao `std::sync::Mutex`: isto e travado dentro de
+/// codigo async.
+fn concurrency_tuner() -> &'static tokio::sync::Mutex<super::adaptive_concurrency::ConcurrencyTuner>
+{
+    static TUNER: std::sync::OnceLock<
+        tokio::sync::Mutex<super::adaptive_concurrency::ConcurrencyTuner>,
+    > = std::sync::OnceLock::new();
+    TUNER.get_or_init(|| tokio::sync::Mutex::new(Default::default()))
+}
+
+fn host_of(url: &str) -> Option<String> {
+    url::Url::parse(url)
+        .ok()?
+        .host_str()
+        .map(|h| h.to_ascii_lowercase())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -497,5 +542,26 @@ mod tests {
     #[test]
     fn threshold_gte_chunk_size() {
         assert!(CHUNK_THRESHOLD >= CHUNK_SIZE);
+    }
+
+    #[test]
+    fn host_e_a_chave_do_historico_de_vazao() {
+        // O historico e por host: medir "cdn.exemplo.com" e aplicar em outro
+        // dominio seria pior que nao medir.
+        assert_eq!(
+            host_of("https://CDN.Exemplo.com/a/b.mp4"),
+            Some("cdn.exemplo.com".to_string()),
+            "host tem que normalizar para caixa baixa, senao vira duas entradas"
+        );
+        assert_eq!(host_of("nao e url"), None);
+    }
+
+    #[tokio::test]
+    async fn sem_historico_o_teto_e_respeitado() {
+        // Primeira vez num host: nada medido, entao o numero de Config vale.
+        let tuner = super::super::adaptive_concurrency::ConcurrencyTuner::default();
+        assert_eq!(tuner.suggest("novo.host", 8, 8), 8);
+        // E o teto e teto mesmo, nao sugestao.
+        assert_eq!(tuner.suggest("novo.host", 32, 4), 4);
     }
 }
