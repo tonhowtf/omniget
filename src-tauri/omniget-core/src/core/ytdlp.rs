@@ -944,6 +944,12 @@ pub async fn find_ytdlp_cached() -> Option<PathBuf> {
 }
 
 fn managed_ytdlp_path() -> Option<PathBuf> {
+    // Issue #222: se o usuario apontou um binario proprio, ele ganha do
+    // gerenciado. Referenciado no lugar, entao um `apt upgrade` no yt-dlp dele
+    // vale imediatamente aqui, sem copia para envelhecer.
+    if let Some(custom) = crate::core::binary_overrides::get("yt-dlp") {
+        return Some(custom);
+    }
     let data = crate::core::paths::app_data_dir()?;
     let bin_name = if cfg!(target_os = "windows") {
         "yt-dlp.exe"

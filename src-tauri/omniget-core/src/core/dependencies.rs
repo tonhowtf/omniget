@@ -113,6 +113,16 @@ pub fn bin_name(tool: &str) -> String {
     }
 }
 
+/// Traduz o nome interno da ferramenta para o nome que a UI e o arquivo de
+/// overrides usam. `find_tool` recebe "ffmpeg"; a tabela mostra "FFmpeg".
+fn override_name(tool: &str) -> &str {
+    match tool {
+        "ffmpeg" => "FFmpeg",
+        "yt-dlp" => "yt-dlp",
+        other => other,
+    }
+}
+
 pub async fn find_tool(tool: &str) -> Option<PathBuf> {
     find_tool_with_source(tool).await.map(|(path, _)| path)
 }
@@ -120,6 +130,12 @@ pub async fn find_tool(tool: &str) -> Option<PathBuf> {
 /// Like `find_tool` but also returns a source tag: "flatpak", "managed", or "system".
 /// Returns `None` if the tool is not found anywhere.
 pub async fn find_tool_with_source(tool: &str) -> Option<(PathBuf, &'static str)> {
+    // Issue #222. Antes de tudo: o caminho que o usuario escolheu. "custom" e
+    // uma origem propria para a tabela de dependencias poder mostrar de onde o
+    // binario veio, em vez de mentir "managed".
+    if let Some(custom) = crate::core::binary_overrides::get(override_name(tool)) {
+        return Some((custom, "custom"));
+    }
     let name = bin_name(tool);
     let version_flag = version_flag_for(tool);
 

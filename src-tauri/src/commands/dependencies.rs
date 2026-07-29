@@ -286,13 +286,51 @@ pub fn dependency_install_dir(name: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn set_dependency_path(name: String, source_path: String) -> Result<String, String> {
+pub async fn set_dependency_path(name: String, source_path: String) -> Result<String, String> {
     let src = PathBuf::from(&source_path);
-    match name.as_str() {
-        "PDFium" => {
-            pdfium::set_pdfium_from_path(&src).map_err(|e| e.to_string())?;
-            Ok(pdfium::read_version_marker().unwrap_or_else(|| "custom".to_string()))
-        }
-        _ => Err(format!("Custom file path not supported for: {}", name)),
+
+    // Issue #222: referenciar no lugar, nao copiar. Uma copia dentro do
+    // diretorio do app envelhece sozinha — o usuario atualiza o binario dele e
+    // o OmniGet segue usando a versao velha sem avisar.
+    omniget_core::core::binary_overrides::set(&name, &src)?;
+
+    if name == "yt-dlp" {
+        crate::core::ytdlp::reset_ytdlp_cache();
     }
+    if name == "FFmpeg" {
+        crate::core::ytdlp::reset_ffmpeg_location_cache();
+        crate::core::ffmpeg::reset_ffmpeg_available_cache();
+    }
+
+    Ok(
+        crate::core::dependencies::check_version(match name.as_str() {
+            "FFmpeg" => "ffmpeg",
+            other => other,
+        })
+        .await
+        .unwrap_or_else(|| "custom".to_string()),
+    )
+}
+
+/// Volta a usar o binario gerenciado pelo OmniGet.
+///
+/// Existe porque escolher um caminho tem que ser reversivel com o mesmo esforco
+/// de escolher — sem isso, o usuario que apontou o arquivo errado fica preso.
+#[tauri::command]
+pub async fn clear_dependency_path(name: String) -> Result<(), String> {
+    omniget_core::core::binary_overrides::clear(&name)?;
+    if name == "yt-dlp" {
+        crate::core::ytdlp::reset_ytdlp_cache();
+    }
+    if name == "FFmpeg" {
+        crate::core::ytdlp::reset_ffmpeg_location_cache();
+        crate::core::ffmpeg::reset_ffmpeg_available_cache();
+    }
+    Ok(())
+}
+
+/// Caminho customizado em uso, se houver.
+#[tauri::command]
+pub fn dependency_custom_path(name: String) -> Option<String> {
+    omniget_core::core::binary_overrides::get(&name).map(|p| p.to_string_lossy().to_string())
 }

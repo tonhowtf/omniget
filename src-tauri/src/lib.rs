@@ -942,6 +942,8 @@ pub fn run() {
             commands::diagnostics::flight_recorder_clear,
             commands::diagnostics::preflight_batch,
             commands::dependencies::rollback_dependency,
+            commands::dependencies::clear_dependency_path,
+            commands::dependencies::dependency_custom_path,
             commands::dependencies::dependency_variants,
             commands::dependencies::dependency_install_dir,
             commands::dependencies::set_dependency_path,
