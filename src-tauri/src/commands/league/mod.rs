@@ -1,4 +1,5 @@
 pub mod analysis;
+pub mod locator;
 pub mod stats;
 pub mod ws;
 
@@ -27,65 +28,16 @@ static CACHED_CLIENT: Lazy<Mutex<Option<LcuClient>>> = Lazy::new(|| Mutex::new(N
 static AUTO_ACCEPT: AtomicBool = AtomicBool::new(false);
 static CS_HANDLED: Lazy<Mutex<HashSet<i64>>> = Lazy::new(|| Mutex::new(HashSet::new()));
 
-fn extract_arg(cmdline: &str, key: &str) -> Option<String> {
-    let needle = format!("--{}=", key);
-    let start = cmdline.find(&needle)? + needle.len();
-    let rest = &cmdline[start..];
-    let value: String = rest
-        .chars()
-        .take_while(|c| !c.is_whitespace() && *c != '"' && *c != '\'')
-        .collect();
-    if value.is_empty() {
-        None
-    } else {
-        Some(value)
-    }
-}
-
-async fn read_process_command_lines() -> Result<String, String> {
-    #[cfg(windows)]
-    {
-        let output = crate::core::process::command("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                "Get-CimInstance Win32_Process -Filter \"Name='LeagueClientUx.exe'\" | Select-Object -ExpandProperty CommandLine",
-            ])
-            .output()
-            .await
-            .map_err(|e| format!("failed to query processes: {}", e))?;
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    }
-    #[cfg(not(windows))]
-    {
-        let output = tokio::process::Command::new("ps")
-            .args(["-axo", "command"])
-            .output()
-            .await
-            .map_err(|e| format!("failed to query processes: {}", e))?;
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    }
-}
-
 async fn discover_client() -> Option<LcuClient> {
-    let listing = read_process_command_lines().await.ok()?;
-    for line in listing.lines() {
-        if !line.contains("LeagueClientUx") {
-            continue;
-        }
-        let port = extract_arg(line, "app-port").and_then(|p| p.parse::<u16>().ok());
-        let token = extract_arg(line, "remoting-auth-token");
-        if let (Some(port), Some(token)) = (port, token) {
-            let region =
-                extract_arg(line, "region").or_else(|| extract_arg(line, "rso_platform_id"));
-            return Some(LcuClient {
-                port,
-                token,
-                region,
-            });
-        }
+    let (credentials, source) = locator::discover().await?;
+    if matches!(source, locator::Source::Lockfile) {
+        tracing::debug!("[league] credentials read from lockfile");
     }
-    None
+    Some(LcuClient {
+        port: credentials.port,
+        token: credentials.token,
+        region: credentials.region,
+    })
 }
 
 async fn get_client() -> Result<LcuClient, String> {
