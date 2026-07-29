@@ -903,6 +903,8 @@ pub fn run() {
             commands::dependencies::check_dependencies,
             commands::dependencies::check_ytdlp_available,
             commands::dependencies::install_dependency,
+            commands::dependencies::dependency_archived_versions,
+            commands::dependencies::rollback_dependency,
             commands::dependencies::dependency_variants,
             commands::dependencies::dependency_install_dir,
             commands::dependencies::set_dependency_path,

@@ -572,6 +572,85 @@ pub fn reset_js_runtime_cache() {
     }
 }
 
+/// Alvos de `--impersonate` deste binario de yt-dlp, consultados uma vez so.
+///
+/// A lista nao muda durante a execucao e a consulta custa um processo; sem o
+/// cache, todo retry por fingerprint pagaria de novo.
+static IMPERSONATE_TARGETS: OnceLock<Option<Vec<super::impersonation::ImpersonateTarget>>> =
+    OnceLock::new();
+
+async fn impersonate_targets() -> Option<Vec<super::impersonation::ImpersonateTarget>> {
+    if let Some(cached) = IMPERSONATE_TARGETS.get() {
+        return cached.clone();
+    }
+
+    let bin = ensure_ytdlp().await.ok()?;
+    let output = tokio::task::spawn_blocking(move || {
+        crate::core::process::std_command(&bin)
+            .arg("--list-impersonate-targets")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+    })
+    .await
+    .ok()?
+    .ok()?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let targets = super::impersonation::parse_targets(&stdout);
+    // Lista vazia e ausencia sao a mesma coisa para quem chama: nao ha o que
+    // tentar. Guardar `None` evita repetir a consulta num build sem curl_cffi.
+    let value = if targets.is_empty() {
+        None
+    } else {
+        Some(targets)
+    };
+    let _ = IMPERSONATE_TARGETS.set(value.clone());
+    value
+}
+
+/// URL do provedor de PO token, se o usuario tiver um rodando.
+///
+/// Fica em variavel de ambiente de proposito: o provedor e um servico externo
+/// (Docker ou Node), a maioria dos usuarios nunca vai ter um, e um campo em
+/// settings.json custaria migracao para todo mundo por causa de poucos.
+/// Sonda o provedor antes de apontar o yt-dlp para ele.
+///
+/// O `extractor_args` so devolve argumentos para um provedor `Ready`, e essa
+/// regra existe por um motivo concreto: um endereco configurado mas morto faz o
+/// yt-dlp esperar o timeout em *todo* download, o que e pior do que nao ter
+/// provedor. Timeout curto porque isto roda no caminho de um retry.
+async fn probe_pot_provider(base_url: &str) -> super::pot_provider::ProviderHealth {
+    let client = match super::http_client::apply_global_proxy(reqwest::Client::builder())
+        .timeout(std::time::Duration::from_secs(3))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            return super::pot_provider::ProviderHealth::Unhealthy {
+                detail: e.to_string(),
+            }
+        }
+    };
+
+    match client.get(format!("{base_url}/ping")).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            super::pot_provider::ProviderHealth::Ready { version: None }
+        }
+        Ok(resp) => super::pot_provider::ProviderHealth::Unhealthy {
+            detail: format!("HTTP {}", resp.status()),
+        },
+        Err(_) => super::pot_provider::ProviderHealth::Unreachable {
+            base_url: base_url.to_string(),
+        },
+    }
+}
+
+fn pot_provider_base_url() -> Option<String> {
+    let raw = std::env::var("OMNIGET_POT_PROVIDER_URL").ok()?;
+    super::pot_provider::normalize_base_url(&raw)
+}
+
 pub async fn check_ytdlp_update(ytdlp: &Path) -> anyhow::Result<bool> {
     if YTDLP_UPDATE_CHECKED.swap(true, Ordering::Relaxed) {
         return Ok(false);
@@ -2829,6 +2908,66 @@ pub async fn download_video(
                 tracing::warn!("[yt-dlp] 403 forbidden, adding --force-ipv4");
             }
 
+            // B43: quando o site bloqueia por fingerprint de TLS, nenhuma troca
+            // de player_client resolve — o que muda o resultado e o yt-dlp se
+            // apresentar como um navegador de verdade. O binario empacotado ja
+            // traz curl_cffi, entao o caso comum e ter alvo disponivel.
+            if super::impersonation::stderr_indicates_fingerprint_block(&stderr_lower)
+                && !extra_args.iter().any(|a| a == "--impersonate")
+            {
+                match impersonate_targets().await {
+                    Some(targets) => {
+                        if let Some(target) = super::impersonation::preferred_target(&targets) {
+                            let flag = target.as_flag_value();
+                            extra_args.push("--impersonate".to_string());
+                            extra_args.push(flag.clone());
+                            tracing::warn!(
+                                "[yt-dlp] bloqueio por fingerprint detectado, tentando --impersonate {}",
+                                flag
+                            );
+                        }
+                    }
+                    None => {
+                        tracing::warn!(
+                            "[yt-dlp] bloqueio por fingerprint, mas este build nao tem alvos de impersonation"
+                        );
+                    }
+                }
+            }
+
+            // B42: PO token ausente. O provedor nao e embarcado (roda como
+            // Docker ou servidor Node separado), entao so agimos se o usuario
+            // tiver configurado um — caso contrario o erro fica visivel, que e
+            // o que o painel de causa raiz traduz.
+            if super::pot_provider::stderr_indicates_missing_token(&stderr_lower) {
+                match pot_provider_base_url() {
+                    Some(base) => {
+                        let health = probe_pot_provider(&base).await;
+                        let args = super::pot_provider::extractor_args(&health, &base);
+                        if args.is_empty() {
+                            // Apontar para um provedor morto e pior do que nao
+                            // apontar: o yt-dlp espera o timeout em todo
+                            // download seguinte.
+                            tracing::warn!(
+                                "[yt-dlp] provedor de PO token em {} nao respondeu; seguindo sem ele",
+                                base
+                            );
+                        } else if !extra_args.iter().any(|a| a.contains("youtubepot")) {
+                            tracing::warn!(
+                                "[yt-dlp] PO token exigido, usando provedor configurado em {}",
+                                base
+                            );
+                            extra_args.extend(args);
+                        }
+                    }
+                    None => {
+                        tracing::warn!(
+                            "[yt-dlp] PO token exigido e nenhum provedor configurado — ver OMNIGET_POT_PROVIDER_URL"
+                        );
+                    }
+                }
+            }
+
             if stderr_lower.contains("subtitle") && use_subtitles && !last_was_429 {
                 tracing::warn!("[yt-dlp] subtitle error detected, disabling subtitles for retry");
                 use_subtitles = false;
@@ -4149,5 +4288,49 @@ ERROR: [youtube] abc123: Requested format is not available";
         assert!(!SABR_CLIENT_CASCADE.contains(&"web"));
         assert!(!SABR_CLIENT_CASCADE.contains(&"default"));
         assert_eq!(SABR_CLIENT_CASCADE.len(), 4);
+    }
+
+    #[test]
+    fn sem_variavel_nao_ha_provedor_de_pot_token() {
+        // Um teste so, sequencial: set_var e global ao processo.
+        let restore = std::env::var("OMNIGET_POT_PROVIDER_URL").ok();
+
+        std::env::remove_var("OMNIGET_POT_PROVIDER_URL");
+        assert_eq!(pot_provider_base_url(), None, "sem env nao ha provedor");
+
+        std::env::set_var("OMNIGET_POT_PROVIDER_URL", "   ");
+        assert_eq!(
+            pot_provider_base_url(),
+            None,
+            "espaco em branco viraria argumento quebrado no yt-dlp"
+        );
+
+        std::env::set_var("OMNIGET_POT_PROVIDER_URL", "localhost:4416/");
+        assert_eq!(
+            pot_provider_base_url(),
+            Some("http://localhost:4416".to_string()),
+            "o que o usuario digita tem que virar URL valida"
+        );
+
+        match restore {
+            Some(v) => std::env::set_var("OMNIGET_POT_PROVIDER_URL", v),
+            None => std::env::remove_var("OMNIGET_POT_PROVIDER_URL"),
+        }
+    }
+
+    #[tokio::test]
+    async fn provedor_morto_nao_gera_argumento() {
+        // A porta 1 nao tem nada escutando. E exatamente o caso que o modulo
+        // avisa ser pior que nao ter provedor: apontar o yt-dlp para um
+        // endereco morto custa o timeout em todo download seguinte.
+        let health = probe_pot_provider("http://127.0.0.1:1").await;
+        assert!(
+            !health.is_usable(),
+            "endereco morto nao pode ser considerado utilizavel"
+        );
+        assert!(
+            super::super::pot_provider::extractor_args(&health, "http://127.0.0.1:1").is_empty(),
+            "provedor inalcancavel nao pode virar --extractor-args"
+        );
     }
 }
