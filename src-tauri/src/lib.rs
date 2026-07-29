@@ -839,6 +839,7 @@ pub fn run() {
             commands::league::league_apply_runes,
             commands::league::league_send_chat,
             commands::league::league_rune_recommendations,
+            commands::league::league_champion_meta,
             commands::league::league_champion_tiers,
             commands::league::league_champion_build,
             commands::league::league_ability_cooldowns,
