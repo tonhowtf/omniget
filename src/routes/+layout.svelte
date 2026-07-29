@@ -2,6 +2,7 @@
   import "../app.css";
   import "$lib/style/queue-kinds.css";
   import { page } from "$app/state";
+  import { isMac } from "$lib/platform";
   import { goto } from "$app/navigation";
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
@@ -256,6 +257,12 @@
 
   $effect(() => {
     document.documentElement.setAttribute("data-shell", "mac");
+    // O shell é o mesmo em todas as plataformas, mas os controles de janela
+    // não: o macOS põe fechar/minimizar à esquerda, Windows e Linux à direita.
+    // Sem isto o app reservava 78px à esquerda em todo mundo (espaço morto fora
+    // do macOS) e colocava os próprios botões exatamente onde o Windows desenha
+    // o botão de fechar.
+    document.documentElement.setAttribute("data-platform", isMac() ? "macos" : "other");
     void $locale;
     buildCommandPaletteItems();
   });

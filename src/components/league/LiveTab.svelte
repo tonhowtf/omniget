@@ -266,6 +266,7 @@
             <span class="feature-badge">{$t(`league.badge_${objectivesFeature.state}`)}</span>
           {/if}
         </h3>
+        <h3>{$t("league.objectives_title")}</h3>
       </div>
       {#if objectives.length > 0}
         <div class="objective-row">

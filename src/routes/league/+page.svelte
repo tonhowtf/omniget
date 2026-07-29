@@ -473,6 +473,7 @@
       </div>
       <div class="tab-panel" class:active={tab === "live"}>
         <LiveTab {liveMetrics} {cooldowns} {liveEvents} {goalValue} {platform} clientConnected={status.connected} />
+        <LiveTab {liveMetrics} {cooldowns} {liveEvents} {goalValue} />
       </div>
       <div class="tab-panel" class:active={tab === "goals"}>
         <GoalsTab {goalValue} {setGoal} {resetGoals} />

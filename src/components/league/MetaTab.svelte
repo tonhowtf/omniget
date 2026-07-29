@@ -343,6 +343,7 @@
         <span class="feature-badge">{$t(`league.badge_${buildFeature.state}`)}</span>
       {/if}
     </h4>
+    <h4 class="section-title">{$t("league.meta_reference")}</h4>
     <button
       class="button"
       onclick={() => loadMeta(champSelectChampionId || (buildChampionId ?? 0))}
