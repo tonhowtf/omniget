@@ -5,10 +5,15 @@ Itens abertos por ordem de retorno. Numeração contínua; concluídos não são
 **Legenda.** Custo P/M/G · Impacto 1–5 · Status: `aberto` · `bloqueado` · `em análise`
 
 **Concluído em v0.7.7:** B21–B31 (11 itens).
+**Concluído e aguardando release:** B47, B48, B41.
 
 ---
 
-## Onda proposta — v0.7.8
+## Onda v0.7.8 — concluída, aguardando release
+
+B47, B48 e B41 entregues na branch `feat/ci-and-hardening`. Portões: clippy no baseline (34/42/8/1), 460 testes (era 456), `pnpm check` 0 erros / 107 warnings.
+
+### Escopo original
 
 Duas correções baratas com impacto real, mais a rede de proteção que impede a próxima PR de entrar quebrada. Ordem de entrada: B47 → B48 → B41.
 
@@ -16,7 +21,7 @@ Duas correções baratas com impacto real, mais a rede de proteção que impede 
 
 ### B47 — Ter CI
 
-**Status:** aberto · **Custo:** P · **Impacto:** 5 · **Pré-requisito de tudo**
+**Status:** concluído · **Custo:** P · **Impacto:** 5 · **Pré-requisito de tudo**
 
 **Problema.** Não existe CI neste repositório. Nenhum `pnpm check`, nenhum `cargo test`, nenhum `cargo clippy` roda em PR. Só `release.yml` está versionado.
 
@@ -38,7 +43,7 @@ Duas correções baratas com impacto real, mais a rede de proteção que impede 
 
 ### B48 — Sanitizar `plugin_id` antes do `remove_dir_all`
 
-**Status:** aberto · **Custo:** P · **Impacto:** 5 · **Segurança — prevenção**
+**Status:** concluído · **Custo:** P · **Impacto:** 5 · **Segurança — prevenção**
 
 **Problema.** `plugin_loader.rs:193` faz `join(plugin_id)` cru e apaga o resultado com `remove_dir_all`. Um id contendo `..` escapa do diretório de plugins e deleta caminho arbitrário.
 
@@ -56,7 +61,7 @@ Ainda assim **não é release de segurança isolada**: explorar exige compromete
 
 ### B41 — Cascata de client do YouTube (SABR)
 
-**Status:** aberto · **Custo:** P · **Impacto:** 5 · **Melhor razão custo/impacto da lista**
+**Status:** concluído · **Custo:** P · **Impacto:** 5 · **Melhor razão custo/impacto da lista**
 
 **Problema.** O extractor `web` passou a devolver formatos SABR-only que quebram o caminho normal de download. O usuário vê falha sem causa legível.
 
