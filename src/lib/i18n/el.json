@@ -178,6 +178,8 @@
     "champ_select_title": "Επιλογή ηρώων",
     "bench_title": "Πάγκος",
     "reroll": "Reroll",
+    "reroll_keep": "Reroll διατηρώντας τον ήρωα",
+    "reroll_keep_hint": "Ξοδεύει το reroll για να διευρύνει τον πάγκο και επαναφέρει τον ήρωά σου.",
     "swap": "Αλλαγή σε",
     "remove": "Αφαίρεση",
     "live_title": "Ζωντανός αγώνας",

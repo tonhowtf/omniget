@@ -377,6 +377,16 @@ async fn handle_trades(
             Ok(_) => {
                 TRADES_HANDLED.lock().await.insert(id);
                 tracing::info!("[league] trade request {}: {}ed", id, strategy);
+                // Without clearing it the client keeps the request pending in the
+                // UI even though it was already answered.
+                let cleared = lcu_post_raw(
+                    client,
+                    &format!("/lol-champ-select/v1/ongoing-trade/{}/clear", id),
+                )
+                .await;
+                if let Err(e) = cleared {
+                    tracing::debug!("[league] clearing trade {} failed: {}", id, e);
+                }
             }
             Err(e) => tracing::debug!("[league] trade {} failed: {}", strategy, e),
         }

@@ -147,7 +147,12 @@
             </button>
           {/each}
         </div>
-        <button class="button" onclick={() => onAction("league_reroll")}>{$t("league.reroll")}</button>
+        <div class="reroll-actions">
+          <button class="button" onclick={() => onAction("league_reroll")}>{$t("league.reroll")}</button>
+          <button class="button" onclick={() => onAction("league_reroll_keeping_champion")} title={$t("league.reroll_keep_hint") as string}>
+            {$t("league.reroll_keep")}
+          </button>
+        </div>
       </div>
     {/if}
     {#if dodgeError}

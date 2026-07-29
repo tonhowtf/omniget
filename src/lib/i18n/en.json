@@ -196,6 +196,8 @@
     "champ_select_title": "Champion select",
     "bench_title": "Bench",
     "reroll": "Reroll",
+    "reroll_keep": "Reroll, keep champion",
+    "reroll_keep_hint": "Spends the reroll to widen the bench and swaps your current champion back in.",
     "swap": "Swap to",
     "remove": "Remove",
     "live_title": "Live game",

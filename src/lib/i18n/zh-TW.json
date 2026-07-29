@@ -178,6 +178,8 @@
     "champ_select_title": "英雄選擇",
     "bench_title": "候補席",
     "reroll": "重骰",
+    "reroll_keep": "重隨但保留英雄",
+    "reroll_keep_hint": "花費重隨擴充備選席，並把你目前的英雄換回來。",
     "swap": "交換",
     "remove": "移除",
     "live_title": "進行中的對戰",

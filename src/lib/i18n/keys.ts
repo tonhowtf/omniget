@@ -529,6 +529,8 @@ export type TranslationKeys =
   | 'league.refresh'
   | 'league.remove'
   | 'league.reroll'
+  | 'league.reroll_keep'
+  | 'league.reroll_keep_hint'
   | 'league.respawn_in'
   | 'league.role_bottom'
   | 'league.role_jungle'

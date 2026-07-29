@@ -178,6 +178,8 @@
     "champ_select_title": "Selezione campioni",
     "bench_title": "Panchina",
     "reroll": "Reroll",
+    "reroll_keep": "Reroll mantenendo il campione",
+    "reroll_keep_hint": "Spende il reroll per ampliare la panchina e rimette il tuo campione attuale.",
     "swap": "Scambia con",
     "remove": "Rimuovi",
     "live_title": "Partita in corso",

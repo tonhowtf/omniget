@@ -178,6 +178,8 @@
     "champ_select_title": "チャンピオン選択",
     "bench_title": "ベンチ",
     "reroll": "リロール",
+    "reroll_keep": "リロールしてチャンピオンを維持",
+    "reroll_keep_hint": "リロールを消費してベンチを広げ、今のチャンピオンを戻します。",
     "swap": "交換",
     "remove": "削除",
     "live_title": "進行中のゲーム",

@@ -848,6 +848,12 @@
     color: var(--text-secondary);
     }
 
+  .league-page :global(.reroll-actions) {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    }
+
   .league-page :global(.queue-filter) {
     display: flex;
     gap: 6px;

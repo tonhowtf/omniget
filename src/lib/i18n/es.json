@@ -178,6 +178,8 @@
     "champ_select_title": "Selección de campeones",
     "bench_title": "Banco",
     "reroll": "Reroll",
+    "reroll_keep": "Rerollear y mantener campeón",
+    "reroll_keep_hint": "Gasta el reroll para ampliar el banquillo y recupera tu campeón actual.",
     "swap": "Cambiar a",
     "remove": "Quitar",
     "live_title": "Partida en vivo",

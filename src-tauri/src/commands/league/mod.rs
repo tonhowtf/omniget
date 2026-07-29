@@ -476,6 +476,33 @@ pub async fn league_reroll() -> Result<(), String> {
     Ok(())
 }
 
+/// Spends the reroll to widen the bench but keeps the champion the user already
+/// had: the roll is read before it happens, then swapped back from the bench.
+#[tauri::command]
+pub async fn league_reroll_keeping_champion() -> Result<Value, String> {
+    ensure_enabled()?;
+    let client = get_client().await?;
+    let before = lcu_get_raw(&client, "/lol-champ-select/v1/current-champion")
+        .await
+        .ok()
+        .and_then(|v| v.as_i64());
+    lcu_post_raw(&client, "/lol-champ-select/v1/session/my-selection/reroll").await?;
+    let Some(champion_id) = before.filter(|id| *id > 0) else {
+        // Without knowing the previous champion there is nothing to restore, and
+        // the reroll itself already went through.
+        return Ok(json!({ "restored": false, "championId": Value::Null }));
+    };
+    let swapped = lcu_post_raw(
+        &client,
+        &format!("/lol-champ-select/v1/session/bench/swap/{}", champion_id),
+    )
+    .await;
+    Ok(json!({
+        "restored": swapped.is_ok(),
+        "championId": champion_id,
+    }))
+}
+
 #[tauri::command]
 pub async fn league_live_game() -> Result<Value, String> {
     ensure_enabled()?;

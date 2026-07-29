@@ -178,6 +178,8 @@
     "champ_select_title": "Sélection des champions",
     "bench_title": "Banc",
     "reroll": "Relancer",
+    "reroll_keep": "Relancer en gardant le champion",
+    "reroll_keep_hint": "Utilise la relance pour élargir le banc et récupère votre champion actuel.",
     "swap": "Échanger contre",
     "remove": "Retirer",
     "live_title": "Partie en direct",
