@@ -20,6 +20,17 @@ Formato: **o que clicar** → o que precisa acontecer.
   "Cortar silêncio" devolve `.m4a` com duração batendo com a estimativa, "Nivelar voz"
   devolve `.mp4` com vídeo idêntico e áudio nivelado. Os três botões nunca foram clicados.
 
+## Onda B
+
+- **B34 pre-flight de lote** → quando ligado ao botão de lote: colar 3 links sendo
+  um privado e um já baixado, confirmar que o resumo aparece **antes** de começar,
+  que diz quantos vão baixar, e que o link privado sugere importar cookies.
+  Encher o disco e confirmar que o lote para em vez de começar.
+- **B52 Smart Speed no player** → quando ligado ao player de curso: numa aula com
+  silêncio, ligar o toggle e confirmar que a reprodução pula sem travar e sem
+  cortar o início da fala. Desligar e confirmar que volta ao normal na hora,
+  **sem reprocessar nada**. Assistir de novo não pode recomputar o mapa.
+
 ## Onda A
 
 Nenhum dos cinco tem superfície visual ainda — são módulos de lógica sem UI
