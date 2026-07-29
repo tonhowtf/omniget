@@ -183,6 +183,8 @@
     "live_title": "進行中のゲーム",
     "respawn_in": "リスポーンまで",
     "automation_title": "自動化",
+    "notify_ready": "マッチが見つかったら通知",
+    "notify_ready_desc": "OmniGet のウィンドウが前面にないときだけデスクトップ通知を送ります。",
     "auto_pick": "自動ピック",
     "auto_pick_desc": "自分の番になるとリストから利用可能な最初のチャンピオンをピックします。",
     "auto_ban": "自動バン",

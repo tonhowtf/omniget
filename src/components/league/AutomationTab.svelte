@@ -36,7 +36,7 @@
     }
   }
 
-  function toggleLeagueFlag(field: "auto_pick" | "auto_ban" | "auto_lock" | "auto_honor" | "auto_play_again" | "auto_reconnect") {
+  function toggleLeagueFlag(field: "auto_pick" | "auto_ban" | "auto_lock" | "auto_honor" | "auto_play_again" | "auto_reconnect" | "notify_ready_check") {
     const current = (settings?.league as any)?.[field] ?? false;
     updateSettings({ league: { [field]: !current } });
   }
@@ -116,6 +116,16 @@
       <span class="action-hint">{$t("league.accept_delay_desc")}</span>
     </div>
   {/if}
+  <div class="divider"></div>
+  <div class="action-row">
+    <div class="action-col">
+      <span class="action-label">{$t("league.notify_ready")}</span>
+      <span class="action-hint">{$t("league.notify_ready_desc")}</span>
+    </div>
+    <button class="toggle" class:on={settings?.league?.notify_ready_check ?? true} onclick={() => toggleLeagueFlag("notify_ready_check")} role="switch" aria-checked={settings?.league?.notify_ready_check ?? true} aria-label={$t("league.notify_ready") as string}>
+      <span class="toggle-knob"></span>
+    </button>
+  </div>
   <div class="divider"></div>
   <div class="action-row">
     <div class="action-col">

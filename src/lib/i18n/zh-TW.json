@@ -183,6 +183,8 @@
     "live_title": "進行中的對戰",
     "respawn_in": "復活倒數",
     "automation_title": "自動化",
+    "notify_ready": "找到對局時通知",
+    "notify_ready_desc": "僅在 OmniGet 視窗未取得焦點時發送系統通知。",
     "auto_pick": "自動選角",
     "auto_pick_desc": "輪到你時自動選擇清單中第一個可用的英雄。",
     "auto_ban": "自動禁用",

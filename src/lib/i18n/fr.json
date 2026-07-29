@@ -183,6 +183,8 @@
     "live_title": "Partie en direct",
     "respawn_in": "réapparaît dans",
     "automation_title": "Automatisation",
+    "notify_ready": "Prévenir quand une partie est trouvée",
+    "notify_ready_desc": "Envoie une notification système uniquement lorsque la fenêtre d'OmniGet n'est pas au premier plan.",
     "auto_pick": "Pick automatique",
     "auto_pick_desc": "Choisit le premier champion disponible de votre liste quand c'est votre tour.",
     "auto_ban": "Ban automatique",

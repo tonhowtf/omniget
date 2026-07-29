@@ -201,6 +201,8 @@
     "live_title": "Live game",
     "respawn_in": "respawns in",
     "automation_title": "Automation",
+    "notify_ready": "Notify when a match is found",
+    "notify_ready_desc": "Sends a desktop notification only while the OmniGet window is not in focus.",
     "auto_pick": "Auto pick",
     "auto_pick_desc": "Picks the first available champion from your list when it's your turn.",
     "auto_ban": "Auto ban",

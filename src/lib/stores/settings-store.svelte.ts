@@ -94,6 +94,7 @@ export type AppSettings = {
     enabled?: boolean;
     auto_accept?: boolean;
     auto_accept_delay?: number;
+    notify_ready_check?: boolean;
     auto_pick?: boolean;
     auto_ban?: boolean;
     auto_lock?: boolean;
