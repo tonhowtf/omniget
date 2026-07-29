@@ -1072,6 +1072,8 @@
     "batch_detected": "检测到 {{count}} 个链接",
     "batch_download_all": "全部下载",
     "batch_queued": "已添加 {{count}} 个下载到队列",
+    "preflight_stop": "{{total}} 个链接都无法下载 —— 其中没有受支持的网站。",
+    "preflight_skips": "跳过 {{total}} 个中的 {{skipped}} 个：不支持或重复。",
     "batch_file_open": "从文件加载",
     "batch_file_title": "选择一个包含 URL 的 .txt 文件",
     "batch_file_empty": "文件中未找到有效的 URL",

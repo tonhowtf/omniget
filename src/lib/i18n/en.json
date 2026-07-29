@@ -1118,6 +1118,8 @@
     "batch_detected": "{{count}} URLs detected",
     "batch_download_all": "Download all",
     "batch_queued": "{{count}} downloads added to queue",
+    "preflight_stop": "None of the {{total}} links can be downloaded — no supported site among them.",
+    "preflight_skips": "Skipping {{skipped}} of {{total}}: unsupported or repeated.",
     "batch_file_open": "Load from file",
     "batch_file_title": "Select a .txt file with URLs",
     "batch_file_empty": "No valid URLs found in the file",

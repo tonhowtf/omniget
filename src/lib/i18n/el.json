@@ -1072,6 +1072,8 @@
     "batch_detected": "Ανιχνεύθηκαν {{count}} URLs",
     "batch_download_all": "Λήψη όλων",
     "batch_queued": "{{count}} λήψεις προστέθηκαν στην ουρά",
+    "preflight_stop": "Κανένας από τους {{total}} συνδέσμους δεν μπορεί να ληφθεί — δεν υπάρχει υποστηριζόμενος ιστότοπος.",
+    "preflight_skips": "Παράλειψη {{skipped}} από {{total}}: χωρίς υποστήριξη ή διπλότυπα.",
     "batch_file_open": "Φόρτωση από αρχείο",
     "batch_file_title": "Επιλέξτε ένα αρχείο .txt με URLs",
     "batch_file_empty": "Δεν βρέθηκαν έγκυρα URLs στο αρχείο",

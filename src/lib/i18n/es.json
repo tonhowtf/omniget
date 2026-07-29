@@ -1072,6 +1072,8 @@
     "batch_detected": "{{count}} URLs detectadas",
     "batch_download_all": "Descargar todo",
     "batch_queued": "{{count}} descargas añadidas a la cola",
+    "preflight_stop": "Ninguno de los {{total}} enlaces se puede descargar: no hay sitios compatibles entre ellos.",
+    "preflight_skips": "Se omiten {{skipped}} de {{total}}: sin soporte o repetidos.",
     "batch_file_open": "Cargar desde archivo",
     "batch_file_title": "Selecciona un archivo .txt con URLs",
     "batch_file_empty": "No se encontraron URLs válidas en el archivo",

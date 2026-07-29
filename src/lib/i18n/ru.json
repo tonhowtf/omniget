@@ -1072,6 +1072,8 @@
     "batch_detected": "Обнаружено {{count}} URL",
     "batch_download_all": "Скачать всё",
     "batch_queued": "Добавлено в очередь загрузок: {{count}}",
+    "preflight_stop": "Ни одну из {{total}} ссылок скачать нельзя — поддерживаемых сайтов среди них нет.",
+    "preflight_skips": "Пропускаем {{skipped}} из {{total}}: не поддерживается или повтор.",
     "batch_file_open": "Загрузить из файла",
     "batch_file_title": "Выберите .txt файл с URL",
     "batch_file_empty": "В файле не найдено корректных URL",

@@ -911,6 +911,7 @@ pub fn run() {
             commands::dependencies::dependency_archived_versions,
             commands::diagnostics::flight_recorder_dump,
             commands::diagnostics::flight_recorder_clear,
+            commands::diagnostics::preflight_batch,
             commands::dependencies::rollback_dependency,
             commands::dependencies::dependency_variants,
             commands::dependencies::dependency_install_dir,

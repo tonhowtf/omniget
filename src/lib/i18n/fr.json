@@ -1072,6 +1072,8 @@
     "batch_detected": "{{count}} URLs détectées",
     "batch_download_all": "Tout télécharger",
     "batch_queued": "{{count}} téléchargements ajoutés à la file d'attente",
+    "preflight_stop": "Aucun des {{total}} liens ne peut être téléchargé : aucun site pris en charge parmi eux.",
+    "preflight_skips": "{{skipped}} sur {{total}} ignorés : non pris en charge ou en double.",
     "batch_file_open": "Charger depuis un fichier",
     "batch_file_title": "Sélectionner un fichier .txt avec des URL",
     "batch_file_empty": "Aucune URL valide trouvée dans le fichier",

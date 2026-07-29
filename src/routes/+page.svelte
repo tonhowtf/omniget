@@ -733,6 +733,13 @@
     }
   }
 
+  type PreflightReport = {
+    total: number;
+    ready: number;
+    verdict: "go" | "go_with_skips" | "stop";
+    problems: { url: string; problem: string | null }[];
+  };
+
   async function handleBatchDownload() {
     if (omniState.kind !== "batch") return;
     const batchUrls = omniState.urls;
@@ -749,11 +756,37 @@
       outputDir = selected;
     }
 
+    // B34: conferir antes de enfileirar. Sem isto, uma URL sem suporte ou
+    // repetida entra na fila e so falha depois, uma por uma — o usuario
+    // descobre item a item o que dava para saber de uma vez.
+    let paraBaixar = batchUrls;
+    try {
+      const report = await invoke<PreflightReport>("preflight_batch", {
+        urls: batchUrls,
+        outputDir,
+      });
+      if (report.verdict === "stop") {
+        showToast("error", $t("omnibox.preflight_stop", { total: report.total }) as string);
+        return;
+      }
+      if (report.problems.length > 0) {
+        const ruins = new Set(report.problems.map(p => p.url));
+        paraBaixar = batchUrls.filter(u => !ruins.has(u));
+        showToast("info", $t("omnibox.preflight_skips", {
+          skipped: report.problems.length,
+          total: report.total,
+        }) as string);
+      }
+    } catch {
+      // A conferencia e uma cortesia, nao um portao: se ela falhar, o lote
+      // segue como seguia antes.
+    }
+
     omniState = { kind: "idle" };
     url = "";
 
     const results = await Promise.allSettled(
-      batchUrls.map(u => invoke<DownloadStarted>("download_from_url", {
+      paraBaixar.map(u => invoke<DownloadStarted>("download_from_url", {
         url: u,
         outputDir,
         downloadMode: downloadMode === "auto" ? null : downloadMode,

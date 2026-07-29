@@ -769,6 +769,8 @@ export type TranslationKeys =
   | 'omnibox.playlist_none'
   | 'omnibox.playlist_none_selected'
   | 'omnibox.playlist_selected'
+  | 'omnibox.preflight_skips'
+  | 'omnibox.preflight_stop'
   | 'omnibox.preparing'
   | 'omnibox.preset_best'
   | 'omnibox.preset_custom'
