@@ -64,6 +64,28 @@ static SPONSORBLOCK_CATEGORIES_FN: OnceLock<SponsorBlockCategoriesFn> = OnceLock
 /// yt-dlp removeu esse suporte na 2026.06.09 e recomenda `-N` no lugar.
 pub(crate) const ARIA2C_ALLOWED_PROTOCOLS: &str = "http,ftp";
 
+/// Ordem de fallback de `player_client` quando o YouTube devolve formato
+/// SABR-only.
+///
+/// O extractor `web` passou a entregar formatos que o caminho normal de
+/// download nao consegue puxar. Estes quatro clients ainda servem URL
+/// progressiva; a ordem vai do mais confiavel ao mais restrito.
+pub(crate) const SABR_CLIENT_CASCADE: [&str; 4] = ["android", "ios", "tv", "web_safari"];
+
+/// `Some(arg)` quando o stderr indica formato SABR-only e ainda resta client na
+/// cascata; `None` quando nao e SABR ou a cascata se esgotou.
+///
+/// Separado do laco de retry de proposito: e o unico jeito de testar a decisao
+/// com stderr real capturado como fixture, sem subir um download.
+pub(crate) fn sabr_fallback_client(stderr_lower: &str, attempt: usize) -> Option<String> {
+    if !stderr_lower.contains("sabr") {
+        return None;
+    }
+    SABR_CLIENT_CASCADE
+        .get(attempt)
+        .map(|client| format!("youtube:player_client={client}"))
+}
+
 /// Piso de versão do yt-dlp. 2026.06.09 é a release que corrigiu
 /// CVE-2026-50019 (vazamento de cookie no downloader curl), CVE-2026-50023
 /// (escrita de `.desktop`/`.url`/`.webloc`) e CVE-2026-50574 (execução
@@ -2787,6 +2809,21 @@ pub async fn download_video(
                 tracing::warn!("[yt-dlp] nsig error, switching to {}", client);
             }
 
+            if is_youtube_url(url) {
+                if let Some(client) = sabr_fallback_client(&stderr_lower, attempt) {
+                    base_args
+                        .retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                    extra_args
+                        .retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                    extra_args.push("--extractor-args".to_string());
+                    extra_args.push(client.clone());
+                    tracing::warn!(
+                        "[yt-dlp] SABR-only formats detected, switching player_client to {}",
+                        client
+                    );
+                }
+            }
+
             if (stderr_lower.contains("http error 403") || stderr_lower.contains("forbidden"))
                 && !extra_args.contains(&"--force-ipv4".to_string())
             {
@@ -4024,5 +4061,68 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  yt-dlp.exe\n\
         assert_eq!(ytdlp_version_is_supported("2026.06.08"), Some(false));
         // Versao ilegivel nao pode ser reportada como desatualizada.
         assert_eq!(ytdlp_version_is_supported("sei la"), None);
+    }
+
+    // --- B41: cascata de client acionada por SABR ---
+
+    /// stderr real do yt-dlp quando o cliente `web` devolve formato SABR-only.
+    const SABR_STDERR: &str = "WARNING: [youtube] abc123: Some web client https formats have been \
+skipped as they are missing a url. YouTube is forcing SABR streaming for this client. \
+See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details\n\
+ERROR: [youtube] abc123: Requested format is not available";
+
+    #[test]
+    fn sabr_no_stderr_dispara_a_cascata_na_ordem() {
+        let lower = SABR_STDERR.to_lowercase();
+        assert_eq!(
+            sabr_fallback_client(&lower, 0).as_deref(),
+            Some("youtube:player_client=android")
+        );
+        assert_eq!(
+            sabr_fallback_client(&lower, 1).as_deref(),
+            Some("youtube:player_client=ios")
+        );
+        assert_eq!(
+            sabr_fallback_client(&lower, 2).as_deref(),
+            Some("youtube:player_client=tv")
+        );
+        assert_eq!(
+            sabr_fallback_client(&lower, 3).as_deref(),
+            Some("youtube:player_client=web_safari")
+        );
+    }
+
+    #[test]
+    fn cascata_esgotada_devolve_none_em_vez_de_repetir() {
+        let lower = SABR_STDERR.to_lowercase();
+        assert_eq!(sabr_fallback_client(&lower, 4), None);
+        assert_eq!(sabr_fallback_client(&lower, 99), None);
+    }
+
+    #[test]
+    fn erro_que_nao_e_sabr_nao_troca_de_client() {
+        // Regressao: trocar de client em qualquer falha mascararia a causa real
+        // e gastaria as tentativas de retry a toa.
+        for stderr in [
+            "error: [youtube] abc: video unavailable",
+            "error: http error 429: too many requests",
+            "error: [youtube] abc: nsig extraction failed",
+            "error: unable to download webpage: timed out",
+            "",
+        ] {
+            assert_eq!(
+                sabr_fallback_client(stderr, 0),
+                None,
+                "trocou de client sem SABR: {stderr:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_cascata_nao_contem_o_client_que_causa_o_problema() {
+        // `web` e `default` sao justamente os que devolvem SABR-only.
+        assert!(!SABR_CLIENT_CASCADE.contains(&"web"));
+        assert!(!SABR_CLIENT_CASCADE.contains(&"default"));
+        assert_eq!(SABR_CLIENT_CASCADE.len(), 4);
     }
 }
