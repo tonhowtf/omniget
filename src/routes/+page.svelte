@@ -702,6 +702,46 @@
 
     const currentUrl = url.trim();
     const platform = info.platform;
+
+    // B40: a regra do usuário decide antes de a gente perguntar de novo. Só
+    // preenche o que ele não escolheu explicitamente nesta sessão — uma regra
+    // não pode sobrescrever a escolha feita agora, na frente dele.
+    let ruleQuality = selectedQuality;
+    try {
+      const hit = await invoke<{ name: string; then: { output_dir?: string | null; quality?: string | null } } | null>(
+        "preview_rule_match",
+        { url: currentUrl, platform },
+      );
+      if (hit) {
+        if (hit.then.output_dir) outputDir = hit.then.output_dir;
+        if (hit.then.quality && !selectedQuality) ruleQuality = hit.then.quality;
+        showToast("info", $t("omnibox.rule_applied", { name: hit.name }) as string);
+      }
+    } catch {
+      // Regra é conveniência: se falhar, o download segue com as escolhas manuais.
+    }
+
+    // B39: comparar com o que esta URL era da última vez, antes de sobrescrever.
+    // Depois do download é tarde: o arquivo antigo já foi.
+    const snapshot = {
+      duration_secs: mediaPreview?.duration_seconds ?? null,
+      chapters: [],
+      sha256: null,
+      title: mediaPreview?.title ?? null,
+    };
+    try {
+      const mudou = await invoke<string | null>("check_media_changed", {
+        url: currentUrl,
+        current: snapshot,
+      });
+      if (mudou) {
+        showToast("info", $t("omnibox.media_changed", { summary: mudou }) as string);
+      }
+    } catch {
+      // Aviso é cortesia: se falhar, o download segue como sempre seguiu.
+    }
+    void invoke("record_media_snapshot", { url: currentUrl, snapshot }).catch(() => {});
+
     omniState = { kind: "preparing", platform };
     url = "";
 
@@ -710,7 +750,7 @@
         url: currentUrl,
         outputDir,
         downloadMode: downloadMode === "auto" ? null : downloadMode,
-        quality: selectedQuality,
+        quality: ruleQuality,
         formatId: selectedFormatId,
         referer: referer.trim() || null,
         cookieSlug: selectedCookieSlug,
