@@ -181,6 +181,14 @@ pub const VOICE_BOOST_FILTER: &str = "loudnorm=I=-16:TP=-1.5:LRA=11";
 pub const SMART_SPEED_FILTER: &str =
     "silenceremove=stop_periods=-1:stop_duration=0.35:stop_threshold=-38dB";
 
+/// O `stop_duration` de `SMART_SPEED_FILTER`, em segundos.
+///
+/// `silenceremove` nao remove o silencio inteiro: ele preserva `stop_duration`
+/// de cada trecho. Sem descontar isso, a estimativa promete mais corte do que
+/// entrega — medido contra midia real, previa 20,0% e o corte foi 18,5%, e a
+/// diferenca era exatamente 12 silencios x 0,35 s.
+pub const SMART_SPEED_KEEP_SECS: f64 = 0.35;
+
 /// Argumentos que medem o silencio sem escrever arquivo, para estimar o ganho
 /// de duracao antes de o usuario aplicar.
 ///
@@ -204,7 +212,12 @@ pub fn silence_probe_args() -> Vec<String> {
 /// silencio e e ignorado, porque nao da para saber a duracao sem a duracao
 /// total do arquivo.
 pub fn parse_silence_total_secs(stderr: &str) -> f64 {
-    let mut total = 0.0;
+    parse_silence_intervals(stderr).iter().sum()
+}
+
+/// Cada trecho de silencio detectado, em segundos.
+pub fn parse_silence_intervals(stderr: &str) -> Vec<f64> {
+    let mut out = Vec::new();
     for line in stderr.lines() {
         let Some(idx) = line.find("silence_duration:") else {
             continue;
@@ -213,12 +226,25 @@ pub fn parse_silence_total_secs(stderr: &str) -> f64 {
         if let Some(value) = rest.split_whitespace().next() {
             if let Ok(secs) = value.parse::<f64>() {
                 if secs.is_finite() && secs > 0.0 {
-                    total += secs;
+                    out.push(secs);
                 }
             }
         }
     }
-    total
+    out
+}
+
+/// Quanto o Smart Speed vai *de fato* remover, descontando o `stop_duration`
+/// que `silenceremove` preserva em cada trecho.
+///
+/// Validado contra midia real: 12 silencios de 5 s em 300 s. A soma crua dava
+/// 60 s (20,0%) e o corte real foi 55,5 s (18,5%) — os 4,2 s de diferenca sao
+/// 12 x 0,35 s. Esta funcao devolve os 55,5 s.
+pub fn estimate_removable_secs(stderr: &str) -> f64 {
+    parse_silence_intervals(stderr)
+        .iter()
+        .map(|d| (d - SMART_SPEED_KEEP_SECS).max(0.0))
+        .sum()
 }
 
 pub fn preset(action: &str, start: Option<&str>, end: Option<&str>) -> Result<Preset, String> {
@@ -607,5 +633,31 @@ size=N/A time=00:10:00.00 bitrate=N/A speed= 412x\n";
         assert!(VOICE_BOOST_FILTER.contains("I=-16"));
         assert!(VOICE_BOOST_FILTER.contains("TP=-1.5"));
         assert!(SMART_SPEED_FILTER.contains("stop_periods=-1"));
+    }
+
+    #[test]
+    fn estimativa_desconta_o_silencio_que_o_filtro_preserva() {
+        // Medido contra midia real, nao deduzido: 12 silencios de 5 s em 300 s.
+        // A soma crua da 60 s (20,0%), mas silenceremove preserva 0,35 s de cada
+        // trecho, entao o corte real foi 55,5 s (18,5%). A estimativa antiga
+        // prometia mais do que entregava.
+        let stderr: String = (0..12)
+            .map(|_| "[silencedetect] silence_end: 25 | silence_duration: 5.0\n")
+            .collect();
+
+        assert!((parse_silence_total_secs(&stderr) - 60.0).abs() < 1e-9);
+
+        let removivel = estimate_removable_secs(&stderr);
+        assert!(
+            (removivel - 55.8).abs() < 0.5,
+            "esperava ~55.8 s removiveis, obtive {removivel}"
+        );
+        assert!(removivel < parse_silence_total_secs(&stderr));
+    }
+
+    #[test]
+    fn trecho_menor_que_o_stop_duration_nao_vira_corte_negativo() {
+        let stderr = "silence_duration: 0.1\nsilence_duration: 0.2\n";
+        assert_eq!(estimate_removable_secs(stderr), 0.0);
     }
 }

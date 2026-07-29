@@ -157,7 +157,9 @@ pub async fn video_op_silence_estimate(input: String) -> Result<SilenceEstimate,
 
     // silencedetect escreve no stderr mesmo em execucao bem sucedida.
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let silence_secs = ffmpeg_ops::parse_silence_total_secs(&stderr);
+    // Desconta o que o filtro silenceremove preserva: sem isso o preview promete
+    // mais corte do que a conversao entrega.
+    let silence_secs = ffmpeg_ops::estimate_removable_secs(&stderr);
     let saved_percent = if total_secs > 0.0 {
         (silence_secs / total_secs * 100.0).clamp(0.0, 100.0)
     } else {
