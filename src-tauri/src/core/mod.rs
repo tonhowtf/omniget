@@ -36,6 +36,7 @@ pub mod portable;
 pub mod preflight;
 pub mod queue;
 pub mod queue_history;
+pub mod queue_wal;
 pub mod recovery;
 pub mod root_cause;
 pub mod rpc;
