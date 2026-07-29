@@ -353,6 +353,22 @@ pub fn run() {
                     }
                 }
 
+                // macOS nao tem para onde apontar: o wry nao le `data_directory`
+                // no WKWebView (nenhuma referencia em `src/wkwebview/`), ao
+                // contrario do webkitgtk, que a usa para base_data_directory,
+                // base_cache_directory e cookies.
+                //
+                // Entao o modo portatil nao cumpre o que promete aqui, e dizer
+                // isso e melhor do que deixar o usuario achar que o pendrive nao
+                // deixou rastro. Issue #227.
+                #[cfg(target_os = "macos")]
+                if core::portable::portable_webview_dir_from_env().is_some() {
+                    tracing::warn!(
+                        "[portable] no macOS o WebView guarda dados em ~/Library mesmo em modo \
+                         portatil — o wry nao permite redirecionar. Ver github.com/tonhowtf/omniget/issues/227"
+                    );
+                }
+
                 builder.build()?;
 
                 // A unica prova de que a janela subiu. O CI compila em todas as
