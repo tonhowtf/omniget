@@ -152,7 +152,7 @@ impl Platform {
             Some(Platform::Hotmart)
         } else if matches("youtube.com") || matches("youtube-nocookie.com") || host == "youtu.be" {
             Some(Platform::YouTube)
-} else if matches("instagram.com") || matches("ddinstagram.com") {
+        } else if matches("instagram.com") || matches("ddinstagram.com") {
             Some(Platform::Instagram)
         } else if matches("threads.net") || matches("threads.com") {
             Some(Platform::Threads)
@@ -217,7 +217,7 @@ impl Platform {
         }
     }
 
-pub fn all() -> &'static [Platform] {
+    pub fn all() -> &'static [Platform] {
         &[
             Platform::Hotmart,
             Platform::YouTube,

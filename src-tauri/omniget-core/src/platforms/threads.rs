@@ -224,7 +224,9 @@ impl ThreadsDownloader {
     }
 
     /// Estrae i media (video/immagini) dal post
-    pub(crate) fn extract_media_from_post(post: &serde_json::Value) -> anyhow::Result<ThreadsMedia> {
+    pub(crate) fn extract_media_from_post(
+        post: &serde_json::Value,
+    ) -> anyhow::Result<ThreadsMedia> {
         // Controlla se è un carousel
         if let Some(carousel_media) = post.get("carousel_media").and_then(|v| v.as_array()) {
             if !carousel_media.is_empty() {
@@ -400,16 +402,17 @@ impl PlatformDownloader for ThreadsDownloader {
         let media = Self::extract_media_from_post(container)?;
 
         match media {
-            ThreadsMedia::Single { url, is_video, width, height } => {
+            ThreadsMedia::Single {
+                url,
+                is_video,
+                width,
+                height,
+            } => {
                 let (media_type, format) = if is_video {
                     (MediaType::Video, "mp4")
                 } else {
                     // Determina estensione dall'URL
-                    let ext = if url.contains(".webp") {
-                        "webp"
-                    } else {
-                        "jpg"
-                    };
+                    let ext = if url.contains(".webp") { "webp" } else { "jpg" };
                     (MediaType::Photo, ext)
                 };
 
@@ -639,7 +642,12 @@ mod tests {
 
         let result = ThreadsDownloader::extract_media_from_post(&post).unwrap();
         match result {
-            ThreadsMedia::Single { url, is_video, width, height } => {
+            ThreadsMedia::Single {
+                url,
+                is_video,
+                width,
+                height,
+            } => {
                 assert_eq!(url, "https://scontent.cdninstagram.com/video_best.mp4");
                 assert!(is_video);
                 assert_eq!(width, 1080);
@@ -666,7 +674,12 @@ mod tests {
 
         let result = ThreadsDownloader::extract_media_from_post(&post).unwrap();
         match result {
-            ThreadsMedia::Single { url, is_video, width, height } => {
+            ThreadsMedia::Single {
+                url,
+                is_video,
+                width,
+                height,
+            } => {
                 assert_eq!(url, "https://scontent.cdninstagram.com/image.jpg");
                 assert!(!is_video);
                 assert_eq!(width, 1080);
@@ -729,7 +742,10 @@ mod tests {
         let result = ThreadsDownloader::find_post_recursive(&data, "ABC123");
         assert!(result.is_some());
         assert_eq!(
-            result.unwrap().pointer("/user/username").and_then(|v| v.as_str()),
+            result
+                .unwrap()
+                .pointer("/user/username")
+                .and_then(|v| v.as_str()),
             Some("testuser")
         );
     }
@@ -782,7 +798,12 @@ mod tests {
         let container = ThreadsDownloader::resolve_media_container(&post);
         let result = ThreadsDownloader::extract_media_from_post(container).unwrap();
         match result {
-            ThreadsMedia::Single { url, is_video, width, height } => {
+            ThreadsMedia::Single {
+                url,
+                is_video,
+                width,
+                height,
+            } => {
                 assert_eq!(url, "https://scontent.cdninstagram.com/linked.mp4");
                 assert!(is_video);
                 assert_eq!(width, 1080);
