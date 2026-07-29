@@ -1,102 +1,142 @@
-# ENTREGA — sessão autônoma 2026-07-29 (Ondas 1 e 2)
+# ENTREGA — sessão autônoma 2026-07-29
 
 `docs/backlog.md` é a fonte de verdade pública; este arquivo é o registro da sessão.
 
-**Placar: 8 `CONCLUIDO`, 0 `BLOQUEADO`, 12 `PENDENTE`.** Próximo item: **B52**.
+**O backlog de feature acabou.** 22 itens entregues e mergeados com CI verde, 1 PR aberta por regra, 1 bloqueado com evidência, 1 adiado por decisão.
 
-> ⚠️ **A v0.7.8 não deve ser tagueada antes da issue #209.** O B49 reestrutura a criação da janela principal e a CI não sobe o app.
+| | |
+|---|---|
+| Testes | 460 → **576** em `main` (596 com a PR #217) |
+| Clippy | 92 warnings reais, portão ativo nas três plataformas |
+| `pnpm check` | 0 erros |
+| Commits em `main` | 0 diretos — tudo por PR |
+| Force-push | 0 |
 
 ---
 
-## 1. Itens entregues
+## 1. Entregue e mergeado
 
-Todos com CI 6/6 verde antes do merge. Nenhum marcado por auto-relato.
-
-| Item | PR | CI | Testes |
+| Onda | Itens | PR | CI |
 |---|---|---|---|
-| B47 + B48 + B41 | #204 | 6/6 | — |
-| B50 · baseline de clippy | #205 | 6/6 | — |
-| B51 · campo Website | #205 | 6/6 | — |
-| B36 · Smart Speed / Voice Boost | #205 | 6/6 | +7 |
-| B45 · caminho de binário | #197 | 6/6 | — |
-| B50-b · baseline reconciliado | #207 | 6/6 | — |
-| B49 · modo portátil | #208 | 6/6 | +4 |
-| B53 · validação do B36 | #210 | 6/6 | +2 |
-
-Testes **460 → 473**. Clippy: 92 warnings reais, portão ativo nas três plataformas. `pnpm check`: 0 erros.
-
-### O que cada um virou, quando divergiu do plano
-
-**B45 — o bloqueio nunca foi o autor.** Vim rebasar a branch dele e não havia o que rebasar: @gtxPrime tinha sincronizado com `main` sozinho, corrigido o ponto 4 e rodado `cargo fmt`. O bloqueio real era **`action_required`** — o GitHub segura workflow de contribuidor externo até o mantenedor aprovar, e o CI tinha nascido no dia anterior, então ninguém tinha notado a fila. Aprovei, verde, mergeada, issue #196 fechada.
-
-**B50-b — os 177 eram contagem dupla.** `1+1+34+8+8+37+42+46 = 177` exatamente: `--all-targets` compila `lib` e `lib test` e o mesmo warning sai uma vez por target. O portão funcionava, mas o número mentia e um warning novo aparecia como +2. Dedup por origem → **92 reais**. Três baselines por plataforma; **os três dão 92/51 e zero lints diferem**, o que é honesto reportar: o split não rende nada hoje.
-
-**B49 — o CI destravou menos do que parecia.** Ter job de Windows torna a compilação verificável, não o comportamento. O job roda `cargo test`, não sobe o app. Implementei e mergeei, mas abri a **issue #209** com os três casos de teste manual, porque um erro aqui não quebra o modo portátil — quebra a abertura do app para todo mundo.
-
-**B53 — a validação achou um bug.** Duas das três promessas do B36 se sustentaram. A terceira não: a sonda previa 20,0% e o corte real foi 18,5%, porque `silenceremove` preserva `stop_duration` de cada trecho (12 × 0,35 s = 1,4%, que fecha a conta). Estimativa corrigida.
+| — | B47 CI · B48 `plugin_id` · B41 cascata SABR | #204 | 6/6 |
+| 1 | B50 baseline clippy · B51 Website · B36 Smart Speed | #205 | 6/6 |
+| 2 | B45 caminho de binário (contribuidor) | #197 | 6/6 |
+| 2 | B50-b baseline dedup + por plataforma | #207 | 6/6 |
+| 2 | B49 modo portátil | #208 | 6/6 |
+| 2 | B53 validação do B36 contra mídia | #210 | 6/6 |
+| 2 | B57 sem regressão · B58 boot observável | #212 | 6/6 |
+| A | B33 flight recorder · B40 regras · B39 diff · B37 rollback · B38 store | #213 | 6/6 |
+| B | B34 pre-flight · B52 Smart Speed no player | #214 | 6/6 |
+| C | B42 PO token · B43 impersonation · B44 causa raiz | #215 | 6/6 |
+| D | B35 concorrência adaptativa · B46 streaming de torrent | #216 | 6/6 |
+| — | B56 política de aprovação de workflow | esta PR | — |
 
 ---
 
-## 2. Bloqueados
+## 2. Aberta e **não** mergeada
 
-**Nenhum.** O único item que estava bloqueado (B45) foi destravado e mergeado.
+### B32 — fila como write-ahead log · PR #217 · CI 6/6
+
+Não mergeada por regra, e a regra está certa: muda como a fila sobrevive a um crash.
+
+Testado contra um **SIGKILL de verdade**, não simulação. `scripts/wal-kill9.py` sobe um filho que grava com `fsync` por registro e o mata enquanto o último está pela metade: **200 registros íntegros, exatamente 1 truncado**. O teste de regressão reproduz esse arquivo e recupera a fila com ordem, progresso e opções.
+
+**Não está ligada ao `queue.rs`.** Substituir o `recovery.json` significa mudar todos os call sites e decidir a migração de quem já tem um — decisão deliberada, não efeito colateral desta PR.
 
 ---
 
-## 3. O que NÃO foi verificado
+## 3. Bloqueado, com evidência
 
-- **O B49 nunca abriu uma janela.** É a lacuna mais séria desta sessão. A CI prova compilação nas três plataformas e a lógica de diretório (4 testes). Não prova que o app sobe, nem que `%LOCALAPPDATA%\wtf.tonho.omniget` para de aparecer. Issue #209, com os passos exatos.
-- **O B53 usou mídia sintética, não uma aula real.** Construí 300 s com 60 s de silêncio conhecido — mais rigoroso para checar a aritmética, mas não é uma aula. O download real do YouTube estourou 10 minutos.
-- **Os três botões do B36 continuam sem nunca terem sido clicados.** Validei os filtros por linha de comando, não pela UI.
-- **O baseline de clippy do Windows veio do log da CI**, não de uma máquina Windows minha. É o output do próprio script rodando lá, então é legítimo, mas não fui eu que rodei.
-- **`pnpm check` subiu de 107 para 109 warnings.** Não fui eu: são dois a11y warnings em `TelegramUploadModal.svelte`, da #197. Verifiquei a origem em vez de adotar o número novo em silêncio.
+### B54 — caso 1 da #209 · portátil no Windows
+
+O caso 2 (abrir **sem** `portable.txt`, o caminho de todo usuário) foi **provado no macOS**: `JANELA CRIADA: label=main` mais boot completo até carregar três plugins. Isso foi possível porque só o `.data_directory()` está atrás de `cfg(windows)` — a reestruturação em si roda em toda plataforma.
+
+O caso 1 continua sem ter sido observado funcionando, e é o que o B49 conserta. Precisa de máquina Windows. Rastreado na **#209**, com @PaduaPlay marcado.
+
+---
+
+## 4. Adiado por decisão
+
+### B55 — smoke test nas três plataformas
+
+Adiado para a estabilização da 0.8.0 pelo próprio modo feature: durante acúmulo de feature, não se age sobre falha de smoke test. É o que fecha a #209 por CI e tapa o buraco estrutural — o CI prova que compila, nunca que abre.
+
+---
+
+## 5. O que NÃO foi verificado
+
+- **Nenhuma das 12 features do modo feature tem UI ligada.** São módulos de lógica com teste; nada foi clicado. As 12 linhas estão em `docs/VALIDACAO-0.8.0.md`.
+- **O B49 está em `main` sem nunca ter aberto uma janela no Windows.** É a lacuna mais séria.
+- **O B53 usou mídia sintética.** O download de uma aula real do YouTube estourou dez minutos — evidência a favor do B42, e limitação do teste.
+- **Nada do bloco de sobrevivência foi exercitado contra rede real.** O B42 nunca falou com um provedor bgutil rodando; o B43 leu a saída real do `--list-impersonate-targets` mas nunca tentou baixar de um site que bloqueia por fingerprint.
+- **O B35 nunca mediu throughput real** e o **B46 nunca viu um torrent vivo.** Ambos têm o núcleo de decisão testado; a medição é I/O não exercitado.
+- **O baseline de clippy do Windows veio do log da CI**, não de uma máquina Windows minha.
 - **Traduções** de es/fr/it/ja/ru/zh/zh-TW/el continuam sem revisão nativa.
 
 ---
 
-## 4. Cenários de teste manual
+## 6. Erros meus, e como apareceram
 
-**Bloqueantes para a v0.7.8** (issue #209, Windows):
+Registrados porque o padrão importa mais que os casos.
 
-1. **Portátil.** `portable.txt` ao lado do `.exe`, apague `%LOCALAPPDATA%\wtf.tonho.omniget`, abra. A janela precisa abrir, a pasta não pode voltar, e `<app>\data\webview` precisa existir.
-2. **Instalação normal — o risco de regressão.** Abra **sem** `portable.txt`. A janela precisa abrir e se comportar como antes. Esse caminho é o de todo mundo.
-3. **Segunda abertura** nos dois modos: settings e tamanho de janela persistem.
-
-**Não bloqueantes:**
-
-4. **Smart Speed pela UI.** Numa aula real, "Medir silêncio" → deve estimar um pouco **menos** que antes (a correção do B53). Depois "Cortar silêncio": sai `.m4a`, e a duração deve bater com a estimativa agora.
-5. **Voice Boost.** Sai `.mp4` com vídeo idêntico e áudio nivelado.
+1. **Diagnóstico errado do socket órfão.** Reportei na #209 que runs repetidos batiam num socket órfão. Era minha própria instância de teste, ainda viva. Descobri porque `ls /tmp/*_si.sock` não achou nada com o app supostamente rodando — a ausência contradizia minha explicação. Corrigido publicamente.
+2. **Inferência errada sobre o boot.** Deduzi que o `plugin_loader` no log provava que a janela tinha subido. `PluginManager::new` está antes do `setup()`. Refiz com log direto.
+3. **Aritmética errada num teste.** Afirmei que 9 GB + 10% não cabe em 10 GB. Cabe.
+4. **Baseline gerado no SO errado.** Gerei no macOS e rotulei `linux` à mão. O script agora grava `process.platform` sozinho.
+5. **Teste que não conseguia reprovar.** A fixture do B43 listava Chrome desktop primeiro, então "preferir desktop" e "pegar o primeiro" eram indistinguíveis. Só apareceu no revert-e-veja-vermelho.
+6. **Quebra que não aplicou.** Duas vezes o revert-e-veja-vermelho não reprovou porque a string de substituição não casou depois do `cargo fmt`. Uma quebra que falha em aplicar é indistinguível de um teste que não consegue reprovar — passei a afirmar a âncora antes de substituir.
 
 ---
 
-## 5. Atribuição
+## 7. Premissas que o mundo real corrigiu
 
-| Feature | Inspirada em | Licença | Como foi usado |
-|---|---|---|---|
-| B36 / B53 Smart Speed e Voice Boost | Overcast | proprietário | Só a descrição pública. Filtros são do ffmpeg, alvos são da EBU R128. |
-| B50 / B50-b baseline de lint | `golangci-lint`, `ruff` | MIT / MIT | Só o padrão: congelar o herdado, reprovar o novo. |
-| B49 modo portátil | — | — | Diagnóstico próprio sobre a fonte do Tauri 2.10.2. |
-
-Nenhum trecho copiado. Nenhuma dependência nova — `Cargo.toml`, `Cargo.lock` e `pnpm-lock.yaml` intocados nas duas ondas.
-
----
-
-## 6. Dívida introduzida e riscos abertos
-
-1. **O B49 está em `main` sem nunca ter sido executado.** Risco de startup, não de feature. A issue #209 existe para isso, mas depende de alguém com Windows.
-2. **Os três baselines de clippy são idênticos hoje**, então mantê-los é custo triplo sem benefício até o código condicional divergir. Se em três meses continuarem iguais, vale reconsiderar.
-3. **O baseline pode inflar sem ninguém notar.** O script avisa quando melhora e sugere regravar, mas não força.
-4. **`silence_probe_args()` segue fora da allowlist por design**, documentado e travado por teste. Se alguém acrescentar entrada de usuário ali, o raciocínio quebra em silêncio.
-5. **Smart Speed descarta o vídeo sem avisar antes de clicar.** O botão diz "Cortar silêncio" e devolve `.m4a`. O B52 resolve isso movendo a feature para o player, que é a camada certa.
+- **B42** — o `bgutil` roda como Docker ou servidor Node **mais** um plugin Python dentro do yt-dlp. Empacotar é outra ordem de grandeza; entreguei o lado do app e registrei a dívida.
+- **B43** — o yt-dlp empacotado **já tem** `curl_cffi`, com 40 alvos. O caso comum é presença, não ausência.
+- **B47** — não havia CI onde colocar o `check-i18n`. O item virou "ter CI".
+- **B50** — os 177 warnings eram contagem dupla por target, não 90 abençoados. Dedup → 92.
+- **B57/B58** — nenhum dos dois bugs suspeitados existia. O achado real era menor: saída silenciosa do single-instance.
+- **B36** — `silenceremove` dessincroniza A/V, então Smart Speed sai como áudio. O **B52** é a versão que alcança o número que o B36 não alcança.
 
 ---
 
-## 7. PRs abertas e próximo passo
+## 8. Atribuição
 
-**Nenhuma PR aguardando merge.** #197, #204, #205, #207, #208 e #210 foram mergeadas com CI verde.
+| Feature | Origem | Licença |
+|---|---|---|
+| B36/B52/B53 Smart Speed, Voice Boost | Overcast | proprietário — só a descrição pública |
+| B50 baseline de lint | `golangci-lint`, `ruff` | MIT |
+| B33 flight recorder | caixa-preta de aviação | conceito |
+| B34 pre-flight | checklist pré-voo | conceito |
+| B35 concorrência adaptativa | controle de congestionamento de CDN | conceito |
+| B37 pin com rollback | Nix, pnpm | conceito |
+| B38 store por conteúdo | restic, borg | BSD — só o padrão |
+| B39 diff entre versões | git diff | conceito |
+| B40 motor de regras | Sieve | conceito |
+| B44 painel de causa raiz | controle de tráfego aéreo | conceito |
+| B46 streaming de torrent | rqbit, qBittorrent | conceito |
 
-**Issues abertas por esta sessão:** #209 (validação do B49 em Windows — bloqueia a v0.7.8), além de #202 e #203 de ontem.
+Nenhum trecho copiado. Uma dependência nova: **fs4 1.1.0** (MIT OR Apache-2.0), verificada no crates.io.
 
-**Próximo item: B52** — Smart Speed no player em vez de no arquivo. Não iniciado, decisão de contexto. É Custo M e mexe no player de curso; o mapa de silêncio já existe e já está fora do caminho da allowlist, então o trabalho é persistir como metadado da aula e pular na reprodução.
+---
 
-Depois: Onda 3 (B42 → B43 → B44), e o B42 ganhou evidência nova nesta sessão — o download de aula do YouTube estourou dez minutos.
+## 9. Dívida e riscos abertos
+
+1. **O B49 está em `main` sem validação de Windows.** Risco de startup, não de feature. #209.
+2. **Doze módulos sem UI.** Código testado que ninguém pode usar ainda. É acúmulo deliberado, mas acumula.
+3. **Empacotar o provedor de PO token** ficou de fora, com o motivo no código.
+4. **Os três baselines de clippy são idênticos hoje** — custo triplo sem benefício até o código condicional divergir.
+5. **O B32 não está ligado**, e ligá-lo exige decidir a migração de quem já tem `recovery.json`.
+6. **`pnpm check` subiu de 107 para 109 warnings** por a11y no `TelegramUploadModal.svelte`, da #197.
+
+---
+
+## 10. Próximo passo
+
+A estabilização da 0.8.0, nesta ordem:
+
+1. **`docs/VALIDACAO-0.8.0.md`** — 12 linhas, começando pelo caso 1 da #209.
+2. **B55** — smoke test que sobe o app, com o critério de aceite que reverter o B49 deixa o job vermelho.
+3. **#217 (B32)** — revisar, decidir a migração, ligar ao `queue.rs`.
+4. Ligar as 12 features à interface.
+
+**A v0.7.8 não deve ser tagueada.** A 0.8.0 vem com o remake, e é lá que a estabilização acontece.

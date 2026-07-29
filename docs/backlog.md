@@ -1,5 +1,20 @@
 # Backlog — OmniGet
 
+> **Estado em 2026-07-29.** O backlog de feature acabou. Restam três itens, todos
+> de estabilização da 0.8.0, e uma PR aberta esperando revisão humana (#217, B32).
+>
+> | | |
+> |---|---|
+> | Entregues | B21–B31, B33–B54, B56, B57, B58 |
+> | Aberta, não mergeada | **B32** (#217) — WAL da fila, por regra |
+> | Adiado para a estabilização | **B55** smoke test nas três plataformas |
+> | Bloqueado | **B54** caso 1 da #209 — portátil no Windows |
+> | Testes | 460 → **576** em `main` (596 com o B32) |
+>
+> Nenhuma das 12 features do modo feature tem UI ligada. O que precisa ser
+> clicado está em [`VALIDACAO-0.8.0.md`](VALIDACAO-0.8.0.md), e é de lá que a
+> estabilização começa.
+
 Itens abertos por ordem de retorno. Numeração contínua; concluídos não são renumerados.
 
 **Legenda.** Custo P/M/G · Impacto 1–5 · Status: `aberto` · `bloqueado` · `em análise`

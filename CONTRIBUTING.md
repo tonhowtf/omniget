@@ -35,6 +35,27 @@ cd ..
 pnpm check
 ```
 
+## If your CI checks look stuck
+
+If you are opening your first pull request here and the checks sit there without
+running, that is **not** a problem with your branch.
+
+GitHub holds workflow runs from outside contributors until a maintainer approves
+them. It is a security default — a fork PR can change the workflow file itself —
+and it applies to everyone's first contribution.
+
+There is nothing for you to fix. Ping the PR and a maintainer will approve the
+run. Once your first PR is approved, later ones usually start on their own.
+
+This bit us for real: PR #197 sat with its checks unrun while the author kept
+pushing fixes, because the CI had landed a day earlier and nobody had noticed
+the approval queue. Two round trips of the contributor's time, for nothing.
+
+**Maintainers:** approving pending runs on new PRs belongs in triage. The setting
+lives in Settings → Actions → General → "Fork pull request workflows from
+outside collaborators", and it is worth choosing deliberately rather than
+leaving on the default.
+
 ## Adding a translation
 
 Translations live in two places:
