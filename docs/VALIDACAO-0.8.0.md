@@ -20,6 +20,15 @@ Formato: **o que clicar** → o que precisa acontecer.
   "Cortar silêncio" devolve `.m4a` com duração batendo com a estimativa, "Nivelar voz"
   devolve `.mp4` com vídeo idêntico e áudio nivelado. Os três botões nunca foram clicados.
 
+## Onda D
+
+- **B35 concorrência adaptativa** → quando ligado: baixar do mesmo host várias vezes e
+  confirmar que o `-N` efetivo sobe quando há banda e **cai na hora** ao tomar 429.
+  Confirmar que o número em Config passou a se comportar como teto, não valor fixo.
+- **B46 streaming de torrent** → quando ligado: começar um torrent de vídeo e confirmar
+  que o player abre antes de terminar, que o seek para o meio espera a janela de lá em
+  vez de travar, e que a troca (pior para o enxame) está dita na interface.
+
 ## Onda C
 
 - **B44 painel de causa raiz** → quando a tela existir: forçar cada uma das sete causas
