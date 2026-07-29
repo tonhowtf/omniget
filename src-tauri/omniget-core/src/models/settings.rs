@@ -64,6 +64,8 @@ pub struct LeagueSettings {
     #[serde(default)]
     pub auto_lock: bool,
     #[serde(default)]
+    pub auto_lock_at_timeout: bool,
+    #[serde(default)]
     pub auto_runes: bool,
     #[serde(default)]
     pub auto_honor: bool,
@@ -100,6 +102,7 @@ impl Default for LeagueSettings {
             auto_ban: false,
             auto_ban_delay: 0,
             auto_lock: false,
+            auto_lock_at_timeout: false,
             auto_runes: false,
             auto_honor: false,
             auto_play_again: false,

@@ -31,6 +31,7 @@ static AUTO_ACCEPT: AtomicBool = AtomicBool::new(false);
 static CS_HANDLED: Lazy<Mutex<HashSet<i64>>> = Lazy::new(|| Mutex::new(HashSet::new()));
 static CS_FIRST_SEEN: Lazy<Mutex<std::collections::HashMap<i64, std::time::Instant>>> =
     Lazy::new(|| Mutex::new(std::collections::HashMap::new()));
+static CS_DECLARED: Lazy<Mutex<HashSet<i64>>> = Lazy::new(|| Mutex::new(HashSet::new()));
 
 async fn discover_client() -> Option<LcuClient> {
     let (credentials, source) = locator::discover().await?;
@@ -2975,13 +2976,30 @@ async fn handle_champ_select(
                     continue;
                 }
             }
-            let complete_action = settings.auto_lock || action_type == "ban";
+            // A ban that is declared but never confirmed accomplishes nothing, so
+            // the confirm modes only apply to picks.
+            let complete_action = if action_type == "ban" {
+                true
+            } else {
+                let mode =
+                    champ_select::pick_confirm(settings.auto_lock, settings.auto_lock_at_timeout);
+                let lock = champ_select::should_lock_now(mode, champ_select::time_left_ms(session));
+                if !lock && CS_DECLARED.lock().await.contains(&action_id) {
+                    // Intent is already showing; nothing to send until it is time
+                    // to lock (or never, when the user does the locking).
+                    continue;
+                }
+                lock
+            };
             let path = format!("/lol-champ-select/v1/session/actions/{}", action_id);
             let body = json!({ "championId": choice, "completed": complete_action });
             match lcu_send(client, reqwest::Method::PATCH, &path, Some(body)).await {
                 Ok(_) => {
-                    let mut handled = CS_HANDLED.lock().await;
-                    handled.insert(action_id);
+                    if complete_action {
+                        CS_HANDLED.lock().await.insert(action_id);
+                    } else {
+                        CS_DECLARED.lock().await.insert(action_id);
+                    }
                     tracing::info!(
                         "[league] auto-{} champion {} (locked: {})",
                         action_type,

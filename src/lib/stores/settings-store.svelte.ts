@@ -99,6 +99,7 @@ export type AppSettings = {
     auto_ban?: boolean;
     auto_ban_delay?: number;
     auto_lock?: boolean;
+    auto_lock_at_timeout?: boolean;
     auto_runes?: boolean;
     auto_honor?: boolean;
     auto_play_again?: boolean;

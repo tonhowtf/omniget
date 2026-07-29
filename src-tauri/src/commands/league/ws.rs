@@ -267,6 +267,7 @@ async fn handle_event(client: &LcuClient, value: &Value) {
             if event_type == "Delete" {
                 super::CS_HANDLED.lock().await.clear();
                 super::CS_FIRST_SEEN.lock().await.clear();
+                super::CS_DECLARED.lock().await.clear();
                 TRADES_HANDLED.lock().await.clear();
                 MESSAGE_SENT.store(false, Ordering::SeqCst);
                 emit("league-champ-select", Value::Null);
@@ -331,6 +332,7 @@ async fn on_phase(client: &LcuClient, phase: &str) {
             if phase != "ChampSelect" {
                 super::CS_HANDLED.lock().await.clear();
                 super::CS_FIRST_SEEN.lock().await.clear();
+                super::CS_DECLARED.lock().await.clear();
                 TRADES_HANDLED.lock().await.clear();
                 MESSAGE_SENT.store(false, Ordering::SeqCst);
             }
