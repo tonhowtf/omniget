@@ -831,6 +831,38 @@
     color: var(--gray);
     }
 
+  .league-page :global(.queue-filter) {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+    }
+
+  .league-page :global(.queue-chip) {
+    padding: 3px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    }
+
+  .league-page :global(.queue-chip:hover) {
+    background: var(--surface-hover);
+    }
+
+  .league-page :global(.queue-chip.on) {
+    border-color: var(--accent);
+    color: var(--text);
+    }
+
+  .league-page :global(.history-summary) {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    margin: 0 0 10px;
+    }
+
   .league-page :global(.objective-row) {
     display: flex;
     gap: 8px;
