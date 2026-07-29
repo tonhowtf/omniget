@@ -12,6 +12,7 @@
     lobby,
     queues,
     actionError,
+    champions,
     championById,
     championByAlias,
     onAction,
@@ -24,6 +25,7 @@
     lobby: any;
     queues: LobbyQueue[];
     actionError: string;
+    champions: Champion[];
     championById: Map<number, Champion>;
     championByAlias: Map<string, Champion>;
     onAction: (cmd: string, args?: Record<string, unknown>) => void;
@@ -67,6 +69,37 @@
       order: players.filter((p) => p.team === "ORDER"),
       chaos: players.filter((p) => p.team === "CHAOS"),
     };
+  }
+
+  let profileOpen = $state(false);
+  let iconInput = $state<number | null>(null);
+  let statusMessage = $state("");
+  let bgChampion = $state<number>(0);
+  let ownedSkins = $state<{ id: number; name: string }[]>([]);
+  let profileError = $state("");
+  let profileSaved = $state("");
+
+  async function runProfileAction(action: () => Promise<unknown>, saved: string) {
+    profileError = "";
+    profileSaved = "";
+    try {
+      await action();
+      profileSaved = saved;
+      setTimeout(() => { if (profileSaved === saved) profileSaved = ""; }, 2000);
+    } catch (e: any) {
+      profileError = typeof e === "string" ? e : (e?.message ?? String(e));
+    }
+  }
+
+  async function loadOwnedSkins(championId: number) {
+    ownedSkins = [];
+    if (championId <= 0) return;
+    try {
+      const res = await invoke<any>("league_owned_skins", { championId });
+      ownedSkins = res?.skins ?? [];
+    } catch {
+      ownedSkins = [];
+    }
   }
 
   let restartConfirming = $state(false);
@@ -137,6 +170,73 @@
 {/if}
 {#if restartError}
   <div class="action-error" role="alert">{restartError}</div>
+{/if}
+{#if summoner}
+  <details class="profile-tools" bind:open={profileOpen}>
+    <summary>{$t("league.profile_tools")}</summary>
+    {#if profileError}
+      <p class="action-error" role="alert">{profileError}</p>
+    {/if}
+    {#if profileSaved}
+      <p class="profile-saved">{profileSaved}</p>
+    {/if}
+    <div class="profile-tool-row">
+      <span class="list-label">{$t("league.profile_icon")}</span>
+      <input class="input-text tiny-input" type="number" min="0" bind:value={iconInput} aria-label={$t("league.profile_icon") as string} />
+      <button
+        class="button"
+        disabled={iconInput === null}
+        onclick={() => runProfileAction(() => invoke("league_set_icon", { iconId: iconInput }), $t("league.profile_icon_saved") as string)}
+      >{$t("league.apply")}</button>
+    </div>
+    <div class="profile-tool-row">
+      <span class="list-label">{$t("league.profile_status")}</span>
+      <div class="seg-group" role="radiogroup" aria-label={$t("league.profile_status") as string}>
+        {#each ["chat", "away", "dnd"] as value (value)}
+          <button
+            class="seg"
+            role="radio"
+            aria-checked={false}
+            onclick={() => runProfileAction(() => invoke("league_set_status", { availability: value }), $t("league.profile_status_saved") as string)}
+          >{$t(`league.status_${value}`)}</button>
+        {/each}
+      </div>
+    </div>
+    <div class="profile-tool-row">
+      <span class="list-label">{$t("league.profile_message")}</span>
+      <input class="input-text" maxlength="140" bind:value={statusMessage} placeholder={$t("league.profile_message") as string} />
+      <button
+        class="button"
+        onclick={() => runProfileAction(() => invoke("league_set_status", { message: statusMessage }), $t("league.profile_message_saved") as string)}
+      >{$t("league.apply")}</button>
+    </div>
+    <div class="profile-tool-row">
+      <span class="list-label">{$t("league.profile_background")}</span>
+      <select
+        class="select-role"
+        bind:value={bgChampion}
+        onchange={() => loadOwnedSkins(bgChampion)}
+        aria-label={$t("league.profile_background") as string}
+      >
+        <option value={0}>{$t("league.build_champion")}</option>
+        {#each champions as ch (ch.id)}
+          <option value={ch.id}>{ch.name}</option>
+        {/each}
+      </select>
+      {#if ownedSkins.length > 0}
+        <div class="skin-options">
+          {#each ownedSkins as skin (skin.id)}
+            <button
+              class="button subtle"
+              onclick={() => runProfileAction(() => invoke("league_set_profile_background", { skinId: skin.id }), $t("league.profile_background_saved") as string)}
+            >{skin.name}</button>
+          {/each}
+        </div>
+      {:else if bgChampion > 0}
+        <span class="dim">{$t("league.profile_no_skins")}</span>
+      {/if}
+    </div>
+  </details>
 {/if}
 <div class="repair-row">
   {#if restartConfirming}

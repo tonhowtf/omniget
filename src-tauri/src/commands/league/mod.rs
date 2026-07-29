@@ -1362,6 +1362,107 @@ pub async fn league_champion_meta(
     }))
 }
 
+/// Sets the summoner icon. Any owned icon id works; the client rejects ids the
+/// account does not own, and that error is surfaced as-is.
+#[tauri::command]
+pub async fn league_set_icon(icon_id: i64) -> Result<Value, String> {
+    ensure_enabled()?;
+    if icon_id < 0 {
+        return Err("invalid icon".to_string());
+    }
+    let client = get_client().await?;
+    lcu_send(
+        &client,
+        reqwest::Method::PUT,
+        "/lol-summoner/v1/current-summoner/icon",
+        Some(json!({ "profileIconId": icon_id })),
+    )
+    .await
+}
+
+/// Sets the splash art behind the profile, chosen from a skin the account owns.
+#[tauri::command]
+pub async fn league_set_profile_background(skin_id: i64) -> Result<Value, String> {
+    ensure_enabled()?;
+    if skin_id <= 0 {
+        return Err("invalid skin".to_string());
+    }
+    let client = get_client().await?;
+    lcu_send(
+        &client,
+        reqwest::Method::POST,
+        "/lol-summoner/v1/current-summoner/summoner-profile",
+        Some(json!({ "key": "backgroundSkinId", "value": skin_id })),
+    )
+    .await
+}
+
+/// Chat availability and status message. Only the fields the user changed are
+/// touched: the payload is read first and patched, because a full replacement
+/// wipes the presence data the client keeps there.
+#[tauri::command]
+pub async fn league_set_status(
+    availability: Option<String>,
+    message: Option<String>,
+) -> Result<Value, String> {
+    ensure_enabled()?;
+    if let Some(availability) = availability.as_deref() {
+        if !matches!(availability, "chat" | "away" | "dnd" | "offline" | "mobile") {
+            return Err("invalid availability".to_string());
+        }
+    }
+    if message.as_deref().map(str::len).unwrap_or(0) > 140 {
+        return Err("status message too long".to_string());
+    }
+    let client = get_client().await?;
+    let mut me = lcu_get_raw(&client, "/lol-chat/v1/me").await?;
+    if let Some(availability) = availability {
+        me["availability"] = json!(availability);
+    }
+    if let Some(message) = message {
+        me["statusMessage"] = json!(message);
+    }
+    lcu_send(&client, reqwest::Method::PUT, "/lol-chat/v1/me", Some(me)).await
+}
+
+/// Skins the account owns for a champion, so the background picker offers only
+/// what can actually be set.
+#[tauri::command]
+pub async fn league_owned_skins(champion_id: i64) -> Result<Value, String> {
+    ensure_enabled()?;
+    if champion_id <= 0 {
+        return Err("invalid champion".to_string());
+    }
+    let client = get_client().await?;
+    let champion = lcu_get_raw(
+        &client,
+        &format!("/lol-champions/v1/inventories/{}/champions", champion_id),
+    )
+    .await
+    .unwrap_or(Value::Null);
+    let skins: Vec<Value> = champion
+        .get("skins")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter(|s| {
+                    s.get("ownership")
+                        .and_then(|o| o.get("owned"))
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false)
+                })
+                .filter_map(|s| {
+                    Some(json!({
+                        "id": s.get("id").and_then(Value::as_i64)?,
+                        "name": s.get("name").and_then(Value::as_str).unwrap_or(""),
+                    }))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(json!({ "skins": skins }))
+}
+
 /// Objective respawn estimates and a readable feed of what just happened,
 /// derived from the in-game event log.
 #[tauri::command]

@@ -450,7 +450,7 @@
            timers, expanded games) survives switching, and the meta tab's
            auto-rune effect keeps working from any tab. -->
       <div class="tab-panel" class:active={tab === "overview"}>
-        <OverviewTab {summoner} {ranked} {phase} {champSelect} {liveGame} {lobby} {queues} {actionError} {championById} {championByAlias} onAction={action} />
+        <OverviewTab {summoner} {ranked} {phase} {champSelect} {liveGame} {lobby} {queues} {actionError} {champions} {championById} {championByAlias} onAction={action} />
       </div>
       <div class="tab-panel" class:active={tab === "analysis"}>
         <AnalysisTab {analysis} {analysisLoading} onRefreshAnalysis={loadAnalysis} {phase} {scoutPlayers} {scoutReports} {scoutLoading} onRefreshScouting={loadScouting} {championById} {notes} onSaveNote={saveNote} {timesSeenBefore} />
@@ -1920,6 +1920,41 @@
   .league-page :global(.button.subtle:hover) {
     color: var(--text);
     background: var(--surface-hover);
+    }
+
+  .league-page :global(.profile-tools) {
+    margin-bottom: 10px;
+    }
+
+  .league-page :global(.profile-tools summary) {
+    cursor: pointer;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    padding: 4px 0;
+    }
+
+  .league-page :global(.profile-tool-row) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 8px 0;
+    }
+
+  .league-page :global(.tiny-input) {
+    max-width: 96px;
+    }
+
+  .league-page :global(.skin-options) {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    }
+
+  .league-page :global(.profile-saved) {
+    font-size: 12px;
+    color: var(--success);
+    margin: 4px 0;
     }
 
   .league-page :global(.skill-order) {
