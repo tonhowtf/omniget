@@ -829,6 +829,7 @@ pub fn run() {
             commands::league::league_game_players,
             commands::league::league_player_report,
             commands::league::league_match_analysis,
+            commands::league::league_live_events,
             commands::league::league_live_metrics,
             commands::league::league_search_player,
             commands::league::league_duos,
