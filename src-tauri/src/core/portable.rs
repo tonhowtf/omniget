@@ -118,3 +118,46 @@ mod tests {
         }
     }
 }
+
+/// Linha unica de boot, emitida antes de qualquer coisa poder sair em silencio.
+///
+/// O `tauri-plugin-single-instance` chama `std::process::exit(0)` sem logar nada
+/// quando detecta outra instancia viva. Sem esta linha, um app que sai por esse
+/// caminho e indistinguivel de um que crashou: o log simplesmente para. Custou
+/// uma sessao inteira de investigacao descobrir isso, e o usuario que abrir o
+/// app duas vezes nao tem nem log para olhar.
+///
+/// Com a linha, o diagnostico vira trivial: banner presente e nada depois
+/// significa que outra instancia assumiu; banner ausente significa que o
+/// processo nem chegou a subir.
+pub fn startup_banner(version: &str, pid: u32, portable: bool, data_dir: Option<&Path>) -> String {
+    let modo = if portable { "portable" } else { "standard" };
+    let dir = data_dir
+        .map(|d| d.display().to_string())
+        .unwrap_or_else(|| "<unresolved>".to_string());
+    format!("OmniGet {version} starting — pid {pid}, {modo} mode, data dir {dir}")
+}
+
+#[cfg(test)]
+mod banner_tests {
+    use super::*;
+
+    #[test]
+    fn banner_nomeia_o_modo_e_o_diretorio() {
+        let b = startup_banner("0.7.7", 1234, true, Some(Path::new("/pendrive/data")));
+        assert!(b.contains("0.7.7"));
+        assert!(b.contains("pid 1234"));
+        assert!(b.contains("portable mode"));
+        assert!(b.contains("/pendrive/data"));
+    }
+
+    #[test]
+    fn banner_nao_esconde_diretorio_nao_resolvido() {
+        // Se o data dir nao resolveu, dizer isso vale mais do que omitir: e a
+        // primeira coisa a olhar quando o app se comporta como se nao tivesse
+        // configuracao nenhuma.
+        let b = startup_banner("0.7.7", 1, false, None);
+        assert!(b.contains("standard mode"));
+        assert!(b.contains("<unresolved>"));
+    }
+}

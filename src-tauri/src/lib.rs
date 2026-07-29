@@ -206,6 +206,18 @@ pub struct AppState {
 pub fn run() {
     tracing_subscriber::fmt::init();
 
+    // Emitido antes do single-instance poder sair em silencio: ver
+    // core::portable::startup_banner.
+    tracing::info!(
+        "{}",
+        core::portable::startup_banner(
+            env!("CARGO_PKG_VERSION"),
+            std::process::id(),
+            std::env::var("OMNIGET_PORTABLE").ok().as_deref() == Some("1"),
+            core::paths::app_data_dir().as_deref(),
+        )
+    );
+
     let mut registry = core::registry::PlatformRegistry::new();
     // gallery-dl first: it claims bulk-listing URLs (profiles, subreddits)
     // that the single-post Twitter/Reddit downloaders would otherwise match
