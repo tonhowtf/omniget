@@ -20,9 +20,16 @@
     supported: boolean;
     bundled_version: string | null;
     installable: boolean;
-    install_hint: string;
+    install_hint_key: string;
     store_url: string | null;
   };
+
+  function hintFor(key: string): string {
+    if (key === "chrome") return $t("settings.browser_ext.hint_chrome") as string;
+    if (key === "firefox") return $t("settings.browser_ext.hint_firefox") as string;
+    if (key === "safari") return $t("settings.browser_ext.hint_safari") as string;
+    return "";
+  }
 
   let extStatuses = $state<BrowserExtStatus[]>([]);
   let busyBrowser = $state<string | null>(null);
@@ -48,7 +55,7 @@
       installModal = {
         browser,
         path: res.path,
-        hint: status?.install_hint ?? "",
+        hint: status ? hintFor(status.install_hint_key) : "",
       };
     } catch (e) {
       showToast("error", e instanceof Error ? e.message : String(e));
@@ -79,8 +86,8 @@
 
 {#if settings}
   <section class="section">
-    <h5 class="section-title">Extensão de navegador</h5>
-    <p class="muted">A extensão envia cookies e URLs do seu navegador para o OmniGet. Auto-update direto pelo app só funciona via lojas oficiais — enquanto não publicamos, use os botões abaixo para extrair a versão atual e (re)instalar manualmente.</p>
+    <h5 class="section-title">{$t("settings.browser_ext.title")}</h5>
+    <p class="muted">{$t("settings.browser_ext.description")}</p>
     <div class="card">
       {#each extStatuses as ext, i (ext.browser)}
         {#if i > 0}<div class="divider"></div>{/if}
@@ -89,9 +96,9 @@
             <span class="setting-label">{browserLabel(ext.browser)}</span>
             <span class="setting-path">
               {#if ext.bundled_version}
-                Versão empacotada: v{ext.bundled_version}
+                {$t("settings.browser_ext.bundled_version", { version: ext.bundled_version })}
               {:else}
-                {ext.install_hint}
+                {hintFor(ext.install_hint_key)}
               {/if}
             </span>
           </div>
@@ -101,12 +108,14 @@
               disabled={busyBrowser === ext.browser}
               onclick={() => exportExtension(ext.browser)}
             >
-              {busyBrowser === ext.browser ? "Extraindo..." : "Atualizar / Instalar"}
+              {busyBrowser === ext.browser
+                ? $t("settings.browser_ext.extracting")
+                : $t("settings.browser_ext.update_install")}
             </button>
           {:else if ext.store_url}
-            <a class="button" href={ext.store_url} target="_blank" rel="noreferrer">Abrir loja</a>
+            <a class="button" href={ext.store_url} target="_blank" rel="noreferrer">{$t("settings.browser_ext.open_store")}</a>
           {:else}
-            <span class="muted small">Indisponível</span>
+            <span class="muted small">{$t("settings.browser_ext.unavailable")}</span>
           {/if}
         </div>
       {/each}

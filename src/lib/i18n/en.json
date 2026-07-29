@@ -715,6 +715,18 @@
       "fix_file_extensions": "Fix file extensions",
       "fix_file_extensions_desc": "Add correct extension to files based on type"
     },
+    "browser_ext": {
+      "title": "Browser extension",
+      "description": "The extension sends cookies and page URLs from your browser to OmniGet. It is not on the official stores yet, so use the buttons below to extract the current version and install it manually.",
+      "bundled_version": "Bundled version: v{{version}}",
+      "extracting": "Extracting\u2026",
+      "update_install": "Update / Install",
+      "open_store": "Open store",
+      "unavailable": "Unavailable",
+      "hint_chrome": "chrome://extensions \u2192 Developer mode \u2192 \"Load unpacked\" \u2192 select the extracted folder.",
+      "hint_firefox": "about:debugging#/runtime/this-firefox \u2192 \"Load Temporary Add-on\" \u2192 select manifest.json in the extracted folder. Firefox drops temporary add-ons on restart, so this has to be repeated until we publish on AMO.",
+      "hint_safari": "Safari has required extensions to ship through the Mac App Store since Safari 14. A Safari build of the OmniGet extension is not published yet."
+    },
     "dependencies": {
       "title": "Dependencies",
       "col_name": "Name",

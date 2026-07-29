@@ -687,6 +687,18 @@
       "fix_file_extensions": "修正文件扩展名",
       "fix_file_extensions_desc": "根据文件类型添加正确的扩展名"
     },
+    "browser_ext": {
+      "title": "浏览器扩展",
+      "description": "扩展会将浏览器中的 Cookie 和网址发送给 OmniGet。它尚未上架官方商店，请使用下方按钮导出当前版本并手动安装。",
+      "bundled_version": "内置版本：v{{version}}",
+      "extracting": "正在导出…",
+      "update_install": "更新 / 安装",
+      "open_store": "打开商店",
+      "unavailable": "不可用",
+      "hint_chrome": "chrome://extensions → 开发者模式 → “加载已解压的扩展程序” → 选择导出的文件夹。",
+      "hint_firefox": "about:debugging#/runtime/this-firefox → “临时载入附加组件” → 选择导出文件夹中的 manifest.json。Firefox 重启后会移除临时附加组件，因此在我们上架 AMO 之前需要重复此操作。",
+      "hint_safari": "自 Safari 14 起，扩展必须通过 Mac App Store 分发。OmniGet 扩展的 Safari 版本尚未发布。"
+    },
     "dependencies": {
       "title": "依赖项",
       "col_name": "Name",

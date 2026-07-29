@@ -503,8 +503,20 @@
   .deps-table-wrap {
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    overflow: hidden;
     background: var(--surface);
+  }
+
+  /* Sem overflow:hidden aqui. Ele arredondava a tabela, mas tambem cortava o
+     menu "..." de cada dependencia, que e position:absolute e cai para fora do
+     container na ultima linha — o usuario via metade das opcoes (issue #222).
+     O arredondamento volta pelas celulas do cabecalho, que sao as unicas com
+     fundo proprio; o resto ja e resolvido pelo fundo e pela borda do wrapper. */
+  .deps-table thead th:first-child {
+    border-top-left-radius: calc(var(--radius-md) - 1px);
+  }
+
+  .deps-table thead th:last-child {
+    border-top-right-radius: calc(var(--radius-md) - 1px);
   }
 
   .deps-table {

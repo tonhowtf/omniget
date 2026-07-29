@@ -687,6 +687,18 @@
       "fix_file_extensions": "Corrigir extensões de arquivo",
       "fix_file_extensions_desc": "Adicionar extensão correta aos arquivos com base no tipo"
     },
+    "browser_ext": {
+      "title": "Extensão de navegador",
+      "description": "A extensão envia cookies e URLs do seu navegador para o OmniGet. Ainda não está nas lojas oficiais, então use os botões abaixo para extrair a versão atual e instalar manualmente.",
+      "bundled_version": "Versão empacotada: v{{version}}",
+      "extracting": "Extraindo…",
+      "update_install": "Atualizar / Instalar",
+      "open_store": "Abrir loja",
+      "unavailable": "Indisponível",
+      "hint_chrome": "chrome://extensions → Modo do desenvolvedor → \"Carregar sem compactação\" → selecionar a pasta extraída.",
+      "hint_firefox": "about:debugging#/runtime/this-firefox → \"Carregar complemento temporário\" → selecionar manifest.json da pasta extraída. O Firefox descarta complementos temporários ao reiniciar, então isso precisa ser repetido até publicarmos na AMO.",
+      "hint_safari": "O Safari exige que extensões venham pela Mac App Store desde o Safari 14. Ainda não publicamos uma versão Safari da extensão do OmniGet."
+    },
     "dependencies": {
       "title": "Dependências",
       "col_name": "Name",

@@ -687,6 +687,18 @@
       "fix_file_extensions": "ファイル拡張子を修正",
       "fix_file_extensions_desc": "ファイルの種類に基づいて正しい拡張子を追加します"
     },
+    "browser_ext": {
+      "title": "ブラウザー拡張機能",
+      "description": "拡張機能はブラウザーの Cookie と URL を OmniGet に送信します。まだ公式ストアでは配布していないため、下のボタンで現在のバージョンを書き出して手動でインストールしてください。",
+      "bundled_version": "同梱バージョン: v{{version}}",
+      "extracting": "書き出し中…",
+      "update_install": "更新 / インストール",
+      "open_store": "ストアを開く",
+      "unavailable": "利用できません",
+      "hint_chrome": "chrome://extensions → デベロッパーモード → 「パッケージ化されていない拡張機能を読み込む」 → 書き出したフォルダーを選択します。",
+      "hint_firefox": "about:debugging#/runtime/this-firefox → 「一時的なアドオンを読み込む」 → 書き出したフォルダー内の manifest.json を選択します。Firefox は再起動時に一時アドオンを破棄するため、AMO で公開するまでは毎回やり直す必要があります。",
+      "hint_safari": "Safari 14 以降、拡張機能は Mac App Store 経由での配布が必須です。OmniGet 拡張機能の Safari 版はまだ公開していません。"
+    },
     "dependencies": {
       "title": "依存関係",
       "col_name": "Name",

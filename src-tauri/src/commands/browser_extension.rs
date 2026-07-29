@@ -9,7 +9,7 @@ pub struct BrowserExtensionStatus {
     pub supported: bool,
     pub bundled_version: Option<String>,
     pub installable: bool,
-    pub install_hint: String,
+    pub install_hint_key: String,
     pub store_url: Option<String>,
 }
 
@@ -62,7 +62,7 @@ pub async fn browser_extension_status(
             supported: true,
             bundled_version: chrome_v,
             installable: true,
-            install_hint: "chrome://extensions → Modo do desenvolvedor → \"Carregar sem compactação\" → selecionar a pasta extraída.".into(),
+            install_hint_key: "chrome".into(),
             store_url: None,
         },
         BrowserExtensionStatus {
@@ -70,7 +70,7 @@ pub async fn browser_extension_status(
             supported: true,
             bundled_version: firefox_v,
             installable: true,
-            install_hint: "about:debugging#/runtime/this-firefox → \"Carregar complemento temporário\" → selecionar manifest.json da pasta extraída. (Reinstalação necessária a cada reinício do Firefox enquanto não publicado na AMO.)".into(),
+            install_hint_key: "firefox".into(),
             store_url: None,
         },
         BrowserExtensionStatus {
@@ -78,7 +78,7 @@ pub async fn browser_extension_status(
             supported: false,
             bundled_version: None,
             installable: false,
-            install_hint: "Safari só aceita extensões via Mac App Store desde Safari 14. Versão Safari da OmniGet ainda não publicada.".into(),
+            install_hint_key: "safari".into(),
             store_url: None,
         },
     ])
