@@ -69,6 +69,24 @@
     };
   }
 
+  let restartConfirming = $state(false);
+  let restartLoading = $state(false);
+  let restartError = $state("");
+
+  async function restartClientUx() {
+    if (restartLoading) return;
+    restartLoading = true;
+    restartError = "";
+    try {
+      await invoke("league_restart_ux");
+    } catch (e: any) {
+      restartError = typeof e === "string" ? e : (e?.message ?? String(e));
+    } finally {
+      restartLoading = false;
+      restartConfirming = false;
+    }
+  }
+
   let dodgeConfirming = $state(false);
   let dodgeLoading = $state(false);
   let dodgeError = $state("");
@@ -117,6 +135,18 @@
 {#if actionError}
   <div class="action-error" role="alert">{actionError}</div>
 {/if}
+{#if restartError}
+  <div class="action-error" role="alert">{restartError}</div>
+{/if}
+<div class="repair-row">
+  {#if restartConfirming}
+    <span class="repair-note">{$t("league.restart_ux_warning")}</span>
+    <button class="button" onclick={() => (restartConfirming = false)}>{$t("league.dodge_cancel")}</button>
+    <button class="button" onclick={restartClientUx} disabled={restartLoading}>{$t("league.restart_ux_confirm")}</button>
+  {:else}
+    <button class="button subtle" onclick={() => (restartConfirming = true)}>{$t("league.restart_ux")}</button>
+  {/if}
+</div>
 {#if phase === "ChampSelect" && champSelect}
   <section class="card">
     <div class="card-head">

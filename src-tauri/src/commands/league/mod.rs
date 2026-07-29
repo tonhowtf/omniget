@@ -296,6 +296,17 @@ pub async fn league_get(path: String) -> Result<Value, String> {
     lcu_get_raw(&client, &path).await
 }
 
+/// Restarts only the client's interface process. The classic fix for a client
+/// stuck spinning or with a broken window size, and it keeps the queue spot —
+/// which is why it is worth offering instead of asking the user to close the game.
+#[tauri::command]
+pub async fn league_restart_ux() -> Result<(), String> {
+    ensure_enabled()?;
+    let client = get_client().await?;
+    lcu_post_raw(&client, "/riotclient/kill-and-restart-ux").await?;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn league_summoner() -> Result<Value, String> {
     ensure_enabled()?;
