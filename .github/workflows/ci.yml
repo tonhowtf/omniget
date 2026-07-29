@@ -39,12 +39,17 @@ jobs:
         working-directory: src-tauri
         run: cargo fmt --all -- --check
 
-      # Informativo por enquanto: o workspace tem warnings pre-existentes, entao
-      # `-D warnings` reprovaria toda PR no primeiro dia. Fica visivel no log; ver
-      # docs/backlog.md B47 para o baseline que torna isso um portao de verdade.
       - name: Clippy
         working-directory: src-tauri
         run: cargo clippy --workspace --all-targets
+
+      # Portao de verdade sem pintar o dia um de vermelho: compara com o
+      # baseline commitado e reprova so warning novo. Ubuntu apenas — clippy
+      # enxerga codigo diferente por `#[cfg(target_os)]`, entao um baseline
+      # unico nao descreve as tres plataformas.
+      - name: Clippy baseline (no new warnings)
+        if: matrix.platform == 'ubuntu-latest'
+        run: node scripts/clippy-baseline.mjs --check
 
       - name: Test
         working-directory: src-tauri
