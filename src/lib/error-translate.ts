@@ -4,6 +4,7 @@
  */
 
 const BACKEND_ERROR_MAP: Record<string, string> = {
+  "rune pages are full": "league.runes_full",
   "Video requires login. Use browser cookies or try another URL.":
     "errors.login_required",
   "This video requires login. Import cookies for this site in Settings → Cookies, then retry.":

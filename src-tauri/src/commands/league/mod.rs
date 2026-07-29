@@ -3,6 +3,7 @@ pub mod champ_select;
 pub mod live;
 pub mod lobby;
 pub mod locator;
+pub mod meta;
 pub mod stats;
 pub mod ws;
 
@@ -1279,6 +1280,88 @@ pub async fn league_match_analysis() -> Result<Value, String> {
     }))
 }
 
+/// Build reference for a champion in a position: skill order, items by phase,
+/// summoner spells and counters, from the same public op.gg API the tier list
+/// uses. Presented as reference, never applied automatically.
+#[tauri::command]
+pub async fn league_champion_meta(
+    champion_id: i64,
+    position: Option<String>,
+    region: Option<String>,
+    tier: Option<String>,
+) -> Result<Value, String> {
+    ensure_enabled()?;
+    let position = position.unwrap_or_else(|| "mid".to_string()).to_lowercase();
+    let region = region.unwrap_or_else(|| "br".to_string());
+    let bracket = tier.unwrap_or_else(|| "emerald_plus".to_string());
+    if champion_id <= 0
+        || !position.chars().all(|c| c.is_ascii_alphabetic())
+        || !region.chars().all(|c| c.is_ascii_alphanumeric())
+        || !bracket
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        return Err("invalid champion, position, region or tier".to_string());
+    }
+    let url = format!(
+        "https://lol-api-champion.op.gg/api/{}/champions/ranked/{}/{}?tier={}",
+        region, champion_id, position, bracket
+    );
+    let http = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .user_agent("OmniGet")
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = http
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("build reference unavailable: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!(
+            "build reference returned {}",
+            resp.status().as_u16()
+        ));
+    }
+    let body = resp
+        .json::<Value>()
+        .await
+        .map_err(|e| format!("invalid build reference response: {}", e))?;
+    let data = body.get("data").unwrap_or(&body);
+
+    let array = |key: &str| -> Vec<Value> {
+        data.get(key)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+    };
+    let phase = |key: &str| -> Value {
+        let entries = array(key);
+        let picked = meta::most_played(&entries);
+        json!({
+            "ids": meta::id_list(picked),
+            "winrate": meta::variant_winrate(picked),
+        })
+    };
+
+    let skills = array("skills");
+    let order = meta::skill_order(&skills);
+
+    Ok(json!({
+        "championId": champion_id,
+        "position": position,
+        "source": "op.gg",
+        "skillOrder": order,
+        "skillPriority": meta::first_levels(&order, 3),
+        "starterItems": phase("starter_items"),
+        "coreItems": phase("core_items"),
+        "boots": phase("boots"),
+        "lastItems": phase("last_items"),
+        "spells": phase("summoner_spells"),
+        "counters": meta::counters(data),
+    }))
+}
+
 /// Objective respawn estimates and a readable feed of what just happened,
 /// derived from the in-game event log.
 #[tauri::command]
@@ -2151,6 +2234,18 @@ pub async fn league_apply_runes(
             None,
         )
         .await;
+    }
+
+    // Creating a page into a full book fails with an opaque error, so the
+    // inventory is checked first and the reason is said out loud.
+    if let Ok(inventory) = lcu_get_raw(&client, "/lol-perks/v1/inventory").await {
+        let can_add = inventory
+            .get("canAddCustomPage")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+        if !can_add {
+            return Err("rune pages are full".to_string());
+        }
     }
 
     let page = lcu_send(

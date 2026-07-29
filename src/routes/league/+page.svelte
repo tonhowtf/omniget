@@ -1922,6 +1922,37 @@
     background: var(--surface-hover);
     }
 
+  .league-page :global(.skill-order) {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+    margin: 6px 0 10px;
+    }
+
+  .league-page :global(.skill-step) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 10.5px;
+    color: var(--text-secondary);
+    }
+
+  .league-page :global(.skill-step.ult) {
+    border-color: var(--accent);
+    color: var(--text);
+    }
+
+  .league-page :global(.build-phase) {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+    }
+
   .league-page :global(.scout-score) {
     font-size: 11.5px;
     color: var(--text-secondary);

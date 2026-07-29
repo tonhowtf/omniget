@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
+  import { translateBackendError } from "$lib/error-translate";
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { CDRAGON, type Champion } from "./shared";
 
@@ -79,7 +80,7 @@
       appliedRuneIndex = null;
     } catch (e: any) {
       runePages = [];
-      runeError = typeof e === "string" ? e : (e?.message ?? String(e));
+      runeError = translateBackendError(typeof e === "string" ? e : (e?.message ?? String(e)), (k) => $t(k) as string);
     }
   }
 
@@ -100,7 +101,7 @@
       });
       appliedRuneIndex = index;
     } catch (e: any) {
-      runeError = typeof e === "string" ? e : (e?.message ?? String(e));
+      runeError = translateBackendError(typeof e === "string" ? e : (e?.message ?? String(e)), (k) => $t(k) as string);
     } finally {
       runeApplying = false;
     }
@@ -123,6 +124,43 @@
       runePages = [];
     }
   });
+
+  let metaInfo = $state<any>(null);
+  let metaLoading = $state(false);
+  let metaError = $state("");
+
+  async function loadMeta(championId: number) {
+    if (championId <= 0 || metaLoading) return;
+    metaLoading = true;
+    metaError = "";
+    try {
+      metaInfo = await invoke<any>("league_champion_meta", {
+        championId,
+        position: myAssignedPosition ? opggPosition(myAssignedPosition) : undefined,
+      });
+    } catch (e: any) {
+      metaInfo = null;
+      metaError = typeof e === "string" ? e : (e?.message ?? String(e));
+    } finally {
+      metaLoading = false;
+    }
+  }
+
+  // op.gg names positions differently from the client.
+  function opggPosition(position: string): string {
+    const map: Record<string, string> = {
+      TOP: "top",
+      JUNGLE: "jungle",
+      MIDDLE: "mid",
+      BOTTOM: "adc",
+      UTILITY: "support",
+    };
+    return map[position] ?? "mid";
+  }
+
+  function itemIcon(id: number): string {
+    return `${CDRAGON}/../../game/assets/items/icons2d/${id}.png`;
+  }
 
   let buildChampionId = $state<number>(0);
   let buildInfo = $state<any>(null);
@@ -294,6 +332,62 @@
     {/if}
   {:else if buildInfo}
     <p class="empty-hint">{$t("league.build_empty")}</p>
+  {/if}
+  <div class="divider"></div>
+  <div class="card-head">
+    <h4 class="section-title">{$t("league.meta_reference")}</h4>
+    <button
+      class="button"
+      onclick={() => loadMeta(champSelectChampionId || (buildChampionId ?? 0))}
+      disabled={metaLoading || (!champSelectChampionId && !buildChampionId)}
+    >{$t("league.refresh")}</button>
+  </div>
+  {#if metaError}
+    <p class="action-error" role="alert">{metaError}</p>
+  {:else if metaLoading}
+    <p class="empty-hint">…</p>
+  {:else if metaInfo}
+    {#if metaInfo.skillPriority?.length}
+      <p class="win-note">
+        {$t("league.skill_priority")}: <strong>{metaInfo.skillPriority.join(" › ")}</strong>
+      </p>
+      <div class="skill-order">
+        {#each metaInfo.skillOrder as skill, i (`${i}-${skill}`)}
+          <span class="skill-step" class:ult={skill === "R"}>{skill}</span>
+        {/each}
+      </div>
+    {/if}
+    {#each [["starterItems", "items_starter"], ["coreItems", "items_core"], ["boots", "items_boots"], ["lastItems", "items_last"]] as [key, label] (key)}
+      {#if metaInfo[key]?.ids?.length}
+        <div class="build-phase">
+          <span class="list-label">{$t(`league.${label}`)}</span>
+          <div class="build-items">
+            {#each metaInfo[key].ids as id (id)}
+              <span class="build-item">
+                <img class="item-icon" src={itemIcon(id)} alt="" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
+              </span>
+            {/each}
+            {#if metaInfo[key].winrate !== null && metaInfo[key].winrate !== undefined}
+              <span class="dim">{metaInfo[key].winrate}%</span>
+            {/if}
+          </div>
+        </div>
+      {/if}
+    {/each}
+    {#if metaInfo.counters?.length}
+      <div class="build-phase">
+        <span class="list-label">{$t("league.counters")}</span>
+        <div class="build-items">
+          {#each metaInfo.counters.slice(0, 6) as c (c.championId)}
+            <span class="build-item">
+              <img class="champ-icon tiny" src={`${CDRAGON}/champion-icons/${c.championId}.png`} alt="" title={championById.get(c.championId)?.name ?? ""} loading="lazy" />
+              <span class="dim">{c.winrate}%</span>
+            </span>
+          {/each}
+        </div>
+      </div>
+    {/if}
+    <p class="win-disclaimer">{$t("league.meta_source")}</p>
   {/if}
 </section>
 
