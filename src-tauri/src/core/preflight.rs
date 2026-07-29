@@ -95,9 +95,9 @@ pub fn build_report(checks: Vec<ItemCheck>, available_bytes: Option<u64>) -> Pre
         None => true,
     };
 
-    let verdict = if ready == 0 {
-        Verdict::Stop
-    } else if !fits {
+    // Dois motivos distintos para parar: nada resolveu, ou o que resolveu nao
+    // cabe. A copy da tela precisa distinguir os dois, mas o veredito e o mesmo.
+    let verdict = if ready == 0 || !fits {
         Verdict::Stop
     } else if ready < total {
         Verdict::GoWithSkips
