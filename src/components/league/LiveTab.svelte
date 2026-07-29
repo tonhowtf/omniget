@@ -1,18 +1,39 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
   import { CDRAGON, ROLES, assetUrl, formatGameTime, type GoalKey, type Role } from "./shared";
+  import { availability, featureById, needsBadge, type Platform } from "./registry";
 
   let {
     liveMetrics,
     cooldowns,
     liveEvents,
     goalValue,
+    platform,
+    clientConnected,
   }: {
     liveMetrics: any;
     cooldowns: any;
     liveEvents: any;
     goalValue: (role: Role, key: GoalKey) => number;
+    platform?: Platform;
+    clientConnected?: boolean;
   } = $props();
+
+  let context = $derived({
+    platform: platform ?? "macos",
+    clientConnected: clientConnected ?? true,
+    inGame: Boolean(liveMetrics?.players?.length),
+  });
+
+  let objectivesFeature = featureById("objectives");
+  let objectivesAvailability = $derived(
+    objectivesFeature ? availability(objectivesFeature, context) : { available: true as const },
+  );
+
+  let liveFeature = featureById("live-metrics");
+  let liveAvailability = $derived(
+    liveFeature ? availability(liveFeature, context) : { available: true as const },
+  );
 
   let selfRow = $derived(liveMetrics?.players?.find((r: any) => r.isSelf) ?? null);
   let myTeam = $derived(selfRow?.team ?? "ORDER");
@@ -239,7 +260,12 @@
   {#if objectives.length > 0 || feed.length > 0}
     <section class="card">
       <div class="card-head">
-        <h3>{$t("league.objectives_title")}</h3>
+        <h3>
+          {$t("league.objectives_title")}
+          {#if objectivesFeature && needsBadge(objectivesFeature)}
+            <span class="feature-badge">{$t(`league.badge_${objectivesFeature.state}`)}</span>
+          {/if}
+        </h3>
       </div>
       {#if objectives.length > 0}
         <div class="objective-row">
@@ -289,6 +315,6 @@
   {/if}
 {:else}
   <div class="guard-card">
-    <p>{$t("league.gold_unavailable")}</p>
+    <p>{liveAvailability.available ? $t("league.gold_unavailable") : $t(liveAvailability.reasonKey)}</p>
   </div>
 {/if}

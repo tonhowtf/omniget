@@ -3,6 +3,7 @@
   import { t } from "$lib/i18n";
   import { CDRAGON, TAG_KEYS, type Champion, type RankedEntry, type ScoutPlayer } from "./shared";
   import { markedPlayers, winrateSquad } from "$lib/league-scouting";
+  import { availability, featureById, type Platform } from "./registry";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
   let {
@@ -18,6 +19,8 @@
     notes,
     onSaveNote,
     timesSeenBefore,
+    platform,
+    clientConnected,
   }: {
     analysis: any;
     analysisLoading: boolean;
@@ -31,7 +34,19 @@
     notes: Record<string, string>;
     onSaveNote: (puuid: string, text: string) => void;
     timesSeenBefore: (puuid: string) => number;
+    platform?: Platform;
+    clientConnected?: boolean;
   } = $props();
+
+  let analysisFeature = featureById("analysis");
+  let analysisAvailability = $derived.by(() => {
+    if (!analysisFeature) return { available: true as const };
+    return availability(analysisFeature, {
+      platform: platform ?? "macos",
+      clientConnected: clientConnected ?? true,
+      inGame: phase === "ChampSelect" || phase === "InProgress",
+    });
+  });
 
   let marked = $derived(markedPlayers(scoutPlayers, notes));
   let squadSide = $derived(winrateSquad(scoutPlayers, analysis?.premades ?? [], scoutReports));
@@ -144,7 +159,7 @@
   </section>
 {:else}
   <div class="guard-card">
-    <p>{$t("league.win_unavailable")}</p>
+    <p>{analysisAvailability.available ? $t("league.win_unavailable") : $t(analysisAvailability.reasonKey)}</p>
     <button class="button" onclick={onRefreshAnalysis} disabled={analysisLoading}>{$t("league.refresh")}</button>
   </div>
 {/if}
