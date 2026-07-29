@@ -667,4 +667,47 @@ mod backcompat_tests {
         let back: AdvancedSettings = serde_json::from_value(round).expect("volta");
         assert!(back.insecure_tls);
     }
+
+    // A #220 adicionou `accessibility` ao AppSettings sem teste de migracao.
+    // Um settings.json escrito antes da 0.8.0 nao tem esse campo; se ele perder
+    // o `serde(default)` num refactor, todo usuario existente perde a
+    // configuracao inteira, em silencio, no primeiro boot depois do update.
+    //
+    // Em vez de escrever um JSON antigo a mao (que envelhece e vira ficcao),
+    // este teste serializa o default atual e *remove* a chave nova — que e
+    // exatamente a forma de um arquivo gravado antes de o campo existir.
+    #[test]
+    fn settings_json_sem_accessibility_ainda_abre() {
+        let atual = serde_json::to_value(AppSettings::default()).expect("serializa");
+        let mut anterior = atual.clone();
+        let obj = anterior.as_object_mut().expect("objeto");
+        let removida = obj.remove("accessibility");
+        assert!(
+            removida.is_some(),
+            "o campo tem que existir hoje, senao o teste nao prova nada"
+        );
+
+        let parsed: AppSettings =
+            serde_json::from_value(anterior).expect("arquivo pre-0.8.0 tem que abrir");
+
+        assert!(!parsed.accessibility.reduce_motion);
+        assert!(!parsed.accessibility.reduce_transparency);
+        // E o que o usuario ja tinha nao pode sumir junto.
+        assert_eq!(
+            parsed.appearance.theme,
+            AppSettings::default().appearance.theme
+        );
+        assert_eq!(parsed.schema_version, AppSettings::default().schema_version);
+    }
+
+    #[test]
+    fn acessibilidade_ligada_sobrevive_ao_round_trip() {
+        let mut s = AppSettings::default();
+        s.accessibility.reduce_motion = true;
+        s.accessibility.reduce_transparency = true;
+        let round = serde_json::to_value(&s).expect("serializa");
+        let back: AppSettings = serde_json::from_value(round).expect("volta");
+        assert!(back.accessibility.reduce_motion);
+        assert!(back.accessibility.reduce_transparency);
+    }
 }

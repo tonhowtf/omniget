@@ -118,6 +118,73 @@ jobs:
           pnpm generate:i18n-keys
           git diff --exit-code -- src/lib/i18n/keys.ts
 
+  # B55. O CI provava que compila nas quatro plataformas e nunca abriu o app
+  # uma vez — foi por essa fresta que a #209 entrou em `main`. Este job sobe o
+  # binario de verdade e exige a linha de janela criada.
+  #
+  # Criterio de aceite do item: reverter o B49 tem que deixar este job vermelho.
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri'
+
+      - name: Linux deps
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev xvfb
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Build app
+        working-directory: src-tauri
+        run: cargo build
+
+      - name: Smoke (modo padrao)
+        shell: bash
+        run: |
+          BIN=src-tauri/target/debug/omniget
+          [ "${{ matrix.platform }}" = "windows-latest" ] && BIN="$BIN.exe"
+          if [ "${{ matrix.platform }}" = "ubuntu-latest" ]; then
+            xvfb-run -a node scripts/smoke-test.mjs "$BIN"
+          else
+            node scripts/smoke-test.mjs "$BIN"
+          fi
+
+      # A #209 e especificamente sobre Windows: `portable.txt` ao lado do exe
+      # nao pode deixar nada no perfil do usuario, e o WebView2 tem que apontar
+      # para <app>/data/webview. Esse caminho esta atras de cfg(windows).
+      - name: Smoke (modo portatil)
+        shell: bash
+        run: |
+          BIN=src-tauri/target/debug/omniget
+          [ "${{ matrix.platform }}" = "windows-latest" ] && BIN="$BIN.exe"
+          if [ "${{ matrix.platform }}" = "ubuntu-latest" ]; then
+            xvfb-run -a node scripts/smoke-test.mjs "$BIN" --portable
+          else
+            node scripts/smoke-test.mjs "$BIN" --portable
+          fi
+
   metainfo:
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.user.login != 'weblate' }}
     runs-on: ubuntu-latest

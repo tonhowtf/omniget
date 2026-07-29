@@ -344,6 +344,25 @@ pub fn run() {
                 }
 
                 builder.build()?;
+
+                // A unica prova de que a janela subiu. O CI compila em todas as
+                // plataformas mas nunca abriu o app: foi assim que a #209 passou
+                // batido. O smoke test do CI casa exatamente esta linha.
+                tracing::info!("[startup] main window created");
+            }
+
+            // Modo smoke: sobe, prova que a janela existe, e sai sozinho com 0.
+            // So existe para o CI conseguir responder "abre?", que e a pergunta
+            // que compilar nunca responde.
+            if let Ok(raw) = std::env::var("OMNIGET_SMOKE_EXIT_MS") {
+                if let Ok(ms) = raw.trim().parse::<u64>() {
+                    let handle = app.handle().clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(ms));
+                        tracing::info!("[startup] smoke mode: exiting cleanly");
+                        handle.exit(0);
+                    });
+                }
             }
 
             commands::host_queue::register_event_listeners(app.handle());
