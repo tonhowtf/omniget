@@ -809,6 +809,8 @@ pub fn run() {
             commands::auth_webview::open_auth_webview,
             commands::league::league_status,
             commands::league::league_get,
+            commands::league::league_set_positions,
+            commands::league::league_end_of_game_stats,
             commands::league::league_set_icon,
             commands::league::league_set_profile_background,
             commands::league::league_set_status,

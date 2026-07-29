@@ -1463,6 +1463,35 @@ pub async fn league_owned_skins(champion_id: i64) -> Result<Value, String> {
     Ok(json!({ "skins": skins }))
 }
 
+/// Role preferences for the next queue. The client takes both slots at once, and
+/// the second may be empty ("FILL" is expressed as an unset second choice).
+#[tauri::command]
+pub async fn league_set_positions(first: String, second: Option<String>) -> Result<Value, String> {
+    ensure_enabled()?;
+    const ROLES: [&str; 6] = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY", "FILL"];
+    let second = second.unwrap_or_else(|| "FILL".to_string());
+    if !ROLES.contains(&first.as_str()) || !ROLES.contains(&second.as_str()) {
+        return Err("invalid position".to_string());
+    }
+    let client = get_client().await?;
+    lcu_send(
+        &client,
+        reqwest::Method::PUT,
+        "/lol-lobby/v2/lobby/members/localMember/position-preferences",
+        Some(json!({ "firstPreference": first, "secondPreference": second })),
+    )
+    .await
+}
+
+/// End-of-game summary the client shows on its own screen, useful when that
+/// screen was dismissed too fast.
+#[tauri::command]
+pub async fn league_end_of_game_stats() -> Result<Value, String> {
+    ensure_enabled()?;
+    let client = get_client().await?;
+    lcu_get_raw(&client, "/lol-end-of-game/v1/eog-stats-block").await
+}
+
 /// Objective respawn estimates and a readable feed of what just happened,
 /// derived from the in-game event log.
 #[tauri::command]
