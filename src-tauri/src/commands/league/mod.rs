@@ -3242,6 +3242,7 @@ async fn handle_champ_select(
                 }
                 lock
             };
+            let complete_action = settings.auto_lock || action_type == "ban";
             let path = format!("/lol-champ-select/v1/session/actions/{}", action_id);
             let body = json!({ "championId": choice, "completed": complete_action });
             match lcu_send(client, reqwest::Method::PATCH, &path, Some(body)).await {

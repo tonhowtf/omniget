@@ -24,7 +24,6 @@
   align-items: center;
   height: var(--titlebar-height);
   padding: 0 var(--space-4);
-  padding-left: calc(var(--space-4) + 78px);
   border-bottom: 1px solid var(--border);
   background: var(--bg);
   flex-shrink: 0;
@@ -48,15 +47,17 @@
   gap: var(--space-2);
 }
 
-.mac-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: var(--toolbar-height);
-  padding: var(--space-2) var(--space-5);
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  flex-shrink: 0;
+/* Os 78px só existem para os semáforos do macOS. Fora dele eram espaço morto
+   empurrando o título para o meio da barra sem motivo. */
+[data-platform="macos"] .mac-titlebar {
+  padding-left: calc(var(--space-4) + 78px);
+}
+
+/* Windows e Linux desenham minimizar/maximizar/fechar à direita, em cima de
+   onde ficavam as ações do app. Reservar o espaço é o que impede o botão de
+   busca de disputar pixel com o botão de fechar. */
+[data-platform="other"] .mac-titlebar-actions {
+  margin-right: 140px;
 }
 
 .mac-content {
