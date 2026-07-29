@@ -496,6 +496,8 @@ export type TranslationKeys =
   | 'league.match_damage'
   | 'league.match_detail_unavailable'
   | 'league.nav'
+  | 'league.notify_ready'
+  | 'league.notify_ready_desc'
   | 'league.objective_baron'
   | 'league.objective_dragon'
   | 'league.objective_inhibitor'

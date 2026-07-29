@@ -183,6 +183,8 @@
     "live_title": "进行中的对局",
     "respawn_in": "复活倒计时",
     "automation_title": "自动化",
+    "notify_ready": "找到对局时通知",
+    "notify_ready_desc": "仅在 OmniGet 窗口未获得焦点时发送系统通知。",
     "auto_pick": "自动选英雄",
     "auto_pick_desc": "轮到你时自动选择列表中第一个可用的英雄。",
     "auto_ban": "自动禁用",

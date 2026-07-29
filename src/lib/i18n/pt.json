@@ -183,6 +183,8 @@
     "live_title": "Partida ao vivo",
     "respawn_in": "renasce em",
     "automation_title": "Automação",
+    "notify_ready": "Avisar quando a partida for encontrada",
+    "notify_ready_desc": "Envia uma notificação do sistema apenas quando a janela do OmniGet não está em foco.",
     "auto_pick": "Pick automático",
     "auto_pick_desc": "Escolhe o primeiro campeão disponível da sua lista quando for a sua vez.",
     "auto_ban": "Ban automático",

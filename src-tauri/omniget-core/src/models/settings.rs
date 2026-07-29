@@ -53,6 +53,8 @@ pub struct LeagueSettings {
     pub auto_accept: bool,
     #[serde(default)]
     pub auto_accept_delay: u8,
+    #[serde(default = "default_notify_ready_check")]
+    pub notify_ready_check: bool,
     #[serde(default)]
     pub auto_pick: bool,
     #[serde(default)]
@@ -81,12 +83,17 @@ fn default_league_enabled() -> bool {
     true
 }
 
+fn default_notify_ready_check() -> bool {
+    true
+}
+
 impl Default for LeagueSettings {
     fn default() -> Self {
         Self {
             enabled: default_league_enabled(),
             auto_accept: false,
             auto_accept_delay: 0,
+            notify_ready_check: default_notify_ready_check(),
             auto_pick: false,
             auto_ban: false,
             auto_lock: false,

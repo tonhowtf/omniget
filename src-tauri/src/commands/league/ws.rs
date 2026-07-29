@@ -4,7 +4,8 @@ use futures::{SinkExt, StreamExt};
 use once_cell::sync::OnceCell;
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
+use tauri_plugin_notification::NotificationExt;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::Connector;
@@ -14,6 +15,7 @@ static STARTED: AtomicBool = AtomicBool::new(false);
 static WS_CONNECTED: AtomicBool = AtomicBool::new(false);
 static MESSAGE_SENT: AtomicBool = AtomicBool::new(false);
 static ACCEPT_PENDING: AtomicBool = AtomicBool::new(false);
+static NOTIFIED_READY_CHECK: AtomicBool = AtomicBool::new(false);
 static TRADES_HANDLED: once_cell::sync::Lazy<tokio::sync::Mutex<std::collections::HashSet<i64>>> =
     once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(std::collections::HashSet::new()));
 
@@ -37,6 +39,31 @@ fn accept_delay_seconds(setting: u8) -> u8 {
 /// not answered it: an explicit decline must never be overridden.
 fn should_accept_ready_check(state: &str, player_response: &str) -> bool {
     pending_ready_check(state) && player_response == "None"
+}
+
+/// A queue popping while the user looks at another window is exactly the moment
+/// a notification earns its keep; firing one over a focused app would be noise.
+fn notify_ready_check() {
+    if !league_settings().notify_ready_check {
+        return;
+    }
+    let Some(app) = APP.get() else { return };
+    let focused = app
+        .get_webview_window("main")
+        .and_then(|w| w.is_focused().ok())
+        .unwrap_or(false);
+    if focused {
+        return;
+    }
+    if let Err(e) = app
+        .notification()
+        .builder()
+        .title("OmniGet")
+        .body("League of Legends: match found")
+        .show()
+    {
+        tracing::debug!("[league] ready check notification failed: {}", e);
+    }
 }
 
 async fn accept_ready_check(client: &LcuClient) {
@@ -193,6 +220,11 @@ async fn handle_event(client: &LcuClient, value: &Value) {
             emit("league-ready-check", data.clone());
             if !pending_ready_check(state) {
                 ACCEPT_PENDING.store(false, Ordering::SeqCst);
+                NOTIFIED_READY_CHECK.store(false, Ordering::SeqCst);
+            } else if should_accept_ready_check(state, response)
+                && !NOTIFIED_READY_CHECK.swap(true, Ordering::SeqCst)
+            {
+                notify_ready_check();
             }
             if should_accept_ready_check(state, response)
                 && super::AUTO_ACCEPT.load(Ordering::Relaxed)
