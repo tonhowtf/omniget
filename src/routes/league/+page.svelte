@@ -831,6 +831,23 @@
     color: var(--gray);
     }
 
+  .league-page :global(.scout-notices) {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius);
+    background: var(--surface-hover);
+    }
+
+  .league-page :global(.scout-notice) {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    }
+
   .league-page :global(.queue-filter) {
     display: flex;
     gap: 6px;

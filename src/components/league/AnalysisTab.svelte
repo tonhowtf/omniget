@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { CDRAGON, TAG_KEYS, type Champion, type RankedEntry, type ScoutPlayer } from "./shared";
+  import { markedPlayers, winrateSquad } from "$lib/league-scouting";
 
   let {
     analysis,
@@ -30,6 +31,9 @@
     onSaveNote: (puuid: string, text: string) => void;
     timesSeenBefore: (puuid: string) => number;
   } = $props();
+
+  let marked = $derived(markedPlayers(scoutPlayers, notes));
+  let squadSide = $derived(winrateSquad(scoutPlayers, analysis?.premades ?? [], scoutReports));
 
   let openNotes = $state<Record<string, boolean>>({});
   let chatPreview = $state("");
@@ -137,6 +141,25 @@
       <button class="button" onclick={onRefreshScouting} disabled={scoutLoading}>{$t("league.refresh")}</button>
     </div>
     <div class="scout-teams">
+      {#if marked.ally.length > 0 || marked.enemy.length > 0 || squadSide}
+        <div class="scout-notices">
+          {#if marked.ally.length > 0}
+            <p class="scout-notice">
+              {$t("league.marked_in_allies")} <strong>{marked.ally.join(", ")}</strong>
+            </p>
+          {/if}
+          {#if marked.enemy.length > 0}
+            <p class="scout-notice">
+              {$t("league.marked_in_enemies")} <strong>{marked.enemy.join(", ")}</strong>
+            </p>
+          {/if}
+          {#if squadSide}
+            <p class="scout-notice">
+              {squadSide === "enemy" ? $t("league.squad_enemy") : $t("league.squad_ally")}
+            </p>
+          {/if}
+        </div>
+      {/if}
       {#each scoutGroups() as group (group.label)}
         <div class="scout-team">
           <h4 class="scout-team-title" class:enemy={!group.ally}>{group.label}</h4>
