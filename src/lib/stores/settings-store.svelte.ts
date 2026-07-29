@@ -93,6 +93,7 @@ export type AppSettings = {
   league?: {
     enabled?: boolean;
     auto_accept?: boolean;
+    auto_accept_delay?: number;
     auto_pick?: boolean;
     auto_ban?: boolean;
     auto_lock?: boolean;

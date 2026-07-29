@@ -391,6 +391,9 @@ export type TranslationKeys =
   | 'hotmart.unavailable'
   | 'hotmart.unknown_error'
 
+  | 'league.accept_delay'
+  | 'league.accept_delay_desc'
+  | 'league.accept_delay_instant'
   | 'league.accept_now'
   | 'league.auto_accept'
   | 'league.auto_accept_desc'

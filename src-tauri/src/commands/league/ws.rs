@@ -13,11 +13,37 @@ static APP: OnceCell<tauri::AppHandle> = OnceCell::new();
 static STARTED: AtomicBool = AtomicBool::new(false);
 static WS_CONNECTED: AtomicBool = AtomicBool::new(false);
 static MESSAGE_SENT: AtomicBool = AtomicBool::new(false);
+static ACCEPT_PENDING: AtomicBool = AtomicBool::new(false);
 static TRADES_HANDLED: once_cell::sync::Lazy<tokio::sync::Mutex<std::collections::HashSet<i64>>> =
     once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(std::collections::HashSet::new()));
 
+/// A queue pops after roughly twelve seconds without an answer, so a longer
+/// delay would simply waste the queue slot.
+const MAX_ACCEPT_DELAY: u8 = 11;
+
 pub fn is_connected() -> bool {
     WS_CONNECTED.load(Ordering::Relaxed)
+}
+
+fn pending_ready_check(state: &str) -> bool {
+    state == "InProgress"
+}
+
+fn accept_delay_seconds(setting: u8) -> u8 {
+    setting.min(MAX_ACCEPT_DELAY)
+}
+
+/// A ready check is only worth accepting while it is still open and the user has
+/// not answered it: an explicit decline must never be overridden.
+fn should_accept_ready_check(state: &str, player_response: &str) -> bool {
+    pending_ready_check(state) && player_response == "None"
+}
+
+async fn accept_ready_check(client: &LcuClient) {
+    match lcu_post_raw(client, "/lol-matchmaking/v1/ready-check/accept").await {
+        Ok(_) => tracing::info!("[league] ready check accepted"),
+        Err(e) => tracing::warn!("[league] auto-accept failed: {}", e),
+    }
 }
 
 fn emit(event: &str, payload: Value) {
@@ -165,13 +191,43 @@ async fn handle_event(client: &LcuClient, value: &Value) {
                 .and_then(Value::as_str)
                 .unwrap_or("");
             emit("league-ready-check", data.clone());
-            if state == "InProgress"
-                && response == "None"
+            if !pending_ready_check(state) {
+                ACCEPT_PENDING.store(false, Ordering::SeqCst);
+            }
+            if should_accept_ready_check(state, response)
                 && super::AUTO_ACCEPT.load(Ordering::Relaxed)
             {
-                match lcu_post_raw(client, "/lol-matchmaking/v1/ready-check/accept").await {
-                    Ok(_) => tracing::info!("[league] ready check accepted"),
-                    Err(e) => tracing::warn!("[league] auto-accept failed: {}", e),
+                let delay = accept_delay_seconds(league_settings().auto_accept_delay);
+                if delay == 0 {
+                    accept_ready_check(client).await;
+                } else if !ACCEPT_PENDING.swap(true, Ordering::SeqCst) {
+                    // The client re-emits the ready check every tick, so the
+                    // countdown must be started only once.
+                    let client = client.clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(delay as u64)).await;
+                        ACCEPT_PENDING.store(false, Ordering::SeqCst);
+                        // The user may have declined during the countdown, so
+                        // the current state decides, not the event that started it.
+                        match lcu_get_raw(&client, "/lol-matchmaking/v1/ready-check").await {
+                            Ok(current) => {
+                                let state =
+                                    current.get("state").and_then(Value::as_str).unwrap_or("");
+                                let response = current
+                                    .get("playerResponse")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("");
+                                if should_accept_ready_check(state, response) {
+                                    accept_ready_check(&client).await;
+                                } else {
+                                    tracing::debug!(
+                                        "[league] auto-accept skipped: no longer pending"
+                                    );
+                                }
+                            }
+                            Err(e) => tracing::debug!("[league] ready check re-read failed: {}", e),
+                        }
+                    });
                 }
             }
         }
@@ -391,5 +447,36 @@ async fn honor_from_ballot(client: &LcuClient, ballot: &Value) {
     match legacy {
         Ok(_) => tracing::info!("[league] honored a teammate"),
         Err(e) => tracing::debug!("[league] auto-honor failed: {}", e),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_open_and_unanswered_ready_check_is_accepted() {
+        assert!(should_accept_ready_check("InProgress", "None"));
+    }
+
+    #[test]
+    fn a_declined_ready_check_is_never_overridden() {
+        assert!(!should_accept_ready_check("InProgress", "Declined"));
+        assert!(!should_accept_ready_check("InProgress", "Accepted"));
+    }
+
+    #[test]
+    fn a_closed_ready_check_is_left_alone() {
+        for state in ["Invalid", "EveryoneReady", "StrangerNotReady", ""] {
+            assert!(!should_accept_ready_check(state, "None"), "state {}", state);
+            assert!(!pending_ready_check(state), "state {}", state);
+        }
+    }
+
+    #[test]
+    fn the_delay_is_capped_below_the_queue_timeout() {
+        assert_eq!(accept_delay_seconds(255), MAX_ACCEPT_DELAY);
+        assert_eq!(accept_delay_seconds(3), 3);
+        assert_eq!(accept_delay_seconds(0), 0);
     }
 }
