@@ -14,6 +14,20 @@ Formato: **o que clicar** → o que precisa acontecer.
 - **#209 caso 3 — segunda abertura.** Abrir duas vezes nos dois modos → settings e
   tamanho de janela persistem.
 
+## Issues de usuário
+
+- **#218 — runtime WebView2 ao lado do exe (Windows).** Numa máquina Windows **sem**
+  WebView2 instalado: descompactar o Fixed Version Runtime ao lado do `omniget.exe`,
+  abrir → a janela abre. Depois renomear a pasta para algo que não case → o app volta
+  a exigir o runtime do sistema, em vez de falhar sem janela. A lógica de descoberta
+  tem 6 testes, mas o `set_var` está atrás de `cfg(windows)` e nunca rodou no Windows.
+- **#222 — seção de extensão traduzida.** Trocar o idioma para inglês (ou qualquer um
+  que não seja português) → Config → Plugins: o bloco "Browser extension" e as três
+  dicas de instalação aparecem no idioma escolhido, não em português.
+- **#222 — menu de dependência inteiro.** Config → Plugins → linha do **PDFium**
+  (a última da tabela) → `...` → as opções aparecem completas, sem corte na borda do
+  card, e "escolher arquivo" é clicável.
+
 ## Onda 1
 
 - **Smart Speed / Voice Boost (B36, B53).** Numa aula real: "Medir silêncio" estima,
