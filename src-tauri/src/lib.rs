@@ -320,13 +320,23 @@ pub fn run() {
             {
                 // `mut` so e usado no ramo Windows abaixo; sem o cfg_attr isto
                 // vira warning novo em macOS e Linux e reprova o portao de clippy.
-                #[cfg_attr(not(windows), allow(unused_mut))]
+                #[cfg_attr(not(any(windows, target_os = "linux")), allow(unused_mut))]
                 let mut builder = tauri::WebviewWindowBuilder::from_config(
                     app.handle(),
                     &app.config().app.windows[0],
                 )?;
 
-                #[cfg(windows)]
+                // Nao e so Windows. No Linux o wry usa este caminho para
+                // `base_data_directory`, `base_cache_directory` e os cookies do
+                // WebKitGTK; sem ele o modo portatil deixa
+                // `XDG_DATA_HOME/wtf.tonho.omniget` no perfil do usuario — a
+                // mesma #209, fora do Windows. Foi o smoke test do B55 que
+                // pegou isso, na primeira vez que rodou.
+                //
+                // macOS fica de fora porque o wry nao le `data_directory` no
+                // WKWebView: incluir daria a impressao de cobrir um caso que
+                // nao esta coberto.
+                #[cfg(any(windows, target_os = "linux"))]
                 if let Some(webview_dir) = core::portable::portable_webview_dir_from_env() {
                     if let Err(e) = std::fs::create_dir_all(&webview_dir) {
                         tracing::warn!(
