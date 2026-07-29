@@ -3,6 +3,7 @@
   import { t } from "$lib/i18n";
   import { CDRAGON, TAG_KEYS, type Champion, type RankedEntry, type ScoutPlayer } from "./shared";
   import { markedPlayers, winrateSquad } from "$lib/league-scouting";
+  import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
   let {
     analysis,
@@ -34,6 +35,20 @@
 
   let marked = $derived(markedPlayers(scoutPlayers, notes));
   let squadSide = $derived(winrateSquad(scoutPlayers, analysis?.premades ?? [], scoutReports));
+
+  let copied = $state("");
+
+  async function copyRiotId(player: { gameName?: string; tagLine?: string; puuid?: string }) {
+    const id = player.tagLine ? `${player.gameName}#${player.tagLine}` : (player.gameName ?? "");
+    if (!id) return;
+    try {
+      await writeText(id);
+      copied = player.puuid ?? id;
+      setTimeout(() => { if (copied === (player.puuid ?? id)) copied = ""; }, 1500);
+    } catch {
+      copied = "";
+    }
+  }
 
   let openNotes = $state<Record<string, boolean>>({});
   let chatPreview = $state("");
@@ -190,6 +205,11 @@
                       <span class="scout-kda">
                         {r.stats.kda} KDA{#if r.impact !== null && r.impact !== undefined} · <span class="impact" title={$t("league.impact_hint") as string}>{r.impact}</span>{/if}
                       </span>
+                      {#if r.stats.score !== null && r.stats.score !== undefined}
+                        <span class="scout-score" title={`${$t("league.score_hint")} (${r.stats.scoredGames})`}>
+                          {$t("league.score_label")} {r.stats.score.toFixed(1)}
+                        </span>
+                      {/if}
                     </div>
                   {:else if r?.privateProfile}
                     <span class="scout-private">{$t("league.scout_private")}</span>
@@ -197,6 +217,11 @@
                     <span class="scout-private">{$t("league.scout_no_history")}</span>
                   {:else if r}
                     <span class="scout-private">…</span>
+                  {/if}
+                  {#if p.gameName}
+                    <button class="note-toggle" onclick={() => copyRiotId(p)} aria-label={$t("league.copy_riot_id") as string} title={$t("league.copy_riot_id") as string}>
+                      {copied === (p.puuid ?? p.gameName) ? "✓" : "⧉"}
+                    </button>
                   {/if}
                   {#if p.puuid}
                     <button class="note-toggle" class:has-note={(notes[p.puuid] ?? "").trim() !== ""} onclick={() => { openNotes = { ...openNotes, [p.puuid]: !openNotes[p.puuid] }; }} aria-label={$t("league.scout_note_placeholder") as string} aria-expanded={openNotes[p.puuid] ?? false}>✎</button>

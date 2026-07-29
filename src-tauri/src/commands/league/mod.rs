@@ -722,6 +722,7 @@ fn compute_history_stats(games: &[Value], puuid: &str) -> Value {
     let mut flash_on_f = 0usize;
     let mut total_damage = 0.0f64;
     let mut total_gold = 0.0f64;
+    let mut scored_games: Vec<stats::ScoredGame> = Vec::new();
 
     for game in games {
         let participant = game
@@ -759,9 +760,29 @@ fn compute_history_stats(games: &[Value], puuid: &str) -> Value {
         if win {
             wins += 1;
         }
-        kills += stats.get("kills").and_then(Value::as_i64).unwrap_or(0);
-        deaths += stats.get("deaths").and_then(Value::as_i64).unwrap_or(0);
-        assists += stats.get("assists").and_then(Value::as_i64).unwrap_or(0);
+        let game_kills = stats.get("kills").and_then(Value::as_i64).unwrap_or(0);
+        let game_deaths = stats.get("deaths").and_then(Value::as_i64).unwrap_or(0);
+        let game_assists = stats.get("assists").and_then(Value::as_i64).unwrap_or(0);
+        kills += game_kills;
+        deaths += game_deaths;
+        assists += game_assists;
+        scored_games.push(stats::ScoredGame {
+            queue_id: game.get("queueId").and_then(Value::as_i64).unwrap_or(-1),
+            duration: game
+                .get("gameDuration")
+                .and_then(Value::as_i64)
+                .unwrap_or(0),
+            kills: game_kills,
+            deaths: game_deaths,
+            assists: game_assists,
+            win,
+            support: participant
+                .get("timeline")
+                .and_then(|t| t.get("lane"))
+                .and_then(Value::as_str)
+                == Some("NONE")
+                || stats.get("role").and_then(Value::as_str) == Some("DUO_SUPPORT"),
+        });
         total_damage += stats
             .get("totalDamageDealtToChampions")
             .and_then(Value::as_f64)
@@ -864,11 +885,15 @@ fn compute_history_stats(games: &[Value], puuid: &str) -> Value {
         Value::Null
     };
 
+    let (score, scored_count) = stats::player_score(&scored_games);
+
     json!({
         "games": total,
         "wins": wins,
         "winrate": winrate,
         "kda": (kda * 10.0).round() / 10.0,
+        "score": score.map(|s| (s * 100.0).round() / 100.0),
+        "scoredGames": scored_count,
         "streak": { "win": streak_kind.unwrap_or(false), "length": streak_len },
         "topChampions": top.iter().map(|(id, g, w)| json!({ "championId": id, "games": g, "wins": w })).collect::<Vec<_>>(),
         "insights": insights,

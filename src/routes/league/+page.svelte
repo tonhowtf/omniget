@@ -1922,6 +1922,12 @@
     background: var(--surface-hover);
     }
 
+  .league-page :global(.scout-score) {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    }
+
   .league-page :global(.objective-line) {
     display: flex;
     gap: 12px;
