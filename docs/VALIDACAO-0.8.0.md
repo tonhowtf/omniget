@@ -20,6 +20,18 @@ Formato: **o que clicar** → o que precisa acontecer.
   "Cortar silêncio" devolve `.m4a` com duração batendo com a estimativa, "Nivelar voz"
   devolve `.mp4` com vídeo idêntico e áudio nivelado. Os três botões nunca foram clicados.
 
+## Onda C
+
+- **B44 painel de causa raiz** → quando a tela existir: forçar cada uma das sete causas
+  e confirmar que aparece causa nomeada **e** o botão da ação correspondente, não texto
+  cru. Uma falha desconhecida tem que dizer que não sabe, em vez de inventar.
+- **B43 impersonation** → confirmar que o botão "tentar imitando um navegador" usa um
+  alvo de desktop e que a segunda tentativa passa em site que bloqueia por fingerprint.
+- **B42 PO token** → com um provedor bgutil rodando, confirmar que o estado aparece como
+  pronto e que o download do YouTube deixa de degradar. **Sem provedor rodando, confirmar
+  que nada é passado ao yt-dlp** — apontar para endereço morto faz cada download esperar
+  o timeout.
+
 ## Onda B
 
 - **B34 pre-flight de lote** → quando ligado ao botão de lote: colar 3 links sendo
