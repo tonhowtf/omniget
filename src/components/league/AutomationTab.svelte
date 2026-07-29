@@ -59,8 +59,7 @@
     });
   }
 
-  function toggleLeagueFlag(field: "auto_pick" | "auto_ban" | "auto_honor" | "auto_play_again" | "auto_requeue" | "auto_accept_swaps" | "auto_reconnect" | "notify_ready_check") {
-  function toggleLeagueFlag(field: "auto_pick" | "auto_ban" | "auto_lock" | "auto_honor" | "auto_play_again" | "auto_reconnect" | "notify_ready_check") {
+  function toggleLeagueFlag(field: "auto_pick" | "auto_ban" | "auto_lock" | "auto_honor" | "auto_play_again" | "auto_requeue" | "auto_accept_swaps" | "auto_reconnect" | "notify_ready_check") {
     const current = (settings?.league as any)?.[field] ?? false;
     updateSettings({ league: { [field]: !current } });
   }
