@@ -56,7 +56,7 @@ pub fn list_archived(binary: &Path) -> Vec<(u128, PathBuf)> {
             parse_archive(fname, name).map(|stamp| (stamp, e.path()))
         })
         .collect();
-    out.sort_by(|a, b| b.0.cmp(&a.0));
+    out.sort_by_key(|(stamp, _)| std::cmp::Reverse(*stamp));
     out
 }
 

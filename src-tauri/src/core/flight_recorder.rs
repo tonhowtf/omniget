@@ -108,8 +108,7 @@ fn next_secret(hay: &str) -> Option<(usize, usize, &'static str)> {
 fn redact_home_paths(line: &str) -> String {
     let mut out = line.to_string();
     for prefix in ["/Users/", "/home/", "\\Users\\"] {
-        loop {
-            let Some(i) = out.find(prefix) else { break };
+        while let Some(i) = out.find(prefix) {
             let after = i + prefix.len();
             let sep = if prefix.contains('\\') { '\\' } else { '/' };
             let end = out[after..]
