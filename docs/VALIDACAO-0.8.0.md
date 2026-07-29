@@ -8,11 +8,32 @@ Formato: **o que clicar** → o que precisa acontecer.
 
 ## Bloqueantes
 
-- **#209 caso 1 — portátil no Windows.** `portable.txt` ao lado do `.exe`, apagar
-  `%LOCALAPPDATA%\wtf.tonho.omniget`, abrir → janela abre, a pasta não volta,
-  `<app>\data\webview` existe. É o único caso do B49 nunca observado funcionando.
-- **#209 caso 3 — segunda abertura.** Abrir duas vezes nos dois modos → settings e
-  tamanho de janela persistem.
+**Nenhum.** Os dois casos da #209 viraram o job `smoke` da CI, que roda em
+windows-latest e ubuntu-latest a cada PR e reprova se o modo portátil escrever
+no perfil do usuário. Verificado por reversão: sem o `set_var` do B49, o job
+fica vermelho com o caminho vazado no texto.
+
+Sobrou uma lacuna real, registrada na **#227**: o macOS não é coberto, porque o
+`wry` não lê `data_directory` no WKWebView. Não é bloqueante da 0.8.0 — é o
+modo portátil não cumprindo o que promete numa das três plataformas.
+
+## Ligados nesta versão — nunca clicados
+
+- **Rollback de yt-dlp (B37).** Config → Plugins → yt-dlp → `Update`, depois `...`
+  → deve aparecer "Versões anteriores" com a data. Clicar → volta e a versão na
+  tabela muda.
+- **Pré-flight de lote (B34).** Colar 3 links, sendo um repetido e um de site sem
+  suporte → deve avisar quantos serão pulados e enfileirar só o resto. Colar
+  apenas links sem suporte → deve abortar com a mensagem, sem enfileirar nada.
+- **Caixa-preta (B33).** Baixar algo, abrir o painel de debug → `Copiar relatório`
+  → o texto deve conter `--- Download Trace` e **não** deve conter cookie, token
+  nem caminho com o nome do usuário. Este último ponto é o que importa.
+- **Concorrência adaptativa (B35).** Baixar duas vezes do mesmo host: a segunda
+  pode usar concorrência diferente. Sem forma de observar pela interface hoje —
+  só pelo log. É a mais fraca da lista.
+- **Impersonation (B43) e PO token (B42).** Só disparam em falha real: um site que
+  bloqueia por fingerprint, ou um vídeo que exige PO token. Não dá para provocar
+  sinteticamente.
 
 ## Issues de usuário
 
