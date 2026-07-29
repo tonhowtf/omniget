@@ -1,6 +1,6 @@
+use crate::models::progress::ProgressUpdate;
 use anyhow::anyhow;
 use async_trait::async_trait;
-use crate::models::progress::ProgressUpdate;
 use rand::RngExt;
 use regex::Regex;
 use tokio::sync::mpsc;

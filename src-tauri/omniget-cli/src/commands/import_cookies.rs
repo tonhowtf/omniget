@@ -12,9 +12,7 @@ pub async fn execute(file: String, name: Option<String>, dry_run: bool) -> Resul
         if output::is_json_mode() {
             let items: Vec<serde_json::Value> = preview
                 .iter()
-                .map(|(domain, count)| {
-                    serde_json::json!({ "domain": domain, "cookies": count })
-                })
+                .map(|(domain, count)| serde_json::json!({ "domain": domain, "cookies": count }))
                 .collect();
             output::print_json(&serde_json::json!({ "domains": items }));
         } else {
@@ -37,7 +35,9 @@ pub async fn execute(file: String, name: Option<String>, dry_run: bool) -> Resul
         println!(
             r#"{{"success":true,"total":{},"destination":"{}"}}"#,
             total,
-            dest.as_deref().map(|p| p.display().to_string()).unwrap_or_default()
+            dest.as_deref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default()
         );
     } else {
         if let Some(d) = &dest {

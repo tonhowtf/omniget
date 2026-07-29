@@ -2,8 +2,8 @@ use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use omniget_core::core::paths::app_data_dir;
 use omniget_core::core::cookie_parser::parse_cookie_input;
+use omniget_core::core::paths::app_data_dir;
 
 const COOKIES_DIR: &str = "cookies";
 const DEFAULT_COOKIE_FILE: &str = "cookies.txt";

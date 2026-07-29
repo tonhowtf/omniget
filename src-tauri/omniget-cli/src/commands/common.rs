@@ -10,8 +10,8 @@ use omniget_core::models::settings::ProxySettings;
 use omniget_core::platforms::{
     BilibiliDownloader, BlueskyDownloader, DirectFileDownloader, DouyinDownloader,
     GenericYtdlpDownloader, InstagramDownloader, P2pDownloader, PinterestDownloader,
-    PlatformDownloader, RedditDownloader,
-    TikTokDownloader, TwitchClipsDownloader, TwitterDownloader, VimeoDownloader, YouTubeDownloader,
+    PlatformDownloader, RedditDownloader, TikTokDownloader, TwitchClipsDownloader,
+    TwitterDownloader, VimeoDownloader, YouTubeDownloader,
 };
 use tokio_util::sync::CancellationToken;
 

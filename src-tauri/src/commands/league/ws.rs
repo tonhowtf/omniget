@@ -1,4 +1,4 @@
-use super::{get_client, league_settings, lcu_get_raw, lcu_post_raw, lcu_send, LcuClient};
+use super::{get_client, lcu_get_raw, lcu_post_raw, lcu_send, league_settings, LcuClient};
 use base64::Engine;
 use futures::{SinkExt, StreamExt};
 use once_cell::sync::OnceCell;
@@ -75,8 +75,7 @@ async fn run_session(client: &LcuClient) -> Result<(), String> {
     let mut request = url
         .into_client_request()
         .map_err(|e| format!("bad websocket url: {}", e))?;
-    let auth = base64::engine::general_purpose::STANDARD
-        .encode(format!("riot:{}", client.token));
+    let auth = base64::engine::general_purpose::STANDARD.encode(format!("riot:{}", client.token));
     request.headers_mut().insert(
         "Authorization",
         format!("Basic {}", auth)
@@ -280,7 +279,11 @@ async fn handle_trades(
         let path = format!(
             "/lol-champ-select/v1/session/trades/{}/{}",
             id,
-            if strategy == "accept" { "accept" } else { "decline" }
+            if strategy == "accept" {
+                "accept"
+            } else {
+                "decline"
+            }
         );
         match lcu_post_raw(client, &path).await {
             Ok(_) => {
@@ -362,7 +365,10 @@ async fn honor_from_ballot(client: &LcuClient, ballot: &Value) {
         None => return,
     };
     let puuid = choice.get("puuid").and_then(Value::as_str).unwrap_or("");
-    let summoner_id = choice.get("summonerId").and_then(Value::as_i64).unwrap_or(0);
+    let summoner_id = choice
+        .get("summonerId")
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
 
     let modern = lcu_send(
         client,

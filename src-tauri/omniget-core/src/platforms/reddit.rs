@@ -1,6 +1,6 @@
+use crate::models::progress::ProgressUpdate;
 use anyhow::anyhow;
 use async_trait::async_trait;
-use crate::models::progress::ProgressUpdate;
 use tokio::sync::mpsc;
 
 use crate::core::direct_downloader;

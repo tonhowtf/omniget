@@ -466,13 +466,7 @@ impl HttpFetcher {
                             (s > 0.0 && total > dl).then(|| ((total - dl) as f64 / s) as u64)
                         });
                         let _ = progress_tx
-                            .send(ProgressUpdate::rich(
-                                pct,
-                                Some(dl),
-                                Some(total),
-                                speed,
-                                eta,
-                            ))
+                            .send(ProgressUpdate::rich(pct, Some(dl), Some(total), speed, eta))
                             .await;
                         last_emit = std::time::Instant::now();
                     }

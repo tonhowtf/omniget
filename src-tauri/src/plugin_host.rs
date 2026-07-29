@@ -139,10 +139,7 @@ impl<R: Runtime + 'static> PluginHost for PluginHostImpl<R> {
                 })?
                 .join("wtf.tonho.omniget")
         };
-        let dir = base
-            .join("external-cache")
-            .join(plugin_id)
-            .join(namespace);
+        let dir = base.join("external-cache").join(plugin_id).join(namespace);
         std::fs::create_dir_all(&dir).map_err(|e| {
             anyhow::anyhow!(
                 "external_data_cache: failed to create {}: {}",

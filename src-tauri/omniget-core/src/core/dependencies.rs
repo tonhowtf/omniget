@@ -925,9 +925,19 @@ mod integrity_tests {
         // Regressao: a versao anterior usava `?` dentro do laco, entao a
         // primeira linha vazia ou de um token so abortava a funcao inteira e o
         // asset seguinte nunca era encontrado -> instalacao sem verificacao.
-        let sums = format!("\n\ncomentario\n{}  yt-dlp.exe\n\n{}  yt-dlp_macos\n", VAZIO, "1".repeat(64));
-        assert_eq!(parse_sha256sums(&sums, "yt-dlp.exe").as_deref(), Some(VAZIO));
-        assert_eq!(parse_sha256sums(&sums, "yt-dlp_macos").as_deref(), Some("1".repeat(64).as_str()));
+        let sums = format!(
+            "\n\ncomentario\n{}  yt-dlp.exe\n\n{}  yt-dlp_macos\n",
+            VAZIO,
+            "1".repeat(64)
+        );
+        assert_eq!(
+            parse_sha256sums(&sums, "yt-dlp.exe").as_deref(),
+            Some(VAZIO)
+        );
+        assert_eq!(
+            parse_sha256sums(&sums, "yt-dlp_macos").as_deref(),
+            Some("1".repeat(64).as_str())
+        );
         assert_eq!(parse_sha256sums(&sums, "ausente"), None);
     }
 
@@ -936,12 +946,18 @@ mod integrity_tests {
         let bin = format!("{} *ffmpeg.zip\n", VAZIO);
         assert_eq!(parse_sha256sums(&bin, "ffmpeg.zip").as_deref(), Some(VAZIO));
         assert_eq!(parse_sha256sums("abc  yt-dlp.exe\n", "yt-dlp.exe"), None);
-        assert_eq!(parse_sha256sums(&format!("{}  yt-dlp.exe\n", "z".repeat(64)), "yt-dlp.exe"), None);
+        assert_eq!(
+            parse_sha256sums(&format!("{}  yt-dlp.exe\n", "z".repeat(64)), "yt-dlp.exe"),
+            None
+        );
     }
 
     #[test]
     fn digest_da_api_do_github() {
-        assert_eq!(parse_github_digest(&format!("sha256:{}", VAZIO)).as_deref(), Some(VAZIO));
+        assert_eq!(
+            parse_github_digest(&format!("sha256:{}", VAZIO)).as_deref(),
+            Some(VAZIO)
+        );
         assert_eq!(parse_github_digest(VAZIO), None);
         assert_eq!(parse_github_digest("sha512:abc"), None);
     }

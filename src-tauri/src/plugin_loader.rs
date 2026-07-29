@@ -93,11 +93,7 @@ impl PluginManager {
         self.loaded.contains_key(id)
     }
 
-    pub fn load_one(
-        &mut self,
-        id: &str,
-        host: Arc<dyn PluginHost>,
-    ) -> Result<(), PluginLoadError> {
+    pub fn load_one(&mut self, id: &str, host: Arc<dyn PluginHost>) -> Result<(), PluginLoadError> {
         let plugin_dir = self.plugin_dir(id).map_err(|e| PluginLoadError {
             message: e.to_string(),
             kind: "invalid_id".to_string(),
@@ -366,21 +362,20 @@ fn load_single_plugin(
 
     // A plugin's init entrypoint runs arbitrary foreign code; convert panics
     // into load errors instead of aborting the whole app.
-    let plugin_ptr =
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| init_fn())) {
-            Ok(ptr) => ptr,
-            Err(_) => {
-                // The plugin may already have spawned threads before panicking;
-                // leak the library instead of dropping it (dlclose would unmap
-                // code those threads are still executing → SIGSEGV). Mirrors
-                // the deliberate leak in `PluginManager::unregister`.
-                std::mem::forget(lib);
-                return Err(PluginLoadError::simple(
-                    "initialize",
-                    "Plugin panicked in omniget_plugin_init",
-                ));
-            }
-        };
+    let plugin_ptr = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| init_fn())) {
+        Ok(ptr) => ptr,
+        Err(_) => {
+            // The plugin may already have spawned threads before panicking;
+            // leak the library instead of dropping it (dlclose would unmap
+            // code those threads are still executing → SIGSEGV). Mirrors
+            // the deliberate leak in `PluginManager::unregister`.
+            std::mem::forget(lib);
+            return Err(PluginLoadError::simple(
+                "initialize",
+                "Plugin panicked in omniget_plugin_init",
+            ));
+        }
+    };
     if plugin_ptr.is_null() {
         std::mem::forget(lib);
         return Err(PluginLoadError::simple(
@@ -390,9 +385,8 @@ fn load_single_plugin(
     }
     let mut plugin = unsafe { Box::from_raw(plugin_ptr) };
 
-    let init_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        plugin.initialize(host)
-    }));
+    let init_result =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| plugin.initialize(host)));
     match init_result {
         Ok(Ok(())) => {}
         Ok(Err(e)) => {
@@ -559,7 +553,15 @@ mod plugin_id_tests {
 
     #[test]
     fn aceita_os_ids_reais() {
-        for id in ["courses", "study", "telegram", "convert", "misc", "my-plugin_2", "wtf.tonho.x"] {
+        for id in [
+            "courses",
+            "study",
+            "telegram",
+            "convert",
+            "misc",
+            "my-plugin_2",
+            "wtf.tonho.x",
+        ] {
             assert!(validate_plugin_id(id).is_ok(), "recusou id valido {id:?}");
         }
     }

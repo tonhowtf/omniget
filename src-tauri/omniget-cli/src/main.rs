@@ -40,9 +40,7 @@ enum Commands {
         format: Option<String>,
     },
     /// Preview media info without downloading
-    Info {
-        url: String,
-    },
+    Info { url: String },
     /// Batch download from a file (one URL per line)
     Batch {
         file: String,
@@ -89,7 +87,8 @@ async fn main() -> anyhow::Result<()> {
             subs,
             format,
         } => {
-            commands::download::execute(url, quality, output, audio_only, subs, format, cli.proxy).await?;
+            commands::download::execute(url, quality, output, audio_only, subs, format, cli.proxy)
+                .await?;
         }
         Commands::Info { url } => {
             commands::info::execute(url, cli.proxy).await?;
@@ -101,7 +100,11 @@ async fn main() -> anyhow::Result<()> {
         } => {
             commands::batch::execute(file, max_concurrent, output, cli.proxy).await?;
         }
-        Commands::ImportCookies { file, name, dry_run } => {
+        Commands::ImportCookies {
+            file,
+            name,
+            dry_run,
+        } => {
             commands::import_cookies::execute(file, name, dry_run).await?;
         }
     }

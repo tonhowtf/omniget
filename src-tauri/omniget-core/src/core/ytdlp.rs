@@ -1011,7 +1011,6 @@ fn ytdlp_release_base(channel: YtdlpChannel) -> &'static str {
 
 use crate::core::dependencies::integrity;
 
-
 async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
     let target =
         managed_ytdlp_path().ok_or_else(|| anyhow!("Could not determine data directory"))?;
@@ -1412,23 +1411,22 @@ pub async fn get_video_info(
             attempt + 1
         );
 
-        let result =
-            tokio::time::timeout(
-                std::time::Duration::from_secs(VIDEO_INFO_PROCESS_TIMEOUT_SECS),
-                child.wait_with_output(),
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(VIDEO_INFO_PROCESS_TIMEOUT_SECS),
+            child.wait_with_output(),
+        )
+        .await
+        .map_err(|_| {
+            tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
+            anyhow!(
+                "Timeout fetching video info ({}s)",
+                VIDEO_INFO_PROCESS_TIMEOUT_SECS
             )
-                .await
-                .map_err(|_| {
-                    tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-                    anyhow!(
-                        "Timeout fetching video info ({}s)",
-                        VIDEO_INFO_PROCESS_TIMEOUT_SECS
-                    )
-                })?
-                .map_err(|e| {
-                    tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
-                    anyhow!("Failed to run yt-dlp: {}", e)
-                })?;
+        })?
+        .map_err(|e| {
+            tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
+            anyhow!("Failed to run yt-dlp: {}", e)
+        })?;
 
         tracing::debug!(
             "[perf] get_video_info: yt-dlp process exited at {:?} (attempt {})",
@@ -2811,10 +2809,8 @@ pub async fn download_video(
 
             if is_youtube_url(url) {
                 if let Some(client) = sabr_fallback_client(&stderr_lower, attempt) {
-                    base_args
-                        .retain(|a| a != "--extractor-args" && !a.contains("player_client"));
-                    extra_args
-                        .retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                    base_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
+                    extra_args.retain(|a| a != "--extractor-args" && !a.contains("player_client"));
                     extra_args.push("--extractor-args".to_string());
                     extra_args.push(client.clone());
                     tracing::warn!(
@@ -2964,10 +2960,16 @@ async fn convert_vtt_sidecars_to_srt(video_path: &Path) {
             .await;
         match result {
             Ok(out) if out.status.success() => {
-                tracing::info!("[yt-dlp] converted subtitle sidecar {} to srt (vtt kept)", name);
+                tracing::info!(
+                    "[yt-dlp] converted subtitle sidecar {} to srt (vtt kept)",
+                    name
+                );
             }
             _ => {
-                tracing::warn!("[yt-dlp] failed to convert subtitle sidecar {} to srt", name);
+                tracing::warn!(
+                    "[yt-dlp] failed to convert subtitle sidecar {} to srt",
+                    name
+                );
                 let _ = std::fs::remove_file(&srt_path);
             }
         }
@@ -3582,10 +3584,12 @@ mod tests {
         // Bilibili cheese season entries are full info dicts with webpage_url
         // but no top-level "url" (issue #157).
         let dump = r#"{"id":"12345","title":"Lesson 1","webpage_url":"https://www.bilibili.com/cheese/play/ep12345","extractor_key":"BiliBiliCheese"}"#;
-        let (_, entries) =
-            parse_playlist_dump(dump, "https://www.bilibili.com/cheese/play/ss999");
+        let (_, entries) = parse_playlist_dump(dump, "https://www.bilibili.com/cheese/play/ss999");
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].url, "https://www.bilibili.com/cheese/play/ep12345");
+        assert_eq!(
+            entries[0].url,
+            "https://www.bilibili.com/cheese/play/ep12345"
+        );
     }
 
     #[test]
@@ -3593,25 +3597,27 @@ mod tests {
         let dump = r#"{"id":"dQw4w9WgXcQ","title":"YT Video","ie_key":"Youtube"}"#;
         let (_, entries) = parse_playlist_dump(dump, "https://example.com/playlist");
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].url, "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+        assert_eq!(
+            entries[0].url,
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        );
     }
 
     #[test]
     fn playlist_dump_fabricates_youtube_url_for_youtube_source() {
         let dump = r#"{"id":"dQw4w9WgXcQ","title":"YT Video"}"#;
-        let (_, entries) = parse_playlist_dump(
-            dump,
-            "https://www.youtube.com/playlist?list=PL123",
-        );
+        let (_, entries) = parse_playlist_dump(dump, "https://www.youtube.com/playlist?list=PL123");
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].url, "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+        assert_eq!(
+            entries[0].url,
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        );
     }
 
     #[test]
     fn playlist_dump_skips_non_youtube_entry_without_url() {
         let dump = r#"{"id":"12345","title":"Lesson 1","extractor_key":"BiliBiliCheese"}"#;
-        let (_, entries) =
-            parse_playlist_dump(dump, "https://www.bilibili.com/cheese/play/ss999");
+        let (_, entries) = parse_playlist_dump(dump, "https://www.bilibili.com/cheese/play/ss999");
         assert!(entries.is_empty());
     }
 
@@ -4020,7 +4026,10 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  yt-dlp.exe\n\
         let downloader = &args[1];
         assert!(downloader.starts_with("http,ftp:"), "{downloader}");
         for proto in ["m3u8", "m3u8_native", "m3u8_frag_urls", "dash_frag_urls"] {
-            assert!(!downloader.contains(proto), "protocolo {proto} nao pode ir ao aria2c");
+            assert!(
+                !downloader.contains(proto),
+                "protocolo {proto} nao pode ir ao aria2c"
+            );
         }
         assert_eq!(downloader, "http,ftp:/opt/bin/aria2c");
         // A chave de --downloader-args e o NOME do downloader, nao o protocolo.
@@ -4030,7 +4039,11 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  yt-dlp.exe\n\
     #[test]
     fn aria2c_downloader_args_rejeita_proxy_com_espaco() {
         let limpo = aria2c_downloader_args("/bin/aria2c", 2, Some("http://127.0.0.1:8080"));
-        assert!(limpo[3].ends_with("--all-proxy=http://127.0.0.1:8080"), "{}", limpo[3]);
+        assert!(
+            limpo[3].ends_with("--all-proxy=http://127.0.0.1:8080"),
+            "{}",
+            limpo[3]
+        );
         let sujo = aria2c_downloader_args("/bin/aria2c", 2, Some("http://h:1 --seed-ratio=0"));
         assert!(!sujo[3].contains("--all-proxy"), "{}", sujo[3]);
         assert!(!sujo[3].contains("--seed-ratio"));
@@ -4039,7 +4052,11 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  yt-dlp.exe\n\
     #[test]
     fn aria2c_nunca_zera_conexoes() {
         let args = aria2c_downloader_args("/bin/aria2c", 0, None);
-        assert!(args[3].contains("-x 1") && args[3].contains("-j 1"), "{}", args[3]);
+        assert!(
+            args[3].contains("-x 1") && args[3].contains("-j 1"),
+            "{}",
+            args[3]
+        );
     }
 
     // --- Piso de versao do yt-dlp ---
@@ -4047,8 +4064,14 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  yt-dlp.exe\n\
     #[test]
     fn parse_ytdlp_version_le_os_formatos_reais() {
         assert_eq!(parse_ytdlp_version("2026.06.09"), Some((2026, 6, 9)));
-        assert_eq!(parse_ytdlp_version("2025.12.31.232815"), Some((2025, 12, 31)));
-        assert_eq!(parse_ytdlp_version("2026.06.10.232815-nightly"), Some((2026, 6, 10)));
+        assert_eq!(
+            parse_ytdlp_version("2025.12.31.232815"),
+            Some((2025, 12, 31))
+        );
+        assert_eq!(
+            parse_ytdlp_version("2026.06.10.232815-nightly"),
+            Some((2026, 6, 10))
+        );
         for lixo in ["", "unknown", "1.2", "2026.13.01", "2026.06.99"] {
             assert_eq!(parse_ytdlp_version(lixo), None, "aceitou {lixo:?}");
         }

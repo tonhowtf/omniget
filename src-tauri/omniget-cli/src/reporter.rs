@@ -17,13 +17,20 @@ pub struct CliReporter {
 impl CliReporter {
     pub fn new(json_mode: bool) -> Self {
         let pb = ProgressBar::new(100);
-        pb.set_style(ProgressStyle::default_bar().template(SPINNER_STYLE).unwrap());
+        pb.set_style(
+            ProgressStyle::default_bar()
+                .template(SPINNER_STYLE)
+                .unwrap(),
+        );
         Self { pb, json_mode }
     }
 
     pub fn message(&self, msg: &str) {
         if self.json_mode {
-            println!(r#"{{"type":"message","content":"{}"}}"#, msg.replace('"', "\\\""));
+            println!(
+                r#"{{"type":"message","content":"{}"}}"#,
+                msg.replace('"', "\\\"")
+            );
         } else {
             self.pb.set_message(msg.to_string());
         }
@@ -42,7 +49,8 @@ impl CliReporter {
             println!("{}", json);
         } else {
             if update.percent >= 0.0 {
-                self.pb.set_position(update.percent.clamp(0.0, 100.0).round() as u64);
+                self.pb
+                    .set_position(update.percent.clamp(0.0, 100.0).round() as u64);
                 self.pb.set_style(
                     ProgressStyle::default_bar()
                         .template(PROGRESS_STYLE)

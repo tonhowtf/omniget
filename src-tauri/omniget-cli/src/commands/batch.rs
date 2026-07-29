@@ -4,7 +4,12 @@ use tokio::sync::Semaphore;
 
 use crate::output;
 
-pub async fn execute(file: String, max_concurrent: usize, output_dir: Option<String>, proxy: Option<String>) -> Result<()> {
+pub async fn execute(
+    file: String,
+    max_concurrent: usize,
+    output_dir: Option<String>,
+    proxy: Option<String>,
+) -> Result<()> {
     let content = tokio::fs::read_to_string(&file)
         .await
         .with_context(|| format!("Failed to read {}", file))?;
@@ -22,7 +27,10 @@ pub async fn execute(file: String, max_concurrent: usize, output_dir: Option<Str
 
     let total = urls.len();
     if !output::is_json_mode() {
-        println!("Batch downloading {} URLs (max concurrent: {})", total, max_concurrent);
+        println!(
+            "Batch downloading {} URLs (max concurrent: {})",
+            total, max_concurrent
+        );
     }
 
     let semaphore = Arc::new(Semaphore::new(max_concurrent));
@@ -58,7 +66,10 @@ pub async fn execute(file: String, max_concurrent: usize, output_dir: Option<Str
     }
 
     if output::is_json_mode() {
-        println!(r#"{{"total":{},"success":{},"failed":{}}}"#, total, success, failed);
+        println!(
+            r#"{{"total":{},"success":{},"failed":{}}}"#,
+            total, success, failed
+        );
     } else {
         println!("Done: {} ok, {} failed", success, failed);
     }

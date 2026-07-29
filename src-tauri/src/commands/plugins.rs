@@ -11,7 +11,10 @@ fn emit_plugins_changed(app: &tauri::AppHandle) {
     let _ = app.emit("plugins-changed", ());
 }
 
-fn build_plugin_host(app: &tauri::AppHandle, plugins_dir: std::path::PathBuf) -> Arc<dyn PluginHost> {
+fn build_plugin_host(
+    app: &tauri::AppHandle,
+    plugins_dir: std::path::PathBuf,
+) -> Arc<dyn PluginHost> {
     Arc::new(PluginHostImpl::new(app.clone(), plugins_dir))
 }
 
@@ -523,7 +526,11 @@ pub async fn ensure_default_plugins(state: Arc<tokio::sync::RwLock<PluginManager
         if skip {
             continue;
         }
-        tracing::info!("installing default plugin '{}' from {}", entry.id, entry.repo);
+        tracing::info!(
+            "installing default plugin '{}' from {}",
+            entry.id,
+            entry.repo
+        );
         match install_plugin_zip_from_repo(&state, entry.id.clone(), entry.repo.clone()).await {
             Ok(v) => tracing::info!("default plugin '{}' installed ({})", entry.id, v),
             Err(e) => tracing::warn!("failed to install default plugin '{}': {}", entry.id, e),

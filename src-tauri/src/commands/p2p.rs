@@ -2,8 +2,8 @@ use serde::Serialize;
 use tauri::Emitter;
 use tokio_util::sync::CancellationToken;
 
-use omniget_core::platforms::p2p;
 use crate::{AppState, P2pSendHandle};
+use omniget_core::platforms::p2p;
 
 #[derive(Clone, Serialize)]
 pub struct P2pSendStarted {

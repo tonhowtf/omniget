@@ -59,9 +59,24 @@ pub fn is_gallery_url(url: &str) -> bool {
 
 /// Twitter path segments that are app routes, not usernames.
 const TWITTER_RESERVED: &[&str] = &[
-    "home", "explore", "notifications", "messages", "settings", "search",
-    "hashtag", "intent", "share", "login", "logout", "signup", "i", "about",
-    "tos", "privacy", "compose", "jobs",
+    "home",
+    "explore",
+    "notifications",
+    "messages",
+    "settings",
+    "search",
+    "hashtag",
+    "intent",
+    "share",
+    "login",
+    "logout",
+    "signup",
+    "i",
+    "about",
+    "tos",
+    "privacy",
+    "compose",
+    "jobs",
 ];
 
 /// Bulk-listing URLs (profiles, subreddits) that the single-post platform
@@ -96,9 +111,7 @@ pub fn is_bulk_media_url(url: &str) -> bool {
     if host == "twitter.com" || host == "x.com" {
         return match segments.as_slice() {
             [user] => !TWITTER_RESERVED.contains(user),
-            [user, tail] => {
-                !TWITTER_RESERVED.contains(user) && matches!(*tail, "media" | "likes")
-            }
+            [user, tail] => !TWITTER_RESERVED.contains(user) && matches!(*tail, "media" | "likes"),
             _ => false,
         };
     }

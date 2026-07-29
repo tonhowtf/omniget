@@ -1,5 +1,3 @@
-
-
 use crate::models::progress::ProgressUpdate;
 use std::path::PathBuf;
 use std::sync::Arc;

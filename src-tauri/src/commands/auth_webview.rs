@@ -109,8 +109,8 @@ pub async fn open_auth_webview(
                     // Same host, or a subdomain of the login host. The old
                     // bidirectional substring check treated unrelated hosts
                     // (e.g. hotmart.com vs sso.hotmart.com) as a match.
-                    let same_host = nav_host == login_host
-                        || nav_host.ends_with(&format!(".{login_host}"));
+                    let same_host =
+                        nav_host == login_host || nav_host.ends_with(&format!(".{login_host}"));
                     if same_host {
                         if nav_path != login_path
                             && !nav_path.contains("login")

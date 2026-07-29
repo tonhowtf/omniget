@@ -442,10 +442,7 @@ struct EncryptionInfo {
 /// Attach `Referer` (and a matching `Origin`) headers to a request.
 /// An empty referer means "send no Referer/Origin at all" — some CDNs
 /// reject requests with a wrong Referer but accept ones without any.
-fn apply_referer_headers(
-    req: reqwest::RequestBuilder,
-    referer: &str,
-) -> reqwest::RequestBuilder {
+fn apply_referer_headers(req: reqwest::RequestBuilder, referer: &str) -> reqwest::RequestBuilder {
     if referer.is_empty() {
         return req;
     }

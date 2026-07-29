@@ -148,7 +148,10 @@ mod tests {
 
         let lido: Option<Estado> = load_or_quarantine(&path, "estado");
         assert!(lido.is_none());
-        assert!(!path.exists(), "o arquivo corrompido precisa sair do caminho de gravação");
+        assert!(
+            !path.exists(),
+            "o arquivo corrompido precisa sair do caminho de gravação"
+        );
 
         let preservados: Vec<_> = std::fs::read_dir(&dir)
             .unwrap()
@@ -156,10 +159,17 @@ mod tests {
             .map(|e| e.file_name().to_string_lossy().to_string())
             .filter(|n| n.starts_with("estado.json.corrupt-"))
             .collect();
-        assert_eq!(preservados.len(), 1, "esperava exatamente uma quarentena, achei {preservados:?}");
+        assert_eq!(
+            preservados.len(),
+            1,
+            "esperava exatamente uma quarentena, achei {preservados:?}"
+        );
 
         let conteudo = std::fs::read_to_string(dir.join(&preservados[0])).unwrap();
-        assert_eq!(conteudo, "{ isto nao e json", "a quarentena precisa ser byte a byte");
+        assert_eq!(
+            conteudo, "{ isto nao e json",
+            "a quarentena precisa ser byte a byte"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

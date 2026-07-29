@@ -76,8 +76,8 @@ async fn discover_client() -> Option<LcuClient> {
         let port = extract_arg(line, "app-port").and_then(|p| p.parse::<u16>().ok());
         let token = extract_arg(line, "remoting-auth-token");
         if let (Some(port), Some(token)) = (port, token) {
-            let region = extract_arg(line, "region")
-                .or_else(|| extract_arg(line, "rso_platform_id"));
+            let region =
+                extract_arg(line, "region").or_else(|| extract_arg(line, "rso_platform_id"));
             return Some(LcuClient {
                 port,
                 token,
@@ -213,7 +213,12 @@ static IMMUTABLE_CACHE: Lazy<
         std::collections::VecDeque<String>,
         std::collections::HashMap<String, Value>,
     )>,
-> = Lazy::new(|| Mutex::new((std::collections::VecDeque::new(), std::collections::HashMap::new())));
+> = Lazy::new(|| {
+    Mutex::new((
+        std::collections::VecDeque::new(),
+        std::collections::HashMap::new(),
+    ))
+});
 
 fn cache_kind(path: &str) -> Option<CacheKind> {
     if path.starts_with("/lol-game-data/assets/") || path == "/lol-perks/v1/perks" {
@@ -476,7 +481,13 @@ pub async fn league_stop_matchmaking() -> Result<(), String> {
 pub async fn league_leave_lobby() -> Result<(), String> {
     ensure_enabled()?;
     let client = get_client().await?;
-    lcu_send(&client, reqwest::Method::DELETE, "/lol-lobby/v2/lobby", None).await?;
+    lcu_send(
+        &client,
+        reqwest::Method::DELETE,
+        "/lol-lobby/v2/lobby",
+        None,
+    )
+    .await?;
     Ok(())
 }
 
@@ -525,11 +536,7 @@ pub async fn league_live_game() -> Result<Value, String> {
         .json::<Value>()
         .await
         .map_err(|e| format!("invalid live client response: {}", e))?;
-    let players = http
-        .get(format!("{}/playerlist", base))
-        .send()
-        .await
-        .ok();
+    let players = http.get(format!("{}/playerlist", base)).send().await.ok();
     let players = match players {
         Some(r) => r.json::<Value>().await.unwrap_or(Value::Null),
         None => Value::Null,
@@ -587,9 +594,7 @@ pub async fn league_game_players() -> Result<Value, String> {
         let my_puuid = lcu_get_raw(&client, "/lol-summoner/v1/current-summoner")
             .await
             .ok()
-            .and_then(|s| {
-                s.get("puuid").and_then(Value::as_str).map(String::from)
-            })
+            .and_then(|s| s.get("puuid").and_then(Value::as_str).map(String::from))
             .unwrap_or_default();
         let game_data = session.get("gameData").cloned().unwrap_or(Value::Null);
         let team_one: Vec<Value> = game_data
@@ -602,9 +607,9 @@ pub async fn league_game_players() -> Result<Value, String> {
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
-        let one_has_me = team_one.iter().any(|m| {
-            m.get("puuid").and_then(Value::as_str) == Some(my_puuid.as_str())
-        });
+        let one_has_me = team_one
+            .iter()
+            .any(|m| m.get("puuid").and_then(Value::as_str) == Some(my_puuid.as_str()));
         for (team, mine) in [(team_one, one_has_me), (team_two, !one_has_me)] {
             for member in &team {
                 players.push(player_identity(member, mine));
@@ -641,9 +646,8 @@ pub async fn league_game_players() -> Result<Value, String> {
             if let Some(arr) = found.as_array() {
                 for (slot, (idx, g, _)) in to_lookup.iter().enumerate() {
                     let hit = arr.get(slot).or_else(|| {
-                        arr.iter().find(|s| {
-                            s.get("gameName").and_then(Value::as_str) == Some(g.as_str())
-                        })
+                        arr.iter()
+                            .find(|s| s.get("gameName").and_then(Value::as_str) == Some(g.as_str()))
                     });
                     if let Some(s) = hit {
                         if let Some(puuid) = s.get("puuid").and_then(Value::as_str) {
@@ -657,7 +661,11 @@ pub async fn league_game_players() -> Result<Value, String> {
 
     let mut name_tasks = Vec::new();
     for (i, p) in resolved.iter().enumerate() {
-        let puuid = p.get("puuid").and_then(Value::as_str).unwrap_or("").to_string();
+        let puuid = p
+            .get("puuid")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
         let has_name = p
             .get("gameName")
             .and_then(Value::as_str)
@@ -727,9 +735,9 @@ fn compute_history_stats(games: &[Value], puuid: &str) -> Value {
                             .and_then(|i| i.get("participantId").and_then(Value::as_i64))
                     });
                     match pid {
-                        Some(pid) => arr.iter().find(|p| {
-                            p.get("participantId").and_then(Value::as_i64) == Some(pid)
-                        }),
+                        Some(pid) => arr
+                            .iter()
+                            .find(|p| p.get("participantId").and_then(Value::as_i64) == Some(pid)),
                         None => arr.first(),
                     }
                 }
@@ -750,7 +758,10 @@ fn compute_history_stats(games: &[Value], puuid: &str) -> Value {
             .get("totalDamageDealtToChampions")
             .and_then(Value::as_f64)
             .unwrap_or(0.0);
-        total_gold += stats.get("goldEarned").and_then(Value::as_f64).unwrap_or(0.0);
+        total_gold += stats
+            .get("goldEarned")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0);
         // Slot 1 is the D key, slot 2 the F key; Flash is spell id 4.
         match (
             participant.get("spell1Id").and_then(Value::as_i64),
@@ -885,9 +896,12 @@ pub async fn league_player_report(
 
     // The summoner record states privacy explicitly; an empty history only
     // means the request came back thin, which is not the same thing.
-    let summoner = lcu_get_raw(&client, &format!("/lol-summoner/v2/summoners/puuid/{}", puuid))
-        .await
-        .unwrap_or(Value::Null);
+    let summoner = lcu_get_raw(
+        &client,
+        &format!("/lol-summoner/v2/summoners/puuid/{}", puuid),
+    )
+    .await
+    .unwrap_or(Value::Null);
     let is_private = summoner
         .get("privacy")
         .and_then(Value::as_str)
@@ -1010,7 +1024,11 @@ fn ranked_entry_parts(entry: &Value) -> (Option<f64>, u32, u32) {
         .and_then(Value::as_i64)
         .unwrap_or(0)
         .max(0) as u32;
-    let wins = entry.get("wins").and_then(Value::as_i64).unwrap_or(0).max(0) as u32;
+    let wins = entry
+        .get("wins")
+        .and_then(Value::as_i64)
+        .unwrap_or(0)
+        .max(0) as u32;
     let losses = entry
         .get("losses")
         .and_then(Value::as_i64)
@@ -1076,7 +1094,11 @@ pub async fn league_match_analysis() -> Result<Value, String> {
                         .collect()
                 })
                 .unwrap_or_default();
-            (index, json!({ "ranked": ranked, "history": history }), game_ids)
+            (
+                index,
+                json!({ "ranked": ranked, "history": history }),
+                game_ids,
+            )
         }));
     }
 
@@ -1094,7 +1116,10 @@ pub async fn league_match_analysis() -> Result<Value, String> {
     let mut detail: Vec<Value> = Vec::new();
 
     for (index, player) in players.iter().enumerate() {
-        let is_ally = player.get("isAlly").and_then(Value::as_bool).unwrap_or(false);
+        let is_ally = player
+            .get("isAlly")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         let data = &fetched[index];
         let solo = data
             .get("ranked")
@@ -1141,8 +1166,7 @@ pub async fn league_match_analysis() -> Result<Value, String> {
             enemy_strengths.push(strength);
         }
 
-        let season_shrunk =
-            stats::shrunk_winrate(season_wins, season_losses, stats::PRIOR_GAMES);
+        let season_shrunk = stats::shrunk_winrate(season_wins, season_losses, stats::PRIOR_GAMES);
         let (wilson_low, wilson_high) =
             stats::wilson_interval(season_wins, season_losses, stats::Z_90);
 
@@ -1531,9 +1555,7 @@ async fn deep_timeline_stats(client: &LcuClient, puuid: &str, games: &[Value]) -
                             solo_kills += 1;
                         }
                     }
-                    if event.get("victimId").and_then(Value::as_i64) == Some(pid)
-                        && ts <= 900_000
-                    {
+                    if event.get("victimId").and_then(Value::as_i64) == Some(pid) && ts <= 900_000 {
                         early_deaths += 1;
                     }
                 }
@@ -1672,8 +1694,7 @@ pub async fn league_duos(sample: Option<u32>) -> Result<Value, String> {
         }));
     }
 
-    let mut tally: std::collections::HashMap<String, (u32, u32)> =
-        std::collections::HashMap::new();
+    let mut tally: std::collections::HashMap<String, (u32, u32)> = std::collections::HashMap::new();
     let mut names: std::collections::HashMap<String, Value> = std::collections::HashMap::new();
     let mut analysed = 0u32;
 
@@ -1838,10 +1859,8 @@ pub async fn league_jungle_report(puuid: String, sample: Option<u32>) -> Result<
     let mut analysed = 0u32;
     let mut invades = 0u32;
     let mut level3_ganks = 0u32;
-    let mut first_camps: std::collections::HashMap<String, u32> =
-        std::collections::HashMap::new();
-    let mut objectives: std::collections::HashMap<String, u32> =
-        std::collections::HashMap::new();
+    let mut first_camps: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    let mut objectives: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
 
     for task in tasks {
         let (detail, timeline) = match task.await {
@@ -1953,10 +1972,7 @@ pub async fn league_jungle_report(puuid: String, sample: Option<u32>) -> Result<
                             let x = pos.get("x").and_then(Value::as_f64).unwrap_or(-1.0);
                             let y = pos.get("y").and_then(Value::as_f64).unwrap_or(-1.0);
                             if x >= 0.0 && y >= 0.0 {
-                                weights.add(
-                                    analysis::classify_zone(x, y),
-                                    analysis::KILL_WEIGHT,
-                                );
+                                weights.add(analysis::classify_zone(x, y), analysis::KILL_WEIGHT);
                             }
                         }
                     }
@@ -1974,7 +1990,10 @@ pub async fn league_jungle_report(puuid: String, sample: Option<u32>) -> Result<
         }
 
         if let Some(pf3) = frames.get(3).and_then(frame_participant) {
-            let cs = (pf3.get("minionsKilled").and_then(Value::as_i64).unwrap_or(0)
+            let cs = (pf3
+                .get("minionsKilled")
+                .and_then(Value::as_i64)
+                .unwrap_or(0)
                 + pf3
                     .get("jungleMinionsKilled")
                     .and_then(Value::as_i64)
@@ -2146,7 +2165,11 @@ pub async fn league_rune_recommendations(
                     let perks: Vec<i64> = p
                         .get("perks")
                         .and_then(Value::as_array)
-                        .map(|a| a.iter().filter_map(|x| x.get("id").and_then(Value::as_i64)).collect())
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(|x| x.get("id").and_then(Value::as_i64))
+                                .collect()
+                        })
                         .unwrap_or_default();
                     json!({
                         "recommendationId": p.get("recommendationId"),
@@ -2181,7 +2204,9 @@ pub async fn league_champion_tiers(
     let region = region.unwrap_or_else(|| "br".to_string());
     let bracket = tier.unwrap_or_else(|| "emerald_plus".to_string());
     if !region.chars().all(|c| c.is_ascii_alphanumeric())
-        || !bracket.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        || !bracket
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
     {
         return Err("invalid region or tier".to_string());
     }
@@ -2258,10 +2283,7 @@ pub async fn league_champion_tiers(
 /// champion across those games contributes their finished items. The response
 /// always reports how many games backed it so a thin sample is obvious.
 #[tauri::command]
-pub async fn league_champion_build(
-    champion_id: i64,
-    sample: Option<u32>,
-) -> Result<Value, String> {
+pub async fn league_champion_build(champion_id: i64, sample: Option<u32>) -> Result<Value, String> {
     ensure_enabled()?;
     if champion_id <= 0 {
         return Err("invalid champion".to_string());
@@ -2482,7 +2504,10 @@ async fn load_haste_table(http: &reqwest::Client) -> std::collections::HashMap<i
     if let Some(arr) = items_data.as_array() {
         for item in arr {
             let id = item.get("id").and_then(Value::as_i64).unwrap_or(0);
-            let desc = item.get("description").and_then(Value::as_str).unwrap_or("");
+            let desc = item
+                .get("description")
+                .and_then(Value::as_str)
+                .unwrap_or("");
             let haste = item_ability_haste(desc);
             if id > 0 && haste > 0 {
                 table.insert(id, haste);
@@ -2521,8 +2546,7 @@ pub async fn league_ability_cooldowns() -> Result<Value, String> {
     let summary = lcu_get_raw(&client, "/lol-game-data/assets/v1/champion-summary.json")
         .await
         .unwrap_or(Value::Null);
-    let mut id_by_alias: std::collections::HashMap<String, i64> =
-        std::collections::HashMap::new();
+    let mut id_by_alias: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
     if let Some(arr) = summary.as_array() {
         for champ in arr {
             if let (Some(id), Some(alias)) = (
@@ -2567,12 +2591,18 @@ pub async fn league_ability_cooldowns() -> Result<Value, String> {
     }
 
     let mut rows: Vec<Value> = Vec::new();
-    let mut spell_cache: std::collections::HashMap<i64, Value> =
-        std::collections::HashMap::new();
+    let mut spell_cache: std::collections::HashMap<i64, Value> = std::collections::HashMap::new();
 
     for p in &list {
-        let raw_name = p.get("rawChampionName").and_then(Value::as_str).unwrap_or("");
-        let alias = raw_name.rsplit('_').next().unwrap_or("").to_ascii_lowercase();
+        let raw_name = p
+            .get("rawChampionName")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let alias = raw_name
+            .rsplit('_')
+            .next()
+            .unwrap_or("")
+            .to_ascii_lowercase();
         let champion_id = id_by_alias.get(&alias).copied().unwrap_or(0);
         let level = p.get("level").and_then(Value::as_i64).unwrap_or(1);
 
@@ -2652,7 +2682,10 @@ pub async fn league_ability_cooldowns() -> Result<Value, String> {
                     .and_then(|s| s.get(slot))
                     .and_then(|s| s.get("displayName"))
                     .and_then(Value::as_str)?;
-                let (cd, icon) = spell_by_name.get(name).cloned().unwrap_or((0.0, String::new()));
+                let (cd, icon) = spell_by_name
+                    .get(name)
+                    .cloned()
+                    .unwrap_or((0.0, String::new()));
                 Some(json!({
                     "name": name,
                     "baseCooldown": cd,
@@ -2723,7 +2756,10 @@ pub async fn league_dodge() -> Result<(), String> {
 pub async fn league_auto_accept_set(enabled: bool) -> Result<(), String> {
     ensure_enabled()?;
     AUTO_ACCEPT.store(enabled, Ordering::Relaxed);
-    tracing::info!("[league] auto-accept {}", if enabled { "on" } else { "off" });
+    tracing::info!(
+        "[league] auto-accept {}",
+        if enabled { "on" } else { "off" }
+    );
     Ok(())
 }
 

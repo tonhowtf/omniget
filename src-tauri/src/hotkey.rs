@@ -129,9 +129,7 @@ async fn enqueue_from_clipboard(app: &tauri::AppHandle, url: String) {
     use crate::external_url::QueueUrlOutcome;
     match crate::external_url::queue_url_with_defaults(app, url.clone(), true, None).await {
         Ok(QueueUrlOutcome::Queued) => emit_hotkey_result(app, "queued", Some(&url)),
-        Ok(QueueUrlOutcome::AlreadyQueued) => {
-            emit_hotkey_result(app, "already_queued", Some(&url))
-        }
+        Ok(QueueUrlOutcome::AlreadyQueued) => emit_hotkey_result(app, "already_queued", Some(&url)),
         Err(e) => {
             tracing::warn!("[hotkey] enfileiramento recusado: {}", e);
             emit_hotkey_result(app, "unsupported", Some(&url));

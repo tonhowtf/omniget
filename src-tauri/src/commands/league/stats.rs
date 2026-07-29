@@ -185,7 +185,11 @@ pub fn player_strength(
 
     let base = rank.unwrap_or(UNRANKED_RATING);
     // Rank is the strong signal; without it we fall back to a wide prior.
-    let base_sigma = if rank.is_some() { RANK_SIGMA } else { UNKNOWN_SIGMA };
+    let base_sigma = if rank.is_some() {
+        RANK_SIGMA
+    } else {
+        UNKNOWN_SIGMA
+    };
 
     let season_p = shrunk_winrate(season_wins, season_losses, PRIOR_GAMES);
     let season_delta = winrate_rating_delta(season_p);
@@ -234,10 +238,13 @@ pub struct WinProbability {
 /// Bradley-Terry model with additive strengths. The interval comes from
 /// propagating each player's variance through the mean and then through the
 /// logistic — it is wide on purpose when players are unknown.
-pub fn team_win_probability(allies: &[PlayerStrength], enemies: &[PlayerStrength]) -> WinProbability {
+pub fn team_win_probability(
+    allies: &[PlayerStrength],
+    enemies: &[PlayerStrength],
+) -> WinProbability {
     let total_players = allies.len() + enemies.len();
-    let known_players = allies.iter().filter(|p| p.known).count()
-        + enemies.iter().filter(|p| p.known).count();
+    let known_players =
+        allies.iter().filter(|p| p.known).count() + enemies.iter().filter(|p| p.known).count();
 
     if allies.is_empty() || enemies.is_empty() {
         return WinProbability {
@@ -381,12 +388,7 @@ pub fn contribution_ratio(value: f64, team_total: f64, team_size: usize) -> f64 
 ///
 /// Above 1 the player converts less damage into more kills (finishing or
 /// stealing); below 1 they deal damage others convert. Neutral when unknown.
-pub fn kill_damage_efficiency(
-    kills: u32,
-    team_kills: u32,
-    damage: f64,
-    team_damage: f64,
-) -> f64 {
+pub fn kill_damage_efficiency(kills: u32, team_kills: u32, damage: f64, team_damage: f64) -> f64 {
     if team_kills == 0 || team_damage <= 0.0 || damage <= 0.0 {
         return 1.0;
     }
@@ -432,7 +434,11 @@ pub struct ImpactInput {
 /// Every component is a bounded ramp, so no single stat can dominate and the
 /// result stays comparable across roles and game lengths.
 pub fn impact_score(input: &ImpactInput) -> f64 {
-    let team_size = if input.team_size == 0 { 5 } else { input.team_size };
+    let team_size = if input.team_size == 0 {
+        5
+    } else {
+        input.team_size
+    };
 
     // KDA on a square-root curve: the gap from 2 to 5 matters more than 8 to 11.
     let kda_value = kda(input.kills, input.deaths, input.assists);
@@ -598,7 +604,11 @@ mod tests {
         assert!(close(iron4, RATING_FLOOR, 1e-9));
         // Silver IV should land near the ladder median used for unranked.
         let silver4 = rank_rating("SILVER", "IV", 0).unwrap();
-        assert!((silver4 - UNRANKED_RATING).abs() < 150.0, "silver4={}", silver4);
+        assert!(
+            (silver4 - UNRANKED_RATING).abs() < 150.0,
+            "silver4={}",
+            silver4
+        );
         let gold4 = rank_rating("GOLD", "IV", 0).unwrap();
         let gold1 = rank_rating("GOLD", "I", 75).unwrap();
         let emerald4 = rank_rating("EMERALD", "IV", 0).unwrap();
@@ -626,7 +636,12 @@ mod tests {
         let ra = winrate_rating_delta(pa);
         let rb = winrate_rating_delta(pb);
         let via_elo = elo_expectancy(ra, rb);
-        assert!(close(via_log5, via_elo, 1e-9), "{} vs {}", via_log5, via_elo);
+        assert!(
+            close(via_log5, via_elo, 1e-9),
+            "{} vs {}",
+            via_log5,
+            via_elo
+        );
         assert!(close(log5(0.5, 0.5), 0.5, 1e-12));
     }
 

@@ -6,9 +6,7 @@ use tokio::sync::mpsc;
 
 use crate::core::direct_downloader;
 use crate::core::http_client;
-use crate::models::media::{
-    DownloadOptions, DownloadResult, MediaInfo, MediaType, VideoQuality,
-};
+use crate::models::media::{DownloadOptions, DownloadResult, MediaInfo, MediaType, VideoQuality};
 
 pub struct DirectFileDownloader;
 
@@ -117,11 +115,12 @@ impl PlatformDownloader for DirectFileDownloader {
             builder = builder.user_agent(ua);
         }
 
-        let jar = crate::core::cookie_parser::load_extension_cookies_for_url(file_url).or_else(|| {
-            opts.referer
-                .as_deref()
-                .and_then(crate::core::cookie_parser::load_extension_cookies_for_url)
-        });
+        let jar =
+            crate::core::cookie_parser::load_extension_cookies_for_url(file_url).or_else(|| {
+                opts.referer
+                    .as_deref()
+                    .and_then(crate::core::cookie_parser::load_extension_cookies_for_url)
+            });
         if let Some(jar) = jar {
             builder = builder.cookie_provider(jar);
         }
