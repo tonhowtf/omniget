@@ -225,6 +225,8 @@
     "match_damage": "daño",
     "match_detail_unavailable": "Detalles de la partida no disponibles.",
     "pick_list": "Prioridad de picks",
+    "ban_delay": "Esperar antes de banear",
+    "ban_delay_desc": "Retiene el baneo un momento y omite campeones que un aliado ya declaró.",
     "ban_list": "Prioridad de baneos",
     "list_hint": "el orden importa",
     "search_champion": "Buscar campeón…",

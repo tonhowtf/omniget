@@ -60,6 +60,8 @@ pub struct LeagueSettings {
     #[serde(default)]
     pub auto_ban: bool,
     #[serde(default)]
+    pub auto_ban_delay: u8,
+    #[serde(default)]
     pub auto_lock: bool,
     #[serde(default)]
     pub auto_runes: bool,
@@ -96,6 +98,7 @@ impl Default for LeagueSettings {
             notify_ready_check: default_notify_ready_check(),
             auto_pick: false,
             auto_ban: false,
+            auto_ban_delay: 0,
             auto_lock: false,
             auto_runes: false,
             auto_honor: false,

@@ -97,6 +97,7 @@ export type AppSettings = {
     notify_ready_check?: boolean;
     auto_pick?: boolean;
     auto_ban?: boolean;
+    auto_ban_delay?: number;
     auto_lock?: boolean;
     auto_runes?: boolean;
     auto_honor?: boolean;

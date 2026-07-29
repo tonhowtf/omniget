@@ -225,6 +225,8 @@
     "match_damage": "ダメージ",
     "match_detail_unavailable": "試合の詳細を取得できません。",
     "pick_list": "ピック優先度",
+    "ban_delay": "BANまでの待機時間",
+    "ban_delay_desc": "BANを少し遅らせ、味方が宣言済みのチャンピオンを避けます。",
     "ban_list": "バン優先度",
     "list_hint": "順序が重要",
     "search_champion": "チャンピオンを検索…",

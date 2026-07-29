@@ -243,6 +243,8 @@
     "match_damage": "dmg",
     "match_detail_unavailable": "Match details unavailable.",
     "pick_list": "Pick priority",
+    "ban_delay": "Wait before banning",
+    "ban_delay_desc": "Holds the ban for a moment and skips champions a teammate has already declared.",
     "ban_list": "Ban priority",
     "list_hint": "order matters",
     "search_champion": "Search champion…",

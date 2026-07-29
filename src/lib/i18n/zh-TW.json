@@ -225,6 +225,8 @@
     "match_damage": "傷害",
     "match_detail_unavailable": "無法取得對局詳情。",
     "pick_list": "選角優先序",
+    "ban_delay": "禁用前等待",
+    "ban_delay_desc": "延後禁用，並跳過隊友已經預選的英雄。",
     "ban_list": "禁用優先序",
     "list_hint": "順序有影響",
     "search_champion": "搜尋英雄…",

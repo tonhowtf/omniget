@@ -418,6 +418,8 @@ export type TranslationKeys =
   | 'league.auto_trade_desc'
   | 'league.auto_trade_off'
   | 'league.automation_title'
+  | 'league.ban_delay'
+  | 'league.ban_delay_desc'
   | 'league.ban_list'
   | 'league.bench_title'
   | 'league.build_champion'
