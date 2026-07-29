@@ -1,4 +1,22 @@
 {
+  "error": {
+    "cause": {
+      "po_token_required": "YouTube asked for a proof-of-origin token before serving this video.",
+      "sabr_only": "YouTube only offered streams this player cannot save yet.",
+      "rate_limited": "The site is rate-limiting downloads from your connection.",
+      "disk_full": "There is no space left on the download disk.",
+      "needs_login": "The site asked for a login to reach this content.",
+      "tls_fingerprint": "The site blocked the connection before sending any content.",
+      "extractor_outdated": "yt-dlp needs an update to keep up with this site."
+    },
+    "remedy": {
+      "import_cookies": "Import cookies",
+      "retry": "Try again",
+      "update_ytdlp": "Update yt-dlp",
+      "updated": "yt-dlp updated",
+      "pot_guide": "Open the PO token guide"
+    }
+  },
   "confirm_close": {
     "title": "Downloads in progress",
     "message": "You have {{count}} active download(s). Closing now will cancel them.",
@@ -564,6 +582,11 @@
     },
     "appearance": {
       "title": "Appearance",
+      "accessibility_title": "Accessibility",
+      "reduce_motion": "Reduce motion",
+      "reduce_motion_desc": "Turns position and scale animations into simple fades.",
+      "reduce_transparency": "Reduce transparency",
+      "reduce_transparency_desc": "Replaces translucent panels with solid backgrounds.",
       "theme": "Theme",
       "theme_system": "System",
       "more_themes": "More themes",

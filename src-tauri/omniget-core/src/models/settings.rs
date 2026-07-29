@@ -31,6 +31,18 @@ pub struct AppSettings {
     pub bridge: BridgeSettings,
     #[serde(default)]
     pub league: LeagueSettings,
+    #[serde(default)]
+    pub accessibility: AccessibilitySettings,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AccessibilitySettings {
+    #[serde(default)]
+    pub reduce_motion: bool,
+    #[serde(default)]
+    pub reduce_transparency: bool,
+    #[serde(default)]
+    pub disable_haptics: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -603,6 +615,7 @@ impl Default for AppSettings {
             rpc: RpcSettings::default(),
             bridge: BridgeSettings::default(),
             league: LeagueSettings::default(),
+            accessibility: AccessibilitySettings::default(),
         }
     }
 }

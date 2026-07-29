@@ -71,6 +71,45 @@
   </section>
 
   <section class="section">
+    <h5 class="section-title">{$t('settings.appearance.accessibility_title')}</h5>
+    <div class="card">
+      <div class="setting-row">
+        <div class="setting-col">
+          <span class="setting-label">{$t('settings.appearance.reduce_motion')}</span>
+          <span class="setting-path">{$t('settings.appearance.reduce_motion_desc')}</span>
+        </div>
+        <button
+          class="toggle"
+          class:on={settings.accessibility?.reduce_motion}
+          onclick={() => updateSettings({ accessibility: { reduce_motion: !settings.accessibility?.reduce_motion } })}
+          role="switch"
+          aria-checked={settings.accessibility?.reduce_motion ?? false}
+          aria-label={$t('settings.appearance.reduce_motion') as string}
+        >
+          <span class="toggle-knob"></span>
+        </button>
+      </div>
+      <div class="divider"></div>
+      <div class="setting-row">
+        <div class="setting-col">
+          <span class="setting-label">{$t('settings.appearance.reduce_transparency')}</span>
+          <span class="setting-path">{$t('settings.appearance.reduce_transparency_desc')}</span>
+        </div>
+        <button
+          class="toggle"
+          class:on={settings.accessibility?.reduce_transparency}
+          onclick={() => updateSettings({ accessibility: { reduce_transparency: !settings.accessibility?.reduce_transparency } })}
+          role="switch"
+          aria-checked={settings.accessibility?.reduce_transparency ?? false}
+          aria-label={$t('settings.appearance.reduce_transparency') as string}
+        >
+          <span class="toggle-knob"></span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
     <h5 class="section-title">{$t('settings.appearance.title')}</h5>
     <div class="card">
       <div class="setting-row">

@@ -282,7 +282,7 @@
   });
 </script>
 
-<div class="shell" data-reduce-motion={settings?.accessibility?.reduce_motion}>
+<div class="shell" data-reduce-motion={settings?.accessibility?.reduce_motion} data-reduce-transparency={settings?.accessibility?.reduce_transparency}>
   <AppSidebar {primaryNav} {appNav} {pluginNav} {badgeLabel} />
 
   <div class="shell-body">

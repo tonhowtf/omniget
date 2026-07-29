@@ -271,8 +271,8 @@
           </div>
         {/if}
 
-        <div class="field-group">
-          <label class="field-label">{$t('telegram.send_as_label')}</label>
+        <div class="field-group" role="radiogroup" aria-label={$t('telegram.send_as_label') as string}>
+          <span class="field-label">{$t('telegram.send_as_label')}</span>
           <div class="send-as-pills">
             <button
               class="send-as-pill"
@@ -333,8 +333,8 @@
           ></textarea>
         </div>
 
-        <div class="field-group">
-          <label class="field-label">{$t('telegram.tier_limit_label')}</label>
+        <div class="field-group" role="radiogroup" aria-label={$t('telegram.tier_limit_label') as string}>
+          <span class="field-label">{$t('telegram.tier_limit_label')}</span>
           <div class="tier-pills">
             <button
               class="tier-pill"

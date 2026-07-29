@@ -819,6 +819,7 @@ pub fn run() {
             commands::clip::clip_video,
             commands::reencode::reencode_video,
             commands::diagnostics::get_hwaccel_info,
+            commands::diagnostics::diagnose_download_error,
             commands::downloads::detect_platform,
             commands::downloads::check_cookie_error,
             commands::downloads::validate_output_path,

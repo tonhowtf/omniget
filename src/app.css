@@ -1296,3 +1296,38 @@ video {
   outline: none;
 }
 
+/* Acessibilidade por preferência do app (Settings → Appearance), espelhando as
+   media queries do SO para quem não controla a preferência global. Reduz via
+   tokens: os componentes já consomem --duration-*/--material. */
+[data-reduce-motion="true"] {
+  --duration-fast: 0.01ms;
+  --duration-base: 0.01ms;
+  --duration-slow: 0.01ms;
+  --duration-bounce: 0.01ms;
+  --ease-spring: var(--ease-out);
+}
+
+[data-reduce-motion="true"] *,
+[data-reduce-motion="true"] *::before,
+[data-reduce-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+[data-reduce-motion="true"] .spinner,
+[data-reduce-motion="true"] .update-spinner,
+[data-reduce-motion="true"] .dep-spinner,
+[data-reduce-motion="true"] .feedback-spinner {
+  animation: reduce-motion-pulse 1.5s ease-in-out infinite !important;
+}
+
+@keyframes reduce-motion-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+[data-reduce-transparency="true"] {
+  --material: var(--bg);
+  --material-blur: none;
+}

@@ -14,7 +14,7 @@ import path from "node:path";
 const PHASE = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : "baseline";
 const argOf = (name) => {
   const a = process.argv.find((x) => x.startsWith(`--${name}=`));
-  return a ? a.split("=")[1] : null;
+  return a ? a.slice(a.indexOf("=") + 1) : null;
 };
 
 const BASE = "http://localhost:1420";
@@ -180,6 +180,7 @@ const QUEUE = [
   { id: 1, url: "https://www.youtube.com/watch?v=live1", platform: "youtube", title: "Conference Keynote 2026 — Day 1 (4K)", status: { type: "Downloading" }, percent: 42.5, speed_bytes_per_sec: 11534336, downloaded_bytes: 891289600, total_bytes: 2097152000, file_path: null, file_size_bytes: null, file_count: null, thumbnail_url: null, eta_seconds: 105 },
   { id: 2, url: "https://www.twitch.tv/videos/222", platform: "twitch", title: "Speedrun VOD — GDQ finals", status: { type: "Queued" }, percent: 0, speed_bytes_per_sec: 0, downloaded_bytes: 0, total_bytes: null, file_path: null, file_size_bytes: null, file_count: null, thumbnail_url: null, eta_seconds: null },
   { id: 3, url: "https://www.bilibili.com/video/BV1xx", platform: "bilibili", title: "Lo-fi mix for late nights", status: { type: "Complete" }, percent: 100, speed_bytes_per_sec: 0, downloaded_bytes: 104857600, total_bytes: 104857600, file_path: "/Users/demo/Downloads/OmniGet/Bilibili/lofi.mp4", file_size_bytes: 104857600, file_count: 1, thumbnail_url: null, eta_seconds: null },
+  { id: 4, url: "https://www.youtube.com/watch?v=priv1", platform: "youtube", title: "Members-only masterclass", status: { type: "Error", data: "ERROR: [youtube] priv1: Private video. Sign in if you've been granted access" }, percent: 0, speed_bytes_per_sec: 0, downloaded_bytes: 0, total_bytes: null, file_path: null, file_size_bytes: null, file_count: null, thumbnail_url: null, eta_seconds: null },
 ];
 
 const REGISTRY = [
@@ -235,6 +236,13 @@ function initScript(theme) {
         case "check_plugin_updates": return [];
         case "rpc_set_idle_stats": return null;
         case "plugin_command": return null;
+        case "diagnose_download_error": {
+          const t = String(args.stderr || "").toLowerCase();
+          if (t.includes("private video") || t.includes("sign in")) {
+            return { cause_key: "error.cause.needs_login", remedy: "import_cookies", detail: null };
+          }
+          return null;
+        }
         default: return null;
       }
     };
@@ -302,7 +310,7 @@ async function main() {
       await ctx.addInitScript(initScript(theme));
       const page = await ctx.newPage();
       for (const route of ROUTES) {
-        const slug = route === "/" ? "home" : route.replace(/^\//, "").replace(/\//g, "-");
+        const slug = route === "/" ? "home" : route.replace(/^\//, "").replace(/[\/?=&]/g, "-");
         const file = path.join(OUT, `${slug}__${vp.name}__${theme}.png`);
         try {
           await page.goto(BASE + route, { waitUntil: "domcontentloaded", timeout: 30000 });

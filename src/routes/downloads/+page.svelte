@@ -21,6 +21,7 @@
   import PlatformIcon from "$components/icons/PlatformIcon.svelte";
   import QueueKindBadge from "$lib/study-components/QueueKindBadge.svelte";
   import Mascot from "$components/mascot/Mascot.svelte";
+  import RootCauseHint from "$components/downloads/RootCauseHint.svelte";
   import ContextHint from "$components/hints/ContextHint.svelte";
   import DownloadSpeedGraph from "$components/download/DownloadSpeedGraph.svelte";
   import DownloadLog from "$components/download/DownloadLog.svelte";
@@ -1065,6 +1066,7 @@
 
     {#if item.status === "error" && item.error}
       <span class="item-error">{translateBackendError(item.error, $t)}</span>
+      <RootCauseHint error={item.error} onRetry={() => retryDownload(item.id)} />
     {/if}
 
     {#if item.status !== "queued"}
