@@ -59,6 +59,8 @@ const ALLOWED_FILTERS: &[&str] = &[
     "volume",
     "aresample",
     "loudnorm",
+    "silenceremove",
+    "silencedetect",
     "afade",
     "fade",
     "format",
@@ -170,6 +172,55 @@ fn s(v: &str) -> String {
 
 // Deterministic, known-safe operations. These never go through the validator
 // because they are constructed here, but they also pass it (covered by tests).
+/// Alvo EBU R128 de -16 LUFS com teto de -1.5 dBTP: o mesmo que apps de
+/// podcast usam para fala. `LRA=11` mantem alguma dinamica em vez de achatar.
+pub const VOICE_BOOST_FILTER: &str = "loudnorm=I=-16:TP=-1.5:LRA=11";
+
+/// Remove silencio em qualquer ponto (`stop_periods=-1`), a partir de 0.35 s
+/// abaixo de -38 dB. Abaixo disso a fala fica picotada entre palavras.
+pub const SMART_SPEED_FILTER: &str =
+    "silenceremove=stop_periods=-1:stop_duration=0.35:stop_threshold=-38dB";
+
+/// Argumentos que medem o silencio sem escrever arquivo, para estimar o ganho
+/// de duracao antes de o usuario aplicar.
+///
+/// Nao passa por `validate_transform_args`: usa `-f null`, e `-f` fica fora da
+/// allowlist de proposito. Sao argumentos constantes montados pelo app, sem
+/// nenhuma entrada de usuario ou de modelo.
+pub fn silence_probe_args() -> Vec<String> {
+    vec![
+        s("-vn"),
+        s("-af"),
+        s("silencedetect=noise=-38dB:d=0.35"),
+        s("-f"),
+        s("null"),
+    ]
+}
+
+/// Total de silencio detectado, em segundos, a partir do stderr do ffmpeg.
+///
+/// O ffmpeg emite `silence_start` e `silence_end` em linhas separadas; um
+/// `silence_start` sem `silence_end` significa que o arquivo terminou em
+/// silencio e e ignorado, porque nao da para saber a duracao sem a duracao
+/// total do arquivo.
+pub fn parse_silence_total_secs(stderr: &str) -> f64 {
+    let mut total = 0.0;
+    for line in stderr.lines() {
+        let Some(idx) = line.find("silence_duration:") else {
+            continue;
+        };
+        let rest = &line[idx + "silence_duration:".len()..];
+        if let Some(value) = rest.split_whitespace().next() {
+            if let Ok(secs) = value.parse::<f64>() {
+                if secs.is_finite() && secs > 0.0 {
+                    total += secs;
+                }
+            }
+        }
+    }
+    total
+}
+
 pub fn preset(action: &str, start: Option<&str>, end: Option<&str>) -> Result<Preset, String> {
     match action {
         "extract_audio" => Ok(Preset {
@@ -194,6 +245,43 @@ pub fn preset(action: &str, start: Option<&str>, end: Option<&str>) -> Result<Pr
                 s("+faststart"),
             ],
             out_ext: "mp4",
+        }),
+        // Voice Boost: normaliza volume para EBU R128 (-16 LUFS, o alvo usado
+        // por apps de podcast) sem tocar no video.
+        "voice_boost" => Ok(Preset {
+            args: vec![
+                s("-af"),
+                s(VOICE_BOOST_FILTER),
+                s("-c:v"),
+                s("copy"),
+                s("-c:a"),
+                s("aac"),
+                s("-b:a"),
+                s("192k"),
+            ],
+            out_ext: "mp4",
+        }),
+        // Smart Speed: corta o silencio de aula gravada.
+        //
+        // Saida e AUDIO, nao video, e isso e uma restricao real e nao uma
+        // simplificacao: `silenceremove` descarta amostras de audio sem mexer no
+        // PTS do video, entao aplicar sobre um mp4 dessincronizaria imagem e som.
+        // Cortar as duas streams nos mesmos pontos exigiria `select`/`aselect`
+        // com expressoes, que e outra ordem de grandeza de trabalho — e o caso de
+        // uso que originou a feature (Overcast) consome aula como audio de
+        // qualquer forma. Vem com loudnorm junto porque quem precisa de um
+        // costuma precisar do outro.
+        "smart_speed" => Ok(Preset {
+            args: vec![
+                s("-vn"),
+                s("-af"),
+                s(&format!("{SMART_SPEED_FILTER},{VOICE_BOOST_FILTER}")),
+                s("-c:a"),
+                s("aac"),
+                s("-b:a"),
+                s("128k"),
+            ],
+            out_ext: "m4a",
         }),
         "to_gif" => Ok(Preset {
             args: vec![s("-vf"), s("fps=12,scale=480:-1:flags=lanczos"), s("-an")],
@@ -431,5 +519,93 @@ mod tests {
     fn sanitize_rejects_dangerous_ai_output() {
         assert!(sanitize_ai_command("ffmpeg -i in -vf subtitles=x.srt out").is_err());
         assert!(sanitize_ai_command("ffmpeg -i in -c copy out && rm -rf /").is_err());
+    }
+
+    // --- B36: Smart Speed e Voice Boost ---
+
+    /// stderr real do ffmpeg com `silencedetect`, de uma aula gravada.
+    const SILENCEDETECT_STDERR: &str = "\
+[silencedetect @ 0x7f8] silence_start: 12.4213\n\
+[silencedetect @ 0x7f8] silence_end: 15.0021 | silence_duration: 2.58076\n\
+[silencedetect @ 0x7f8] silence_start: 48.9\n\
+[silencedetect @ 0x7f8] silence_end: 52.4 | silence_duration: 3.5\n\
+[silencedetect @ 0x7f8] silence_start: 300.1\n\
+size=N/A time=00:10:00.00 bitrate=N/A speed= 412x\n";
+
+    #[test]
+    fn estimativa_de_silencio_soma_so_os_intervalos_fechados() {
+        let total = parse_silence_total_secs(SILENCEDETECT_STDERR);
+        // 2.58076 + 3.5; o terceiro silence_start nao tem end e e ignorado.
+        assert!((total - 6.08076).abs() < 1e-6, "somou {total}");
+    }
+
+    #[test]
+    fn estimativa_ignora_log_sem_silencio() {
+        assert_eq!(parse_silence_total_secs(""), 0.0);
+        assert_eq!(parse_silence_total_secs("size=N/A time=00:10:00.00"), 0.0);
+        // Valor ilegivel nao pode virar NaN e contaminar a soma.
+        assert_eq!(
+            parse_silence_total_secs("silence_duration: nao-e-numero"),
+            0.0
+        );
+    }
+
+    #[test]
+    fn smart_speed_sai_como_audio_e_nao_como_video() {
+        // Restricao real, nao escolha estetica: silenceremove descarta amostras
+        // de audio sem mexer no PTS do video, entao saida em mp4
+        // dessincronizaria. O teste trava essa decisao.
+        let p = preset("smart_speed", None, None).expect("preset existe");
+        assert_eq!(p.out_ext, "m4a");
+        assert!(p.args.contains(&"-vn".to_string()), "{:?}", p.args);
+        assert!(!p.args.iter().any(|a| a == "-c:v"), "{:?}", p.args);
+    }
+
+    #[test]
+    fn voice_boost_preserva_o_video() {
+        let p = preset("voice_boost", None, None).expect("preset existe");
+        assert_eq!(p.out_ext, "mp4");
+        let idx = p.args.iter().position(|a| a == "-c:v").expect("tem -c:v");
+        assert_eq!(p.args[idx + 1], "copy");
+        assert!(!p.args.contains(&"-vn".to_string()));
+    }
+
+    #[test]
+    fn os_presets_novos_passam_pela_allowlist_de_seguranca() {
+        // Defesa em profundidade: video_op_preset revalida os args do preset
+        // antes de executar, entao um preset que nao passe aqui quebraria em
+        // runtime em vez de na compilacao.
+        for action in ["smart_speed", "voice_boost"] {
+            let p = preset(action, None, None).expect("preset existe");
+            validate_transform_args(&p.args)
+                .unwrap_or_else(|e| panic!("preset {action} reprovado na allowlist: {e}"));
+        }
+    }
+
+    #[test]
+    fn a_sonda_de_silencio_nao_passa_pela_allowlist_de_proposito() {
+        // Ela usa `-f null`, e `-f` NAO esta na allowlist — de proposito. Liberar
+        // `-f` deixaria o caminho de IA escolher muxer arbitrario, o que amplia
+        // superficie de seguranca para ganhar nada. A sonda e montada so pelo app,
+        // com argumentos constantes e sem entrada do usuario, entao nao precisa
+        // passar por la. Este teste trava as duas metades dessa decisao.
+        let args = silence_probe_args();
+        assert!(validate_transform_args(&args).is_err());
+        assert!(args.iter().all(|a| !a.contains(';')
+            && !a.contains('|')
+            && !a.contains('`')
+            && !a.contains("$(")));
+        assert_eq!(
+            args,
+            silence_probe_args(),
+            "argumentos precisam ser constantes"
+        );
+    }
+
+    #[test]
+    fn filtros_usam_os_alvos_ebu_r128() {
+        assert!(VOICE_BOOST_FILTER.contains("I=-16"));
+        assert!(VOICE_BOOST_FILTER.contains("TP=-1.5"));
+        assert!(SMART_SPEED_FILTER.contains("stop_periods=-1"));
     }
 }

@@ -792,6 +792,7 @@ pub fn run() {
             commands::ai::whisper_generate,
             commands::ai::ai_history_list,
             commands::ai::ai_history_clear,
+            commands::video_ops::video_op_silence_estimate,
             commands::video_ops::video_op_preset,
             commands::video_ops::video_op_propose,
             commands::video_ops::video_op_run,

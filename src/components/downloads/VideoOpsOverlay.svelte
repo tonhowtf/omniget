@@ -13,6 +13,29 @@
   let proposedArgs = $state<string[]>([]);
   let outExt = $state("mp4");
   let resultPath = $state("");
+  let silenceHint = $state("");
+
+  // Preview antes de aplicar: mede o silencio sem escrever arquivo, para o
+  // usuario decidir se o ganho justifica a conversao.
+  async function estimateSmartSpeed() {
+    if (stage === "busy") return;
+    silenceHint = $t("downloads.vop.smart_speed_measuring") as string;
+    try {
+      const r = await invoke<{ silence_secs: number; saved_percent: number }>(
+        "video_op_silence_estimate",
+        { input: filePath },
+      );
+      silenceHint =
+        r.saved_percent >= 1
+          ? ($t("downloads.vop.smart_speed_estimate", {
+              minutes: Math.round(r.silence_secs / 60),
+              percent: Math.round(r.saved_percent),
+            }) as string)
+          : ($t("downloads.vop.smart_speed_no_gain") as string);
+    } catch {
+      silenceHint = "";
+    }
+  }
 
   function fail(e: unknown) {
     const raw = typeof e === "string" ? e : ($t("common.error") as string);
@@ -101,6 +124,9 @@
         <button disabled={stage === "busy"} onclick={() => runPreset("mute")}>{$t('downloads.vop.mute')}</button>
         <button disabled={stage === "busy"} onclick={() => runPreset("to_mp4")}>{$t('downloads.vop.to_mp4')}</button>
         <button disabled={stage === "busy"} onclick={() => runPreset("to_gif")}>{$t('downloads.vop.to_gif')}</button>
+        <button disabled={stage === "busy"} onclick={() => runPreset("voice_boost")}>{$t('downloads.vop.voice_boost')}</button>
+        <button disabled={stage === "busy"} onclick={() => { void estimateSmartSpeed(); }}>{$t('downloads.vop.smart_speed_check')}</button>
+        <button disabled={stage === "busy"} onclick={() => runPreset("smart_speed")}>{$t('downloads.vop.smart_speed')}</button>
       </div>
 
       <div class="trim">
@@ -108,6 +134,10 @@
         <input type="text" placeholder={$t('downloads.vop.trim_end')} bind:value={trimEnd} />
         <button disabled={stage === "busy"} onclick={() => runPreset("trim")}>{$t('downloads.vop.trim')}</button>
       </div>
+
+      {#if silenceHint}
+        <p class="vop-hint">{silenceHint}</p>
+      {/if}
 
       <h3>{$t('downloads.vop.nl_label')}</h3>
       <div class="nl">
@@ -139,6 +169,12 @@
 </div>
 
 <style>
+  .vop-hint {
+    margin: var(--space-2, 8px) 0 0;
+    font-size: 12px;
+    color: var(--text-secondary, var(--text-dim));
+  }
+
   .overlay {
     position: fixed;
     inset: 0;

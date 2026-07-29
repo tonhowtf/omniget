@@ -120,6 +120,57 @@ pub async fn waveform_peaks(input: String, buckets: Option<usize>) -> Result<Vec
     Ok(ffmpeg_ops::pcm_s16le_peaks(&output.stdout, n))
 }
 
+/// Quanto silencio o Smart Speed removeria, sem escrever arquivo nenhum.
+///
+/// Preview antes de aplicar: o usuario ve o ganho de duracao e decide, em vez
+/// de esperar uma conversao inteira para descobrir que nao valia a pena.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SilenceEstimate {
+    pub total_secs: f64,
+    pub silence_secs: f64,
+    pub saved_percent: f64,
+}
+
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub async fn video_op_silence_estimate(input: String) -> Result<SilenceEstimate, String> {
+    let input_path = ensure_input(&input)?;
+    let ffmpeg = omniget_core::core::dependencies::find_tool("ffmpeg")
+        .await
+        .ok_or_else(|| "ffmpeg unavailable".to_string())?;
+
+    let total_us = omniget_core::core::ffmpeg::get_duration_us(&input_path)
+        .await
+        .map_err(|e| format!("could not read duration: {}", e))?;
+    let total_secs = total_us as f64 / 1_000_000.0;
+
+    let mut cmd = omniget_core::core::process::command(&ffmpeg);
+    cmd.arg("-i").arg(input_path.to_string_lossy().to_string());
+    for arg in ffmpeg_ops::silence_probe_args() {
+        cmd.arg(arg);
+    }
+    let output = cmd
+        .arg("-")
+        .output()
+        .await
+        .map_err(|e| format!("ffmpeg failed: {}", e))?;
+
+    // silencedetect escreve no stderr mesmo em execucao bem sucedida.
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let silence_secs = ffmpeg_ops::parse_silence_total_secs(&stderr);
+    let saved_percent = if total_secs > 0.0 {
+        (silence_secs / total_secs * 100.0).clamp(0.0, 100.0)
+    } else {
+        0.0
+    };
+
+    Ok(SilenceEstimate {
+        total_secs,
+        silence_secs,
+        saved_percent,
+    })
+}
+
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn video_op_preset(
