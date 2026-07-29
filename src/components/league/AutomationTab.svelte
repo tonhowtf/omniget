@@ -18,6 +18,13 @@
   let pickSearch = $state("");
   let banSearch = $state("");
 
+  let acceptDelay = $derived(settings?.league?.auto_accept_delay ?? 0);
+
+  function changeAcceptDelay(event: Event) {
+    const value = Number((event.currentTarget as HTMLInputElement).value);
+    updateSettings({ league: { auto_accept_delay: value } });
+  }
+
   async function toggleAutoAccept() {
     const next = !autoAccept;
     autoAccept = next;
@@ -85,6 +92,30 @@
       <span class="toggle-knob"></span>
     </button>
   </div>
+  {#if autoAccept}
+    <div class="delay-block">
+      <span class="list-label">
+        {$t("league.accept_delay")}
+        <span class="list-hint">
+          {acceptDelay === 0 ? $t("league.accept_delay_instant") : `${acceptDelay}s`}
+        </span>
+      </span>
+      <div class="slider-row">
+        <span class="slider-edge">0s</span>
+        <input
+          type="range"
+          min="0"
+          max="11"
+          step="1"
+          value={acceptDelay}
+          oninput={changeAcceptDelay}
+          aria-label={$t("league.accept_delay") as string}
+        />
+        <span class="slider-edge">11s</span>
+      </div>
+      <span class="action-hint">{$t("league.accept_delay_desc")}</span>
+    </div>
+  {/if}
   <div class="divider"></div>
   <div class="action-row">
     <div class="action-col">

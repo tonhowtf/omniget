@@ -52,6 +52,8 @@ pub struct LeagueSettings {
     #[serde(default)]
     pub auto_accept: bool,
     #[serde(default)]
+    pub auto_accept_delay: u8,
+    #[serde(default)]
     pub auto_pick: bool,
     #[serde(default)]
     pub auto_ban: bool,
@@ -84,6 +86,7 @@ impl Default for LeagueSettings {
         Self {
             enabled: default_league_enabled(),
             auto_accept: false,
+            auto_accept_delay: 0,
             auto_pick: false,
             auto_ban: false,
             auto_lock: false,
