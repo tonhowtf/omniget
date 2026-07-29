@@ -23,7 +23,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const baselinePath = path.join(root, "src-tauri", "clippy-baseline.json");
+// Um arquivo por plataforma: `#[cfg(target_os)]` faz o clippy enxergar codigo
+// diferente em cada SO, e um arquivo unico deixaria todo codigo condicional
+// fora do portao — inclusive o modo portatil, que e todo Windows.
+const baselinePath = path.join(root, "src-tauri", `clippy-baseline.${process.platform}.json`);
 
 const mode = process.argv.includes("--update")
   ? "update"
@@ -63,6 +66,11 @@ function runClippy() {
 
 function tally(stdout) {
   const counts = {};
+  // `--all-targets` compila lib e lib-test, e o mesmo warning e emitido uma vez
+  // por target. Sem deduplicar, o total dobra (177 em vez de ~90) e um warning
+  // novo aparece como +2, o que torna o relatorio ilegivel. A identidade de um
+  // warning e o ponto de origem: arquivo, linha, coluna e lint.
+  const seen = new Set();
   for (const line of stdout.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed.startsWith("{")) continue;
@@ -77,6 +85,15 @@ function tally(stdout) {
     if (message.level !== "warning") continue;
     const lint = message.code?.code;
     if (!lint) continue; // warning sem código de lint (ex.: nota solta)
+
+    const primary = (message.spans ?? []).find((s) => s.is_primary);
+    const origin = primary
+      ? `${primary.file_name}:${primary.line_start}:${primary.column_start}`
+      : `nospan:${message.message}`;
+    const fingerprint = `${origin}|${lint}`;
+    if (seen.has(fingerprint)) continue;
+    seen.add(fingerprint);
+
     const crate = msg.target?.name ?? "unknown";
     const key = `${crate}|${lint}`;
     counts[key] = (counts[key] ?? 0) + 1;
@@ -101,16 +118,23 @@ if (mode === "update") {
 }
 
 if (!fs.existsSync(baselinePath)) {
-  console.error(`missing ${path.relative(root, baselinePath)} — run with --update`);
-  process.exit(1);
+  // Sem baseline para esta plataforma o portao nao reprova — reprovar seria
+  // punir alguem por um arquivo que ninguem gerou ainda. Em vez disso imprime
+  // exatamente o conteudo a commitar, para o log da CI servir de fonte.
+  console.log(
+    `no clippy baseline for ${process.platform} yet — not gating.\n` +
+      `Commit this as ${path.relative(root, baselinePath)}:\n`,
+  );
+  console.log(JSON.stringify({ generated_on: process.platform, total, counts: current }, null, 2));
+  process.exit(0);
 }
 
 const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8"));
 const before = baseline.counts ?? {};
 
-// Comparar entre SOs daria falso positivo: `#[cfg(target_os)]` faz o clippy
-// enxergar codigo diferente em cada plataforma. Melhor recusar do que reprovar
-// alguem por um warning que so existe no SO dele.
+// Redundante agora que o nome do arquivo carrega a plataforma, mas mantido
+// como defesa: um baseline copiado a mao entre arquivos nao pode reprovar
+// ninguem em silencio.
 if (baseline.generated_on && baseline.generated_on !== process.platform) {
   console.log(
     `clippy baseline skipped: recorded on ${baseline.generated_on}, running on ${process.platform}`,

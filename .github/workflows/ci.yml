@@ -44,11 +44,12 @@ jobs:
         run: cargo clippy --workspace --all-targets
 
       # Portao de verdade sem pintar o dia um de vermelho: compara com o
-      # baseline commitado e reprova so warning novo. Ubuntu apenas — clippy
-      # enxerga codigo diferente por `#[cfg(target_os)]`, entao um baseline
-      # unico nao descreve as tres plataformas.
+      # baseline commitado e reprova so warning novo. Roda nas tres plataformas,
+      # cada uma contra o seu proprio arquivo — `#[cfg(target_os)]` faz o clippy
+      # enxergar codigo diferente em cada SO, e um baseline unico deixaria todo
+      # codigo condicional fora do portao. Plataforma sem baseline ainda nao
+      # gerado nao reprova: o passo imprime o conteudo a commitar.
       - name: Clippy baseline (no new warnings)
-        if: matrix.platform == 'ubuntu-latest'
         run: node scripts/clippy-baseline.mjs --check
 
       - name: Test
