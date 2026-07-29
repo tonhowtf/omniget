@@ -12,6 +12,8 @@
   import ContextHint from "$components/hints/ContextHint.svelte";
   import SettingsPlugins from "$components/settings/SettingsPlugins.svelte";
   import SettingsAdvanced from "$components/settings/SettingsAdvanced.svelte";
+  import SettingsRules from "$components/settings/SettingsRules.svelte";
+  import SettingsStorage from "$components/settings/SettingsStorage.svelte";
   import SettingsAppearance from "$components/settings/SettingsAppearance.svelte";
   import SettingsNetwork from "$components/settings/SettingsNetwork.svelte";
   import SettingsDownloads from "$components/settings/SettingsDownloads.svelte";
@@ -598,6 +600,8 @@
 
     {#if isSearching || activeCategory === "advanced"}
       <div class="settings-panel" data-settings-cat="advanced">
+        <SettingsRules />
+        <SettingsStorage />
         <SettingsAdvanced {resetting} onReset={handleReset} searchActive={isSearching} />
       </div>
     {/if}
