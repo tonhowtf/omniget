@@ -5,7 +5,22 @@ Itens abertos por ordem de retorno. Numeração contínua; concluídos não são
 **Legenda.** Custo P/M/G · Impacto 1–5 · Status: `aberto` · `bloqueado` · `em análise`
 
 **Concluído em v0.7.7:** B21–B31 (11 itens).
-**Concluído e aguardando release:** B47, B48, B41.
+**Concluído e aguardando release:** B47, B48, B41 (PR #204) · B50, B51, B36 (PR #205).
+
+---
+
+## Onda 1 (2026-07-29) — concluída
+
+B50, B51 e B36 entregues na PR #205, CI 6/6 verde, mergeada. Testes 460 → 467.
+
+### B50 — Baseline de clippy commitado ✅
+Clippy virou portão de verdade: `src-tauri/clippy-baseline.json` congela 177 warnings em 51 lints e o CI reprova só o que é novo. Chave `crate|lint`, sem arquivo nem linha — mover código não reprova, só introduzir warning reprova. **Baseline é por plataforma**: `#[cfg(target_os)]` faz o clippy ver código diferente em cada SO, então roda só no ubuntu e o script recusa comparação cruzada. Baseline por SO fica como dívida.
+
+### B51 — Campo Website ✅
+Aponta para `releases/latest`. Não há GitHub Pages (`/repos/.../pages` → 404), então não havia ganho de SEO disponível; mandar o visitante para o download é o mais útil que sobrou. O convite do Discord existia **só** nesse campo — foi realocado para a seção Contribute dos três READMEs antes da troca.
+
+### B36 — Smart Speed e Voice Boost ✅
+Voice Boost normaliza para EBU R128 (−16 LUFS, −1.5 dBTP) e copia o vídeo. **Smart Speed sai como áudio, e isso é restrição real**: `silenceremove` descarta amostras sem mexer no PTS do vídeo, então mp4 dessincronizaria; cortar as duas streams exigiria `select`/`aselect`. Preview via `silencedetect` mede o ganho sem escrever arquivo. A sonda não passa pela allowlist de ffmpeg de propósito — precisa de `-f null`, e liberar `-f` daria ao caminho de IA escolher muxer arbitrário.
 
 ---
 
@@ -77,15 +92,23 @@ Ainda assim **não é release de segurança isolada**: explorar exige compromete
 
 ### B45 — Caminho customizado de binário
 
-**Status:** bloqueado · **Origem:** issue #196, PR #197
+**Status:** bloqueado · **Origem:** issue #196, PR #197 · **Bola com o autor**
 
-Cedido para a PR #197, que aguarda o autor corrigir 2 erros de `svelte-check` e 37 chaves de i18n. Retomar apenas se o autor não voltar — contribuidor externo que volta vale mais que a versão marginalmente melhor. Reavaliar depois que o CI passa a sinalizar os erros sozinho e o autor vê o que corrigir sem depender de revisão manual.
+O autor voltou em 2026-07-29 e corrigiu **5 dos 6 pontos**, verificados linha a linha: `telegramGetChats` exportado (`study-telegram-bridge.ts:333`), `source: "clipboard"` presente (`+layout.svelte:240`), **43 chaves em todos os 9 locales, zero faltando**, guarda de monotonicidade do progresso restaurada (`ytdlp.rs:2529`), changelog de PR removido.
+
+Bloqueio atual mudou de natureza: a PR **não mergeia mais** — conflita em `src-tauri/src/core/queue.rs` depois da v0.7.7 e do remake visual. Precisa de rebase do autor. Ponto 4 (spawn duplicado em `commands/dependencies.rs:29-39`) segue aberto, severidade baixa.
+
+Com o CI de pé, ele agora vê os portões sozinho. Re-check comentado na PR.
 
 ### B49 — Modo portátil
 
-**Status:** bloqueado · **Origem:** issue #195
+**Status:** aberto · **Origem:** issue #195 · **Custo:** M (revisado de P)
 
-Diagnóstico completo. O conserto reestrutura a criação da janela principal e é comportamento exclusivo de Windows. Não testável no ambiente de desenvolvimento atual (macOS). Precisa de máquina Windows ou de um contribuidor que valide.
+Diagnóstico completo e inalterado: o `WEBVIEW2_USER_DATA_FOLDER` definido em `main.rs` é código morto porque o Tauri resolve `data_directory` para `LocalData/{identifier}` antes de a variável ser lida, e o `tauri.conf.json` só aceita caminho relativo sob `data_local_dir()`.
+
+**O que mudou:** existe CI com job `rust (windows-latest)`, então a compilação Windows passou a ser verificável. **O que não mudou:** esse job roda `cargo test`, não sobe o app — ele prova que compila, não que o modo portátil funciona. O conserto (`"create": false` + construir a janela no `setup()` com `.data_directory(...)`) reestrutura o bootstrap da janela principal, e a validação final continua sendo manual em Windows.
+
+Custo revisado de P para M por causa disso. Ao implementar, listar a validação manual em `ENTREGA.md` em vez de fingir cobertura de CI.
 
 ---
 
