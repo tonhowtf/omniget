@@ -218,6 +218,13 @@ async fn credentials_from_lockfiles(listing: &str) -> Option<(LcuCredentials, So
     None
 }
 
+/// Install directory of the game, when it can be told from the running process.
+/// Features that need files on disk (replays, the settings lock) depend on this.
+pub async fn install_dir() -> Option<PathBuf> {
+    let listing = read_process_command_lines().await.ok()?;
+    install_dirs_from_listing(&listing).into_iter().next()
+}
+
 pub async fn discover() -> Option<(LcuCredentials, Source)> {
     let listing = read_process_command_lines().await.unwrap_or_default();
     if let Some(credentials) = credentials_from_listing(&listing) {

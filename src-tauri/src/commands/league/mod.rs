@@ -1492,6 +1492,15 @@ pub async fn league_end_of_game_stats() -> Result<Value, String> {
     lcu_get_raw(&client, "/lol-end-of-game/v1/eog-stats-block").await
 }
 
+/// Where the game is installed, as far as the running process reveals. Null when
+/// the client is not running or the path could not be told.
+#[tauri::command]
+pub async fn league_install_dir() -> Result<Value, String> {
+    ensure_enabled()?;
+    let dir = locator::install_dir().await;
+    Ok(json!({ "path": dir.map(|p| p.to_string_lossy().to_string()) }))
+}
+
 /// Objective respawn estimates and a readable feed of what just happened,
 /// derived from the in-game event log.
 #[tauri::command]
