@@ -4,6 +4,7 @@ pub mod live;
 pub mod lobby;
 pub mod locator;
 pub mod meta;
+pub mod locator;
 pub mod stats;
 pub mod ws;
 
