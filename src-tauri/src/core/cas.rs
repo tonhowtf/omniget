@@ -99,9 +99,11 @@ pub fn same_file(a: &Path, b: &Path) -> bool {
     }
     #[cfg(not(unix))]
     {
-        // Sem `dev`/`ino` portatil no Windows estavel: comparar tamanho e
-        // conteudo seria caro e ainda assim ambiguo, entao a resposta
-        // conservadora e "nao sei, trate como diferente".
+        // Sem `dev`/`ino` no Windows estavel (`volume_serial_number` e
+        // `file_index` seguem unstable), a resposta conservadora e "nao sei,
+        // trate como diferente". Efeito pratico: `materialize` sobre um destino
+        // que ja e o mesmo arquivo refaz o link em vez de devolver
+        // `AlreadyPresent`. Idempotente e correto, so um pouco mais caro.
         let _ = (a, b);
         false
     }
@@ -193,11 +195,21 @@ mod tests {
         assert_eq!(materialize(&object, &d1).unwrap(), LinkOutcome::Linked);
         assert_eq!(materialize(&object, &d2).unwrap(), LinkOutcome::Linked);
 
-        assert!(same_file(&d1, &d2));
-        assert_eq!(std::fs::read_to_string(&d1).unwrap(), "bytes do video");
+        // Verificacao comportamental, nao por inode: escrever por um link e ler
+        // pelo outro so funciona se os dois apontarem para o mesmo arquivo.
+        // `same_file` nao consegue responder isso no Windows estavel (as APIs
+        // de volume/indice seguem unstable), entao afirmar identidade de inode
+        // faria o teste reprovar num lugar onde a feature funciona.
+        std::fs::write(&d1, "editado por d1").unwrap();
+        assert_eq!(
+            std::fs::read_to_string(&d2).unwrap(),
+            "editado por d1",
+            "d1 e d2 deviam ser o mesmo arquivo"
+        );
 
         #[cfg(unix)]
         {
+            assert!(same_file(&d1, &d2));
             // object + src + d1 + d2
             assert!(
                 link_count(&object).unwrap() >= 3,
