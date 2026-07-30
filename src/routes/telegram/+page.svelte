@@ -1047,7 +1047,7 @@
         <p class="qr-instruction">{$t("telegram.qr_instruction")}</p>
       </div>
 
-      <div class="separator">
+      <div class="or-divider">
         <span class="separator-line"></span>
         <span class="separator-text">{$t("telegram.or_separator")}</span>
         <span class="separator-line"></span>
@@ -1732,10 +1732,11 @@
     line-height: 1.6;
   }
 
-  .separator {
+  .or-divider {
     display: flex;
     align-items: center;
     gap: var(--padding);
+    margin-block: 4px;
   }
 
   .separator-line {
@@ -1745,9 +1746,13 @@
   }
 
   .separator-text {
-    font-size: var(--text-sm);
-    font-weight: 500;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
     color: var(--gray);
+    line-height: 1;
+    padding-inline: 4px;
   }
 
   .use-phone-btn,
