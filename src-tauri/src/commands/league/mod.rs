@@ -1501,6 +1501,218 @@ pub async fn league_install_dir() -> Result<Value, String> {
     Ok(json!({ "path": dir.map(|p| p.to_string_lossy().to_string()) }))
 }
 
+/// Full detail of one match: every participant with runes, items, spells and the
+/// long tail of stats the client keeps but its own end-of-game screen hides,
+/// plus the puuid needed to look a player up afterwards.
+#[tauri::command]
+pub async fn league_match_detail(game_id: i64) -> Result<Value, String> {
+    ensure_enabled()?;
+    if game_id <= 0 {
+        return Err("invalid game".to_string());
+    }
+    let client = get_client().await?;
+    let detail = lcu_get_raw(&client, &format!("/lol-match-history/v1/games/{}", game_id)).await?;
+
+    let identities: Vec<Value> = detail
+        .get("participantIdentities")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let identity_of = |participant_id: i64| -> Option<Value> {
+        identities
+            .iter()
+            .find(|i| i.get("participantId").and_then(Value::as_i64) == Some(participant_id))
+            .and_then(|i| i.get("player").cloned())
+    };
+
+    let participants: Vec<Value> = detail
+        .get("participants")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .map(|p| {
+            let stats = p.get("stats").cloned().unwrap_or(Value::Null);
+            let timeline = p.get("timeline").cloned().unwrap_or(Value::Null);
+            let participant_id = p.get("participantId").and_then(Value::as_i64).unwrap_or(0);
+            let player = identity_of(participant_id).unwrap_or(Value::Null);
+            let num = |key: &str| -> i64 { stats.get(key).and_then(Value::as_i64).unwrap_or(0) };
+
+            let mut row = serde_json::Map::new();
+            row.insert("participantId".into(), json!(participant_id));
+            row.insert(
+                "teamId".into(),
+                json!(p.get("teamId").and_then(Value::as_i64).unwrap_or(0)),
+            );
+            row.insert(
+                "championId".into(),
+                json!(p.get("championId").and_then(Value::as_i64).unwrap_or(0)),
+            );
+            row.insert(
+                "puuid".into(),
+                json!(player.get("puuid").and_then(Value::as_str).unwrap_or("")),
+            );
+            row.insert(
+                "gameName".into(),
+                json!(player
+                    .get("gameName")
+                    .and_then(Value::as_str)
+                    .filter(|s| !s.is_empty())
+                    .or_else(|| player.get("summonerName").and_then(Value::as_str))
+                    .unwrap_or("")),
+            );
+            row.insert(
+                "tagLine".into(),
+                json!(player.get("tagLine").and_then(Value::as_str).unwrap_or("")),
+            );
+            row.insert(
+                "win".into(),
+                json!(stats.get("win").and_then(Value::as_bool).unwrap_or(false)),
+            );
+            row.insert(
+                "spells".into(),
+                json!([
+                    p.get("spell1Id").and_then(Value::as_i64).unwrap_or(0),
+                    p.get("spell2Id").and_then(Value::as_i64).unwrap_or(0),
+                ]),
+            );
+            row.insert(
+                "items".into(),
+                json!((0..7)
+                    .map(|i| num(&format!("item{}", i)))
+                    .collect::<Vec<_>>()),
+            );
+            row.insert(
+                "runes".into(),
+                json!({
+                    "primaryStyle": num("perkPrimaryStyle"),
+                    "subStyle": num("perkSubStyle"),
+                    "perks": (0..6).map(|i| num(&format!("perk{}", i))).collect::<Vec<_>>(),
+                    "statMods": [num("statPerk0"), num("statPerk1"), num("statPerk2")],
+                }),
+            );
+            for (key, value) in [
+                ("kills", num("kills")),
+                ("deaths", num("deaths")),
+                ("assists", num("assists")),
+                ("level", num("champLevel")),
+                (
+                    "cs",
+                    num("totalMinionsKilled") + num("neutralMinionsKilled"),
+                ),
+                ("gold", num("goldEarned")),
+                ("damageToChampions", num("totalDamageDealtToChampions")),
+                ("physicalDamage", num("physicalDamageDealtToChampions")),
+                ("magicDamage", num("magicDamageDealtToChampions")),
+                ("trueDamage", num("trueDamageDealtToChampions")),
+                ("damageTaken", num("totalDamageTaken")),
+                ("damageMitigated", num("damageSelfMitigated")),
+                ("damageToObjectives", num("damageDealtToObjectives")),
+                ("damageToTurrets", num("damageDealtToTurrets")),
+                ("healing", num("totalHeal")),
+                ("shielding", num("totalDamageShieldedOnTeammates")),
+                ("visionScore", num("visionScore")),
+                ("wardsPlaced", num("wardsPlaced")),
+                ("wardsKilled", num("wardsKilled")),
+                ("controlWards", num("visionWardsBoughtInGame")),
+                ("ccTime", num("timeCCingOthers")),
+                ("largestSpree", num("largestKillingSpree")),
+                ("largestMultiKill", num("largestMultiKill")),
+                ("doubleKills", num("doubleKills")),
+                ("tripleKills", num("tripleKills")),
+                ("quadraKills", num("quadraKills")),
+                ("pentaKills", num("pentaKills")),
+                ("turretKills", num("turretKills")),
+                ("inhibitorKills", num("inhibitorKills")),
+            ] {
+                row.insert(key.into(), json!(value));
+            }
+            row.insert(
+                "firstBlood".into(),
+                json!(stats
+                    .get("firstBloodKill")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)),
+            );
+            row.insert(
+                "firstTower".into(),
+                json!(stats
+                    .get("firstTowerKill")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)),
+            );
+            row.insert(
+                "lane".into(),
+                json!(timeline.get("lane").and_then(Value::as_str).unwrap_or("")),
+            );
+            row.insert(
+                "role".into(),
+                json!(timeline.get("role").and_then(Value::as_str).unwrap_or("")),
+            );
+            Value::Object(row)
+        })
+        .collect();
+
+    Ok(json!({
+        "gameId": game_id,
+        "gameMode": detail.get("gameMode").and_then(Value::as_str).unwrap_or(""),
+        "queueId": detail.get("queueId").and_then(Value::as_i64).unwrap_or(0),
+        "gameCreation": detail.get("gameCreation").and_then(Value::as_i64).unwrap_or(0),
+        "gameDuration": detail.get("gameDuration").and_then(Value::as_i64).unwrap_or(0),
+        "teams": detail.get("teams").cloned().unwrap_or(Value::Null),
+        "participants": participants,
+    }))
+}
+
+/// Recent games of any player by puuid, for looking someone up straight from a
+/// scoreboard instead of retyping their name.
+#[tauri::command]
+pub async fn league_player_history(
+    puuid: String,
+    beg_index: Option<i64>,
+    end_index: Option<i64>,
+) -> Result<Value, String> {
+    ensure_enabled()?;
+    if puuid.is_empty() || !puuid.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Err("invalid player".to_string());
+    }
+    let beg = beg_index.unwrap_or(0).max(0);
+    let end = end_index.unwrap_or(beg + 9).max(beg);
+    let client = get_client().await?;
+    lcu_get_raw(
+        &client,
+        &format!(
+            "/lol-match-history/v1/products/lol/{}/matches?begIndex={}&endIndex={}",
+            puuid, beg, end
+        ),
+    )
+    .await
+}
+
+/// Perk metadata (name and icon) so runes can be rendered without hardcoding
+/// paths. Cached by the patch-static rule.
+#[tauri::command]
+pub async fn league_perks() -> Result<Value, String> {
+    ensure_enabled()?;
+    let client = get_client().await?;
+    let perks = lcu_get_raw(&client, "/lol-perks/v1/perks").await?;
+    let list: Vec<Value> = perks
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|p| {
+                    Some(json!({
+                        "id": p.get("id").and_then(Value::as_i64)?,
+                        "name": p.get("name").and_then(Value::as_str).unwrap_or(""),
+                        "iconPath": p.get("iconPath").and_then(Value::as_str).unwrap_or(""),
+                    }))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(json!({ "perks": list }))
+}
+
 /// Objective respawn estimates and a readable feed of what just happened,
 /// derived from the in-game event log.
 #[tauri::command]

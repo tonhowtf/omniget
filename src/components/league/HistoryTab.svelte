@@ -2,7 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t, locale } from "$lib/i18n";
   import timeAgo from "$lib/time-ago";
-  import { CDRAGON, type Champion } from "./shared";
+  import { CDRAGON, assetUrl, type Champion } from "./shared";
   import { filterByQueue, queuesInGames, summarise } from "$lib/league-history";
   import { findTeam, teamBans, teamObjectives } from "$lib/league-match-detail";
 
@@ -70,10 +70,10 @@
     if (gameDetails[gameId]) return;
     gameDetailLoading = gameId;
     try {
-      const detail = await invoke<any>("league_get", {
-        path: `/lol-match-history/v1/games/${gameId}`,
-      });
+      const detail = await invoke<any>("league_match_detail", { gameId });
       gameDetails = { ...gameDetails, [gameId]: detail };
+      expandedDuration = detail?.gameDuration ?? 0;
+      loadPerkIcons();
     } catch {
       gameDetails = { ...gameDetails, [gameId]: null };
     } finally {
@@ -81,29 +81,85 @@
     }
   }
 
+  let perkIcons = $state<Record<number, string>>({});
+  let lookupPuuid = $state("");
+  let lookupName = $state("");
+  let lookupGames = $state<any[]>([]);
+  let lookupLoading = $state(false);
+  let lookupError = $state("");
+
+  async function loadPerkIcons() {
+    if (Object.keys(perkIcons).length > 0) return;
+    try {
+      const res = await invoke<any>("league_perks");
+      const map: Record<number, string> = {};
+      for (const perk of res?.perks ?? []) {
+        if (perk?.id && perk?.iconPath) map[perk.id] = assetUrl(perk.iconPath);
+      }
+      perkIcons = map;
+    } catch {
+      perkIcons = {};
+    }
+  }
+
+  async function openPlayer(player: any) {
+    if (!player?.puuid) return;
+    lookupPuuid = player.puuid;
+    lookupName = player.tagLine ? `${player.gameName}#${player.tagLine}` : player.gameName;
+    lookupGames = [];
+    lookupError = "";
+    lookupLoading = true;
+    try {
+      const res = await invoke<any>("league_player_history", {
+        puuid: player.puuid,
+        begIndex: 0,
+        endIndex: 9,
+      });
+      lookupGames = res?.games?.games ?? [];
+    } catch (e: any) {
+      lookupError = typeof e === "string" ? e : (e?.message ?? String(e));
+    } finally {
+      lookupLoading = false;
+    }
+  }
+
+  function closeLookup() {
+    lookupPuuid = "";
+    lookupGames = [];
+    lookupError = "";
+  }
+
+  function statLine(p: any): { key: string; label: string; value: string }[] {
+    const minutes = Math.max((expandedDuration || 1) / 60, 0.1);
+    return [
+      { key: "dmg", label: "league.stat_damage", value: `${(p.damageToChampions / 1000).toFixed(1)}k` },
+      { key: "taken", label: "league.stat_taken", value: `${(p.damageTaken / 1000).toFixed(1)}k` },
+      { key: "mitigated", label: "league.stat_mitigated", value: `${(p.damageMitigated / 1000).toFixed(1)}k` },
+      { key: "heal", label: "league.stat_healing", value: `${(p.healing / 1000).toFixed(1)}k` },
+      { key: "obj", label: "league.stat_objectives", value: `${(p.damageToObjectives / 1000).toFixed(1)}k` },
+      { key: "gpm", label: "league.stat_gold_min", value: Math.round(p.gold / minutes).toString() },
+      { key: "cspm", label: "league.stat_cs_min", value: (p.cs / minutes).toFixed(1) },
+      { key: "vision", label: "league.stat_vision", value: String(p.visionScore) },
+      { key: "wards", label: "league.stat_wards", value: `${p.wardsPlaced}/${p.wardsKilled}/${p.controlWards}` },
+      { key: "cc", label: "league.stat_cc", value: `${p.ccTime}s` },
+      { key: "spree", label: "league.stat_spree", value: String(p.largestSpree) },
+    ];
+  }
+
+  let expandedDuration = $state(0);
+
   function scoreboardTeams(detail: any): { teamId: number; players: any[] }[] {
-    const participants: any[] = detail?.participants ?? [];
-    const identities: any[] = detail?.participantIdentities ?? [];
-    const nameOf = (pid: number): string => {
-      const player = identities.find((i) => i.participantId === pid)?.player;
-      if (!player) return "";
-      return player.gameName || player.summonerName || "";
-    };
-    const rows = participants.map((p) => ({
-      participantId: p.participantId,
-      teamId: p.teamId,
-      championId: p.championId,
-      name: nameOf(p.participantId),
-      kills: p.stats?.kills ?? 0,
-      deaths: p.stats?.deaths ?? 0,
-      assists: p.stats?.assists ?? 0,
-      cs: (p.stats?.totalMinionsKilled ?? 0) + (p.stats?.neutralMinionsKilled ?? 0),
-      gold: p.stats?.goldEarned ?? 0,
-      damage: p.stats?.totalDamageDealtToChampions ?? 0,
-      win: p.stats?.win ?? false,
-    }));
+    const rows: any[] = detail?.participants ?? [];
     const teamIds = [...new Set(rows.map((r) => r.teamId))];
     return teamIds.map((teamId) => ({ teamId, players: rows.filter((r) => r.teamId === teamId) }));
+  }
+
+  function itemIcon(id: number): string {
+    return `${CDRAGON}/../../game/assets/items/icons2d/${id}.png`;
+  }
+
+  function spellIcon(id: number): string {
+    return `${CDRAGON}/summoner-spells/${id}.png`;
   }
 </script>
 
@@ -194,13 +250,55 @@
                     </div>
                   {/if}
                   {#each team.players as sp (sp.participantId)}
-                    <div class="scoreboard-row">
-                      <img class="champ-icon tiny" src={`${CDRAGON}/champion-icons/${sp.championId}.png`} alt="" loading="lazy" />
-                      <span class="scoreboard-name">{sp.name || championById.get(sp.championId)?.name || "—"}</span>
-                      <span class="scoreboard-kda">{sp.kills}/{sp.deaths}/{sp.assists}</span>
-                      <span class="scoreboard-cs dim">{sp.cs} CS</span>
-                      <span class="scoreboard-gold dim">{(sp.gold / 1000).toFixed(1)}k</span>
-                      <span class="scoreboard-dmg dim">{(sp.damage / 1000).toFixed(1)}k {$t("league.match_damage")}</span>
+                    <div class="scoreboard-row full">
+                      <div class="sb-identity">
+                        <img class="champ-icon tiny" src={`${CDRAGON}/champion-icons/${sp.championId}.png`} alt="" title={championById.get(sp.championId)?.name ?? ""} loading="lazy" />
+                        <div class="sb-spells">
+                          {#each sp.spells ?? [] as spell (spell)}
+                            <img class="sb-spell" src={spellIcon(spell)} alt="" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
+                          {/each}
+                        </div>
+                        {#if sp.runes}
+                          <div class="sb-runes">
+                            {#if perkIcons[sp.runes.perks?.[0]]}
+                              <img class="sb-rune keystone" src={perkIcons[sp.runes.perks[0]]} alt="" loading="lazy" />
+                            {/if}
+                            {#if sp.runes.subStyle}
+                              <img class="sb-rune" src={`${CDRAGON}/perk-images/styles/${sp.runes.subStyle}.png`} alt="" loading="lazy" />
+                            {/if}
+                          </div>
+                        {/if}
+                        {#if sp.puuid}
+                          <button class="sb-name link" onclick={() => openPlayer(sp)} title={$t("league.open_player") as string}>
+                            {sp.gameName || championById.get(sp.championId)?.name || "—"}
+                          </button>
+                        {:else}
+                          <span class="sb-name">{sp.gameName || championById.get(sp.championId)?.name || "—"}</span>
+                        {/if}
+                        <span class="scoreboard-kda">{sp.kills}/{sp.deaths}/{sp.assists}</span>
+                        <span class="dim">{$t("league.stat_level")} {sp.level}</span>
+                        <span class="scoreboard-cs dim">{sp.cs} CS</span>
+                        <span class="scoreboard-gold dim">{(sp.gold / 1000).toFixed(1)}k</span>
+                      </div>
+                      <div class="sb-items">
+                        {#each sp.items ?? [] as item, idx (`${idx}-${item}`)}
+                          {#if item > 0}
+                            <img class="item-icon tiny" src={itemIcon(item)} alt="" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
+                          {:else}
+                            <span class="item-empty" aria-hidden="true"></span>
+                          {/if}
+                        {/each}
+                      </div>
+                      <div class="sb-stats">
+                        {#each statLine(sp) as stat (stat.key)}
+                          <span class="sb-stat"><span class="dim">{$t(stat.label)}</span> {stat.value}</span>
+                        {/each}
+                        {#if sp.pentaKills > 0}<span class="sb-flag">{$t("league.stat_penta")}</span>{/if}
+                        {#if sp.quadraKills > 0}<span class="sb-flag">{$t("league.stat_quadra")}</span>{/if}
+                        {#if sp.tripleKills > 0}<span class="sb-flag">{$t("league.stat_triple")}</span>{/if}
+                        {#if sp.firstBlood}<span class="sb-flag">{$t("league.stat_first_blood")}</span>{/if}
+                        {#if sp.firstTower}<span class="sb-flag">{$t("league.stat_first_tower")}</span>{/if}
+                      </div>
                     </div>
                   {/each}
                 </div>
@@ -211,6 +309,36 @@
           {/if}
         {/if}
       {/each}
+    </div>
+  {/if}
+  {#if lookupPuuid}
+    <div class="lookup-drawer">
+      <div class="card-head">
+        <h4 class="section-title">{lookupName}</h4>
+        <button class="button" onclick={closeLookup}>{$t("league.close")}</button>
+      </div>
+      {#if lookupLoading}
+        <p class="empty-hint">…</p>
+      {:else if lookupError}
+        <p class="action-error" role="alert">{lookupError}</p>
+      {:else if lookupGames.length === 0}
+        <p class="empty-hint">{$t("league.history_empty")}</p>
+      {:else}
+        <div class="game-list">
+          {#each lookupGames as g (g.gameId)}
+            {@const lp = playerStats(g)}
+            <div class="game-row static">
+              <img class="champ-icon" src={`${CDRAGON}/champion-icons/${lp.championId}.png`} alt="" loading="lazy" />
+              <div class="game-info">
+                <span class="game-result" class:win={lp.win} class:loss={!lp.win}>{lp.win ? $t("league.victory") : $t("league.defeat")}</span>
+                <span class="game-mode">{queueName(g.queueId, g.gameMode)}</span>
+              </div>
+              <span class="game-kda">{lp.kills} / {lp.deaths} / {lp.assists}</span>
+              <span class="game-time">{timeAgo(g.gameCreation, $locale)}</span>
+            </div>
+          {/each}
+        </div>
+      {/if}
     </div>
   {/if}
 </section>

@@ -16,6 +16,10 @@ static WS_CONNECTED: AtomicBool = AtomicBool::new(false);
 static MESSAGE_SENT: AtomicBool = AtomicBool::new(false);
 static ACCEPT_PENDING: AtomicBool = AtomicBool::new(false);
 static NOTIFIED_READY_CHECK: AtomicBool = AtomicBool::new(false);
+#[allow(clippy::type_complexity)]
+static LAST_CHAMP_SELECT: once_cell::sync::Lazy<
+    tokio::sync::Mutex<Option<(String, std::time::Instant)>>,
+> = once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(None));
 static TRADES_HANDLED: once_cell::sync::Lazy<tokio::sync::Mutex<std::collections::HashSet<i64>>> =
     once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(std::collections::HashSet::new()));
 #[allow(clippy::type_complexity)]
@@ -197,6 +201,103 @@ async fn seed_state(client: &LcuClient) {
     }
 }
 
+/// The client republishes the champion select session several times per second —
+/// the phase timer alone changes on every tick. Re-emitting the whole object that
+/// often floods the webview: every event replaces a large state object and forces
+/// each mounted panel to re-render, which is enough to lock the UI thread.
+///
+/// The fingerprint covers what the UI actually reacts to, so a session that only
+/// advanced its clock is dropped. A slower heartbeat still gets through, so a
+/// missed change can never leave the panel stale for long.
+fn champ_select_fingerprint(session: &Value) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    parts.push(
+        session
+            .get("localPlayerCellId")
+            .and_then(Value::as_i64)
+            .unwrap_or(-1)
+            .to_string(),
+    );
+    if let Some(groups) = session.get("actions").and_then(Value::as_array) {
+        for group in groups {
+            for action in group.as_array().map(|a| a.as_slice()).unwrap_or(&[]) {
+                parts.push(format!(
+                    "a{}:{}:{}:{}",
+                    action.get("id").and_then(Value::as_i64).unwrap_or(-1),
+                    action
+                        .get("championId")
+                        .and_then(Value::as_i64)
+                        .unwrap_or(0),
+                    action
+                        .get("completed")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+                    action
+                        .get("isInProgress")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+                ));
+            }
+        }
+    }
+    for key in ["myTeam", "theirTeam"] {
+        for member in session
+            .get(key)
+            .and_then(Value::as_array)
+            .unwrap_or(&vec![])
+        {
+            parts.push(format!(
+                "m{}:{}:{}",
+                member.get("cellId").and_then(Value::as_i64).unwrap_or(-1),
+                member
+                    .get("championId")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(0),
+                member
+                    .get("championPickIntent")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(0),
+            ));
+        }
+    }
+    for key in [
+        "benchChampions",
+        "trades",
+        "positionSwaps",
+        "pickOrderSwaps",
+    ] {
+        for entry in session
+            .get(key)
+            .and_then(Value::as_array)
+            .unwrap_or(&vec![])
+        {
+            parts.push(format!(
+                "{}{}:{}:{}",
+                key,
+                entry.get("id").and_then(Value::as_i64).unwrap_or(-1),
+                entry.get("championId").and_then(Value::as_i64).unwrap_or(0),
+                entry.get("state").and_then(Value::as_str).unwrap_or(""),
+            ));
+        }
+    }
+    parts.join("|")
+}
+
+/// True when this session is worth pushing to the UI: something the panels read
+/// changed, or the heartbeat window elapsed.
+async fn should_emit_champ_select(session: &Value) -> bool {
+    const HEARTBEAT: std::time::Duration = std::time::Duration::from_millis(1500);
+    let fingerprint = champ_select_fingerprint(session);
+    let mut last = LAST_CHAMP_SELECT.lock().await;
+    match last.as_ref() {
+        Some((previous, at)) if previous == &fingerprint && at.elapsed() < HEARTBEAT => false,
+        _ => {
+            *last = Some((fingerprint, std::time::Instant::now()));
+            true
+        }
+    }
+}
+
 async fn handle_event(client: &LcuClient, value: &Value) {
     let payload = match value.as_array().and_then(|a| a.get(2)) {
         Some(p) => p,
@@ -275,10 +376,13 @@ async fn handle_event(client: &LcuClient, value: &Value) {
                 TRADES_HANDLED.lock().await.clear();
                 SWAPS_HANDLED.lock().await.clear();
                 MESSAGE_SENT.store(false, Ordering::SeqCst);
+                *LAST_CHAMP_SELECT.lock().await = None;
                 emit("league-champ-select", Value::Null);
                 return;
             }
-            emit("league-champ-select", data.clone());
+            if should_emit_champ_select(&data).await {
+                emit("league-champ-select", data.clone());
+            }
             let settings = league_settings();
             if settings.auto_pick || settings.auto_ban {
                 if let Err(e) = super::handle_champ_select(client, &settings, &data).await {
@@ -594,5 +698,56 @@ mod tests {
         assert_eq!(accept_delay_seconds(255), MAX_ACCEPT_DELAY);
         assert_eq!(accept_delay_seconds(3), 3);
         assert_eq!(accept_delay_seconds(0), 0);
+    }
+
+    #[test]
+    fn a_session_that_only_advanced_its_clock_has_the_same_fingerprint() {
+        let base = json!({
+            "localPlayerCellId": 2,
+            "timer": { "adjustedTimeLeftInPhase": 27000, "phase": "BAN_PICK" },
+            "actions": [[{ "id": 5, "championId": 64, "completed": false, "isInProgress": true }]],
+            "myTeam": [{ "cellId": 2, "championId": 64, "championPickIntent": 0 }]
+        });
+        let mut ticked = base.clone();
+        ticked["timer"]["adjustedTimeLeftInPhase"] = json!(100);
+        assert_eq!(
+            champ_select_fingerprint(&base),
+            champ_select_fingerprint(&ticked),
+            "the phase clock must not count as a change"
+        );
+    }
+
+    #[test]
+    fn anything_the_panels_read_changes_the_fingerprint() {
+        let base = json!({
+            "localPlayerCellId": 2,
+            "actions": [[{ "id": 5, "championId": 64, "completed": false, "isInProgress": true }]],
+            "myTeam": [{ "cellId": 2, "championId": 64, "championPickIntent": 0 }],
+            "benchChampions": [{ "championId": 12 }],
+            "trades": [{ "id": 1, "state": "AVAILABLE" }]
+        });
+        let fingerprint = champ_select_fingerprint(&base);
+
+        let mut locked = base.clone();
+        locked["actions"][0][0]["completed"] = json!(true);
+        assert_ne!(fingerprint, champ_select_fingerprint(&locked));
+
+        let mut hovered = base.clone();
+        hovered["myTeam"][0]["championPickIntent"] = json!(99);
+        assert_ne!(fingerprint, champ_select_fingerprint(&hovered));
+
+        let mut bench = base.clone();
+        bench["benchChampions"][0]["championId"] = json!(34);
+        assert_ne!(fingerprint, champ_select_fingerprint(&bench));
+
+        let mut trade = base.clone();
+        trade["trades"][0]["state"] = json!("RECEIVED");
+        assert_ne!(fingerprint, champ_select_fingerprint(&trade));
+    }
+
+    #[test]
+    fn an_empty_session_is_fingerprinted_without_panicking() {
+        assert!(!champ_select_fingerprint(&json!({})).is_empty());
+        assert!(!champ_select_fingerprint(&Value::Null).is_empty());
     }
 }

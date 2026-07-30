@@ -197,27 +197,46 @@
     }
   }
 
+  // Without these guards a slow client lets every 4s tick queue another round of
+  // requests; the replies pile up on the UI thread and freeze the whole window.
+  let liveMetricsInFlight = false;
+  let liveEventsInFlight = false;
+  let cooldownsInFlight = false;
+  let refreshInFlight = false;
+
   async function loadLiveMetrics() {
+    if (liveMetricsInFlight) return;
+    liveMetricsInFlight = true;
     try {
       liveMetrics = await invoke<any>("league_live_metrics");
     } catch {
       liveMetrics = null;
+    } finally {
+      liveMetricsInFlight = false;
     }
   }
 
   async function loadLiveEvents() {
+    if (liveEventsInFlight) return;
+    liveEventsInFlight = true;
     try {
       liveEvents = await invoke<any>("league_live_events");
     } catch {
       liveEvents = null;
+    } finally {
+      liveEventsInFlight = false;
     }
   }
 
   async function loadCooldowns() {
+    if (cooldownsInFlight) return;
+    cooldownsInFlight = true;
     try {
       cooldowns = await invoke<any>("league_ability_cooldowns");
     } catch {
       cooldowns = null;
+    } finally {
+      cooldownsInFlight = false;
     }
   }
 
@@ -267,6 +286,19 @@
   }
 
   async function refreshPhaseData() {
+    // A tick that arrives while the previous one is still running is dropped
+    // rather than queued: the client is the slow part, and stacking rounds of
+    // requests is what makes the window stop responding.
+    if (refreshInFlight) return;
+    refreshInFlight = true;
+    try {
+      await refreshPhaseDataInner();
+    } finally {
+      refreshInFlight = false;
+    }
+  }
+
+  async function refreshPhaseDataInner() {
     if (phase === "ChampSelect") {
       try {
         champSelect = await invoke<any>("league_champ_select_session");
@@ -1931,6 +1963,101 @@
   .league-page :global(.button.subtle:hover) {
     color: var(--text);
     background: var(--surface-hover);
+    }
+
+  .league-page :global(.scoreboard-row.full) {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    }
+
+  .league-page :global(.sb-identity) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    }
+
+  .league-page :global(.sb-spells),
+  .league-page :global(.sb-runes) {
+    display: flex;
+    gap: 2px;
+    }
+
+  .league-page :global(.sb-spell),
+  .league-page :global(.sb-rune) {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    }
+
+  .league-page :global(.sb-rune.keystone) {
+    width: 16px;
+    height: 16px;
+    }
+
+  .league-page :global(.sb-name) {
+    font-size: 12.5px;
+    min-width: 110px;
+    }
+
+  .league-page :global(.sb-name.link) {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+    }
+
+  .league-page :global(.sb-name.link:hover) {
+    color: var(--accent);
+    text-decoration: underline;
+    }
+
+  .league-page :global(.sb-items) {
+    display: flex;
+    gap: 2px;
+    }
+
+  .league-page :global(.item-icon.tiny),
+  .league-page :global(.item-empty) {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    }
+
+  .league-page :global(.item-empty) {
+    border: 1px solid var(--border);
+    display: inline-block;
+    }
+
+  .league-page :global(.sb-stats) {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    }
+
+  .league-page :global(.sb-flag) {
+    font-size: 10.5px;
+    color: var(--accent);
+    }
+
+  .league-page :global(.lookup-drawer) {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    }
+
+  .league-page :global(.game-row.static) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: default;
     }
 
   .league-page :global(.feature-badge) {
