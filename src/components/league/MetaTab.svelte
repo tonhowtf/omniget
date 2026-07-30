@@ -13,12 +13,14 @@
     championById,
     champions,
     region,
+    active,
   }: {
     champSelectChampionId: number;
     myAssignedPosition: string;
     championById: Map<number, Champion>;
     champions: Champion[];
     region: string | null;
+    active?: boolean;
   } = $props();
 
   let settings = $derived(getSettings());
@@ -236,198 +238,200 @@
   });
 </script>
 
-<section class="card">
-  <div class="card-head">
-    <h3>{$t("league.runes_title")}</h3>
-    {#if champSelectChampionId > 0}
-      <span class="phase-tag">{championById.get(champSelectChampionId)?.name ?? champSelectChampionId}</span>
-    {/if}
-  </div>
-  <p class="win-disclaimer">{$t("league.runes_desc")}</p>
-  <div class="action-row">
-    <div class="action-col">
-      <span class="action-label">{$t("league.runes_auto")}</span>
-      <span class="action-hint">{$t("league.runes_auto_desc")}</span>
-    </div>
-    <button
-      class="toggle"
-      class:on={settings?.league?.auto_runes}
-      onclick={toggleAutoRunes}
-      role="switch"
-      aria-checked={settings?.league?.auto_runes ?? false}
-      aria-label={$t("league.runes_auto") as string}
-    >
-      <span class="toggle-knob"></span>
-    </button>
-  </div>
-  {#if runeError}
-    <p class="action-error" role="alert">{runeError}</p>
-  {/if}
-  {#if runePages.length > 0}
-    <div class="rune-list">
-      {#each runePages as page, i (page.recommendationId ?? i)}
-        <div class="rune-card" class:applied={appliedRuneIndex === i}>
-          <div class="rune-head">
-            <span class="rune-keystone">{page.keystoneName ?? page.keystoneId}</span>
-            {#if page.isDefault}
-              <span class="scout-tag">{$t("league.runes_default")}</span>
-            {/if}
-          </div>
-          <div class="rune-perks">
-            {#each page.selectedPerkIds as perkId (perkId)}
-              <img
-                class="perk-icon"
-                src={`${CDRAGON}/perk-images/styles/${perkId}.png`}
-                alt=""
-                title={perkName(perkId)}
-                loading="lazy"
-                onerror={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
-              />
-            {/each}
-          </div>
-          <div class="rune-foot">
-            <span class="dim">{$t("league.runes_spells")}: {(page.summonerSpellIds ?? []).map(spellName).join(" + ")}</span>
-            <button class="button" onclick={() => applyRunePage(i)} disabled={runeApplying}>
-              {$t("league.runes_apply")}
-            </button>
-          </div>
-        </div>
-      {/each}
-    </div>
-  {:else}
-    <p class="empty-hint">{$t("league.runes_empty")}</p>
-  {/if}
-</section>
-
-<section class="card">
-  <div class="card-head">
-    <h3>{$t("league.build_title")}</h3>
-    <button
-      class="button"
-      onclick={() => loadBuild(champSelectChampionId || (buildChampionId ?? 0))}
-      disabled={buildLoading || (!champSelectChampionId && !buildChampionId)}
-    >{$t("league.refresh")}</button>
-  </div>
-  <p class="win-disclaimer">{$t("league.build_desc")}</p>
-  <div class="build-picker">
-    <select class="select-role" bind:value={buildChampionId} aria-label={$t("league.build_champion") as string}>
-      <option value={0}>{$t("league.build_champion")}</option>
-      {#each champions as ch (ch.id)}
-        <option value={ch.id}>{ch.name}</option>
-      {/each}
-    </select>
-  </div>
-  {#if buildInfo && buildInfo.gamesSeen > 0}
-    <p class="win-note">
-      {buildInfo.gamesSeen} {$t("league.build_samples")} · {buildInfo.winrate}% {$t("league.stat_winrate")}
-    </p>
-    <div class="build-items">
-      {#each buildInfo.items as it (it.itemId)}
-        <span class="build-item">
-          <img class="item-icon" src={`${CDRAGON}/../../game/assets/items/icons2d/${it.itemId}.png`} alt="" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
-          <span class="dim">{it.pickRate}%</span>
-        </span>
-      {/each}
-    </div>
-    {#if buildInfo.spells?.length}
-      <p class="win-note">{$t("league.runes_spells")}: {buildInfo.spells.map((s: any) => s.spellIds.map(spellName).join(" + ")).join(" / ")}</p>
-    {/if}
-  {:else if buildInfo}
-    <p class="empty-hint">{$t("league.build_empty")}</p>
-  {/if}
-  <div class="divider"></div>
-  <div class="card-head">
-    <h4 class="section-title">
-      {$t("league.meta_reference")}
-      {#if buildFeature && needsBadge(buildFeature)}
-        <span class="feature-badge">{$t(`league.badge_${buildFeature.state}`)}</span>
+{#if active !== false}
+  <section class="card">
+    <div class="card-head">
+      <h3>{$t("league.runes_title")}</h3>
+      {#if champSelectChampionId > 0}
+        <span class="phase-tag">{championById.get(champSelectChampionId)?.name ?? champSelectChampionId}</span>
       {/if}
-    </h4>
-    <h4 class="section-title">{$t("league.meta_reference")}</h4>
-    <button
-      class="button"
-      onclick={() => loadMeta(champSelectChampionId || (buildChampionId ?? 0))}
-      disabled={metaLoading || (!champSelectChampionId && !buildChampionId)}
-    >{$t("league.refresh")}</button>
-  </div>
-  {#if metaError}
-    <p class="action-error" role="alert">{metaError}</p>
-  {:else if metaLoading}
-    <p class="empty-hint">…</p>
-  {:else if metaInfo}
-    {#if metaInfo.skillPriority?.length}
-      <p class="win-note">
-        {$t("league.skill_priority")}: <strong>{metaInfo.skillPriority.join(" › ")}</strong>
-      </p>
-      <div class="skill-order">
-        {#each metaInfo.skillOrder as skill, i (`${i}-${skill}`)}
-          <span class="skill-step" class:ult={skill === "R"}>{skill}</span>
+    </div>
+    <p class="win-disclaimer">{$t("league.runes_desc")}</p>
+    <div class="action-row">
+      <div class="action-col">
+        <span class="action-label">{$t("league.runes_auto")}</span>
+        <span class="action-hint">{$t("league.runes_auto_desc")}</span>
+      </div>
+      <button
+        class="toggle"
+        class:on={settings?.league?.auto_runes}
+        onclick={toggleAutoRunes}
+        role="switch"
+        aria-checked={settings?.league?.auto_runes ?? false}
+        aria-label={$t("league.runes_auto") as string}
+      >
+        <span class="toggle-knob"></span>
+      </button>
+    </div>
+    {#if runeError}
+      <p class="action-error" role="alert">{runeError}</p>
+    {/if}
+    {#if runePages.length > 0}
+      <div class="rune-list">
+        {#each runePages as page, i (page.recommendationId ?? i)}
+          <div class="rune-card" class:applied={appliedRuneIndex === i}>
+            <div class="rune-head">
+              <span class="rune-keystone">{page.keystoneName ?? page.keystoneId}</span>
+              {#if page.isDefault}
+                <span class="scout-tag">{$t("league.runes_default")}</span>
+              {/if}
+            </div>
+            <div class="rune-perks">
+              {#each page.selectedPerkIds as perkId (perkId)}
+                <img
+                  class="perk-icon"
+                  src={`${CDRAGON}/perk-images/styles/${perkId}.png`}
+                  alt=""
+                  title={perkName(perkId)}
+                  loading="lazy"
+                  onerror={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
+                />
+              {/each}
+            </div>
+            <div class="rune-foot">
+              <span class="dim">{$t("league.runes_spells")}: {(page.summonerSpellIds ?? []).map(spellName).join(" + ")}</span>
+              <button class="button" onclick={() => applyRunePage(i)} disabled={runeApplying}>
+                {$t("league.runes_apply")}
+              </button>
+            </div>
+          </div>
         {/each}
       </div>
+    {:else}
+      <p class="empty-hint">{$t("league.runes_empty")}</p>
     {/if}
-    {#each [["starterItems", "items_starter"], ["coreItems", "items_core"], ["boots", "items_boots"], ["lastItems", "items_last"]] as [key, label] (key)}
-      {#if metaInfo[key]?.ids?.length}
-        <div class="build-phase">
-          <span class="list-label">{$t(`league.${label}`)}</span>
-          <div class="build-items">
-            {#each metaInfo[key].ids as id (id)}
-              <span class="build-item">
-                <img class="item-icon" src={itemIcon(id)} alt="" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
-              </span>
-            {/each}
-            {#if metaInfo[key].winrate !== null && metaInfo[key].winrate !== undefined}
-              <span class="dim">{metaInfo[key].winrate}%</span>
-            {/if}
-          </div>
-        </div>
-      {/if}
-    {/each}
-    {#if metaInfo.counters?.length}
-      <div class="build-phase">
-        <span class="list-label">{$t("league.counters")}</span>
-        <div class="build-items">
-          {#each metaInfo.counters.slice(0, 6) as c (c.championId)}
-            <span class="build-item">
-              <img class="champ-icon tiny" src={`${CDRAGON}/champion-icons/${c.championId}.png`} alt="" title={championById.get(c.championId)?.name ?? ""} loading="lazy" />
-              <span class="dim">{c.winrate}%</span>
-            </span>
-          {/each}
-        </div>
-      </div>
-    {/if}
-    <p class="win-disclaimer">{$t("league.meta_source")}</p>
-  {/if}
-</section>
+  </section>
 
-<section class="card">
-  <div class="card-head">
-    <h3>{$t("league.tiers_title")}</h3>
-    <div class="tier-controls">
-      <select class="select-role" bind:value={tierPosition} aria-label={$t("league.tiers_position") as string}>
-        {#each TIER_POSITIONS as pos (pos)}
-          <option value={pos}>{$t(`league.role_${pos.toLowerCase()}`)}</option>
+  <section class="card">
+    <div class="card-head">
+      <h3>{$t("league.build_title")}</h3>
+      <button
+        class="button"
+        onclick={() => loadBuild(champSelectChampionId || (buildChampionId ?? 0))}
+        disabled={buildLoading || (!champSelectChampionId && !buildChampionId)}
+      >{$t("league.refresh")}</button>
+    </div>
+    <p class="win-disclaimer">{$t("league.build_desc")}</p>
+    <div class="build-picker">
+      <select class="select-role" bind:value={buildChampionId} aria-label={$t("league.build_champion") as string}>
+        <option value={0}>{$t("league.build_champion")}</option>
+        {#each champions as ch (ch.id)}
+          <option value={ch.id}>{ch.name}</option>
         {/each}
       </select>
-      <button class="button" onclick={loadTiers} disabled={tiersLoading}>{$t("league.refresh")}</button>
     </div>
-  </div>
-  <p class="win-disclaimer">{$t("league.tiers_desc")}</p>
-  {#if tiersError}
-    <p class="action-error" role="alert">{tiersError}</p>
-  {:else if tierRows.length > 0}
-    <div class="champ-table">
-      {#each tierRows as row (row.championId)}
-        <div class="champ-row">
-          <span class={`tier-badge tier-${row.tier}`}>{tierLabel(row.tier)}</span>
-          <img class="champ-icon tiny" src={`${CDRAGON}/champion-icons/${row.championId}.png`} alt="" loading="lazy" />
-          <span class="champ-row-name">{championById.get(row.championId)?.name ?? row.championId}</span>
-          <span class="champ-row-wr" class:good={row.winRate >= 52} class:bad={row.winRate <= 48}>{row.winRate}%</span>
-          <span class="champ-row-games dim">{$t("league.tiers_pick")} {row.pickRate}%</span>
-          <span class="champ-row-kda dim">{$t("league.tiers_ban")} {row.banRate}%</span>
+    {#if buildInfo && buildInfo.gamesSeen > 0}
+      <p class="win-note">
+        {buildInfo.gamesSeen} {$t("league.build_samples")} · {buildInfo.winrate}% {$t("league.stat_winrate")}
+      </p>
+      <div class="build-items">
+        {#each buildInfo.items as it (it.itemId)}
+          <span class="build-item">
+            <img class="item-icon" src={`${CDRAGON}/../../game/assets/items/icons2d/${it.itemId}.png`} alt="" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
+            <span class="dim">{it.pickRate}%</span>
+          </span>
+        {/each}
+      </div>
+      {#if buildInfo.spells?.length}
+        <p class="win-note">{$t("league.runes_spells")}: {buildInfo.spells.map((s: any) => s.spellIds.map(spellName).join(" + ")).join(" / ")}</p>
+      {/if}
+    {:else if buildInfo}
+      <p class="empty-hint">{$t("league.build_empty")}</p>
+    {/if}
+    <div class="divider"></div>
+    <div class="card-head">
+      <h4 class="section-title">
+        {$t("league.meta_reference")}
+        {#if buildFeature && needsBadge(buildFeature)}
+          <span class="feature-badge">{$t(`league.badge_${buildFeature.state}`)}</span>
+        {/if}
+      </h4>
+      <h4 class="section-title">{$t("league.meta_reference")}</h4>
+      <button
+        class="button"
+        onclick={() => loadMeta(champSelectChampionId || (buildChampionId ?? 0))}
+        disabled={metaLoading || (!champSelectChampionId && !buildChampionId)}
+      >{$t("league.refresh")}</button>
+    </div>
+    {#if metaError}
+      <p class="action-error" role="alert">{metaError}</p>
+    {:else if metaLoading}
+      <p class="empty-hint">…</p>
+    {:else if metaInfo}
+      {#if metaInfo.skillPriority?.length}
+        <p class="win-note">
+          {$t("league.skill_priority")}: <strong>{metaInfo.skillPriority.join(" › ")}</strong>
+        </p>
+        <div class="skill-order">
+          {#each metaInfo.skillOrder as skill, i (`${i}-${skill}`)}
+            <span class="skill-step" class:ult={skill === "R"}>{skill}</span>
+          {/each}
         </div>
+      {/if}
+      {#each [["starterItems", "items_starter"], ["coreItems", "items_core"], ["boots", "items_boots"], ["lastItems", "items_last"]] as [key, label] (key)}
+        {#if metaInfo[key]?.ids?.length}
+          <div class="build-phase">
+            <span class="list-label">{$t(`league.${label}`)}</span>
+            <div class="build-items">
+              {#each metaInfo[key].ids as id (id)}
+                <span class="build-item">
+                  <img class="item-icon" src={itemIcon(id)} alt="" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
+                </span>
+              {/each}
+              {#if metaInfo[key].winrate !== null && metaInfo[key].winrate !== undefined}
+                <span class="dim">{metaInfo[key].winrate}%</span>
+              {/if}
+            </div>
+          </div>
+        {/if}
       {/each}
+      {#if metaInfo.counters?.length}
+        <div class="build-phase">
+          <span class="list-label">{$t("league.counters")}</span>
+          <div class="build-items">
+            {#each metaInfo.counters.slice(0, 6) as c (c.championId)}
+              <span class="build-item">
+                <img class="champ-icon tiny" src={`${CDRAGON}/champion-icons/${c.championId}.png`} alt="" title={championById.get(c.championId)?.name ?? ""} loading="lazy" />
+                <span class="dim">{c.winrate}%</span>
+              </span>
+            {/each}
+          </div>
+        </div>
+      {/if}
+      <p class="win-disclaimer">{$t("league.meta_source")}</p>
+    {/if}
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h3>{$t("league.tiers_title")}</h3>
+      <div class="tier-controls">
+        <select class="select-role" bind:value={tierPosition} aria-label={$t("league.tiers_position") as string}>
+          {#each TIER_POSITIONS as pos (pos)}
+            <option value={pos}>{$t(`league.role_${pos.toLowerCase()}`)}</option>
+          {/each}
+        </select>
+        <button class="button" onclick={loadTiers} disabled={tiersLoading}>{$t("league.refresh")}</button>
+      </div>
     </div>
-  {:else}
-    <p class="empty-hint">{tiersLoading ? $t("league.searching_player") : $t("league.tiers_empty")}</p>
-  {/if}
-</section>
+    <p class="win-disclaimer">{$t("league.tiers_desc")}</p>
+    {#if tiersError}
+      <p class="action-error" role="alert">{tiersError}</p>
+    {:else if tierRows.length > 0}
+      <div class="champ-table">
+        {#each tierRows as row (row.championId)}
+          <div class="champ-row">
+            <span class={`tier-badge tier-${row.tier}`}>{tierLabel(row.tier)}</span>
+            <img class="champ-icon tiny" src={`${CDRAGON}/champion-icons/${row.championId}.png`} alt="" loading="lazy" />
+            <span class="champ-row-name">{championById.get(row.championId)?.name ?? row.championId}</span>
+            <span class="champ-row-wr" class:good={row.winRate >= 52} class:bad={row.winRate <= 48}>{row.winRate}%</span>
+            <span class="champ-row-games dim">{$t("league.tiers_pick")} {row.pickRate}%</span>
+            <span class="champ-row-kda dim">{$t("league.tiers_ban")} {row.banRate}%</span>
+          </div>
+        {/each}
+      </div>
+    {:else}
+      <p class="empty-hint">{tiersLoading ? $t("league.searching_player") : $t("league.tiers_empty")}</p>
+    {/if}
+  </section>
+{/if}

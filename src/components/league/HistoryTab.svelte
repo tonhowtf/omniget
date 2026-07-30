@@ -11,11 +11,13 @@
     loading,
     onRefresh,
     championById,
+    active,
   }: {
     games: any[];
     loading: boolean;
     onRefresh: () => void;
     championById: Map<number, Champion>;
+    active?: boolean;
   } = $props();
 
   const QUEUE_NAMES: Record<number, string> = {
@@ -163,182 +165,184 @@
   }
 </script>
 
-<section class="history-section">
-  <div class="history-head">
-    <h3>{$t("league.history_title")}</h3>
-    <button class="button" onclick={onRefresh} disabled={loading}>{$t("league.refresh")}</button>
-  </div>
-  {#if games.length === 0}
-    <p class="empty-hint">{$t("league.history_empty")}</p>
-  {:else}
-    {#if availableQueues.length > 1}
-      <div class="queue-filter" role="group" aria-label={$t("league.filter_queue") as string}>
-        <button class="queue-chip" class:on={queueFilter === null} onclick={() => (queueFilter = null)} aria-pressed={queueFilter === null}>
-          {$t("league.filter_all")}
-        </button>
-        {#each availableQueues as id (id)}
-          <button class="queue-chip" class:on={queueFilter === id} onclick={() => (queueFilter = id)} aria-pressed={queueFilter === id}>
-            {queueName(id, "")}
-          </button>
-        {/each}
-      </div>
-    {/if}
-    <p class="history-summary">
-      {summary.counted}
-      {$t("league.summary_games")}
-      {#if summary.winrate !== null}
-        · <strong>{summary.wins}{$t("league.summary_win_short")} {summary.losses}{$t("league.summary_loss_short")}</strong> · {summary.winrate}%
-      {/if}
-      {#if summary.kda !== null}
-        · KDA {summary.kda.toFixed(2)}
-      {/if}
-      {#if summary.remakes > 0}
-        · <span class="dim">{summary.remakes} {$t("league.summary_remakes")}</span>
-      {/if}
-    </p>
-    <div class="game-list">
-      {#each visibleGames as game (game.gameId)}
-        {@const p = playerStats(game)}
-        <button
-          class="game-row"
-          class:expanded={expandedGame === game.gameId}
-          onclick={() => toggleGameDetail(game.gameId)}
-          aria-expanded={expandedGame === game.gameId}
-        >
-          <img class="champ-icon" src={`${CDRAGON}/champion-icons/${p.championId}.png`} alt="" loading="lazy" />
-          <div class="game-info">
-            <span class="game-result" class:win={p.win} class:loss={!p.win}>{p.win ? $t("league.victory") : $t("league.defeat")}</span>
-            <span class="game-mode">{queueName(game.queueId, game.gameMode)}</span>
-          </div>
-          <span class="game-kda">{p.kills} / {p.deaths} / {p.assists}</span>
-          <span class="game-time">{timeAgo(game.gameCreation, $locale)}</span>
-          <span class="game-chevron" aria-hidden="true">{expandedGame === game.gameId ? "▾" : "▸"}</span>
-        </button>
-        {#if expandedGame === game.gameId}
-          {#if gameDetailLoading === game.gameId}
-            <p class="empty-hint">…</p>
-          {:else if gameDetails[game.gameId]}
-            <div class="scoreboard">
-              {#each scoreboardTeams(gameDetails[game.gameId]) as team (team.teamId)}
-                {@const objectives = teamObjectives(findTeam(gameDetails[game.gameId]?.teams, team.teamId))}
-                {@const bans = teamBans(findTeam(gameDetails[game.gameId]?.teams, team.teamId))}
-                <div class="scoreboard-team">
-                  <span class="scoreboard-result" class:win={team.players[0]?.win} class:loss={!team.players[0]?.win}>
-                    {team.players[0]?.win ? $t("league.victory") : $t("league.defeat")}
-                  </span>
-                  {#if objectives}
-                    <div class="objective-line">
-                      <span>{$t("league.obj_towers")} <strong>{objectives.towers}</strong></span>
-                      <span>{$t("league.obj_inhibitors")} <strong>{objectives.inhibitors}</strong></span>
-                      <span>{$t("league.objective_baron")} <strong>{objectives.barons}</strong></span>
-                      <span>{$t("league.objective_dragon")} <strong>{objectives.dragons}</strong></span>
-                      <span>{$t("league.obj_heralds")} <strong>{objectives.heralds}</strong></span>
-                    </div>
-                  {/if}
-                  {#if bans.length > 0}
-                    <div class="ban-line">
-                      <span class="dim">{$t("league.obj_bans")}</span>
-                      {#each bans as banId, i (`${banId}-${i}`)}
-                        <img
-                          class="champ-icon tiny"
-                          src={`${CDRAGON}/champion-icons/${banId}.png`}
-                          alt=""
-                          title={championById.get(banId)?.name ?? ""}
-                          loading="lazy"
-                        />
-                      {/each}
-                    </div>
-                  {/if}
-                  {#each team.players as sp (sp.participantId)}
-                    <div class="scoreboard-row full">
-                      <div class="sb-identity">
-                        <img class="champ-icon tiny" src={`${CDRAGON}/champion-icons/${sp.championId}.png`} alt="" title={championById.get(sp.championId)?.name ?? ""} loading="lazy" />
-                        <div class="sb-spells">
-                          {#each sp.spells ?? [] as spell (spell)}
-                            <img class="sb-spell" src={spellIcon(spell)} alt="" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
-                          {/each}
-                        </div>
-                        {#if sp.runes}
-                          <div class="sb-runes">
-                            {#if perkIcons[sp.runes.perks?.[0]]}
-                              <img class="sb-rune keystone" src={perkIcons[sp.runes.perks[0]]} alt="" loading="lazy" />
-                            {/if}
-                            {#if sp.runes.subStyle}
-                              <img class="sb-rune" src={`${CDRAGON}/perk-images/styles/${sp.runes.subStyle}.png`} alt="" loading="lazy" />
-                            {/if}
-                          </div>
-                        {/if}
-                        {#if sp.puuid}
-                          <button class="sb-name link" onclick={() => openPlayer(sp)} title={$t("league.open_player") as string}>
-                            {sp.gameName || championById.get(sp.championId)?.name || "—"}
-                          </button>
-                        {:else}
-                          <span class="sb-name">{sp.gameName || championById.get(sp.championId)?.name || "—"}</span>
-                        {/if}
-                        <span class="scoreboard-kda">{sp.kills}/{sp.deaths}/{sp.assists}</span>
-                        <span class="dim">{$t("league.stat_level")} {sp.level}</span>
-                        <span class="scoreboard-cs dim">{sp.cs} CS</span>
-                        <span class="scoreboard-gold dim">{(sp.gold / 1000).toFixed(1)}k</span>
-                      </div>
-                      <div class="sb-items">
-                        {#each sp.items ?? [] as item, idx (`${idx}-${item}`)}
-                          {#if item > 0}
-                            <img class="item-icon tiny" src={itemIcon(item)} alt="" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
-                          {:else}
-                            <span class="item-empty" aria-hidden="true"></span>
-                          {/if}
-                        {/each}
-                      </div>
-                      <div class="sb-stats">
-                        {#each statLine(sp) as stat (stat.key)}
-                          <span class="sb-stat"><span class="dim">{$t(stat.label)}</span> {stat.value}</span>
-                        {/each}
-                        {#if sp.pentaKills > 0}<span class="sb-flag">{$t("league.stat_penta")}</span>{/if}
-                        {#if sp.quadraKills > 0}<span class="sb-flag">{$t("league.stat_quadra")}</span>{/if}
-                        {#if sp.tripleKills > 0}<span class="sb-flag">{$t("league.stat_triple")}</span>{/if}
-                        {#if sp.firstBlood}<span class="sb-flag">{$t("league.stat_first_blood")}</span>{/if}
-                        {#if sp.firstTower}<span class="sb-flag">{$t("league.stat_first_tower")}</span>{/if}
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-              {/each}
-            </div>
-          {:else}
-            <p class="empty-hint">{$t("league.match_detail_unavailable")}</p>
-          {/if}
-        {/if}
-      {/each}
+{#if active !== false}
+  <section class="history-section">
+    <div class="history-head">
+      <h3>{$t("league.history_title")}</h3>
+      <button class="button" onclick={onRefresh} disabled={loading}>{$t("league.refresh")}</button>
     </div>
-  {/if}
-  {#if lookupPuuid}
-    <div class="lookup-drawer">
-      <div class="card-head">
-        <h4 class="section-title">{lookupName}</h4>
-        <button class="button" onclick={closeLookup}>{$t("league.close")}</button>
-      </div>
-      {#if lookupLoading}
-        <p class="empty-hint">…</p>
-      {:else if lookupError}
-        <p class="action-error" role="alert">{lookupError}</p>
-      {:else if lookupGames.length === 0}
-        <p class="empty-hint">{$t("league.history_empty")}</p>
-      {:else}
-        <div class="game-list">
-          {#each lookupGames as g (g.gameId)}
-            {@const lp = playerStats(g)}
-            <div class="game-row static">
-              <img class="champ-icon" src={`${CDRAGON}/champion-icons/${lp.championId}.png`} alt="" loading="lazy" />
-              <div class="game-info">
-                <span class="game-result" class:win={lp.win} class:loss={!lp.win}>{lp.win ? $t("league.victory") : $t("league.defeat")}</span>
-                <span class="game-mode">{queueName(g.queueId, g.gameMode)}</span>
-              </div>
-              <span class="game-kda">{lp.kills} / {lp.deaths} / {lp.assists}</span>
-              <span class="game-time">{timeAgo(g.gameCreation, $locale)}</span>
-            </div>
+    {#if games.length === 0}
+      <p class="empty-hint">{$t("league.history_empty")}</p>
+    {:else}
+      {#if availableQueues.length > 1}
+        <div class="queue-filter" role="group" aria-label={$t("league.filter_queue") as string}>
+          <button class="queue-chip" class:on={queueFilter === null} onclick={() => (queueFilter = null)} aria-pressed={queueFilter === null}>
+            {$t("league.filter_all")}
+          </button>
+          {#each availableQueues as id (id)}
+            <button class="queue-chip" class:on={queueFilter === id} onclick={() => (queueFilter = id)} aria-pressed={queueFilter === id}>
+              {queueName(id, "")}
+            </button>
           {/each}
         </div>
       {/if}
-    </div>
-  {/if}
-</section>
+      <p class="history-summary">
+        {summary.counted}
+        {$t("league.summary_games")}
+        {#if summary.winrate !== null}
+          · <strong>{summary.wins}{$t("league.summary_win_short")} {summary.losses}{$t("league.summary_loss_short")}</strong> · {summary.winrate}%
+        {/if}
+        {#if summary.kda !== null}
+          · KDA {summary.kda.toFixed(2)}
+        {/if}
+        {#if summary.remakes > 0}
+          · <span class="dim">{summary.remakes} {$t("league.summary_remakes")}</span>
+        {/if}
+      </p>
+      <div class="game-list">
+        {#each visibleGames as game (game.gameId)}
+          {@const p = playerStats(game)}
+          <button
+            class="game-row"
+            class:expanded={expandedGame === game.gameId}
+            onclick={() => toggleGameDetail(game.gameId)}
+            aria-expanded={expandedGame === game.gameId}
+          >
+            <img class="champ-icon" src={`${CDRAGON}/champion-icons/${p.championId}.png`} alt="" loading="lazy" />
+            <div class="game-info">
+              <span class="game-result" class:win={p.win} class:loss={!p.win}>{p.win ? $t("league.victory") : $t("league.defeat")}</span>
+              <span class="game-mode">{queueName(game.queueId, game.gameMode)}</span>
+            </div>
+            <span class="game-kda">{p.kills} / {p.deaths} / {p.assists}</span>
+            <span class="game-time">{timeAgo(game.gameCreation, $locale)}</span>
+            <span class="game-chevron" aria-hidden="true">{expandedGame === game.gameId ? "▾" : "▸"}</span>
+          </button>
+          {#if expandedGame === game.gameId}
+            {#if gameDetailLoading === game.gameId}
+              <p class="empty-hint">…</p>
+            {:else if gameDetails[game.gameId]}
+              <div class="scoreboard">
+                {#each scoreboardTeams(gameDetails[game.gameId]) as team (team.teamId)}
+                  {@const objectives = teamObjectives(findTeam(gameDetails[game.gameId]?.teams, team.teamId))}
+                  {@const bans = teamBans(findTeam(gameDetails[game.gameId]?.teams, team.teamId))}
+                  <div class="scoreboard-team">
+                    <span class="scoreboard-result" class:win={team.players[0]?.win} class:loss={!team.players[0]?.win}>
+                      {team.players[0]?.win ? $t("league.victory") : $t("league.defeat")}
+                    </span>
+                    {#if objectives}
+                      <div class="objective-line">
+                        <span>{$t("league.obj_towers")} <strong>{objectives.towers}</strong></span>
+                        <span>{$t("league.obj_inhibitors")} <strong>{objectives.inhibitors}</strong></span>
+                        <span>{$t("league.objective_baron")} <strong>{objectives.barons}</strong></span>
+                        <span>{$t("league.objective_dragon")} <strong>{objectives.dragons}</strong></span>
+                        <span>{$t("league.obj_heralds")} <strong>{objectives.heralds}</strong></span>
+                      </div>
+                    {/if}
+                    {#if bans.length > 0}
+                      <div class="ban-line">
+                        <span class="dim">{$t("league.obj_bans")}</span>
+                        {#each bans as banId, i (`${banId}-${i}`)}
+                          <img
+                            class="champ-icon tiny"
+                            src={`${CDRAGON}/champion-icons/${banId}.png`}
+                            alt=""
+                            title={championById.get(banId)?.name ?? ""}
+                            loading="lazy"
+                          />
+                        {/each}
+                      </div>
+                    {/if}
+                    {#each team.players as sp (sp.participantId)}
+                      <div class="scoreboard-row full">
+                        <div class="sb-identity">
+                          <img class="champ-icon tiny" src={`${CDRAGON}/champion-icons/${sp.championId}.png`} alt="" title={championById.get(sp.championId)?.name ?? ""} loading="lazy" />
+                          <div class="sb-spells">
+                            {#each sp.spells ?? [] as spell (spell)}
+                              <img class="sb-spell" src={spellIcon(spell)} alt="" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
+                            {/each}
+                          </div>
+                          {#if sp.runes}
+                            <div class="sb-runes">
+                              {#if perkIcons[sp.runes.perks?.[0]]}
+                                <img class="sb-rune keystone" src={perkIcons[sp.runes.perks[0]]} alt="" loading="lazy" />
+                              {/if}
+                              {#if sp.runes.subStyle}
+                                <img class="sb-rune" src={`${CDRAGON}/perk-images/styles/${sp.runes.subStyle}.png`} alt="" loading="lazy" />
+                              {/if}
+                            </div>
+                          {/if}
+                          {#if sp.puuid}
+                            <button class="sb-name link" onclick={() => openPlayer(sp)} title={$t("league.open_player") as string}>
+                              {sp.gameName || championById.get(sp.championId)?.name || "—"}
+                            </button>
+                          {:else}
+                            <span class="sb-name">{sp.gameName || championById.get(sp.championId)?.name || "—"}</span>
+                          {/if}
+                          <span class="scoreboard-kda">{sp.kills}/{sp.deaths}/{sp.assists}</span>
+                          <span class="dim">{$t("league.stat_level")} {sp.level}</span>
+                          <span class="scoreboard-cs dim">{sp.cs} CS</span>
+                          <span class="scoreboard-gold dim">{(sp.gold / 1000).toFixed(1)}k</span>
+                        </div>
+                        <div class="sb-items">
+                          {#each sp.items ?? [] as item, idx (`${idx}-${item}`)}
+                            {#if item > 0}
+                              <img class="item-icon tiny" src={itemIcon(item)} alt="" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
+                            {:else}
+                              <span class="item-empty" aria-hidden="true"></span>
+                            {/if}
+                          {/each}
+                        </div>
+                        <div class="sb-stats">
+                          {#each statLine(sp) as stat (stat.key)}
+                            <span class="sb-stat"><span class="dim">{$t(stat.label)}</span> {stat.value}</span>
+                          {/each}
+                          {#if sp.pentaKills > 0}<span class="sb-flag">{$t("league.stat_penta")}</span>{/if}
+                          {#if sp.quadraKills > 0}<span class="sb-flag">{$t("league.stat_quadra")}</span>{/if}
+                          {#if sp.tripleKills > 0}<span class="sb-flag">{$t("league.stat_triple")}</span>{/if}
+                          {#if sp.firstBlood}<span class="sb-flag">{$t("league.stat_first_blood")}</span>{/if}
+                          {#if sp.firstTower}<span class="sb-flag">{$t("league.stat_first_tower")}</span>{/if}
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <p class="empty-hint">{$t("league.match_detail_unavailable")}</p>
+            {/if}
+          {/if}
+        {/each}
+      </div>
+    {/if}
+    {#if lookupPuuid}
+      <div class="lookup-drawer">
+        <div class="card-head">
+          <h4 class="section-title">{lookupName}</h4>
+          <button class="button" onclick={closeLookup}>{$t("league.close")}</button>
+        </div>
+        {#if lookupLoading}
+          <p class="empty-hint">…</p>
+        {:else if lookupError}
+          <p class="action-error" role="alert">{lookupError}</p>
+        {:else if lookupGames.length === 0}
+          <p class="empty-hint">{$t("league.history_empty")}</p>
+        {:else}
+          <div class="game-list">
+            {#each lookupGames as g (g.gameId)}
+              {@const lp = playerStats(g)}
+              <div class="game-row static">
+                <img class="champ-icon" src={`${CDRAGON}/champion-icons/${lp.championId}.png`} alt="" loading="lazy" />
+                <div class="game-info">
+                  <span class="game-result" class:win={lp.win} class:loss={!lp.win}>{lp.win ? $t("league.victory") : $t("league.defeat")}</span>
+                  <span class="game-mode">{queueName(g.queueId, g.gameMode)}</span>
+                </div>
+                <span class="game-kda">{lp.kills} / {lp.deaths} / {lp.assists}</span>
+                <span class="game-time">{timeAgo(g.gameCreation, $locale)}</span>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
+  </section>
+{/if}

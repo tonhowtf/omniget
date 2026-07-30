@@ -438,7 +438,12 @@
       }
     }).then((u) => unlisteners.push(u));
     listen<string>("league-phase", (e) => {
-      phase = e.payload ?? "";
+      const next = e.payload ?? "";
+      // The client repeats the current phase on reconnects and on its own
+      // heartbeat; refreshing again for the same phase re-fetches everything for
+      // nothing.
+      if (next === phase) return;
+      phase = next;
       refreshPhaseData();
     }).then((u) => unlisteners.push(u));
     listen<any>("league-champ-select", (e) => {
@@ -492,29 +497,28 @@
            timers, expanded games) survives switching, and the meta tab's
            auto-rune effect keeps working from any tab. -->
       <div class="tab-panel" class:active={tab === "overview"}>
-        <OverviewTab {summoner} {ranked} {phase} {champSelect} {liveGame} {lobby} {queues} {actionError} {champions} {championById} {championByAlias} onAction={action} />
+        <OverviewTab {summoner} {ranked} {phase} {champSelect} {liveGame} {lobby} {queues} {actionError} {champions} {championById} {championByAlias} onAction={action} active={tab === "overview"} />
       </div>
       <div class="tab-panel" class:active={tab === "analysis"}>
-        <AnalysisTab {analysis} {analysisLoading} onRefreshAnalysis={loadAnalysis} {phase} {scoutPlayers} {scoutReports} {scoutLoading} onRefreshScouting={loadScouting} {championById} {notes} onSaveNote={saveNote} {timesSeenBefore} {platform} clientConnected={status.connected} />
+        <AnalysisTab {analysis} {analysisLoading} onRefreshAnalysis={loadAnalysis} {phase} {scoutPlayers} {scoutReports} {scoutLoading} onRefreshScouting={loadScouting} {championById} {notes} onSaveNote={saveNote} {timesSeenBefore} {platform} clientConnected={status.connected} active={tab === "analysis"} />
       </div>
       <div class="tab-panel" class:active={tab === "meta"}>
-        <MetaTab {champSelectChampionId} {myAssignedPosition} {championById} {champions} region={status.region} />
+        <MetaTab {champSelectChampionId} {myAssignedPosition} {championById} {champions} region={status.region} active={tab === "meta"} />
       </div>
       <div class="tab-panel" class:active={tab === "search"}>
-        <SearchTab {championById} />
+        <SearchTab {championById} active={tab === "search"} />
       </div>
       <div class="tab-panel" class:active={tab === "live"}>
-        <LiveTab {liveMetrics} {cooldowns} {liveEvents} {goalValue} {platform} clientConnected={status.connected} />
-        <LiveTab {liveMetrics} {cooldowns} {liveEvents} {goalValue} />
+        <LiveTab {liveMetrics} {cooldowns} {liveEvents} {goalValue} {platform} clientConnected={status.connected} active={tab === "live"} />
       </div>
       <div class="tab-panel" class:active={tab === "goals"}>
-        <GoalsTab {goalValue} {setGoal} {resetGoals} />
+        <GoalsTab {goalValue} {setGoal} {resetGoals} active={tab === "goals"} />
       </div>
       <div class="tab-panel" class:active={tab === "automation"}>
-        <AutomationTab {champions} {championById} />
+        <AutomationTab {champions} {championById} active={tab === "automation"} />
       </div>
       <div class="tab-panel" class:active={tab === "history"}>
-        <HistoryTab {games} loading={loadingHistory} onRefresh={loadHistory} {championById} />
+        <HistoryTab {games} loading={loadingHistory} onRefresh={loadHistory} {championById} active={tab === "history"} />
       </div>
     {/if}
   {/if}

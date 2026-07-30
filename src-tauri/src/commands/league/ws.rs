@@ -17,9 +17,9 @@ static MESSAGE_SENT: AtomicBool = AtomicBool::new(false);
 static ACCEPT_PENDING: AtomicBool = AtomicBool::new(false);
 static NOTIFIED_READY_CHECK: AtomicBool = AtomicBool::new(false);
 #[allow(clippy::type_complexity)]
-static LAST_CHAMP_SELECT: once_cell::sync::Lazy<
-    tokio::sync::Mutex<Option<(String, std::time::Instant)>>,
-> = once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(None));
+static LAST_EMITTED: once_cell::sync::Lazy<
+    tokio::sync::Mutex<std::collections::HashMap<&'static str, (String, std::time::Instant)>>,
+> = once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(std::collections::HashMap::new()));
 static TRADES_HANDLED: once_cell::sync::Lazy<tokio::sync::Mutex<std::collections::HashSet<i64>>> =
     once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(std::collections::HashSet::new()));
 #[allow(clippy::type_complexity)]
@@ -177,6 +177,12 @@ async fn run_session(client: &LcuClient) -> Result<(), String> {
                 if text.is_empty() {
                     continue;
                 }
+                // The subscription is the whole firehose, and the client emits from
+                // every plugin it runs. Scanning the raw text for a uri we handle is
+                // far cheaper than parsing megabytes of JSON we would discard.
+                if !is_interesting(&text) {
+                    continue;
+                }
                 if let Ok(value) = serde_json::from_str::<Value>(&text) {
                     handle_event(client, &value).await;
                 }
@@ -283,19 +289,86 @@ fn champ_select_fingerprint(session: &Value) -> String {
     parts.join("|")
 }
 
-/// True when this session is worth pushing to the UI: something the panels read
-/// changed, or the heartbeat window elapsed.
-async fn should_emit_champ_select(session: &Value) -> bool {
+/// True when a payload is worth pushing to the UI: its fingerprint changed, or
+/// the heartbeat window elapsed. Every hot event goes through here — the client
+/// republishes lobby and ready-check state as often as champion select, and each
+/// one that reaches the webview forces a re-render.
+async fn should_emit(event: &'static str, fingerprint: String) -> bool {
     const HEARTBEAT: std::time::Duration = std::time::Duration::from_millis(1500);
-    let fingerprint = champ_select_fingerprint(session);
-    let mut last = LAST_CHAMP_SELECT.lock().await;
-    match last.as_ref() {
+    let mut seen = LAST_EMITTED.lock().await;
+    match seen.get(event) {
         Some((previous, at)) if previous == &fingerprint && at.elapsed() < HEARTBEAT => false,
         _ => {
-            *last = Some((fingerprint, std::time::Instant::now()));
+            seen.insert(event, (fingerprint, std::time::Instant::now()));
             true
         }
     }
+}
+
+/// The lobby republishes on every queue-estimate tick while searching, so the
+/// fingerprint covers the membership and the queue, not the countdown.
+fn lobby_fingerprint(lobby: &Value) -> String {
+    let mut parts = vec![
+        lobby
+            .get("gameConfig")
+            .and_then(|c| c.get("queueId"))
+            .and_then(Value::as_i64)
+            .unwrap_or(-1)
+            .to_string(),
+        lobby
+            .get("localMember")
+            .and_then(|m| m.get("isLeader"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+            .to_string(),
+    ];
+    for member in lobby
+        .get("members")
+        .and_then(Value::as_array)
+        .unwrap_or(&vec![])
+    {
+        parts.push(format!(
+            "{}:{}:{}",
+            member
+                .get("summonerId")
+                .and_then(Value::as_i64)
+                .unwrap_or(0),
+            member
+                .get("firstPositionPreference")
+                .and_then(Value::as_str)
+                .unwrap_or(""),
+            member
+                .get("ready")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+        ));
+    }
+    parts.join("|")
+}
+
+/// The ready check ticks its own timer; only the state and the answer matter.
+fn ready_check_fingerprint(data: &Value) -> String {
+    format!(
+        "{}:{}",
+        data.get("state").and_then(Value::as_str).unwrap_or(""),
+        data.get("playerResponse")
+            .and_then(Value::as_str)
+            .unwrap_or(""),
+    )
+}
+
+/// Uris this client acts on. Anything else the League client publishes is noise
+/// for us.
+const HANDLED_URIS: [&str; 5] = [
+    "/lol-gameflow/v1/gameflow-phase",
+    "/lol-matchmaking/v1/ready-check",
+    "/lol-champ-select/v1/session",
+    "/lol-lobby/v2/lobby",
+    "/lol-honor-v2/v1/ballot",
+];
+
+fn is_interesting(text: &str) -> bool {
+    HANDLED_URIS.iter().any(|uri| text.contains(uri))
 }
 
 async fn handle_event(client: &LcuClient, value: &Value) {
@@ -322,7 +395,9 @@ async fn handle_event(client: &LcuClient, value: &Value) {
                 .get("playerResponse")
                 .and_then(Value::as_str)
                 .unwrap_or("");
-            emit("league-ready-check", data.clone());
+            if should_emit("league-ready-check", ready_check_fingerprint(&data)).await {
+                emit("league-ready-check", data.clone());
+            }
             if !pending_ready_check(state) {
                 ACCEPT_PENDING.store(false, Ordering::SeqCst);
                 NOTIFIED_READY_CHECK.store(false, Ordering::SeqCst);
@@ -376,11 +451,11 @@ async fn handle_event(client: &LcuClient, value: &Value) {
                 TRADES_HANDLED.lock().await.clear();
                 SWAPS_HANDLED.lock().await.clear();
                 MESSAGE_SENT.store(false, Ordering::SeqCst);
-                *LAST_CHAMP_SELECT.lock().await = None;
+                LAST_EMITTED.lock().await.remove("league-champ-select");
                 emit("league-champ-select", Value::Null);
                 return;
             }
-            if should_emit_champ_select(&data).await {
+            if should_emit("league-champ-select", champ_select_fingerprint(&data)).await {
                 emit("league-champ-select", data.clone());
             }
             let settings = league_settings();
@@ -394,14 +469,12 @@ async fn handle_event(client: &LcuClient, value: &Value) {
             send_auto_message(client, &settings);
         }
         "/lol-lobby/v2/lobby" => {
-            emit(
-                "league-lobby",
-                if event_type == "Delete" {
-                    Value::Null
-                } else {
-                    data.clone()
-                },
-            );
+            if event_type == "Delete" {
+                LAST_EMITTED.lock().await.remove("league-lobby");
+                emit("league-lobby", Value::Null);
+            } else if should_emit("league-lobby", lobby_fingerprint(&data)).await {
+                emit("league-lobby", data.clone());
+            }
         }
         "/lol-honor-v2/v1/ballot" => {
             if event_type != "Delete" && league_settings().auto_honor {
@@ -749,5 +822,61 @@ mod tests {
     fn an_empty_session_is_fingerprinted_without_panicking() {
         assert!(!champ_select_fingerprint(&json!({})).is_empty());
         assert!(!champ_select_fingerprint(&Value::Null).is_empty());
+    }
+
+    #[test]
+    fn only_messages_for_a_handled_uri_are_parsed() {
+        assert!(is_interesting(
+            r#"[8,"OnJsonApiEvent",{"uri":"/lol-champ-select/v1/session","eventType":"Update"}]"#
+        ));
+        assert!(is_interesting(
+            r#"[8,"OnJsonApiEvent",{"uri":"/lol-lobby/v2/lobby"}]"#
+        ));
+        // The client publishes from every plugin it runs; none of this is ours.
+        assert!(!is_interesting(
+            r#"[8,"OnJsonApiEvent",{"uri":"/lol-hovercard/v1/friend-info/42"}]"#
+        ));
+        assert!(!is_interesting(
+            r#"[8,"OnJsonApiEvent",{"uri":"/lol-loot/v1/player-loot-map"}]"#
+        ));
+        assert!(!is_interesting(""));
+    }
+
+    #[test]
+    fn the_lobby_fingerprint_ignores_the_queue_countdown() {
+        let base = json!({
+            "gameConfig": { "queueId": 420 },
+            "localMember": { "isLeader": true },
+            "members": [{ "summonerId": 7, "firstPositionPreference": "JUNGLE", "ready": true }]
+        });
+        let mut ticked = base.clone();
+        ticked["gameConfig"]["queueEstimate"] = json!(93);
+        assert_eq!(lobby_fingerprint(&base), lobby_fingerprint(&ticked));
+
+        let mut joined = base.clone();
+        joined["members"][0]["summonerId"] = json!(8);
+        assert_ne!(lobby_fingerprint(&base), lobby_fingerprint(&joined));
+
+        let mut role = base.clone();
+        role["members"][0]["firstPositionPreference"] = json!("MIDDLE");
+        assert_ne!(lobby_fingerprint(&base), lobby_fingerprint(&role));
+    }
+
+    #[test]
+    fn the_ready_check_fingerprint_tracks_the_answer_not_the_clock() {
+        let base = json!({ "state": "InProgress", "playerResponse": "None", "timer": 8.4 });
+        let mut ticked = base.clone();
+        ticked["timer"] = json!(3.1);
+        assert_eq!(
+            ready_check_fingerprint(&base),
+            ready_check_fingerprint(&ticked)
+        );
+
+        let mut accepted = base.clone();
+        accepted["playerResponse"] = json!("Accepted");
+        assert_ne!(
+            ready_check_fingerprint(&base),
+            ready_check_fingerprint(&accepted)
+        );
     }
 }

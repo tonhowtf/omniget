@@ -48,12 +48,13 @@ async fn discover_client() -> Option<LcuClient> {
 }
 
 async fn get_client() -> Result<LcuClient, String> {
-    {
-        let cached = CACHED_CLIENT.lock().await;
-        if let Some(client) = cached.as_ref() {
-            if lcu_reachable(client).await {
-                return Ok(client.clone());
-            }
+    // The cached client is copied out before the reachability probe: holding the
+    // lock across a request would put every league command in a single file
+    // behind one network round trip, and a slow client stalls all of them.
+    let cached = { CACHED_CLIENT.lock().await.clone() };
+    if let Some(client) = cached {
+        if lcu_reachable(&client).await {
+            return Ok(client);
         }
     }
     let discovered = discover_client()
@@ -249,8 +250,33 @@ async fn lcu_post_raw(client: &LcuClient, path: &str) -> Result<Value, String> {
     lcu_send(client, reqwest::Method::POST, path, None).await
 }
 
+/// Settings are read on every websocket event, and reading them means parsing the
+/// settings file from disk. A short cache keeps that off the hot path while still
+/// picking up a toggle the user just flipped.
+static SETTINGS_CACHE: Lazy<
+    std::sync::Mutex<
+        Option<(
+            omniget_core::models::settings::LeagueSettings,
+            std::time::Instant,
+        )>,
+    >,
+> = Lazy::new(|| std::sync::Mutex::new(None));
+
+const SETTINGS_TTL: std::time::Duration = std::time::Duration::from_millis(2000);
+
 fn league_settings() -> omniget_core::models::settings::LeagueSettings {
-    crate::storage::config::load_settings_standalone().league
+    if let Ok(cache) = SETTINGS_CACHE.lock() {
+        if let Some((settings, at)) = cache.as_ref() {
+            if at.elapsed() < SETTINGS_TTL {
+                return settings.clone();
+            }
+        }
+    }
+    let settings = crate::storage::config::load_settings_standalone().league;
+    if let Ok(mut cache) = SETTINGS_CACHE.lock() {
+        *cache = Some((settings.clone(), std::time::Instant::now()));
+    }
+    settings
 }
 
 fn league_enabled() -> bool {
