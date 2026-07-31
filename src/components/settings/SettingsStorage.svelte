@@ -25,7 +25,14 @@
     map: { media_duration_secs: number; spans: unknown[] };
   };
 
+  type PortableInfo = {
+    is_portable: boolean;
+    data_dir: string | null;
+    macos_webview_notice: boolean;
+  };
+
   let stats = $state<StoreStats | null>(null);
+  let portable = $state<PortableInfo | null>(null);
   let running = $state(false);
   let probing = $state(false);
 
@@ -55,6 +62,14 @@
       stats = await invoke<StoreStats>("content_store_stats");
     } catch {
       stats = null;
+    }
+  }
+
+  async function loadPortable() {
+    try {
+      portable = await invoke<PortableInfo>("get_portable_info");
+    } catch {
+      portable = null;
     }
   }
 
@@ -127,12 +142,37 @@
 
   $effect(() => {
     void loadStats();
+    void loadPortable();
   });
 </script>
 
 <section class="section">
   <h5 class="section-title">{$t("settings.storage.title")}</h5>
   <p class="muted">{$t("settings.storage.description")}</p>
+
+  {#if portable?.is_portable}
+    <div class="card portable-card">
+      <div class="setting-row">
+        <div class="setting-col">
+          <span class="setting-label">{$t("settings.storage.portable_label")}</span>
+          <span class="setting-path wrap">
+            {$t("settings.storage.portable_active", { dir: portable.data_dir ?? "<app>/data" })}
+          </span>
+        </div>
+      </div>
+
+      <!-- O modo portatil nao cobre o WebView no macOS, e o usuario que leva o
+           pendrive para outra maquina precisa saber disso antes, nao depois. -->
+      {#if portable.macos_webview_notice}
+        <div class="divider"></div>
+        <div class="setting-row">
+          <div class="setting-col">
+            <span class="setting-path wrap">{$t("settings.storage.portable_macos_notice")}</span>
+          </div>
+        </div>
+      {/if}
+    </div>
+  {/if}
 
   <div class="card">
     <div class="setting-row">
@@ -171,3 +211,17 @@
     </div>
   </div>
 </section>
+
+<style>
+  .portable-card {
+    margin-bottom: var(--padding);
+  }
+
+  /* O caminho de dados e o aviso do macOS sao frases inteiras, nao rotulos:
+     sem isto ficam numa linha so e sao cortados. */
+  .wrap {
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.5;
+  }
+</style>

@@ -857,7 +857,10 @@
       "silence_running": "Mesure en cours…",
       "pick_media": "Choisissez un fichier multimédia",
       "silence_none": "Presque aucun silence dans ce fichier",
-      "silence_done": "{{saved}} de silence trouvé — le lecteur peut le sauter"
+      "silence_done": "{{saved}} de silence trouvé — le lecteur peut le sauter",
+      "portable_label": "Portable Mode",
+      "portable_active": "Portable mode is active. OmniGet's data is stored in {{dir}}.",
+      "portable_macos_notice": "On macOS the WebView still stores its session data under ~/Library, and portable mode cannot redirect it. Only OmniGet's own data is portable here — see github.com/tonhowtf/omniget/issues/227."
     },
     "dependencies": {
       "title": "Dépendances",
