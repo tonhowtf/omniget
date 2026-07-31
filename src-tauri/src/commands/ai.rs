@@ -1,4 +1,6 @@
-use omniget_core::core::ai::{self, AiConfigView, AiHistoryEntry, AiProvider};
+use omniget_core::core::ai::{
+    self, AiConfigView, AiHistoryEntry, AiProvider, MinimaxApiFormat, MinimaxRegion,
+};
 use serde::Serialize;
 
 const MAX_TRANSCRIPT_CHARS: usize = 12000;
@@ -9,14 +11,32 @@ pub fn ai_get_config() -> AiConfigView {
 }
 
 #[tauri::command]
+pub fn ai_get_models(provider: AiProvider) -> Vec<String> {
+    ai::model_ids(provider)
+}
+
+#[tauri::command]
 pub fn ai_set_config(
     provider: AiProvider,
     model: String,
     local_base_url: String,
+    minimax_region: Option<MinimaxRegion>,
+    minimax_api_format: Option<MinimaxApiFormat>,
     openai_key: Option<String>,
     anthropic_key: Option<String>,
+    minimax_key: Option<String>,
 ) -> AiConfigView {
-    ai::set(provider, model, local_base_url, openai_key, anthropic_key).view()
+    ai::set(
+        provider,
+        model,
+        local_base_url,
+        minimax_region.unwrap_or_default(),
+        minimax_api_format.unwrap_or_default(),
+        openai_key,
+        anthropic_key,
+        minimax_key,
+    )
+    .view()
 }
 
 #[tauri::command]

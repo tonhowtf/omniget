@@ -900,6 +900,7 @@ pub fn run() {
             commands::channels::channel_check_now,
             commands::channels::sync_channels_tray,
             commands::ai::ai_get_config,
+            commands::ai::ai_get_models,
             commands::ai::ai_set_config,
             commands::ai::ai_test,
             commands::ai::ai_summarize_url,

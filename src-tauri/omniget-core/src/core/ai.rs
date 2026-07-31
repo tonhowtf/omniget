@@ -3,6 +3,39 @@ use std::sync::{Mutex, OnceLock};
 
 const AI_CONFIG_FILE: &str = "ai_config.json";
 
+const MINIMAX_MODEL_IDS: [&str; 2] = ["MiniMax-M3", "MiniMax-M2.7"];
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MinimaxRegion {
+    #[default]
+    GlobalEn,
+    CnZh,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MinimaxApiFormat {
+    #[default]
+    Openai,
+    Anthropic,
+}
+
+struct MinimaxEndpointConfig {
+    openai_base_url: &'static str,
+    anthropic_base_url: &'static str,
+}
+
+const MINIMAX_GLOBAL_ENDPOINTS: MinimaxEndpointConfig = MinimaxEndpointConfig {
+    openai_base_url: "https://api.minimax.io/v1",
+    anthropic_base_url: "https://api.minimax.io/anthropic",
+};
+
+const MINIMAX_CN_ENDPOINTS: MinimaxEndpointConfig = MinimaxEndpointConfig {
+    openai_base_url: "https://api.minimaxi.com/v1",
+    anthropic_base_url: "https://api.minimaxi.com/anthropic",
+};
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AiProvider {
@@ -10,6 +43,7 @@ pub enum AiProvider {
     None,
     Openai,
     Anthropic,
+    Minimax,
     Local,
 }
 
@@ -21,6 +55,12 @@ pub struct AiConfig {
     pub openai_key: String,
     #[serde(default)]
     pub anthropic_key: String,
+    #[serde(default)]
+    pub minimax_key: String,
+    #[serde(default)]
+    pub minimax_region: MinimaxRegion,
+    #[serde(default)]
+    pub minimax_api_format: MinimaxApiFormat,
     #[serde(default)]
     pub local_base_url: String,
     #[serde(default)]
@@ -34,8 +74,11 @@ pub struct AiConfigView {
     pub provider: AiProvider,
     pub model: String,
     pub local_base_url: String,
+    pub minimax_region: MinimaxRegion,
+    pub minimax_api_format: MinimaxApiFormat,
     pub has_openai_key: bool,
     pub has_anthropic_key: bool,
+    pub has_minimax_key: bool,
 }
 
 impl AiConfig {
@@ -44,8 +87,11 @@ impl AiConfig {
             provider: self.provider,
             model: self.model.clone(),
             local_base_url: self.local_base_url.clone(),
+            minimax_region: self.minimax_region,
+            minimax_api_format: self.minimax_api_format,
             has_openai_key: !self.openai_key.is_empty(),
             has_anthropic_key: !self.anthropic_key.is_empty(),
+            has_minimax_key: !self.minimax_key.is_empty(),
         }
     }
 
@@ -54,6 +100,7 @@ impl AiConfig {
             AiProvider::None => false,
             AiProvider::Openai => !self.openai_key.is_empty(),
             AiProvider::Anthropic => !self.anthropic_key.is_empty(),
+            AiProvider::Minimax => !self.minimax_key.is_empty(),
             AiProvider::Local => !self.local_base_url.is_empty(),
         }
     }
@@ -116,24 +163,57 @@ pub fn get() -> AiConfig {
     store().lock().unwrap().clone()
 }
 
+pub fn model_ids(provider: AiProvider) -> Vec<String> {
+    match provider {
+        AiProvider::Minimax => MINIMAX_MODEL_IDS
+            .iter()
+            .map(|model| (*model).to_string())
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn minimax_endpoint_config(region: MinimaxRegion) -> &'static MinimaxEndpointConfig {
+    match region {
+        MinimaxRegion::GlobalEn => &MINIMAX_GLOBAL_ENDPOINTS,
+        MinimaxRegion::CnZh => &MINIMAX_CN_ENDPOINTS,
+    }
+}
+
+fn minimax_chat_endpoint(region: MinimaxRegion, api_format: MinimaxApiFormat) -> String {
+    let endpoints = minimax_endpoint_config(region);
+    match api_format {
+        MinimaxApiFormat::Openai => format!("{}/chat/completions", endpoints.openai_base_url),
+        MinimaxApiFormat::Anthropic => format!("{}/v1/messages", endpoints.anthropic_base_url),
+    }
+}
+
 // Key fields are Option: None keeps the stored key untouched (so the UI never
 // has to round-trip secrets), Some("") clears it.
 pub fn set(
     provider: AiProvider,
     model: String,
     local_base_url: String,
+    minimax_region: MinimaxRegion,
+    minimax_api_format: MinimaxApiFormat,
     openai_key: Option<String>,
     anthropic_key: Option<String>,
+    minimax_key: Option<String>,
 ) -> AiConfig {
     let mut guard = store().lock().unwrap();
     guard.provider = provider;
     guard.model = model.trim().to_string();
     guard.local_base_url = local_base_url.trim().trim_end_matches('/').to_string();
+    guard.minimax_region = minimax_region;
+    guard.minimax_api_format = minimax_api_format;
     if let Some(k) = openai_key {
         guard.openai_key = k.trim().to_string();
     }
     if let Some(k) = anthropic_key {
         guard.anthropic_key = k.trim().to_string();
+    }
+    if let Some(k) = minimax_key {
+        guard.minimax_key = k.trim().to_string();
     }
     write_to_disk(&guard);
     guard.clone()
@@ -170,7 +250,33 @@ pub async fn chat(system: &str, user: &str) -> Result<String, String> {
             let endpoint = format!("{}/chat/completions", cfg.local_base_url);
             openai_chat(&endpoint, &cfg.openai_key, &cfg.model, system, user).await
         }
-        AiProvider::Anthropic => anthropic_chat(&cfg.anthropic_key, &cfg.model, system, user).await,
+        AiProvider::Anthropic => {
+            if cfg.anthropic_key.is_empty() {
+                return Err("No Anthropic key configured".to_string());
+            }
+            anthropic_chat(
+                "https://api.anthropic.com/v1/messages",
+                &cfg.anthropic_key,
+                &cfg.model,
+                system,
+                user,
+            )
+            .await
+        }
+        AiProvider::Minimax => {
+            if cfg.minimax_key.is_empty() {
+                return Err("No MiniMax key configured".to_string());
+            }
+            let endpoint = minimax_chat_endpoint(cfg.minimax_region, cfg.minimax_api_format);
+            match cfg.minimax_api_format {
+                MinimaxApiFormat::Openai => {
+                    openai_chat(&endpoint, &cfg.minimax_key, &cfg.model, system, user).await
+                }
+                MinimaxApiFormat::Anthropic => {
+                    anthropic_chat(&endpoint, &cfg.minimax_key, &cfg.model, system, user).await
+                }
+            }
+        }
     }
 }
 
@@ -217,14 +323,12 @@ async fn openai_chat(
 }
 
 async fn anthropic_chat(
+    endpoint: &str,
     key: &str,
     model: &str,
     system: &str,
     user: &str,
 ) -> Result<String, String> {
-    if key.is_empty() {
-        return Err("No Anthropic key configured".to_string());
-    }
     let client = http_client()?;
     let body = serde_json::json!({
         "model": model,
@@ -233,7 +337,7 @@ async fn anthropic_chat(
         "messages": [ { "role": "user", "content": user } ],
     });
     let resp = client
-        .post("https://api.anthropic.com/v1/messages")
+        .post(endpoint)
         .header("x-api-key", key)
         .header("anthropic-version", "2023-06-01")
         .json(&body)
@@ -411,12 +515,16 @@ mod tests {
             provider: AiProvider::Openai,
             openai_key: "secret".to_string(),
             anthropic_key: String::new(),
+            minimax_key: "minimax-secret".to_string(),
+            minimax_region: MinimaxRegion::GlobalEn,
+            minimax_api_format: MinimaxApiFormat::Openai,
             local_base_url: String::new(),
             model: "m".to_string(),
         };
         let v = cfg.view();
         assert!(v.has_openai_key);
         assert!(!v.has_anthropic_key);
+        assert!(v.has_minimax_key);
         let json = serde_json::to_string(&v).unwrap();
         assert!(!json.contains("secret"));
     }
@@ -429,5 +537,53 @@ mod tests {
         assert!(!cfg.is_configured());
         cfg.anthropic_key = "k".to_string();
         assert!(cfg.is_configured());
+        cfg.provider = AiProvider::Minimax;
+        assert!(!cfg.is_configured());
+        cfg.minimax_key = "k".to_string();
+        assert!(cfg.is_configured());
+    }
+
+    #[test]
+    fn minimax_models_are_declared() {
+        assert_eq!(
+            model_ids(AiProvider::Minimax),
+            vec!["MiniMax-M3".to_string(), "MiniMax-M2.7".to_string()]
+        );
+    }
+
+    #[test]
+    fn minimax_regions_select_matching_endpoints() {
+        assert_eq!(
+            minimax_chat_endpoint(MinimaxRegion::GlobalEn, MinimaxApiFormat::Openai),
+            "https://api.minimax.io/v1/chat/completions"
+        );
+        assert_eq!(
+            minimax_chat_endpoint(MinimaxRegion::GlobalEn, MinimaxApiFormat::Anthropic),
+            "https://api.minimax.io/anthropic/v1/messages"
+        );
+        assert_eq!(
+            minimax_chat_endpoint(MinimaxRegion::CnZh, MinimaxApiFormat::Openai),
+            "https://api.minimaxi.com/v1/chat/completions"
+        );
+        assert_eq!(
+            minimax_chat_endpoint(MinimaxRegion::CnZh, MinimaxApiFormat::Anthropic),
+            "https://api.minimaxi.com/anthropic/v1/messages"
+        );
+    }
+
+    #[test]
+    fn minimax_config_values_use_stable_wire_names() {
+        assert_eq!(
+            serde_json::to_string(&AiProvider::Minimax).unwrap(),
+            "\"minimax\""
+        );
+        assert_eq!(
+            serde_json::to_string(&MinimaxRegion::GlobalEn).unwrap(),
+            "\"global_en\""
+        );
+        assert_eq!(
+            serde_json::to_string(&MinimaxRegion::CnZh).unwrap(),
+            "\"cn_zh\""
+        );
     }
 }

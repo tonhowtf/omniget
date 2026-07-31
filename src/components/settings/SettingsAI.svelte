@@ -4,13 +4,18 @@
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
 
-  type Provider = "none" | "openai" | "anthropic" | "local";
+  type Provider = "none" | "openai" | "anthropic" | "minimax" | "local";
+  type MinimaxRegion = "global_en" | "cn_zh";
+  type MinimaxApiFormat = "openai" | "anthropic";
   type ConfigView = {
     provider: Provider;
     model: string;
     local_base_url: string;
+    minimax_region: MinimaxRegion;
+    minimax_api_format: MinimaxApiFormat;
     has_openai_key: boolean;
     has_anthropic_key: boolean;
+    has_minimax_key: boolean;
   };
   type HistoryEntry = {
     id: number;
@@ -23,11 +28,16 @@
 
   let provider = $state<Provider>("none");
   let model = $state("");
+  let modelOptions = $state<string[]>([]);
   let localBaseUrl = $state("");
+  let minimaxRegion = $state<MinimaxRegion>("global_en");
+  let minimaxApiFormat = $state<MinimaxApiFormat>("openai");
   let openaiKey = $state("");
   let anthropicKey = $state("");
+  let minimaxKey = $state("");
   let hasOpenaiKey = $state(false);
   let hasAnthropicKey = $state(false);
+  let hasMinimaxKey = $state(false);
 
   let testing = $state(false);
   let summarizeUrl = $state("");
@@ -42,12 +52,29 @@
       provider = c.provider;
       model = c.model;
       localBaseUrl = c.local_base_url;
+      minimaxRegion = c.minimax_region;
+      minimaxApiFormat = c.minimax_api_format;
       hasOpenaiKey = c.has_openai_key;
       hasAnthropicKey = c.has_anthropic_key;
+      hasMinimaxKey = c.has_minimax_key;
       openaiKey = "";
       anthropicKey = "";
+      minimaxKey = "";
     } catch (e: any) {
       showToast("error", typeof e === "string" ? e : $t("common.error"));
+    }
+  }
+
+  async function loadModelOptions(nextProvider: Provider) {
+    try {
+      const options = await invoke<string[]>("ai_get_models", { provider: nextProvider });
+      if (provider !== nextProvider) return;
+      modelOptions = options;
+      if (options.length > 0 && !options.includes(model)) {
+        model = options[0];
+      }
+    } catch {
+      modelOptions = [];
     }
   }
 
@@ -60,7 +87,10 @@
   }
 
   onMount(() => {
-    loadConfig();
+    void (async () => {
+      await loadConfig();
+      await loadModelOptions(provider);
+    })();
     loadHistory();
   });
 
@@ -70,8 +100,11 @@
         provider,
         model: model.trim(),
         localBaseUrl: localBaseUrl.trim(),
+        minimaxRegion,
+        minimaxApiFormat,
         openaiKey: openaiKey.trim() !== "" ? openaiKey.trim() : null,
         anthropicKey: anthropicKey.trim() !== "" ? anthropicKey.trim() : null,
+        minimaxKey: minimaxKey.trim() !== "" ? minimaxKey.trim() : null,
       });
       await loadConfig();
       showToast("success", $t("settings.ai.saved") as string);
@@ -141,10 +174,16 @@
         <span class="setting-label">{$t('settings.ai.provider')}</span>
         <span class="setting-path">{$t('settings.ai.provider_desc')}</span>
       </div>
-      <select class="input-text select" bind:value={provider}>
+      <select
+        class="input-text select"
+        bind:value={provider}
+        onchange={(event) =>
+          void loadModelOptions(event.currentTarget.value as Provider)}
+      >
         <option value="none">{$t('settings.ai.provider_none')}</option>
         <option value="openai">OpenAI</option>
         <option value="anthropic">Anthropic</option>
+        <option value="minimax">MiniMax</option>
         <option value="local">{$t('settings.ai.provider_local')}</option>
       </select>
     </div>
@@ -156,7 +195,15 @@
           <span class="setting-label">{$t('settings.ai.model')}</span>
           <span class="setting-path">{$t('settings.ai.model_desc')}</span>
         </div>
-        <input type="text" class="input-text" placeholder={$t('settings.ai.model_placeholder')} bind:value={model} />
+        {#if modelOptions.length > 0}
+          <select class="input-text select" bind:value={model}>
+            {#each modelOptions as modelId}
+              <option value={modelId}>{modelId}</option>
+            {/each}
+          </select>
+        {:else}
+          <input type="text" class="input-text" placeholder={$t('settings.ai.model_placeholder')} bind:value={model} />
+        {/if}
       </div>
     {/if}
 
@@ -179,6 +226,44 @@
           <span class="setting-path">{hasAnthropicKey ? $t('settings.ai.key_set') : $t('settings.ai.key_unset')}</span>
         </div>
         <input type="password" class="input-text" placeholder={hasAnthropicKey ? "••••••••" : "sk-ant-…"} bind:value={anthropicKey} />
+      </div>
+    {/if}
+
+    {#if provider === "minimax"}
+      <div class="divider"></div>
+      <div class="setting-row">
+        <div class="setting-col">
+          <span class="setting-label">{$t('settings.ai.minimax_key')}</span>
+          <span class="setting-path">{hasMinimaxKey ? $t('settings.ai.key_set') : $t('settings.ai.key_unset')}</span>
+        </div>
+        <input
+          type="password"
+          class="input-text"
+          placeholder={hasMinimaxKey ? "••••••••" : ($t('settings.ai.key_unset') as string)}
+          bind:value={minimaxKey}
+        />
+      </div>
+      <div class="divider"></div>
+      <div class="setting-row">
+        <div class="setting-col">
+          <span class="setting-label">{$t('settings.ai.minimax_region')}</span>
+          <span class="setting-path">{minimaxRegion}</span>
+        </div>
+        <select class="input-text select" bind:value={minimaxRegion}>
+          <option value="global_en">global_en - api.minimax.io</option>
+          <option value="cn_zh">cn_zh - api.minimaxi.com</option>
+        </select>
+      </div>
+      <div class="divider"></div>
+      <div class="setting-row">
+        <div class="setting-col">
+          <span class="setting-label">{$t('settings.ai.minimax_api_format')}</span>
+          <span class="setting-path">{minimaxApiFormat}</span>
+        </div>
+        <select class="input-text select" bind:value={minimaxApiFormat}>
+          <option value="openai">openai</option>
+          <option value="anthropic">anthropic</option>
+        </select>
       </div>
     {/if}
 
