@@ -89,18 +89,28 @@ pub async fn open_auth_webview(
             if let Some(ref pattern) = success_pattern {
                 // An explicit success pattern from the plugin config is
                 // authoritative: never fall back to the fuzzy heuristic.
-                // Match against host + path only, so encoded redirect params in
-                // the login URL itself (e.g. sso.hotmart.com/login?redirect=
-                // https%3A%2F%2Fconsumer.hotmart.com) can't trigger a false
-                // success.
+                // The pattern is `host` or `host/path-prefix`, and the host must
+                // match exactly or as a subdomain. A substring check over
+                // host+path is not enough: ad trackers like DoubleClick embed
+                // the SSO redirect target as semicolon matrix parameters, which
+                // live in the path with the target host not percent-encoded
+                // (e.g. /activityi;src=…;~oref=https://consumer.hotmart.com/…).
                 if let Ok(nav_url) = url::Url::parse(&url_str) {
-                    let host_and_path =
-                        format!("{}{}", nav_url.host_str().unwrap_or(""), nav_url.path());
-                    if host_and_path.contains(pattern) {
+                    let (pattern_host, pattern_path) = match pattern.split_once('/') {
+                        Some((h, p)) => (h, Some(p)),
+                        None => (pattern.as_str(), None),
+                    };
+                    let nav_host = nav_url.host_str().unwrap_or("");
+                    let host_matches = !pattern_host.is_empty()
+                        && (nav_host == pattern_host
+                            || nav_host.ends_with(&format!(".{pattern_host}")));
+                    let path_matches = match pattern_path {
+                        Some(p) => nav_url.path().trim_start_matches('/').starts_with(p),
+                        None => true,
+                    };
+                    if host_matches && path_matches {
                         is_success = true;
                     }
-                } else if url_str.contains(pattern) {
-                    is_success = true;
                 }
             } else if !login_host.is_empty() {
                 if let Ok(nav_url) = url::Url::parse(&url_str) {

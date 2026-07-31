@@ -268,9 +268,19 @@ fn load_single_plugin(
         })?;
 
     let lib = unsafe { libloading::Library::new(&lib_path) }.map_err(|e| {
+        // libloading's Display is just "LoadLibraryExW failed"; the OS error
+        // code that says WHY (126 missing dependency, 5 access denied, 193 bad
+        // image) lives in the source chain and is what users need to report.
+        let mut detail = e.to_string();
+        let mut source = std::error::Error::source(&e);
+        while let Some(s) = source {
+            detail.push_str(": ");
+            detail.push_str(&s.to_string());
+            source = s.source();
+        }
         PluginLoadError::simple(
             "library_load",
-            format!("Failed to load {}: {e}", lib_path.display()),
+            format!("Failed to load {}: {detail}", lib_path.display()),
         )
     })?;
 
