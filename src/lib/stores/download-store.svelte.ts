@@ -409,5 +409,5 @@ export function upsertGenericProgress(
   scheduleFlush();
 }
 
-export { formatBytes, formatSpeed, formatEta } from "./download-format";
+export { formatBytes, formatSpeed, formatEta } from "../download-format";
 

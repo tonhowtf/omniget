@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatBytes, formatEta, formatSpeed } from './download-format';
 
-describe('download-store format utilities', () => {
+describe('download-format utilities', () => {
   describe('formatBytes', () => {
     it('formats bytes under 1KB correctly', () => {
       expect(formatBytes(0)).toBe('0 B');

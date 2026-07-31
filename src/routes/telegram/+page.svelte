@@ -1736,7 +1736,6 @@
     display: flex;
     align-items: center;
     gap: var(--padding);
-    margin-block: 4px;
   }
 
   .separator-line {
@@ -1746,13 +1745,9 @@
   }
 
   .separator-text {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    font-size: var(--text-sm);
+    font-weight: 500;
     color: var(--gray);
-    line-height: 1;
-    padding-inline: 4px;
   }
 
   .use-phone-btn,
