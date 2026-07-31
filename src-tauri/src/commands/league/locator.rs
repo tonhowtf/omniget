@@ -179,6 +179,16 @@ pub fn default_lockfile_paths() -> Vec<PathBuf> {
 async fn read_process_command_lines() -> Result<String, String> {
     #[cfg(windows)]
     {
+        // tasklist costs ~50ms; the CIM query costs seconds and stutters the
+        // whole app, so it only runs once the cheap probe sees the process.
+        let probe = crate::core::process::command("tasklist")
+            .args(["/FI", "IMAGENAME eq LeagueClientUx.exe", "/NH"])
+            .output()
+            .await
+            .map_err(|e| format!("failed to probe processes: {}", e))?;
+        if !String::from_utf8_lossy(&probe.stdout).contains("LeagueClientUx.exe") {
+            return Ok(String::new());
+        }
         let output = crate::core::process::command("powershell")
             .args([
                 "-NoProfile",

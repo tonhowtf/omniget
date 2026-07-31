@@ -2,9 +2,11 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { CDRAGON, formatGameTime, type Champion, type RankedEntry, type LobbyQueue } from "./shared";
+  import Skeleton from "./Skeleton.svelte";
 
   let {
     summoner,
+    profileLoading = false,
     ranked,
     phase,
     champSelect,
@@ -19,6 +21,7 @@
     active,
   }: {
     summoner: any;
+    profileLoading?: boolean;
     ranked: Record<string, RankedEntry>;
     phase: string;
     champSelect: any;
@@ -156,7 +159,19 @@
 </script>
 
 {#if active !== false}
-  {#if summoner}
+  {#if !summoner && profileLoading}
+    <section class="profile-card" aria-busy="true">
+      <Skeleton w="56px" h="56px" round="50%" />
+      <div class="profile-info">
+        <Skeleton w="150px" h="16px" />
+        <Skeleton w="76px" h="12px" />
+      </div>
+      <div class="ranked-chips">
+        <Skeleton w="118px" h="42px" round="8px" />
+        <Skeleton w="118px" h="42px" round="8px" />
+      </div>
+    </section>
+  {:else if summoner}
     <section class="profile-card">
       <img
         class="profile-icon"

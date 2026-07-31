@@ -33,6 +33,7 @@
   let phase = $state<string>("");
   let games = $state<any[]>([]);
   let loadingHistory = $state(false);
+  let profileLoading = $state(false);
   let liveTimer: ReturnType<typeof setInterval> | null = null;
   let unlisteners: UnlistenFn[] = [];
 
@@ -345,10 +346,12 @@
   }
 
   async function loadProfile() {
+    profileLoading = true;
     try {
       summoner = await invoke<any>("league_summoner");
     } catch {
       summoner = null;
+      profileLoading = false;
       return;
     }
     try {
@@ -356,6 +359,8 @@
       ranked = stats?.queueMap ?? {};
     } catch {
       ranked = {};
+    } finally {
+      profileLoading = false;
     }
     loadHistory();
   }
@@ -497,7 +502,7 @@
            timers, expanded games) survives switching, and the meta tab's
            auto-rune effect keeps working from any tab. -->
       <div class="tab-panel" class:active={tab === "overview"}>
-        <OverviewTab {summoner} {ranked} {phase} {champSelect} {liveGame} {lobby} {queues} {actionError} {champions} {championById} {championByAlias} onAction={action} active={tab === "overview"} />
+        <OverviewTab {summoner} {profileLoading} {ranked} {phase} {champSelect} {liveGame} {lobby} {queues} {actionError} {champions} {championById} {championByAlias} onAction={action} active={tab === "overview"} />
       </div>
       <div class="tab-panel" class:active={tab === "analysis"}>
         <AnalysisTab {analysis} {analysisLoading} onRefreshAnalysis={loadAnalysis} {phase} {scoutPlayers} {scoutReports} {scoutLoading} onRefreshScouting={loadScouting} {championById} {notes} onSaveNote={saveNote} {timesSeenBefore} {platform} clientConnected={status.connected} active={tab === "analysis"} />
@@ -1859,6 +1864,30 @@
   .league-page :global(.game-row:hover),
   .league-page :global(.game-row.expanded) {
     border-color: var(--accent);
+    }
+
+  .league-page :global(.game-row-skeleton) {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: calc(var(--border-radius) - 2px);
+    }
+
+  .league-page :global(.game-skeleton-info) {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+    }
+
+  .league-page :global(.skeleton-lines) {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
     }
 
   .league-page :global(.champ-icon) {

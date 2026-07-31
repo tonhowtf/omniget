@@ -53,7 +53,9 @@ async fn get_client() -> Result<LcuClient, String> {
     // behind one network round trip, and a slow client stalls all of them.
     let cached = { CACHED_CLIENT.lock().await.clone() };
     if let Some(client) = cached {
-        if lcu_reachable(&client).await {
+        // The websocket task already proves the client is alive; probing it
+        // again would add a round-trip to every single command.
+        if ws::is_connected() || lcu_reachable(&client).await {
             return Ok(client);
         }
     }
@@ -65,13 +67,19 @@ async fn get_client() -> Result<LcuClient, String> {
     Ok(discovered)
 }
 
-fn http_client() -> Result<reqwest::Client, String> {
+static HTTP_CLIENT: Lazy<Option<reqwest::Client>> = Lazy::new(|| {
     reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .timeout(std::time::Duration::from_secs(10))
         .no_proxy()
         .build()
-        .map_err(|e| e.to_string())
+        .ok()
+});
+
+fn http_client() -> Result<reqwest::Client, String> {
+    HTTP_CLIENT
+        .clone()
+        .ok_or_else(|| "http client init failed".to_string())
 }
 
 async fn lcu_reachable(client: &LcuClient) -> bool {

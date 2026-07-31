@@ -5,6 +5,7 @@
   import { markedPlayers, winrateSquad } from "$lib/league-scouting";
   import { availability, featureById, type Platform } from "./registry";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+  import Skeleton from "./Skeleton.svelte";
 
   let {
     analysis,
@@ -160,11 +161,39 @@
         </div>
       {/if}
     </section>
+  {:else if analysisLoading}
+    <section class="card" aria-busy="true">
+      <div class="card-head">
+        <h3>{$t("league.win_title")}</h3>
+      </div>
+      <Skeleton w="100%" h="14px" round="999px" />
+      <div class="skeleton-lines">
+        <Skeleton w="45%" h="12px" />
+        <Skeleton w="60%" h="11px" />
+      </div>
+    </section>
   {:else}
     <div class="guard-card">
       <p>{analysisAvailability.available ? $t("league.win_unavailable") : $t(analysisAvailability.reasonKey)}</p>
       <button class="button" onclick={onRefreshAnalysis} disabled={analysisLoading}>{$t("league.refresh")}</button>
     </div>
+  {/if}
+
+  {#if (phase === "ChampSelect" || phase === "InProgress") && scoutPlayers.length === 0 && scoutLoading}
+    <section class="card" aria-busy="true">
+      <div class="card-head">
+        <h3>{$t("league.scout_title")}</h3>
+      </div>
+      <div class="skeleton-lines">
+        {#each Array(4) as _, i (i)}
+          <div class="scoreboard-row">
+            <Skeleton w="26px" h="26px" round="6px" />
+            <Skeleton w="150px" h="12px" />
+            <Skeleton w="80px" h="12px" />
+          </div>
+        {/each}
+      </div>
+    </section>
   {/if}
 
   {#if (phase === "ChampSelect" || phase === "InProgress") && scoutPlayers.length > 0}

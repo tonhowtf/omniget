@@ -515,6 +515,7 @@
   align-items: flex-start;
   justify-content: center;
   background: color-mix(in srgb, var(--surface) 92%, var(--bg));
+  border-radius: calc(var(--radius-md) - 1px) 0 0 calc(var(--radius-md) - 1px);
   overflow: visible;
 }
 
@@ -547,6 +548,7 @@
     border-bottom: 1px solid var(--border);
     padding: var(--space-3);
     justify-content: flex-start;
+    border-radius: calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px) 0 0;
   }
 
   .mac-inspector {

@@ -5,6 +5,7 @@
   import { CDRAGON, assetUrl, type Champion } from "./shared";
   import { filterByQueue, queuesInGames, summarise } from "$lib/league-history";
   import { findTeam, teamBans, teamObjectives } from "$lib/league-match-detail";
+  import Skeleton from "./Skeleton.svelte";
 
   let {
     games,
@@ -171,7 +172,21 @@
       <h3>{$t("league.history_title")}</h3>
       <button class="button" onclick={onRefresh} disabled={loading}>{$t("league.refresh")}</button>
     </div>
-    {#if games.length === 0}
+    {#if loading && games.length === 0}
+      <div class="game-list" aria-busy="true">
+        {#each Array(4) as _, i (i)}
+          <div class="game-row-skeleton">
+            <Skeleton w="34px" h="34px" round="6px" />
+            <div class="game-skeleton-info">
+              <Skeleton w="88px" h="13px" />
+              <Skeleton w="64px" h="11px" />
+            </div>
+            <Skeleton w="72px" h="13px" />
+            <Skeleton w="56px" h="11px" />
+          </div>
+        {/each}
+      </div>
+    {:else if games.length === 0}
       <p class="empty-hint">{$t("league.history_empty")}</p>
     {:else}
       {#if availableQueues.length > 1}
@@ -219,7 +234,20 @@
           </button>
           {#if expandedGame === game.gameId}
             {#if gameDetailLoading === game.gameId}
-              <p class="empty-hint">…</p>
+              <div class="scoreboard" aria-busy="true">
+                {#each Array(2) as _, ti (ti)}
+                  <div class="scoreboard-team">
+                    <Skeleton w="72px" h="12px" />
+                    {#each Array(5) as _, si (si)}
+                      <div class="scoreboard-row">
+                        <Skeleton w="22px" h="22px" round="5px" />
+                        <Skeleton w="120px" h="12px" />
+                        <Skeleton w="52px" h="12px" />
+                      </div>
+                    {/each}
+                  </div>
+                {/each}
+              </div>
             {:else if gameDetails[game.gameId]}
               <div class="scoreboard">
                 {#each scoreboardTeams(gameDetails[game.gameId]) as team (team.teamId)}
