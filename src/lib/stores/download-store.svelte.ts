@@ -59,6 +59,7 @@ const SPEED_HISTORY_MAX = 60;
 
 let downloads = $state(new Map<number, DownloadItem>());
 const speedHistory = new Map<number, SpeedPoint[]>();
+const suppressedGenericIds = new Set<number>();
 let flushScheduled = false;
 
 function pushSpeedPoint(id: number, bps: number) {
@@ -282,10 +283,12 @@ export function syncQueueState(items: QueueItemInfo[]) {
     if (item.kind === "generic" && !queueIds.has(id)) {
       downloads.delete(id);
       clearSpeedHistory(id);
+      suppressedGenericIds.add(id);
     }
   }
 
   for (const qi of items) {
+    suppressedGenericIds.delete(qi.id);
     const existing = downloads.get(qi.id);
     const dlStatus = queueStatusToDownloadStatus(qi.status);
 
@@ -331,9 +334,13 @@ export function syncQueueState(items: QueueItemInfo[]) {
 }
 
 export function removeDownload(id: number) {
-  if (downloads.has(id)) {
+  const item = downloads.get(id);
+  if (item) {
     downloads.delete(id);
     clearSpeedHistory(id);
+    if (item.kind === "generic") {
+      suppressedGenericIds.add(id);
+    }
     flushNow();
   }
 }
@@ -369,6 +376,7 @@ export function upsertGenericProgress(
   etaSeconds?: number | null,
 ) {
   const now = Date.now();
+  if (suppressedGenericIds.has(id)) return;
   const existing = downloads.get(id);
 
   let speed = speedBytesPerSec;
@@ -410,4 +418,3 @@ export function upsertGenericProgress(
 }
 
 export { formatBytes, formatSpeed, formatEta } from "../download-format";
-

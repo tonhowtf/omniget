@@ -228,6 +228,10 @@ pub struct DownloadQueue {
     pub default_max_retries: u32,
 }
 
+fn can_finish_active_item(status: &QueueStatus) -> bool {
+    *status == QueueStatus::Active
+}
+
 impl DownloadQueue {
     pub fn new(max_concurrent: u32) -> Self {
         Self {
@@ -445,6 +449,9 @@ impl DownloadQueue {
         file_size_bytes: Option<u64>,
     ) {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
+            if !can_finish_active_item(&item.status) {
+                return;
+            }
             let error_for_history = error.clone();
             if success {
                 item.status = QueueStatus::Complete { success: true };
@@ -495,6 +502,9 @@ impl DownloadQueue {
         torrent_id: Option<usize>,
     ) {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
+            if !can_finish_active_item(&item.status) {
+                return;
+            }
             item.status = QueueStatus::Seeding;
             item.percent = 100.0;
             item.file_path = file_path;
@@ -2010,7 +2020,18 @@ fn is_generic_title(title: &str) -> bool {
 
 #[cfg(test)]
 mod kind_tests {
-    use super::{kind_from_platform, QueueKind};
+    use super::{can_finish_active_item, kind_from_platform, QueueKind, QueueStatus};
+
+    #[test]
+    fn only_active_items_can_finish() {
+        assert!(can_finish_active_item(&QueueStatus::Active));
+        assert!(!can_finish_active_item(&QueueStatus::Queued));
+        assert!(!can_finish_active_item(&QueueStatus::Paused));
+        assert!(!can_finish_active_item(&QueueStatus::Error {
+            message: "Cancelled".to_string(),
+            retryable: false,
+        }));
+    }
 
     #[test]
     fn youtube_and_video_platforms_map_to_video() {
