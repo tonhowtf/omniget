@@ -20,6 +20,7 @@ epub-reader, spaced-repetition
   <a href="README.md">English</a>
   | <a href="README_zh_CN.md">中文</a>
   | <b>Русский</b>
+  | <a href="README_pt_br.md">Português (BR)</a>
 </p>
 
 <p align="center">
