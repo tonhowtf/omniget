@@ -111,6 +111,14 @@ impl InstagramDownloader {
         false
     }
 
+    fn is_reel_url(url: &str) -> bool {
+        if let Ok(parsed) = url::Url::parse(url) {
+            let path = parsed.path().to_lowercase();
+            return path.starts_with("/reel/") || path.starts_with("/reels/");
+        }
+        false
+    }
+
     async fn resolve_share_link(&self, share_id: &str) -> anyhow::Result<String> {
         let url = format!("https://www.instagram.com/share/{}/", share_id);
 
@@ -697,6 +705,24 @@ impl PlatformDownloader for InstagramDownloader {
             }
         };
 
+        // Instagram embed metadata can expose only a Reel's display_url,
+        // which is the cover image rather than the video. In that case,
+        // use yt-dlp to resolve and download the actual video streams.
+        if Self::is_reel_url(url)
+            && matches!(
+                &media,
+                InstagramMedia::Single {
+                    is_video: false,
+                    ..
+                }
+            )
+        {
+            tracing::debug!(
+                "[instagram] Reel embed returned only a display image; falling back to yt-dlp"
+            );
+            return self.fallback_ytdlp(url, &post_id).await;
+        }
+
         match media {
             InstagramMedia::Single { url, is_video } => {
                 let (media_type, format) = if is_video {
@@ -914,6 +940,30 @@ mod tests {
             media_type: MediaType::Video,
             file_size_bytes: None,
         }
+    }
+
+    #[test]
+    fn is_reel_url_accepts_reel_paths() {
+        assert!(InstagramDownloader::is_reel_url(
+            "https://www.instagram.com/reel/Dbi_MeVOphM/"
+        ));
+        assert!(InstagramDownloader::is_reel_url(
+            "https://www.instagram.com/reels/Dbi_MeVOphM/"
+        ));
+    }
+
+    #[test]
+    fn is_reel_url_rejects_regular_posts() {
+        assert!(!InstagramDownloader::is_reel_url(
+            "https://www.instagram.com/p/Dbi_MeVOphM/"
+        ));
+    }
+
+    #[test]
+    fn is_reel_url_handles_case_insensitive_paths() {
+        assert!(InstagramDownloader::is_reel_url(
+            "https://www.instagram.com/REEL/Dbi_MeVOphM/"
+        ));
     }
 
     #[test]
