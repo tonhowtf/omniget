@@ -56,7 +56,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "createUpdaterArtifacts": true,
+    "createUpdaterArtifacts": false,
     "resources": {
       "../browser-extension/chrome/": "browser-extension/chrome/",
       "../browser-extension/firefox/": "browser-extension/firefox/"
