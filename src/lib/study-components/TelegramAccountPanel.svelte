@@ -1,5 +1,6 @@
 <script lang="ts">
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import { t } from "$lib/i18n";
   import {
     telegramGetSelf,
     telegramAccountsList,
@@ -177,7 +178,7 @@
     onclick={(e) => { if (e.target === e.currentTarget) close(); }}
     onkeydown={(e) => { if (e.key === "Escape") close(); }}
   >
-    <aside class="panel" role="dialog" aria-modal="true" aria-label="Gerenciar contas">
+    <aside class="panel" role="dialog" aria-modal="true" aria-label={$t("telegram.manage_accounts")}>
       <header class="panel-header">
         <div>
           <h2>Contas Telegram</h2>
