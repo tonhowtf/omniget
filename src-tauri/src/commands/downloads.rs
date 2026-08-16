@@ -826,11 +826,18 @@ pub async fn livechat_fetch(url: String) -> Result<LiveChatResult, String> {
 
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
-pub async fn playlist_entries(url: String) -> Result<Vec<PlaylistEntryInfo>, String> {
+pub async fn playlist_entries(
+    url: String,
+    limit: Option<u32>,
+) -> Result<Vec<PlaylistEntryInfo>, String> {
     let ytdlp_path = ytdlp::find_ytdlp_cached()
         .await
         .ok_or_else(|| "yt-dlp unavailable".to_string())?;
-    let (_title, entries) = ytdlp::get_playlist_info(&ytdlp_path, &url, &[])
+    let extra: Vec<String> = match limit {
+        Some(n) if n > 0 => vec!["--playlist-end".to_string(), n.to_string()],
+        _ => Vec::new(),
+    };
+    let (_title, entries) = ytdlp::get_playlist_info(&ytdlp_path, &url, &extra)
         .await
         .map_err(|e| e.to_string())?;
     Ok(entries
