@@ -80,6 +80,12 @@ static RE_CHEESE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"bilibili\.com/cheese/play/(ss\d+|ep\d+)").unwrap());
 static RE_LIST_LISTS: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"space\.bilibili\.com/(\d+)/lists(?:/(\d+))?").unwrap());
+// The link Bilibili puts on a 合集 outside the current space UI. Without it
+// these fell through to RE_SPACE and downloaded the uploader's entire channel
+// instead of the collection (#292).
+static RE_CHANNEL_DETAIL: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"space\.bilibili\.com/(\d+)/channel/(collectiondetail|seriesdetail)").unwrap()
+});
 static RE_FAVLIST_SPACE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"space\.bilibili\.com/\d+/favlist").unwrap());
 static RE_FAVLIST_LIST: Lazy<Regex> = Lazy::new(|| {
@@ -169,6 +175,27 @@ fn detect_internal(url: &str, query_override: Option<&str>) -> Result<UrlKind> {
             mid,
             sid: resolved_sid,
         });
+    }
+
+    if let Some(cap) = RE_CHANNEL_DETAIL.captures(url) {
+        let mid: u64 = cap
+            .get(1)
+            .and_then(|m| m.as_str().parse().ok())
+            .unwrap_or(0);
+        let sid: u64 = extract_query_value(url, query_override, "sid")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
+        // Only claim the URL once the sid is actually readable. Without it
+        // there is nothing to fetch, and falling through to Space at least
+        // downloads something the uploader published.
+        if sid != 0 {
+            let is_series = cap.get(2).map(|m| m.as_str()) == Some("seriesdetail");
+            return Ok(if is_series {
+                UrlKind::Series { mid, sid }
+            } else {
+                UrlKind::Collection { mid, sid }
+            });
+        }
     }
 
     if RE_FAVLIST_SPACE.is_match(url) {
@@ -444,6 +471,29 @@ mod tests {
     fn detects_series() {
         let url = "https://space.bilibili.com/123/lists/456?type=series";
         assert_eq!(detect(url).unwrap(), UrlKind::Series { mid: 123, sid: 456 });
+    }
+
+    #[test]
+    fn detects_collection_from_channel_detail_link() {
+        let url = "https://space.bilibili.com/123/channel/collectiondetail?sid=456";
+        assert_eq!(
+            detect(url).unwrap(),
+            UrlKind::Collection { mid: 123, sid: 456 }
+        );
+    }
+
+    #[test]
+    fn detects_series_from_channel_detail_link() {
+        let url = "https://space.bilibili.com/123/channel/seriesdetail?sid=456";
+        assert_eq!(detect(url).unwrap(), UrlKind::Series { mid: 123, sid: 456 });
+    }
+
+    #[test]
+    fn channel_detail_without_sid_stays_a_space_download() {
+        // Nothing to fetch without the sid, and the whole channel is a better
+        // answer than an error.
+        let url = "https://space.bilibili.com/123/channel/collectiondetail";
+        assert_eq!(detect(url).unwrap(), UrlKind::Space { mid: 123 });
     }
 
     #[test]
