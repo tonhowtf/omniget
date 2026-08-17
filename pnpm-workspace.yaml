@@ -1,0 +1,6 @@
+# pnpm 10 no longer reads the `pnpm` field from package.json. These build
+# scripts are approved here so `pnpm install` compiles the native binaries
+# instead of silently skipping them.
+onlyBuiltDependencies:
+  - "@swc/core"
+  - esbuild
