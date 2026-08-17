@@ -943,7 +943,11 @@ pub async fn find_ytdlp_cached() -> Option<PathBuf> {
     result
 }
 
-fn managed_ytdlp_path() -> Option<PathBuf> {
+/// Where the managed yt-dlp lives. Pure path resolution — it does not check
+/// for the file, download it, or start anything. Callers that only need to
+/// locate the binary must use this rather than [`ensure_ytdlp`], which spawns
+/// a freshness check and a JS-runtime check on every call (#281).
+pub fn managed_ytdlp_path() -> Option<PathBuf> {
     // Issue #222: se o usuario apontou um binario proprio, ele ganha do
     // gerenciado. Referenciado no lugar, entao um `apt upgrade` no yt-dlp dele
     // vale imediatamente aqui, sem copia para envelhecer.

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -61,13 +62,19 @@
     }
   }
 
+  // Only `name` may retrigger this. The loaders read and write their own
+  // state, so tracking them turns each completed round trip into the next
+  // one — an unbounded loop that reaches ensure_ytdlp() and spawns a
+  // yt-dlp and a deno process every pass (#281).
   $effect(() => {
-    if (name) {
+    const dep = name;
+    untrack(() => {
+      if (!dep) return;
       void loadVariants();
       void loadInstallDir();
       void loadArchived();
       void loadCustomPath();
-    }
+    });
   });
 
   async function handleInstall() {

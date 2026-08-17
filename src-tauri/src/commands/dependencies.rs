@@ -167,9 +167,14 @@ pub async fn install_dependency(
 }
 
 /// Caminho do binario gerenciado de uma dependencia, quando ha um.
+/// Locates the managed binary without touching it. Previously this called
+/// `ensure_ytdlp`, which downloads a missing binary and spawns a freshness
+/// check plus a JS-runtime check (yt-dlp and deno processes) on every call.
+/// Listing archived versions is a read, and the Plugins tab does it on
+/// render, so that turned a UI refresh into a process storm (#281).
 async fn managed_binary_path(name: &str) -> Option<PathBuf> {
     match name {
-        "yt-dlp" => crate::core::ytdlp::ensure_ytdlp().await.ok(),
+        "yt-dlp" => omniget_core::core::ytdlp::managed_ytdlp_path(),
         _ => None,
     }
 }
