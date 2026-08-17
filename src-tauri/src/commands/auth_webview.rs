@@ -270,10 +270,10 @@ async fn extract_cookies(
     default_domain: &str,
     domains: &[String],
 ) -> Vec<AuthCookie> {
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos")))]
     let _ = domains;
 
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     {
         let native = extract_cookies_native(window, domains).await;
         if !native.is_empty() {
@@ -540,4 +540,153 @@ async fn extract_cookies_for_uri(
         .await
         .map_err(|_| "GetCookies timed out".to_string())?
         .map_err(|_| "Cookie channel closed".to_string())
+}
+
+/// Reads the cookies out of WKWebView's own cookie store.
+///
+/// `document.cookie` cannot see HttpOnly cookies by definition, so the JS
+/// fallback silently returns an authenticated session minus exactly the
+/// cookies that prove it is authenticated. Hotmart's `hmVlcIntegration` is
+/// one of those, which is why a visibly logged-in webview still reported
+/// `not_authenticated` on macOS (#287) while Windows — which has had native
+/// extraction all along — worked.
+#[cfg(target_os = "macos")]
+async fn extract_cookies_native(
+    window: &tauri::WebviewWindow,
+    domains: &[String],
+) -> Vec<AuthCookie> {
+    let (tx, rx) = tokio::sync::oneshot::channel::<Vec<AuthCookie>>();
+    let wanted = normalize_cookie_domains(domains);
+
+    let result = window.with_webview(move |platform_webview| {
+        use block2::RcBlock;
+        use objc2::rc::Retained;
+        use objc2_foundation::{NSArray, NSHTTPCookie};
+        use objc2_web_kit::WKWebView;
+
+        // with_webview hands us the WKWebView on the main thread, which is the
+        // only thread WebKit permits here.
+        let webview: &WKWebView = unsafe { &*(platform_webview.inner() as *mut WKWebView) };
+        let store = unsafe { webview.configuration().websiteDataStore().httpCookieStore() };
+
+        let tx = std::cell::RefCell::new(Some(tx));
+        let handler = RcBlock::new(move |cookies: std::ptr::NonNull<NSArray<NSHTTPCookie>>| {
+            let cookies: Retained<NSArray<NSHTTPCookie>> =
+                unsafe { Retained::retain(cookies.as_ptr()) }.expect("cookie array");
+            let mut out = Vec::new();
+            for cookie in cookies.iter() {
+                let domain = cookie.domain().to_string();
+                if !cookie_domain_matches(&domain, &wanted) {
+                    continue;
+                }
+                out.push(AuthCookie {
+                    name: cookie.name().to_string(),
+                    value: cookie.value().to_string(),
+                    domain,
+                    path: cookie.path().to_string(),
+                    http_only: cookie.isHTTPOnly(),
+                    secure: cookie.isSecure(),
+                });
+            }
+            if let Some(tx) = tx.borrow_mut().take() {
+                let _ = tx.send(out);
+            }
+        });
+
+        unsafe { store.getAllCookies(&handler) };
+    });
+
+    if let Err(e) = result {
+        tracing::warn!("[auth_webview] with_webview failed: {}", e);
+        return Vec::new();
+    }
+
+    match tokio::time::timeout(std::time::Duration::from_secs(10), rx).await {
+        Ok(Ok(cookies)) => {
+            tracing::debug!(
+                "[auth_webview] native cookies from WKWebView: {}",
+                cookies.len()
+            );
+            cookies
+        }
+        Ok(Err(_)) => {
+            tracing::warn!("[auth_webview] cookie channel closed");
+            Vec::new()
+        }
+        Err(_) => {
+            tracing::warn!("[auth_webview] getAllCookies timed out");
+            Vec::new()
+        }
+    }
+}
+
+/// Strips scheme and leading dot so a configured `.hotmart.com` and a cookie's
+/// `hotmart.com` compare equal.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn normalize_cookie_domains(domains: &[String]) -> Vec<String> {
+    domains
+        .iter()
+        .map(|d| {
+            d.trim_start_matches("https://")
+                .trim_start_matches("http://")
+                .trim_start_matches('.')
+                .to_lowercase()
+        })
+        .filter(|d| !d.is_empty())
+        .collect()
+}
+
+/// Whether a cookie's domain belongs to one of the requested domains.
+///
+/// An empty list means "everything this window has" — the auth webview is
+/// opened for one login, so there is nothing else in its store to leak.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn cookie_domain_matches(cookie_domain: &str, wanted: &[String]) -> bool {
+    if wanted.is_empty() {
+        return true;
+    }
+    let normalized = cookie_domain.trim_start_matches('.').to_lowercase();
+    wanted
+        .iter()
+        .any(|w| normalized == *w || normalized.ends_with(&format!(".{w}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_scheme_and_leading_dot() {
+        let got = normalize_cookie_domains(&[
+            "https://consumer.hotmart.com".into(),
+            ".hotmart.com".into(),
+            "HOTMART.com".into(),
+            "".into(),
+        ]);
+        assert_eq!(
+            got,
+            vec!["consumer.hotmart.com", "hotmart.com", "hotmart.com"]
+        );
+    }
+
+    #[test]
+    fn matches_exact_and_subdomains() {
+        let wanted = normalize_cookie_domains(&[".hotmart.com".into()]);
+        assert!(cookie_domain_matches("hotmart.com", &wanted));
+        assert!(cookie_domain_matches(".hotmart.com", &wanted));
+        assert!(cookie_domain_matches("consumer.hotmart.com", &wanted));
+    }
+
+    #[test]
+    fn rejects_lookalike_domains() {
+        // The substring check this replaced accepted both of these.
+        let wanted = normalize_cookie_domains(&["hotmart.com".into()]);
+        assert!(!cookie_domain_matches("nothotmart.com", &wanted));
+        assert!(!cookie_domain_matches("hotmart.com.evil.net", &wanted));
+    }
+
+    #[test]
+    fn empty_wanted_keeps_everything() {
+        assert!(cookie_domain_matches("anything.example", &[]));
+    }
 }
