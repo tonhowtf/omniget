@@ -363,9 +363,7 @@
     "close": "close",
     "group_nav": "Navigate",
     "group_action": "Actions",
-    "action_paste": "Paste URL from clipboard",
-    "action_downloads": "Open downloads",
-    "action_settings": "Open settings"
+    "action_paste": "Colar URL da área de transferência"
   },
   "home": {
     "mode_url": "URL",
@@ -556,6 +554,7 @@
     "download_complete": "Pronto! {{name}} está na sua pasta",
     "download_error": "Não consegui baixar {{name}}. Tente novamente?",
     "clipboard_url_detected": "Link detectado! Cole para baixar",
+    "clipboard_empty": "A área de transferência está vazia",
     "auto_download_started": "Download automático iniciado",
     "external_url_ready": "URL recebida e pronta para download",
     "external_url_queued": "Download adicionado pela extensão do Chrome",

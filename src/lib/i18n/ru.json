@@ -363,9 +363,7 @@
     "close": "закрыть",
     "group_nav": "Навигация",
     "group_action": "Действия",
-    "action_paste": "Вставить URL из буфера обмена",
-    "action_downloads": "Открыть загрузки",
-    "action_settings": "Открыть настройки"
+    "action_paste": "Вставить URL из буфера обмена"
   },
   "home": {
     "mode_url": "URL",
@@ -556,6 +554,7 @@
     "download_complete": "Готово! {{name}} в вашей папке",
     "download_error": "Не удалось скачать {{name}}. Повторить?",
     "clipboard_url_detected": "Ссылка обнаружена! Вставьте, чтобы скачать",
+    "clipboard_empty": "Буфер обмена пуст",
     "auto_download_started": "Автозагрузка начата",
     "external_url_ready": "URL получен, готов к скачиванию",
     "external_url_queued": "Загрузка добавлена из расширения Chrome",

@@ -363,9 +363,7 @@
     "close": "close",
     "group_nav": "Navigate",
     "group_action": "Actions",
-    "action_paste": "Paste URL from clipboard",
-    "action_downloads": "Open downloads",
-    "action_settings": "Open settings"
+    "action_paste": "クリップボードから URL を貼り付け"
   },
   "home": {
     "mode_url": "URL",
@@ -556,6 +554,7 @@
     "download_complete": "完了！{{name}} はフォルダに保存されました",
     "download_error": "{{name}} をダウンロードできませんでした。再試行しますか？",
     "clipboard_url_detected": "リンクを検出！貼り付けてダウンロード",
+    "clipboard_empty": "クリップボードが空です",
     "auto_download_started": "自動ダウンロードを開始しました",
     "external_url_ready": "URLを受信し、ダウンロードの準備ができました",
     "external_url_queued": "Chrome拡張機能からダウンロードを追加しました",

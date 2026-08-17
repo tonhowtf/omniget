@@ -381,9 +381,7 @@
     "close": "close",
     "group_nav": "Navigate",
     "group_action": "Actions",
-    "action_paste": "Paste URL from clipboard",
-    "action_downloads": "Open downloads",
-    "action_settings": "Open settings"
+    "action_paste": "Paste URL from clipboard"
   },
   "home": {
     "mode_url": "URL",
@@ -574,6 +572,7 @@
     "download_complete": "Done! {{name}} is in your folder",
     "download_error": "Couldn't download {{name}}. Want to retry?",
     "clipboard_url_detected": "Link detected! Paste to download",
+    "clipboard_empty": "Clipboard is empty",
     "auto_download_started": "Auto-download started",
     "external_url_ready": "URL received and ready to download",
     "external_url_queued": "Download added from the Chrome extension",

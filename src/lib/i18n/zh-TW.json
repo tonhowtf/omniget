@@ -363,9 +363,7 @@
     "close": "close",
     "group_nav": "Navigate",
     "group_action": "Actions",
-    "action_paste": "Paste URL from clipboard",
-    "action_downloads": "Open downloads",
-    "action_settings": "Open settings"
+    "action_paste": "從剪貼簿貼上 URL"
   },
   "home": {
     "mode_url": "URL",
@@ -556,6 +554,7 @@
     "download_complete": "下載完成: {{name}}",
     "download_error": "下載失敗: {{name}}",
     "clipboard_url_detected": "在剪貼簿中偵測到 URL",
+    "clipboard_empty": "剪貼簿是空的",
     "auto_download_started": "已啟動自動下載",
     "external_url_ready": "已收到 URL，可以开始下载",
     "external_url_queued": "已从 Chrome 扩展添加下载",

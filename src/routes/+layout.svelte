@@ -18,6 +18,7 @@
   import { setCommandPaletteItems } from "$lib/stores/command-palette-store.svelte";
   import { refreshUpdateInfo } from "$lib/stores/update-store.svelte";
   import { startClipboardMonitor, stopClipboardMonitor, onClipboardUrl } from "$lib/stores/clipboard-monitor";
+  import { readText } from "@tauri-apps/plugin-clipboard-manager";
   import { initChangelog } from "$lib/stores/changelog-store.svelte";
   import { needsOnboarding } from "$lib/stores/onboarding-store.svelte";
   import { isYtdlpAvailable, isDepsChecked, refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
@@ -176,61 +177,58 @@
     setCommandPaletteItems([
       {
         id: "nav-home",
-        label: get(t)("command_palette.nav_home"),
+        label: get(t)("nav.home"),
         group: get(t)("command_palette.group_nav"),
         keywords: "index main prefill",
         action: () => goto("/"),
       },
       {
         id: "nav-downloads",
-        label: get(t)("command_palette.nav_downloads"),
+        label: get(t)("nav.downloads"),
         group: get(t)("command_palette.group_nav"),
         keywords: "queue active history",
         action: () => goto("/downloads"),
       },
       {
         id: "nav-settings",
-        label: get(t)("command_palette.nav_settings"),
+        label: get(t)("nav.settings"),
         group: get(t)("command_palette.group_nav"),
         keywords: "preferences options config",
         action: () => goto("/settings"),
       },
       {
         id: "nav-marketplace",
-        label: get(t)("command_palette.nav_marketplace"),
+        label: get(t)("nav.marketplace"),
         group: get(t)("command_palette.group_nav"),
         keywords: "plugins extensions store",
         action: () => goto("/marketplace"),
       },
       {
         id: "nav-about",
-        label: get(t)("command_palette.nav_about"),
+        label: get(t)("nav.about"),
         group: get(t)("command_palette.group_nav"),
         keywords: "info version changelog project",
         action: () => goto("/about"),
       },
+      // The three former "action" entries ran the same goto() as the
+      // navigation entries above them, so the palette listed Downloads and
+      // Settings twice and Home three times. Only the paste action does
+      // something navigation cannot — `command_palette.action_paste` was
+      // already translated in every locale, just never wired up.
       {
-        id: "action-prefill",
-        label: get(t)("command_palette.action_prefill"),
+        id: "action-paste",
+        label: get(t)("command_palette.action_paste"),
         group: get(t)("command_palette.group_action"),
-        keywords: "url link add download",
-        action: () => {
+        keywords: "url link add download clipboard prefill",
+        action: async () => {
+          const text = (await readText().catch(() => null))?.trim();
+          if (!text) {
+            showToast("info", get(t)("toast.clipboard_empty") as string);
+            return;
+          }
+          queueExternalPrefill({ action: "prefill", url: text, source: "clipboard" });
           goto("/");
         },
-      },
-      {
-        id: "action-downloads",
-        label: get(t)("command_palette.action_downloads"),
-        group: get(t)("command_palette.group_action"),
-        keywords: "queue",
-        action: () => goto("/downloads"),
-      },
-      {
-        id: "action-settings",
-        label: get(t)("command_palette.action_settings"),
-        group: get(t)("command_palette.group_action"),
-        keywords: "preferences",
-        action: () => goto("/settings"),
       },
     ]);
   }

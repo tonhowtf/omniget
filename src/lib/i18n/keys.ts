@@ -74,9 +74,7 @@ export type TranslationKeys =
   | 'changelog.empty'
   | 'changelog.title'
 
-  | 'command_palette.action_downloads'
   | 'command_palette.action_paste'
-  | 'command_palette.action_settings'
   | 'command_palette.close'
   | 'command_palette.empty'
   | 'command_palette.group_action'
@@ -3695,6 +3693,7 @@ export type TranslationKeys =
   | 'toast.auto_download_started'
   | 'toast.channel_new'
   | 'toast.channel_new_auto'
+  | 'toast.clipboard_empty'
   | 'toast.clipboard_url_detected'
   | 'toast.download_complete'
   | 'toast.download_error'

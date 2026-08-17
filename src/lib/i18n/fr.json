@@ -363,9 +363,7 @@
     "close": "close",
     "group_nav": "Navigate",
     "group_action": "Actions",
-    "action_paste": "Paste URL from clipboard",
-    "action_downloads": "Open downloads",
-    "action_settings": "Open settings"
+    "action_paste": "Coller l'URL du presse-papiers"
   },
   "home": {
     "mode_url": "URL",
@@ -556,6 +554,7 @@
     "download_complete": "Fini ! {{name}} est dans votre dossier",
     "download_error": "Impossible de telecharger {{name}}. Reessayer ?",
     "clipboard_url_detected": "Lien detecte ! Collez pour telecharger",
+    "clipboard_empty": "Le presse-papiers est vide",
     "auto_download_started": "Téléchargement automatique lancé",
     "external_url_ready": "URL reçue et prête à être téléchargée",
     "external_url_queued": "Téléchargement ajouté depuis l'extension Chrome",

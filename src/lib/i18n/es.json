@@ -363,9 +363,7 @@
     "close": "close",
     "group_nav": "Navigate",
     "group_action": "Actions",
-    "action_paste": "Paste URL from clipboard",
-    "action_downloads": "Open downloads",
-    "action_settings": "Open settings"
+    "action_paste": "Pegar URL del portapapeles"
   },
   "home": {
     "mode_url": "URL",
@@ -556,6 +554,7 @@
     "download_complete": "¡Listo! {{name}} está en tu carpeta",
     "download_error": "No se pudo descargar {{name}}. ¿Reintentar?",
     "clipboard_url_detected": "¡Enlace detectado! Pega para descargar",
+    "clipboard_empty": "El portapapeles está vacío",
     "auto_download_started": "Auto-download started",
     "external_url_ready": "URL recibida y lista para descargar",
     "external_url_queued": "Descarga añadida desde la extensión de Chrome",

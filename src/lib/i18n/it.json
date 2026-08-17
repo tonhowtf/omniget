@@ -363,9 +363,7 @@
     "close": "close",
     "group_nav": "Navigate",
     "group_action": "Actions",
-    "action_paste": "Paste URL from clipboard",
-    "action_downloads": "Open downloads",
-    "action_settings": "Open settings"
+    "action_paste": "Incolla URL dagli appunti"
   },
   "home": {
     "mode_url": "URL",
@@ -556,6 +554,7 @@
     "download_complete": "Fatto! {{name}} e nella tua cartella",
     "download_error": "Non riesco a scaricare {{name}}. Riprovare?",
     "clipboard_url_detected": "Link rilevato! Incolla per scaricare",
+    "clipboard_empty": "Gli appunti sono vuoti",
     "auto_download_started": "Download automatico avviato",
     "external_url_ready": "URL ricevuto e pronto per il download",
     "external_url_queued": "Download aggiunto dall'estensione Chrome",
