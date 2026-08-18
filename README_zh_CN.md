@@ -365,7 +365,7 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file lib
 
 ### 命令行工具（需自行构建）
 
-仓库中还包含 `omniget-cli`，一个让 OmniGet 可被脚本调用的小型 Rust 程序。**它目前尚未随 Release 一起发布**，需要你从本仓库自行构建：
+仓库中还包含 `omniget-cli`，一个让 OmniGet 可被脚本调用的小型 Rust 程序。它随每个 Release 一起发布——请在[最新 Release](https://github.com/tonhowtf/omniget/releases/latest) 中下载 `omniget-cli-<版本>-<目标平台>`，支持 Windows、macOS（Intel 与 Apple Silicon）和 Linux。若要从本仓库自行构建：
 
 ```bash
 cargo build --release -p omniget-cli

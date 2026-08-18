@@ -377,9 +377,9 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file lib
 
 Production build: `pnpm tauri build`.
 
-### Command line interface (build it yourself)
+### Command line interface
 
-The repository also contains `omniget-cli`, a small Rust binary that makes OmniGet scriptable. **It is not included in the release downloads yet** — you build it from this repository:
+The repository also contains `omniget-cli`, a small Rust binary that makes OmniGet scriptable. It ships with every release — grab `omniget-cli-<version>-<target>` from the [latest release](https://github.com/tonhowtf/omniget/releases/latest) for Windows, macOS (Intel and Apple Silicon) or Linux. To build it from this repository instead:
 
 ```bash
 cargo build --release -p omniget-cli

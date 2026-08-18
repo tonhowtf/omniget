@@ -365,7 +365,7 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file lib
 
 ### Интерфейс командной строки (собирается вручную)
 
-В репозитории также есть `omniget-cli` — небольшая программа на Rust, которая делает OmniGet пригодным для скриптов. **В готовые сборки она пока не входит**, её нужно собрать из этого репозитория:
+В репозитории также есть `omniget-cli` — небольшая программа на Rust, которая делает OmniGet пригодным для скриптов. Она входит в каждый релиз: скачайте `omniget-cli-<версия>-<платформа>` из [последнего релиза](https://github.com/tonhowtf/omniget/releases/latest) для Windows, macOS (Intel и Apple Silicon) или Linux. Чтобы собрать её из этого репозитория:
 
 ```bash
 cargo build --release -p omniget-cli

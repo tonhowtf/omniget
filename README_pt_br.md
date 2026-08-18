@@ -379,7 +379,7 @@ Build de produção: `pnpm tauri build`.
 
 ### Interface de linha de comando (compile você mesmo)
 
-O repositório também contém o `omniget-cli`, um binário Rust pequeno que torna o OmniGet scriptável. **Ele ainda não vem incluído nos downloads das releases** — você compila a partir deste repositório:
+O repositório também contém o `omniget-cli`, um binário Rust pequeno que torna o OmniGet scriptável. Ele sai junto com cada release — baixe `omniget-cli-<versão>-<alvo>` na [release mais recente](https://github.com/tonhowtf/omniget/releases/latest), para Windows, macOS (Intel e Apple Silicon) ou Linux. Para compilar a partir deste repositório:
 
 ```bash
 cargo build --release -p omniget-cli

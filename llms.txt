@@ -30,7 +30,7 @@ It is not only a downloader. OmniGet includes a course player that resumes to th
 - Can OmniGet download paid content? OmniGet downloads what the user's own logged-in session can already open, such as a course they bought. It does not bypass DRM or paywalls.
 - Is OmniGet a yt-dlp GUI? OmniGet uses yt-dlp for generic sites and adds native extractors for major platforms, a download queue, a library and built-in players. It is more than a front end.
 - Does OmniGet resume interrupted downloads? Yes. The queue keeps partial files and continues from where it stopped, retrying with backoff.
-- Is there a command line interface? `omniget-cli` exists in the repository with `info`, `download`, `batch` and `import-cookies` commands, but it is not included in release downloads and must be built from source.
+- Is there a command line interface? Yes. `omniget-cli` ships with every release for Windows, macOS (Intel and Apple Silicon) and Linux, with `info`, `download`, `batch` and `import-cookies` commands. It can also be built from source.
 
 ## Links
 
