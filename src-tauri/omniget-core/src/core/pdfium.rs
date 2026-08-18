@@ -114,8 +114,33 @@ pub fn pdfium_version_marker_path() -> Option<PathBuf> {
     pdfium_target_dir().map(|d| d.join("pdfium.version"))
 }
 
+/// The PDFium library actually in use, and where it came from: `"custom"` for
+/// a file the user pointed at, `"managed"` for the one OmniGet downloaded.
+///
+/// Issue #222: yt-dlp and FFmpeg have honoured the user's own binary since
+/// the feature shipped, through `find_tool_with_source`. PDFium never did —
+/// only the managed folder was ever checked — so a linked library was
+/// recorded and displayed while the status stayed "missing".
+pub fn resolve_with_source() -> Option<(PathBuf, &'static str)> {
+    if let Some(custom) = crate::core::binary_overrides::get("PDFium") {
+        if custom.is_file() {
+            return Some((custom, "custom"));
+        }
+    }
+    let managed = pdfium_target_path()?;
+    if managed.is_file() {
+        return Some((managed, "managed"));
+    }
+    None
+}
+
+/// Path to the PDFium library to load, honouring a custom override.
+pub fn resolve_path() -> Option<PathBuf> {
+    resolve_with_source().map(|(p, _)| p)
+}
+
 pub fn is_installed() -> bool {
-    pdfium_target_path().map(|p| p.is_file()).unwrap_or(false)
+    resolve_with_source().is_some()
 }
 
 pub fn read_version_marker() -> Option<String> {

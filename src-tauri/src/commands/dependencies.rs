@@ -48,7 +48,8 @@ pub async fn check_dependencies() -> Result<Vec<DependencyStatus>, String> {
         },
     );
 
-    let pdfium_installed = pdfium::is_installed();
+    let pdfium_resolved = pdfium::resolve_with_source();
+    let pdfium_installed = pdfium_resolved.is_some();
     let pdfium_version = if pdfium_installed {
         Some(pdfium::read_version_marker().unwrap_or_else(|| "installed".to_string()))
     } else {
@@ -94,14 +95,16 @@ pub async fn check_dependencies() -> Result<Vec<DependencyStatus>, String> {
             name: "PDFium".into(),
             installed: pdfium_installed,
             version: pdfium_version,
-            source: if pdfium_installed {
-                "managed".into()
-            } else {
-                "missing".into()
-            },
-            path: pdfium::pdfium_target_dir()
-                .filter(|_| pdfium_installed)
-                .map(|p| p.to_string_lossy().to_string()),
+            source: pdfium_resolved
+                .as_ref()
+                .map(|(_, s)| (*s).to_string())
+                .unwrap_or_else(|| "missing".to_string()),
+            // The resolved library, not the managed folder: with a custom
+            // path those are different places, and naming the folder there
+            // would point at something the app is not using.
+            path: pdfium_resolved
+                .as_ref()
+                .map(|(p, _)| p.to_string_lossy().to_string()),
             outdated: false,
         },
     ])
