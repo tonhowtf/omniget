@@ -14,7 +14,7 @@
   import TelegramCloneWizard from "$lib/study-components/TelegramCloneWizard.svelte";
   import TelegramAccountPanel from "$lib/study-components/TelegramAccountPanel.svelte";
   import TelegramSyncIndicator from "$lib/study-components/TelegramSyncIndicator.svelte";
-  import { telegramCreateFolder, isOmnigetFolder, type TelegramGlobalSearchHit } from "$lib/study-telegram-bridge";
+  import { telegramCreateFolder, isOmnigetFolder, type TelegramGlobalSearchHit, type TelegramMediaType } from "$lib/study-telegram-bridge";
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
 
@@ -84,6 +84,21 @@
   let mediaFilter = $state("all");
   let loadingMore = $state(false);
   let hasMore = $state(true);
+  let isScanning = $state(false);
+  let scanCancelled = $state(false);
+  let scanFoundCount = $state(0);
+  let scanPerTypeCount = $state<Record<string, number>>({
+    photo: 0,
+    video: 0,
+    document: 0,
+    audio: 0,
+  });
+  type ScanCache = {
+    chatId: number;
+    chatType: string;
+    byId: Map<number, TelegramMediaItem>;
+  };
+  let scanCache: ScanCache | null = null;
   let mediaSearch = $state("");
   let searchDebounce: ReturnType<typeof setTimeout> | null = null;
   let isSearching = $state(false);
@@ -582,6 +597,7 @@
     batchTotal = 0;
     downloadingIds = new Set();
     resetThumbnails();
+    scanCache = null;
     hasMore = true;
     loadMedia();
   }
@@ -596,6 +612,7 @@
     batchTotal = 0;
     downloadingIds = new Set();
     resetThumbnails();
+    scanCache = null;
     view = "chats";
   }
 
@@ -648,6 +665,81 @@
     }
   }
 
+  async function scanAllMedia() {
+    if (!selectedChat || isScanning || isBatchActive || loadingMedia) return;
+    isScanning = true;
+    scanCancelled = false;
+    mediaError = "";
+    hasMore = false;
+
+    const chatId = selectedChat.id;
+    const chatType = selectedChat.chat_type;
+    const byId = new Map<number, TelegramMediaItem>();
+    scanPerTypeCount = { photo: 0, video: 0, document: 0, audio: 0 };
+    scanFoundCount = 0;
+
+    const filters: TelegramMediaType[] = ["photo", "video", "document", "audio"];
+    const PAGE = 100;
+
+    async function scanOneType(mediaType: TelegramMediaType) {
+      let offset = 0;
+      let typeCount = 0;
+      while (!scanCancelled) {
+        const items: TelegramMediaItem[] = await pluginInvoke<TelegramMediaItem[]>(
+          "telegram",
+          "telegram_list_media",
+          { chatId, chatType, mediaType, offset, limit: PAGE },
+        );
+        if (items.length === 0) break;
+        for (const item of items) {
+          if (!byId.has(item.message_id)) byId.set(item.message_id, item);
+        }
+        typeCount += items.length;
+        scanPerTypeCount = { ...scanPerTypeCount, [mediaType]: typeCount };
+        scanFoundCount = byId.size;
+        if (items.length < PAGE) break;
+        offset = Math.min(...items.map((m) => m.message_id));
+      }
+    }
+
+    try {
+      await Promise.all(filters.map(scanOneType));
+      if (!scanCancelled) {
+        scanCache = { chatId, chatType, byId };
+        const sorted = Array.from(byId.values()).sort(
+          (a, b) => b.message_id - a.message_id,
+        );
+        mediaItems = sorted;
+        mediaFilter = "all";
+        showToast("success", $t("telegram.scan_complete", { count: sorted.length }));
+      } else {
+        showToast("info", $t("telegram.scan_cancelled"));
+      }
+    } catch (e: any) {
+      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
+      showToast("error", msg);
+    } finally {
+      isScanning = false;
+      scanCancelled = false;
+    }
+  }
+
+  function filterFromScanCache(filter: string): boolean {
+    if (!scanCache || !selectedChat) return false;
+    if (scanCache.chatId !== selectedChat.id) return false;
+    const items = Array.from(scanCache.byId.values())
+      .filter((m) => filter === "all" || m.media_type === filter)
+      .sort((a, b) => b.message_id - a.message_id);
+    mediaItems = items;
+    hasMore = false;
+    loadingMedia = false;
+    return true;
+  }
+
+  function cancelScan() {
+    if (isScanning) scanCancelled = true;
+  }
+
   async function searchMedia() {
     if (!selectedChat) return;
     const query = mediaSearch.trim();
@@ -694,12 +786,14 @@
     activeBatchId = null;
     batchDone = 0;
     batchTotal = 0;
-    hasMore = true;
     if (mediaSearch.trim()) {
+      hasMore = true;
       searchMedia();
-    } else {
-      loadMedia();
+      return;
     }
+    if (filterFromScanCache(filter)) return;
+    hasMore = true;
+    loadMedia();
   }
 
   function formatSize(bytes: number): string {
@@ -1153,8 +1247,8 @@
         <button
           class="button account-btn"
           onclick={() => (accountPanelOpen = true)}
-          aria-label="Gerenciar contas"
-          title="Gerenciar contas"
+          aria-label={$t("telegram.manage_accounts")}
+          title={$t("telegram.manage_accounts")}
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
@@ -1314,8 +1408,8 @@
               type="button"
               class="chat-info-btn"
               onclick={(e) => openDrawer(chat, e)}
-              aria-label="Gerenciar {chat.title}"
-              title="Gerenciar"
+              aria-label={$t("telegram.manage_channel_of", { title: chat.title })}
+              title={$t("telegram.manage")}
             >
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="5" r="1.5" />
@@ -1342,14 +1436,14 @@
         type="button"
         class="button manage-btn"
         onclick={(e) => openDrawer(selectedChat!, e)}
-        aria-label="Gerenciar canal"
+        aria-label={$t("telegram.manage_channel")}
       >
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="5" r="1.5" />
           <circle cx="12" cy="12" r="1.5" />
           <circle cx="12" cy="19" r="1.5" />
         </svg>
-        Gerenciar
+        {$t("telegram.manage")}
       </button>
     </div>
 
@@ -1404,7 +1498,23 @@
             <button class="button batch-cancel-btn" onclick={cancelBatch}>
               {$t("telegram.cancel_batch")}
             </button>
+          {:else if isScanning}
+            <button class="button scan-cancel-btn" onclick={cancelScan}>
+              {$t("telegram.cancel_scan")}
+            </button>
+            <button class="button scan-all-btn" disabled>
+              <span class="spinner small"></span>
+              {$t("telegram.scanning", { count: scanFoundCount })}
+            </button>
           {:else}
+            <button
+              class="button scan-all-btn"
+              onclick={scanAllMedia}
+              disabled={isBatchActive || loadingMedia}
+              title={$t("telegram.scan_all_hint")}
+            >
+              {$t("telegram.scan_all")}
+            </button>
             <button
               class="button batch-download-btn"
               onclick={downloadAll}
@@ -1427,6 +1537,25 @@
           <span class="subtext">
             {$t("telegram.batch_progress", { done: batchDone, total: batchTotal })}
           </span>
+        </div>
+      {/if}
+
+      {#if isScanning}
+        <div class="scan-progress-section">
+          <div class="scan-progress-bar-outer">
+            <div class="scan-progress-bar-inner indeterminate"></div>
+          </div>
+          <div class="scan-progress-row">
+            <span class="subtext">
+              {$t("telegram.scanning", { count: scanFoundCount })}
+            </span>
+            <div class="scan-type-chips">
+              <span class="scan-chip">{$t("telegram.filter_photo")} · {scanPerTypeCount.photo}</span>
+              <span class="scan-chip">{$t("telegram.filter_video")} · {scanPerTypeCount.video}</span>
+              <span class="scan-chip">{$t("telegram.filter_document")} · {scanPerTypeCount.document}</span>
+              <span class="scan-chip">{$t("telegram.filter_audio")} · {scanPerTypeCount.audio}</span>
+            </div>
+          </div>
         </div>
       {/if}
 
@@ -1528,7 +1657,7 @@
         {/each}
       </div>
 
-      {#if hasMore}
+      {#if hasMore && !isScanning}
         <button
           class="button load-more-btn"
           onclick={loadMoreMedia}
@@ -2169,13 +2298,80 @@
   }
 
   .batch-download-btn,
-  .batch-cancel-btn {
+  .batch-cancel-btn,
+  .scan-all-btn,
+  .scan-cancel-btn {
     padding: calc(var(--padding) / 2) var(--padding);
     font-size: var(--text-sm);
   }
 
-  .batch-cancel-btn {
+  .batch-cancel-btn,
+  .scan-cancel-btn {
     color: var(--red);
+  }
+
+  .scan-all-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(var(--padding) / 2);
+  }
+
+  .scan-progress-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 0;
+  }
+
+  .scan-progress-bar-outer {
+    position: relative;
+    width: 100%;
+    height: 4px;
+    background: var(--button-elevated);
+    border-radius: 100px;
+    overflow: hidden;
+  }
+
+  .scan-progress-bar-inner {
+    height: 100%;
+    background: var(--blue);
+    border-radius: 100px;
+  }
+
+  .scan-progress-bar-inner.indeterminate {
+    width: 40%;
+    position: absolute;
+    left: 0;
+    animation: scan-slide 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  @keyframes scan-slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(250%); }
+  }
+
+  .scan-progress-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .scan-type-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .scan-chip {
+    padding: 2px 8px;
+    background: var(--button-elevated);
+    border-radius: 100px;
+    font-size: 11px;
+    color: var(--secondary);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 
   .batch-progress-section {

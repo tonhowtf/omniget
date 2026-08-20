@@ -2,6 +2,7 @@
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { onMount, onDestroy } from "svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import { t } from "$lib/i18n";
   import {
     telegramSyncState,
     telegramSyncNow,
@@ -45,34 +46,34 @@
     busy = true;
     try {
       const r = await telegramSyncNow();
-      showToast("info", `${r.updated} canais atualizados`);
+      showToast("info", $t("telegram.sync_updated_toast", { count: r.updated }));
       await refresh();
     } catch (e: any) {
-      showToast("error", typeof e === "string" ? e : (e?.message ?? "Erro ao sincronizar"));
+      showToast("error", typeof e === "string" ? e : (e?.message ?? $t("telegram.sync_error")));
     } finally {
       busy = false;
     }
   }
 
   function ago(ts: number, current: number): string {
-    if (!ts) return "nunca";
+    if (!ts) return $t("telegram.sync_never");
     const delta = Math.max(0, current - ts);
-    if (delta < 60) return "agora";
+    if (delta < 60) return $t("telegram.sync_now");
     const min = Math.floor(delta / 60);
-    if (min < 60) return `há ${min} min`;
+    if (min < 60) return $t("telegram.sync_min_ago", { n: min });
     const hr = Math.floor(min / 60);
-    if (hr < 24) return `há ${hr}h`;
-    return `há ${Math.floor(hr / 24)}d`;
+    if (hr < 24) return $t("telegram.sync_hours_ago", { n: hr });
+    return $t("telegram.sync_days_ago", { n: Math.floor(hr / 24) });
   }
 
   let label = $derived(
     syncSnap?.is_syncing
-      ? "Sincronizando…"
+      ? $t("telegram.sync_syncing")
       : syncSnap?.last_success_at
-      ? `Sync ${ago(syncSnap.last_success_at, now)}`
+      ? $t("telegram.sync_ago", { ago: ago(syncSnap.last_success_at, now) })
       : syncSnap?.enabled
-      ? "Sync pendente"
-      : "Sync off",
+      ? $t("telegram.sync_pending")
+      : $t("telegram.sync_off"),
   );
 
   let dotClass = $derived(
@@ -95,9 +96,9 @@
   onclick={syncNow}
   disabled={busy}
   title={syncSnap?.enabled
-    ? `Sincronização automática a cada ${syncSnap.interval_min ?? 30} min — clique para forçar agora`
-    : "Sincronização desativada — clique para forçar agora"}
-  aria-label="Status de sincronização"
+    ? $t("telegram.sync_title_enabled", { min: syncSnap.interval_min ?? 30 })
+    : $t("telegram.sync_title_disabled")}
+  aria-label={$t("telegram.sync_status_label")}
 >
   <span class="status-dot {dotClass}"></span>
   <span class="sync-label">{label}</span>

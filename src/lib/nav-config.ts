@@ -16,4 +16,6 @@ export const CORE_NAV_ITEMS: NavItem[] = [
   { href: "/marketplace", labelKey: "nav.marketplace", icon: "marketplace", group: "app", order: 30 },
   { href: "/settings", labelKey: "nav.settings", icon: "settings", group: "app", order: 40 },
   { href: "/about", labelKey: "nav.about", icon: "about", group: "app", order: 50 },
+  { href: "/youtube", labelKey: "nav.youtube", icon: "plugin", group: "plugins", order: 60 },
+  { href: "/transcript", labelKey: "nav.transcript", icon: "plugin", group: "plugins", order: 65 },
 ];

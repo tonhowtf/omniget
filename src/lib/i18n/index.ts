@@ -55,6 +55,11 @@ const config = {
       key: "",
       loader: async () => (await import("./es.json")).default,
     },
+    {
+      locale: "id",
+      key: "",
+      loader: async () => (await import("./id.json")).default,
+    },
   ],
 };
 
