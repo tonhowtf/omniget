@@ -62,6 +62,14 @@
       "../browser-extension/chrome/": "browser-extension/chrome/",
       "../browser-extension/firefox/": "browser-extension/firefox/"
     },
+    "linux": {
+      "deb": {
+        "desktopTemplate": "./desktop.template"
+      },
+      "rpm": {
+        "desktopTemplate": "./desktop.template"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
