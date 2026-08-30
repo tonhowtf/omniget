@@ -1,5 +1,40 @@
 #! /usr/bin/env bash
 
+# Vendored copy of linuxdeploy-plugin-gtk, patched for OmniGet.
+#
+# Source:    https://github.com/tauri-apps/linuxdeploy-plugin-gtk
+#            (a fork of https://github.com/linuxdeploy/linuxdeploy-plugin-gtk)
+# Copied at: commit b5eb8d05b4c0ed40107fe2158c5d8527f94568ef (2024-01-04)
+#            This is the exact URL the Tauri bundler fetches at
+#            tauri-bundler/src/bundle/linux/appimage/linuxdeploy.rs.
+#
+# License:   MIT. Copyright 2018-2019 TheAssassin and the linuxdeploy
+#            contributors. Permission is hereby granted, free of charge, to any
+#            person obtaining a copy of this software and associated
+#            documentation files (the "Software"), to deal in the Software
+#            without restriction, including without limitation the rights to
+#            use, copy, modify, merge, publish, distribute, sublicense, and/or
+#            sell copies of the Software, and to permit persons to whom the
+#            Software is furnished to do so, subject to the following
+#            conditions: the above copyright notice and this permission notice
+#            shall be included in all copies or substantial portions of the
+#            Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+#            ANY KIND, EXPRESS OR IMPLIED. See LICENSE.txt in the upstream
+#            repository for the full text.
+#
+# Local modifications (everything else is byte-identical to upstream):
+#   1. copy_tree() skips sources that do not exist instead of aborting the
+#      build. Arch ships builtin gdk-pixbuf loaders, so the pkg-config paths
+#      upstream trusts can point at files that are not there.
+#   2. The gdk-pixbuf loaders.cache directory is created before the cache is
+#      written, so the query tool has somewhere to write to.
+#   3. The `sed -i` on loaders.cache moved inside the `-f` guard. Upstream ran
+#      it unconditionally, so a missing cache tripped `set -e` right after
+#      warning that it was only a warning.
+#
+# Re-syncing: diff this file against the upstream URL above, re-apply the three
+# hunks, and update the commit and date recorded here.
+
 # GTK3 environment variables: https://developer.gnome.org/gtk3/stable/gtk-running.html
 # GTK4 environment variables: https://developer.gnome.org/gtk4/stable/gtk-running.html
 

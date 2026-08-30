@@ -75,7 +75,7 @@ jobs:
           LDAI_UPDATE_INFORMATION: ${{ contains(matrix.platform, 'ubuntu') && 'gh-releases-zsync|tonhowtf|omniget|latest|*AppImage.zsync' || '' }}
           # linuxdeploy bundles an old `strip` that fails on modern .relr.dyn
           # relocations; disable stripping so AppImage bundling succeeds.
-          NO_STRIP: '1'
+          NO_STRIP: ${{ contains(matrix.platform, 'ubuntu') && '1' || '' }}
           NODE_OPTIONS: --max-old-space-size=6144
         with:
           tagName: v__VERSION__

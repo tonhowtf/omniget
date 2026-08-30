@@ -11,7 +11,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri",
-    "tauri:appimage": "sh -c 'mkdir -p ~/.cache/tauri && cp scripts/linux/linuxdeploy-plugin-gtk.sh ~/.cache/tauri/ && chmod +x ~/.cache/tauri/linuxdeploy-plugin-gtk.sh' && NO_STRIP=1 tauri build --bundles appimage --config '{\"bundle\":{\"createUpdaterArtifacts\":false}}'",
+    "tauri:appimage": "bash scripts/linux/appimage.sh",
     "version:set": "node scripts/bump-version.js",
     "generate:i18n-keys": "node scripts/generate-i18n-keys.js",
     "check:i18n": "node scripts/generate-i18n-keys.js --strict",
