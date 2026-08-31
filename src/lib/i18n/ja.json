@@ -567,6 +567,16 @@
       "copied": "ログをコピーしました",
       "copy_failed": "ログをコピーできませんでした",
       "empty": "まだログがありません"
+    },
+    "status_bar": {
+      "region_label": "ダウンロードの進行状況",
+      "active": "{{count}} 件ダウンロード中",
+      "queued": "{{count}} 件キュー待ち",
+      "paused_all": "すべて一時停止中",
+      "eta": "残り {{eta}}",
+      "open": "ダウンロードを表示",
+      "indeterminate": "ダウンロード中、合計サイズ不明",
+      "complete": "ダウンロード完了"
     }
   },
   "toast": {

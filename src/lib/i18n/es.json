@@ -567,6 +567,16 @@
       "copied": "Registro copiado al portapapeles",
       "copy_failed": "No se pudo copiar el registro",
       "empty": "Aún no hay líneas en el registro"
+    },
+    "status_bar": {
+      "region_label": "Progreso de descargas",
+      "active": "{{count}} descargando",
+      "queued": "{{count}} en cola",
+      "paused_all": "Todas en pausa",
+      "eta": "Quedan {{eta}}",
+      "open": "Ver descargas",
+      "indeterminate": "Descargando, tamaño total desconocido",
+      "complete": "Descargas completadas"
     }
   },
   "toast": {

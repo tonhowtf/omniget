@@ -567,6 +567,16 @@
       "copied": "Log copied to clipboard",
       "copy_failed": "Couldn't copy log",
       "empty": "No log lines yet"
+    },
+    "status_bar": {
+      "region_label": "Download progress",
+      "active": "{{count}} downloading",
+      "queued": "{{count}} queued",
+      "paused_all": "All paused",
+      "eta": "ETA {{eta}}",
+      "open": "View downloads",
+      "indeterminate": "Downloading, total size unknown",
+      "complete": "Downloads complete"
     }
   },
   "toast": {

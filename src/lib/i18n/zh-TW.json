@@ -567,6 +567,16 @@
       "copied": "日誌已複製",
       "copy_failed": "無法複製日誌",
       "empty": "尚無日誌"
+    },
+    "status_bar": {
+      "region_label": "下載進度",
+      "active": "{{count}} 個下載中",
+      "queued": "{{count}} 個佇列中",
+      "paused_all": "全部已暫停",
+      "eta": "剩餘 {{eta}}",
+      "open": "檢視下載",
+      "indeterminate": "正在下載，總大小未知",
+      "complete": "下載完成"
     }
   },
   "toast": {
