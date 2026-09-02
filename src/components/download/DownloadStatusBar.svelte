@@ -11,7 +11,6 @@
     formatEta,
   } from "$lib/stores/download-store.svelte";
 
-  /** How long the bar lingers after the queue drains, so back-to-back items don't flicker it. */
   const GRACE_MS = 2000;
 
   let agg = $derived(getAggregate());
@@ -20,7 +19,6 @@
   let visible = $state(false);
   let showComplete = $state(false);
   let graceTimer: ReturnType<typeof setTimeout> | null = null;
-  // Plain, not $state: the effect below must not depend on what it writes.
   let wasBusy = false;
 
   $effect(() => {
@@ -63,11 +61,6 @@
         : ($t("downloads.status_bar.queued", { count: agg.queuedCount }) as string),
   );
 
-  /**
-   * Screen readers must not hear a per-frame speed readout, so the live region is
-   * driven by a key that only changes on appear, on a count change, at every 25%
-   * crossing, on completion, and on a locale switch.
-   */
   let announceKey = $derived(
     !visible
       ? ""
@@ -190,8 +183,11 @@
     }
   }
 
+  :global(body:has(.global-player-bar)) .dl-status-bar {
+    margin-bottom: 80px;
+  }
+
   .dl-track {
-    /* .progress supplies the track; only the fill colour varies by state. */
     height: 3px;
   }
 
@@ -261,7 +257,6 @@
     outline-offset: var(--focus-ring-offset);
   }
 
-  /* No global sr-only utility exists in this codebase, so it lives here. */
   .dl-sr {
     position: absolute;
     width: 1px;

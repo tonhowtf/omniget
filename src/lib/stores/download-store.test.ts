@@ -110,7 +110,6 @@ describe("getAggregate", () => {
     expect(agg.downloadedBytes).toBe(500);
     expect(agg.totalBytes).toBe(4000);
     expect(agg.percent).toBeCloseTo(12.5);
-    // (4000 - 500) / 4000
     expect(agg.etaSeconds).toBeCloseTo(0.875);
   });
 
@@ -150,12 +149,66 @@ describe("getAggregate", () => {
     const agg = store.getAggregate();
     expect(agg.queuedCount).toBe(1);
     expect(agg.pausedCount).toBe(1);
-    // downloading + seeding
-    expect(agg.activeCount).toBe(2);
+    expect(agg.activeCount).toBe(1);
     expect(agg.speedBps).toBe(1000);
     expect(agg.downloadedBytes).toBe(500);
     expect(agg.totalBytes).toBe(1000);
     expect(agg.percent).toBeCloseTo(50);
+  });
+
+  it("reports a seeding-only queue as idle so the bar does not stay pinned", () => {
+    store.syncQueueState([
+      queueItem(1, {
+        status: { type: "Seeding" },
+        percent: 100,
+        speed_bytes_per_sec: 0,
+        downloaded_bytes: 4096,
+        total_bytes: 4096,
+      }),
+    ]);
+
+    expect(store.getAggregate()).toMatchObject({
+      activeCount: 0,
+      queuedCount: 0,
+      pausedCount: 0,
+      speedBps: 0,
+      downloadedBytes: 0,
+      totalBytes: null,
+      percent: null,
+      etaSeconds: null,
+    });
+  });
+
+  it("keeps counting a seeding torrent in the sidebar badge", () => {
+    store.syncQueueState([
+      queueItem(1, { status: { type: "Seeding" }, percent: 100, total_bytes: 4096 }),
+    ]);
+
+    const counts = store.getCounts();
+    expect(counts.active).toBe(1);
+    expect(counts.badge).toBe(1);
+  });
+
+  it("drops stale samples once the queue drains", () => {
+    let clock = Date.now();
+    const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => clock);
+    try {
+      for (let i = 0; i < 3; i++) {
+        clock += 1000;
+        store.syncQueueState([
+          queueItem(1, { speed_bytes_per_sec: 1000, downloaded_bytes: i * 100, total_bytes: 10_000 }),
+        ]);
+      }
+      expect(store.getAggregateSpeedHistory().length).toBeGreaterThan(0);
+
+      clock += 1000;
+      store.syncQueueState([
+        queueItem(1, { status: { type: "Complete" }, percent: 100, total_bytes: 10_000 }),
+      ]);
+      expect(store.getAggregateSpeedHistory()).toHaveLength(0);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 
   it("lets a course item contribute speed but forces percent to null", () => {

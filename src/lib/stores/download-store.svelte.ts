@@ -63,8 +63,6 @@ const speedHistory = new Map<number, SpeedPoint[]>();
 const suppressedGenericIds = new Set<number>();
 let flushScheduled = false;
 
-// Combined transfer rate over time, for the app-wide status bar sparkline.
-// Reassigned (never mutated in place) so readers invalidate, same as `downloads`.
 let aggregateSpeedHistory = $state<SpeedPoint[]>([]);
 let lastAggregateSampleAt = 0;
 
@@ -89,22 +87,25 @@ function clearSpeedHistory(id: number) {
 }
 
 function sampleAggregateSpeed(now: number) {
-  if (downloads.size === 0) {
-    if (aggregateSpeedHistory.length > 0) aggregateSpeedHistory = [];
-    lastAggregateSampleAt = 0;
-    return;
-  }
-  if (now - lastAggregateSampleAt < AGGREGATE_SAMPLE_MS) return;
-
   let bps = 0;
   let anyActive = false;
+  let anyPending = false;
   for (const item of downloads.values()) {
     if (item.status === "downloading") {
       bps += Math.max(0, item.speed);
       anyActive = true;
+    } else if (item.status === "queued" || item.status === "paused") {
+      anyPending = true;
     }
   }
-  // Nothing transferring and nothing plotted yet: stay empty instead of a flat zero line.
+
+  if (!anyActive && !anyPending) {
+    if (aggregateSpeedHistory.length > 0) aggregateSpeedHistory = [];
+    lastAggregateSampleAt = 0;
+    return;
+  }
+
+  if (now - lastAggregateSampleAt < AGGREGATE_SAMPLE_MS) return;
   if (!anyActive && aggregateSpeedHistory.length === 0) return;
 
   lastAggregateSampleAt = now;
@@ -182,22 +183,13 @@ export type DownloadAggregate = {
   activeCount: number;
   queuedCount: number;
   pausedCount: number;
-  /** Sum of the transfer rate of every downloading item, bytes/sec. */
   speedBps: number;
   downloadedBytes: number;
-  /** null when any downloading item has an unknown size (livestreams, course items). */
   totalBytes: number | null;
-  /** null whenever totalBytes is null. */
   percent: number | null;
-  /** null when stalled or unknowable. Never Infinity or NaN. */
   etaSeconds: number | null;
 };
 
-/**
- * Whole-queue rollup for the status bar. Only `downloading` items feed the
- * speed/bytes/ETA maths; `seeding` counts as active (it is an upload) and
- * queued/paused only drive visibility.
- */
 export function getAggregate(): DownloadAggregate {
   let activeCount = 0;
   let queuedCount = 0;
@@ -212,7 +204,6 @@ export function getAggregate(): DownloadAggregate {
   for (const item of downloads.values()) {
     if (item.status === "queued") { queuedCount++; continue; }
     if (item.status === "paused") { pausedCount++; continue; }
-    if (item.status === "seeding") { activeCount++; continue; }
     if (item.status !== "downloading") continue;
 
     activeCount++;
@@ -231,7 +222,6 @@ export function getAggregate(): DownloadAggregate {
         maxItemEta = maxItemEta === null ? eta : Math.max(maxItemEta, eta);
       }
     } else {
-      // Course items report bytes downloaded but no total and no ETA.
       downloadedBytes += Math.max(0, item.bytesDownloaded);
       allTotalsKnown = false;
     }
