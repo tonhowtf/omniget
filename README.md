@@ -381,9 +381,9 @@ Production build:
 pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
 ```
 
-Releases sign their updater artifacts with a private key only the maintainers hold, so a plain `pnpm tauri build` stops at the bundling step with *"A public key has been found, but no private key"*. The flag above turns those artifacts off for your local build — everything else is identical. It is passed on the command line rather than committed to `tauri.conf.json` on purpose: a config that disables them by default would silently ship a release with no signatures and break the auto-updater for everyone.
+On Linux, use `pnpm tauri:appimage` instead (wraps the same flag, skips the strip step that fails on `.relr.dyn`, uses a patched `linuxdeploy-plugin-gtk.sh` that works on Arch).
 
-On Linux, build the AppImage with `pnpm tauri:appimage` instead. It wraps the same flag and adds two things a plain `tauri build --bundles appimage` gets wrong outside of CI: it skips the strip step that fails on the `.relr.dyn` sections newer linkers emit, and it hands the bundler a patched `linuxdeploy-plugin-gtk.sh` that survives distros shipping builtin gdk-pixbuf loaders (Arch, among others). The patched plugin goes into this project's `src-tauri/target/.tauri/`, not the shared `~/.cache/tauri/`, so it never leaks into your other Tauri projects — `cargo clean` removes it.
+Releases sign their updater artifacts with a private key only the maintainers hold, so a plain `pnpm tauri build` stops at the bundling step with *"A public key has been found, but no private key"*. The flag above turns those artifacts off for your local build — everything else is identical. It is passed on the command line rather than committed to `tauri.conf.json` on purpose: a config that disables them by default would silently ship a release with no signatures and break the auto-updater for everyone.
 
 ### Command line interface
 

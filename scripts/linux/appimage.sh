@@ -22,6 +22,7 @@ mkdir -p "$tools_dir"
 cp scripts/linux/linuxdeploy-plugin-gtk.sh "$tools_dir/"
 chmod +x "$tools_dir/linuxdeploy-plugin-gtk.sh"
 echo "Using patched linuxdeploy-plugin-gtk.sh from $tools_dir"
+echo "Tool cache is project-local (target/.tauri/); 'cargo clean' removes it."
 
 # NO_STRIP: linuxdeploy's strip step fails on the .relr.dyn sections newer
 # linkers emit. createUpdaterArtifacts: a local build has no signing key.
