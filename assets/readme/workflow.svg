@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1600" height="400" viewBox="0 0 1600 400" role="img" aria-labelledby="t d">
+<title id="t">How OmniGet works</title><desc id="d">Step 1: paste a link or press the global hotkey. Step 2: OmniGet detects the site and fetches with a native extractor or yt-dlp, using your cookies from the browser extension. Step 3: the queue downloads with resume and retry. Step 4: the file lands in your folder and opens in Study or the Tools.</desc>
+<defs>
+  <linearGradient id="orange" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB340"/><stop offset="1" stop-color="#F28500"/></linearGradient>
+  <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#F28500" stop-opacity="0.35"/><stop offset="1" stop-color="#F28500" stop-opacity="0"/></radialGradient>
+  <linearGradient id="yt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF4E45"/><stop offset="1" stop-color="#E10E0E"/></linearGradient>
+  <linearGradient id="ig" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#8A3AB9"/><stop offset="0.5" stop-color="#E1306C"/><stop offset="1" stop-color="#FCAF45"/></linearGradient>
+  <linearGradient id="x" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1D9BF0"/><stop offset="1" stop-color="#0F6FB8"/></linearGradient>
+  <linearGradient id="pin" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF5B6E"/><stop offset="1" stop-color="#E60023"/></linearGradient>
+  <linearGradient id="tt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4A4A52"/><stop offset="1" stop-color="#1C1C21"/></linearGradient>
+  <linearGradient id="udemy" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C77DFF"/><stop offset="1" stop-color="#8E3FD8"/></linearGradient>
+  <linearGradient id="hot" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB340"/><stop offset="1" stop-color="#F28500"/></linearGradient>
+  <linearGradient id="tg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5AA9FF"/><stop offset="1" stop-color="#1E6FE8"/></linearGradient>
+  <linearGradient id="green" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4CD964"/><stop offset="1" stop-color="#2AA845"/></linearGradient>
+  <linearGradient id="indigo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6E8CFF"/><stop offset="1" stop-color="#3D5BF0"/></linearGradient>
+  <linearGradient id="teal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#48CFDF"/><stop offset="1" stop-color="#1A9EB5"/></linearGradient>
+  <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000" flood-opacity="0.45"/></filter>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#6E6E73"/></marker>
+</defs>
+<style>
+  text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Helvetica, Arial, sans-serif; }
+  .mono { font-family: 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace; }
+</style>
+<rect width="1600" height="400" rx="28" fill="#1C1C1E"/>
+<text x="60" y="62" font-size="26" fill="#F5F5F7" font-weight="700" text-anchor="start">How it works</text>
+<text x="60" y="92" font-size="16" fill="#A1A1A6" font-weight="400" text-anchor="start">One text box in front, yt-dlp and native extractors behind it.</text>
+<rect x="60" y="130" width="340" height="220" rx="20" fill="#2A2A2D" stroke="#3A3A3D"/>
+<circle cx="94" cy="168" r="16" fill="url(#orange)"/><text x="94" y="174" font-size="17" fill="#1C1C1E" font-weight="700" text-anchor="middle">1</text>
+<g filter="url(#shadow)"><rect x="324" y="148" width="56" height="56" rx="13" fill="url(#orange)"/><path d="M352.0 159.2 v22.400000000000002" stroke="#fff" stroke-width="4.48" stroke-linecap="round"/><path d="M340.8 173.2 L352.0 184.4 L363.2 173.2" fill="none" stroke="#fff" stroke-width="4.48" stroke-linecap="round" stroke-linejoin="round"/><path d="M335.2 190.0 h33.6" stroke="#fff" stroke-width="4.48" stroke-linecap="round"/></g>
+<text x="84" y="242" font-size="20" fill="#F5F5F7" font-weight="700" text-anchor="start">Paste a link</text>
+<text x="84" y="272" font-size="15" fill="#A1A1A6" font-weight="400" text-anchor="start">Or copy one anywhere and press</text>
+<text x="84" y="296" font-size="15" fill="#A1A1A6" font-weight="400" text-anchor="start">Ctrl+Shift+D. The browser</text>
+<text x="84" y="320" font-size="15" fill="#A1A1A6" font-weight="400" text-anchor="start">extension sends pages too.</text>
+<path d="M406 240.0 h26" stroke="#6E6E73" stroke-width="3" stroke-linecap="round" marker-end="url(#arrow)"/>
+<rect x="440" y="130" width="340" height="220" rx="20" fill="#2A2A2D" stroke="#3A3A3D"/>
+<circle cx="474" cy="168" r="16" fill="url(#orange)"/><text x="474" y="174" font-size="17" fill="#1C1C1E" font-weight="700" text-anchor="middle">2</text>
+<g filter="url(#shadow)"><rect x="704" y="148" width="56" height="56" rx="13" fill="url(#indigo)"/><circle cx="732.0" cy="176.0" r="16.8" fill="none" stroke="#fff" stroke-width="5.04"/><circle cx="732.0" cy="176.0" r="7.056" fill="#fff"/></g>
+<text x="464" y="242" font-size="20" fill="#F5F5F7" font-weight="700" text-anchor="start">OmniGet detects the site</text>
+<text x="464" y="272" font-size="15" fill="#A1A1A6" font-weight="400" text-anchor="start">Native extractors for courses,</text>
+<text x="464" y="296" font-size="15" fill="#A1A1A6" font-weight="400" text-anchor="start">Instagram, X, Pinterest, Bilibili,</text>
+<text x="464" y="320" font-size="15" fill="#A1A1A6" font-weight="400" text-anchor="start">torrents. yt-dlp for 1,800+ others.</text>
+<path d="M786 240.0 h26" stroke="#6E6E73" stroke-width="3" stroke-linecap="round" marker-end="url(#arrow)"/>
+<rect x="820" y="130" width="340" height="220" rx="20" fill="#2A2A2D" stroke="#3A3A3D"/>
+<circle cx="854" cy="168" r="16" fill="url(#orange)"/><text x="854" y="174" font-size="17" fill="#1C1C1E" font-weight="700" text-anchor="middle">3</text>
+<g filter="url(#shadow)"><rect x="1084" y="148" width="56" height="56" rx="13" fill="url(#green)"/><rect x="1091.0" y="171.8" width="3.92" height="8.4" rx="1.96" fill="#fff"/><rect x="1098.0" y="167.6" width="3.92" height="16.8" rx="1.96" fill="#fff"/><rect x="1105.0" y="163.4" width="3.92" height="25.200000000000003" rx="1.96" fill="#fff"/><rect x="1112.0" y="169.0" width="3.92" height="14.000000000000002" rx="1.96" fill="#fff"/><rect x="1119.0" y="164.8" width="3.92" height="22.400000000000002" rx="1.96" fill="#fff"/><rect x="1126.0" y="170.4" width="3.92" height="11.200000000000001" rx="1.96" fill="#fff"/><rect x="1133.0" y="166.2" width="3.92" height="19.6" rx="1.96" fill="#fff"/></g>
+<text x="844" y="242" font-size="20" fill="#F5F5F7" font-weight="700" text-anchor="start">The queue downloads</text>
+<text x="844" y="272" font-size="15" fill="#A1A1A6" font-weight="400" text-anchor="start">Speed and ETA from the downloader,</text>
+<text x="844" y="296" font-size="15" fill="#A1A1A6" font-weight="400" text-anchor="start">resume after interruptions,</text>
+<text x="844" y="320" font-size="15" fill="#A1A1A6" font-weight="400" text-anchor="start">retries with backoff on rate limits.</text>
+<path d="M1166 240.0 h26" stroke="#6E6E73" stroke-width="3" stroke-linecap="round" marker-end="url(#arrow)"/>
+<rect x="1200" y="130" width="340" height="220" rx="20" fill="#2A2A2D" stroke="#3A3A3D"/>
+<circle cx="1234" cy="168" r="16" fill="url(#orange)"/><text x="1234" y="174" font-size="17" fill="#1C1C1E" font-weight="700" text-anchor="middle">4</text>
+<g filter="url(#shadow)"><rect x="1464" y="148" width="56" height="56" rx="13" fill="url(#teal)"/><path d="M1472.4 162.0 h16.8 v30.800000000000004 h-16.8 z" fill="#fff"/><path d="M1494.8 162.0 h16.8 v30.800000000000004 h-16.8 z" fill="#fff" opacity="0.8"/></g>
+<text x="1224" y="242" font-size="20" fill="#F5F5F7" font-weight="700" text-anchor="start">The file is yours</text>
+<text x="1224" y="272" font-size="15" fill="#A1A1A6" font-weight="400" text-anchor="start">Saved to your folder, then opened</text>
+<text x="1224" y="296" font-size="15" fill="#A1A1A6" font-weight="400" text-anchor="start">in the Study player or reader,</text>
+<text x="1224" y="320" font-size="15" fill="#A1A1A6" font-weight="400" text-anchor="start">or handed to a tool.</text>
+</svg>

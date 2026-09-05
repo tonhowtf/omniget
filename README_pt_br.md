@@ -1,361 +1,541 @@
 <!--
-SEO / discovery: OmniGet é um downloader livre e de código aberto para Windows, macOS e Linux.
-O GitHub limita os topics a 20, então esta lista tem exatamente 20 — adicionar um significa remover outro.
-Escolhidos pela chance de ranquear: o OmniGet é #1 em estrelas em course-downloader, udemy-downloader,
-hotmart-downloader, bilibili-downloader, tiktok-downloader, twitter-downloader,
-reddit-downloader e media-downloader. Topics amplos (rust, svelte, tauri, desktop-app,
-open-source) foram deixados de fora de propósito: lá o campo tem de 10 mil a 110 mil repositórios e este
-repositório não consegue ranquear, então essas vagas valem mais em outro lugar.
-downloader, download-manager, media-downloader, video-downloader, youtube-downloader,
-yt-dlp, yt-dlp-gui, course-downloader, udemy-downloader, hotmart-downloader,
-bilibili-downloader, tiktok-downloader, instagram-downloader, twitter-downloader,
-reddit-downloader, telegram-downloader, twitch-downloader, subtitle-downloader,
-epub-reader, spaced-repetition
+Palavras-chave de busca (ficam aqui para a busca do GitHub, o Google e os assistentes de IA acharem o projeto):
+OmniGet é um downloader e caixa de ferramentas de mídia, gratuito e open source, para Windows, macOS e Linux.
+baixar curso udemy, baixar curso hotmart, baixar curso kiwify, downloader de cursos, baixar video youtube,
+yt-dlp gui, baixar instagram, baixar story instagram, baixar reels, baixar video twitter, baixar video x,
+baixar pinterest, backup de board pinterest, baixar tiktok, baixar reddit, baixar vod twitch, baixar bilibili,
+baixar telegram, cliente torrent, magnet, baixar legendas, transcrição whisper, texto para fala, leitor epub,
+leitor pdf, flashcards anki, repetição espaçada, player de música, spicetify, gerenciador de downloads, tauri, rust, svelte.
 -->
 
 <p align="center">
-  <img src="static/loop.png" alt="Loop, o mascote do OmniGet" width="120" />
+  <img src="assets/readme/hero.svg" alt="OmniGet: cole um link, receba o arquivo. Downloads, ferramentas e biblioteca de estudo em um só app para Windows, macOS e Linux." width="100%" />
 </p>
 
 <h1 align="center">OmniGet</h1>
 
-<h3 align="center">Baixe cursos da Udemy, YouTube, músicas, livros e mais de 1.800 sites em um só app. Sem terminal.</h3>
-
 <p align="center">
   <a href="README.md">English</a>
-  | <a href="README_zh_CN.md">中文</a>
-  | <a href="README.ru.md">Русский</a>
-  | <b>Português (BR)</b>
+  · <b>Português (BR)</b>
+  · <a href="README.ru.md">Русский</a>
+  · <a href="README_zh_CN.md">简体中文</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/github/v/release/tonhowtf/omniget?style=for-the-badge&label=release" alt="Versão mais recente" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=for-the-badge" alt="Licença GPL-3.0" /></a>
-  <a href="https://github.com/tonhowtf/omniget/stargazers"><img src="https://img.shields.io/github/stars/tonhowtf/omniget?style=for-the-badge" alt="Estrelas no GitHub" /></a>
-  <a href="https://github.com/tonhowtf/omniget/releases"><img src="https://img.shields.io/github/downloads/tonhowtf/omniget/total?style=for-the-badge&label=downloads" alt="Total de downloads" /></a>
+  <sub>Tradução para o português do Brasil iniciada por <a href="https://github.com/alvarorichard">@alvarorichard</a> (<a href="https://github.com/tonhowtf/omniget/pull/280">PR #280</a>). Obrigado.</sub>
+</p>
+
+<p align="center">
+  <b>Baixe cursos da Udemy e da Hotmart, YouTube, Instagram, X, Pinterest, TikTok e mais de 1.800 outros sites.<br/>Depois transcreva, converta, leia e estude o que salvou. Um único app de desktop, gratuito, sem terminal.</b>
+</p>
+
+<p align="center">
+  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/github/v/release/tonhowtf/omniget?style=for-the-badge&label=release&color=F28500" alt="Última versão" /></a>
+  <a href="https://github.com/tonhowtf/omniget/releases"><img src="https://img.shields.io/github/downloads/tonhowtf/omniget/total?style=for-the-badge&label=downloads&color=1E6FE8" alt="Total de downloads" /></a>
+  <a href="https://github.com/tonhowtf/omniget/stargazers"><img src="https://img.shields.io/github/stars/tonhowtf/omniget?style=for-the-badge&color=FFD426" alt="Estrelas no GitHub" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-2AA845?style=for-the-badge" alt="Licença GPL-3.0" /></a>
+  <a href="https://discord.gg/jgdxyPy7Vn"><img src="https://img.shields.io/badge/Discord-comunidade-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Comunidade no Discord" /></a>
   <a href="https://hosted.weblate.org/engage/omniget/"><img src="https://hosted.weblate.org/widget/omniget/frontend-json/svg-badge.svg" alt="Status da tradução" /></a>
 </p>
 
 <p align="center">
-  <b>O OmniGet é um aplicativo de desktop livre e de código aberto para Windows, macOS e Linux.</b> Ele baixa cursos online (Hotmart, Udemy, Kiwify, Skool, Teachable e outros), vídeo e áudio do YouTube, TikTok, Instagram, Twitter/X, Reddit e mais de 1.800 outros sites, além de músicas e livros. Tudo toca dentro do próprio app. Sem linha de comando, sem Python, sem configuração, e seus arquivos ficam no seu computador. Distribuído sob a licença GPL-3.0.
+  <a href="#baixar-e-instalar"><img src="https://img.shields.io/badge/Baixar_para_Windows,_macOS_ou_Linux-→-F28500?style=for-the-badge" alt="Baixar o OmniGet" height="40" /></a>
+  &nbsp;
+  <a href="#a-seção-tools-108-ferramentas-em-16-categorias"><img src="https://img.shields.io/badge/Ver_as_108_ferramentas-→-3D5BF0?style=for-the-badge" alt="Ver a seção Tools" height="40" /></a>
 </p>
 
 <p align="center">
-  <a href="#baixar-e-instalar"><b>Baixar para Windows, macOS ou Linux</b></a>
-  &nbsp;·&nbsp;
-  <a href="#uma-tecla-e-o-download-já-começa"><b>Ver o atalho de um clique</b></a>
+  <sub>Gratuito. Open source sob GPL-3.0. Sem conta, sem anúncios, sem telemetria do que você baixa. Seus arquivos ficam no seu computador.</sub><br/>
+  <sub>Mais de 9.500 estrelas no GitHub. O repositório mais estrelado nos tópicos <a href="https://github.com/topics/udemy-downloader">udemy-downloader</a>, <a href="https://github.com/topics/hotmart-downloader">hotmart-downloader</a> e <a href="https://github.com/topics/course-downloader">course-downloader</a>.</sub>
 </p>
 
 <p align="center">
-  <img src="assets/readme/en/home-hero.png" alt="Tela inicial do OmniGet, um downloader gratuito de cursos, vídeos, músicas e livros para Windows, macOS e Linux" width="880" />
+  <img src="assets/readme/home.png" alt="Tela inicial do OmniGet: cole uma URL, um magnet ou um .torrent e o arquivo cai na sua pasta" width="900" />
 </p>
+
+---
+
+## Sumário
+
+- [Por que o OmniGet](#por-que-o-omniget)
+- [Baixar e instalar](#baixar-e-instalar)
+- [Seu primeiro download em um minuto](#seu-primeiro-download-em-um-minuto)
+- [O que o OmniGet baixa](#o-que-o-omniget-baixa)
+- [A extensão do navegador, passo a passo](#a-extensão-do-navegador-passo-a-passo)
+- [A seção Tools: 108 ferramentas em 16 categorias](#a-seção-tools-108-ferramentas-em-16-categorias)
+- [Plugins: Courses, Study, Telegram, Convert](#plugins-courses-study-telegram-convert)
+- [Chat embutido, desligado por padrão](#chat-embutido-desligado-por-padrão)
+- [Para quem joga League of Legends, desligado por padrão](#para-quem-joga-league-of-legends-desligado-por-padrão)
+- [Tudo o mais que vem na caixa](#tudo-o-mais-que-vem-na-caixa)
+- [Privacidade e o que o OmniGet se recusa a fazer](#privacidade-e-o-que-o-omniget-se-recusa-a-fazer)
+- [Perguntas frequentes](#perguntas-frequentes)
+- [Linha de comando](#linha-de-comando)
+- [Compilar do código-fonte](#compilar-do-código-fonte)
+- [Contribuir e traduzir](#contribuir-e-traduzir)
+
+---
+
+## Por que o OmniGet
+
+Você comprou um curso e quer ele no seu disco antes que a plataforma tire do ar. Você mantém uma colinha do yt-dlp porque as flags nunca ficam na cabeça. Tem um site para stories do Instagram, outro para vídeos do X, uma extensão de Chrome para o Pinterest, um script em Python para legendas, e nenhum deles lembra o seu login.
+
+O OmniGet coloca tudo isso atrás de uma única caixa de texto. Cole um link, veja a prévia com as opções de qualidade, clique em baixar. A mesma janela depois reproduz o curso, abre o PDF, transcreve o áudio e faz backup do board do Pinterest. O yt-dlp e o FFmpeg se instalam e se atualizam sozinhos, então não há nada para configurar e nenhum terminal para abrir.
+
+<p align="center">
+  <img src="assets/readme/workflow.svg" alt="Como o OmniGet funciona: cole um link ou aperte o atalho, o OmniGet detecta o site e baixa com yt-dlp ou um extrator nativo, o arquivo cai na sua pasta e abre no player, no leitor ou nas ferramentas." width="100%" />
+</p>
+
+### Como se compara
+
+| | OmniGet | yt-dlp sozinho | Downloaders web de um site só | Downloaders de cursos pagos |
+|---|---|---|---|---|
+| Sites | Cursos, Instagram, X, Pinterest, Bilibili, Telegram e torrents nativos, mais de 1.800 via yt-dlp | 1.800+ | Um | Uma ou duas plataformas |
+| Instalação | Baixe um arquivo e abra | Python, PATH, FFmpeg, flags | Nenhuma | Instalador e chave de licença |
+| Conteúdo logado | Cookies do seu navegador pela extensão | Exportar `--cookies` na mão | Raramente | Às vezes |
+| Fila | Retomar, repetir com backoff, regras, canais seguidos | Um comando por vez | Não | Varia |
+| Depois do download | Player, leitor, flashcards, notas, 108 ferramentas | Arquivos | Arquivos, muitas vezes recodificados | Arquivos |
+| Preço e licença | Grátis, GPL-3.0 | Grátis, Unlicense | Grátis com anúncios | Assinatura |
+
+O yt-dlp é o motor sobre o qual o OmniGet roda, e o OmniGet não existiria sem ele. Se você vive no terminal e só quer arquivos, o yt-dlp sozinho é a ferramenta certa.
 
 ---
 
 ## Baixar e instalar
 
-Escolha seu sistema, baixe a versão mais recente e abra. Não há instalador cheio de etapas nem necessidade de permissão de administrador.
+Escolha o seu sistema. Todas as versões estão na [página de Releases](https://github.com/tonhowtf/omniget/releases/latest). As atualizações chegam dentro do app.
 
 <table>
   <tr>
-    <th>Plataforma</th>
-    <th>Como instalar</th>
+    <th align="left">Sistema</th>
+    <th align="left">O que baixar</th>
+    <th align="left">Outras formas</th>
   </tr>
   <tr>
-    <td><strong>Windows</strong></td>
-    <td>
-      <a href="https://github.com/tonhowtf/omniget/releases/latest"><img alt="Baixar o OmniGet para Windows" src="https://img.shields.io/badge/Windows-Portable_EXE-0078D6?style=for-the-badge&logo=windows&logoColor=white" height="38"></a>
-      <br/>
-      <sub>Baixe o <code>.exe</code> em Releases e dê dois cliques. Ele é portátil, então roda de qualquer pasta. Também existe um instalador <code>.msi</code> e o comando <code>winget install -e --id tonhowtf.OmniGet</code>, se você preferir a linha de comando.</sub>
-    </td>
+    <td><b>Windows 10 / 11</b></td>
+    <td><code>omniget_x.y.z_x64-setup.exe</code> (instalador)<br/><code>omniget_x.y.z_x64-portable.exe</code> (sem instalar, roda de qualquer pasta)<br/><code>omniget_x.y.z_x64_en-US.msi</code> (para TI)</td>
+    <td><code>winget install -e --id tonhowtf.OmniGet</code></td>
   </tr>
   <tr>
-    <td><strong>macOS</strong></td>
-    <td>
-      <a href="https://github.com/tonhowtf/omniget/releases/latest"><img alt="Baixar o OmniGet para macOS" src="https://img.shields.io/badge/macOS-DMG-000000?style=for-the-badge&logo=apple&logoColor=white" height="38"></a>
-      <br/>
-      <sub>Abra o <code>.dmg</code> e arraste o OmniGet para a pasta Aplicativos. Leia a observação sobre a primeira abertura logo abaixo.</sub>
-    </td>
+    <td><b>macOS 10.15+</b></td>
+    <td><code>omniget_x.y.z_aarch64.dmg</code> para Apple Silicon (M1 em diante)<br/><code>omniget_x.y.z_x64.dmg</code> para Macs Intel</td>
+    <td><code>brew install --cask tonhowtf/tap/omniget</code></td>
   </tr>
   <tr>
-    <td><strong>Linux</strong></td>
-    <td>
-      <a href="https://github.com/tonhowtf/omniget/releases/latest"><img alt="Baixar o OmniGet para Linux em deb, rpm ou AppImage" src="https://img.shields.io/badge/Linux-deb_·_rpm_·_AppImage-FFAA33?style=for-the-badge&logo=linux&logoColor=white" height="38"></a>
-      <br/>
-      <sub>Debian e Ubuntu: baixe o <code>.deb</code>. Fedora e openSUSE: o <code>.rpm</code>. Qualquer outra distro: o <code>.AppImage</code>. Há builds para x86_64 e ARM64.</sub>
-    </td>
+    <td><b>Linux</b></td>
+    <td><code>.deb</code> para Debian e Ubuntu (amd64 e arm64)<br/><code>.rpm</code> para Fedora, openSUSE e família RHEL (x86_64 e aarch64)<br/><code>.AppImage</code> para o resto (amd64 e aarch64)</td>
+    <td>O AppImage se atualiza pelos arquivos <code>.zsync</code></td>
   </tr>
 </table>
 
-<sub><strong>AppImage no Debian 12+ ou Ubuntu 24.04+:</strong> essas versões não incluem o FUSE 2, de que o AppImage precisa. Se <code>./omniget.AppImage</code> falhar com um erro de libfuse, rode <code>sudo apt install libfuse2</code> ou inicie com <code>./omniget.AppImage --appimage-extract-and-run</code>. O <code>.deb</code> evita isso por completo.</sub>
+### O aviso da primeira abertura, e como resolver
 
-### ⚠️ Leia isto antes de abrir pela primeira vez
+O OmniGet não é assinado com um certificado pago, então cada sistema mostra um aviso na primeira vez. Isso é normal em apps de desktop open source e você resolve uma única vez.
 
-O OmniGet é de código aberto e não é assinado com um certificado pago, então na primeira vez que você abrir o app o sistema pode exibir um aviso. Isso é esperado, e os passos abaixo resolvem de vez. Em qualquer caso, seus arquivos continuam locais.
+**Windows.** O SmartScreen mostra uma caixa azul. Clique em **Mais informações** e depois em **Executar assim mesmo**.
 
-**macOS (esse é o principal, o app não abre na primeira tentativa).** O Gatekeeper do macOS bloqueia apps não assinados. Depois de mover o OmniGet para a pasta Aplicativos, abra o Terminal e rode estas duas linhas:
+**macOS.** O Gatekeeper se recusa a abrir o app e pode dizer que ele está "danificado". Depois de arrastar o OmniGet para Aplicativos, abra o Terminal (Spotlight, digite "Terminal") e cole estas duas linhas:
 
 ```bash
 xattr -cr /Applications/omniget.app
 codesign --force --deep --sign - /Applications/omniget.app
 ```
 
-Depois abra o OmniGet normalmente. Você só faz isso uma vez.
+Depois abra o OmniGet pelo Launchpad normalmente.
 
-**Windows.** O SmartScreen pode mostrar um aviso azul na primeira execução. Clique em **Mais informações** e depois em **Executar assim mesmo**. Isso é comum em apps de código aberto sem certificado pago de assinatura de código.
+**Linux, AppImage no Debian 12+ ou Ubuntu 24.04+.** Essas versões vêm sem o FUSE 2, que o AppImage precisa. Se o arquivo falhar com erro de libfuse, rode `sudo apt install libfuse2`, ou abra com `./omniget.AppImage --appimage-extract-and-run`. O `.deb` evita isso por completo.
 
-### Modo portátil, para pendrive ou PC com restrições
+### Modo portátil
 
-Crie um arquivo vazio chamado `portable.txt` (ou `.portable`) ao lado do `.exe` e reinicie o app. O OmniGet passa a guardar configurações, banco de dados, cookies, plugins, caches e as ferramentas embutidas yt-dlp e FFmpeg em uma pasta `data` ao lado do executável. Nada é gravado em `AppData\Roaming` nem em qualquer outra pasta do usuário, então a instalação inteira viaja no pendrive. Sem esse arquivo, o OmniGet usa o diretório de dados padrão do usuário.
-
-Livre e de código aberto sob GPL-3.0. As atualizações rodam em segundo plano, sem incomodar. As ferramentas embutidas (yt-dlp e FFmpeg) se instalam sozinhas, e o yt-dlp é verificado por SHA256 antes de rodar. Os plugins se instalam na primeira abertura e também se atualizam sozinhos, sem nada para você configurar.
+Crie um arquivo vazio chamado `portable.txt` (ou `.portable`) ao lado do `.exe` no Windows e reabra o app. Configurações, banco de dados, cookies, plugins, caches, yt-dlp e FFmpeg passam todos para uma pasta `data` ao lado do executável. Nada toca o `AppData`, então a instalação inteira cabe num pendrive.
 
 ---
 
-## Uma tecla, e o download já começa
+## Seu primeiro download em um minuto
 
-Essa é a parte que conquista as pessoas. Copie qualquer link, um vídeo do YouTube, um tweet, uma mensagem do Discord, uma música, um magnet, e pressione o atalho global **`Ctrl+Shift+D`** (**`Cmd+Shift+D`** no macOS). O OmniGet lê sua área de transferência e baixa em segundo plano. Você nem precisa abrir a janela.
+1. Abra o OmniGet. A tela de configuração pergunta idioma e tema, depois instala o yt-dlp e o FFmpeg com um clique. O yt-dlp é conferido contra o SHA-256 antes de rodar.
+2. Copie qualquer link: um vídeo do YouTube, um reel do Instagram, um post do X, um board do Pinterest, um magnet, uma URL direta de arquivo.
+3. Cole na caixa da tela inicial. O OmniGet detecta o site e mostra título, thumbnail e as qualidades disponíveis. Escolha uma e aperte Enter.
+
+A página Downloads mostra velocidade, fase e tempo restante lidos direto do downloader, então um download travado aparece travado, em vez de congelado em "3 segundos restantes". Downloads interrompidos retomam de onde pararam. Sites com limite de requisições são repetidos com backoff.
 
 <p align="center">
-  <img src="assets/readme/global-hotkey.png" alt="Atalho global de download do OmniGet: pressione o atalho e o link da área de transferência baixa direto para sua pasta" width="760" />
+  <img src="assets/readme/downloads.png" alt="Página Downloads do OmniGet com um download 4K do YouTube em andamento mostrando fase, velocidade, tempo restante e o comando yt-dlp exato, mais itens na fila e concluídos" width="900" />
 </p>
 
-Funciona de qualquer lugar do sistema. Navegando, conversando, lendo, não importa qual app está na frente. Copiar, pressionar, pronto. O arquivo cai na sua pasta e a fila cuida do resto. Se você preferir ver uma prévia antes, é só colar o link na omnibox da tela inicial, conferir as opções de qualidade e clicar em baixar.
+### Pule a janela
 
----
-
-## O problema que isso resolve
-
-Você já tem o yt-dlp aberto em um terminal. Achou um script de baixar cursos que quebra a cada atualização do site. Tem um app separado para música, e nenhum deles conversa entre si. Cada download vira três ferramentas e um monte de copiar e colar.
-
-O OmniGet faz tudo isso em uma janela só. Cole um link de curso, um link do YouTube, um TikTok, um magnet, um podcast, e ele descobre o resto. O arquivo cai na sua pasta e toca ali mesmo, dentro do app.
-
-É o único app de código aberto que baixa um curso completo da Udemy ou da Hotmart, vídeo e áudio de mais de 1.800 sites e a sua biblioteca de música, tudo em um lugar só, sem linha de comando. Ele conquistou milhares de estrelas no GitHub nos primeiros meses porque essa combinação não existia em nenhum outro lugar.
-
----
-
-## Como o OmniGet se compara ao yt-dlp e a outros downloaders
-
-Ferramentas diferentes fazem trabalhos diferentes. Isto mostra onde o OmniGet se encaixa, não é um placar.
-
-### OmniGet vs yt-dlp
-
-O [yt-dlp](https://github.com/yt-dlp/yt-dlp) é o motor de extração, e o OmniGet o utiliza. O yt-dlp é uma ferramenta de linha de comando: você instala o Python, aprende as flags, escreve o seletor de formato e ganha um controle incomparável sobre mais de 1.800 sites. Ele é excelente nisso, e o OmniGet não existiria sem ele.
-
-O OmniGet é o app em volta dele. Você instala um arquivo, cola um link e vê uma prévia com opções de qualidade. O yt-dlp e o FFmpeg se instalam e se atualizam sozinhos, e o yt-dlp é verificado por SHA256 antes de rodar. Em cima disso ficam uma fila que tenta de novo e retoma downloads, um histórico, um player de cursos, um leitor e uma biblioteca de música. Se você se vira bem no terminal e só quer os arquivos, use o yt-dlp direto. Se você quer uma biblioteca que dá para assistir e ler de verdade, use o OmniGet.
-
-### OmniGet vs downloaders de propósito único
-
-A maioria dos downloaders faz um site bem feito. O OmniGet cobre cursos, vídeo, áudio, imagens, torrents e Telegram em uma fila só, e depois reproduz o resultado. A contrapartida é honesta: uma ferramenta dedicada a uma plataforma às vezes vai dar suporte a um caso raro primeiro.
-
-### OmniGet vs downloaders pagos de cursos
-
-Downloaders pagos de cursos costumam cobrar assinatura por algo a que você já tem acesso. O OmniGet é GPL-3.0, não tem conta, nem anúncios, nem plano pago, e baixa apenas o que a sua própria sessão logada já consegue acessar.
+Copie um link em qualquer lugar do sistema e aperte **Ctrl+Shift+D** (**Cmd+Shift+D** no macOS). O OmniGet lê a área de transferência e começa o download em segundo plano. Um segundo atalho, **Ctrl+Shift+M**, pega só o áudio, então um link do YouTube vira um MP3 sem abrir nada. Ele fica desligado até você ativar, e os dois atalhos podem ser trocados em **Configurações → Downloads → Área de transferência e atalhos**.
 
 ---
 
 ## O que o OmniGet baixa
 
-Cole um link. O OmniGet detecta o site, mostra uma prévia com opções de qualidade e baixa. Se o [yt-dlp](https://github.com/yt-dlp/yt-dlp) suporta um site, o OmniGet baixa dele, o que dá cerca de mil sites a mais do que a tabela abaixo.
+O OmniGet tem extratores nativos para as plataformas que as pessoas mais usam e entrega o resto ao [yt-dlp](https://github.com/yt-dlp/yt-dlp), que cobre cerca de 1.800 sites.
 
-| Categoria | Plataformas |
-|-----------|-------------|
-| Cursos online | Hotmart, Udemy, Kiwify, Gumroad, Teachable, Kajabi, Skool, Wondrium, Thinkific, Rocketseat |
-| Vídeo e áudio | YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Bilibili |
-| Bilibili (a fundo) | Entre na conta para 4K, HDR, Dolby Vision, Hi-Res lossless, Dolby Atmos. Danmaku (XML/ASS/JSON), NFO para Kodi e Jellyfin, 11 tipos de URL (UGC, 番剧, 课程, 收藏夹, UP主, 每周必看, 稍后再看, 历史记录, b23.tv) |
-| Plataformas asiáticas | Douyin (抖音), Xiaohongshu (小红书), Kuaishou (快手), Youku (优酷), iQiyi (爱奇艺), Tencent Video, Mango TV |
-| Galerias de imagens | DeviantArt, Pixiv, ArtStation, Flickr, Tumblr, álbuns do Imgur, Kemono, Newgrounds, image boards |
-| Perfis em lote | Subreddits inteiros e suas páginas de ordenação, perfis de usuários do Reddit e perfis do X/Twitter |
-| Arquivos e transferência | Links `.torrent` e magnet, além de transferência P2P direta entre dois computadores com um código curto |
+| Categoria | Sites e formatos |
+|---|---|
+| Cursos online | Hotmart, Udemy, Kiwify e Rocketseat pelo plugin Courses. Todas as aulas, escolha de seções, anexos, continuar de onde parou. |
+| Vídeo e áudio | YouTube (vídeos, playlists, canais, live desde o início, capítulos, SponsorBlock), Instagram, TikTok, X/Twitter, Reddit, Twitch (VODs, clipes, ao vivo), Vimeo, Bluesky, Threads, Pinterest, Douyin |
+| Bilibili, logado | 4K, HDR, Dolby Vision, Hi-Res sem perdas e Dolby Atmos conforme sua assinatura. Danmaku em XML, ASS ou JSON, arquivos NFO para Kodi e Jellyfin, modelos de nome, 11 tipos de URL incluindo bangumi, cursos, favoritos, assistir depois e histórico |
+| Galerias de imagens | Galerias e perfis inteiros de mais de 250 sites via gallery-dl (DeviantArt, Pixiv, ArtStation, Flickr, Tumblr, Imgur, Kemono e outros) |
+| Em lote | Cole vários links ou carregue um `.txt`, baixe subreddits inteiros, perfis do Reddit e do X, perfis do Instagram e do Pinterest |
+| Arquivos e transferência | Arquivos `.torrent` e magnets com cliente BitTorrent embutido, arquivos HTTP diretos, manifestos HLS e DASH, e transferência direta entre duas instalações do OmniGet com um código curto de palavras |
+| Telegram | Fotos, vídeos, arquivos e áudios de qualquer canal ou grupo em que você esteja, pelo plugin Telegram |
 
-Coisas que as pessoas procuram, e que o OmniGet faz:
-
-- **Baixar um curso online completo**, cada aula e cada PDF anexado, e depois assistir dentro do app e retomar de onde parou.
-- **Baixar um vídeo do YouTube ou uma playlist inteira**, escolher a qualidade ou pegar só o áudio em MP3, M4A, Opus, FLAC ou WAV.
-- **Baixar TikTok, Instagram, Twitter/X, Reddit**: posts, reels, stories, carrosséis e galerias.
-- **Baixar em lote** uma lista de links de um arquivo de texto, um subreddit inteiro, um perfil de usuário do Reddit ou um perfil do X/Twitter, tudo de uma vez.
-- **Baixar só um trecho do vídeo**, definindo início e fim.
-- **Baixar legendas** em qualquer idioma, embutir no arquivo ou gerar com o Whisper quando não existirem.
-- **Pular patrocínios** com o SponsorBlock, e embutir metadados e miniaturas automaticamente.
-- **Telegram Direct Uploader & Leech Bot**: envie mídia direto para o Telegram via User Session ou Bot Token, com suporte a Chat IDs numéricos, `@usernames`, miniaturas personalizadas, edição de nome e extensão do arquivo, modos **Send As** Vídeo/Documento/Áudio e divisão automática em 2 GB (Free) / 4 GB (Premium).
-- **Seletor dinâmico de qualidade do YouTube**: veja e escolha as resoluções realmente disponíveis (`4K 2160p`, `2K 1440p`, `1080p`, `720p`, `Somente áudio`), extraídas direto dos metadados do yt-dlp.
-- **Fase de merge explícita e ETA suave**: saiba exatamente quando áudio e vídeo estão sendo unidos (`[Merger]`, `[ffmpeg]`), com estimativa de tempo ao vivo (`ETA ~3m 20s`).
-- **Limitador de banda no cabeçalho**: limite a velocidade de download na hora, direto da barra de cabeçalho de Downloads.
-- **Toast interativo de detecção da área de transferência**: detecta URLs de vídeo copiadas e mostra um banner de um clique.
-- **Detecção de dependências do sistema**: detecta e usa binários de `yt-dlp`, `FFmpeg` e `PDFium` instalados no sistema, com indicadores de origem (`PATH`, `Managed`, `Flatpak`).
-- **Seguir um canal** e baixar automaticamente os uploads novos, com notificação na bandeja do sistema.
-- **Baixar do Bilibili na qualidade máxima**: entre na conta uma vez e libere 4K, HDR, áudio Hi-Res lossless e Dolby Atmos.
-
-Os downloads são confiáveis, não um jogo de adivinhação. Velocidade e ETA vêm direto do downloader em vez de serem inventados a partir de uma porcentagem, então continuam corretos mesmo quando o tamanho do arquivo é desconhecido ou a transmissão é ao vivo. Um travamento aparece como travamento, e não como um "3 segundos restantes" congelado. A fila retoma downloads interrompidos e tenta de novo com backoff.
-
----
-
-## Ele também reproduz tudo por dentro
-
-Essa é a parte que ninguém espera. O OmniGet não é só onde você baixa. É onde você assiste, lê e escuta.
-
-### Abra um curso e assista de verdade
-
-Baixe o curso inteiro (Hotmart, Udemy, Kiwify, Skool, Teachable, Kajabi, Wondrium, Thinkific) e assista sem sair do app. Retome no segundo exato em que parou. Faça anotações que pulam para aquele momento quando você clica nelas. Leia os PDFs anexados lado a lado.
+Opções que você define uma vez e esquece: qualidade padrão, formato de áudio (MP3, M4A, Opus, FLAC ou WAV), idiomas e formato de legenda (SRT, VTT, ASS, embutida ou ao lado), thumbnail e metadados embutidos, modelo de nome de arquivo, organizar por plataforma, pular arquivos existentes, dividir por capítulos, limite de velocidade, downloads simultâneos, proxy. Regras mandam um canal ou host para a pasta e a qualidade que você escolher sem perguntar de novo. Canais seguidos são verificados em segundo plano e podem baixar novos vídeos automaticamente, com notificação na bandeja.
 
 <p align="center">
-  <img src="assets/screenshot-courses.png" alt="Player de cursos do OmniGet com anotações por timestamp e PDFs anexados" width="760" />
-  <br/>
-  <em>Player de cursos, anotações fixadas em timestamps, anexos na mesma janela.</em>
-</p>
-
-### Leia livros, livros de verdade
-
-Solte uma pasta com PDFs e EPUBs. O OmniGet extrai as capas, busca títulos e autores e abre cada um em um leitor embutido com marcações, marcadores, modo foco e um tema com cara de papel, que descansa os olhos. Também abre quadrinhos em CBZ e arquivos TXT ou HTML.
-
-<p align="center">
-  <img src="assets/screenshot-reader.png" alt="Leitor de EPUB e PDF embutido do OmniGet com marcações e modo foco" width="760" />
-  <br/>
-  <em>Leitor com marcações, painel de anotações e modo foco.</em>
-</p>
-
-### Música, do jeito que você lembra
-
-Aponte o OmniGet para a sua pasta de músicas e ele mostra suas faixas do jeito que o iTunes fazia: álbuns com capas, artistas com discografias, uma fila que se comporta.
-
-- Toca MP3, FLAC, M4A, OGG, Opus, tudo o que você já tem.
-- Busca **letras sincronizadas** que rolam junto com a música.
-- Conecta ao **Spotify, SoundCloud, YouTube Music, Qobuz e Last.fm**, para suas playlists e curtidas ficarem ao lado dos arquivos locais.
-- **Equalizador** com presets, variantes de tema escuro por capa de álbum, um painel de atividade com suas faixas mais tocadas e uma presença no Discord que mostra o que você está ouvindo.
-
-<p align="center">
-  <img src="assets/screenshot-music.png" alt="Player de música do OmniGet com visualização de álbuns, letras sincronizadas e fontes de streaming" width="820" />
-  <br/>
-  <em>Biblioteca local, letras sincronizadas, fontes de streaming, um só player.</em>
+  <img src="assets/readme/settings.png" alt="Configurações do OmniGet: barra lateral agrupada com Aparência, Downloads, Rede, Cookies, Canais, IA, Plugins e Avançado, e a seção de downloads com Saída, Qualidade, Legendas, Área de transferência e atalhos, Opções por plataforma" width="900" />
 </p>
 
 ---
 
-## Configurações que não atrapalham
+## A extensão do navegador, passo a passo
 
-As configurações são agrupadas e discretas. As opções comuns estão à mão, as mais avançadas ficam a um toque de distância, e uma caixa de busca encontra qualquer coisa em todas as categorias e destaca para você.
+A extensão faz dois trabalhos. Em sites que ela reconhece (YouTube, Instagram, TikTok, X, Reddit, Twitch, Pinterest, Bluesky, Telegram, Vimeo, Udemy, Hotmart, Bilibili, SoundCloud) ela manda a página para o OmniGet com um clique ou com **Alt+O**. Em qualquer outro site ela observa o tráfego de rede em busca de streams MP4, HLS, DASH, WebM e áudio e lista tudo no popup. Nos dois casos ela envia seus cookies e o referer, e é isso que permite ao OmniGet baixar conteúdo privado em que você está logado, como stories do Instagram, um curso pago ou um vídeo só para membros.
 
-<p align="center">
-  <img src="assets/readme/en/settings-drill.png" alt="Configurações do OmniGet com barra lateral agrupada e seções em camadas" width="820" />
-  <br/>
-  <em>Barra lateral agrupada, uma lista clara, cada seção abre a própria página.</em>
-</p>
+Escolha o nível que combina com o seu conforto.
 
 <p align="center">
-  <img src="assets/readme/en/settings-output.png" alt="Configurações de download do OmniGet: pasta de saída, organizar por plataforma, modelo de nome de arquivo, pular arquivos existentes" width="820" />
-  <br/>
-  <em>Saída, qualidade, legendas e o resto, com uma dica curta embaixo de cada controle.</em>
+  <img src="assets/readme/extension.svg" alt="Fluxo de pareamento: instale a extensão no Chrome, clique em Parear extensão nas Configurações do OmniGet, a extensão encontra o app no localhost e conecta. A partir daí, todo download leva seus cookies." width="100%" />
 </p>
+
+### Nível 1: de dentro do app (sem downloads, sem zip)
+
+1. Abra o OmniGet, instalando se ainda não instalou. Abra pelo menos uma vez.
+2. Vá em **Configurações → Plugins → Extensão do navegador**. Clique em **Atualizar / Instalar** ao lado de Chrome. O OmniGet copia a extensão que vem dentro dele para uma pasta e abre essa pasta para você.
+3. Abra o Chrome (Edge, Brave e outros navegadores Chromium funcionam igual) e digite `chrome://extensions` na barra de endereço.
+4. Ative o **Modo do desenvolvedor** no interruptor do canto superior direito.
+5. Clique em **Carregar sem compactação** e escolha a pasta que o OmniGet acabou de abrir.
+6. O ícone do OmniGet aparece na barra de ferramentas. Uma página de opções abre sozinha dizendo que está procurando o app.
+7. De volta ao OmniGet, ainda em **Configurações → Plugins → Extensão do navegador**, clique em **Parear extensão**. Em poucos segundos o app diz "Extensão conectada" e a página de opções fica verde. Pronto.
+
+Daí em diante, entre em qualquer página suportada e clique no ícone. A página, os cookies e o título vão para o OmniGet e o download começa. Seus cookies também aparecem em **Configurações → Cookies**, onde o plugin Courses e as ferramentas de Instagram, X e Pinterest os reaproveitam.
+
+### Nível 2: pelo zip da release
+
+Toda release traz o `omniget-chrome-extension-vX.Y.Z.zip`. Baixe da [última release](https://github.com/tonhowtf/omniget/releases/latest), descompacte e siga os passos 3 a 7 acima apontando **Carregar sem compactação** para a pasta descompactada. Use isso se o app fica numa máquina e o navegador em outra, ou se está instalando para outra pessoa.
+
+### Nível 3: Firefox, outros navegadores e pareamento manual
+
+Firefox: **Configurações → Plugins → Extensão do navegador → Atualizar / Instalar** ao lado de Firefox, depois abra `about:debugging#/runtime/this-firefox`, clique em **Carregar extensão temporária** e escolha o `manifest.json` na pasta exportada. O Firefox descarta extensões temporárias ao reiniciar, então repita até a extensão ser publicada no AMO. Safari ainda não é suportado porque extensões do Safari precisam passar pela App Store.
+
+Pareamento manual: se **Parear extensão** expirar, abra a página de opções da extensão (botão direito no ícone → Opções), depois no OmniGet revele e copie o **Token de pareamento** e cole na página de opções. A URL do endpoint é detectada sozinha. O app escuta em `127.0.0.1`, portas 47720 a 47729, e o token é gerado por instalação, então nada sai da sua máquina.
+
+Se a extensão está instalada mas o OmniGet está fechado, os cliques caem no esquema de link `omniget://`, que ainda enfileira a URL mas não consegue levar cookies. Marque "Sempre permitir" na primeira vez que o Chrome perguntar.
 
 ---
 
-## Para quem joga League of Legends, se quiser
+## A seção Tools: 108 ferramentas em 16 categorias
 
-O OmniGet tem um menu de League of Legends embutido. Ele vem **desligado**. Nada conecta, nada observa, e o menu nem aparece na barra lateral até você ativá-lo em **Configurações → Avançado → League of Legends**. Deixe desligado e o OmniGet se comporta exatamente como sempre.
-
-Ligue e ele lê o cliente do League em execução do mesmo jeito que o próprio cliente se lê, sem conta, sem login e sem nenhum site de builds de terceiros no meio.
-
-- **Análise da partida** para os dois times. Elo, forma recente, KDA, os campeões que cada jogador realmente joga e observações curtas que ele deduz sozinho: sequência de vitórias, one-trick, taxa de vitória baixa. Escreva sua própria nota sobre um jogador e ela volta na próxima vez que vocês se encontrarem.
-- **Probabilidade de vitória** com estatística feita direito. As taxas de vitória são puxadas na direção da média conforme o tamanho da amostra, então cinquenta por cento em mil partidas e cinquenta por cento em dez não são tratados como a mesma evidência, e o resultado sempre vem com uma faixa em vez de um decimal falso. O matchmaking busca partidas equilibradas, então a resposta honesta costuma ficar perto do empate, e o app diz isso em vez de fingir o contrário.
-- **Economia ao vivo** enquanto você joga. Ouro, CS e nível dos dez jogadores, e a diferença para o oponente da sua rota.
-- **Metas por função**, editáveis. Um suporte não é julgado por CS e um caçador não é julgado como um atirador.
-- **Runas e feitiços de invocador** recomendados pelo próprio cliente do jogo, aplicados em um clique. Ele só substitui a página que o OmniGet criou, nunca as suas.
-- **Tiers de campeões** por função, com taxas de vitória, escolha e banimento.
-- **Busca de jogadores** por qualquer Riot ID, com elo, histórico de campeões e maestria.
-- **Automações**, todas opcionais: aceitar partidas, escolher e banir a partir da sua lista de prioridades e pegar um campeão do banco no ARAM.
+Tools é a parte do OmniGet que cresceu além de baixar. Cada quadrado é um trabalho: um comando Rust isolado com JSON entrando e JSON saindo, o que também é o que vai permitir a agentes de IA acionarem as ferramentas pelo servidor MCP planejado. O hub tem uma busca que entende inglês e português ("legenda" acha as ferramentas de subtitle) e um filtro de plataforma, e ferramentas que só rodam no Windows avisam isso no quadrado e ficam ocultas nos outros sistemas.
 
 <p align="center">
-  <em>Tudo acima vem desligado por padrão e cada automação tem seu próprio interruptor.</em>
+  <img src="assets/readme/tools.png" alt="Hub Tools do OmniGet com 16 categorias: YouTube, Fala e legendas, Edição de vídeo, Instagram, X, Pinterest, Spotify, PDF, Documentos, Imagens, Sistema, Arquivos, Downloads, Automação, Celular e IA" width="900" />
 </p>
+
+Legenda de status: sem marca significa pronta, **beta** significa que funciona mas não foi testada com todo tipo de conta, **planejada** significa que o quadrado existe para você ver para onde as coisas vão e ainda não faz nada.
+
+<table>
+  <tr>
+    <td><img src="assets/readme/tools-instagram.png" alt="Ferramentas de Instagram no OmniGet: baixar post, baixar vários links, áudio do reel, stories, destaques, quem viu o story, ver perfil, foto em HD, baixar perfil, quem não segue de volta, fãs, mútuos, quem deixou de seguir, seguidores fantasmas, lista branca, exportar dados, análise, comparar perfis, explorar hashtag, comentários, curtidas, sorteio, publicar e agendar" /></td>
+    <td><img src="assets/readme/tools-x.png" alt="Ferramentas de X / Twitter no OmniGet: baixar post, desenrolar thread, post em imagem, raio-X do perfil, mídia do perfil, busca avançada, exportar bookmarks, quem não segue de volta, seu arquivo do X e Grok" /></td>
+  </tr>
+  <tr>
+    <td><img src="assets/readme/tools-pinterest.png" alt="Ferramentas de Pinterest no OmniGet: baixar pin, backup de board, backup de perfil, busca sem IA nem anúncios, pins parecidos, achar a fonte, duplicados, paleta de cores, galeria offline e ideias de palavras-chave" /></td>
+    <td><img src="assets/readme/tools-speech.png" alt="Ferramentas de fala e legendas no OmniGet: transcrever com whisper.cpp, texto para fala, traduzir legendas, dublar a partir de legendas, e clonagem de voz, design de voz, isolar vocais e ditado planejados" /></td>
+  </tr>
+</table>
+
+### YouTube (11)
+
+- **Baixar vídeo.** Cole um link e escolha qualidade, formato e legendas. O mesmo motor da tela inicial.
+- **Metadados.** Salve informações, descrição e thumbnail sem o vídeo.
+- **Thumbnails.** Veja todas as capas e salve em qualquer resolução.
+- **Legendas.** Baixe legendas, ou junte dois idiomas em um arquivo bilíngue.
+- **Comentários e capítulos.** Busque comentários ou marcadores de capítulo, filtre, exporte em JSON ou CSV.
+- **Chat da live.** Salve o replay do chat de uma live em JSON ou CSV.
+- **Oficina de legendas.** Edite, traduza e ressincronize arquivos SRT, VTT e ASS com forma de onda, sincronização por dois pontos, localizar e substituir, correção automática, e gramática e tradução por IA.
+- **SponsorBlock.** Veja os trechos de patrocínio, intro e encerramento e receba as flags do yt-dlp para pular.
+- **Dislikes.** Likes, dislikes e nota do Return YouTube Dislike.
+- **Thumbnail real.** Os frames que a CDN já tem em 25, 50 e 75 por cento, em vez da capa clickbait.
+- **Forçar H.264.** Evitar VP9 e AV1 em máquinas fracas. *planejada*
+
+### Fala e legendas (8)
+
+- **Transcrever.** Áudio ou vídeo para legendas com whisper.cpp, offline. Modelos baixam sob demanda, aceleração Metal no macOS.
+- **Texto para fala.** Vozes naturais do Microsoft Edge, grátis, com arquivo de legenda sincronizado.
+- **Traduzir legendas.** Traduza um SRT com seu provedor de IA ou um servidor LibreTranslate, mantendo os tempos.
+- **Dublar a partir de legendas.** Transforme um SRT numa faixa de voz que cabe em cada linha e, se quiser, substitua o áudio do vídeo. *beta*
+- **Clonar voz**, **Criar voz**, **Isolar vocais**, **Ditado.** *planejadas*
+
+### Edição de vídeo (6)
+
+- **Cortar trecho.** Escolha um vídeo no disco e corte um pedaço. O resultado cai na fila de downloads.
+- **Converter.** Troque contêiner, codec ou resolução, ou comprima, pelo plugin Convert.
+- **Legendas automáticas** e **Texto para fala** abrem as ferramentas de fala acima.
+- **Gravar tela** e **Editor de linha do tempo.** *planejadas*
+
+### Instagram (24)
+
+Todas rodam na sua própria sessão do Instagram capturada pela extensão, então stories, melhores amigos e as suas listas funcionam. Leituras são espaçadas e ações de escrita param ao primeiro sinal de limite.
+
+- **Baixar post.** Foto, vídeo, reel, IGTV ou carrossel de um link, na melhor qualidade.
+- **Baixar vários links.** Cole uma lista ou um `.txt` e receba tudo.
+- **Áudio do reel.** Só o som, em M4A ou MP3.
+- **Stories.** Baixe stories, inclusive de melhores amigos, sem marcar como vistos.
+- **Destaques.** Um destaque ou todos os destaques de um perfil.
+- **Quem viu meu story.** Liste e exporte quem viu cada story ativo.
+- **Ver perfil.** Bio, contagens, foto em HD e se a conta segue você.
+- **Foto de perfil em HD.**
+- **Baixar perfil.** Todos os posts, reels, marcados ou salvos, com o limite que você escolher.
+- **Quem não segue de volta.** Compare seguidores e seguindo, proteja contas com uma lista branca, deixe de seguir num ritmo seguro.
+- **Fãs.** Contas que seguem você mas você não segue, com opção de remover.
+- **Mútuos.**
+- **Quem deixou de seguir.** Fotografias das suas listas ao longo do tempo mostram quem saiu e quem chegou.
+- **Seguidores fantasmas.** Seguidores que nunca curtem nem comentam, e os que mais interagem.
+- **Lista branca.** Contas que nunca são sugeridas para deixar de seguir.
+- **Exportar dados.** Leia offline o zip "Baixar suas informações" da Meta: pedidos pendentes, melhores amigos, bloqueados e mais.
+- **Análise de perfil.** Taxa de engajamento, cadência, melhores dias e horários, hashtags e top posts de qualquer perfil público.
+- **Comparar perfis.** Até seis perfis lado a lado.
+- **Explorar hashtag.** Quantidade de posts, recentes e top, hashtags relacionadas, download.
+- **Exportar comentários.** Todos os comentários de um post em CSV, com filtro.
+- **Quem curtiu.** Liste e exporte as contas que curtiram um post.
+- **Sorteio.** Sorteie vencedores entre os comentários com regras de menções, palavra-chave e uma participação por pessoa.
+- **Publicar.** Foto, carrossel, reel, vídeo ou story pela sua sessão ou pela Graph API oficial. *beta*
+- **Agendar posts.** Deixe posts na fila para data e hora. O OmniGet publica enquanto estiver aberto. *beta*
+
+### X / Twitter (10)
+
+Dados públicos vêm pela API do FxTwitter sem login. Tudo que é privado (bookmarks, seus seguidos, Grok no X) usa a sua sessão do X guardada no gerenciador de cookies.
+
+- **Baixar post.** Vídeos, imagens e GIFs de qualquer post.
+- **Desenrolar thread.** A thread inteira numa página, exportada em Markdown, HTML ou texto.
+- **Post em imagem.** Um card PNG limpo de um post para compartilhar em qualquer lugar.
+- **Raio-X do perfil.** Engajamento, melhor horário para postar, top posts e hashtags de qualquer conta.
+- **Mídia do perfil.** Todas as fotos e vídeos de um perfil, em qualidade original, de uma vez.
+- **Busca avançada.** Monte consultas com os operadores do X, veja tendências, exporte resultados.
+- **Exportar bookmarks.** Todos os bookmarks com pastas, em JSON, CSV, Markdown ou HTML. *beta*
+- **Quem não segue de volta.** Audite seguindo vs. seguidores e deixe de seguir com segurança usando uma lista branca. *beta*
+- **Seu arquivo do X.** Abra offline o zip de dados: estatísticas, top posts, curtidas e listas de seguidores.
+- **Grok.** Pergunte ao Grok com busca ao vivo no X ou resuma uma thread, pela API da xAI ou pela sua sessão do X. *beta*
+
+### Pinterest (10)
+
+Funciona sem login para tudo que é público. Cookies só são necessários para boards secretos e para desfazer salvamentos.
+
+- **Baixar pin.** Imagem em qualidade original, vídeo em MP4, GIF, carrossel ou páginas de story.
+- **Backup de board.** Todos os pins de um board ou seção com originais, vídeos, CSV/JSON e sincronização incremental.
+- **Backup de perfil.** Todos os boards públicos de um perfil, uma pasta por board, mais os pins criados.
+- **Busca sem IA nem anúncios.** Filtros que escondem imagens de IA, pins promovidos e vídeos, e então baixe.
+- **Pins parecidos.** O "Mais ideias" de qualquer pin, filtrável e baixável.
+- **Achar a fonte.** Link de destino, criador, verificação de link morto, Wayback Machine e busca reversa de imagem.
+- **Duplicados num board.** Pins idênticos e quase idênticos, com opção de remover dos salvos.
+- **Paleta de cores.** Paleta de um board ou pin em hex, CSS ou JSON.
+- **Galeria offline, PDF, CSV.** Um board como galeria HTML pesquisável, moodboard em PDF ou planilha.
+- **Ideias de palavras-chave.** Sugestões de busca, refinamentos e as palavras que os top pins usam.
+
+### Spotify (2)
+
+- **Temas e cores.** Personalize o cliente do Spotify com temas do Spicetify. *beta*
+- **Extensões.** Instale extensões e apps do Marketplace do Spicetify. *beta*
+
+### PDF (6)
+
+- **Juntar.** Una vários PDFs em um, na ordem que quiser.
+- **Dividir.** Extraia páginas ou quebre um PDF em partes.
+- **Comprimir.** Reduza o tamanho de um PDF mantendo a leitura.
+- **Converter.** PDF para imagens ou Word, e de volta.
+- **OCR.** Torne PDFs escaneados pesquisáveis. *beta*
+- **PDF seguro.** Reconstrua um PDF a partir de pixels para remover scripts e formulários.
+
+### Documentos (5)
+
+- **SlideShare para PDF.** Todos os slides no maior tamanho, montados em um PDF.
+- **Exportar Google Docs.** Docs, Slides e Sheets públicos em PDF, DOCX, PPTX ou XLSX.
+- **Páginas do Calameo.** Salve as páginas de uma publicação do Calameo em SVG ou JPG. *beta*
+- **Galerias de imagens.** Galerias e perfis inteiros de mais de 250 sites com gallery-dl.
+- **Scribd.** Salve livros legíveis em PDF usando a sua própria sessão. *planejada*
+
+### Imagens (3)
+
+- **Upscale.** Real-ESRGAN em qualquer GPU Vulkan, 2x, 3x ou 4x. *beta*
+- **Redimensionar imagens.** Em lote por largura, altura, encaixe ou porcentagem, convertendo o formato se quiser.
+- **OCR.** Copie o texto de imagens e slides. *beta*
+
+### Arquivos (4)
+
+- **Duplicados.** Encontre arquivos idênticos por hash e libere espaço com segurança.
+- **Renomear em lote.** Regex, contadores e troca de caixa com prévia antes de aplicar.
+- **Encontrar arquivos.** Busca instantânea com Everything no Windows, Spotlight no macOS ou fd no Linux.
+- **Manter acordado.** Impeça o computador de dormir durante trabalhos longos.
+
+### Downloads (2)
+
+- **Download acelerado.** Arquivos grandes com 16 conexões, retomada e checksum via aria2.
+- **Manifesto HLS / DASH.** Cole um `.m3u8` ou `.mpd` com Referer e cookie. O FFmpeg salva um MP4.
+
+### Celular (1)
+
+- **Enviar para o celular.** Arquivos, links e texto para um dispositivo KDE Connect pareado.
+
+### Sistema (9, itens só para Windows marcados)
+
+- **Escudo de privacidade.** Controle telemetria, ID de anúncios e rastreamento do Windows. Windows. *beta*
+- **Endurecer o Windows.** Macros, AutoRun, host de scripts, UAC e Defender conforme o hardentools, reversível. Windows. *beta*
+- **Limpar caches**, **Analisador de disco**, **Gerenciador de inicialização**, **Desinstalador**, **Debloat do Windows**, **Limpador de registro**, **Atualizador de programas** (winget, Chocolatey e Scoop). *planejadas*
+
+### Automação (1)
+
+- **Auto clicker.** Windows. *planejada*
+
+### IA (6)
+
+- **Comparar preços.** O custo do mesmo modelo em vários provedores, com preços do LiteLLM e do models.dev.
+- **Gastos com IA.** Quanto o OmniGet gastou com IA, por dia, modelo e tarefa, a partir de um registro local.
+- **Modelos locais (Ollama).** Veja, baixe e remova modelos locais e use-os como provedor gratuito.
+- **Humanizar texto.** Reescreva texto com cara de IA para soar como uma pessoa, sem mudar o que diz. Roda no provedor de IA configurado. *beta*
+- **Chaves de API.** Guarde chaves e contas juntas, confira saldo e uso. *planejada*
+- **Servidor MCP.** Deixe Claude, Goose ou Cursor acionarem as ferramentas do OmniGet. *planejada*
+
+Toda ferramenta que fala com uma IA usa o provedor definido em **Configurações → IA**: OpenAI, Anthropic, ou qualquer endpoint local compatível com OpenAI, como Ollama ou LM Studio. A chave fica guardada localmente e nunca vai para log.
 
 ---
 
-## Plugins que se instalam sozinhos
+## Plugins: Courses, Study, Telegram, Convert
 
-O OmniGet já vem com o conjunto completo de plugins (cursos, estudo, Telegram, conversão e outros) e eles se configuram sozinhos na primeira abertura. Também se atualizam sozinhos quando sai uma versão nova, então você nunca precisa correr atrás de um download. Ligue ou desligue qualquer um pela barra lateral, e desinstale os que não quiser. O que você remover continua removido.
+Plugins são bibliotecas Rust separadas, carregadas na inicialização. O OmniGet instala o conjunto oficial na primeira abertura e atualiza sozinho. A página Marketplace mostra o que está instalado, o que cada plugin pode fazer (eventos, notificações, configurações, pastas de download, proxy, ferramentas gerenciadas, fila de downloads), e permite ocultar, desativar ou desinstalar qualquer um.
 
 <p align="center">
-  <img src="assets/readme/en/plugins.png" alt="Plugins e dependências do OmniGet, pareamento da extensão de navegador e ferramentas gerenciadas em forma de tabela" width="820" />
-  <br/>
-  <em>Plugins e ferramentas embutidas, gerenciados para você, exibidos em uma tabela clara.</em>
+  <img src="assets/readme/marketplace.png" alt="Marketplace do OmniGet listando os plugins Courses, Study, Telegram e Convert com versão, autor, permissões e interruptores" width="900" />
 </p>
+
+### Courses
+
+Entre na **Hotmart**, **Udemy**, **Kiwify** ou **Rocketseat** por uma janela de navegador dentro do app, ou com cookies salvos pela extensão. O OmniGet lista suas compras, deixa escolher seções e baixa todas as aulas e anexos, com numeração contínua se quiser. Aulas com DRM são contadas e puladas, não simuladas. A Hotmart usa o fluxo de login OIDC atual, então continua funcionando depois da mudança de autenticação de 2026. Cursos baixados aparecem no Study automaticamente.
+
+### Study
+
+O Study transforma a pasta de arquivos que você baixou em algo que dá para terminar de verdade.
+
+- Biblioteca e player. Aponte o Study para as pastas dos seus cursos (nada é copiado nem movido). O player retoma no segundo exato, e apertar **N** captura uma nota no tempo atual que volta para lá quando clicada.
+- Leitor. PDF, EPUB, DJVU, MOBI, AZW3, FB2, CBZ, CBR, TXT, RTF e HTML, com marcações, favoritos, coleções, modo foco e um tema com jeito de papel. Capas, títulos e autores são extraídos dos arquivos.
+- Notas. Editor Markdown e LaTeX com links entre páginas, diário, modelos, tags, grafo de conhecimento e exportação em `.md` ou PDF. Qualquer nota pode virar flashcard.
+- Anki. Baralhos de repetição espaçada com importação de `.apkg`, `.txt` e CSV, baralhos filtrados, presets, tipos de nota, tags, mídia, estatísticas e histórico de revisões.
+- Foco. Pomodoro e sessões de trabalho profundo com metas diárias e semanais que pausam o player ao terminar.
+- Progresso e conquistas. Sequências, metas diárias, heatmap do ano e XP local sem ranking.
+- Música. Sua biblioteca local com capas, artistas e álbuns, letras sincronizadas, favoritos, histórico, playlists, gêneros, transcodificação e navegadores de Spotify, SoundCloud e YouTube Music, para playlists e curtidas ficarem ao lado dos seus arquivos.
+
+### Telegram
+
+Entre com QR code ou número de telefone. Navegue por todos os canais e grupos em que está, filtre por foto, vídeo, documento ou áudio, busque arquivos e baixe um item ou o chat inteiro com lista de progresso. Vídeos de canais podem ser importados direto para a biblioteca do Study.
+
+### Convert
+
+Conversões com FFmpeg e aceleração por GPU quando a máquina tem: contêiner, codec, resolução, bitrate e compressão de vídeo e áudio, sem internet.
 
 ---
 
-## As pequenas coisas que fazem diferença
+## Chat embutido, desligado por padrão
 
-Discretas, ali quando você precisa.
+O OmniGet traz um chat no estilo Discord chamado OmniDisc para servidores que você mesmo hospeda com o [omnidisc-server](https://github.com/tonhowtf/omnidisc-server). Canais de texto, mensagens diretas, amigos, cargos e permissões, fixados, busca, voz, vídeo e compartilhamento de tela. Mensagens diretas e os arquivos enviados nelas são criptografados de ponta a ponta com MLS, e a chave de uma chamada criptografada deriva do mesmo grupo, então quem opera o servidor não consegue ouvir. A voz roda em Rust em vez de no webview e o compartilhamento de tela usa o codificador de hardware da máquina. Arquivos enviados pelo chat ficam criptografados em repouso e são apagados do servidor depois de trinta minutos.
 
-- **Oficina de legendas** que abre SRT, VTT e ASS, com ferramentas de temporização, sincronização por dois pontos, localizar e substituir, correção automática em um clique, tradução por IA e correção gramatical por IA, além de uma forma de onda com marcadores de troca de cena.
-- **Timer pomodoro** que pausa seu vídeo quando a sessão termina.
-- **App de notas** com links bidirecionais, um diário e um grafo de conhecimento.
-- **Painel de progresso** com contador de sequência, metas diárias e um mapa de calor anual.
-- **Conversor FFmpeg** para arquivos locais, sem precisar de internet.
-- **Navegador de conversas do Telegram** que permite salvar fotos, vídeos e arquivos de qualquer conversa.
-- **Extensão de navegador** (Chrome e Firefox) que entrega a página atual ao OmniGet com um clique.
-- **Atalho global** (`Ctrl+Shift+D`, ou `Cmd+Shift+D` no macOS) que baixa a URL que estiver na área de transferência.
-- **9 idiomas** e **14 temas**, incluindo Catppuccin, Dracula, One Dark Pro e três variantes e-ink.
+É experimental e não faz nada até você ativar em **Configurações → Avançado → Chat (OmniDisc)** e adicionar um servidor.
+
+---
+
+## Para quem joga League of Legends, desligado por padrão
+
+Ative em **Configurações → Avançado → League of Legends** e um menu League aparece. Ele lê o cliente do League em execução, localmente, sem conta e sem site de builds de terceiros.
+
+Scouting da partida para os dois times com elo, forma recente, KDA e os campeões que cada jogador realmente joga. Probabilidade de vitória que encolhe as taxas de vitória em direção à média conforme o tamanho da amostra e sempre mostra uma faixa. Ouro, CS e nível ao vivo dos dez jogadores. Metas por função que você pode editar. Runas e feitiços recomendados pelo próprio cliente, aplicados em um clique e substituindo apenas a página que o OmniGet criou. Tiers de campeões por função. Busca de jogador por Riot ID. Automação opcional: aceitar partidas, escolher e banir pela sua lista de prioridade, pegar um campeão do banco do ARAM. Cada automação tem o seu próprio interruptor.
+
+---
+
+## Tudo o mais que vem na caixa
+
+- Paleta de comandos (**Ctrl+K** ou **Cmd+K**) que pula para qualquer página, configuração ou ferramenta.
+- Detecção de área de transferência que oferece baixar um link copiado com um clique num toast.
+- Gerenciador de cookies que guarda sessões por site, capturadas pela extensão ou importadas de um `cookies.txt`, com botão de teste por domínio.
+- Resumos de vídeo: cole uma URL em **Configurações → IA**, o OmniGet busca as legendas e resume no tamanho e idioma que você escolher.
+- Enviar um arquivo para alguém: escolha o arquivo, compartilhe o código de palavras, a outra pessoa cola no OmniGet dela.
+- Discord Rich Presence mostrando o que você está ouvindo, assistindo ou lendo. Downloads ficam privados.
+- Ícone na bandeja, iniciar com o sistema, iniciar minimizado, impedir suspensão durante downloads.
+- Todo download guarda o comando yt-dlp exato que rodou. Abra, mude uma flag, tente de novo.
+- 14 temas, incluindo Catppuccin (quatro sabores), Dracula, One Dark Pro, três variantes e-ink e três variantes Nyxvamp.
+- 11 idiomas: inglês, português, espanhol, francês, italiano, grego, russo, japonês, persa, chinês simplificado e tradicional.
+- Roda em Windows, macOS (Apple Silicon e Intel) e Linux (x86_64 e ARM64).
+
+---
+
+## Privacidade e o que o OmniGet se recusa a fazer
+
+Tudo roda no seu computador. Não há conta, não há servidor nosso no meio e não há telemetria do que você baixa. Cookies e chaves de API ficam no seu perfil local. As únicas chamadas de rede que o OmniGet faz por conta própria são para os sites que você pediu para baixar, para o GitHub buscar atualizações e plugins, e para o provedor de IA que você configurou, quando usa uma ferramenta de IA.
+
+O OmniGet baixa o que a sua própria sessão logada já consegue abrir. Ele não burla DRM, não quebra paywalls e não compartilha credenciais, e aulas protegidas por DRM são puladas e informadas. Você é responsável por respeitar direitos autorais e os termos de serviço de cada plataforma. O texto completo está no app em **Sobre → Termos e ética**.
 
 ---
 
 ## Perguntas frequentes
 
-**O OmniGet é gratuito?**
-Sim. O OmniGet é livre e de código aberto sob GPL-3.0, sem conta, sem anúncios e sem plano pago.
+**O OmniGet é grátis?**
+Sim. GPL-3.0, sem plano pago, sem anúncios, sem conta.
 
-**Preciso de uma conta para usar o OmniGet?**
-Não. O OmniGet não pede conta nem cadastro próprio. Você só faz login em uma plataforma quando o conteúdo em si exige, como um curso pago que você comprou ou uma transmissão premium do Bilibili, e essa sessão fica no seu computador.
+**O OmniGet é uma interface para o yt-dlp?**
+Em parte. O yt-dlp cuida da cauda longa de sites e o OmniGet o embute, verifica e atualiza. Em cima disso ficam extratores nativos para cursos, Instagram, X, Pinterest, Bilibili, Telegram e torrents, uma fila com retomada e repetição, a seção Tools e a biblioteca do Study.
 
-**O OmniGet consegue baixar uma playlist do YouTube ou um canal inteiro?**
-Sim. Cole a URL da playlist e o OmniGet coloca todos os vídeos na fila. Você também pode seguir um canal, e o OmniGet baixa os uploads novos automaticamente e mostra uma notificação na bandeja.
+**Dá para baixar um curso da Udemy ou da Hotmart que eu comprei?**
+Sim. Instale o plugin Courses (já vem instalado), entre pelo app, escolha o curso e as seções e baixe. Aulas e anexos caem numa pasta por curso e aparecem no Study.
 
-**O OmniGet retoma um download interrompido?**
-Sim. A fila guarda os arquivos parcialmente baixados e continua de onde parou em vez de recomeçar, e tenta de novo com backoff quando um site limita sua taxa. Fechar o app ou perder a conexão não joga o progresso fora.
+**Dá para baixar stories, melhores amigos ou destaques do Instagram?**
+Sim, usando a sua própria sessão capturada pela extensão. Stories são baixados sem marcar como vistos.
 
-**Em quais formatos o OmniGet salva?**
-Vídeo em MP4, MKV ou WebM, e áudio em MP3, M4A, Opus, FLAC ou WAV. Legendas em SRT, VTT ou ASS, que podem ser embutidas no arquivo de vídeo. Livros abrem em PDF, EPUB, CBZ, TXT e HTML.
+**Dá para baixar um vídeo do X, uma thread inteira ou toda a mídia de um perfil?**
+Sim. Posts públicos não precisam de login. Bookmarks e as suas listas de seguidos precisam da sua sessão do X.
 
-**O OmniGet baixa conteúdo pago que eu já comprei?**
-O OmniGet baixa o que a sua própria sessão logada já consegue abrir, como um curso da Udemy ou da Hotmart que você pagou. Ele não contorna DRM, não quebra paywalls e não compartilha credenciais. Conteúdo a que você não tem acesso continua inacessível.
+**Dá para fazer backup de um board do Pinterest em qualidade original?**
+Sim, incluindo vídeos, seções, boards secretos com cookies e sincronização incremental para buscar só o que é novo.
 
-**Preciso de terminal ou Python para usar o OmniGet?**
-Não. O OmniGet é um app de desktop comum. Baixe, abra, cole um link. O yt-dlp e o FFmpeg vêm embutidos e se atualizam sozinhos. A única vez em que você pode precisar do Terminal é no passo único da primeira abertura no macOS, descrito acima.
+**Ele retoma downloads interrompidos?**
+Sim. Arquivos parciais são mantidos e continuados, e limites de requisição disparam repetições com backoff.
 
-**O OmniGet não abre no macOS, o que eu faço?**
-Rode os dois comandos de Terminal na [observação sobre a primeira abertura](#️-leia-isto-antes-de-abrir-pela-primeira-vez). O Gatekeeper bloqueia apps de código aberto não assinados, e essas linhas limpam a marcação. Você faz isso uma vez só.
+**Quais formatos ele salva?**
+Vídeo em MP4, MKV ou WebM. Áudio em MP3, M4A, Opus, FLAC ou WAV. Legendas em SRT, VTT ou ASS, embutidas ou ao lado do arquivo.
 
-**O OmniGet é só uma interface para o yt-dlp?**
-O OmniGet usa o yt-dlp por baixo para os mais de 1.800 sites genéricos, com extratores nativos para as plataformas grandes, além de uma interface de verdade, uma fila, uma biblioteca e players embutidos em cima. Então sim, e bem mais do que uma interface.
+**Precisa de Python, Node ou terminal?**
+Não. Baixe o app, abra, cole um link. O único passo no terminal é o do Gatekeeper do macOS acima, uma vez só.
 
-**O OmniGet baixa um curso completo da Udemy ou da Hotmart?**
-Sim. Você faz login uma vez na plataforma, escolhe o curso, e o OmniGet baixa cada aula e cada anexo, e depois reproduz tudo com anotações por timestamp.
+**O macOS diz que o app está danificado.**
+Rode os dois comandos da [seção da primeira abertura](#o-aviso-da-primeira-abertura-e-como-resolver). Acontece porque o app não é notarizado, e acontece uma vez.
 
-**Quais sites o OmniGet suporta?**
-Cursos online, YouTube, TikTok, Instagram, Twitter/X, Reddit, Twitch, Vimeo, Bilibili, Pinterest, Bluesky, as principais plataformas asiáticas, galerias de imagens, torrents e magnets, além de cerca de 1.800 outros via yt-dlp.
+**Dá para transcrever um vídeo em legendas offline?**
+Sim. Tools → Fala e legendas → Transcrever usa o whisper.cpp localmente. Os modelos baixam sob demanda.
 
-**O OmniGet funciona no Windows, macOS e Linux?**
-Sim, nos três, tanto em x86_64 quanto em ARM64. No Windows sai como `.exe` portátil, instalador `.msi` e pacote winget. No macOS sai como `.dmg` para Apple Silicon e Intel. No Linux sai como `.deb`, `.rpm` e `.AppImage`.
+**Dá para rodar de um pendrive?**
+Sim, no Windows, com um arquivo `portable.txt` ao lado do executável.
 
-**Quais distribuições Linux são suportadas?**
-O OmniGet roda em qualquer Linux desktop moderno. Quem usa Debian e Ubuntu deve pegar o `.deb`, Fedora e openSUSE o `.rpm`, e qualquer outra distro o `.AppImage`. No Debian 12+ e no Ubuntu 24.04+ o AppImage precisa de `sudo apt install libfuse2`, porque essas versões deixaram de incluir o FUSE 2; o `.deb` não tem essa exigência.
-
-**O OmniGet roda totalmente portátil de um pendrive?**
-Sim. Crie um arquivo vazio chamado `portable.txt` (ou `.portable`) ao lado do `.exe` e reinicie. O OmniGet passa a guardar configurações, banco de dados, cookies, plugins, caches e o yt-dlp/FFmpeg embutidos em uma pasta `data` ao lado do executável — nada é gravado em `AppData\Roaming` nem em outras pastas do usuário. Sem esse arquivo, o app usa o diretório de dados padrão do usuário.
-
-**O OmniGet baixa só o áudio, ou só um trecho?**
-Sim. O OmniGet extrai o áudio em MP3, M4A, Opus, FLAC ou WAV, ou você define início e fim para baixar só a parte que precisa.
-
-**Meus downloads no OmniGet são privados?**
-Sim. Tudo no OmniGet roda localmente e seus arquivos nunca saem do seu computador. Não há telemetria sobre o que você baixa.
-
-**O OmniGet baixa do Bilibili em 4K, HDR ou Hi-Res lossless?**
-Sim, com uma conta do Bilibili conectada. O OmniGet conversa com a API oficial do Bilibili e respeita exatamente o que a sua assinatura 大会员 (premium) libera. Sem login, os downloads continuam funcionando via yt-dlp em qualidade padrão.
+**Qual pacote de Linux eu escolho?**
+Debian e Ubuntu: `.deb`. Fedora, openSUSE, família RHEL: `.rpm`. Qualquer outro: `.AppImage`. x86_64 e ARM64 são publicados. O OmniGet não está no Flathub.
 
 ---
 
-## Compilar a partir do código-fonte
+## Linha de comando
 
-Para desenvolvedores. Se você só quer usar o OmniGet, [pegue uma release](#baixar-e-instalar).
+O `omniget-cli` sai com toda release para Windows, macOS (Intel e Apple Silicon) e Linux. Pegue o `omniget-cli-<versão>-<alvo>` na [última release](https://github.com/tonhowtf/omniget/releases/latest).
+
+```bash
+omniget info <url>                     # título, formatos e tamanho, sem baixar nada
+omniget download <url> -q 1080 -o ~/Videos
+omniget download <url> --audio-only --subs en,pt
+omniget batch links.txt -m 3           # uma URL por linha, 3 por vez
+omniget import-cookies cookies.txt     # formato Netscape
+```
+
+---
+
+## Compilar do código-fonte
+
+Se você só quer usar o OmniGet, [pegue uma release](#baixar-e-instalar). Para compilar você precisa de [Rust](https://rustup.rs/) (a toolchain exata está fixada em `rust-toolchain.toml` porque a ABI dos plugins depende dela), [Node.js](https://nodejs.org/) 18+ e [pnpm](https://pnpm.io/).
 
 ```bash
 git clone https://github.com/tonhowtf/omniget.git
@@ -364,65 +544,44 @@ pnpm install
 pnpm tauri dev
 ```
 
-Requer [Rust](https://rustup.rs/), [Node.js](https://nodejs.org/) 18+ e [pnpm](https://pnpm.io/).
-
 <details>
 <summary>Dependências de build no Linux</summary>
 
 ```bash
-sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev \
+  libayatana-appindicator3-dev librsvg2-dev patchelf libasound2-dev libpipewire-0.3-dev clang libclang-dev
 ```
 
 </details>
 
-Build de produção: `pnpm tauri build`.
-
-### Interface de linha de comando (compile você mesmo)
-
-O repositório também contém o `omniget-cli`, um binário Rust pequeno que torna o OmniGet scriptável. Ele sai junto com cada release — baixe `omniget-cli-<versão>-<alvo>` na [release mais recente](https://github.com/tonhowtf/omniget/releases/latest), para Windows, macOS (Intel e Apple Silicon) ou Linux. Para compilar a partir deste repositório:
+Build de produção:
 
 ```bash
-cargo build --release -p omniget-cli
+pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
 ```
 
-```bash
-omniget info <url>                     # prévia de título, formatos e tamanho, sem baixar nada
-omniget download <url> -q 1080 -o ~/Videos
-omniget download <url> --audio-only --subs en,pt
-omniget batch links.txt -m 3           # uma URL por linha, 3 por vez
-omniget import-cookies cookies.txt     # formato Netscape
-```
+As releases assinam os artefatos do atualizador com uma chave privada que só o mantenedor tem, então um `pnpm tauri build` puro para com "A public key has been found, but no private key". A flag acima desliga esses artefatos numa build local e não muda mais nada.
 
-O app de desktop nunca precisa disso. Existe para cron jobs, dotfiles e scripts.
+Os plugins ficam em repositórios próprios: [omniget-plugin-courses](https://github.com/tonhowtf/omniget-plugin-courses), [omniget-plugin-telegram](https://github.com/tonhowtf/omniget-plugin-telegram), [omniget-plugin-convert](https://github.com/tonhowtf/omniget-plugin-convert) e [omniget-study-release](https://github.com/tonhowtf/omniget-study-release). O registro é o [omniget-plugins](https://github.com/tonhowtf/omniget-plugins). `pnpm plugins:deploy` compila os checkouts vizinhos dos plugins e copia para a sua pasta de dados local.
+
+Stack: Tauri 2, Rust, SvelteKit com Svelte 5, SQLite, yt-dlp, FFmpeg, librqbit para torrents, whisper.cpp, aria2, gallery-dl.
 
 ---
 
-## Contribuir
+## Contribuir e traduzir
 
-**Comunidade.** Dúvidas, ajuda e conversas sobre releases acontecem no [Discord](https://discord.gg/jgdxyPy7Vn).
+Relatos de bug e pull requests vão para [Issues](https://github.com/tonhowtf/omniget/issues) e [Pull requests](https://github.com/tonhowtf/omniget/pulls). Perguntas e ajuda rápida ficam no [Discord](https://discord.gg/jgdxyPy7Vn).
 
-Achou um bug ou tem uma ideia de funcionalidade? [Abra uma issue](https://github.com/tonhowtf/omniget/issues). Pull requests são bem-vindos, veja o [CONTRIBUTING.md](CONTRIBUTING.md).
+As traduções são feitas no [Weblate](https://hosted.weblate.org/engage/omniget/). Escolha o seu idioma e traduza pelo navegador. Novas strings aparecem lá algumas horas depois de entrarem na `main`.
 
-O OmniGet é traduzido no [Weblate](https://hosted.weblate.org/engage/omniget/). Escolha um idioma, traduza no navegador, e o Weblate abre um pull request automaticamente.
+O OmniGet é construído sobre [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [whisper.cpp](https://github.com/ggerganov/whisper.cpp), [aria2](https://aria2.github.io/), [SponsorBlock](https://sponsor.ajay.app/), [Return YouTube Dislike](https://returnyoutubedislike.com/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [Spicetify](https://spicetify.app/) e [Tauri](https://tauri.app/). Obrigado a todo mundo que os mantém.
 
-### Colaboradores
+O Loop, a criatura da tela inicial, é o mascote do OmniGet. Fan art é bem-vinda. A arte original não pode ser usada comercialmente nem redistribuída modificada.
 
-Obrigado a todos que participaram deste projeto!
+<p align="center">
+  <a href="https://star-history.com/#tonhowtf/omniget&Date"><img src="https://api.star-history.com/svg?repos=tonhowtf/omniget&type=Date" alt="Histórico de estrelas de tonhowtf/omniget" width="600" /></a>
+</p>
 
-[![Contributors](https://contrib.rocks/image?repo=tonhowtf/omniget)](https://github.com/tonhowtf/omniget/graphs/contributors)
-
-### Desenvolvendo plugins
-
-Os recursos de Cursos, Telegram e Conversão do OmniGet são todos plugins — bibliotecas dinâmicas em Rust construídas sobre o [`omniget-plugin-sdk`](src-tauri/omniget-plugin-sdk) — e plugins de terceiros são bem-vindos. O [Guia de Desenvolvimento de Plugins](docs/plugin-development.md) cobre a arquitetura, um início rápido a partir do [template de plugin](https://github.com/tonhowtf/omniget-plugin-template), o manifesto e a API do host, notas honestas sobre estabilidade de ABI e como entrar no [registro de plugins](https://github.com/tonhowtf/omniget-plugins).
-
-## Aviso aos donos de plataformas
-
-Se você representa uma plataforma listada e tem alguma preocupação, envie um e-mail para **tonhowtf@gmail.com** a partir de um endereço corporativo. A plataforma sai da lista na hora.
-
-## Aspectos legais
-
-O OmniGet é feito para uso pessoal. Respeite os direitos autorais e os termos de serviço de cada plataforma. Você é responsável pelo que baixar.
-
-## Licença
-
-[GPL-3.0](LICENSE). O nome OmniGet, o logo e o mascote Loop são marcas do projeto, não cobertas pela licença do código.
+<p align="center">
+  <a href="https://github.com/tonhowtf/omniget/releases/latest"><b>Baixar o OmniGet</b></a> · <a href="LICENSE">GPL-3.0</a>
+</p>

@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1600" height="420" viewBox="0 0 1600 420" role="img" aria-labelledby="t d">
+<title id="t">Pairing the OmniGet browser extension</title><desc id="d">Install the extension in Chrome from the folder OmniGet exports, click Pair extension in OmniGet Settings, the extension finds the app on localhost and connects. From then on every link carries your cookies and referer.</desc>
+<defs>
+  <linearGradient id="orange" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB340"/><stop offset="1" stop-color="#F28500"/></linearGradient>
+  <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#F28500" stop-opacity="0.35"/><stop offset="1" stop-color="#F28500" stop-opacity="0"/></radialGradient>
+  <linearGradient id="yt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF4E45"/><stop offset="1" stop-color="#E10E0E"/></linearGradient>
+  <linearGradient id="ig" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#8A3AB9"/><stop offset="0.5" stop-color="#E1306C"/><stop offset="1" stop-color="#FCAF45"/></linearGradient>
+  <linearGradient id="x" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1D9BF0"/><stop offset="1" stop-color="#0F6FB8"/></linearGradient>
+  <linearGradient id="pin" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF5B6E"/><stop offset="1" stop-color="#E60023"/></linearGradient>
+  <linearGradient id="tt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4A4A52"/><stop offset="1" stop-color="#1C1C21"/></linearGradient>
+  <linearGradient id="udemy" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C77DFF"/><stop offset="1" stop-color="#8E3FD8"/></linearGradient>
+  <linearGradient id="hot" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB340"/><stop offset="1" stop-color="#F28500"/></linearGradient>
+  <linearGradient id="tg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5AA9FF"/><stop offset="1" stop-color="#1E6FE8"/></linearGradient>
+  <linearGradient id="green" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4CD964"/><stop offset="1" stop-color="#2AA845"/></linearGradient>
+  <linearGradient id="indigo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6E8CFF"/><stop offset="1" stop-color="#3D5BF0"/></linearGradient>
+  <linearGradient id="teal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#48CFDF"/><stop offset="1" stop-color="#1A9EB5"/></linearGradient>
+  <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000" flood-opacity="0.45"/></filter>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#6E6E73"/></marker>
+</defs>
+<style>
+  text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Helvetica, Arial, sans-serif; }
+  .mono { font-family: 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace; }
+</style>
+<rect width="1600" height="420" rx="28" fill="#1C1C1E"/>
+<text x="60" y="62" font-size="26" fill="#F5F5F7" font-weight="700" text-anchor="start">Browser extension pairing</text>
+<text x="60" y="92" font-size="16" fill="#A1A1A6" font-weight="400" text-anchor="start">Private connection on your own machine. Nothing goes through a server.</text>
+<rect x="60" y="130" width="560" height="240" rx="20" fill="#2A2A2D" stroke="#3A3A3D"/>
+<rect x="60" y="130" width="560" height="44" rx="20" fill="#333336"/><rect x="60" y="154" width="560" height="20" fill="#333336"/>
+<circle cx="84" cy="152" r="6" fill="#FF5F57"/><circle cx="104" cy="152" r="6" fill="#FEBC2E"/><circle cx="124" cy="152" r="6" fill="#28C840"/><rect x="160" y="140" width="360" height="24" rx="8" fill="#1C1C1E"/>
+<text x="290.0" y="157" font-size="13" fill="#A1A1A6" font-weight="400" text-anchor="middle" class="mono">chrome://extensions</text>
+<g filter="url(#shadow)"><rect x="568" y="138" width="28" height="28" rx="8" fill="url(#orange)"/><path d="M582.0 143.6 v11.200000000000001" stroke="#fff" stroke-width="2.24" stroke-linecap="round"/><path d="M576.4 150.6 L582.0 156.2 L587.6 150.6" fill="none" stroke="#fff" stroke-width="2.24" stroke-linecap="round" stroke-linejoin="round"/><path d="M573.6 159.0 h16.8" stroke="#fff" stroke-width="2.24" stroke-linecap="round"/></g>
+<text x="84" y="214" font-size="15" fill="#F5F5F7" font-weight="600" text-anchor="start">Developer mode</text>
+<rect x="544" y="200" width="44" height="22" rx="11" fill="url(#orange)"/><circle cx="577" cy="211" r="9" fill="#fff"/>
+<rect x="84" y="236" width="150" height="34" rx="9" fill="#333336" stroke="#3A3A3D"/><text x="159" y="258" font-size="14" fill="#F5F5F7" font-weight="600" text-anchor="middle">Load unpacked</text>
+<rect x="84" y="286" width="512" height="64" rx="12" fill="#1C1C1E" stroke="#3A3A3D"/>
+<g filter="url(#shadow)"><rect x="98" y="298" width="40" height="40" rx="11" fill="url(#orange)"/><path d="M118.0 306.0 v16.0" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><path d="M110.0 316.0 L118.0 324.0 L126.0 316.0" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M106.0 328.0 h24.0" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/></g>
+<text x="152" y="316" font-size="15" fill="#F5F5F7" font-weight="700" text-anchor="start">OmniGet</text>
+<text x="152" y="336" font-size="13" fill="#A1A1A6" font-weight="400" text-anchor="start" class="mono">Looking for the desktop app on 127.0.0.1:47720 …</text>
+<path d="M650 250 h240" stroke="#6E6E73" stroke-width="3" stroke-dasharray="8 8" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<rect x="690" y="212" width="180" height="28" rx="8" fill="#333336"/><text x="780.0" y="231" font-size="13" fill="#A1A1A6" font-weight="500" text-anchor="middle">localhost only · per-install token</text>
+<g filter="url(#shadow)"><rect x="758.0" y="268" width="44" height="44" rx="11" fill="url(#orange)"/><circle cx="780.0" cy="290.0" r="13.2" fill="#fff"/><circle cx="775.38" cy="287.36" r="1.76" fill="#2A2A2D"/><circle cx="782.64" cy="284.72" r="1.76" fill="#2A2A2D"/><circle cx="784.62" cy="292.64" r="1.76" fill="#2A2A2D"/><circle cx="778.02" cy="294.62" r="1.76" fill="#2A2A2D"/><circle cx="780.0" cy="289.736" r="1.76" fill="#2A2A2D"/></g>
+<text x="780.0" y="336" font-size="13" fill="#A1A1A6" font-weight="500" text-anchor="middle">cookies + referer travel with each link</text>
+<rect x="940" y="130" width="600" height="240" rx="20" fill="#2A2A2D" stroke="#3A3A3D"/>
+<text x="964" y="168" font-size="14" fill="#6E6E73" font-weight="600" text-anchor="start">OmniGet · Settings › Plugins › Browser extension</text>
+<text x="964" y="210" font-size="15" fill="#F5F5F7" font-weight="600" text-anchor="start">Update / Install</text>
+<text x="964" y="230" font-size="13" fill="#A1A1A6" font-weight="400" text-anchor="start">Exports the bundled extension to a folder and opens it.</text>
+<rect x="1380" y="196" width="136" height="34" rx="9" fill="#333336" stroke="#3A3A3D"/><text x="1448" y="218" font-size="14" fill="#F5F5F7" font-weight="600" text-anchor="middle">Update / Install</text>
+<path d="M964 252 h552" stroke="#3A3A3D"/>
+<text x="964" y="286" font-size="15" fill="#F5F5F7" font-weight="600" text-anchor="start">Pair the extension</text>
+<text x="964" y="306" font-size="13" fill="#A1A1A6" font-weight="400" text-anchor="start">One click here, the extension connects on its own.</text>
+<rect x="1380" y="272" width="136" height="34" rx="9" fill="url(#orange)"/><text x="1448" y="294" font-size="14" fill="#1C1C1E" font-weight="700" text-anchor="middle">Pair extension</text>
+<rect x="964" y="326" width="552" height="30" rx="9" fill="#1F3A24"/><circle cx="984" cy="341" r="8" fill="#2AA845"/><path d="M980 341 l3 3 l6 -6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><text x="1000" y="346" font-size="13" fill="#9BE0A8" font-weight="600" text-anchor="start">Extension connected. You're all set.</text>
+</svg>
