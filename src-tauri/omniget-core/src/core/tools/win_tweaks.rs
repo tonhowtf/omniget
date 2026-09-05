@@ -576,11 +576,11 @@ pub async fn status() -> TweaksStatus {
         for rule in rules.iter_mut() {
             rule.applied = reg_query(&rule.key, &rule.name).await.map(|v| v == rule.on);
         }
-        return TweaksStatus {
+        TweaksStatus {
             supported: true,
             is_admin: is_admin().await,
             rules,
-        };
+        }
     }
     #[cfg(not(target_os = "windows"))]
     {

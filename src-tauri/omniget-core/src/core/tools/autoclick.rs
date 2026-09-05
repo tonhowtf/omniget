@@ -220,8 +220,11 @@ mod tests {
         let t = Instant::now();
         sleep_until(t + Duration::from_millis(5));
         let e = t.elapsed();
+        // The lower bound is the contract. The upper bound only guards against a
+        // sleep that never wakes; CI runners can stall a thread for far longer
+        // than the 20 ms a desktop machine takes, so it is deliberately loose.
         assert!(
-            e >= Duration::from_millis(5) && e < Duration::from_millis(25),
+            e >= Duration::from_millis(5) && e < Duration::from_millis(500),
             "{:?}",
             e
         );

@@ -36,12 +36,12 @@ pub async fn backend() -> SearchBackend {
     #[cfg(target_os = "windows")]
     {
         let p = es_path().await;
-        return SearchBackend {
+        SearchBackend {
             name: "Everything".into(),
             available: p.is_some(),
             path: p.map(|p| p.to_string_lossy().to_string()),
             install_hint: "winget install voidtools.Everything voidtools.Everything.Cli".into(),
-        };
+        }
     }
     #[cfg(target_os = "macos")]
     {
