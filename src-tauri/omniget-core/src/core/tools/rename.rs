@@ -169,8 +169,16 @@ mod tests {
             apply_to_extension: false,
         };
         let p = plan(&opts).unwrap();
-        assert_eq!(p[0].to, "/x/01. Intro.mp4");
-        assert_eq!(p[1].to, "/x/02. Loops.mp4");
+        // The plan joins with the platform separator, so compare through Path
+        // instead of a literal "/" that Windows would render as "\".
+        let expect = |name: &str| {
+            std::path::Path::new("/x")
+                .join(name)
+                .to_string_lossy()
+                .to_string()
+        };
+        assert_eq!(p[0].to, expect("01. Intro.mp4"));
+        assert_eq!(p[1].to, expect("02. Loops.mp4"));
         assert!(p.iter().all(|x| x.changed && !x.conflict));
     }
 }
