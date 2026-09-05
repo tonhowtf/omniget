@@ -1026,10 +1026,10 @@
     background: color-mix(in oklab, var(--accent) 10%, transparent);
   }
   .ctx-item.danger {
-    color: var(--error, #dc2626);
+    color: var(--error);
   }
   .ctx-item.danger:hover {
-    background: color-mix(in oklab, var(--error, #dc2626) 12%, transparent);
+    background: color-mix(in oklab, var(--error) 12%, transparent);
   }
 
   .rename-input {

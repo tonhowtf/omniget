@@ -3324,19 +3324,19 @@
     color: var(--tertiary);
   }
   .doc-card[data-ext="pdf"] .doc-thumb {
-    color: var(--red, #dc2626);
+    color: var(--red);
   }
   .doc-card[data-ext="epub"] .doc-thumb,
   .doc-card[data-ext="mobi"] .doc-thumb,
   .doc-card[data-ext="azw3"] .doc-thumb {
-    color: var(--blue, #2563eb);
+    color: var(--blue);
   }
   .doc-card[data-ext="djvu"] .doc-thumb {
-    color: var(--orange, #ea580c);
+    color: var(--orange);
   }
   .doc-card[data-ext="cbz"] .doc-thumb,
   .doc-card[data-ext="cbr"] .doc-thumb {
-    color: var(--green, #16a34a);
+    color: var(--green);
   }
   .ext-stamp {
     position: absolute;
@@ -4026,8 +4026,8 @@
     transition: color 150ms ease, background 150ms ease;
   }
   .pin-remove:hover {
-    color: var(--error, #dc2626);
-    background: color-mix(in oklab, var(--error, #dc2626) 12%, transparent);
+    color: var(--error);
+    background: color-mix(in oklab, var(--error) 12%, transparent);
   }
 
   .crumbs-row {
@@ -4401,10 +4401,10 @@
     background: color-mix(in oklab, var(--accent) 10%, transparent);
   }
   .ctx-item.danger {
-    color: var(--error, #dc2626);
+    color: var(--error);
   }
   .ctx-item.danger:hover {
-    background: color-mix(in oklab, var(--error, #dc2626) 12%, transparent);
+    background: color-mix(in oklab, var(--error) 12%, transparent);
   }
 
   .video-card.last-watched .video-thumb {
@@ -4486,18 +4486,18 @@
   }
 
   .root-row.missing {
-    background: color-mix(in oklab, var(--warning, #d97706) 8%, transparent);
+    background: color-mix(in oklab, var(--warning) 8%, transparent);
     border-radius: 6px;
   }
   .root-row.missing .root-path {
-    color: color-mix(in oklab, var(--warning, #d97706) 80%, currentColor);
+    color: color-mix(in oklab, var(--warning) 80%, currentColor);
     text-decoration: line-through;
     text-decoration-color: color-mix(in oklab, currentColor 40%, transparent);
   }
   .missing-tag {
-    background: color-mix(in oklab, var(--warning, #d97706) 18%, transparent) !important;
-    color: var(--warning, #d97706) !important;
-    border-color: color-mix(in oklab, var(--warning, #d97706) 40%, transparent) !important;
+    background: color-mix(in oklab, var(--warning) 18%, transparent) !important;
+    color: var(--warning) !important;
+    border-color: color-mix(in oklab, var(--warning) 40%, transparent) !important;
     cursor: help;
   }
 
@@ -4602,8 +4602,8 @@
     transition: color 120ms ease, background 120ms ease;
   }
   .tab-close:hover {
-    color: var(--error, #dc2626);
-    background: color-mix(in oklab, var(--error, #dc2626) 12%, transparent);
+    color: var(--error);
+    background: color-mix(in oklab, var(--error) 12%, transparent);
   }
 
   .bulk-action-bar {
@@ -4643,12 +4643,12 @@
     color: var(--accent);
   }
   .bulk-btn.danger {
-    background: var(--error, #dc2626);
-    border-color: var(--error, #dc2626);
+    background: var(--error);
+    border-color: var(--error);
     color: white;
   }
   .bulk-btn.danger:hover {
-    background: color-mix(in oklab, var(--error, #dc2626) 88%, black);
+    background: color-mix(in oklab, var(--error) 88%, black);
     color: white;
   }
 </style>

@@ -44,55 +44,216 @@
   "error_launch_failed_detail": {
     "message": "Verifique se o OmniGet está instalado e não foi bloqueado pelo sistema, depois tente novamente."
   },
-  "popup_send_default": { "message": "Enviar para o OmniGet" },
-  "popup_send_audio": { "message": "Enviar áudio" },
-  "popup_video_found_one": { "message": "Vídeo encontrado" },
-  "popup_videos_found": { "message": "$count$ vídeos encontrados", "placeholders": { "count": { "content": "$1" } } },
-  "popup_listening_title": { "message": "Procurando mídia…" },
-  "popup_listening_hint": { "message": "Vídeos e áudios aparecerão aqui conforme as páginas carregam." },
-  "popup_paused_title": { "message": "Detecção de mídia pausada" },
-  "popup_paused_hint": { "message": "Ative o botão acima para detectar vídeos nesta página." },
-  "popup_send_all": { "message": "Enviar tudo ($count$ vídeos)", "placeholders": { "count": { "content": "$1" } } },
-  "popup_detected_one": { "message": "1 vídeo detectado" },
-  "popup_detected_many": { "message": "$count$ vídeos detectados", "placeholders": { "count": { "content": "$1" } } },
-  "popup_video_n": { "message": "Vídeo $n$", "placeholders": { "n": { "content": "$1" } } },
-  "popup_kind_audio": { "message": "Áudio" },
-  "popup_kind_video": { "message": "Vídeo" },
-  "popup_download_aria": { "message": "Baixar $name$", "placeholders": { "name": { "content": "$1" } } },
-  "popup_sending": { "message": "Enviando…" },
-  "popup_sent": { "message": "Enviado!" },
-  "popup_sending_n": { "message": "Enviando $count$ vídeos…", "placeholders": { "count": { "content": "$1" } } },
-  "popup_sent_n": { "message": "$count$ vídeos enviados!", "placeholders": { "count": { "content": "$1" } } },
-  "popup_sent_failed": { "message": "Enviados $sent$, falharam $failed$", "placeholders": { "sent": { "content": "$1" }, "failed": { "content": "$2" } } },
-  "popup_not_running": { "message": "O OmniGet não está em execução" },
-  "popup_try_again": { "message": "Tentar de novo" },
-  "popup_get_app": { "message": "Obter o OmniGet" },
-  "popup_lbl_course": { "message": "Enviar curso para o OmniGet" },
-  "popup_lbl_playlist": { "message": "Enviar playlist para o OmniGet" },
-  "popup_lbl_video": { "message": "Enviar vídeo para o OmniGet" },
-  "popup_lbl_reel": { "message": "Enviar reel para o OmniGet" },
-  "popup_lbl_post": { "message": "Enviar post para o OmniGet" },
-  "popup_lbl_short": { "message": "Enviar short para o OmniGet" },
-  "popup_lbl_clip": { "message": "Enviar clipe para o OmniGet" },
-  "popup_lbl_image": { "message": "Enviar imagem para o OmniGet" },
-  "popup_lbl_audio": { "message": "Enviar áudio para o OmniGet" },
-  "popup_lbl_profile": { "message": "Enviar perfil para o OmniGet" },
-  "popup_lbl_page": { "message": "Enviar página para o OmniGet" },
-  "popup_ck_saving": { "message": "Salvando cookies…" },
-  "popup_ck_saved": { "message": "$count$ cookies salvos", "placeholders": { "count": { "content": "$1" } } },
-  "popup_ck_btn": { "message": "Salvar cookies do site" },
-  "popup_ck_meta": { "message": "$domain$ • $kind$", "placeholders": { "domain": { "content": "$1" }, "kind": { "content": "$2" } } },
-  "popup_ck_hint": { "message": "Envia os cookies deste site para o gerenciador de cookies do OmniGet." },
-  "popup_ckerr_no_url": { "message": "Nenhuma aba ativa" },
-  "popup_ckerr_invalid_url": { "message": "A página não pode ser inspecionada" },
-  "popup_ckerr_unsupported": { "message": "Apenas páginas http/https" },
-  "popup_ckerr_no_api": { "message": "API de cookies bloqueada" },
-  "popup_ckerr_no_cookies": { "message": "Sem cookies para este site" },
-  "popup_ckerr_missing_token": { "message": "Pareie o OmniGet primeiro" },
-  "popup_ckerr_missing_endpoint": { "message": "OmniGet não detectado" },
-  "popup_ckerr_fetch_failed": { "message": "O OmniGet não está em execução" },
-  "popup_ckerr_unauthorized": { "message": "Token de pareamento inválido" },
-  "popup_ckerr_default": { "message": "Não foi possível salvar os cookies" },
-  "popup_open_app_label": { "message": "Abrir o app ao baixar" },
-  "popup_sniffer_label": { "message": "Detecção de mídia" }
+  "popup_send_default": {
+    "message": "Enviar para o OmniGet"
+  },
+  "popup_send_audio": {
+    "message": "Enviar áudio"
+  },
+  "popup_video_found_one": {
+    "message": "Vídeo encontrado"
+  },
+  "popup_videos_found": {
+    "message": "$count$ vídeos encontrados",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_listening_title": {
+    "message": "Procurando mídia…"
+  },
+  "popup_listening_hint": {
+    "message": "Vídeos e áudios aparecerão aqui conforme as páginas carregam."
+  },
+  "popup_paused_title": {
+    "message": "Detecção de mídia pausada"
+  },
+  "popup_paused_hint": {
+    "message": "Ative o botão acima para detectar vídeos nesta página."
+  },
+  "popup_send_all": {
+    "message": "Enviar tudo ($count$ vídeos)",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_detected_one": {
+    "message": "1 vídeo detectado"
+  },
+  "popup_detected_many": {
+    "message": "$count$ vídeos detectados",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_video_n": {
+    "message": "Vídeo $n$",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_kind_audio": {
+    "message": "Áudio"
+  },
+  "popup_kind_video": {
+    "message": "Vídeo"
+  },
+  "popup_download_aria": {
+    "message": "Baixar $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_sending": {
+    "message": "Enviando…"
+  },
+  "popup_sent": {
+    "message": "Enviado!"
+  },
+  "popup_sending_n": {
+    "message": "Enviando $count$ vídeos…",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_sent_n": {
+    "message": "$count$ vídeos enviados!",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_sent_failed": {
+    "message": "Enviados $sent$, falharam $failed$",
+    "placeholders": {
+      "sent": {
+        "content": "$1"
+      },
+      "failed": {
+        "content": "$2"
+      }
+    }
+  },
+  "popup_not_running": {
+    "message": "O OmniGet não está em execução"
+  },
+  "popup_try_again": {
+    "message": "Tentar de novo"
+  },
+  "popup_get_app": {
+    "message": "Obter o OmniGet"
+  },
+  "popup_lbl_course": {
+    "message": "Enviar curso para o OmniGet"
+  },
+  "popup_lbl_playlist": {
+    "message": "Enviar playlist para o OmniGet"
+  },
+  "popup_lbl_video": {
+    "message": "Enviar vídeo para o OmniGet"
+  },
+  "popup_lbl_reel": {
+    "message": "Enviar reel para o OmniGet"
+  },
+  "popup_lbl_post": {
+    "message": "Enviar post para o OmniGet"
+  },
+  "popup_lbl_short": {
+    "message": "Enviar short para o OmniGet"
+  },
+  "popup_lbl_clip": {
+    "message": "Enviar clipe para o OmniGet"
+  },
+  "popup_lbl_image": {
+    "message": "Enviar imagem para o OmniGet"
+  },
+  "popup_lbl_audio": {
+    "message": "Enviar áudio para o OmniGet"
+  },
+  "popup_lbl_profile": {
+    "message": "Enviar perfil para o OmniGet"
+  },
+  "popup_lbl_page": {
+    "message": "Enviar página para o OmniGet"
+  },
+  "popup_ck_saving": {
+    "message": "Salvando cookies…"
+  },
+  "popup_ck_saved": {
+    "message": "$count$ cookies salvos",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_ck_btn": {
+    "message": "Salvar cookies do site"
+  },
+  "popup_ck_meta": {
+    "message": "$domain$ • $kind$",
+    "placeholders": {
+      "domain": {
+        "content": "$1"
+      },
+      "kind": {
+        "content": "$2"
+      }
+    }
+  },
+  "popup_ck_hint": {
+    "message": "Envia os cookies deste site para o gerenciador de cookies do OmniGet."
+  },
+  "popup_ckerr_no_url": {
+    "message": "Nenhuma aba ativa"
+  },
+  "popup_ckerr_invalid_url": {
+    "message": "A página não pode ser inspecionada"
+  },
+  "popup_ckerr_unsupported": {
+    "message": "Apenas páginas http/https"
+  },
+  "popup_ckerr_no_api": {
+    "message": "API de cookies bloqueada"
+  },
+  "popup_ckerr_no_cookies": {
+    "message": "Sem cookies para este site"
+  },
+  "popup_ckerr_missing_token": {
+    "message": "Pareie o OmniGet primeiro"
+  },
+  "popup_ckerr_missing_endpoint": {
+    "message": "OmniGet não detectado"
+  },
+  "popup_ckerr_fetch_failed": {
+    "message": "O OmniGet não está em execução"
+  },
+  "popup_ckerr_unauthorized": {
+    "message": "Token de pareamento inválido"
+  },
+  "popup_ckerr_default": {
+    "message": "Não foi possível salvar os cookies"
+  },
+  "popup_open_app_label": {
+    "message": "Abrir o app ao baixar"
+  },
+  "popup_sniffer_label": {
+    "message": "Detecção de mídia"
+  },
+  "popup_h264_label": {
+    "message": "Forçar H.264 no YouTube (mais leve em máquinas fracas)"
+  }
 }

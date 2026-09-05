@@ -65,14 +65,14 @@
       case "NOW":
         return "var(--accent)";
       case "DOING":
-        return "var(--warning, #e67e22)";
+        return "var(--warning)";
       case "DONE":
-        return "var(--success, #2ecc71)";
+        return "var(--success)";
       case "WAITING":
       case "LATER":
         return "var(--tertiary)";
       case "CANCELED":
-        return "var(--error, #e74c3c)";
+        return "var(--error)";
       default:
         return "var(--tertiary)";
     }

@@ -100,6 +100,10 @@ type QueueItemProgressPayload = {
   total_bytes: number | null;
   phase: string;
   eta_seconds?: number | null;
+  stream?: import("./download-store.svelte").StreamInfo | null;
+  fragment_index?: number | null;
+  fragment_count?: number | null;
+  planned_formats?: string[] | null;
 };
 
 type ConvertProgressPayload = {
@@ -326,6 +330,12 @@ export async function initDownloadListener(): Promise<() => void> {
         d.total_bytes,
         d.phase,
         d.eta_seconds ?? null,
+        {
+          stream: d.stream ?? null,
+          fragmentIndex: d.fragment_index ?? null,
+          fragmentCount: d.fragment_count ?? null,
+          plannedFormats: d.planned_formats ?? null,
+        },
       );
     },
   );

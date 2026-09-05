@@ -56,7 +56,7 @@
   }
   .chip.active {
     background: var(--accent);
-    color: var(--on-accent, #000);
+    color: var(--on-accent);
     border-color: transparent;
   }
   @media (prefers-reduced-motion: reduce) {

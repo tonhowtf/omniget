@@ -39,10 +39,10 @@
     {$t("confirm_close.message", { values: { count: activeCount } })}
   </p>
   <div class="dialog-actions">
-    <button type="button" class="button button-secondary" onclick={cancel}>
+    <button type="button" class="btn btn-secondary" onclick={cancel}>
       {$t("confirm_close.cancel")}
     </button>
-    <button type="button" class="button button-danger" onclick={confirm}>
+    <button type="button" class="btn btn-destructive" onclick={confirm}>
       {$t("confirm_close.confirm")}
     </button>
   </div>
@@ -74,37 +74,9 @@
     border-top: none;
   }
 
-  .button {
-    padding: 8px 16px;
-    font-size: var(--text-sm);
-    font-weight: 500;
-    border-radius: var(--border-radius);
-    border: none;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-  }
 
-  .button-secondary {
-    background: transparent;
-    color: var(--secondary);
-    border: none;
-  }
 
-  .button-secondary:hover {
-    background: var(--sidebar-highlight);
-  }
 
-  .button-danger {
-    background: var(--danger);
-    color: var(--on-status);
-  }
 
-  .button-danger:hover {
-    background: color-mix(in srgb, var(--danger) 88%, var(--bg-overlay));
-  }
 
-  .button:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
-  }
 </style>

@@ -272,7 +272,7 @@
   }
 
   .status-dot.status-done {
-    background: var(--green, #10b981);
+    background: var(--green);
   }
 
   .status-dot.status-error {

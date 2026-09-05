@@ -884,12 +884,12 @@
   }
 
   .role-badge.role-creator {
-    background: var(--gold, #f59e0b);
+    background: var(--warning);
     color: #fff;
   }
 
   .role-badge.role-admin {
-    background: var(--green, #10b981);
+    background: var(--green);
     color: #fff;
   }
 

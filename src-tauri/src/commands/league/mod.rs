@@ -1,9 +1,13 @@
 pub mod analysis;
 pub mod champ_select;
+pub mod coach;
 pub mod live;
 pub mod lobby;
 pub mod locator;
 pub mod meta;
+pub mod profile;
+pub mod sgp;
+pub mod skins;
 pub mod stats;
 pub mod ws;
 
@@ -15,7 +19,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::Mutex;
 
 #[derive(Clone)]
-struct LcuClient {
+pub(crate) struct LcuClient {
     port: u16,
     token: String,
     region: Option<String>,
@@ -984,26 +988,40 @@ pub async fn league_player_report(
         ),
     )
     .await;
-    let mut history_ids: Vec<i64> = Vec::new();
     let mut history_failed = false;
-    let (stats, history_empty) = match history {
-        Ok(h) => {
-            let games: Vec<Value> = h
-                .get("games")
-                .and_then(|g| g.get("games"))
-                .and_then(Value::as_array)
-                .cloned()
-                .unwrap_or_default();
-            history_ids = games
-                .iter()
-                .filter_map(|g| g.get("gameId").and_then(Value::as_i64))
-                .collect();
-            (compute_history_stats(&games, &puuid), games.is_empty())
-        }
+    let mut games: Vec<Value> = match history {
+        Ok(h) => h
+            .get("games")
+            .and_then(|g| g.get("games"))
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default(),
         Err(_) => {
             history_failed = true;
-            (json!({ "games": 0, "insights": [] }), true)
+            Vec::new()
         }
+    };
+    // The local endpoint trims or refuses other players' histories; the
+    // backend answers for anyone, so it fills the gap when allowed.
+    let mut sgp_used = false;
+    if games.is_empty() && !is_private {
+        if let Ok(backend) = sgp::match_history_local(&client, &puuid, 0, 20).await {
+            if !backend.is_empty() {
+                games = backend;
+                history_failed = false;
+                sgp_used = true;
+            }
+        }
+    }
+    let history_ids: Vec<i64> = games
+        .iter()
+        .filter_map(|g| g.get("gameId").and_then(Value::as_i64))
+        .collect();
+    let history_empty = games.is_empty();
+    let stats = if history_failed {
+        json!({ "games": 0, "insights": [] })
+    } else {
+        compute_history_stats(&games, &puuid)
     };
 
     // Impact needs team totals, which only the full game detail carries. Five
@@ -1072,6 +1090,7 @@ pub async fn league_player_report(
         "impactGames": impacts.len(),
         "privateProfile": is_private,
         "historyUnavailable": history_failed || (history_empty && !is_private),
+        "sgpUsed": sgp_used,
         "gameName": summoner.get("gameName"),
         "tagLine": summoner.get("tagLine"),
         "summonerLevel": summoner.get("summonerLevel"),
@@ -1445,7 +1464,7 @@ pub async fn league_set_status(
             return Err("invalid availability".to_string());
         }
     }
-    if message.as_deref().map(str::len).unwrap_or(0) > 140 {
+    if message.as_deref().map(|m| m.chars().count()).unwrap_or(0) > profile::STATUS_MAX_CHARS {
         return Err("status message too long".to_string());
     }
     let client = get_client().await?;
@@ -1713,14 +1732,29 @@ pub async fn league_player_history(
     let beg = beg_index.unwrap_or(0).max(0);
     let end = end_index.unwrap_or(beg + 9).max(beg);
     let client = get_client().await?;
-    lcu_get_raw(
+    let local = lcu_get_raw(
         &client,
         &format!(
             "/lol-match-history/v1/products/lol/{}/matches?begIndex={}&endIndex={}",
             puuid, beg, end
         ),
     )
-    .await
+    .await;
+    let local_games = local
+        .as_ref()
+        .ok()
+        .and_then(|h| h.get("games").and_then(|g| g.get("games")).and_then(Value::as_array))
+        .map(|a| a.len())
+        .unwrap_or(0);
+    if local_games > 0 {
+        return local;
+    }
+    // Nothing locally: the backend may still have it.
+    let count = (end - beg + 1).clamp(1, 50) as u32;
+    match sgp::match_history_local(&client, &puuid, beg as u32, count).await {
+        Ok(games) if !games.is_empty() => Ok(json!({ "games": { "games": games }, "source": "sgp" })),
+        _ => local,
+    }
 }
 
 /// Perk metadata (name and icon) so runes can be rendered without hardcoding
@@ -2184,12 +2218,17 @@ pub async fn league_search_player(game_name: String, tag_line: String) -> Result
     )
     .await
     .unwrap_or(Value::Null);
-    let games: Vec<Value> = history
+    let mut games: Vec<Value> = history
         .get("games")
         .and_then(|g| g.get("games"))
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
+    if games.is_empty() {
+        if let Ok(backend) = sgp::match_history_local(&client, &puuid, 0, 20).await {
+            games = backend;
+        }
+    }
     let records = champion_records_from_history(&games);
     let deep = deep_timeline_stats(&client, &puuid, &games).await;
 
@@ -3430,7 +3469,8 @@ async fn handle_champ_select(
                 .unwrap_or("pick")
                 .to_string();
             let (enabled, list) = action_champion_lists(settings, &action_type);
-            if !enabled || list.is_empty() {
+            let random_pick = action_type != "ban" && settings.pick_random;
+            if !enabled || (list.is_empty() && !random_pick) {
                 continue;
             }
             let pool = if action_type == "ban" {
@@ -3460,12 +3500,20 @@ async fn handle_champ_select(
                 Some(p) => p,
                 None => continue,
             };
-            let avoid: HashSet<i64> = if action_type == "ban" {
+            // Bans avoid what allies want; a random pick does too, so the
+            // roulette never hovers a champion a teammate already called.
+            let avoid: HashSet<i64> = if action_type == "ban" || random_pick {
                 ally_intents.clone()
             } else {
                 HashSet::new()
             };
-            let choice = match champ_select::choose_champion(&list, pool, &taken, &avoid) {
+            let chosen = if random_pick {
+                let mut rng = rand::rng();
+                champ_select::choose_random_champion(pool, &taken, &avoid, &mut rng)
+            } else {
+                champ_select::choose_champion(&list, pool, &taken, &avoid)
+            };
+            let choice = match chosen {
                 Some(c) => c,
                 None => continue,
             };

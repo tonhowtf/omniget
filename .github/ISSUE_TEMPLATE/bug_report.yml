@@ -1,0 +1,81 @@
+name: Bug report
+description: Report something that isn't working
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in the fields below so we can reproduce it.
+        For security issues, do not use this form — see SECURITY.md.
+
+  - type: input
+    id: version
+    attributes:
+      label: OmniGet version
+      description: Shown in Settings > About, or via `omniget --version`.
+      placeholder: "0.4.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (AppImage)
+        - Linux (Flatpak)
+        - Linux (other)
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform / site that failed
+      description: e.g. YouTube, Hotmart, a generic URL, Telegram plugin…
+      placeholder: "YouTube"
+    validations:
+      required: false
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Minimum steps to trigger the bug.
+      placeholder: |
+        1. Paste URL X
+        2. Select quality Y
+        3. Click download
+        4. See error Z
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste relevant output from the terminal or the log file. Remove any tokens/cookies before sharing.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and this hasn't been reported yet
+          required: true
+        - label: I am on the latest release
+          required: true

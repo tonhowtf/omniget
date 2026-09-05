@@ -41,7 +41,7 @@ async fn transcribe_via_audio(
     tmp: &std::path::Path,
 ) -> Result<String, String> {
     let audio_tmpl = tmp.join("audio.%(ext)s");
-    let _ = omniget_core::core::process::command(ytdlp)
+    let _ = omniget_core::core::ytdlp::ytdlp_command(ytdlp)
         .arg("-f")
         .arg("bestaudio/best")
         .arg("--no-warnings")
@@ -111,7 +111,7 @@ async fn fetch_transcript(url: &str) -> Result<(String, String), String> {
 
     let out_template = tmp.join("t.%(ext)s");
     let result: Result<(String, String), String> = (|| async {
-        let output = omniget_core::core::process::command(&ytdlp)
+        let output = omniget_core::core::ytdlp::ytdlp_command(&ytdlp)
             .arg("--skip-download")
             .arg("--write-subs")
             .arg("--write-auto-subs")

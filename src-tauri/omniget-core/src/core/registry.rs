@@ -20,6 +20,12 @@ impl PlatformRegistry {
     pub fn find_platform(&self, url: &str) -> Option<Arc<dyn PlatformDownloader>> {
         self.platforms.iter().find(|p| p.can_handle(url)).cloned()
     }
+
+    /// Downloader pelo nome (`"direct_file"`, `"generic"`…), para quando a
+    /// escolha vem de uma sondagem e não de `can_handle`.
+    pub fn find_by_name(&self, name: &str) -> Option<Arc<dyn PlatformDownloader>> {
+        self.platforms.iter().find(|p| p.name() == name).cloned()
+    }
 }
 
 impl Default for PlatformRegistry {

@@ -309,9 +309,9 @@
             <span class="setting-label">{$t('league.settings_enable')}</span>
             <span class="setting-path">{$t('league.settings_enable_desc')}</span>
           </div>
-          <button class="toggle" class:on={settings.league?.enabled} onclick={() => updateSettings({ league: { enabled: !(settings.league?.enabled ?? false) } })} role="switch" aria-checked={settings.league?.enabled ?? false} aria-label={$t('league.settings_enable') as string}><span class="toggle-knob"></span></button>
+          <button class="toggle" class:on={settings.league?.enabled ?? true} onclick={() => updateSettings({ league: { enabled: !(settings.league?.enabled ?? true) } })} role="switch" aria-checked={settings.league?.enabled ?? true} aria-label={$t('league.settings_enable') as string}><span class="toggle-knob"></span></button>
         </div>
-        {#if settings.league?.enabled}
+        {#if settings.league?.enabled ?? true}
           <div class="divider"></div>
           <div class="setting-row">
             <div class="setting-col">

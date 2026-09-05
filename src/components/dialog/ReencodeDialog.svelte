@@ -345,7 +345,7 @@
 
   .btn-primary {
     background: var(--accent);
-    color: var(--on-accent, #fff);
+    color: var(--on-accent);
   }
 
   .btn-primary:hover:not(:disabled) {

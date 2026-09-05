@@ -2,8 +2,8 @@
 // Computes ratio for: text-muted/surface, text-muted/surface-hi, text-dim/surface.
 
 const themes = [
-  { name: "dark",                 secondary: "#F5F5F7", tertiary: "#98989D", button: "#2C2C2E", buttonElev: "#3A3A3C", primary: "#1C1C1E" },
-  { name: "light",                secondary: "#1D1D1F", tertiary: "#67676C", button: "#FFFFFF", buttonElev: "#FFFFFF", primary: "#F5F5F7" },
+  { name: "dark",                 secondary: "#F5F5F7", tertiary: "#98989D", button: "#2A2A2D", buttonElev: "#38383B", primary: "#232325" },
+  { name: "light",                secondary: "#1D1D1F", tertiary: "#6E6A64", button: "#FFFFFF", buttonElev: "#F5F3EE", primary: "#FBFAF7" },
   { name: "catppuccin-mocha",     secondary: "#cdd6f4", tertiary: "#a6adc8", button: "#313244", buttonElev: "#45475a", primary: "#1e1e2e" },
   { name: "catppuccin-macchiato", secondary: "#cad3f5", tertiary: "#a5adcb", button: "#363a4f", buttonElev: "#494d64", primary: "#24273a" },
   { name: "catppuccin-frappe",    secondary: "#c6d0f5", tertiary: "#c3cdf1", button: "#414559", buttonElev: "#51576d", primary: "#303446" },

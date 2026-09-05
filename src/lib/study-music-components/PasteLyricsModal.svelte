@@ -197,7 +197,7 @@
   }
   textarea:focus {
     outline: none;
-    border-color: var(--accent, #7c5cff);
+    border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.18);
   }
   textarea.invalid {
@@ -235,8 +235,8 @@
     border-color: rgba(255, 255, 255, 0.28);
   }
   .primary {
-    background: var(--accent, #7c5cff);
-    color: white;
+    background: var(--accent);
+    color: var(--on-accent);
   }
   .primary:hover:not(:disabled) { filter: brightness(1.1); }
   .primary:active:not(:disabled) { transform: scale(0.98); }

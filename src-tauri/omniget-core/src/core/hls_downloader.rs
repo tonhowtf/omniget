@@ -123,7 +123,21 @@ impl HlsDownloader {
         let m3u8_bytes = m3u8_text.as_bytes();
 
         if let Ok((_, master)) = parse_master_playlist(m3u8_bytes) {
-            if let Some(variant) = select_best_variant(&master, max_height.unwrap_or(720)) {
+            if let Some(variant) = select_best_variant(&master, max_height) {
+                let available: Vec<u64> = master
+                    .variants
+                    .iter()
+                    .filter(|v| !v.is_i_frame)
+                    .map(variant_height)
+                    .collect();
+                tracing::info!(
+                    "[hls] variant selected: {}p (requested: {}, available: {:?})",
+                    variant_height(variant),
+                    max_height
+                        .map(|h| format!("max {}p", h))
+                        .unwrap_or_else(|| "best".to_string()),
+                    available
+                );
                 let variant_url = resolve_url(m3u8_url, &variant.uri);
                 return self
                     .download_media_playlist(
@@ -464,29 +478,34 @@ fn url_origin(url: &str) -> Option<String> {
     })
 }
 
-fn select_best_variant(master: &MasterPlaylist, max_height: u32) -> Option<&VariantStream> {
-    let real: Vec<&VariantStream> = master.variants.iter().filter(|v| !v.is_i_frame).collect();
+fn variant_height(v: &VariantStream) -> u64 {
+    v.resolution.as_ref().map(|r| r.height).unwrap_or(0)
+}
 
-    if real.is_empty() {
+/// Picks the highest variant not above `max_height`; with no target, the
+/// highest variant available. When every variant exceeds the target the
+/// lowest one is the closest match, so it is returned instead of nothing.
+fn select_best_variant(master: &MasterPlaylist, max_height: Option<u32>) -> Option<&VariantStream> {
+    let mut sorted: Vec<&VariantStream> =
+        master.variants.iter().filter(|v| !v.is_i_frame).collect();
+
+    if sorted.is_empty() {
         return None;
     }
 
-    let mut sorted = real;
-    sorted.sort_by_key(|v| v.resolution.as_ref().map(|r| r.height).unwrap_or(0));
+    sorted.sort_by_key(|v| (variant_height(v), v.bandwidth));
 
-    let max_h = max_height as u64;
-    let mut best: Option<&VariantStream> = None;
-    for v in &sorted {
-        if v.resolution
-            .as_ref()
-            .map(|r| r.height <= max_h)
-            .unwrap_or(true)
-        {
-            best = Some(*v);
-        }
-    }
+    let max_h = match max_height {
+        Some(h) => h as u64,
+        None => return sorted.last().copied(),
+    };
 
-    best.or_else(|| sorted.first().copied())
+    sorted
+        .iter()
+        .rev()
+        .find(|v| v.resolution.as_ref().map(|r| r.height <= max_h).unwrap_or(true))
+        .copied()
+        .or_else(|| sorted.first().copied())
 }
 
 fn resolve_url(base: &str, relative: &str) -> String {
@@ -807,7 +826,7 @@ mod tests {
             ],
             ..Default::default()
         };
-        let best = select_best_variant(&master, 720).unwrap();
+        let best = select_best_variant(&master, Some(720)).unwrap();
         assert_eq!(best.uri, "720.m3u8");
     }
 
@@ -836,7 +855,7 @@ mod tests {
             ],
             ..Default::default()
         };
-        let best = select_best_variant(&master, 1080).unwrap();
+        let best = select_best_variant(&master, Some(1080)).unwrap();
         assert_eq!(best.uri, "1080.m3u8");
     }
 
@@ -846,7 +865,7 @@ mod tests {
             variants: vec![],
             ..Default::default()
         };
-        assert!(select_best_variant(&master, 720).is_none());
+        assert!(select_best_variant(&master, Some(720)).is_none());
     }
 
     #[test]
@@ -875,7 +894,7 @@ mod tests {
             ],
             ..Default::default()
         };
-        let best = select_best_variant(&master, 720).unwrap();
+        let best = select_best_variant(&master, Some(720)).unwrap();
         assert_eq!(best.uri, "720.m3u8");
     }
 
@@ -904,7 +923,7 @@ mod tests {
             ],
             ..Default::default()
         };
-        let best = select_best_variant(&master, 360).unwrap();
+        let best = select_best_variant(&master, Some(360)).unwrap();
         assert_eq!(best.uri, "1080.m3u8");
     }
 
@@ -919,8 +938,93 @@ mod tests {
             }],
             ..Default::default()
         };
-        let best = select_best_variant(&master, 720).unwrap();
+        let best = select_best_variant(&master, Some(720)).unwrap();
         assert_eq!(best.uri, "audio.m3u8");
+    }
+
+    fn ladder() -> MasterPlaylist {
+        MasterPlaylist {
+            variants: vec![
+                VariantStream {
+                    uri: "720.m3u8".into(),
+                    bandwidth: 2_500_000,
+                    resolution: Some(Resolution {
+                        width: 1280,
+                        height: 720,
+                    }),
+                    ..Default::default()
+                },
+                VariantStream {
+                    uri: "1080.m3u8".into(),
+                    bandwidth: 5_000_000,
+                    resolution: Some(Resolution {
+                        width: 1920,
+                        height: 1080,
+                    }),
+                    ..Default::default()
+                },
+                VariantStream {
+                    uri: "360.m3u8".into(),
+                    bandwidth: 800_000,
+                    resolution: Some(Resolution {
+                        width: 640,
+                        height: 360,
+                    }),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn select_best_variant_no_target_picks_highest() {
+        let master = ladder();
+        let best = select_best_variant(&master, None).unwrap();
+        assert_eq!(best.uri, "1080.m3u8");
+    }
+
+    #[test]
+    fn select_best_variant_target_above_ladder_picks_highest() {
+        let master = ladder();
+        let best = select_best_variant(&master, Some(2160)).unwrap();
+        assert_eq!(best.uri, "1080.m3u8");
+    }
+
+    #[test]
+    fn select_best_variant_target_between_rungs_rounds_down() {
+        let master = ladder();
+        let best = select_best_variant(&master, Some(900)).unwrap();
+        assert_eq!(best.uri, "720.m3u8");
+    }
+
+    #[test]
+    fn select_best_variant_same_height_prefers_higher_bandwidth() {
+        let master = MasterPlaylist {
+            variants: vec![
+                VariantStream {
+                    uri: "1080-low.m3u8".into(),
+                    bandwidth: 3_000_000,
+                    resolution: Some(Resolution {
+                        width: 1920,
+                        height: 1080,
+                    }),
+                    ..Default::default()
+                },
+                VariantStream {
+                    uri: "1080-high.m3u8".into(),
+                    bandwidth: 6_000_000,
+                    resolution: Some(Resolution {
+                        width: 1920,
+                        height: 1080,
+                    }),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        let best = select_best_variant(&master, None).unwrap();
+        assert_eq!(best.uri, "1080-high.m3u8");
     }
 
     #[test]

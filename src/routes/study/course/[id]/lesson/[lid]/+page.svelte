@@ -744,7 +744,6 @@
   let screenshotToast = $state("");
   let clipping = $state(false);
   let clipToast = $state("");
-  let replaySaving = $state(false);
 
   type ClipResult = {
     output_path: string;
@@ -793,49 +792,6 @@
       setTimeout(() => (clipToast = ""), 4500);
     } finally {
       clipping = false;
-    }
-  }
-
-  async function saveReplayFromBuffer() {
-    if (replaySaving) return;
-    replaySaving = true;
-    clipToast = "Saving replay…";
-    try {
-      const status = await pluginInvoke<{ running: boolean; buffer_secs: number }>(
-        "misc",
-        "misc:studio:replay_buffer:status",
-        {},
-      );
-      if (!status.running) {
-        clipToast = "Replay buffer is off — turn it on in Misc → Studio first";
-        setTimeout(() => (clipToast = ""), 5000);
-        return;
-      }
-      const ts = fmtTimestamp(videoRef?.currentTime ?? 0);
-      const filename = `replay-${safeForFilename(lesson?.title || "aula")}-${ts}.mp4`;
-      const res = await pluginInvoke<{
-        ok: boolean;
-        stats: {
-          buffer_span_secs: number;
-          file_size_bytes: number;
-        };
-      }>("misc", "misc:studio:replay_buffer:save", { filename });
-      const sec = Math.floor(res.stats.buffer_span_secs);
-      const kb = Math.round(res.stats.file_size_bytes / 1024);
-      clipToast = `Replay saved: last ${sec}s (${kb} KB)`;
-      setTimeout(() => (clipToast = ""), 4000);
-      if (lesson) {
-        void awardXp("replay_saved", 3, {
-          lesson_id: lesson.id,
-          buffer_secs: sec,
-        });
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      clipToast = `Replay save failed: ${msg}`;
-      setTimeout(() => (clipToast = ""), 5000);
-    } finally {
-      replaySaving = false;
     }
   }
 
@@ -1233,25 +1189,6 @@
               <line x1="20" y1="4" x2="8.12" y2="15.88" />
               <line x1="14.47" y1="14.48" x2="20" y2="20" />
               <line x1="8.12" y1="8.12" x2="12" y2="12" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="btn icon-btn"
-            onclick={saveReplayFromBuffer}
-            disabled={replaySaving}
-            title="Save replay buffer (last 30s of what you hear)"
-            aria-label="Save replay buffer"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
-              <line x1="7" y1="2" x2="7" y2="22" />
-              <line x1="17" y1="2" x2="17" y2="22" />
-              <line x1="2" y1="12" x2="22" y2="12" />
-              <line x1="2" y1="7" x2="7" y2="7" />
-              <line x1="2" y1="17" x2="7" y2="17" />
-              <line x1="17" y1="17" x2="22" y2="17" />
-              <line x1="17" y1="7" x2="22" y2="7" />
             </svg>
           </button>
           <button

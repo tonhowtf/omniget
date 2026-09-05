@@ -125,6 +125,8 @@ pub fn start(app: tauri::AppHandle) {
                 let mut cached = super::CACHED_CLIENT.lock().await;
                 *cached = None;
             }
+            // Backend tokens belong to the session that just ended.
+            super::sgp::forget_tokens().await;
             backoff = 2;
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         }
@@ -451,6 +453,7 @@ async fn handle_event(client: &LcuClient, value: &Value) {
                 TRADES_HANDLED.lock().await.clear();
                 SWAPS_HANDLED.lock().await.clear();
                 MESSAGE_SENT.store(false, Ordering::SeqCst);
+                super::skins::reset_session().await;
                 LAST_EMITTED.lock().await.remove("league-champ-select");
                 emit("league-champ-select", Value::Null);
                 return;
@@ -467,6 +470,7 @@ async fn handle_event(client: &LcuClient, value: &Value) {
             handle_trades(client, &settings, &data).await;
             handle_swaps(client, &settings, &data).await;
             send_auto_message(client, &settings);
+            super::skins::on_champ_select(client, &settings, &data).await;
         }
         "/lol-lobby/v2/lobby" => {
             if event_type == "Delete" {
@@ -524,6 +528,7 @@ async fn on_phase(client: &LcuClient, phase: &str) {
                 TRADES_HANDLED.lock().await.clear();
                 SWAPS_HANDLED.lock().await.clear();
                 MESSAGE_SENT.store(false, Ordering::SeqCst);
+                super::skins::reset_session().await;
             }
         }
     }

@@ -11,6 +11,7 @@ export const DEFAULT_PLATFORM_COOKIE_DOMAINS = Object.freeze({
   pinterest: [".pinterest.com"],
   hotmart: [".hotmart.com"],
   udemy: [".udemy.com"],
+  rocketseat: [".rocketseat.com.br"],
   bluesky: [".bsky.app", ".bsky.social"],
   telegram: [".telegram.org", ".t.me"],
 });

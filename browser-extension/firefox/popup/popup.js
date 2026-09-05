@@ -25,6 +25,10 @@ let pageThumbnail = "";
 function localizeStatic() {
   const openApp = tr("popup_open_app_label");
   const sniffer = tr("popup_sniffer_label");
+  const h264 = tr("popup_h264_label");
+  const h264Wrap = document.getElementById("h264-toggle")?.closest(".toggle-group");
+  if (h264Wrap && h264) h264Wrap.title = h264;
+  if (h264) document.getElementById("h264-toggle")?.setAttribute("aria-label", h264);
   const openWrap = document.getElementById("open-app-toggle")?.closest(".toggle-group");
   if (openWrap) openWrap.title = openApp;
   document.getElementById("open-app-toggle")?.setAttribute("aria-label", openApp);
@@ -51,6 +55,12 @@ async function init() {
   } catch {}
 
   initCookieCapture(activeTab);
+
+  const h264Toggle = document.getElementById("h264-toggle");
+  chrome.runtime.sendMessage({ type: "getH264" }, (r) => { if (r && h264Toggle) h264Toggle.checked = r.enabled; });
+  h264Toggle?.addEventListener("change", () => {
+    chrome.runtime.sendMessage({ type: "toggleH264", enabled: h264Toggle.checked }, (r) => { if (r && h264Toggle.checked !== r.enabled) h264Toggle.checked = r.enabled; });
+  });
 
   await loadOpenAppState();
   openAppToggle.checked = isOpenAppEnabled();

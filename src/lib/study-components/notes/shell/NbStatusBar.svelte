@@ -107,7 +107,7 @@
     width: 7px;
     height: 7px;
     border-radius: 999px;
-    background: color-mix(in oklab, var(--success, #4caf50) 80%, transparent);
+    background: color-mix(in oklab, var(--success) 80%, transparent);
     transition: background 200ms ease;
   }
   .seg.saving.on .dot-mark {

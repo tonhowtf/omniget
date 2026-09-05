@@ -65,7 +65,7 @@ spicetify, 下载管理器, tauri, rust, svelte.
 - [Tools 工具区：16 个分类共 108 个工具](#tools-工具区16-个分类共-108-个工具)
 - [插件：Courses、Study、Telegram、Convert](#插件coursesstudytelegramconvert)
 - [内置聊天，默认关闭](#内置聊天默认关闭)
-- [给英雄联盟玩家的功能，默认关闭](#给英雄联盟玩家的功能默认关闭)
+- [给英雄联盟玩家的功能](#给英雄联盟玩家的功能)
 - [其他随附功能](#其他随附功能)
 - [隐私，以及 OmniGet 拒绝做的事](#隐私以及-omniget-拒绝做的事)
 - [常见问题](#常见问题)
@@ -156,7 +156,7 @@ codesign --force --deep --sign - /Applications/omniget.app
 2. 复制任意链接：YouTube 视频、Instagram Reel、X 帖子、Pinterest 画板、磁力链接、文件直链。
 3. 粘贴到主界面的输入框。OmniGet 识别网站，显示标题、封面和可用清晰度。选一个，按回车。
 
-「下载」页面直接从下载器读取速度、阶段和剩余时间，所以卡住的下载看起来就是卡住了，而不是一直停在「剩余 3 秒」。中断的下载从断点继续。被限速的网站会以退避方式重试。
+「下载」页面直接从下载器读取速度、阶段和剩余时间，所以卡住的下载看起来就是卡住了，而不是一直停在「剩余 3 秒」。中断的下载从断点继续。被限速的网站会以退避方式重试，每个站点的连接数也会自动调整：YouTube 最多 16 个并行分片，返回 429 的站点则减少。机器上有 Python 3.10 或更新版本时，yt-dlp 会以 zipapp 方式在其上运行，启动不到一秒，不用每次都解包内置的二进制文件。
 
 <p align="center">
   <img src="assets/readme/downloads.png" alt="OmniGet 下载页面，一个 4K YouTube 视频正在下载，显示阶段、速度、剩余时间和精确的 yt-dlp 命令，以及排队和已完成的条目" width="900" />
@@ -174,7 +174,7 @@ OmniGet 为最常用的平台写了原生提取器，其余的交给 [yt-dlp](ht
 
 | 类别 | 网站与格式 |
 |---|---|
-| 在线课程 | 通过 Courses 插件支持 Hotmart、Udemy、Kiwify 和 Rocketseat。全部课时、章节选择、附件、从上次位置继续。 |
+| 在线课程 | 通过 Courses 插件支持 Hotmart、Udemy、Kiwify、Rocketseat 和 Meta-Analysis Academy。全部课时、章节选择、附件、从上次位置继续。 |
 | 视频与音频 | YouTube（视频、播放列表、频道、从头录直播、章节、SponsorBlock）、Instagram、TikTok、X/Twitter、Reddit、Twitch（录像、剪辑、直播）、Vimeo、Bluesky、Threads、Pinterest、抖音 |
 | 哔哩哔哩，登录后 | 按你的会员等级提供 4K、HDR、杜比视界、Hi-Res 无损和杜比全景声。弹幕导出为 XML、ASS 或 JSON，为 Kodi 和 Jellyfin 生成 NFO，自定义命名模板，支持 11 种链接类型，包括番剧、课程、收藏夹、稍后再看和历史记录 |
 | 图片画廊 | 通过 gallery-dl 下载 250+ 网站的整个画廊和主页（DeviantArt、Pixiv、ArtStation、Flickr、Tumblr、Imgur、Kemono 等） |
@@ -192,7 +192,7 @@ OmniGet 为最常用的平台写了原生提取器，其余的交给 [yt-dlp](ht
 
 ## 浏览器扩展，手把手安装
 
-扩展做两件事。在它认识的网站上（YouTube、Instagram、TikTok、X、Reddit、Twitch、Pinterest、Bluesky、Telegram、Vimeo、Udemy、Hotmart、哔哩哔哩、SoundCloud），点一下或按 **Alt+O** 就把当前页面发给 OmniGet。在其他任何网站上，它监听网络流量，发现 MP4、HLS、DASH、WebM 和音频流，并在弹窗里列出来。两种情况下它都会转发你的 Cookie 和 Referer，正是这一点让 OmniGet 能下载你已登录的私密内容，比如 Instagram 快拍、付费课程或会员专属视频。
+扩展做两件事。在它认识的网站上（YouTube、Instagram、TikTok、X、Reddit、Twitch、Pinterest、Bluesky、Telegram、Vimeo、Udemy、Hotmart、Rocketseat、哔哩哔哩、SoundCloud），点一下或按 **Alt+O** 就把当前页面发给 OmniGet。在其他任何网站上，它监听网络流量，发现 MP4、HLS、DASH、WebM 和音频流，并在弹窗里列出来。两种情况下它都会转发你的 Cookie 和 Referer，正是这一点让 OmniGet 能下载你已登录的私密内容，比如 Instagram 快拍、付费课程或会员专属视频。Cookie 按真实站点分组，所以 `.com.br` 这类域名有自己独立的条目，不会和其他所有 `.com.br` 站点混在一起。弹窗里还有一个针对 YouTube 的 **强制 H.264** 开关，给播放 VP9 和 AV1 会卡顿的电脑用。
 
 按你的熟悉程度选一个级别。
 
@@ -228,7 +228,7 @@ Firefox：**设置 → 插件 → 浏览器扩展 → 更新 / 安装**，点 Fi
 
 ## Tools 工具区：16 个分类共 108 个工具
 
-Tools 是 OmniGet 里长到下载之外的那部分。每个方块是一项工作：一条独立的 Rust 命令，JSON 进、JSON 出，这也是将来让 AI 代理通过计划中的 MCP 服务器调用它们的基础。工具区有一个能听懂英文和葡萄牙文的搜索框（输入「legenda」能找到字幕工具），还有平台筛选；只能在 Windows 上运行的工具会在方块上注明，在其他系统上隐藏。
+Tools 是 OmniGet 里长到下载之外的那部分。每个方块是一项工作：一条独立的 Rust 命令，JSON 进、JSON 出，这也是让 AI 代理通过内置的 MCP 服务器调用它们的基础。工具区有一个能听懂英文和葡萄牙文的搜索框（输入「legenda」能找到字幕工具），还有平台筛选；只能在 Windows 上运行的工具会在方块上注明，在其他系统上隐藏。
 
 <p align="center">
   <img src="assets/readme/tools.png" alt="OmniGet 的 Tools 工具区，16 个分类：YouTube、语音与字幕、视频编辑、Instagram、X、Pinterest、Spotify、PDF、文档、图片、系统、文件、下载、自动化、手机和 AI" width="900" />
@@ -259,7 +259,7 @@ Tools 是 OmniGet 里长到下载之外的那部分。每个方块是一项工�
 - **SponsorBlock。** 查看广告、片头和片尾片段，并拿到跳过它们的 yt-dlp 参数。
 - **踩数。** 来自 Return YouTube Dislike 的点赞、点踩和评分。
 - **真实截图。** CDN 已有的 25%、50%、75% 位置画面帖，而不是标题党封面。
-- **强制 H.264。** 在性能差的机器上避开 VP9 和 AV1。*计划中*
+- **强制 H.264。** 浏览器扩展里的一个开关，让 YouTube 保持使用 H.264 而不是 VP9 和 AV1，给新编码播放卡顿的机器用。
 
 ### 语音与字幕（8）
 
@@ -267,14 +267,16 @@ Tools 是 OmniGet 里长到下载之外的那部分。每个方块是一项工�
 - **文字转语音。** 微软 Edge 的自然语音，免费，附带同步字幕文件。
 - **翻译字幕。** 用你的 AI 服务商或 LibreTranslate 服务器翻译 SRT，保留时间轴。
 - **按字幕配音。** 把 SRT 变成贴合每一句时长的语音轨，可选替换视频原声。*beta*
-- **声音克隆**、**声音设计**、**人声分离**、**听写。** *计划中*
+- **声音克隆**、**声音设计** 和 **人声分离**，通过本机安装的 VoiceStudio 完成。*beta*
+- **听写。** 按下全局快捷键说话，whisper 把文字直接输入到光标所在处。*beta*
 
 ### 视频编辑（6）
 
 - **剪片段。** 选一个本地视频，剪出一段。结果进入下载队列。
 - **转换。** 通过 Convert 插件更换容器、编码、分辨率或压缩。
 - **自动字幕** 和 **文字转语音** 会打开上面的语音工具。
-- **录屏** 和 **时间线编辑器。** *计划中*
+- **录屏。** 通过 FFmpeg 录制屏幕和系统声音，带回放缓冲，随时保存刚刚发生的片段。*beta*
+- **时间线编辑器。** *计划中*
 
 ### Instagram（24）
 
@@ -381,13 +383,19 @@ Tools 是 OmniGet 里长到下载之外的那部分。每个方块是一项工�
 
 ### 系统（9，仅 Windows 的项目已标注）
 
+- **清理缓存。** 按各系统的规则清理临时文件、日志和应用缓存。删除前先给你看清单。
+- **磁盘分析。** 用树状图和最大文件列表看清空间去哪了，一键移到废纸篓。
+- **启动项管理。** 查看随系统启动的项目并关掉不需要的。*beta*
+- **卸载器。** 卸载应用并清掉它们留下的残余。*beta*
 - **隐私护盾。** 控制 Windows 遥测、广告 ID 和跟踪设置。Windows。*beta*
 - **加固 Windows。** 参照 hardentools 处理宏、AutoRun、脚本宿主、UAC 和 Defender 设置，可还原。Windows。*beta*
-- **清理缓存**、**磁盘分析**、**启动项管理**、**卸载器**、**Windows 精简**、**注册表清理**、**软件更新器**（winget、Chocolatey 和 Scoop）。*计划中*
+- **Windows 精简。** 移除预装的商店应用。Windows。*beta*
+- **注册表清理。** 清理孤立项，删除前先备份 `.reg`。Windows。*beta*
+- **软件更新器。** 通过 winget、Chocolatey 和 Scoop 批量更新程序。Windows。*beta*
 
 ### 自动化（1）
 
-- **自动点击器。** Windows。*计划中*
+- **自动点击器。** 按你设定的速度点击，支持全局快捷键、次数上限和随机间隔。Windows、macOS 和 Linux。*beta*
 
 ### AI（6）
 
@@ -395,10 +403,10 @@ Tools 是 OmniGet 里长到下载之外的那部分。每个方块是一项工�
 - **AI 花费。** OmniGet 在 AI 上花了多少，按天、模型和任务统计，来自本地账本。
 - **本地模型（Ollama）。** 查看、下载和删除本地模型，把它们当作免费服务商使用。
 - **去 AI 味。** 把一眼 AI 生成的文字改写得像人写的，不改变原意。运行在你配置的 AI 上。*beta*
-- **API 密钥。** 集中保管密钥和账号，查看余额和用量。*计划中*
-- **MCP 服务器。** 让 Claude、Goose 或 Cursor 驱动 OmniGet 的工具。*计划中*
+- **API 密钥。** 本地保险库，集中保管密钥和账号，带连接测试，可查看 OpenRouter、DeepSeek、SiliconFlow 和 New API 的余额，并导出到 Claude Code、Codex、Cherry Studio、opencode 或 `.env` 文件。
+- **MCP 服务器。** 通过本地桥接以 Model Context Protocol 暴露 OmniGet 的工具，31 个工具，使用和扩展相同的令牌，附带 Claude Code、Claude Desktop、Cursor、VS Code、Goose 和 Codex 的现成配置片段。*beta*
 
-所有涉及 AI 的工具都使用**设置 → AI** 里配置的服务商：OpenAI、Anthropic，或任何兼容 OpenAI 接口的本地端点，比如 Ollama 或 LM Studio。密钥保存在本地，从不写入日志。
+所有涉及 AI 的工具都使用**设置 → AI** 里配置的服务商：OpenAI、Anthropic，或任何兼容 OpenAI 接口的本地端点，比如 Ollama 或 LM Studio。密钥保存在本地，从不写入日志。自动点击器、听写和回放缓冲都可以各自设置全局快捷键。
 
 ---
 
@@ -412,7 +420,7 @@ Tools 是 OmniGet 里长到下载之外的那部分。每个方块是一项工�
 
 ### Courses
 
-通过应用内的浏览器窗口登录 **Hotmart**、**Udemy**、**Kiwify** 或 **Rocketseat**，或使用扩展保存的 Cookie。OmniGet 列出你购买的课程，让你选章节，然后下载全部课时和附件，需要的话可以连续编号。有 DRM 保护的课时会被计数并跳过，不会假装下载成功。Hotmart 使用当前的 OIDC 登录流程，所以在 Hotmart 2026 年更换认证方式之后仍然可用。下载好的课程自动出现在 Study 里。
+通过应用内的浏览器窗口登录 **Hotmart**、**Udemy**、**Kiwify**、**Rocketseat** 或 **Meta-Analysis Academy**，也可以使用扩展保存的 Cookie，或在平台允许时直接用邮箱和密码。OmniGet 列出你购买的课程，打开课程大纲让你勾选想要的章节（并告诉你有多少课时受 DRM 保护、会被跳过），然后下载全部课时和附件，需要的话可以连续编号。Hotmart 使用当前的 OIDC 登录流程，所以在 Hotmart 2026 年更换认证方式之后仍然可用，免费课程和在 Hotmart Club 之外交付的课程也会列出来。下载好的课程自动出现在 Study 里。
 
 ### Study
 
@@ -444,11 +452,13 @@ OmniGet 自带一个叫 OmniDisc 的 Discord 风格聊天，配合你自己用 [
 
 ---
 
-## 给英雄联盟玩家的功能，默认关闭
+## 给英雄联盟玩家的功能
 
-在**设置 → 高级 → League of Legends**里打开，就会出现一个 League 菜单。它在本地读取正在运行的游戏客户端，不需要账号，也不依赖第三方出装网站。
+侧栏里有一个 League 菜单。它在本地读取正在运行的游戏客户端，不需要账号，也不依赖第三方出装网站，客户端没打开时什么都不做。如果你不玩，在**设置 → 高级 → League of Legends**里关掉，菜单就会消失。
 
 双方队伍的对局侦察：段位、近期状态、KDA 以及每位玩家真正在玩的英雄。胜率预测会按样本量把胜率往基准值收缩，并且始终给出区间。全部十名玩家的实时经济、补刀和等级。可编辑的分路目标。由客户端自身推荐的符文和召唤师技能，一键应用，且只替换 OmniGet 创建的那一页。按位置的英雄梯队。按 Riot ID 搜索玩家。可选的自动化：自动接受对局、按你的优先列表选人和禁人、从 ARAM 备选席抓英雄。每项自动化都有自己的开关。
+
+新增内容，标为 beta 或实验性：**个人资料**标签页，编辑别人看到的你（聊天中显示的段位、挑战徽章和头衔、横幅和纹章、聊天头像、批量管理好友）；**皮肤、炫彩和守卫轮盘**，锁定英雄的那一刻随机选一个你拥有的皮肤，可以重抽；**英雄和分路抽签**，想让队列替你做决定时用，另有可选的选人阶段随机锁定；通过客户端自身的后端网关获取**任意玩家的完整对局历史和排位数据**，并可下载回放；还有一个 **AI 教练**，用你配置的 AI 服务商和 OP.GG 的公开数据复盘一场对局、总结最近几场的趋势，或回答关于当前选人阶段的问题。
 
 ---
 
@@ -485,7 +495,7 @@ OmniGet 只下载你自己已登录的会话本来就能打开的内容。它不
 一部分是。yt-dlp 负责长尾网站，OmniGet 把它打包、校验并自动更新。在此之上还有课程、Instagram、X、Pinterest、哔哩哔哩、Telegram 和种子的原生提取器，带续传和重试的队列，Tools 工具区，以及 Study 学习库。
 
 **能下载我买过的 Udemy 或 Hotmart 课程吗？**
-能。安装 Courses 插件（已预装），在应用里登录，选择课程和章节，下载。课时和附件按课程分文件夹保存，并出现在 Study 里。
+能。安装 Courses 插件（已预装），在应用里登录，选择课程和章节，下载。课时和附件按课程分文件夹保存，并出现在 Study 里。Kiwify、Rocketseat 和 Meta-Analysis Academy 的用法相同。
 
 **能下载 Instagram 快拍、密友快拍或精选吗？**
 能，使用扩展捕获的你自己的会话。下载快拍不会标记为已看。

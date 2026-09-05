@@ -1,4 +1,5 @@
 use serde_json::Value;
+use rand::RngExt;
 use std::collections::HashSet;
 
 /// Bans wait longer than picks by default in most rulesets, and a ban sent on the
@@ -89,6 +90,71 @@ pub fn should_lock_now(mode: PickConfirm, time_left: Option<i64>) -> bool {
         // locked rather than risking losing it entirely.
         PickConfirm::AtTimeout => time_left.is_none_or(|left| left <= TIMEOUT_LOCK_MARGIN_MS),
     }
+}
+
+/// A random legal champion, for the player who wants the queue itself to
+/// decide what they play. Deterministic given the rng, so it can be tested.
+pub fn choose_random_champion<R: rand::Rng>(
+    pool: &HashSet<i64>,
+    taken: &HashSet<i64>,
+    avoid: &HashSet<i64>,
+    rng: &mut R,
+) -> Option<i64> {
+    let mut candidates: Vec<i64> = pool
+        .iter()
+        .copied()
+        .filter(|c| !taken.contains(c) && !avoid.contains(c))
+        .collect();
+    if candidates.is_empty() {
+        return None;
+    }
+    // Sorted first so the choice depends only on the rng, not on hash order.
+    candidates.sort_unstable();
+    let index = rng.random_range(0..candidates.len());
+    Some(candidates[index])
+}
+
+/// The local player's pick action that is open right now, if any.
+pub fn local_pick_action(session: &Value, cell: i64) -> Option<(i64, bool)> {
+    let groups = session.get("actions")?.as_array()?;
+    for group in groups {
+        for action in group.as_array().map(|a| a.as_slice()).unwrap_or(&[]) {
+            let actor = action.get("actorCellId").and_then(Value::as_i64).unwrap_or(-2);
+            let kind = action.get("type").and_then(Value::as_str).unwrap_or("");
+            if actor != cell || kind != "pick" {
+                continue;
+            }
+            let id = action.get("id").and_then(Value::as_i64)?;
+            let completed = action.get("completed").and_then(Value::as_bool).unwrap_or(false);
+            return Some((id, completed));
+        }
+    }
+    None
+}
+
+/// Champion the local player has locked, or 0 while nothing is locked yet.
+pub fn locked_champion(session: &Value) -> i64 {
+    let cell = session
+        .get("localPlayerCellId")
+        .and_then(Value::as_i64)
+        .unwrap_or(-1);
+    if cell < 0 {
+        return 0;
+    }
+    let locked = matches!(local_pick_action(session, cell), Some((_, true)));
+    if !locked {
+        return 0;
+    }
+    session
+        .get("myTeam")
+        .and_then(Value::as_array)
+        .and_then(|team| {
+            team.iter()
+                .find(|m| m.get("cellId").and_then(Value::as_i64) == Some(cell))
+        })
+        .and_then(|me| me.get("championId").and_then(Value::as_i64))
+        .filter(|id| *id > 0)
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -190,5 +256,38 @@ mod tests {
         assert_eq!(time_left_ms(&session), Some(17_500));
         assert_eq!(time_left_ms(&json!({})), None);
         assert_eq!(time_left_ms(&json!({ "timer": {} })), None);
+    }
+
+    #[test]
+    fn a_random_pick_stays_inside_the_legal_pool() {
+        use rand::SeedableRng;
+        let pool = set(&[1, 2, 3, 4, 5]);
+        let taken = set(&[2]);
+        let avoid = set(&[5]);
+        let mut rng = rand::rngs::StdRng::seed_from_u64(7);
+        for _ in 0..50 {
+            let choice = choose_random_champion(&pool, &taken, &avoid, &mut rng).unwrap();
+            assert!(pool.contains(&choice));
+            assert!(!taken.contains(&choice));
+            assert!(!avoid.contains(&choice));
+        }
+        assert_eq!(
+            choose_random_champion(&set(&[1]), &set(&[1]), &set(&[]), &mut rng),
+            None
+        );
+    }
+
+    #[test]
+    fn the_locked_champion_is_only_reported_once_the_pick_completes() {
+        let mut session = json!({
+            "localPlayerCellId": 1,
+            "myTeam": [{ "cellId": 1, "championId": 99 }],
+            "actions": [[{ "id": 5, "actorCellId": 1, "type": "pick", "completed": false }]]
+        });
+        assert_eq!(locked_champion(&session), 0);
+        assert_eq!(local_pick_action(&session, 1), Some((5, false)));
+        session["actions"][0][0]["completed"] = json!(true);
+        assert_eq!(locked_champion(&session), 99);
+        assert_eq!(locked_champion(&json!({})), 0);
     }
 }

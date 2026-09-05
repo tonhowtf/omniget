@@ -1432,7 +1432,7 @@
   .drawer-overlay {
     position: fixed;
     inset: 0;
-    background: color-mix(in oklab, var(--bg, #000) 60%, transparent);
+    background: color-mix(in oklab, var(--bg) 60%, transparent);
     backdrop-filter: blur(2px);
     z-index: 40;
   }
@@ -1824,17 +1824,17 @@
     background-position: center;
   }
   .book-card[data-ext="pdf"] .book-thumb {
-    color: var(--red, #dc2626);
+    color: var(--red);
   }
   .book-card[data-ext="epub"] .book-thumb {
-    color: var(--blue, #2563eb);
+    color: var(--blue);
   }
   .book-card[data-ext="djvu"] .book-thumb {
-    color: var(--orange, #ea580c);
+    color: var(--orange);
   }
   .book-card[data-ext="cbz"] .book-thumb,
   .book-card[data-ext="cbr"] .book-thumb {
-    color: var(--green, #16a34a);
+    color: var(--green);
   }
   .ext-stamp {
     position: absolute;

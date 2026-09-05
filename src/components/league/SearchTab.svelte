@@ -113,6 +113,9 @@
   {#if searchResult}
     {@const s = searchResult.summoner}
     {@const r = searchResult.report}
+    {#if r?.sgpUsed}
+      <p class="win-disclaimer">{$t("league.search_source_sgp")}</p>
+    {/if}
     <section class="profile-card">
       <img class="profile-icon" src={`${CDRAGON}/profile-icons/${s.profileIconId}.jpg`} alt="" loading="lazy" />
       <div class="profile-info">

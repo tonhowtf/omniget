@@ -80,49 +80,49 @@
 
   .quality-label {
     font-size: var(--text-sm);
-    font-weight: 500;
-    color: var(--gray);
+    font-weight: 600;
+    color: var(--text-dim);
   }
 
   .quality-pills {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 6px;
   }
 
   .quality-pill {
-    padding: 6px 12px;
-    font-size: 12px;
+    height: 26px;
+    padding: 0 var(--space-3);
+    font-size: var(--text-sm);
     font-weight: 500;
-    color: var(--gray);
-    background: var(--button);
-    border: 1px solid transparent;
-    border-radius: calc(var(--border-radius) - 2px);
+    color: var(--text-muted);
+    background: var(--fill-1);
+    border: none;
+    border-radius: var(--radius-full);
     cursor: pointer;
     white-space: nowrap;
-    box-shadow: var(--button-box-shadow);
+    transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
   }
 
   .quality-pill.active {
-    background: var(--button-elevated);
-    color: var(--secondary);
-    border-color: var(--cta);
+    background: var(--accent-soft);
+    color: var(--accent-hi);
+    box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--accent) 40%, transparent);
   }
 
   .quality-pill--audio {
-    border-style: dashed;
-    border-color: var(--content-border);
+    box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
+    background: transparent;
   }
 
   .quality-pill--audio.active {
-    border-style: solid;
-    border-color: var(--cta);
+    background: var(--accent-soft);
   }
 
   @media (hover: hover) {
     .quality-pill:not(.active):hover {
-      background: var(--button-hover);
-      color: var(--secondary);
+      background: var(--fill-2);
+      color: var(--text);
     }
   }
 
@@ -132,8 +132,7 @@
   }
 
   .quality-hint {
-    font-size: 10.5px;
-    color: var(--gray);
-    opacity: 0.7;
+    font-size: var(--text-xs);
+    color: var(--text-dim);
   }
 </style>

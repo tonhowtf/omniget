@@ -192,16 +192,16 @@
     align-items: center;
     gap: 6px;
     padding: 4px 8px;
-    background: color-mix(in oklab, var(--warning, #e67e22) 10%, transparent);
-    border: 1px solid color-mix(in oklab, var(--warning, #e67e22) 30%, transparent);
+    background: color-mix(in oklab, var(--warning) 10%, transparent);
+    border: 1px solid color-mix(in oklab, var(--warning) 30%, transparent);
     border-radius: var(--border-radius);
-    color: var(--warning, #e67e22);
+    color: var(--warning);
     font-size: 11px;
   }
   .embed-warning.cycle {
-    background: color-mix(in oklab, var(--error, #e74c3c) 10%, transparent);
-    border-color: color-mix(in oklab, var(--error, #e74c3c) 30%, transparent);
-    color: var(--error, #e74c3c);
+    background: color-mix(in oklab, var(--error) 10%, transparent);
+    border-color: color-mix(in oklab, var(--error) 30%, transparent);
+    color: var(--error);
   }
   .warning-icon {
     flex-shrink: 0;

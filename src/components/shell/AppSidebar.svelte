@@ -24,7 +24,17 @@
 
   let chatBadgeLabel = $derived(chatBadgeCount > 99 ? "99+" : String(chatBadgeCount));
 
-  let pluginsExpanded = $state(true);
+  const PLUGINS_KEY = "omniget.sidebar.plugins_expanded";
+  let pluginsExpanded = $state(
+    typeof localStorage === "undefined" ? true : localStorage.getItem(PLUGINS_KEY) !== "0",
+  );
+
+  function togglePlugins() {
+    pluginsExpanded = !pluginsExpanded;
+    try {
+      localStorage.setItem(PLUGINS_KEY, pluginsExpanded ? "1" : "0");
+    } catch {}
+  }
 
   function isActive(href: string): boolean {
     if (href === "/") return page.url.pathname === "/";
@@ -36,70 +46,67 @@
   }
 </script>
 
-<aside class="mac-source-list">
-  <div class="mac-source-list-drag" data-tauri-drag-region></div>
-  <div class="mac-nav-section">
-    <div class="mac-nav-section-header">{$t("nav.section_primary")}</div>
-    {#each primaryNav as item}
-      {@const title = itemTitle(item)}
-      <a href={item.href} class="mac-nav-item" class:active={isActive(item.href)} title={title}>
-        <NavIcon icon={item.icon} iconSvg={item.iconSvg} active={isActive(item.href)} />
-        <span class="mac-nav-label">{title}</span>
-        {#if item.badge === "downloads" && badgeCount > 0}
-          <span class="mac-nav-badge">{badgeLabel}</span>
-        {:else if item.badge === "omnidisc" && chatBadgeCount > 0}
-          <span class="mac-nav-badge">{chatBadgeLabel}</span>
-        {/if}
-      </a>
-    {/each}
-  </div>
+{#snippet navLink(item: NavItem)}
+  {@const title = itemTitle(item)}
+  {@const active = isActive(item.href)}
+  <a
+    href={item.href}
+    class="mac-nav-item"
+    class:active
+    title={title}
+    aria-current={active ? "page" : undefined}
+  >
+    <NavIcon icon={item.icon} iconSvg={item.iconSvg} size={18} {active} />
+    <span class="mac-nav-label">{title}</span>
+    {#if item.badge === "downloads" && badgeCount > 0}
+      <span class="mac-nav-badge live">{badgeLabel}</span>
+    {:else if item.badge === "omnidisc" && chatBadgeCount > 0}
+      <span class="mac-nav-badge live">{chatBadgeLabel}</span>
+    {/if}
+  </a>
+{/snippet}
 
-  <div class="mac-nav-section">
-    <div class="mac-nav-section-header">{$t("nav.section_app")}</div>
-    {#each appNav as item}
-      {@const title = itemTitle(item)}
-      <a href={item.href} class="mac-nav-item" class:active={isActive(item.href)} title={title}>
-        <NavIcon icon={item.icon} iconSvg={item.iconSvg} active={isActive(item.href)} />
-        <span class="mac-nav-label">{title}</span>
-      </a>
+<aside class="mac-source-list" aria-label={$t("nav.section_primary")}>
+  <div class="mac-source-list-drag" data-tauri-drag-region></div>
+
+  <nav class="mac-nav-section" aria-label={$t("nav.section_primary")}>
+    {#each primaryNav as item (item.href)}
+      {@render navLink(item)}
     {/each}
-  </div>
+  </nav>
+
+  <nav class="mac-nav-section" aria-label={$t("nav.section_app")}>
+    <div class="mac-nav-section-header">{$t("nav.section_app")}</div>
+    {#each appNav as item (item.href)}
+      {@render navLink(item)}
+    {/each}
+  </nav>
 
   {#if pluginNav.length > 0}
-    <div class="mac-nav-section">
+    <nav class="mac-nav-section" aria-label={$t("nav.section_plugins")}>
       <div class="mac-nav-section-header">
         <span>{$t("nav.section_plugins")}</span>
         <button
           type="button"
           class="mac-plugins-toggle"
-          onclick={() => { pluginsExpanded = !pluginsExpanded; }}
+          onclick={togglePlugins}
           aria-expanded={pluginsExpanded}
           aria-label={pluginsExpanded ? $t("nav.collapse_plugins") : $t("nav.expand_plugins")}
         >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             {#if pluginsExpanded}
-              <path d="M6 9l6 6 6-6" />
+              <path d="M4 6l4 4 4-4" />
             {:else}
-              <path d="M9 6l6 6-6 6" />
+              <path d="M6 4l4 4-4 4" />
             {/if}
           </svg>
         </button>
       </div>
       {#if pluginsExpanded}
-        {#each pluginNav as item}
-          {@const title = itemTitle(item)}
-          <a href={item.href} class="mac-nav-item" class:active={isActive(item.href)} title={title}>
-            <NavIcon icon={item.icon} iconSvg={item.iconSvg} active={isActive(item.href)} />
-            <span class="mac-nav-label">{title}</span>
-          </a>
+        {#each pluginNav as item (item.href)}
+          {@render navLink(item)}
         {/each}
       {/if}
-    </div>
+    </nav>
   {/if}
 </aside>
-
-<style>
-  .mac-source-list :global(.mac-nav-item.active .nav-icon) {
-    color: var(--accent);
-  }
-</style>

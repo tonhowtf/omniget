@@ -748,7 +748,7 @@
   }
 
   .status-completed {
-    background: var(--green, #10b981);
+    background: var(--green);
     color: #fff;
   }
 
@@ -759,7 +759,7 @@
   }
 
   .status-paused {
-    background: var(--gold, #f59e0b);
+    background: var(--warning);
     color: #fff;
   }
 
@@ -783,7 +783,7 @@
   }
 
   .progress-inner.status-completed {
-    background: var(--green, #10b981);
+    background: var(--green);
   }
 
   .session-meta {

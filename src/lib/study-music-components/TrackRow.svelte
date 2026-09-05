@@ -312,8 +312,8 @@
     background: rgba(255, 255, 255, 0.1);
   }
   .remove-btn:hover {
-    color: var(--error, #dc2626);
-    background: color-mix(in oklab, var(--error, #dc2626) 12%, transparent);
+    color: var(--error);
+    background: color-mix(in oklab, var(--error) 12%, transparent);
   }
   .track-dur {
     flex-shrink: 0;

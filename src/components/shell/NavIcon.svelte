@@ -1,87 +1,84 @@
 <script lang="ts">
-  let { icon, iconSvg, size = 20, active = false }: { icon: string; iconSvg?: string; size?: number; active?: boolean } = $props();
+  /**
+   * Sidebar icon tile in the macOS System Settings idiom: a small rounded
+   * square with a colour of its own and a chunky white glyph (Phosphor Fill,
+   * MIT, shipped in static/icons). Plugins that provide their own SVG path
+   * still get a tile; the path is drawn white inside it.
+   */
+  let {
+    icon,
+    iconSvg,
+    size = 22,
+    active = false,
+  }: { icon: string; iconSvg?: string; size?: number; active?: boolean } = $props();
+
+  // glyph file + tile gradient per nav id. Colours follow Apple's system
+  // palette so the column reads like a native sidebar.
+  const TILES: Record<string, { glyph: string; from: string; to: string }> = {
+    home: { glyph: "house", from: "#5AA9FF", to: "#1E6FE8" },
+    downloads: { glyph: "tray-arrow-down", from: "#FFB340", to: "#F28500" },
+    chat: { glyph: "chats-circle", from: "#4CD964", to: "#2AA845" },
+    marketplace: { glyph: "storefront", from: "#6E8CFF", to: "#3D5BF0" },
+    settings: { glyph: "gear-six", from: "#A3A3A8", to: "#6F6F75" },
+    about: { glyph: "info", from: "#5AA9FF", to: "#1E6FE8" },
+    league: { glyph: "sword", from: "#E8B84A", to: "#B8860B" },
+    courses: { glyph: "graduation-cap", from: "#C77DFF", to: "#8E3FD8" },
+    study: { glyph: "book-open-text", from: "#48CFDF", to: "#1A9EB5" },
+    telegram: { glyph: "paper-plane-tilt", from: "#55C2FF", to: "#1F8FE0" },
+    convert: { glyph: "arrows-clockwise", from: "#FF7A7A", to: "#E33A3A" },
+    misc: { glyph: "wrench", from: "#9B9BA3", to: "#63636B" },
+    tools: { glyph: "toolbox", from: "#FF9F5A", to: "#E8641A" },
+    music: { glyph: "music-notes", from: "#FF5E7A", to: "#E0203F" },
+    library: { glyph: "books", from: "#D8A15C", to: "#A66A24" },
+    read: { glyph: "book-open-text", from: "#FFA05C", to: "#E06A1A" },
+    plugin: { glyph: "puzzle-piece", from: "#8E8E93", to: "#5C5C60" },
+  };
+
+  let tile = $derived(TILES[icon] ?? TILES.plugin);
+  let glyphSize = $derived(Math.round(size * 0.64));
 </script>
 
-{#if iconSvg}
-  <svg
-    class="nav-icon"
-    class:nav-icon-active={active}
-    viewBox="0 0 24 24"
-    width={size}
-    height={size}
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.7"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    {#each iconSvg.split(" M").map((d, i) => (i === 0 ? d : "M" + d)) as pathD}
-      <path d={pathD} />
-    {/each}
-  </svg>
-{:else}
-  <svg
-    class="nav-icon"
-    class:nav-icon-active={active}
-    viewBox="0 0 24 24"
-    width={size}
-    height={size}
-    fill="currentColor"
-    aria-hidden="true"
-  >
-    {#if icon === "home"}
-      <path d="M12.05 3.22a1.4 1.4 0 0 0-1.7.04L3.4 9.7A1.25 1.25 0 0 0 4.2 11.8h.9v7.45c0 .97.78 1.75 1.75 1.75h3.05v-5.7h4.2v5.7h3.05c.97 0 1.75-.78 1.75-1.75V11.8h.9a1.25 1.25 0 0 0 .8-2.1l-6.95-6.44a1.4 1.4 0 0 0-1.55-.04z" />
-    {:else if icon === "downloads"}
-      <path d="M12 3.1a1.15 1.15 0 0 1 1.15 1.15v8.12l2.22-2.22a1.15 1.15 0 1 1 1.63 1.63l-4.18 4.18a1.15 1.15 0 0 1-1.63 0L7 11.78a1.15 1.15 0 1 1 1.63-1.63l2.22 2.22V4.25A1.15 1.15 0 0 1 12 3.1z" />
-      <path d="M4.6 16.4c0-.64.52-1.15 1.15-1.15h12.5c.64 0 1.15.51 1.15 1.15v2.35A2.4 2.4 0 0 1 17 20.9H7a2.4 2.4 0 0 1-2.4-2.15V16.4z" />
-    {:else if icon === "chat"}
-      <path d="M7.6 4.2h6.7A4.7 4.7 0 0 1 19 8.9v4.05a4.7 4.7 0 0 1-4.7 4.7h-.55l-2.7 2.05a.9.9 0 0 1-1.45-.72v-1.33H7.6A4.7 4.7 0 0 1 2.9 13V8.9A4.7 4.7 0 0 1 7.6 4.2z" />
-      <path d="M20.4 9.35c.66.72 1.05 1.67 1.05 2.7v3.55a3.9 3.9 0 0 1-3.9 3.9h-.2v.95a.75.75 0 0 1-1.2.6l-1.85-1.4h-.4c-.4 0-.78-.05-1.14-.16 2.55-.35 4.5-2.55 4.5-5.19V9.35h3.14z" opacity="0.85" />
-    {:else if icon === "marketplace"}
-      <path d="M7.15 3.4h9.7c.5 0 .95.3 1.14.76l1.7 4.12c.22.54-.18 1.12-.76 1.12H5.07c-.58 0-.98-.58-.76-1.12l1.7-4.12a1.25 1.25 0 0 1 1.14-.76z" />
-      <path d="M5.2 10.4h2.55v2.05a1.7 1.7 0 0 0 3.4 0V10.4h1.7v2.05a1.7 1.7 0 0 0 3.4 0V10.4H18.8v8.35c0 .97-.78 1.75-1.75 1.75H6.95c-.97 0-1.75-.78-1.75-1.75V10.4z" />
-    {:else if icon === "settings"}
-      <path fill-rule="evenodd" d="M10.08 2.85c.38-1.13 1.98-1.13 2.36 0l.22.66a1.7 1.7 0 0 0 2.27 1.02l.63-.3c1.08-.52 2.27.67 1.75 1.75l-.3.63a1.7 1.7 0 0 0 1.02 2.27l.66.22c1.13.38 1.13 1.98 0 2.36l-.66.22a1.7 1.7 0 0 0-1.02 2.27l.3.63c.52 1.08-.67 2.27-1.75 1.75l-.63-.3a1.7 1.7 0 0 0-2.27 1.02l-.22.66c-.38 1.13-1.98 1.13-2.36 0l-.22-.66a1.7 1.7 0 0 0-2.27-1.02l-.63.3c-1.08.52-2.27-.67-1.75-1.75l.3-.63a1.7 1.7 0 0 0-1.02-2.27l-.66-.22c-1.13-.38-1.13-1.98 0-2.36l.66-.22a1.7 1.7 0 0 0 1.02-2.27l-.3-.63c-.52-1.08.67-2.27 1.75-1.75l.63.3a1.7 1.7 0 0 0 2.27-1.02l.22-.66zM12 9.1A2.9 2.9 0 1 0 12 14.9 2.9 2.9 0 0 0 12 9.1z" />
-    {:else if icon === "about"}
-      <path fill-rule="evenodd" d="M12 2.6a9.4 9.4 0 1 0 0 18.8 9.4 9.4 0 0 0 0-18.8zM12 6.35a1.05 1.05 0 1 0 0 2.1 1.05 1.05 0 0 0 0-2.1zM11.15 10.15h1.7V17h-1.7v-6.85z" />
-    {:else if icon === "league"}
-      <path d="M16.8 3.2h3.4v3.5L9.7 17.2 6.6 14.1 16.8 3.2z" />
-      <path d="M5.2 13.4 10.6 18.8 3.4 21.1l1.8-7.7z" />
-    {:else if icon === "courses"}
-      <path d="M4.4 6.2 12 3.3l7.6 2.9v.4L12 9.5 4.4 6.6v-.4z" />
-      <path d="M6.2 8.7v5.05c0 .4.22.76.57.96L12 17.4l5.23-2.69c.35-.2.57-.56.57-.96V8.7L12 11.15 6.2 8.7z" />
-      <path d="M18.35 8.2v6.15a.85.85 0 0 0 1.7 0V8.55a.85.85 0 0 0-1.7-.35z" />
-    {:else if icon === "convert"}
-      <path d="M12 3.2a8.8 8.8 0 1 0 8.35 6.35 1.15 1.15 0 0 0-2.22.6A6.5 6.5 0 1 1 12 5.5h1.15l-1.7 1.7a1 1 0 0 0 1.42 1.4l3.35-3.35a1 1 0 0 0 0-1.4L12.87 1.9a1 1 0 1 0-1.42 1.4L13.1 5H12z" />
-    {:else if icon === "telegram"}
-      <path d="M20.4 4.15c.55-.22 1.1.32.9.88L17.2 19.4c-.2.55-.9.7-1.32.28l-4.05-4.05-3.2 3.2a.75.75 0 0 1-1.28-.53V13.2L3.4 11.7c-.7-.28-.66-1.28.07-1.5l16.93-6.05z" />
-    {:else if icon === "study"}
-      <path d="M4.4 5.2c0-.88.72-1.6 1.6-1.6h4.35c.9 0 1.72.4 2.25 1.08A2.85 2.85 0 0 1 14.85 3.6H19c.88 0 1.6.72 1.6 1.6v11.3c0 .88-.72 1.6-1.6 1.6h-4.4a1.2 1.2 0 0 0-1.2 1.2v.15a.85.85 0 0 1-1.7 0v-.15a1.2 1.2 0 0 0-1.2-1.2H6c-.88 0-1.6-.72-1.6-1.6V5.2z" />
-    {:else if icon === "music"}
-      <path d="M9.2 4.15a1 1 0 0 1 1.16-.18l8.1 3.4A1 1 0 0 1 19.1 8.3v7.05a2.65 2.65 0 1 1-1.85-2.52V9.15l-6.2-2.6v8.2a2.65 2.65 0 1 1-1.85-2.52V4.15z" />
-    {:else if icon === "library"}
-      <path d="M4.3 7.4A2.4 2.4 0 0 1 6.7 5h10.6A2.4 2.4 0 0 1 19.7 7.4v.85H4.3V7.4z" />
-      <path d="M4.3 9.5h15.4v7.1A2.4 2.4 0 0 1 17.3 19H6.7a2.4 2.4 0 0 1-2.4-2.4V9.5z" />
-    {:else if icon === "misc"}
-      <path d="M8.4 3.6h2.3l.55 2.05a5.4 5.4 0 0 1 1.7.7l1.95-.85 1.15 2-1.4 1.5a5.5 5.5 0 0 1 0 1.9l1.4 1.5-1.15 2-1.95-.85a5.4 5.4 0 0 1-1.7.7L10.7 16.4H8.4l-.55-2.05a5.4 5.4 0 0 1-1.7-.7l-1.95.85-1.15-2 1.4-1.5a5.5 5.5 0 0 1 0-1.9l-1.4-1.5 1.15-2 1.95.85a5.4 5.4 0 0 1 1.7-.7L8.4 3.6zM9.55 8.35a2.65 2.65 0 1 0 0 5.3 2.65 2.65 0 0 0 0-5.3z" />
-      <path d="M15.2 14.2 20.1 19a1.15 1.15 0 0 1-1.63 1.63l-4.9-4.9 1.63-1.53z" />
-    {:else if icon === "plugin"}
-      <path d="M9.2 3.4h5.6v2.3a2 2 0 0 1-2 2h-1.6a2 2 0 0 1-2-2V3.4z" />
-      <path d="M6.4 6.8h11.2c.88 0 1.6.72 1.6 1.6v4.7h-2.15a1.85 1.85 0 1 0 0 3.7H19.2v2.55c0 .88-.72 1.6-1.6 1.6H6.4c-.88 0-1.6-.72-1.6-1.6V16.8h2.15a1.85 1.85 0 1 0 0-3.7H4.8V8.4c0-.88.72-1.6 1.6-1.6z" />
-    {:else}
-      <path d="M12 3.2 3.6 7.4v9.2L12 20.8l8.4-4.2V7.4L12 3.2zm0 2.15 5.9 2.95L12 11.25 6.1 8.3 12 5.35zM5.5 10.05l5.35 2.68v6.05L5.5 16.1v-6.05zm7.65 8.73v-6.05L18.5 10.05V16.1l-5.35 2.68z" />
-    {/if}
-  </svg>
-{/if}
+<span
+  class="nav-icon nav-tile"
+  class:nav-icon-active={active}
+  style:--tile-from={tile.from}
+  style:--tile-to={tile.to}
+  style:--tile-size="{size}px"
+  aria-hidden="true"
+>
+  {#if iconSvg}
+    <svg viewBox="0 0 24 24" width={glyphSize} height={glyphSize} fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      {#each iconSvg.split(" M").map((d, i) => (i === 0 ? d : "M" + d)) as pathD}
+        <path d={pathD} />
+      {/each}
+    </svg>
+  {:else}
+    <span class="nav-glyph" style:--glyph="url(/icons/{tile.glyph}.svg)" style:width="{glyphSize}px" style:height="{glyphSize}px"></span>
+  {/if}
+</span>
 
 <style>
-  .nav-icon {
+  .nav-tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--tile-size);
+    height: var(--tile-size);
     flex-shrink: 0;
-    display: block;
+    border-radius: calc(var(--tile-size) * 0.28);
+    background: linear-gradient(180deg, var(--tile-from), var(--tile-to));
+    box-shadow:
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.25),
+      inset 0 -1px 1px rgba(0, 0, 0, 0.12),
+      0 0.5px 1px rgba(0, 0, 0, 0.25);
+    color: #fff;
   }
 
-  .nav-icon-active {
-    color: var(--accent);
+  .nav-glyph {
+    display: block;
+    background: #fff;
+    -webkit-mask: var(--glyph) center / contain no-repeat;
+    mask: var(--glyph) center / contain no-repeat;
+    filter: drop-shadow(0 0.5px 0 rgba(0, 0, 0, 0.18));
   }
 </style>

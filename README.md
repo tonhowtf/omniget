@@ -68,7 +68,7 @@ twitch-downloader, subtitle-downloader, epub-reader, spaced-repetition
 - [The Tools section: 108 tools in 16 categories](#the-tools-section-108-tools-in-16-categories)
 - [Plugins: Courses, Study, Telegram, Convert](#plugins-courses-study-telegram-convert)
 - [Built-in chat, off by default](#built-in-chat-off-by-default)
-- [For League of Legends players, off by default](#for-league-of-legends-players-off-by-default)
+- [For League of Legends players](#for-league-of-legends-players)
 - [Everything else in the box](#everything-else-in-the-box)
 - [Privacy and what OmniGet refuses to do](#privacy-and-what-omniget-refuses-to-do)
 - [Frequently asked questions](#frequently-asked-questions)
@@ -159,7 +159,7 @@ Create an empty file named `portable.txt` (or `.portable`) next to the Windows `
 2. Copy any link: a YouTube video, an Instagram reel, an X post, a Pinterest board, a magnet, a direct file URL.
 3. Paste it in the box on the home screen. OmniGet detects the site and shows the title, thumbnail and available qualities. Pick one and press Enter.
 
-The Downloads page shows speed, phase and ETA read straight from the downloader, so a stalled download looks stalled instead of frozen at "3 seconds left". Interrupted downloads resume where they stopped. Rate-limited sites get retried with backoff.
+The Downloads page shows speed, phase and ETA read straight from the downloader, so a stalled download looks stalled instead of frozen at "3 seconds left". Interrupted downloads resume where they stopped. Rate-limited sites get retried with backoff, and connections per site adapt on their own, so YouTube gets up to 16 parallel fragments while a site that answers 429 gets fewer. When a Python 3.10 or newer is present, yt-dlp runs as a zipapp on it and starts in under a second instead of unpacking the bundled binary on every launch.
 
 <p align="center">
   <img src="assets/readme/downloads.png" alt="OmniGet Downloads page with an active 4K YouTube download showing phase, speed, ETA and the exact yt-dlp command, plus queued and finished items" width="900" />
@@ -177,7 +177,7 @@ OmniGet has native extractors for the platforms people use most, and hands every
 
 | Category | Sites and formats |
 |---|---|
-| Online courses | Hotmart, Udemy, Kiwify and Rocketseat through the Courses plugin. Every lesson, section selection, attachments, resume where you stopped. |
+| Online courses | Hotmart, Udemy, Kiwify, Rocketseat and Meta-Analysis Academy through the Courses plugin. Every lesson, section selection, attachments, resume where you stopped. |
 | Video and audio | YouTube (videos, playlists, channels, live from start, chapters, SponsorBlock), Instagram, TikTok, X/Twitter, Reddit, Twitch (VODs, clips, live), Vimeo, Bluesky, Threads, Pinterest, Douyin |
 | Bilibili, signed in | 4K, HDR, Dolby Vision, Hi-Res lossless and Dolby Atmos according to your subscription. Danmaku comments as XML, ASS or JSON, NFO files for Kodi and Jellyfin, custom naming templates, 11 URL types including bangumi, courses, favorites, watch later and history |
 | Image galleries | Whole galleries and profiles from 250+ sites through gallery-dl (DeviantArt, Pixiv, ArtStation, Flickr, Tumblr, Imgur, Kemono and more) |
@@ -195,7 +195,7 @@ Options you set once and forget: default quality, audio-only format (MP3, M4A, O
 
 ## The browser extension, step by step
 
-The extension does two jobs. On sites it recognizes (YouTube, Instagram, TikTok, X, Reddit, Twitch, Pinterest, Bluesky, Telegram, Vimeo, Udemy, Hotmart, Bilibili, SoundCloud) it sends the page to OmniGet with one click or with **Alt+O**. On any other site it watches network traffic for MP4, HLS, DASH, WebM and audio streams and lists them in its popup. In both cases it forwards your cookies and referer, which is what lets OmniGet download private content you are logged into, such as Instagram stories, a paid course, or a members-only video.
+The extension does two jobs. On sites it recognizes (YouTube, Instagram, TikTok, X, Reddit, Twitch, Pinterest, Bluesky, Telegram, Vimeo, Udemy, Hotmart, Rocketseat, Bilibili, SoundCloud) it sends the page to OmniGet with one click or with **Alt+O**. On any other site it watches network traffic for MP4, HLS, DASH, WebM and audio streams and lists them in its popup. In both cases it forwards your cookies and referer, which is what lets OmniGet download private content you are logged into, such as Instagram stories, a paid course, or a members-only video. Cookies are grouped by real site, so a Brazilian `.com.br` domain gets its own entry instead of sharing one with every other `.com.br` site. The popup also has a **Force H.264** switch for YouTube, for computers that stutter on VP9 and AV1.
 
 Pick the level that matches how comfortable you are.
 
@@ -231,7 +231,7 @@ If the extension is installed but OmniGet is closed, clicks fall back to the `om
 
 ## The Tools section: 108 tools in 16 categories
 
-Tools is the part of OmniGet that grew beyond downloading. Each tile is one job: an isolated Rust command with JSON in and JSON out, which is also what will let AI agents drive them through the planned MCP server. The hub has a search box that understands English and Portuguese ("legenda" finds subtitle tools) and a platform filter, and tools that only run on Windows say so on the tile and stay hidden elsewhere.
+Tools is the part of OmniGet that grew beyond downloading. Each tile is one job: an isolated Rust command with JSON in and JSON out, which is also what lets AI agents drive them through the built-in MCP server. The hub has a search box that understands English and Portuguese ("legenda" finds subtitle tools) and a platform filter, and tools that only run on Windows say so on the tile and stay hidden elsewhere.
 
 <p align="center">
   <img src="assets/readme/tools.png" alt="OmniGet Tools hub with 16 categories: YouTube, Speech and subtitles, Video editing, Instagram, X, Pinterest, Spotify, PDF, Documents, Images, System, Files, Downloads, Automation, Phone and AI" width="900" />
@@ -262,7 +262,7 @@ Status legend: no mark means ready, **beta** means it works but has not been tes
 - **SponsorBlock.** See sponsor, intro and outro segments and get the yt-dlp flags to skip them.
 - **Dislikes.** Likes, dislikes and rating from Return YouTube Dislike.
 - **Real thumbnail.** The frames the CDN already has at 25, 50 and 75 percent, instead of the clickbait cover.
-- **Force H.264.** Avoid VP9 and AV1 on weak machines. *planned*
+- **Force H.264.** A switch in the browser extension that keeps YouTube on H.264 instead of VP9 and AV1, for machines that stutter on newer codecs.
 
 ### Speech and subtitles (8)
 
@@ -270,14 +270,16 @@ Status legend: no mark means ready, **beta** means it works but has not been tes
 - **Text to speech.** Natural voices from Microsoft Edge, free, with a synced subtitle file.
 - **Translate subtitles.** Translate an SRT with your AI provider or a LibreTranslate server, keeping the timing.
 - **Dub from subtitles.** Turn an SRT into a voice track that fits each line and optionally replace the video's audio. *beta*
-- **Clone a voice**, **Design a voice**, **Isolate vocals**, **Dictation.** *planned*
+- **Clone a voice**, **Design a voice** and **Isolate vocals** through a VoiceStudio install running on your machine. *beta*
+- **Dictation.** Press a global shortcut, speak, and whisper types the text where your cursor is. *beta*
 
 ### Video editing (6)
 
 - **Cut a clip.** Pick a video on disk and cut out a section. The result lands in the downloads queue.
 - **Convert.** Change container, codec or resolution, or compress, through the Convert plugin.
 - **Auto captions** and **Text to speech** open the speech tools above.
-- **Record screen** and **Timeline editor.** *planned*
+- **Record screen.** Screen and system audio through FFmpeg, with a replay buffer that saves what just happened. *beta*
+- **Timeline editor.** *planned*
 
 ### Instagram (24)
 
@@ -384,13 +386,19 @@ Works without login for anything public. Cookies are only needed for secret boar
 
 ### System (9, Windows-only items marked)
 
+- **Clean caches.** Temp files, logs and app caches with rules per operating system. You review the list before anything is deleted.
+- **Disk analyzer.** What takes space, as a treemap plus the largest files, with a send-to-trash button.
+- **Startup manager.** See what launches with the system and switch items off. *beta*
+- **Uninstaller.** Remove apps and the leftovers they leave behind. *beta*
 - **Privacy shield.** Control Windows telemetry, ad ID and tracking settings. Windows. *beta*
 - **Harden Windows.** Macros, AutoRun, script host, UAC and Defender settings from hardentools, reversible. Windows. *beta*
-- **Clean caches**, **Disk analyzer**, **Startup manager**, **Uninstaller**, **Debloat Windows**, **Registry cleaner**, **Software updater** (winget, Chocolatey and Scoop). *planned*
+- **Debloat Windows.** Remove preinstalled Store apps. Windows. *beta*
+- **Registry cleaner.** Orphaned entries, with a `.reg` backup before removal. Windows. *beta*
+- **Software updater.** Update programs in bulk through winget, Chocolatey and Scoop. Windows. *beta*
 
 ### Automation (1)
 
-- **Auto clicker.** Windows. *planned*
+- **Auto clicker.** Click at the exact speed you set, with a global hotkey, limits and random ranges. Windows, macOS and Linux. *beta*
 
 ### AI (6)
 
@@ -398,10 +406,10 @@ Works without login for anything public. Cookies are only needed for secret boar
 - **AI spending.** How much OmniGet spent on AI, by day, model and task, from a local ledger.
 - **Local models (Ollama).** See, download and remove local models and use them as a free provider.
 - **Humanize text.** Rewrite AI-sounding text so it reads like a person wrote it, without changing what it says. Runs on the AI provider you configured. *beta*
-- **API keys.** Keep keys and accounts together, check balance and usage. *planned*
-- **MCP server.** Let Claude, Goose or Cursor drive OmniGet's tools. *planned*
+- **API keys.** A local vault for keys and accounts, with a connection test, balance for OpenRouter, DeepSeek, SiliconFlow and New API, and export to Claude Code, Codex, Cherry Studio, opencode or a `.env` file.
+- **MCP server.** OmniGet's tools exposed over the Model Context Protocol on the local bridge, 31 tools behind the same token the extension uses, with ready-made config snippets for Claude Code, Claude Desktop, Cursor, VS Code, Goose and Codex. *beta*
 
-Every tool that talks to an AI uses the provider you set in **Settings → AI**: OpenAI, Anthropic, or any OpenAI-compatible local endpoint such as Ollama or LM Studio. The key is stored locally and never logged.
+Every tool that talks to an AI uses the provider you set in **Settings → AI**: OpenAI, Anthropic, or any OpenAI-compatible local endpoint such as Ollama or LM Studio. The key is stored locally and never logged. The auto clicker, dictation and the replay buffer can each get a global shortcut of their own.
 
 ---
 
@@ -415,7 +423,7 @@ Plugins are separate Rust libraries loaded at startup. OmniGet installs its offi
 
 ### Courses
 
-Sign in to **Hotmart**, **Udemy**, **Kiwify** or **Rocketseat** through a browser window inside the app, or with saved cookies from the extension. OmniGet lists your purchases, lets you pick sections, and downloads every lesson and attachment with continuous lecture numbers if you want them. DRM-protected lectures are counted and skipped, not faked. Hotmart uses the current OIDC login flow, so it keeps working after Hotmart's 2026 auth change. Downloaded courses appear in Study automatically.
+Sign in to **Hotmart**, **Udemy**, **Kiwify**, **Rocketseat** or **Meta-Analysis Academy** through a browser window inside the app, with saved cookies from the extension, or with email and password where the platform allows it. OmniGet lists your purchases, opens the course outline so you can tick the sections you want (it tells you how many lectures are DRM-protected and will be skipped), and downloads every lesson and attachment with continuous lecture numbers if you want them. Hotmart uses the current OIDC login flow, so it keeps working after Hotmart's 2026 auth change, and free courses and courses delivered outside Hotmart Club are listed too. Downloaded courses appear in Study automatically.
 
 ### Study
 
@@ -447,11 +455,13 @@ It is experimental and does nothing until you turn it on in **Settings → Advan
 
 ---
 
-## For League of Legends players, off by default
+## For League of Legends players
 
-Switch it on in **Settings → Advanced → League of Legends** and a League menu appears. It reads your running League client locally, with no account and no third-party build site.
+A League menu sits in the sidebar. It reads your running League client locally, with no account and no third-party build site, and does nothing until the client is open. If you never play, switch it off in **Settings → Advanced → League of Legends** and the menu disappears.
 
 Match scouting for both teams with rank, recent form, KDA and the champions each player actually plays. Win probability that shrinks win rates toward the baseline by sample size and always shows a range. Live gold, CS and level for all ten players. Goals per role you can edit. Runes and summoner spells recommended by the client itself, applied in one click and only ever replacing the page OmniGet created. Champion tiers by role. Player search by Riot ID. Opt-in automation: accept matches, pick and ban from your priority list, grab a champion off the ARAM bench. Every automation has its own switch.
+
+New and marked beta or experimental: a **Profile** tab that edits what other players see (rank shown in chat, challenge medals and title, banner and crest, chat icon, bulk friend management); a **skin, chroma and ward roulette** that rolls an owned skin the moment you lock in, with rerolls; a **champion and lane raffle** for when you want the queue to decide, plus an optional random pick in champion select; full **match history and ranked stats for any player** through the client's own backend gateway, with replay download; and an **AI coach** that reviews a game, spots trends over your last matches or answers a question about the current champ select, using your configured AI provider and OP.GG's public data.
 
 ---
 
@@ -488,7 +498,7 @@ Yes. GPL-3.0, no paid tier, no ads, no account.
 Partly. yt-dlp handles the long tail of sites and OmniGet bundles it, verifies it and updates it. On top of that sit native extractors for courses, Instagram, X, Pinterest, Bilibili, Telegram and torrents, a queue with resume and retry, the Tools section, and the Study library.
 
 **Can OmniGet download a Udemy or Hotmart course I bought?**
-Yes. Install the Courses plugin (it comes preinstalled), sign in through the app, pick the course and sections, and download. Lessons and attachments land in a folder per course and appear in Study.
+Yes. Install the Courses plugin (it comes preinstalled), sign in through the app, pick the course and sections, and download. Lessons and attachments land in a folder per course and appear in Study. Kiwify, Rocketseat and Meta-Analysis Academy work the same way.
 
 **Can it download Instagram stories, close friends or highlights?**
 Yes, using your own session captured by the browser extension. Stories are downloaded without being marked as seen.

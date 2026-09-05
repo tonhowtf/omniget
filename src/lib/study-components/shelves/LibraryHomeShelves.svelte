@@ -383,8 +383,8 @@
   .error {
     padding: 12px 16px;
     border-radius: 8px;
-    background: color-mix(in oklab, var(--error, #dc2626) 12%, transparent);
-    color: var(--error, #dc2626);
+    background: color-mix(in oklab, var(--error) 12%, transparent);
+    color: var(--error);
     font-size: 14px;
   }
 

@@ -190,7 +190,7 @@
     display: grid; place-items: center; z-index: 999;
   }
   .dialog {
-    background: var(--bg-card, #1a1a1a);
+    background: var(--surface);
     border: none;
     border-radius: 12px;
     width: min(560px, 90vw);

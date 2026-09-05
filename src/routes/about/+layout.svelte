@@ -60,10 +60,10 @@
 <style>
   .about-layout {
     display: flex;
-    gap: calc(var(--padding) * 2);
-    max-width: 820px;
+    gap: var(--space-6);
+    max-width: 880px;
     margin: 0 auto;
-    padding: calc(var(--padding) * 2) calc(var(--padding) * 2) calc(var(--padding) * 4);
+    padding: var(--space-5) var(--space-6) var(--space-8);
     align-items: flex-start;
   }
 
@@ -71,48 +71,64 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    width: 168px;
+    width: 176px;
     flex-shrink: 0;
     position: sticky;
-    top: calc(var(--padding) * 2);
+    top: var(--space-5);
   }
 
   .about-nav-item {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--text-sm);
-    font-weight: 500;
-    color: var(--text-muted);
+    gap: 9px;
+    height: 30px;
+    padding: 0 var(--space-2);
+    font-size: var(--text-base);
+    font-weight: 400;
+    color: var(--text);
     border-radius: var(--radius-sm);
     text-decoration: none;
-    transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
+    transition: background var(--duration-fast) var(--ease-out);
   }
 
   @media (hover: hover) {
     .about-nav-item:hover:not(.active) {
-      color: var(--text);
-      background: var(--surface-hi);
+      background: var(--fill-1);
     }
   }
 
   .about-nav-item.active {
-    background: var(--accent-soft);
-    color: var(--accent);
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: 500;
     cursor: default;
   }
 
   .about-nav-item:focus-visible {
     outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
+    outline-offset: -2px;
   }
 
   .about-nav-icon {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    opacity: 0.85;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: var(--fill-2);
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .about-nav-icon svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .about-nav-item.active .about-nav-icon {
+    background: color-mix(in srgb, var(--on-accent) 14%, transparent);
+    color: inherit;
   }
 
   .about-content {
@@ -120,7 +136,7 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: calc(var(--padding) * 1.5);
+    gap: var(--space-5);
   }
 
   @media (max-width: 640px) {

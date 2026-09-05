@@ -57,3 +57,14 @@ export function formatBinding(binding: string): string {
     })
     .join(mac ? "" : "+");
 }
+
+export type OsName = "windows" | "macos" | "linux";
+
+/** Sistema onde o app está rodando, para avisar quando uma ferramenta não roda nele. */
+export function currentOs(): OsName {
+  if (isMac()) return "macos";
+  if (typeof navigator === "undefined") return "linux";
+  const uaData = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData;
+  const raw = `${uaData?.platform || ""} ${navigator.platform || ""} ${navigator.userAgent || ""}`;
+  return /win/i.test(raw) ? "windows" : "linux";
+}

@@ -3149,7 +3149,7 @@
   .meta-error {
     margin: 0;
     font-size: 12px;
-    color: var(--error, #dc2626);
+    color: var(--error);
   }
   .meta-foot {
     display: flex;

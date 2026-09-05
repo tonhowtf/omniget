@@ -22,7 +22,7 @@
   }
 
   .feedback[data-supported="true"] {
-    color: var(--green);
+    color: var(--success);
   }
 
   .feedback-text {

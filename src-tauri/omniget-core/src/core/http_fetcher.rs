@@ -276,29 +276,22 @@ impl HttpFetcher {
     }
 
     async fn probe(&self) -> anyhow::Result<ProbeResult> {
-        let mut req = self.client.head(&self.url);
-        if let Some(h) = &self.headers {
-            req = req.headers(h.clone());
-        }
-        let resp = match tokio::time::timeout(self.config.connect_timeout * 2, req.send()).await {
-            Ok(Ok(r)) => r,
-            Ok(Err(e)) => return Err(anyhow!("HEAD probe failed: {}", e)),
-            Err(_) => return Err(anyhow!("HEAD probe timed out")),
-        };
-
-        if !resp.status().is_success() {
-            return Err(anyhow!("HEAD returned HTTP {}", resp.status()));
-        }
-        let content_length = resp.content_length();
-        let accept_ranges = resp
-            .headers()
-            .get(reqwest::header::ACCEPT_RANGES)
-            .and_then(|v| v.to_str().ok())
-            .map(|v| v.contains("bytes"))
-            .unwrap_or(false);
+        let remote = probe_remote(
+            &self.client,
+            &self.url,
+            self.headers.as_ref(),
+            self.config.connect_timeout * 2,
+        )
+        .await?;
+        tracing::debug!(
+            "[http_fetcher] probe: length={:?} ranges={} via={}",
+            remote.content_length,
+            remote.accept_ranges,
+            remote.method
+        );
         Ok(ProbeResult {
-            content_length,
-            accept_ranges,
+            content_length: remote.content_length,
+            accept_ranges: remote.accept_ranges,
         })
     }
 
@@ -317,7 +310,7 @@ impl HttpFetcher {
         if !resp.status().is_success() {
             return Err(anyhow!("HTTP {} downloading {}", resp.status(), self.url));
         }
-        let total = resp.content_length();
+        let total = header_content_length(resp.headers()).or_else(|| resp.content_length());
 
         let mut file = tokio::fs::File::create(part_path).await?;
         let mut downloaded: u64 = 0;
@@ -416,7 +409,15 @@ impl HttpFetcher {
                 .collect(),
         ));
 
-        let cancel = self.cancel.clone().unwrap_or_else(CancellationToken::new);
+        // Token *filho*: um worker que falha cancela só os outros workers
+        // desta tentativa. Cancelar o token do chamador (o item da fila)
+        // transformava um 429 num segmento em "Download cancelado" para o
+        // item inteiro, e a tentativa seguinte já nascia cancelada.
+        let cancel = self
+            .cancel
+            .clone()
+            .unwrap_or_else(CancellationToken::new)
+            .child_token();
         let progress_done = Arc::new(AtomicU64::new(0));
         for seg in segments.lock().await.iter() {
             progress_done.fetch_add(seg.downloaded.load(Ordering::Relaxed), Ordering::Relaxed);
@@ -581,6 +582,171 @@ impl HttpFetcher {
 struct ProbeResult {
     content_length: Option<u64>,
     accept_ranges: bool,
+}
+
+/// O que dá para saber de um recurso remoto antes de baixar.
+#[derive(Debug, Clone)]
+pub struct RemoteProbe {
+    pub content_length: Option<u64>,
+    pub accept_ranges: bool,
+    pub content_type: Option<String>,
+    /// Nome sugerido por `Content-Disposition`, se houver.
+    pub filename: Option<String>,
+    /// `"HEAD"` ou `"GET range"`: por onde a resposta veio.
+    pub method: &'static str,
+}
+
+/// `Content-Length` lido do cabeçalho, não do corpo.
+///
+/// `reqwest::Response::content_length()` vem do *size hint* do corpo, e o
+/// hyper trata a resposta de um `HEAD` como corpo vazio: devolve `Some(0)`
+/// mesmo com `Content-Length: 104857600` no cabeçalho. Era isso que mandava
+/// todo arquivo direto para o stream único (B6): o probe nunca via tamanho.
+pub fn header_content_length(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    headers
+        .get(reqwest::header::CONTENT_LENGTH)?
+        .to_str()
+        .ok()?
+        .trim()
+        .parse::<u64>()
+        .ok()
+        .filter(|n| *n > 0)
+}
+
+/// Total de `Content-Range: bytes a-b/total`.
+fn content_range_total(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    let v = headers.get(reqwest::header::CONTENT_RANGE)?.to_str().ok()?;
+    let (_, total) = v.trim().rsplit_once('/')?;
+    total.trim().parse::<u64>().ok().filter(|n| *n > 0)
+}
+
+fn header_filename(headers: &reqwest::header::HeaderMap) -> Option<String> {
+    let v = headers
+        .get(reqwest::header::CONTENT_DISPOSITION)?
+        .to_str()
+        .ok()?;
+    for part in v.split(';') {
+        let part = part.trim();
+        if let Some(rest) = part.strip_prefix("filename*=") {
+            let rest = rest.trim_matches('"');
+            let name = rest.rsplit("''").next().unwrap_or(rest);
+            if let Ok(decoded) = urlencoding::decode(name) {
+                let d = decoded.trim();
+                if !d.is_empty() {
+                    return Some(d.to_string());
+                }
+            }
+        }
+    }
+    for part in v.split(';') {
+        let part = part.trim();
+        if let Some(rest) = part.strip_prefix("filename=") {
+            let name = rest.trim().trim_matches('"').trim();
+            if !name.is_empty() {
+                return Some(name.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Sonda o recurso: `HEAD` primeiro; se o servidor não responde `HEAD` ou não
+/// diz o tamanho, um `GET` com `Range: bytes=0-0`. O `206` com `Content-Range`
+/// prova as duas coisas de uma vez (tamanho e suporte a Range), e o corpo de
+/// 1 byte é descartado.
+pub async fn probe_remote(
+    client: &reqwest::Client,
+    url: &str,
+    headers: Option<&reqwest::header::HeaderMap>,
+    timeout: Duration,
+) -> anyhow::Result<RemoteProbe> {
+    let mut req = client.head(url);
+    if let Some(h) = headers {
+        req = req.headers(h.clone());
+    }
+    let head = match tokio::time::timeout(timeout, req.send()).await {
+        Ok(Ok(r)) if r.status().is_success() => Some(r),
+        Ok(Ok(r)) => {
+            tracing::debug!("[http_fetcher] HEAD returned HTTP {}", r.status());
+            None
+        }
+        // Sem conexão não adianta tentar o GET de 1 byte: é o mesmo host.
+        // Falhar aqui poupa um segundo timeout inteiro por tentativa quando o
+        // servidor está fora (proof.ovh.net levou 495 s para desistir).
+        Ok(Err(e)) if e.is_connect() => {
+            return Err(anyhow!("unreachable: {}", e));
+        }
+        Ok(Err(e)) => {
+            tracing::debug!("[http_fetcher] HEAD failed: {}", e);
+            None
+        }
+        Err(_) => {
+            return Err(anyhow!("unreachable: connect timed out after {:?}", timeout));
+        }
+    };
+
+    if let Some(resp) = head {
+        let h = resp.headers();
+        let content_length = header_content_length(h);
+        let accept_ranges = h
+            .get(reqwest::header::ACCEPT_RANGES)
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.contains("bytes"))
+            .unwrap_or(false);
+        if content_length.is_some() {
+            return Ok(RemoteProbe {
+                content_length,
+                accept_ranges,
+                content_type: h
+                    .get(reqwest::header::CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.to_string()),
+                filename: header_filename(h),
+                method: "HEAD",
+            });
+        }
+    }
+
+    let mut req = client.get(url).header(reqwest::header::RANGE, "bytes=0-0");
+    if let Some(h) = headers {
+        req = req.headers(h.clone());
+    }
+    let resp = match tokio::time::timeout(timeout, req.send()).await {
+        Ok(Ok(r)) => r,
+        Ok(Err(e)) => return Err(anyhow!("probe failed: {}", e)),
+        Err(_) => return Err(anyhow!("probe timed out")),
+    };
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(anyhow!("probe returned HTTP {}", status));
+    }
+    let h = resp.headers().clone();
+    let content_type = h
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    let filename = header_filename(&h);
+    let probe = if status == reqwest::StatusCode::PARTIAL_CONTENT {
+        RemoteProbe {
+            content_length: content_range_total(&h),
+            accept_ranges: true,
+            content_type,
+            filename,
+            method: "GET range",
+        }
+    } else {
+        RemoteProbe {
+            content_length: header_content_length(&h),
+            accept_ranges: false,
+            content_type,
+            filename,
+            method: "GET range",
+        }
+    };
+    // Não ler o corpo: fechar a conexão é mais barato do que drenar um GET
+    // completo quando o servidor ignorou o Range.
+    drop(resp);
+    Ok(probe)
 }
 
 fn plan_segments(total: u64, hint: u64, max_segments: usize) -> Vec<ResumeSegment> {
@@ -818,13 +984,27 @@ async fn download_segment(
 
     let mut stream = resp.bytes_stream();
     let mut written: u64 = 0;
-    let target = (end - range_start) + 1;
+    let started = std::time::Instant::now();
+    tracing::debug!(
+        "[http_fetcher] segment {}: GET bytes={}-{} ({} bytes)",
+        seg.id,
+        range_start,
+        end,
+        (end - range_start) + 1
+    );
+    // O teto pode encolher no meio (um helper roubou a metade de trás). O
+    // alvo é recalculado a cada chunk: o segmento continua até o teto atual e
+    // para ali, em vez de abortar e voltar como "incomplete segment" — que
+    // custava um retry com sleep e mais uma requisição por roubo.
+    let mut stop_reason = "eof";
     loop {
         if cancel.is_cancelled() {
             return Err(anyhow!("Download cancelled"));
         }
         let cur_end = seg.end_ceiling.load(Ordering::Relaxed);
-        if cur_end < end {
+        let target = (cur_end + 1).saturating_sub(range_start);
+        if written >= target {
+            stop_reason = if cur_end < end { "ceiling shrank" } else { "done" };
             break;
         }
         let res = tokio::time::timeout(cfg.read_timeout, stream.next()).await;
@@ -844,19 +1024,38 @@ async fn download_segment(
                 seg.downloaded.fetch_add(take, Ordering::Relaxed);
                 seg.last_progress_unix_nanos
                     .store(now_unix_nanos(), Ordering::Relaxed);
-                if written >= target {
-                    break;
-                }
             }
-            Ok(Some(Err(e))) => return Err(anyhow!("stream error: {}", e)),
+            Ok(Some(Err(e))) => {
+                tracing::debug!(
+                    "[http_fetcher] segment {}: stream error after {} bytes: {}",
+                    seg.id,
+                    written,
+                    e
+                );
+                return Err(anyhow!("stream error: {}", e));
+            }
             Ok(None) => break,
-            Err(_) => return Err(anyhow!("read timed out after {:?}", cfg.read_timeout)),
+            Err(_) => {
+                tracing::debug!(
+                    "[http_fetcher] segment {}: read timeout after {} bytes",
+                    seg.id,
+                    written
+                );
+                return Err(anyhow!("read timed out after {:?}", cfg.read_timeout));
+            }
         }
     }
     file.flush().await?;
     let cur_end = seg.end_ceiling.load(Ordering::Relaxed);
     let cur_target = (cur_end - begin) + 1;
     let cur_dl = seg.downloaded.load(Ordering::Relaxed);
+    tracing::debug!(
+        "[http_fetcher] segment {}: {} bytes in {:.2}s ({})",
+        seg.id,
+        written,
+        started.elapsed().as_secs_f64(),
+        stop_reason
+    );
     if cur_dl < cur_target {
         return Err(anyhow!(
             "incomplete segment: {} of {} bytes",
@@ -945,6 +1144,45 @@ async fn save_resume_state(path: &Path, state: &ResumeState) -> anyhow::Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn content_length_comes_from_the_header_not_the_body() {
+        let mut h = reqwest::header::HeaderMap::new();
+        h.insert(reqwest::header::CONTENT_LENGTH, "104857600".parse().unwrap());
+        assert_eq!(header_content_length(&h), Some(104857600));
+        h.insert(reqwest::header::CONTENT_LENGTH, "0".parse().unwrap());
+        assert_eq!(header_content_length(&h), None);
+        h.remove(reqwest::header::CONTENT_LENGTH);
+        assert_eq!(header_content_length(&h), None);
+    }
+
+    #[test]
+    fn content_range_total_parses_the_denominator() {
+        let mut h = reqwest::header::HeaderMap::new();
+        h.insert(reqwest::header::CONTENT_RANGE, "bytes 0-0/1234".parse().unwrap());
+        assert_eq!(content_range_total(&h), Some(1234));
+        h.insert(reqwest::header::CONTENT_RANGE, "bytes 0-0/*".parse().unwrap());
+        assert_eq!(content_range_total(&h), None);
+    }
+
+    #[test]
+    fn filename_from_content_disposition() {
+        let mut h = reqwest::header::HeaderMap::new();
+        h.insert(
+            reqwest::header::CONTENT_DISPOSITION,
+            "attachment; filename=\"100MB.bin\"".parse().unwrap(),
+        );
+        assert_eq!(header_filename(&h).as_deref(), Some("100MB.bin"));
+        h.insert(
+            reqwest::header::CONTENT_DISPOSITION,
+            "attachment; filename=\"a.bin\"; filename*=UTF-8''v%C3%ADdeo.mp4"
+                .parse()
+                .unwrap(),
+        );
+        assert_eq!(header_filename(&h).as_deref(), Some("vídeo.mp4"));
+        h.insert(reqwest::header::CONTENT_DISPOSITION, "inline".parse().unwrap());
+        assert_eq!(header_filename(&h), None);
+    }
 
     #[test]
     fn plan_segments_uniform_division() {

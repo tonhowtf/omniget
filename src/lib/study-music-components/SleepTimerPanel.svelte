@@ -137,7 +137,7 @@
     z-index: 999;
   }
   .dialog {
-    background: var(--bg-card, #1a1a1a);
+    background: var(--surface);
     border: none;
     border-radius: 12px;
     width: min(440px, 90vw);
@@ -236,9 +236,9 @@
   }
   .apply {
     appearance: none;
-    background: var(--accent, #6f4eff);
+    background: var(--accent);
     border: none;
-    color: white;
+    color: var(--on-accent);
     padding: 6px 14px;
     border-radius: 8px;
     cursor: pointer;

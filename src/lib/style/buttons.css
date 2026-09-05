@@ -1,34 +1,45 @@
 /*
- * OmniGet button primitives (5 variants per design-system §4.1).
- * Apply via class: <button class="btn btn-primary">.
- * Sizes: btn-sm (28px) / default (36px) / btn-lg (44px).
- * All variants respect prefers-reduced-motion.
+ * OmniGet buttons — macOS push-button family.
+ *   <button class="btn btn-primary">  filled accent, one per surface
+ *   <button class="btn btn-secondary">bezel (surface + hairline), the default look
+ *   <button class="btn btn-ghost">    borderless, toolbar-style
+ *   <button class="btn btn-destructive">
+ *   <button class="btn btn-pill">     filter chip / tag toggle
+ *   <button class="btn btn-icon">     28×28 symbol-only
+ * Sizes: btn-sm 24px · default 28px · btn-lg 36px · btn-xl 44px (hero CTA).
  */
 
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
-  height: 28px;
+  gap: 6px;
+  height: var(--control-h);
   padding: 0 var(--space-3);
   font-family: inherit;
   font-size: var(--text-base);
   font-weight: 500;
   line-height: 1;
-  border: 1px solid transparent;
+  letter-spacing: 0;
+  color: var(--text);
+  background: var(--surface);
+  border: none;
   border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
-  transition: background var(--duration-fast) var(--ease-out),
-              transform var(--duration-fast) var(--ease-out),
-              box-shadow var(--duration-fast) var(--ease-out),
-              color var(--duration-fast) var(--ease-out);
+  vertical-align: middle;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
 }
 
-.btn:active:not(:disabled) {
-  transform: scale(0.98);
+.btn > svg {
+  flex-shrink: 0;
 }
 
 .btn:focus-visible {
@@ -36,30 +47,64 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-.btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  transform: none !important;
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
 }
 
+/* sizes */
 .btn-sm {
   height: 24px;
-  font-size: var(--text-sm);
   padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  border-radius: 5px;
 }
 
 .btn-lg {
-  height: 36px;
+  height: var(--control-h-lg);
+  padding: 0 var(--space-4);
   font-size: var(--text-md);
   font-weight: 600;
-  padding: 0 var(--space-4);
   border-radius: var(--radius-md);
 }
 
-/* primary — one per surface; the action the user came for */
+.btn-xl {
+  height: 44px;
+  padding: 0 var(--space-5);
+  font-size: var(--text-md);
+  font-weight: 600;
+  border-radius: var(--radius-lg);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+/* secondary is the plain bezel button; kept as an explicit class for clarity */
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+}
+
+@media (hover: hover) {
+  .btn-secondary:hover:not(:disabled),
+  .btn:not([class*="btn-"]):hover:not(:disabled) {
+    background: var(--surface-hi);
+  }
+}
+
+.btn-secondary:active:not(:disabled),
+.btn:not([class*="btn-"]):active:not(:disabled) {
+  background: var(--button-press);
+}
+
+/* primary — the action the user came for */
 .btn-primary {
   background: var(--cta);
   color: var(--on-cta);
+  box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--on-cta) 12%, transparent);
 }
 
 @media (hover: hover) {
@@ -72,52 +117,47 @@
   background: var(--cta-press);
 }
 
-.btn.loading {
-  pointer-events: none;
-  opacity: 0.75;
-}
-
-.btn.loading .spinner {
-  width: 12px;
-  height: 12px;
-  border-width: 1.5px;
-}
-
 .btn-primary .spinner {
-  border-color: color-mix(in srgb, var(--on-cta) 35%, transparent);
+  border-color: color-mix(in srgb, var(--on-cta) 30%, transparent);
   border-top-color: var(--on-cta);
 }
 
-/* secondary — second-most-important action */
-.btn-secondary {
-  background: var(--fill-2);
-  color: var(--text);
-}
-
-@media (hover: hover) {
-  .btn-secondary:hover:not(:disabled) {
-    background: var(--surface-hi);
-    transform: translateY(-1px);
-  }
-}
-
-/* ghost — tertiary action, low weight */
+/* ghost — borderless, lives in toolbars and rows */
 .btn-ghost {
   background: transparent;
   color: var(--text-muted);
+  box-shadow: none;
 }
 
 @media (hover: hover) {
   .btn-ghost:hover:not(:disabled) {
-    background: var(--surface-mut);
+    background: var(--fill-2);
     color: var(--text);
+  }
+}
+
+.btn-ghost:active:not(:disabled) {
+  background: var(--fill-3);
+}
+
+/* tinted — accent text on accent-soft fill (secondary emphasis) */
+.btn-tinted {
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+  box-shadow: none;
+}
+
+@media (hover: hover) {
+  .btn-tinted:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
   }
 }
 
 /* destructive — delete, cancel-with-loss */
 .btn-destructive {
-  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
   color: var(--danger);
+  box-shadow: none;
 }
 
 @media (hover: hover) {
@@ -127,35 +167,92 @@
   }
 }
 
-/* pill — filter chips, tag toggles */
-.btn-pill {
-  height: auto;
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  border-radius: var(--radius-full);
-  background: var(--fill-1);
-  color: var(--text-dim);
+/* icon-only */
+.btn-icon {
+  width: var(--control-h);
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  box-shadow: none;
+  border-radius: var(--radius-sm);
+}
+
+.btn-icon.btn-sm {
+  width: 24px;
+}
+
+.btn-icon.btn-lg {
+  width: var(--control-h-lg);
 }
 
 @media (hover: hover) {
-  .btn-pill:hover:not(:disabled) {
-    background: var(--surface-hi);
+  .btn-icon:hover:not(:disabled) {
+    background: var(--fill-2);
     color: var(--text);
   }
 }
 
-.btn-pill.active {
-  background: var(--accent-soft);
-  color: var(--accent);
-  border-color: transparent;
+.btn-icon:active:not(:disabled) {
+  background: var(--fill-3);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .btn,
-  .btn-secondary:hover,
-  .btn:active {
-    transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
-    transform: none !important;
+.btn-icon.active,
+.btn-icon[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+}
+
+/* pill — filter chips, tag toggles */
+.btn-pill {
+  height: 24px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  border-radius: var(--radius-full);
+  background: var(--fill-1);
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+@media (hover: hover) {
+  .btn-pill:hover:not(:disabled) {
+    background: var(--fill-2);
+    color: var(--text);
   }
+}
+
+.btn-pill.active,
+.btn-pill[aria-pressed="true"],
+.btn-pill[aria-selected="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+}
+
+/* loading */
+.btn.loading {
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.btn.loading .spinner {
+  width: 12px;
+  height: 12px;
+  border-width: 1.5px;
+}
+
+/* keyboard shortcut hint inside a button */
+.btn .kbd {
+  margin-left: var(--space-1);
+  opacity: 0.7;
+}
+
+/* a row of buttons, macOS dialog order: cancel on the left of the default */
+.btn-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.btn-row.end {
+  justify-content: flex-end;
 }

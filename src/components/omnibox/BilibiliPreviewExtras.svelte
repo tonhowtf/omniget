@@ -166,7 +166,7 @@
     font-size: 12px;
   }
   .bili-error {
-    color: var(--danger, #d04848);
+    color: var(--danger);
   }
   .bili-warn {
     color: var(--text-muted);

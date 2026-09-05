@@ -17,11 +17,56 @@
 
 use serde::Serialize;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 /// Limites do ajuste. Um host nunca sai desta faixa, por mais que as medicoes
 /// sugiram: o teto protege o servidor e o piso garante que o download anda.
 pub const MIN_N: u32 = 1;
 pub const MAX_N: u32 = 16;
+
+/// Orçamento de conexões da máquina inteira, somando todos os downloads
+/// ativos. O stress de 2/4/8 downloads de 1 GiB no loopback (estudo 66)
+/// saturou acima de 32 conexões: 4 downloads × 8 segmentos rendeu 3,9 GB/s e
+/// 8 × 8 caiu para 1,9 GB/s. Vinte e quatro deixa 3 downloads com o `-N 8`
+/// cheio e reparte o resto quando a fila enche.
+pub const GLOBAL_CONNECTION_BUDGET: u32 = 24;
+
+static ACTIVE_DOWNLOADS: AtomicU32 = AtomicU32::new(0);
+
+/// Quantos downloads estão puxando bytes agora (yt-dlp ou fetcher direto).
+pub fn active_downloads() -> u32 {
+    ACTIVE_DOWNLOADS.load(Ordering::Relaxed)
+}
+
+/// Marca um download como ativo enquanto o guard vive.
+pub struct ActiveDownloadGuard(());
+
+impl ActiveDownloadGuard {
+    pub fn new() -> Self {
+        ACTIVE_DOWNLOADS.fetch_add(1, Ordering::Relaxed);
+        Self(())
+    }
+}
+
+impl Default for ActiveDownloadGuard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for ActiveDownloadGuard {
+    fn drop(&mut self) {
+        ACTIVE_DOWNLOADS.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
+/// Teto por download dado o orçamento global e quantos downloads o dividem.
+///
+/// `active` inclui o download que está perguntando. Nunca abaixo de `MIN_N`:
+/// um download sempre anda, mesmo que a fila esteja lotada.
+pub fn per_download_ceiling(budget: u32, active: u32) -> u32 {
+    (budget / active.max(1)).clamp(MIN_N, MAX_N)
+}
 
 /// Ganho minimo para justificar subir mais.
 ///
@@ -128,8 +173,16 @@ impl ConcurrencyTuner {
             .record_rate_limit();
     }
 
-    /// `ceiling` e o numero de Config: vira **teto**, nao valor fixo.
+    /// `ceiling` e o numero de Config: vira **teto**, nao valor fixo. O teto
+    /// ainda e cortado pelo orcamento global de conexoes repartido entre os
+    /// downloads ativos (`GLOBAL_CONNECTION_BUDGET`).
     pub fn suggest(&self, host: &str, current: u32, ceiling: u32) -> u32 {
+        let shared = per_download_ceiling(GLOBAL_CONNECTION_BUDGET, active_downloads());
+        self.suggest_with_ceiling(host, current, ceiling.min(shared))
+    }
+
+    /// `suggest` sem o orcamento global: a regra por host, pura.
+    pub fn suggest_with_ceiling(&self, host: &str, current: u32, ceiling: u32) -> u32 {
         let teto = ceiling.clamp(MIN_N, MAX_N);
         match self.hosts.get(host) {
             Some(stats) => next_concurrency(stats, current).min(teto),
@@ -138,11 +191,42 @@ impl ConcurrencyTuner {
     }
 }
 
+/// Um tuner por processo, compartilhado entre o downloader direto e o yt-dlp.
+///
+/// O host é o mesmo nos dois caminhos (um 429 do `googlevideo.com` vale para
+/// qualquer um deles), então dividir as estatísticas é o comportamento certo.
+/// `tokio::sync::Mutex` porque é travado dentro de código async.
+pub fn global() -> &'static tokio::sync::Mutex<ConcurrencyTuner> {
+    static TUNER: std::sync::OnceLock<tokio::sync::Mutex<ConcurrencyTuner>> =
+        std::sync::OnceLock::new();
+    TUNER.get_or_init(|| tokio::sync::Mutex::new(ConcurrencyTuner::default()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const MB: f64 = 1_000_000.0;
+
+    #[test]
+    fn orcamento_global_reparte_entre_downloads_ativos() {
+        assert_eq!(per_download_ceiling(24, 0), 16); // MAX_N
+        assert_eq!(per_download_ceiling(24, 1), 16);
+        assert_eq!(per_download_ceiling(24, 3), 8);
+        assert_eq!(per_download_ceiling(24, 6), 4);
+        assert_eq!(per_download_ceiling(24, 100), 1); // nunca abaixo de MIN_N
+    }
+
+    #[test]
+    fn guard_conta_e_desconta() {
+        let antes = active_downloads();
+        {
+            let _a = ActiveDownloadGuard::new();
+            let _b = ActiveDownloadGuard::new();
+            assert_eq!(active_downloads(), antes + 2);
+        }
+        assert_eq!(active_downloads(), antes);
+    }
 
     #[test]
     fn sem_medicao_nenhuma_nao_mexe() {

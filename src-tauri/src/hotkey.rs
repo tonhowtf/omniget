@@ -29,6 +29,7 @@ pub fn register_from_settings(app: &tauri::AppHandle) {
     if settings.omnidisc.enabled && !ptt.is_empty() {
         register_one(app, ptt, "omnidisc-ptt");
     }
+    crate::commands::tools::desktop::register_tool_hotkeys(app);
 }
 
 pub fn handle_ptt(app: &tauri::AppHandle, shortcut: &Shortcut, pressed: bool) -> bool {
@@ -147,6 +148,11 @@ fn register_one(app: &tauri::AppHandle, binding: &str, label: &str) {
 }
 
 pub fn on_hotkey_pressed(app: &tauri::AppHandle, shortcut: &Shortcut) {
+    // Atalhos das tools (autoclicker, ditado, replay) vêm antes dos do app.
+    if let Some(action) = crate::commands::tools::desktop::action_for(shortcut) {
+        crate::commands::tools::desktop::on_hotkey(app, &action);
+        return;
+    }
     let settings = config::load_settings(app);
 
     let download_match = matches_binding(shortcut, &settings.download.hotkey_binding);

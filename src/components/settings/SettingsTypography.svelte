@@ -519,7 +519,7 @@
   }
 
   .modified {
-    color: var(--warning, #f59e0b);
+    color: var(--warning);
     font-style: italic;
     margin-left: 4px;
   }

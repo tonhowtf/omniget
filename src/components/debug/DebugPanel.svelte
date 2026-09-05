@@ -69,8 +69,8 @@
 
   function levelColor(level: LogLevel): string {
     switch (level) {
-      case "info": return "var(--blue)";
-      case "warn": return "var(--orange)";
+      case "info": return "var(--accent)";
+      case "warn": return "var(--warning)";
       case "error": return "var(--error)";
     }
   }
@@ -280,7 +280,7 @@
   }
 
   .debug-warn {
-    background: color-mix(in srgb, var(--orange) 6%, transparent) !important;
+    background: color-mix(in srgb, var(--warning) 6%, transparent) !important;
   }
 
   .debug-time {
@@ -293,7 +293,7 @@
   .debug-level {
     font-size: 10px;
     font-weight: 600;
-    color: #fff;
+    color: var(--on-status);
     padding: 1px 5px;
     border-radius: 3px;
     flex-shrink: 0;

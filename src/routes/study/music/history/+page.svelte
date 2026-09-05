@@ -232,7 +232,7 @@
   }
   .chip:hover { color: var(--secondary); border-color: var(--accent); }
   .chip.active {
-    color: #fff;
+    color: var(--on-accent);
     background: var(--accent);
     border-color: var(--accent);
   }
@@ -321,7 +321,7 @@
     margin-top: 8px;
     padding: 6px 14px;
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     border: 0;
     border-radius: 999px;
     font-size: 12px;

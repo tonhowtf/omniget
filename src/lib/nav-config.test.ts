@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { CORE_NAV_ITEMS } from "./nav-config";
 
 describe("CORE_NAV_ITEMS", () => {
-  it("has the expected 6 core entries", () => {
-    expect(CORE_NAV_ITEMS).toHaveLength(6);
+  it("has the expected 7 core entries", () => {
+    expect(CORE_NAV_ITEMS).toHaveLength(7);
   });
 
   it("OmniDisc sits between Downloads and the app group", () => {

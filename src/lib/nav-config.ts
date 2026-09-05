@@ -14,6 +14,7 @@ export const CORE_NAV_ITEMS: NavItem[] = [
   { href: "/", labelKey: "nav.home", icon: "home", group: "primary", order: 10 },
   { href: "/downloads", labelKey: "nav.downloads", icon: "downloads", group: "primary", badge: "downloads", order: 20 },
   { href: "/omnidisc", labelKey: "nav.omnidisc", icon: "chat", group: "primary", badge: "omnidisc", order: 25 },
+  { href: "/tools", labelKey: "nav.tools", icon: "tools", group: "primary", order: 27 },
   { href: "/marketplace", labelKey: "nav.marketplace", icon: "marketplace", group: "app", order: 30 },
   { href: "/settings", labelKey: "nav.settings", icon: "settings", group: "app", order: 40 },
   { href: "/about", labelKey: "nav.about", icon: "about", group: "app", order: 50 },

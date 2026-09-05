@@ -144,7 +144,7 @@
   .cta-primary {
     padding: 9px 18px;
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     border: 0;
     border-radius: 999px;
     font-size: 13px;

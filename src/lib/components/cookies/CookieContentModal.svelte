@@ -259,8 +259,8 @@
   .expired-tag {
     font-size: 10px;
     padding: 2px 6px;
-    background: color-mix(in oklab, #d33 20%, transparent);
-    color: #d33;
+    background: color-mix(in oklab, var(--danger) 20%, transparent);
+    color: var(--danger);
     border-radius: 4px;
     text-decoration: none;
   }
@@ -285,7 +285,7 @@
     font-size: 11px;
     color: var(--tertiary);
   }
-  .stat.warn { color: #f4a72b; }
+  .stat.warn { color: var(--warning); }
   .path {
     margin-left: auto;
     font-family: ui-monospace, monospace;

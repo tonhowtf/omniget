@@ -112,13 +112,11 @@ pub async fn queue_url_with_defaults(
         return Err("Course platforms can't be downloaded from a URL. Open the Courses page (requires the Courses plugin and a logged-in account).".to_string());
     }
 
-    let downloader = state
-        .registry
-        .find_platform(&url)
+    let resolved = crate::core::url_resolver::resolve_downloader(&state.registry, &url)
+        .await
         .ok_or_else(|| "No downloader available for this URL".to_string())?;
-    let platform_name = platform
-        .map(|p| p.to_string())
-        .unwrap_or_else(|| "generic".to_string());
+    let downloader = resolved.downloader;
+    let platform_name = resolved.platform_name;
 
     let mut download_id = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

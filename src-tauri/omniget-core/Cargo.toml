@@ -12,6 +12,8 @@ desktop = []
 mobile = []
 
 [dependencies]
+# Edge TTS (core/tools/edge_tts.rs) fala WebSocket com o servico do Edge.
+tokio-tungstenite = { version = "0.30.0", features = ["native-tls"] }
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "cookies", "stream", "http2", "gzip", "brotli", "deflate", "rustls-tls", "multipart"] }
 futures = "0.3"
@@ -48,3 +50,12 @@ tar = "0.4"
 flate2 = "1"
 xz2 = { version = "0.1", features = ["static"] }
 open = "5"
+# Pinterest (core/tools/pinterest): dHash de duplicados, paleta e WebP -> PNG.
+# Tools: PDF (libloading carrega o PDFium gerido), Sistema (walkdir + trash),
+# Autoclicker e ditado (enigo), espaco em disco (fs4).
+libloading = "0.8"
+walkdir = "2"
+trash = "5"
+enigo = { version = "0.6", default-features = false, features = ["x11rb"] }
+fs4 = "1"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }

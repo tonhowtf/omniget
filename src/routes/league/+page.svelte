@@ -19,6 +19,8 @@
   import GoalsTab from "$components/league/GoalsTab.svelte";
   import AutomationTab from "$components/league/AutomationTab.svelte";
   import HistoryTab from "$components/league/HistoryTab.svelte";
+  import ProfileTab from "$components/league/ProfileTab.svelte";
+  import CoachTab from "$components/league/CoachTab.svelte";
   import type { Champion, GoalKey, LobbyQueue, RankedEntry, Role, ScoutPlayer } from "$components/league/shared";
   import type { Platform } from "$components/league/registry";
 
@@ -129,7 +131,7 @@
     }
   }
 
-  const TAB_IDS = ["overview", "analysis", "meta", "search", "live", "goals", "automation", "history"] as const;
+  const TAB_IDS = ["overview", "profile", "analysis", "meta", "search", "live", "goals", "automation", "coach", "history"] as const;
   type Tab = (typeof TAB_IDS)[number];
   let tab = $state<Tab>("overview");
 
@@ -504,6 +506,9 @@
       <div class="tab-panel" class:active={tab === "overview"}>
         <OverviewTab {summoner} {profileLoading} {ranked} {phase} {champSelect} {liveGame} {lobby} {queues} {actionError} {champions} {championById} {championByAlias} onAction={action} active={tab === "overview"} />
       </div>
+      <div class="tab-panel" class:active={tab === "profile"}>
+        <ProfileTab {summoner} {champions} active={tab === "profile"} />
+      </div>
       <div class="tab-panel" class:active={tab === "analysis"}>
         <AnalysisTab {analysis} {analysisLoading} onRefreshAnalysis={loadAnalysis} {phase} {scoutPlayers} {scoutReports} {scoutLoading} onRefreshScouting={loadScouting} {championById} {notes} onSaveNote={saveNote} {timesSeenBefore} {platform} clientConnected={status.connected} active={tab === "analysis"} />
       </div>
@@ -521,6 +526,9 @@
       </div>
       <div class="tab-panel" class:active={tab === "automation"}>
         <AutomationTab {champions} {championById} active={tab === "automation"} />
+      </div>
+      <div class="tab-panel" class:active={tab === "coach"}>
+        <CoachTab {games} {phase} {championById} active={tab === "coach"} />
       </div>
       <div class="tab-panel" class:active={tab === "history"}>
         <HistoryTab {games} loading={loadingHistory} onRefresh={loadHistory} {championById} active={tab === "history"} />

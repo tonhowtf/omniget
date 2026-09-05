@@ -353,7 +353,7 @@
   .primary:disabled { opacity: 0.4; cursor: not-allowed; }
   .danger {
     padding: 9px 18px;
-    background: var(--error, #dc2626);
+    background: var(--error);
     color: white;
     border: 0;
     border-radius: 8px;

@@ -70,6 +70,7 @@
 </dialog>
 
 <style>
+  /* macOS sheet: opaque popup material, 16pt radius, springs in from slightly above. */
   .dialog-container {
     border: none;
     border-radius: var(--radius-xl);
@@ -78,9 +79,10 @@
     padding: 0;
     width: 92%;
     max-width: 540px;
-    max-height: 80vh;
-    animation: dialog-in var(--duration-base) var(--ease-out);
+    max-height: 82vh;
+    animation: dialog-in var(--duration-slow) var(--ease-spring);
     box-shadow: var(--elev-3);
+    transform-origin: top center;
   }
 
   .dialog-container::backdrop {
@@ -89,72 +91,55 @@
   }
 
   .dialog-container.closing {
-    animation: dialog-out var(--duration-base) var(--ease-out) forwards;
+    animation: dialog-out var(--duration-fast) var(--ease-out) forwards;
   }
 
   .dialog-container.closing::backdrop {
-    animation: backdrop-out var(--duration-base) var(--ease-out) forwards;
+    animation: backdrop-out var(--duration-fast) var(--ease-out) forwards;
   }
 
   @keyframes dialog-in {
     from {
       opacity: 0;
-      transform: scale(0.95);
+      transform: translateY(-12px) scale(0.98);
     }
     to {
       opacity: 1;
-      transform: scale(1);
+      transform: translateY(0) scale(1);
     }
   }
 
   @keyframes dialog-out {
     from {
       opacity: 1;
-      transform: scale(1);
+      transform: translateY(0) scale(1);
     }
     to {
       opacity: 0;
-      transform: scale(0.96);
+      transform: translateY(-6px) scale(0.98);
     }
   }
 
   @keyframes backdrop-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   @keyframes backdrop-out {
-    from {
-      opacity: 1;
-    }
-    to {
-      opacity: 0;
-    }
+    from { opacity: 1; }
+    to { opacity: 0; }
   }
 
   .dialog-content {
     display: flex;
     flex-direction: column;
-    max-height: 80vh;
+    max-height: 82vh;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .dialog-container {
-      animation: none;
-    }
-
-    .dialog-container::backdrop {
-      animation: none;
-    }
-
-    .dialog-container.closing {
-      animation: none;
-    }
-
+    .dialog-container,
+    .dialog-container::backdrop,
+    .dialog-container.closing,
     .dialog-container.closing::backdrop {
       animation: none;
     }

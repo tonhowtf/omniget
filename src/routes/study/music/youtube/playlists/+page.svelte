@@ -160,7 +160,7 @@
     padding: 10px 18px;
     border-radius: 999px;
     background: var(--accent);
-    color: var(--on-accent, #000);
+    color: var(--on-accent);
     border: 0;
     font: inherit;
     font-size: 13px;
@@ -269,7 +269,7 @@
   }
   .primary {
     background: var(--accent);
-    color: var(--on-accent, #000);
+    color: var(--on-accent);
   }
   .primary:disabled,
   .ghost:disabled {

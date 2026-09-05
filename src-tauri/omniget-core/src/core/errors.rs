@@ -1,5 +1,38 @@
+/// Categorias que não adianta tentar de novo: a fonte está quebrada ou o
+/// pós-processamento falhou por falta de dados, não por azar de rede.
+pub fn is_terminal_category(category: &str) -> bool {
+    matches!(
+        category,
+        "not_found" | "broken_source" | "postprocess_failed" | "restricted" | "auth_required"
+    )
+}
+
 pub fn classify_download_error(error: &str) -> (&str, &str) {
     let lower = error.to_lowercase();
+
+    // Antes de tudo que casa com "yt-dlp"/"ffmpeg": a mensagem do Reddit era
+    // "yt-dlp: Preprocessing: Conversion failed!" e caía em `ytdlp_needed`,
+    // que mandava instalar o yt-dlp que já estava instalado.
+    if lower.contains("fragment") && (lower.contains("not found") || lower.contains("404"))
+        || lower.contains("downloaded file is empty")
+        || lower.contains("conflicting range")
+        || lower.contains("unable to download video data")
+        || lower.contains("no video formats found")
+    {
+        return (
+            "broken_source",
+            "The source served incomplete or missing media (fragments not found). The content is probably gone.",
+        );
+    }
+
+    if lower.contains("conversion failed")
+        || lower.contains("postprocessing:") && lower.contains("error")
+    {
+        return (
+            "postprocess_failed",
+            "Post-processing failed: the downloaded streams are incomplete or unsupported.",
+        );
+    }
 
     if lower.contains("cookie")
         || lower.contains("login")
@@ -63,4 +96,31 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
     }
 
     ("unknown", error)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dead_source_is_terminal_not_unknown() {
+        for msg in [
+            "yt-dlp: Preprocessing: Conversion failed!",
+            "ERROR: fragment 1 not found, unable to continue",
+            "ERROR: The downloaded file is empty",
+            "ERROR: Conflicting range for fragment",
+            "ERROR: unable to download video data: HTTP Error 404",
+        ] {
+            let (cat, _) = classify_download_error(msg);
+            assert!(is_terminal_category(cat), "{msg} → {cat}");
+            assert_ne!(cat, "unknown");
+            assert_ne!(cat, "ytdlp_needed");
+        }
+    }
+
+    #[test]
+    fn network_and_rate_limit_still_retry() {
+        assert!(!is_terminal_category(classify_download_error("HTTP Error 429").0));
+        assert!(!is_terminal_category(classify_download_error("connection reset").0));
+    }
 }

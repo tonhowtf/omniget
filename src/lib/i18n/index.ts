@@ -1,8 +1,15 @@
 import i18n from "sveltekit-i18n";
+import en from "./en.json";
 
 type Payload = [payload?: Record<string, unknown>];
 
 const config = {
+  // O inglês vai embutido no bundle principal e serve de fallback: se o
+  // carregamento assíncrono do idioma falhar no webview, a UI nunca fica sem
+  // texto (era o sintoma no app empacotado: todos os `$t` vazios).
+  initLocale: "en",
+  fallbackLocale: "en",
+  translations: { en },
   loaders: [
     
     {

@@ -61,8 +61,9 @@
     });
   }
 
-  function toggleLeagueFlag(field: "auto_pick" | "auto_ban" | "auto_lock" | "auto_honor" | "auto_play_again" | "auto_requeue" | "auto_accept_swaps" | "auto_reconnect" | "notify_ready_check") {
-    const current = (settings?.league as any)?.[field] ?? false;
+  function toggleLeagueFlag(field: "auto_pick" | "auto_ban" | "auto_lock" | "auto_honor" | "auto_play_again" | "auto_requeue" | "auto_accept_swaps" | "auto_reconnect" | "notify_ready_check" | "pick_random" | "skin_roulette" | "skin_roulette_include_base" | "ward_roulette" | "sgp_enabled") {
+    const fallback = field === "sgp_enabled" || field === "notify_ready_check";
+    const current = (settings?.league as any)?.[field] ?? fallback;
     updateSettings({ league: { [field]: !current } });
   }
 
@@ -163,6 +164,17 @@
       </button>
     </div>
     {#if settings?.league?.auto_pick}
+      <div class="action-row">
+        <div class="action-col">
+          <span class="action-label">{$t("league.pick_random")} <span class="feature-badge">{$t("league.badge_experimental")}</span></span>
+          <span class="action-hint">{$t("league.pick_random_desc")}</span>
+        </div>
+        <button class="toggle" class:on={settings?.league?.pick_random} onclick={() => toggleLeagueFlag("pick_random")} role="switch" aria-checked={settings?.league?.pick_random ?? false} aria-label={$t("league.pick_random") as string}>
+          <span class="toggle-knob"></span>
+        </button>
+      </div>
+    {/if}
+    {#if settings?.league?.auto_pick && !settings?.league?.pick_random}
       <div class="champ-list-block">
         <span class="list-label">{$t("league.pick_list")} <span class="list-hint">({$t("league.list_hint")})</span></span>
         <div class="champ-chips">
@@ -334,6 +346,45 @@
         <span class="action-hint">{$t("league.auto_swaps_desc")}</span>
       </div>
       <button class="toggle" class:on={settings?.league?.auto_accept_swaps} onclick={() => toggleLeagueFlag("auto_accept_swaps")} role="switch" aria-checked={settings?.league?.auto_accept_swaps ?? false} aria-label={$t("league.auto_swaps") as string}>
+        <span class="toggle-knob"></span>
+      </button>
+    </div>
+    <div class="divider"></div>
+    <div class="action-row">
+      <div class="action-col">
+        <span class="action-label">{$t("league.skin_roulette")} <span class="feature-badge">{$t("league.badge_beta")}</span></span>
+        <span class="action-hint">{$t("league.skin_roulette_desc")}</span>
+      </div>
+      <button class="toggle" class:on={settings?.league?.skin_roulette} onclick={() => toggleLeagueFlag("skin_roulette")} role="switch" aria-checked={settings?.league?.skin_roulette ?? false} aria-label={$t("league.skin_roulette") as string}>
+        <span class="toggle-knob"></span>
+      </button>
+    </div>
+    {#if settings?.league?.skin_roulette}
+      <div class="action-row">
+        <div class="action-col">
+          <span class="action-label">{$t("league.skin_include_base")}</span>
+        </div>
+        <button class="toggle" class:on={settings?.league?.skin_roulette_include_base} onclick={() => toggleLeagueFlag("skin_roulette_include_base")} role="switch" aria-checked={settings?.league?.skin_roulette_include_base ?? false} aria-label={$t("league.skin_include_base") as string}>
+          <span class="toggle-knob"></span>
+        </button>
+      </div>
+    {/if}
+    <div class="action-row">
+      <div class="action-col">
+        <span class="action-label">{$t("league.ward_roulette")}</span>
+        <span class="action-hint">{$t("league.ward_roulette_desc")}</span>
+      </div>
+      <button class="toggle" class:on={settings?.league?.ward_roulette} onclick={() => toggleLeagueFlag("ward_roulette")} role="switch" aria-checked={settings?.league?.ward_roulette ?? false} aria-label={$t("league.ward_roulette") as string}>
+        <span class="toggle-knob"></span>
+      </button>
+    </div>
+    <div class="divider"></div>
+    <div class="action-row">
+      <div class="action-col">
+        <span class="action-label">{$t("league.sgp_enabled")} <span class="feature-badge">{$t("league.badge_experimental")}</span></span>
+        <span class="action-hint">{$t("league.sgp_enabled_desc")}</span>
+      </div>
+      <button class="toggle" class:on={settings?.league?.sgp_enabled ?? true} onclick={() => toggleLeagueFlag("sgp_enabled")} role="switch" aria-checked={settings?.league?.sgp_enabled ?? true} aria-label={$t("league.sgp_enabled") as string}>
         <span class="toggle-knob"></span>
       </button>
     </div>

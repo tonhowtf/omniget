@@ -18,14 +18,31 @@
     { id: "hotmart", name: "Hotmart", color: "#F04E23", icon: "hotmart", commands: { check_session: "hotmart_check_session" } },
     { id: "udemy", name: "Udemy", color: "#A435F0", icon: "udemy", commands: { check_session: "udemy_check_session" } },
     { id: "kiwify", name: "Kiwify", color: "#22C55E", icon: "kiwify", commands: { check_session: "kiwify_check_session" } },
-    { id: "teachable", name: "Teachable", color: "#4B5563", icon: "teachable", commands: { check_session: "teachable_check_session" } },
-    { id: "kajabi", name: "Kajabi", color: "#2563EB", icon: "kajabi", commands: { check_session: "kajabi_check_session" } },
-    { id: "gumroad", name: "Gumroad", color: "#FF90E8", icon: "gumroad", commands: { check_session: "gumroad_check_session" } },
-    { id: "skool", name: "Skool", color: "#5865F2", icon: "skool", commands: { check_session: "skool_check_session" } },
-    { id: "greatcourses", name: "Wondrium", color: "#1E3A5F", icon: "greatcourses", commands: { check_session: "wondrium_check_session" } },
-    { id: "thinkific", name: "Thinkific", color: "#4A90D9", icon: "thinkific", commands: { check_session: "thinkific_check_session" } },
     { id: "rocketseat", name: "Rocketseat", color: "#8257E5", icon: "rocketseat", commands: { check_session: "rocketseat_check_session" } },
+    { id: "metaanalysis", name: "Meta-Analysis Academy", color: "#4338CA", icon: "metaanalysis", commands: { check_session: "metaanalysis_check_session" } },
   ];
+
+  type SessionState = "checking" | "connected" | "not-connected" | "expired" | "unreachable" | "missing";
+
+  function errorMessage(e: unknown): string {
+    if (typeof e === "string") return e;
+    if (e instanceof Error) return e.message;
+    if (e && typeof e === "object" && "message" in e && typeof e.message === "string") return e.message;
+    return String(e);
+  }
+
+  export function classifySessionError(msg: string): SessionState {
+    const lower = msg.toLowerCase();
+    if (
+      lower.startsWith("err_plugin_outdated") ||
+      lower.includes("unknown command") ||
+      (lower.includes("command") && lower.includes("not found")) ||
+      lower.includes("no handler")
+    ) return "missing";
+    if (lower.includes("session_expired")) return "expired";
+    if (lower.includes("not_authenticated") || lower.includes("not authenticated")) return "not-connected";
+    return "unreachable";
+  }
 
   type PluginStatus =
     | "checking"
@@ -45,13 +62,16 @@
 
   let platforms: PlatformConfig[] = $state([]);
   let searchQuery = $state("");
-  let authStatus: Record<string, { checked: boolean; email: string | null; error: boolean }> = $state({});
+  let authStatus: Record<string, { state: SessionState; email: string | null; detail: string }> = $state({});
   let usingFallback = $state(false);
+
+  let visiblePlatforms = $derived(platforms.filter((p) => authStatus[p.id]?.state !== "missing"));
+  let hiddenCount = $derived(platforms.length - visiblePlatforms.length);
 
   let filteredPlatforms = $derived(
     searchQuery.trim() === ""
-      ? platforms
-      : platforms.filter((p) =>
+      ? visiblePlatforms
+      : visiblePlatforms.filter((p) =>
           p.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
         )
   );
@@ -104,23 +124,22 @@
       usingFallback = true;
     }
 
-    if (!usingFallback) {
-      for (const platform of platforms) {
-        authStatus[platform.id] = { checked: false, email: null, error: false };
-        if (!platform.commands?.check_session) {
-          authStatus[platform.id] = { checked: true, email: null, error: true };
-          continue;
-        }
-        pluginInvoke<string>("courses", platform.commands.check_session)
-          .then((email) => {
-            console.log(`[courses] ${platform.id} session:`, email);
-            authStatus[platform.id] = { checked: true, email, error: false };
-          })
-          .catch((e) => {
-            console.log(`[courses] ${platform.id} session check failed:`, e);
-            authStatus[platform.id] = { checked: true, email: null, error: true };
-          });
+    for (const platform of platforms) {
+      authStatus[platform.id] = { state: "checking", email: null, detail: "" };
+      if (!platform.commands?.check_session) {
+        authStatus[platform.id] = { state: "missing", email: null, detail: "" };
+        continue;
       }
+      pluginInvoke<string>("courses", platform.commands.check_session)
+        .then((email) => {
+          authStatus[platform.id] = { state: "connected", email, detail: "" };
+        })
+        .catch((e) => {
+          const detail = errorMessage(e);
+          const state = classifySessionError(detail);
+          console.log(`[courses] ${platform.id} session: ${state}`, detail);
+          authStatus[platform.id] = { state, email: null, detail };
+        });
     }
   });
 
@@ -183,6 +202,10 @@
     <div class="fallback-banner">
       {$t("courses.update_plugin_hint")}
     </div>
+  {:else if hiddenCount > 0}
+    <div class="fallback-banner">
+      {$t("courses.platform_hidden_hint")}
+    </div>
   {/if}
 
   <input
@@ -207,14 +230,17 @@
           </svg>
         </div>
         <span class="card-name">{platform.name}</span>
-        <span class="card-status">
-          {#if authStatus[platform.id]?.checked && authStatus[platform.id]?.error}
-            <span class="status-dot error"></span>
-            {$t("courses.connection_failed")}
-          {:else if authStatus[platform.id]?.checked && authStatus[platform.id]?.email}
+        <span class="card-status" title={authStatus[platform.id]?.state === "unreachable" ? authStatus[platform.id].detail : undefined}>
+          {#if authStatus[platform.id]?.state === "connected"}
             <span class="status-dot connected"></span>
             <span class="status-email">{authStatus[platform.id].email}</span>
-          {:else if authStatus[platform.id]?.checked}
+          {:else if authStatus[platform.id]?.state === "expired"}
+            <span class="status-dot expired"></span>
+            {$t("courses.session_expired")}
+          {:else if authStatus[platform.id]?.state === "unreachable"}
+            <span class="status-dot error"></span>
+            {$t("courses.connection_failed")}
+          {:else if authStatus[platform.id]?.state === "not-connected"}
             <span class="status-dot disconnected"></span>
             {$t("courses.not_connected")}
           {/if}
@@ -343,9 +369,10 @@
     flex-shrink: 0;
   }
 
-  .status-dot.connected { background: var(--green); }
+  .status-dot.connected { background: var(--success); }
   .status-dot.disconnected { background: var(--gray); }
-  .status-dot.error { background: var(--red); }
+  .status-dot.expired { background: var(--warning); }
+  .status-dot.error { background: var(--danger); }
 
   .status-email {
     overflow: hidden;
@@ -367,7 +394,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: calc(100vh - var(--padding) * 4);
+    min-height: calc(100vh - 140px);
     gap: calc(var(--padding) * 1.5);
     text-align: center;
     color: var(--gray);

@@ -46,7 +46,7 @@
   </div>
 
   <div class="legal-footer">
-    <button class="button primary" onclick={acknowledge} disabled={busy}>
+    <button class="btn btn-primary btn-lg" onclick={acknowledge} disabled={busy}>
       {$t("legal.acknowledge")}
     </button>
   </div>
@@ -96,23 +96,6 @@
     padding: 8px 20px 20px;
   }
 
-  .button.primary {
-    background: var(--blue);
-    color: var(--on-accent);
-    border: none;
-    padding: 8px 18px;
-    border-radius: var(--border-radius);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-  }
 
-  .button.primary:disabled {
-    opacity: 0.6;
-    cursor: wait;
-  }
 
-  .button.primary:hover:not(:disabled) {
-    filter: brightness(1.08);
-  }
 </style>

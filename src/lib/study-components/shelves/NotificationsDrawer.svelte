@@ -202,14 +202,14 @@
     margin-left: auto;
     padding: 6px 12px;
     background: transparent;
-    border: 1px solid color-mix(in oklab, var(--error, #dc2626) 40%, transparent);
+    border: 1px solid color-mix(in oklab, var(--error) 40%, transparent);
     border-radius: 999px;
-    color: var(--error, #dc2626);
+    color: var(--error);
     font-size: 11.5px;
     cursor: pointer;
   }
   .dismiss-all:hover {
-    background: color-mix(in oklab, var(--error, #dc2626) 8%, transparent);
+    background: color-mix(in oklab, var(--error) 8%, transparent);
   }
 
   .head {
@@ -358,8 +358,8 @@
   }
 
   .dismiss:hover {
-    color: var(--error, #dc2626);
-    background: color-mix(in oklab, var(--error, #dc2626) 8%, transparent);
+    color: var(--error);
+    background: color-mix(in oklab, var(--error) 8%, transparent);
   }
 
   .empty {

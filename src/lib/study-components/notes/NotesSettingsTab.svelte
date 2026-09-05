@@ -410,11 +410,11 @@
     border-radius: 50%;
   }
   .dot.saving {
-    background: var(--warning, #f59e0b);
+    background: var(--warning);
     animation: pulse 1.2s ease-in-out infinite;
   }
   .dot.saved {
-    background: var(--success, #16a34a);
+    background: var(--success);
   }
   .muted {
     color: var(--tertiary);

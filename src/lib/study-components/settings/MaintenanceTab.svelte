@@ -391,9 +391,9 @@
   }
 
   .btn.danger {
-    background: var(--error, #dc2626);
+    background: var(--error);
     color: white;
-    border-color: var(--error, #dc2626);
+    border-color: var(--error);
   }
 
   .btn.ghost:hover {
@@ -452,7 +452,7 @@
   }
 
   .reassure {
-    color: color-mix(in oklab, var(--success, #16a34a) 90%, transparent);
+    color: color-mix(in oklab, var(--success) 90%, transparent);
     font-size: 12px;
   }
 
@@ -492,15 +492,15 @@
   }
 
   .mode-row.danger.selected {
-    border-color: var(--error, #dc2626);
-    background: color-mix(in oklab, var(--error, #dc2626) 6%, transparent);
+    border-color: var(--error);
+    background: color-mix(in oklab, var(--error) 6%, transparent);
   }
 
   .rec-tag {
     margin-left: 4px;
     padding: 1px 6px;
-    background: color-mix(in oklab, var(--success, #16a34a) 14%, transparent);
-    color: var(--success, #16a34a);
+    background: color-mix(in oklab, var(--success) 14%, transparent);
+    color: var(--success);
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -511,9 +511,9 @@
   .warning {
     padding: 10px 12px;
     border-radius: 8px;
-    background: color-mix(in oklab, var(--error, #dc2626) 10%, transparent);
-    color: var(--error, #dc2626);
-    border: 1px solid color-mix(in oklab, var(--error, #dc2626) 30%, transparent);
+    background: color-mix(in oklab, var(--error) 10%, transparent);
+    color: var(--error);
+    border: 1px solid color-mix(in oklab, var(--error) 30%, transparent);
     font-size: 12px;
     line-height: 1.5;
   }

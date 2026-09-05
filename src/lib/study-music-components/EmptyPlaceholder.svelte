@@ -75,7 +75,7 @@
     margin-top: 10px;
     padding: 9px 20px;
     background: var(--accent);
-    color: var(--on-accent, #000);
+    color: var(--on-accent);
     border: 0;
     border-radius: 999px;
     font: inherit;

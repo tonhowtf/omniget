@@ -137,7 +137,7 @@
       </div>
 
       <div class="dialog-footer">
-        <button class="button dismiss-btn" onclick={handleClose}>
+        <button class="btn btn-secondary dismiss-btn" onclick={handleClose}>
           {$t("common.close")}
         </button>
       </div>
@@ -148,15 +148,16 @@
 <style>
   .changelog-dialog {
     border: none;
-    border-radius: var(--border-radius);
+    border-radius: var(--radius-xl);
     background: var(--popup-bg);
-    color: var(--secondary);
+    color: var(--text);
     padding: 0;
     width: 90%;
-    max-width: 480px;
+    max-width: 520px;
     max-height: 80vh;
-    animation: dialog-in 0.15s ease-out;
+    animation: dialog-in var(--duration-slow) var(--ease-spring);
     box-shadow: var(--elev-3);
+    transform-origin: top center;
   }
 
   .changelog-dialog::backdrop {
@@ -246,13 +247,13 @@
   }
 
   .close-btn {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: calc(var(--border-radius) / 2);
-    color: var(--gray);
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
     cursor: pointer;
     border: none;
     background: none;
@@ -329,7 +330,7 @@
 
   .markdown-content :global(li::before) {
     content: "•";
-    color: var(--blue);
+    color: var(--accent);
     margin-right: 6px;
   }
 
@@ -365,7 +366,7 @@
   }
 
   .markdown-content :global(a) {
-    color: var(--blue);
+    color: var(--accent);
     text-decoration: none;
   }
 

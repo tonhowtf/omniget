@@ -349,10 +349,10 @@
     flex-direction: column;
     gap: 6px;
     padding: 6px 8px;
-    background: color-mix(in oklab, var(--error, #e74c3c) 10%, transparent);
-    border: 1px solid color-mix(in oklab, var(--error, #e74c3c) 30%, transparent);
+    background: color-mix(in oklab, var(--error) 10%, transparent);
+    border: 1px solid color-mix(in oklab, var(--error) 30%, transparent);
     border-radius: var(--border-radius);
-    color: var(--error, #e74c3c);
+    color: var(--error);
   }
   .puml-error-msg {
     margin: 0;

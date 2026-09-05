@@ -85,7 +85,7 @@
   @media (hover: hover) {
     .hint-trigger:hover {
       opacity: 1;
-      color: var(--blue);
+      color: var(--accent);
     }
   }
 

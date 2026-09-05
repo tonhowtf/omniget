@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { CDRAGON, formatGameTime, type Champion, type RankedEntry, type LobbyQueue } from "./shared";
+  import { CHAMPION_CLASSES, drawLane, secondaryLane, type Lane } from "$lib/league-raffle";
   import Skeleton from "./Skeleton.svelte";
 
   let {
@@ -90,36 +91,93 @@
     }
   }
 
-  let profileOpen = $state(false);
-  let iconInput = $state<number | null>(null);
-  let statusMessage = $state("");
-  let bgChampion = $state<number>(0);
-  let ownedSkins = $state<{ id: number; name: string }[]>([]);
-  let profileError = $state("");
-  let profileSaved = $state("");
+  // Raffles: a lane, a champion, a skin. Small, honest randomness for the
+  // player who wants the queue itself to decide.
+  let drawnLane = $state<Lane | null>(null);
+  let drawnSecond = $state<Lane | "FILL" | null>(null);
+  let raffleError = $state("");
+  let raffleClass = $state<string>("");
+  let drawnChampion = $state<{ id: number; name: string; candidates: number } | null>(null);
+  let drawingChampion = $state(false);
 
-  async function runProfileAction(action: () => Promise<unknown>, saved: string) {
-    profileError = "";
-    profileSaved = "";
+  function drawLaneNow() {
+    drawnLane = drawLane(drawnLane);
+    drawnSecond = secondaryLane(drawnLane);
+  }
+
+  async function applyDrawnLane() {
+    if (!drawnLane) return;
+    raffleError = "";
     try {
-      await action();
-      profileSaved = saved;
-      setTimeout(() => { if (profileSaved === saved) profileSaved = ""; }, 2000);
+      await invoke("league_set_positions", { first: drawnLane, second: drawnSecond ?? "FILL" });
+      firstRole = drawnLane;
+      secondRole = drawnSecond ?? "FILL";
     } catch (e: any) {
-      profileError = typeof e === "string" ? e : (e?.message ?? String(e));
+      raffleError = typeof e === "string" ? e : (e?.message ?? String(e));
     }
   }
 
-  async function loadOwnedSkins(championId: number) {
-    ownedSkins = [];
-    if (championId <= 0) return;
+  async function drawChampion() {
+    if (drawingChampion) return;
+    drawingChampion = true;
+    raffleError = "";
     try {
-      const res = await invoke<any>("league_owned_skins", { championId });
-      ownedSkins = res?.skins ?? [];
-    } catch {
-      ownedSkins = [];
+      const res = await invoke<any>("league_random_champion", { class: raffleClass || null });
+      drawnChampion = { id: res.id, name: res.name, candidates: res.candidates };
+    } catch (e: any) {
+      raffleError = typeof e === "string" ? e : (e?.message ?? String(e));
+    } finally {
+      drawingChampion = false;
     }
   }
+
+  async function declareDrawn(lock: boolean) {
+    if (!drawnChampion) return;
+    raffleError = "";
+    try {
+      await invoke("league_declare_champion", { championId: drawnChampion.id, lock });
+    } catch (e: any) {
+      raffleError = typeof e === "string" ? e : (e?.message ?? String(e));
+    }
+  }
+
+  let skinRoll = $state<{ skin_name: string; chroma_name: string | null } | null>(null);
+  let skinError = $state("");
+  let skinBusy = $state(false);
+
+  async function rollSkin() {
+    if (skinBusy) return;
+    skinBusy = true;
+    skinError = "";
+    try {
+      skinRoll = await invoke<any>("league_roll_skin", {});
+    } catch (e: any) {
+      const raw = typeof e === "string" ? e : (e?.message ?? String(e));
+      skinError = raw.includes("lock a champion") ? ($t("league.skin_lock_first") as string) : raw;
+    } finally {
+      skinBusy = false;
+    }
+  }
+
+  async function rollWard() {
+    if (skinBusy) return;
+    skinBusy = true;
+    skinError = "";
+    try {
+      await invoke("league_roll_ward");
+      skinRoll = { skin_name: $t("league.skin_roll_ward") as string, chroma_name: null };
+    } catch (e: any) {
+      skinError = typeof e === "string" ? e : (e?.message ?? String(e));
+    } finally {
+      skinBusy = false;
+    }
+  }
+
+  let myLockedChampion = $derived.by(() => {
+    const cell = champSelect?.localPlayerCellId;
+    const me = (champSelect?.myTeam ?? []).find((m: any) => m.cellId === cell);
+    return me?.championId ?? 0;
+  });
 
   let restartConfirming = $state(false);
   let restartLoading = $state(false);
@@ -203,73 +261,6 @@
   {#if restartError}
     <div class="action-error" role="alert">{restartError}</div>
   {/if}
-  {#if summoner}
-    <details class="profile-tools" bind:open={profileOpen}>
-      <summary>{$t("league.profile_tools")}</summary>
-      {#if profileError}
-        <p class="action-error" role="alert">{profileError}</p>
-      {/if}
-      {#if profileSaved}
-        <p class="profile-saved">{profileSaved}</p>
-      {/if}
-      <div class="profile-tool-row">
-        <span class="list-label">{$t("league.profile_icon")}</span>
-        <input class="input-text tiny-input" type="number" min="0" bind:value={iconInput} aria-label={$t("league.profile_icon") as string} />
-        <button
-          class="button"
-          disabled={iconInput === null}
-          onclick={() => runProfileAction(() => invoke("league_set_icon", { iconId: iconInput }), $t("league.profile_icon_saved") as string)}
-        >{$t("league.apply")}</button>
-      </div>
-      <div class="profile-tool-row">
-        <span class="list-label">{$t("league.profile_status")}</span>
-        <div class="seg-group" role="radiogroup" aria-label={$t("league.profile_status") as string}>
-          {#each ["chat", "away", "dnd"] as value (value)}
-            <button
-              class="seg"
-              role="radio"
-              aria-checked={false}
-              onclick={() => runProfileAction(() => invoke("league_set_status", { availability: value }), $t("league.profile_status_saved") as string)}
-            >{$t(`league.status_${value}`)}</button>
-          {/each}
-        </div>
-      </div>
-      <div class="profile-tool-row">
-        <span class="list-label">{$t("league.profile_message")}</span>
-        <input class="input-text" maxlength="140" bind:value={statusMessage} placeholder={$t("league.profile_message") as string} />
-        <button
-          class="button"
-          onclick={() => runProfileAction(() => invoke("league_set_status", { message: statusMessage }), $t("league.profile_message_saved") as string)}
-        >{$t("league.apply")}</button>
-      </div>
-      <div class="profile-tool-row">
-        <span class="list-label">{$t("league.profile_background")}</span>
-        <select
-          class="select-role"
-          bind:value={bgChampion}
-          onchange={() => loadOwnedSkins(bgChampion)}
-          aria-label={$t("league.profile_background") as string}
-        >
-          <option value={0}>{$t("league.build_champion")}</option>
-          {#each champions as ch (ch.id)}
-            <option value={ch.id}>{ch.name}</option>
-          {/each}
-        </select>
-        {#if ownedSkins.length > 0}
-          <div class="skin-options">
-            {#each ownedSkins as skin (skin.id)}
-              <button
-                class="button subtle"
-                onclick={() => runProfileAction(() => invoke("league_set_profile_background", { skinId: skin.id }), $t("league.profile_background_saved") as string)}
-              >{skin.name}</button>
-            {/each}
-          </div>
-        {:else if bgChampion > 0}
-          <span class="dim">{$t("league.profile_no_skins")}</span>
-        {/if}
-      </div>
-    </details>
-  {/if}
   <div class="repair-row">
     {#if restartConfirming}
       <span class="repair-note">{$t("league.restart_ux_warning")}</span>
@@ -316,6 +307,38 @@
             </button>
           </div>
         </div>
+      {/if}
+      <div class="skin-row">
+        <span class="bench-label">{$t("league.skin_title")}</span>
+        <button class="button" onclick={rollSkin} disabled={skinBusy || myLockedChampion <= 0} title={myLockedChampion <= 0 ? ($t("league.skin_lock_first") as string) : ""}>{$t("league.skin_roll")}</button>
+        <button class="button subtle" onclick={rollWard} disabled={skinBusy}>{$t("league.skin_roll_ward")}</button>
+        {#if skinRoll}
+          <span class="dim">{$t("league.skin_rolled")}: {skinRoll.skin_name}{skinRoll.chroma_name ? ` · ${skinRoll.chroma_name}` : ""}</span>
+        {/if}
+      </div>
+      {#if skinError}
+        <p class="action-error" role="alert">{skinError}</p>
+      {/if}
+      {#if myLockedChampion <= 0}
+        <div class="skin-row">
+          <span class="bench-label">{$t("league.raffle_champion")}</span>
+          <select class="select-role" bind:value={raffleClass} aria-label={$t("league.raffle_champion") as string}>
+            <option value="">{$t("league.raffle_class_any")}</option>
+            {#each CHAMPION_CLASSES as cls (cls)}
+              <option value={cls}>{$t(`league.raffle_class_${cls}`)}</option>
+            {/each}
+          </select>
+          <button class="button" onclick={drawChampion} disabled={drawingChampion}>{drawnChampion ? $t("league.raffle_again") : $t("league.raffle_champion")}</button>
+          {#if drawnChampion}
+            <img class="champ-icon small" src={`${CDRAGON}/champion-icons/${drawnChampion.id}.png`} alt="" loading="lazy" />
+            <strong>{drawnChampion.name}</strong>
+            <button class="button subtle" onclick={() => declareDrawn(false)}>{$t("league.raffle_declare")}</button>
+            <button class="button primary" onclick={() => declareDrawn(true)}>{$t("league.raffle_lock")}</button>
+          {/if}
+        </div>
+        {#if raffleError}
+          <p class="action-error" role="alert">{raffleError}</p>
+        {/if}
       {/if}
       {#if dodgeError}
         <p class="action-error" role="alert">{dodgeError}</p>
@@ -400,6 +423,32 @@
           </select>
           <button class="button" onclick={saveRoles}>{$t("league.apply")}</button>
         </div>
+        <div class="profile-tool-row">
+          <span class="list-label">{$t("league.raffle_title")}</span>
+          <button class="button" onclick={drawLaneNow}>{$t("league.raffle_lane")}</button>
+          {#if drawnLane}
+            <span class="pos-chip">{$t(`league.role_${drawnLane.toLowerCase()}`)}</span>
+            <span class="dim">+ {drawnSecond === "FILL" ? $t("league.role_fill") : $t(`league.role_${(drawnSecond ?? "fill").toLowerCase()}`)}</span>
+            <button class="button subtle" onclick={applyDrawnLane}>{$t("league.raffle_lane_apply")}</button>
+          {/if}
+        </div>
+        <div class="profile-tool-row">
+          <select class="select-role" bind:value={raffleClass} aria-label={$t("league.raffle_champion") as string}>
+            <option value="">{$t("league.raffle_class_any")}</option>
+            {#each CHAMPION_CLASSES as cls (cls)}
+              <option value={cls}>{$t(`league.raffle_class_${cls}`)}</option>
+            {/each}
+          </select>
+          <button class="button" onclick={drawChampion} disabled={drawingChampion}>{drawnChampion ? $t("league.raffle_again") : $t("league.raffle_champion")}</button>
+          {#if drawnChampion}
+            <img class="champ-icon small" src={`${CDRAGON}/champion-icons/${drawnChampion.id}.png`} alt="" loading="lazy" />
+            <strong>{drawnChampion.name}</strong>
+            <span class="dim">({drawnChampion.candidates} {$t("league.raffle_pool")})</span>
+          {/if}
+        </div>
+        {#if raffleError}
+          <p class="action-error" role="alert">{raffleError}</p>
+        {/if}
       {:else if phase === "EndOfGame" || phase === "PreEndOfGame" || phase === "WaitingForStats"}
         <div class="lobby-actions">
           <button class="button primary" onclick={() => onAction("league_play_again")}>{$t("league.play_again")}</button>
@@ -416,3 +465,12 @@
     </section>
   {/if}
 {/if}
+
+<style>
+  .skin-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+</style>

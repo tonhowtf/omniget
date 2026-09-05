@@ -91,3 +91,8 @@ test("declares the send-to-omniget command with Alt+O default shortcut", async (
   assert.equal(command.suggested_key?.default, "Alt+O");
   assert.ok(typeof command.description === "string" && command.description.length > 0);
 });
+
+test("declares host permission for Rocketseat so its cookies can be captured", async () => {
+  const manifest = await readManifest();
+  assert.ok(manifest.host_permissions.includes("*://*.rocketseat.com.br/*"));
+});

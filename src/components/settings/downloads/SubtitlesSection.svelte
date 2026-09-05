@@ -88,5 +88,13 @@
       </div>
       <button class="toggle" class:on={settings.download.embed_thumbnail} onclick={() => toggleBool("download", "embed_thumbnail", settings.download.embed_thumbnail)} role="switch" aria-checked={settings.download.embed_thumbnail} aria-label={$t('settings.download.embed_thumbnail') as string}><span class="toggle-knob"></span></button>
     </div>
+    <div class="divider"></div>
+    <div class="setting-row">
+      <div class="setting-col">
+        <span class="setting-label">{$t('settings.download.write_nfo_sidecar')}</span>
+        <span class="setting-path">{$t('settings.download.write_nfo_sidecar_desc')}</span>
+      </div>
+      <button class="toggle" class:on={settings.download.write_nfo_sidecar} onclick={() => toggleBool("download", "write_nfo_sidecar", settings.download.write_nfo_sidecar)} role="switch" aria-checked={settings.download.write_nfo_sidecar} aria-label={$t('settings.download.write_nfo_sidecar') as string}><span class="toggle-knob"></span></button>
+    </div>
   </div>
 {/if}

@@ -280,11 +280,11 @@
     color: var(--accent);
   }
   .danger {
-    color: var(--error, #dc2626);
-    border-color: color-mix(in oklab, var(--error, #dc2626) 50%, transparent);
+    color: var(--error);
+    border-color: color-mix(in oklab, var(--error) 50%, transparent);
   }
   .danger:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--error, #dc2626) 10%, transparent);
+    background: color-mix(in oklab, var(--error) 10%, transparent);
   }
   .ghost:disabled,
   .danger:disabled {
@@ -315,7 +315,7 @@
     font-variant-numeric: tabular-nums;
   }
   .has-fails {
-    color: var(--error, #dc2626);
+    color: var(--error);
   }
   .error-cell {
     max-width: 220px;
@@ -340,11 +340,11 @@
     color: var(--secondary);
   }
   .ok {
-    color: var(--success, #16a34a);
+    color: var(--success);
   }
   .warn,
   .pending {
-    color: var(--warning, #f59e0b);
+    color: var(--warning);
   }
   .muted {
     color: var(--tertiary);
@@ -352,7 +352,7 @@
     margin: 0;
   }
   .error {
-    color: var(--error, #dc2626);
+    color: var(--error);
     font-size: 13px;
     margin: 0;
   }

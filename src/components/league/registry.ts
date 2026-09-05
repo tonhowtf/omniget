@@ -35,6 +35,12 @@ export const LEAGUE_FEATURES: readonly Feature[] = [
   { id: "auto-ban", labelKey: "league.auto_ban", state: "stable", platforms: ["windows", "macos"], flag: "auto_ban", requiresClient: true },
   { id: "auto-swaps", labelKey: "league.auto_swaps", state: "experimental", platforms: ["windows", "macos"], flag: "auto_accept_swaps", requiresClient: true },
   { id: "auto-requeue", labelKey: "league.auto_requeue", state: "experimental", platforms: ["windows", "macos"], flag: "auto_requeue", requiresClient: true },
+  { id: "profile-editor", labelKey: "league.profile_title", state: "beta", platforms: ["windows", "macos"], requiresClient: true },
+  { id: "skin-roulette", labelKey: "league.skin_roulette", state: "beta", platforms: ["windows", "macos"], flag: "skin_roulette", requiresClient: true },
+  { id: "champion-raffle", labelKey: "league.raffle_title", state: "stable", platforms: ["windows", "macos"], requiresClient: true },
+  { id: "pick-random", labelKey: "league.pick_random", state: "experimental", platforms: ["windows", "macos"], flag: "pick_random", requiresClient: true },
+  { id: "sgp-history", labelKey: "league.sgp_enabled", state: "experimental", platforms: ["windows", "macos"], flag: "sgp_enabled", requiresClient: true },
+  { id: "coach", labelKey: "league.coach_title", state: "beta", platforms: ["windows", "macos"], requiresClient: true },
 ];
 
 export type Availability =

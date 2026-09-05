@@ -268,7 +268,7 @@
     text-align: center;
   }
   .err-msg {
-    color: var(--danger, #d04848);
+    color: var(--danger);
     font-size: 13px;
     margin: 0;
   }

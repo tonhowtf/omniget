@@ -160,7 +160,7 @@
     display: flex;
     justify-content: center;
     padding: calc(var(--padding) / 2) 0;
-    color: var(--blue);
+    color: var(--accent);
   }
 
   .code-section {

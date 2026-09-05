@@ -257,7 +257,7 @@
   }
   .field input:focus, .field select:focus {
     outline: none;
-    border-color: var(--accent, #7c5cff);
+    border-color: var(--accent);
     background: rgba(255, 255, 255, 0.08);
   }
   .field small {
@@ -310,10 +310,10 @@
   }
   .cta {
     padding: 10px 18px;
-    background: var(--accent, #7c5cff);
+    background: var(--accent);
     border: 0;
     border-radius: 999px;
-    color: white;
+    color: var(--on-accent);
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;

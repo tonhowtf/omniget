@@ -97,10 +97,10 @@
     </ul>
   {/if}
   <div class="dialog-actions">
-    <button type="button" class="button button-secondary" onclick={discard} disabled={busy}>
+    <button type="button" class="btn btn-secondary" onclick={discard} disabled={busy}>
       {$t("recovery.discard")}
     </button>
-    <button type="button" class="button button-primary" onclick={restore} disabled={busy}>
+    <button type="button" class="btn btn-primary" onclick={restore} disabled={busy}>
       {$t("recovery.restore")}
     </button>
   </div>
@@ -170,42 +170,10 @@
     border-top: none;
   }
 
-  .button {
-    padding: 8px 16px;
-    font-size: var(--text-sm);
-    font-weight: 500;
-    border-radius: var(--border-radius);
-    border: none;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-  }
 
-  .button-secondary {
-    background: transparent;
-    color: var(--secondary);
-    border: none;
-  }
 
-  .button-secondary:hover {
-    background: var(--sidebar-highlight);
-  }
 
-  .button-primary {
-    background: var(--cta);
-    color: var(--on-cta);
-  }
 
-  .button-primary:hover {
-    background: var(--cta-hover);
-  }
 
-  .button:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
 
-  .button:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
-  }
 </style>

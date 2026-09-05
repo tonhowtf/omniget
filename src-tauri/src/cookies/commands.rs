@@ -470,11 +470,30 @@ fn test_x_twitter_cookie(slug: Option<&str>) -> CookieTestResponse {
     }
 }
 
+fn test_instagram_cookie(slug: Option<&str>) -> CookieTestResponse {
+    let Some(path) = storage::account_path_for_consumer("instagram.com", slug) else {
+        return CookieTestResponse { ok: false, message: "No Instagram cookie account found".to_string() };
+    };
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return CookieTestResponse { ok: false, message: "Could not read Instagram cookie file".to_string() };
+    };
+    let names = cookie_names_from_netscape(&content);
+    let missing: Vec<&str> = ["sessionid", "ds_user_id", "csrftoken"].into_iter().filter(|n| !names.contains(*n)).collect();
+    if missing.is_empty() {
+        CookieTestResponse { ok: true, message: "ok".to_string() }
+    } else {
+        CookieTestResponse { ok: false, message: format!("Missing Instagram cookie fields: {}", missing.join(", ")) }
+    }
+}
+
 #[tauri::command]
 pub async fn cookies_test(request: CookieTestRequest) -> Result<CookieTestResponse, String> {
     if let Some(domain) = domain_from_url(&request.url) {
         if matches!(domain.as_str(), "x.com" | "twitter.com") {
             return Ok(test_x_twitter_cookie(request.slug.as_deref()));
+        }
+        if domain == "instagram.com" {
+            return Ok(test_instagram_cookie(request.slug.as_deref()));
         }
     }
 

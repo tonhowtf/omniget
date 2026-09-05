@@ -284,8 +284,8 @@
   }
 
   .dismiss:hover {
-    color: var(--error, #dc2626);
-    background: color-mix(in oklab, var(--error, #dc2626) 8%, transparent);
+    color: var(--error);
+    background: color-mix(in oklab, var(--error) 8%, transparent);
   }
 
   .dismiss-all {

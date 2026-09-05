@@ -4,7 +4,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { pluginInvoke } from "$lib/plugin-invoke";
   import { t } from "$lib/i18n";
-  import { translateBackendError } from "$lib/error-translate";
+  import { setToolbar, type ToolbarAction } from "$lib/stores/toolbar-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import {
     getDownloads,
@@ -16,15 +16,18 @@
     type CourseDownloadItem,
     type GenericDownloadItem,
     type QueueKind,
+    type StreamInfo,
   } from "$lib/stores/download-store.svelte";
   import { getDownloadStats } from "$lib/stores/download-stats.svelte";
   import PlatformIcon from "$components/icons/PlatformIcon.svelte";
   import QueueKindBadge from "$lib/study-components/QueueKindBadge.svelte";
   import Mascot from "$components/mascot/Mascot.svelte";
   import RootCauseHint from "$components/downloads/RootCauseHint.svelte";
-  import ContextHint from "$components/hints/ContextHint.svelte";
   import DownloadSpeedGraph from "$components/download/DownloadSpeedGraph.svelte";
   import DownloadLog from "$components/download/DownloadLog.svelte";
+  import DownloadPoster from "$components/download/DownloadPoster.svelte";
+  import DownloadPhases from "$components/download/DownloadPhases.svelte";
+  import DownloadCommand from "$components/download/DownloadCommand.svelte";
   import ReencodeDialog from "$components/dialog/ReencodeDialog.svelte";
   import ToolsPanel from "$components/downloads/ToolsPanel.svelte";
   import VideoOpsOverlay from "$components/downloads/VideoOpsOverlay.svelte";
@@ -78,6 +81,76 @@
     if (!isVideoItem(item)) return null;
     if (q === "best" || q === "highest") return $t('omnibox.quality_best_short') as string;
     return item.quality;
+  }
+
+  function platformLabel(platform: string): string {
+    if (!platform) return "";
+    if (platform === "generic" || platform === "generic_ytdlp") return "Web";
+    return platform.charAt(0).toUpperCase() + platform.slice(1);
+  }
+
+  // Rótulo do stream real ("1080p60 · mp4 · avc1"), montado do `info.*` que o
+  // yt-dlp manda no template de progresso — é o que está descendo, não o que
+  // foi pedido.
+  function streamLabel(s: StreamInfo): string {
+    const parts: string[] = [];
+    const v = s.vcodec && s.vcodec !== "none" ? s.vcodec.split(".")[0] : null;
+    const a = s.acodec && s.acodec !== "none" ? s.acodec.split(".")[0] : null;
+    if (v && s.height) parts.push(`${s.height}p${s.fps && s.fps >= 48 ? Math.round(s.fps) : ""}`);
+    else if (v) parts.push(s.format_note ?? s.format_id);
+    else if (a) parts.push($t('omnibox.quality_audio') as string);
+    if (s.ext) parts.push(s.ext);
+    if (v) parts.push(v);
+    else if (a) parts.push(a);
+    return parts.join(" · ");
+  }
+
+  function formatChip(item: GenericDownloadItem): string | null {
+    const all: StreamInfo[] = [...(item.streamsDone ?? []), ...(item.stream ? [item.stream] : [])];
+    if (!all.length) return null;
+    const video = all.find((s) => s.vcodec && s.vcodec !== "none");
+    const audio = all.find((s) => s.acodec && s.acodec !== "none");
+    if (video) {
+      let label = streamLabel(video);
+      if (audio && audio !== video) {
+        const a = audio.acodec?.split(".")[0];
+        if (a) label += ` + ${a}`;
+      }
+      return label;
+    }
+    return audio ? streamLabel(audio) : streamLabel(all[all.length - 1]);
+  }
+
+  // Tamanho anunciado pelos streams, quando o total real ainda não existe
+  // (bv+ba: o áudio só revela o tamanho quando começa).
+  function plannedSize(item: GenericDownloadItem): number | null {
+    const all: StreamInfo[] = [...(item.streamsDone ?? []), ...(item.stream ? [item.stream] : [])];
+    let sum = 0;
+    for (const s of all) if (s.filesize) sum += s.filesize;
+    return sum > 0 ? sum : null;
+  }
+
+  const NON_TRANSFER_PHASES = new Set([
+    "preparing", "fetching_info", "starting", "connecting", "queued_starting",
+    "waiting_rate_limit", "merging", "extracting_audio", "embedding_subtitles", "postprocessing",
+  ]);
+
+  function isTransferPhase(phase: string | undefined): boolean {
+    return !phase || !NON_TRANSFER_PHASES.has(phase);
+  }
+
+  let clock = $state(Date.now());
+
+  function elapsedLabel(item: GenericDownloadItem): string | null {
+    if (!item.startedAtMs) return null;
+    const s = Math.max(0, Math.floor((clock - item.startedAtMs) / 1000));
+    if (s < 1) return null;
+    const m = Math.floor(s / 60);
+    const h = Math.floor(m / 60);
+    const time = h > 0
+      ? `${h}:${String(m % 60).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`
+      : `${m}:${String(s % 60).padStart(2, "0")}`;
+    return $t('downloads.detail.elapsed', { time }) as string;
   }
 
   function canOpenInStudy(item: GenericDownloadItem): boolean {
@@ -299,6 +372,39 @@
   };
 
   let viewMode = $state<"active" | "history" | "tools">("active");
+
+  // The toolbar acts on the list beneath it: view switcher in the centre,
+  // bulk actions trailing. Registered here so the shell renders them.
+  $effect(() => {
+    const actions: ToolbarAction[] = [];
+    if (viewMode === "active") {
+      if (grouped.active.length > 0) {
+        actions.push({ id: "pause-all", label: $t("downloads.pause_all") as string, icon: "M8 5v14M16 5v14", onClick: pauseAll });
+      }
+      if (grouped.paused.length > 0) {
+        actions.push({ id: "resume-all", label: $t("downloads.resume_all") as string, icon: "M7 4l13 8-13 8z", onClick: resumeAll });
+      }
+      if (finishedCount > 0) {
+        actions.push({ id: "clear-finished", label: $t("downloads.clear_finished") as string, icon: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3", onClick: clearFinished });
+      }
+    } else if (viewMode === "history" && historyEntries.length > 0) {
+      actions.push({ id: "clear-history", label: $t("downloads.history_clear") as string, icon: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3", onClick: clearHistory });
+    }
+    return setToolbar({
+      segments: [
+        { id: "active", label: $t("downloads.view_queue") as string, count: filterCounts.active },
+        { id: "history", label: $t("downloads.view_history") as string },
+        { id: "tools", label: $t("downloads.view_tools") as string },
+      ],
+      activeSegment: viewMode,
+      onSegment: (id) => {
+        if (id === "history") { if (viewMode !== "history") toggleHistoryView(); }
+        else if (id === "tools") { if (viewMode !== "tools") toggleToolsView(); }
+        else viewMode = "active";
+      },
+      actions,
+    });
+  });
   let historyEntries = $state<HistoryEntry[]>([]);
   let historyLoading = $state(false);
 
@@ -471,82 +577,46 @@
 
   onMount(() => {
     window.addEventListener("keydown", onKeydown);
-    return () => window.removeEventListener("keydown", onKeydown);
+    const tick = setInterval(() => { clock = Date.now(); }, 1000);
+    return () => {
+      window.removeEventListener("keydown", onKeydown);
+      clearInterval(tick);
+    };
   });
 
 </script>
 
 {#if hasDownloads || viewMode !== "active"}
   <div class="downloads-page downloads-mac">
+    {#if viewMode === "active"}
     <div class="downloads-header">
       {#if dlStats.totalDownloads > 0}
         <span class="downloads-stats">{$t('downloads.stats_line', { count: String(dlStats.totalDownloads), size: formatBytes(dlStats.totalBytes) })}</span>
       {/if}
       <div class="bulk-actions">
-        {#if viewMode === "active"}
-          {#if grouped.active.length > 0}
-            <button class="clear-btn" onclick={pauseAll} title={$t('downloads.pause_all') as string}>
-              {$t('downloads.pause_all')}
-            </button>
-          {/if}
-          {#if grouped.paused.length > 0}
-            <button class="clear-btn" onclick={resumeAll} title={$t('downloads.resume_all') as string}>
-              {$t('downloads.resume_all')}
-            </button>
-          {/if}
-          {#if finishedCount > 0}
-            <button class="clear-btn" onclick={clearFinished}>
-              {$t('downloads.clear_finished')}
-            </button>
-          {/if}
-        {:else if historyEntries.length > 0}
-          <button class="clear-btn" onclick={clearHistory}>
-            {$t('downloads.history_clear')}
-          </button>
-        {/if}
-        <select
-          class="speed-limit-selector"
-          value={getSettings()?.download.speed_limit || "unlimited"}
-          onchange={(e) => {
-            const val = e.currentTarget.value;
-            updateSettings({ download: { speed_limit: val === "unlimited" ? "" : val } });
-          }}
-          title={$t('settings.download.speed_limit') as string}
-        >
-          <option value="unlimited">⚡ Unlimited</option>
-          <option value="1M">1 MB/s</option>
-          <option value="2M">2 MB/s</option>
-          <option value="5M">5 MB/s</option>
-          <option value="10M">10 MB/s</option>
-        </select>
-        <button
-          class="history-toggle"
-          class:on={viewMode === "history"}
-          onclick={toggleHistoryView}
-          aria-label={$t('downloads.history_toggle') as string}
-          title={$t('downloads.history_toggle_hint') as string}
-        >
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9" />
-            <polyline points="12 7 12 12 15 14" />
-          </svg>
-        </button>
-        <button
-          class="history-toggle"
-          class:on={viewMode === "tools"}
-          onclick={toggleToolsView}
-          aria-label={$t('tools.tab') as string}
-          title={$t('tools.tab') as string}
-        >
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-2.4z" />
-          </svg>
-        </button>
+        <label class="speed-limit-field">
+          <span class="speed-limit-label">{$t('settings.download.speed_limit')}</span>
+          <select
+            class="speed-limit-selector"
+            value={getSettings()?.download.speed_limit || "unlimited"}
+            onchange={(e) => {
+              const val = e.currentTarget.value;
+              updateSettings({ download: { speed_limit: val === "unlimited" ? "" : val } });
+            }}
+          >
+            <option value="unlimited">{$t('downloads.speed_unlimited')}</option>
+            <option value="1M">1 MB/s</option>
+            <option value="2M">2 MB/s</option>
+            <option value="5M">5 MB/s</option>
+            <option value="10M">10 MB/s</option>
+          </select>
+        </label>
       </div>
     </div>
+    {/if}
 
     {#if viewMode === "active"}
-    <div class="filter-pills" role="tablist" aria-label={$t('downloads.filter_label')}>
+    <div class="filter-pills segmented" role="tablist" aria-label={$t('downloads.filter_label')}>
       {#each [
         { value: 'all', labelKey: 'downloads.filter.all', count: filterCounts.all },
         { value: 'active', labelKey: 'downloads.filter.active', count: filterCounts.active },
@@ -556,7 +626,7 @@
       ] as pill}
         <button
           type="button"
-          class="filter-pill"
+          class="filter-pill segmented-btn"
           class:active={statusFilter === pill.value}
           role="tab"
           aria-selected={statusFilter === pill.value}
@@ -630,10 +700,7 @@
           <p class="history-empty">{$t('downloads.history_loading')}</p>
         {:else if historyEntries.length === 0}
           <div class="history-empty-state">
-            <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="9" />
-              <polyline points="12 7 12 12 15 14" />
-            </svg>
+            <img class="empty-state-art" src="/emoji/hourglass_not_done.png" alt="" width="72" height="72" draggable="false" />
             <p class="history-empty-text">{$t('downloads.history_empty')}</p>
           </div>
         {:else}
@@ -730,7 +797,14 @@
 {:else}
   <div class="downloads-empty downloads-mac-empty">
     <Mascot emotion="idle" />
-    <p class="empty-text">{$t('downloads.empty')} <ContextHint text={$t('hints.downloads_empty')} dismissKey="downloads_empty" /></p>
+    <div class="empty-copy">
+      <p class="empty-text">{$t('downloads.empty')}</p>
+      <p class="empty-hint">{$t('downloads.empty_hint')}</p>
+    </div>
+    <a href="/" class="btn btn-primary btn-lg">{$t('downloads.empty_cta')}</a>
+    {#if dlStats.totalDownloads > 0}
+      <p class="empty-value">{$t('downloads.stats_line', { count: String(dlStats.totalDownloads), size: formatBytes(dlStats.totalBytes) })}</p>
+    {/if}
     <div class="empty-links">
       <button class="history-link" onclick={toggleHistoryView}>
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -756,333 +830,340 @@
 {/if}
 
 {#snippet genericItem(item: GenericDownloadItem)}
-  <div class="download-item" data-status={item.status}>
-    <div class="item-header">
-      <div class="item-header-left">
-        {#if item.thumbnail_url}
-          <img
-            src={item.thumbnail_url}
-            alt=""
-            class="queue-thumb"
-            loading="lazy"
-            onerror={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-        {/if}
-        <PlatformIcon platform={item.platform} size={16} />
-        <QueueKindBadge kind={item.queueKind} size={14} />
-        <span class="item-name">{item.name}</span>
-        {#if qualityChip(item)}
-          <span class="quality-chip" title={$t('downloads.quality_hint')}>{qualityChip(item)}</span>
-        {/if}
-      </div>
-      <div class="item-header-actions">
+  <div class="download-item" data-status={item.status} data-phase={item.phase}>
+    <div class="item-row">
+      <DownloadPoster
+        src={item.thumbnail_url}
+        kind={item.queueKind}
+        loading={item.status === "downloading" && (item.phase === "fetching_info" || item.phase === "preparing" || item.phase === "queued_starting")}
+        durationSeconds={item.durationSeconds}
+        size={item.status === "downloading" || item.status === "paused" || item.status === "seeding" ? "md" : "sm"}
+      />
+      <div class="item-body">
+        <div class="item-header">
+          <div class="item-header-left">
+            <span class="item-name" title={item.name}>{item.name}</span>
+          </div>
+          <div class="item-header-actions">
+            {#if item.status === "downloading"}
+              <button
+                class="action-icon-btn"
+                onclick={() => pauseDownload(item.id)}
+                aria-label={$t('downloads.pause')}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="6" y="4" width="4" height="16" />
+                  <rect x="14" y="4" width="4" height="16" />
+                </svg>
+              </button>
+              <button
+                class="action-icon-btn"
+                onclick={() => cancelGenericDownload(item.id)}
+                aria-label={$t('downloads.cancel')}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            {:else if item.status === "seeding"}
+              {#if item.filePath}
+                <button
+                  class="action-icon-btn"
+                  onclick={() => revealFile(item.filePath!)}
+                  aria-label={$t('downloads.open_folder')}
+                  title={$t('downloads.open_folder')}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+                  </svg>
+                </button>
+              {/if}
+              <button
+                class="action-icon-btn"
+                onclick={() => removeItem(item.id)}
+                aria-label={$t('downloads.stop')}
+                title={$t('downloads.stop')}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12" />
+                </svg>
+              </button>
+            {:else if item.status === "paused"}
+              <button
+                class="action-icon-btn"
+                onclick={() => resumeDownload(item.id)}
+                aria-label={$t('downloads.resume')}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+              </button>
+              <button
+                class="action-icon-btn"
+                onclick={() => cancelGenericDownload(item.id)}
+                aria-label={$t('downloads.cancel')}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            {:else if item.status === "error"}
+              <button
+                class="action-icon-btn"
+                onclick={() => retryDownload(item.id)}
+                aria-label={$t('downloads.retry')}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="23 4 23 10 17 10" />
+                  <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+                </svg>
+              </button>
+              <button
+                class="action-icon-btn"
+                class:confirm-remove={pendingRemove === item.id}
+                onclick={() => removeItem(item.id)}
+                aria-label={pendingRemove === item.id ? $t('downloads.confirm_remove') : $t('common.close')}
+                title={pendingRemove === item.id ? $t('downloads.confirm_remove') : undefined}
+              >
+                {#if pendingRemove === item.id}
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12l5 5L20 7" />
+                  </svg>
+                {:else}
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                {/if}
+              </button>
+            {:else if item.status === "complete" && item.filePath}
+              {#if canOpenInStudy(item)}
+                <button
+                  class="action-icon-btn"
+                  onclick={() => openInStudy(item.filePath!)}
+                  aria-label={$t('downloads.open_in_study')}
+                  title={$t('downloads.open_in_study')}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none" />
+                  </svg>
+                </button>
+              {/if}
+              <button
+                class="action-icon-btn"
+                onclick={() => revealFile(item.filePath!)}
+                aria-label={$t('downloads.open_folder')}
+                title={$t('downloads.open_folder')}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+                </svg>
+              </button>
+              {#if item.queueKind === "video"}
+                <button
+                  class="action-icon-btn"
+                  onclick={() => openReencode(item.filePath!)}
+                  aria-label={$t('reencode.action_label')}
+                  title={$t('reencode.action_label')}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="4 14 10 14 10 20" />
+                    <polyline points="20 10 14 10 14 4" />
+                    <line x1="14" y1="10" x2="21" y2="3" />
+                    <line x1="3" y1="21" x2="10" y2="14" />
+                  </svg>
+                </button>
+              {/if}
+              <button
+                class="action-icon-btn"
+                class:confirm-remove={pendingRemove === item.id}
+                onclick={() => removeItem(item.id)}
+                aria-label={pendingRemove === item.id ? $t('downloads.confirm_remove') : $t('common.close')}
+                title={pendingRemove === item.id ? $t('downloads.confirm_remove') : undefined}
+              >
+                {#if pendingRemove === item.id}
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12l5 5L20 7" />
+                  </svg>
+                {:else}
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                {/if}
+              </button>
+            {:else if item.status === "complete"}
+              {#if item.filePath}
+                <button
+                  class="action-icon-btn"
+                  onclick={() => openFileFolder(item.filePath!)}
+                  aria-label={$t('downloads.open_folder')}
+                  title={$t('downloads.open_folder')}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  </svg>
+                </button>
+              {/if}
+              {#if item.filePath && item.queueKind === "video"}
+                <button
+                  class="action-icon-btn"
+                  onclick={() => (vopPath = item.filePath!)}
+                  aria-label={$t('downloads.vop.action_label')}
+                  title={$t('downloads.vop.action_label')}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2 2 7l10 5 10-5-10-5Z" />
+                    <path d="m2 17 10 5 10-5M2 12l10 5 10-5" />
+                  </svg>
+                </button>
+              {/if}
+              {#if item.filePath}
+                <button
+                  class="action-icon-btn"
+                  onclick={() => removeItemWithFile(item.id)}
+                  aria-label={$t('downloads.delete_file')}
+                  title={$t('downloads.delete_file')}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    <line x1="10" y1="11" x2="10" y2="17" />
+                    <line x1="14" y1="11" x2="14" y2="17" />
+                  </svg>
+                </button>
+              {/if}
+              <button
+                class="action-icon-btn"
+                class:confirm-remove={pendingRemove === item.id}
+                onclick={() => removeItem(item.id)}
+                aria-label={pendingRemove === item.id ? $t('downloads.confirm_remove') : $t('common.close')}
+                title={pendingRemove === item.id ? $t('downloads.confirm_remove') : undefined}
+              >
+                {#if pendingRemove === item.id}
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12l5 5L20 7" />
+                  </svg>
+                {:else}
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                {/if}
+              </button>
+            {:else if item.status === "queued"}
+              <button
+                class="action-icon-btn"
+                onclick={() => cancelGenericDownload(item.id)}
+                aria-label={$t('downloads.cancel')}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            {/if}
+            <span class="item-status" data-status={item.status}>
+              {$t(`downloads.status.${item.status}`)}
+            </span>
+          </div>
+        </div>
+
+        <div class="item-meta">
+          <PlatformIcon platform={item.platform} size={14} />
+          <span class="meta-text">{platformLabel(item.platform)}</span>
+          {#if item.author}
+            <span class="meta-sep" aria-hidden="true">·</span>
+            <span class="meta-text meta-author" title={item.author}>{item.author}</span>
+          {/if}
+          <QueueKindBadge kind={item.queueKind} size={13} />
+          {#if formatChip(item)}
+            <span class="format-chip" title={$t('downloads.quality_hint')}>{formatChip(item)}</span>
+          {:else if qualityChip(item)}
+            <span class="quality-chip" title={$t('downloads.quality_hint')}>{qualityChip(item)}</span>
+          {/if}
+          {#if item.status === "complete" && (item.totalBytes || item.downloadedBytes)}
+            <span class="meta-sep" aria-hidden="true">·</span>
+            <span class="meta-text">{formatBytes(item.totalBytes ?? item.downloadedBytes)}</span>
+          {:else if item.status === "downloading" && !item.totalBytes && plannedSize(item)}
+            <span class="meta-sep" aria-hidden="true">·</span>
+            <span class="meta-text">≈ {formatBytes(plannedSize(item)!)}</span>
+          {/if}
+        </div>
+
         {#if item.status === "downloading"}
-          <button
-            class="action-icon-btn"
-            onclick={() => pauseDownload(item.id)}
-            aria-label={$t('downloads.pause')}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="6" y="4" width="4" height="16" />
-              <rect x="14" y="4" width="4" height="16" />
-            </svg>
-          </button>
-          <button
-            class="action-icon-btn"
-            onclick={() => cancelGenericDownload(item.id)}
-            aria-label={$t('downloads.cancel')}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
+          <DownloadPhases
+            phase={item.phase}
+            plannedFormats={item.plannedFormats}
+            stream={item.stream}
+            streamsDone={item.streamsDone}
+            fragmentIndex={item.fragmentIndex}
+            fragmentCount={item.fragmentCount}
+            command={item.command}
+            downloadMode={item.downloadMode}
+          />
+          {#if isTransferPhase(item.phase)}
+            <div class="item-stats">
+              {#if item.downloadedBytes > 0}
+                <span>{formatBytes(item.downloadedBytes)}{#if item.totalBytes}{" / "}{formatBytes(item.totalBytes)}{/if}</span>
+                <span class="stats-sep">&middot;</span>
+              {/if}
+              {#if item.speed > 0}
+                <span class="stat-speed">{formatSpeed(item.speed)}</span>
+                {#if formatEta(item.etaSeconds)}
+                  <span class="stats-sep">&middot;</span>
+                  <span class="eta-pill">ETA {formatEta(item.etaSeconds)}</span>
+                {/if}
+              {/if}
+              {#if elapsedLabel(item)}
+                <span class="stats-sep">&middot;</span>
+                <span>{elapsedLabel(item)}</span>
+              {/if}
+              {#if item.speed > 0}
+                <DownloadSpeedGraph points={getSpeedHistory(item.id)} />
+              {/if}
+            </div>
+          {/if}
         {:else if item.status === "seeding"}
-          {#if item.filePath}
-            <button
-              class="action-icon-btn"
-              onclick={() => revealFile(item.filePath!)}
-              aria-label={$t('downloads.open_folder')}
-              title={$t('downloads.open_folder')}
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
-              </svg>
-            </button>
-          {/if}
-          <button
-            class="action-icon-btn"
-            onclick={() => removeItem(item.id)}
-            aria-label={$t('downloads.stop')}
-            title={$t('downloads.stop')}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-              <rect x="6" y="6" width="12" height="12" />
-            </svg>
-          </button>
+          <div class="item-stats">
+            {#if item.totalBytes}
+              <span>{formatBytes(item.totalBytes)}</span>
+              <span class="stats-sep">&middot;</span>
+            {/if}
+            {#if item.speed > 0}
+              <span>{formatSpeed(item.speed)}</span>
+              <DownloadSpeedGraph points={getSpeedHistory(item.id)} />
+            {/if}
+          </div>
         {:else if item.status === "paused"}
-          <button
-            class="action-icon-btn"
-            onclick={() => resumeDownload(item.id)}
-            aria-label={$t('downloads.resume')}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="5 3 19 12 5 21 5 3" />
-            </svg>
-          </button>
-          <button
-            class="action-icon-btn"
-            onclick={() => cancelGenericDownload(item.id)}
-            aria-label={$t('downloads.cancel')}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        {:else if item.status === "error"}
-          <button
-            class="action-icon-btn"
-            onclick={() => retryDownload(item.id)}
-            aria-label={$t('downloads.retry')}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="23 4 23 10 17 10" />
-              <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
-            </svg>
-          </button>
-          <button
-            class="action-icon-btn"
-            class:confirm-remove={pendingRemove === item.id}
-            onclick={() => removeItem(item.id)}
-            aria-label={pendingRemove === item.id ? $t('downloads.confirm_remove') : $t('common.close')}
-            title={pendingRemove === item.id ? $t('downloads.confirm_remove') : undefined}
-          >
-            {#if pendingRemove === item.id}
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M5 12l5 5L20 7" />
-              </svg>
-            {:else}
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            {/if}
-          </button>
-        {:else if item.status === "complete" && item.filePath}
-          {#if canOpenInStudy(item)}
-            <button
-              class="action-icon-btn"
-              onclick={() => openInStudy(item.filePath!)}
-              aria-label={$t('downloads.open_in_study')}
-              title={$t('downloads.open_in_study')}
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none" />
-              </svg>
-            </button>
+          {#if item.downloadedBytes > 0}
+            <div class="item-stats">
+              <span>{formatBytes(item.downloadedBytes)}{#if item.totalBytes}{" / "}{formatBytes(item.totalBytes)}{/if}</span>
+            </div>
           {/if}
-          <button
-            class="action-icon-btn"
-            onclick={() => revealFile(item.filePath!)}
-            aria-label={$t('downloads.open_folder')}
-            title={$t('downloads.open_folder')}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
-            </svg>
-          </button>
-          {#if item.queueKind === "video"}
-            <button
-              class="action-icon-btn"
-              onclick={() => openReencode(item.filePath!)}
-              aria-label={$t('reencode.action_label')}
-              title={$t('reencode.action_label')}
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="4 14 10 14 10 20" />
-                <polyline points="20 10 14 10 14 4" />
-                <line x1="14" y1="10" x2="21" y2="3" />
-                <line x1="3" y1="21" x2="10" y2="14" />
-              </svg>
-            </button>
-          {/if}
-          <button
-            class="action-icon-btn"
-            class:confirm-remove={pendingRemove === item.id}
-            onclick={() => removeItem(item.id)}
-            aria-label={pendingRemove === item.id ? $t('downloads.confirm_remove') : $t('common.close')}
-            title={pendingRemove === item.id ? $t('downloads.confirm_remove') : undefined}
-          >
-            {#if pendingRemove === item.id}
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M5 12l5 5L20 7" />
-              </svg>
-            {:else}
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            {/if}
-          </button>
-        {:else if item.status === "complete"}
-          {#if item.filePath}
-            <button
-              class="action-icon-btn"
-              onclick={() => openFileFolder(item.filePath!)}
-              aria-label={$t('downloads.open_folder')}
-              title={$t('downloads.open_folder')}
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              </svg>
-            </button>
-          {/if}
-          {#if item.filePath && item.queueKind === "video"}
-            <button
-              class="action-icon-btn"
-              onclick={() => (vopPath = item.filePath!)}
-              aria-label={$t('downloads.vop.action_label')}
-              title={$t('downloads.vop.action_label')}
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2 2 7l10 5 10-5-10-5Z" />
-                <path d="m2 17 10 5 10-5M2 12l10 5 10-5" />
-              </svg>
-            </button>
-          {/if}
-          {#if item.filePath}
-            <button
-              class="action-icon-btn"
-              onclick={() => removeItemWithFile(item.id)}
-              aria-label={$t('downloads.delete_file')}
-              title={$t('downloads.delete_file')}
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                <line x1="10" y1="11" x2="10" y2="17" />
-                <line x1="14" y1="11" x2="14" y2="17" />
-              </svg>
-            </button>
-          {/if}
-          <button
-            class="action-icon-btn"
-            class:confirm-remove={pendingRemove === item.id}
-            onclick={() => removeItem(item.id)}
-            aria-label={pendingRemove === item.id ? $t('downloads.confirm_remove') : $t('common.close')}
-            title={pendingRemove === item.id ? $t('downloads.confirm_remove') : undefined}
-          >
-            {#if pendingRemove === item.id}
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M5 12l5 5L20 7" />
-              </svg>
-            {:else}
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            {/if}
-          </button>
-        {:else if item.status === "queued"}
-          <button
-            class="action-icon-btn"
-            onclick={() => cancelGenericDownload(item.id)}
-            aria-label={$t('downloads.cancel')}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
         {/if}
-        <span class="item-status" data-status={item.status}>
-          {$t(`downloads.status.${item.status}`)}
-        </span>
+
+        {#if item.status === "error" && item.error}
+          <RootCauseHint error={item.error} onRetry={() => retryDownload(item.id)} />
+        {/if}
+
+        {#if item.status !== "queued" && item.status !== "complete"}
+          <div class="progress-row">
+            <div class="progress-track">
+              <div
+                class="progress-fill"
+                data-status={item.status}
+                class:indeterminate={item.status === "downloading" && item.percent <= 0 && !isTransferPhase(item.phase)}
+                style:width="{Math.max(0, item.percent).toFixed(1)}%"
+              ></div>
+            </div>
+            <span class="item-percent">{Math.max(0, item.percent).toFixed(0)}%</span>
+          </div>
+        {/if}
+
+        {#if item.status !== "queued"}
+          <DownloadLog id={item.id} status={item.status} />
+          <DownloadCommand id={item.id} command={item.command} status={item.status} />
+        {/if}
       </div>
     </div>
-
-    {#if item.status === "downloading"}
-      {#if item.phase === "preparing"}
-        <span class="item-detail">{$t('downloads.phase_preparing')}</span>
-      {:else if item.phase === "fetching_info"}
-        <span class="item-detail">{$t('downloads.phase_fetching_info')}</span>
-      {:else if item.phase === "starting"}
-        <span class="item-detail">{$t('downloads.phase_starting')}</span>
-      {:else if item.phase === "connecting"}
-        <span class="item-detail">{$t('downloads.phase_connecting')}</span>
-      {:else if item.phase === "waiting_rate_limit"}
-        <span class="item-detail">{$t('downloads.phase_waiting_rate_limit')}</span>
-      {:else if item.phase === "merging"}
-        <span class="item-detail phase-merging-badge">{$t('downloads.phase_merging')}</span>
-      {:else if item.phase === "extracting_audio"}
-        <span class="item-detail">{$t('downloads.phase_extracting_audio')}</span>
-      {:else if item.phase === "embedding_subtitles"}
-        <span class="item-detail">{$t('downloads.phase_embedding_subtitles')}</span>
-      {:else}
-        <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
-        <div class="item-stats">
-          {#if item.downloadedBytes > 0}
-            <span>
-              {formatBytes(item.downloadedBytes)}{#if item.totalBytes} / {formatBytes(item.totalBytes)}{/if}
-            </span>
-            <span class="stats-sep">&middot;</span>
-          {/if}
-          {#if item.speed > 0}
-            <span>{formatSpeed(item.speed)}</span>
-            {#if formatEta(item.etaSeconds)}
-              <span class="stats-sep">&middot;</span>
-              <span class="eta-pill">ETA {formatEta(item.etaSeconds)}</span>
-            {/if}
-            <DownloadSpeedGraph points={getSpeedHistory(item.id)} />
-          {/if}
-        </div>
-      {/if}
-    {:else if item.status === "seeding"}
-      <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
-      <div class="item-stats">
-        {#if item.totalBytes}
-          <span>{formatBytes(item.totalBytes)}</span>
-          <span class="stats-sep">&middot;</span>
-        {/if}
-        {#if item.speed > 0}
-          <span>{formatSpeed(item.speed)}</span>
-          <DownloadSpeedGraph points={getSpeedHistory(item.id)} />
-        {/if}
-      </div>
-    {:else if item.status === "paused"}
-      <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
-      {#if item.downloadedBytes > 0}
-        <div class="item-stats">
-          <span>{formatBytes(item.downloadedBytes)}{#if item.totalBytes} / {formatBytes(item.totalBytes)}{/if}</span>
-        </div>
-      {/if}
-    {:else if item.status === "queued"}
-      <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
-    {:else}
-      <span class="item-detail">{item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}</span>
-    {/if}
-
-    {#if item.status === "complete" && item.totalBytes}
-      <span class="item-detail">{formatBytes(item.totalBytes)}</span>
-    {/if}
-
-    {#if item.status === "error" && item.error}
-      <span class="item-error">{translateBackendError(item.error, $t)}</span>
-      <RootCauseHint error={item.error} onRetry={() => retryDownload(item.id)} />
-    {/if}
-
-    {#if item.status !== "queued"}
-      <div class="progress-track">
-        <div
-          class="progress-fill"
-          data-status={item.status}
-          style:width="{Math.max(0, item.percent).toFixed(1)}%"
-        ></div>
-      </div>
-      <span class="item-percent">{Math.max(0, item.percent).toFixed(0)}%</span>
-    {/if}
-
-    {#if item.status !== "queued"}
-      <DownloadLog id={item.id} />
-    {/if}
   </div>
 {/snippet}
 
@@ -1140,7 +1221,7 @@
     {/if}
 
     {#if item.status === "error" && item.error}
-      <span class="item-error">{translateBackendError(item.error, $t)}</span>
+      <RootCauseHint error={item.error} />
     {/if}
 
     <div class="progress-track">
@@ -1160,6 +1241,8 @@
 {/snippet}
 
 <style>
+  /* ---------- Empty state ---------- */
+
   .downloads-empty {
     display: flex;
     flex-direction: column;
@@ -1167,23 +1250,80 @@
     justify-content: center;
     flex: 1;
     min-height: 0;
-    gap: calc(var(--padding) * 1.5);
-    color: var(--gray);
+    gap: var(--space-4);
+    color: var(--text-dim);
+  }
+
+  .empty-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    text-align: center;
   }
 
   .empty-text {
-    font-size: var(--text-base);
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-weight: 600;
+    letter-spacing: var(--track-snug);
+    color: var(--text);
   }
+
+  .empty-hint {
+    margin: 0;
+    max-width: 380px;
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+    color: var(--text-dim);
+  }
+
+  .empty-value {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .empty-links {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+
+  .history-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 var(--space-3);
+    border: none;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  @media (hover: hover) {
+    .history-link:hover {
+      background: var(--fill-1);
+      color: var(--text);
+    }
+  }
+
+  /* ---------- Page ---------- */
 
   .downloads-page {
     display: flex;
     flex-direction: column;
-    gap: calc(var(--padding) * 1.5);
-    padding: calc(var(--padding) * 1.5);
-    max-width: 800px;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5) var(--space-6);
+    max-width: 880px;
     margin: 0 auto;
     width: 100%;
-    /* Scroll within the fixed-height pane (parent has overflow:hidden) */
     overflow-y: auto;
     flex: 1;
     min-height: 0;
@@ -1193,135 +1333,122 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--padding);
-    flex-wrap: wrap;
+    gap: var(--space-3);
+    min-height: 28px;
   }
 
   .downloads-stats {
-    font-size: 12px;
-    color: var(--tertiary);
-    font-weight: 400;
+    font-size: var(--text-sm);
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
   }
 
   .bulk-actions {
     display: flex;
     align-items: center;
-    gap: calc(var(--padding) / 3);
-    flex-shrink: 0;
+    gap: var(--space-2);
+    margin-left: auto;
   }
 
-  .clear-btn {
-    font-size: var(--text-sm);
-    font-weight: 500;
-    padding: calc(var(--padding) / 3) calc(var(--padding) * 0.75);
-    background: var(--button-elevated);
-    color: var(--gray);
-    border: none;
-    border-radius: calc(var(--border-radius) / 2);
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-
-  @media (hover: hover) {
-    .clear-btn:hover {
-      background: var(--button-elevated-hover);
-      color: var(--secondary);
-    }
-  }
-
-  .clear-btn:active {
-    background: var(--button-elevated-press);
-  }
-
-  .clear-btn:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
-  }
-
-  .section-label {
-    color: var(--gray);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-block: 0;
-    padding-top: calc(var(--padding) / 2);
-  }
-
-  .filter-pills {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: var(--padding);
-  }
-
-  .filter-pill {
+  .speed-limit-field {
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
+  }
+
+  .speed-limit-label {
     font-size: var(--text-sm);
-    font-weight: 500;
-    border: none;
-    border-radius: var(--radius-full);
-    background: var(--fill-1);
     color: var(--text-dim);
-    cursor: pointer;
-    transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
   }
 
-  @media (hover: hover) {
-    .filter-pill:hover {
-      background: var(--surface-hi);
-      color: var(--text);
-    }
+  .speed-limit-selector {
+    height: 24px;
+    font-size: var(--text-sm);
+    padding-left: var(--space-2);
+    border-radius: 5px;
   }
 
-  .filter-pill.active {
-    background: var(--accent-soft);
-    color: var(--accent);
-    border-color: transparent;
+  .section-label {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin: var(--space-3) 0 0;
+    padding: 0 var(--space-1);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text-dim);
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .filter-pill {
-      transition: none;
-    }
+  .section-label:first-child {
+    margin-top: 0;
   }
 
-  .filter-pill:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
+  .queue-reorder-hint {
+    font-size: var(--text-xs);
+    font-weight: 400;
+    color: var(--text-faint);
+  }
+
+  .filter-pills {
+    align-self: flex-start;
+  }
+
+  .filter-pill {
+    gap: 6px;
   }
 
   .filter-count {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 20px;
-    padding: 0 5px;
-    font-size: 10px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: var(--text-caption);
     font-weight: 600;
-    background: color-mix(in srgb, var(--surface) 70%, var(--bg-overlay));
-    border-radius: 9999px;
+    line-height: 1;
+    border-radius: var(--radius-full);
+    background: var(--fill-2);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
   }
 
   .filter-pill.active .filter-count {
-    background: color-mix(in srgb, var(--on-accent) 22%, transparent);
+    background: var(--accent-soft);
+    color: var(--accent-hi);
   }
+
+  /* ---------- List (grouped rows) ---------- */
 
   .download-list {
     display: flex;
     flex-direction: column;
-    gap: var(--padding);
+    gap: 0;
   }
 
+  /* One row of title + actions, then one wrapped meta line (platform · size · speed),
+     then the progress bar. Everything that is not the header flows inline. */
   .download-item {
-    background: var(--surface);
-    border-radius: var(--radius-md);
-    padding: var(--space-3) var(--space-4);
     display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 6px;
+    row-gap: var(--space-2);
+    padding: var(--space-3) var(--space-3);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
+    border-radius: var(--radius-lg);
     transition: background var(--duration-fast) var(--ease-out);
+    contain: content;
+  }
+
+  .download-item + .download-item,
+  .queue-drop-zone + .queue-drop-zone .download-item,
+  .queue-drop-zone + .download-item,
+  .download-item + .queue-drop-zone .download-item {
+    margin-top: var(--space-2);
   }
 
   @media (hover: hover) {
@@ -1334,46 +1461,65 @@
     color: var(--text-muted);
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .download-item {
-      transition: none;
-    }
-  }
-
   .item-header {
+    flex-basis: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--padding);
+    gap: var(--space-3);
+    min-height: 24px;
+  }
+
+  .item-detail + .item-detail::before,
+  .item-detail + .item-stats::before,
+  .item-stats + .item-detail::before {
+    content: "·";
+    color: var(--text-faint);
+    margin-right: 6px;
+  }
+
+  .download-item > :global(.root-cause),
+  .download-item > :global(.download-log) {
+    flex-basis: 100%;
+  }
+
+  .download-item > :global(.download-log) {
+    margin-top: 0;
+  }
+
+  .download-item[data-status="complete"] .progress-track {
+    display: none;
   }
 
   .item-header-actions {
     display: flex;
     align-items: center;
-    gap: calc(var(--padding) / 2);
+    gap: 2px;
     flex-shrink: 0;
   }
 
   .item-header-left {
     display: flex;
     align-items: center;
-    gap: calc(var(--padding) / 2);
+    gap: var(--space-2);
     min-width: 0;
     flex: 1;
   }
 
   .queue-thumb {
-    width: 48px;
-    height: 48px;
-    border-radius: 6px;
+    width: 44px;
+    height: 28px;
     object-fit: cover;
+    border-radius: 5px;
     flex-shrink: 0;
+    background: var(--fill-2);
+    box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
   }
 
   .item-name {
     font-size: var(--text-base);
     font-weight: 500;
-    color: var(--secondary);
+    color: var(--text);
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1381,92 +1527,95 @@
   }
 
   .action-icon-btn {
-    width: 28px;
-    height: 28px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: calc(var(--border-radius) / 2);
-    background: transparent;
-    color: var(--gray);
+    width: 26px;
+    height: 26px;
     border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
     cursor: pointer;
     padding: 0;
+    transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
   }
 
   @media (hover: hover) {
     .action-icon-btn:hover {
-      background: var(--button-elevated);
-      color: var(--secondary);
+      background: var(--fill-2);
+      color: var(--text);
     }
   }
 
   .action-icon-btn:active {
-    background: var(--button-elevated);
-    color: var(--secondary);
+    background: var(--fill-3);
   }
 
   .action-icon-btn:focus-visible {
     outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
+    outline-offset: 1px;
   }
 
   .action-icon-btn svg {
     pointer-events: none;
+    width: 15px;
+    height: 15px;
   }
 
   .action-icon-btn.confirm-remove {
-    color: var(--red);
-    background: color-mix(in srgb, var(--red) 12%, transparent);
-    animation: confirm-pulse 1s ease-in-out infinite;
+    background: var(--danger);
+    color: var(--on-status);
+    animation: confirm-pulse var(--duration-slow) var(--ease-out);
   }
 
   @keyframes confirm-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.6; }
+    from { transform: scale(0.9); }
+    to { transform: scale(1); }
   }
 
   .item-status {
-    font-size: var(--text-xs);
-    font-weight: 500;
-    height: 20px;
     display: inline-flex;
     align-items: center;
+    height: 20px;
     padding: 0 var(--space-2);
+    margin-left: var(--space-1);
+    font-size: var(--text-xs);
+    font-weight: 600;
     border-radius: var(--radius-full);
-    flex-shrink: 0;
+    background: var(--fill-1);
+    color: var(--text-muted);
+    white-space: nowrap;
   }
 
   .item-status[data-status="downloading"] {
     background: var(--accent-soft);
-    color: var(--accent);
+    color: var(--accent-hi);
   }
 
-  .item-status[data-status="seeding"],
   .item-status[data-status="complete"] {
-    background: color-mix(in srgb, var(--success) 16%, transparent);
+    background: color-mix(in srgb, var(--success) 14%, transparent);
     color: var(--success);
   }
 
   .item-status[data-status="error"] {
-    background: color-mix(in srgb, var(--danger) 16%, transparent);
+    background: color-mix(in srgb, var(--danger) 14%, transparent);
     color: var(--danger);
   }
 
   .item-status[data-status="queued"] {
-    background: var(--surface-hi);
+    background: var(--fill-1);
     color: var(--text-dim);
   }
 
   .item-status[data-status="paused"] {
-    background: color-mix(in srgb, var(--warning) 16%, transparent);
+    background: color-mix(in srgb, var(--warning) 14%, transparent);
     color: var(--warning);
   }
 
   .item-detail {
     font-size: var(--text-sm);
-    font-weight: 500;
-    color: var(--gray);
+    color: var(--text-dim);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1475,10 +1624,10 @@
   .item-stats {
     display: flex;
     align-items: center;
-    gap: calc(var(--padding) / 3);
+    flex-wrap: wrap;
+    gap: 6px;
     font-size: var(--text-sm);
-    font-weight: 500;
-    color: var(--gray);
+    color: var(--text-dim);
     font-variant-numeric: tabular-nums;
   }
 
@@ -1487,45 +1636,32 @@
   }
 
   .phase-merging-badge {
-    color: var(--accent);
+    color: var(--accent-hi);
     font-weight: 500;
   }
 
   .eta-pill {
-    background: color-mix(in srgb, var(--accent) 15%, transparent);
-    color: var(--accent);
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: var(--radius-full);
+    background: var(--fill-1);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
     font-weight: 500;
-  }
-
-  .speed-limit-selector {
-    padding: 4px 8px;
-    font-size: 11.5px;
-    font-weight: 500;
-    color: var(--text);
-    background: var(--button);
-    border: none;
-    border-radius: calc(var(--border-radius) - 4px);
-    cursor: pointer;
-  }
-
-  .item-error {
-    font-size: var(--text-sm);
-    font-weight: 500;
-    color: var(--red);
   }
 
   .progress-track {
-    width: 100%;
+    flex: 1 1 200px;
+    min-width: 120px;
     height: 4px;
-    background: var(--fill-1);
     border-radius: var(--radius-full);
+    background: var(--fill-2);
     overflow: hidden;
+    margin-top: 2px;
   }
 
-  .download-item[data-status="complete"] .progress-track,
   .download-item[data-status="complete"] .item-percent {
     display: none;
   }
@@ -1533,111 +1669,88 @@
   .progress-fill {
     height: 100%;
     border-radius: var(--radius-full);
-    transition: width var(--duration-slow) var(--ease-out);
+    background: var(--accent);
+    transition: width var(--duration-base) var(--ease-out);
   }
 
   .progress-fill[data-status="downloading"] {
-    background: var(--blue);
+    background: var(--accent);
   }
 
   .progress-fill[data-status="seeding"] {
-    background: var(--green);
+    background: var(--info);
   }
 
   .progress-fill[data-status="complete"] {
-    background: var(--green);
+    background: var(--success);
   }
 
   .progress-fill[data-status="error"] {
-    background: var(--red);
+    background: var(--danger);
   }
 
   .progress-fill[data-status="paused"] {
-    background: var(--gray);
+    background: var(--text-dim);
   }
 
   .item-percent {
     font-size: var(--text-sm);
-    font-weight: 500;
-    color: var(--gray);
+    color: var(--text-dim);
     font-variant-numeric: tabular-nums;
+    min-width: 32px;
+    text-align: right;
   }
 
   .quality-chip {
-    padding: 1px 7px;
-    font-size: 10.5px;
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 4px;
+    background: var(--fill-1);
+    color: var(--text-dim);
+    font-size: var(--text-caption);
     font-weight: 600;
-    line-height: 1.4;
-    color: var(--secondary);
-    background: var(--button-elevated);
-    border-radius: 999px;
-    letter-spacing: 0.2px;
     flex-shrink: 0;
-    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
   }
 
   .show-more-btn {
     align-self: center;
-    font-size: 13px;
-    padding: calc(var(--padding) / 2) var(--padding);
+    margin-top: var(--space-2);
   }
 
-  .history-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: calc(var(--border-radius) / 2);
-    color: var(--tertiary);
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-
-  @media (hover: hover) {
-    .history-toggle:hover {
-      color: var(--secondary);
-      background: var(--button-elevated);
-    }
-  }
-
-  .history-toggle.on {
-    color: var(--accent);
-    background: var(--accent-soft, color-mix(in srgb, var(--accent) 12%, transparent));
-    border-color: color-mix(in srgb, var(--accent) 25%, transparent);
-  }
-
-  .history-toggle:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
-  }
+  /* ---------- History ---------- */
 
   .history-view {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-3);
   }
 
   .history-empty {
-    color: var(--tertiary);
-    font-size: 13px;
-    padding: var(--padding) 0;
+    color: var(--text-dim);
+    font-size: var(--text-base);
+    text-align: center;
+    padding: var(--space-6) 0;
   }
 
   .history-empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: calc(var(--padding) / 2);
-    padding: calc(var(--padding) * 3) var(--padding);
-    color: var(--tertiary);
+    gap: var(--space-2);
+    padding: var(--space-8) var(--space-4);
+    color: var(--text-faint);
+    text-align: center;
   }
 
   .history-empty-text {
-    font-size: 13.5px;
     margin: 0;
+    max-width: 380px;
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+    color: var(--text-dim);
   }
 
   .history-list {
@@ -1646,123 +1759,100 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
+    overflow: hidden;
   }
 
   .history-item {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-      "head actions"
-      "meta actions";
-    column-gap: calc(var(--padding) / 2);
-    align-items: center;
-    padding: 8px 10px;
-    border-radius: var(--border-radius);
-    background: var(--button);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: var(--space-2) var(--space-3);
+    min-height: var(--row-base);
+    position: relative;
+    transition: background var(--duration-fast) var(--ease-out);
   }
 
-  .history-item[data-success="false"] {
-    background: color-mix(in srgb, var(--error, #c33) 6%, var(--button));
+  .history-item + .history-item::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: var(--space-3);
+    right: 0;
+    height: var(--hairline);
+    background: var(--separator);
+  }
+
+  @media (hover: hover) {
+    .history-item:hover {
+      background: var(--fill-1);
+    }
+  }
+
+  .history-item[data-success="false"] .history-title {
+    color: var(--text-muted);
   }
 
   .history-item-head {
-    grid-area: head;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     min-width: 0;
   }
 
   .history-title {
-    font-size: 13.5px;
-    color: var(--secondary);
+    flex: 1;
+    min-width: 0;
+    font-size: var(--text-base);
+    font-weight: 500;
+    color: var(--text);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    flex: 1;
-    min-width: 0;
   }
 
   .history-time {
-    font-size: 11.5px;
-    color: var(--tertiary);
     flex-shrink: 0;
+    font-size: var(--text-sm);
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
   }
 
   .history-item-meta {
-    grid-area: meta;
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
-    margin-top: 2px;
-    padding-left: 24px;
+    min-height: 0;
+  }
+
+  .history-item-meta:empty {
+    display: none;
   }
 
   .history-meta-chip {
-    font-size: 11px;
-    color: var(--tertiary);
-    background: var(--button-elevated);
-    padding: 2px 6px;
-    border-radius: calc(var(--border-radius) / 2);
+    font-size: var(--text-sm);
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
   }
 
   .history-meta-error {
-    color: var(--error, #c33);
-    background: color-mix(in srgb, var(--error, #c33) 12%, transparent);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 320px;
+    color: var(--danger);
   }
 
   .history-item-actions {
-    grid-area: actions;
     display: flex;
+    align-items: center;
     gap: 2px;
-    align-items: center;
+    margin-left: auto;
   }
 
-  .empty-links {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  .history-link {
-    margin-top: calc(var(--padding) / 2);
-    display: inline-flex;
-    align-items: center;
-    min-height: 24px;
-    gap: 5px;
-    font-size: var(--text-sm);
-    color: var(--tertiary);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 4px 6px;
-    border-radius: calc(var(--border-radius) / 2);
-  }
-
-  @media (hover: hover) {
-    .history-link:hover {
-      color: var(--secondary);
-      background: var(--button);
-    }
-  }
-
-  .queue-reorder-hint {
-    font-size: 10.5px;
-    font-weight: 400;
-    color: var(--tertiary);
-    text-transform: none;
-    letter-spacing: 0;
-    margin-left: 8px;
-  }
+  /* ---------- Drag reorder ---------- */
 
   .queue-drop-zone {
     position: relative;
-    cursor: grab;
-    transition: opacity 0.12s;
+    border-radius: var(--radius-lg);
   }
 
   .queue-drop-zone:active {
@@ -1777,19 +1867,134 @@
   .queue-drop-zone.drop-after::after {
     content: "";
     position: absolute;
-    left: 8px;
-    right: 8px;
+    left: var(--space-2);
+    right: var(--space-2);
     height: 2px;
-    background: var(--accent);
     border-radius: 1px;
+    background: var(--accent);
     pointer-events: none;
   }
 
   .queue-drop-zone.drop-before::before {
-    top: -2px;
+    top: -5px;
   }
 
   .queue-drop-zone.drop-after::after {
-    bottom: -2px;
+    bottom: -5px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .download-item,
+    .action-icon-btn.confirm-remove {
+      transition: none;
+      animation: none;
+    }
+  }
+
+  /* ---------- Card do item (poster + corpo) ---------- */
+  .download-item {
+    display: block;
+    padding: var(--space-3);
+  }
+
+  .item-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .item-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .item-body .item-header {
+    flex-basis: auto;
+    min-height: 26px;
+  }
+
+  .item-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+    font-size: var(--text-sm);
+    color: var(--text-dim);
+  }
+
+  .meta-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .meta-author {
+    max-width: 220px;
+    color: var(--text-muted);
+  }
+
+  .meta-sep {
+    color: var(--text-faint);
+  }
+
+  .format-chip {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 4px;
+    background: var(--accent-soft);
+    color: var(--accent-hi);
+    font-size: var(--text-caption);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-speed {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .progress-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .progress-row .progress-track {
+    flex: 1;
+    margin-top: 0;
+  }
+
+  .progress-fill.indeterminate {
+    width: 30% !important;
+    animation: progress-indeterminate 1.4s ease-in-out infinite;
+  }
+
+  @keyframes progress-indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(340%); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .progress-fill.indeterminate { animation: none; width: 8% !important; }
+  }
+
+  .download-item[data-status="error"] .item-name {
+    color: var(--text);
+  }
+
+  @media (max-width: 640px) {
+    .item-row { gap: var(--space-2); }
+    .item-row :global(.poster) { width: 84px; }
+    .item-body :global(.phase-rail) { display: none; }
+    .meta-author { max-width: 120px; }
   }
 </style>

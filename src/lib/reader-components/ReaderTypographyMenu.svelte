@@ -107,7 +107,7 @@
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--text-muted, #888);
+    color: var(--text-muted);
   }
   .typo-menu .value {
     text-transform: none;
@@ -138,16 +138,16 @@
     cursor: pointer;
   }
   .font-pick:hover {
-    background: var(--surface, #f5f5f5);
+    background: var(--surface);
   }
   .font-pick.selected {
-    border-color: var(--accent, #3b82f6);
-    background: color-mix(in oklab, var(--accent, #3b82f6) 14%, transparent);
+    border-color: var(--accent);
+    background: color-mix(in oklab, var(--accent) 14%, transparent);
   }
   input[type="range"] {
     width: calc(100% - 16px);
     margin: 0 8px 6px;
-    accent-color: var(--accent, #3b82f6);
+    accent-color: var(--accent);
   }
   .justify-row {
     display: grid;
@@ -170,17 +170,17 @@
     font-family: inherit;
   }
   .justify-row button:hover {
-    background: var(--surface, #f5f5f5);
+    background: var(--surface);
   }
   .justify-row button.selected {
-    border-color: var(--accent, #3b82f6);
-    background: color-mix(in oklab, var(--accent, #3b82f6) 14%, transparent);
+    border-color: var(--accent);
+    background: color-mix(in oklab, var(--accent) 14%, transparent);
   }
   .reset {
     margin-top: 6px;
     padding: 6px 8px;
     background: transparent;
-    color: var(--text-muted, #888);
+    color: var(--text-muted);
     border: 1px solid transparent;
     border-radius: 6px;
     font-size: 11px;
@@ -190,6 +190,6 @@
   }
   .reset:hover {
     color: var(--text, inherit);
-    background: var(--surface, #f5f5f5);
+    background: var(--surface);
   }
 </style>

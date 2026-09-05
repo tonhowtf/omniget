@@ -7,7 +7,7 @@ pub fn is_flatpak() -> bool {
     std::path::Path::new("/.flatpak-info").exists() || std::env::var("FLATPAK_ID").is_ok()
 }
 
-fn managed_bin_dir() -> Option<PathBuf> {
+pub(crate) fn managed_bin_dir() -> Option<PathBuf> {
     Some(crate::core::paths::app_data_dir()?.join("bin"))
 }
 
@@ -136,6 +136,24 @@ pub async fn find_tool_with_source(tool: &str) -> Option<(PathBuf, &'static str)
     if let Some(custom) = crate::core::binary_overrides::get(override_name(tool)) {
         return Some((custom, "custom"));
     }
+    // yt-dlp tem resolução própria (zipapp + Python, onefile, PATH) e o
+    // resultado fica em cache: rodar `--version` no onefile aqui custava um
+    // bootstrap de 12 s a cada abertura da tela de dependências.
+    if tool == "yt-dlp" {
+        if let Some(path) = crate::core::ytdlp::find_ytdlp_cached().await {
+            let managed = managed_bin_dir()
+                .map(|d| path.starts_with(&d))
+                .unwrap_or(false);
+            let source = if cfg!(target_os = "linux") && path.starts_with("/app/bin") {
+                "flatpak"
+            } else if managed {
+                "managed"
+            } else {
+                "system"
+            };
+            return Some((path, source));
+        }
+    }
     let name = bin_name(tool);
     let version_flag = version_flag_for(tool);
 
@@ -234,11 +252,38 @@ fn version_flag_for(tool: &str) -> &'static str {
 /// Read the version string from a tool binary at a known path.
 /// This avoids re-running tool discovery when the path is already known.
 pub async fn check_version_at_path(path: &std::path::Path, tool: &str) -> Option<String> {
+    // `yt-dlp --version` custa um bootstrap inteiro do PyInstaller (72 MB
+    // extraídos); com a fila cheia isso levou 13 a 94 s. A versão só muda
+    // quando o arquivo muda, então (caminho, mtime) é uma chave segura.
+    let mtime = std::fs::metadata(path).ok().and_then(|m| m.modified().ok());
+    let key = (path.to_path_buf(), mtime);
+    if let Ok(cache) = version_cache().lock() {
+        if let Some(v) = cache.get(&key) {
+            return Some(v.clone());
+        }
+    }
+    let version = check_version_at_path_uncached(path, tool).await?;
+    if let Ok(mut cache) = version_cache().lock() {
+        cache.insert(key, version.clone());
+    }
+    Some(version)
+}
+
+type VersionKey = (PathBuf, Option<std::time::SystemTime>);
+
+fn version_cache() -> &'static std::sync::Mutex<std::collections::HashMap<VersionKey, String>> {
+    static CACHE: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<VersionKey, String>>,
+    > = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+}
+
+async fn check_version_at_path_uncached(path: &std::path::Path, tool: &str) -> Option<String> {
     let version_flag = version_flag_for(tool);
     let path = path.to_path_buf();
     let vf = version_flag.to_string();
     let output = tokio::task::spawn_blocking(move || {
-        crate::core::process::std_command(&path)
+        crate::core::ytdlp::ytdlp_std_command(&path)
             .arg(&vf)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -752,28 +797,30 @@ pub async fn ensure_gallerydl() -> Option<PathBuf> {
         return Some(path);
     }
 
-    #[cfg(any(target_os = "windows", target_os = "linux"))]
-    {
-        match download_gallerydl().await {
-            Ok(path) => return Some(path),
-            Err(e) => tracing::warn!("Failed to download gallery-dl: {}", e),
-        }
+    match download_gallerydl().await {
+        Ok(path) => return Some(path),
+        Err(e) => tracing::warn!("Failed to download gallery-dl: {}", e),
     }
 
     None
 }
 
-#[cfg(any(target_os = "windows", target_os = "linux"))]
 async fn download_gallerydl() -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
     std::fs::create_dir_all(&bin_dir)?;
 
     let target = bin_dir.join(bin_name("gallery-dl"));
 
+    // Os executaveis standalone vivem no repo gdl-org/builds (Windows, Linux
+    // e macOS); o release do mikf/gallery-dl nao publica mais assets.
     #[cfg(target_os = "windows")]
-    let url = "https://github.com/mikf/gallery-dl/releases/latest/download/gallery-dl.exe";
+    let url = "https://github.com/gdl-org/builds/releases/latest/download/gallery-dl_windows.exe";
     #[cfg(target_os = "linux")]
-    let url = "https://github.com/mikf/gallery-dl/releases/latest/download/gallery-dl.bin";
+    let url = "https://github.com/gdl-org/builds/releases/latest/download/gallery-dl_linux";
+    #[cfg(target_os = "macos")]
+    let url = "https://github.com/gdl-org/builds/releases/latest/download/gallery-dl_macos";
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    return Err(anyhow!("gallery-dl nao tem binario para este sistema"));
 
     let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
         .timeout(std::time::Duration::from_secs(180))

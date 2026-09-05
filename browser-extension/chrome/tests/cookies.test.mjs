@@ -236,3 +236,29 @@ test("telegram platform is now data-driven and resolves to telegram.org", async 
   assert.equal(cookies.length, 1);
   assert.equal(cookies[0].domain, ".telegram.org");
 });
+
+test("rocketseat maps to the .com.br domain in defaults and resource", async () => {
+  assert.deepEqual(DEFAULT_PLATFORM_COOKIE_DOMAINS.rocketseat, [".rocketseat.com.br"]);
+  const raw = await readFile(new URL("../src/cookies-domains.json", import.meta.url), "utf8");
+  assert.deepEqual(JSON.parse(raw).rocketseat, [".rocketseat.com.br"]);
+});
+
+test("extractCookiesForPlatform picks up the Rocketseat JWT cookie", async () => {
+  const store = {
+    ".rocketseat.com.br": [
+      {
+        domain: ".rocketseat.com.br",
+        httpOnly: false,
+        path: "/",
+        secure: true,
+        expirationDate: 1790784038,
+        name: "skylab_next_access_token_v4",
+        value: "eyJ.fake.jwt",
+      },
+    ],
+  };
+  const cookies = await extractCookiesForPlatform("rocketseat", mockGetAllCookies(store));
+  assert.equal(cookies.length, 1);
+  assert.equal(cookies[0].name, "skylab_next_access_token_v4");
+  assert.equal(cookies[0].domain, ".rocketseat.com.br");
+});

@@ -840,6 +840,6 @@
   }
   .btn.primary {
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
   }
 </style>

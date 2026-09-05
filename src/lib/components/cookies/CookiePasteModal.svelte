@@ -149,8 +149,8 @@
   .ghost-btn:hover { border-color: var(--accent); color: var(--accent); }
   .primary-btn {
     padding: 7px 18px;
-    background: var(--accent);
-    color: white;
+    background: var(--cta);
+    color: var(--on-cta);
     border: 0;
     border-radius: 999px;
     font-size: 13px;

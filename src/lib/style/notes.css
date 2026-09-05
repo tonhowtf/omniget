@@ -1,0 +1,259 @@
+/* Notes surface (TipTap editor) typography. Consumes the global tokens; lives apart from app.css so the token file stays readable. */
+[data-surface="notes"] {
+  --font-display: var(--font-body);
+  --leading-base: 1.65;
+}
+[data-surface="notes"] .tiptap {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  color: var(--text);
+}
+[data-surface="notes"] .tiptap > * + * {
+  margin-top: var(--space-2);
+}
+[data-surface="notes"] .tiptap h1 {
+  font-family: var(--font-body);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-top: var(--space-5);
+}
+[data-surface="notes"] .tiptap h2 {
+  font-family: var(--font-body);
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-top: var(--space-4);
+}
+[data-surface="notes"] .tiptap h3 {
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: 600;
+  margin-top: var(--space-3);
+}
+[data-surface="notes"] .tiptap p {
+  margin: 0;
+}
+[data-surface="notes"] .tiptap ul,
+[data-surface="notes"] .tiptap ol {
+  padding-left: var(--space-5);
+  margin: 0;
+}
+[data-surface="notes"] .tiptap blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: var(--space-3);
+  color: var(--secondary);
+  margin: 0;
+}
+[data-surface="notes"] .tiptap pre {
+  background: color-mix(in oklab, var(--input-border) 30%, transparent);
+  border-radius: var(--border-radius);
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-x: auto;
+  margin: 0;
+}
+[data-surface="notes"] .tiptap code {
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  padding: 1px calc(var(--space-1) * 1.25);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+}
+[data-surface="notes"] .tiptap pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+[data-surface="notes"] .tiptap hr {
+  border: 0;
+  border-top: 1px solid var(--input-border);
+  margin: var(--space-4) 0;
+}
+[data-surface="notes"] .tiptap ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+[data-surface="notes"] .tiptap ul[data-type="taskList"] li {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+[data-surface="notes"] .tiptap ul[data-type="taskList"] li > label {
+  flex: 0 0 auto;
+}
+[data-surface="notes"] .tiptap ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+}
+[data-surface="notes"] .tiptap:focus-visible {
+  outline: none;
+}
+[data-surface="notes"] .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--tertiary);
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+[data-surface="notes"] .tiptap h4 {
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+  font-weight: 600;
+  margin-top: var(--space-3);
+}
+[data-surface="notes"] .tiptap h5 {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 600;
+  margin-top: var(--space-2);
+}
+[data-surface="notes"] .tiptap h6 {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--secondary);
+  margin-top: var(--space-2);
+}
+[data-surface="notes"] .tiptap img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--border-radius);
+  display: block;
+}
+[data-surface="notes"] .tiptap .tiptap-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  overflow: hidden;
+  margin: 0;
+}
+[data-surface="notes"] .tiptap .tiptap-table th,
+[data-surface="notes"] .tiptap .tiptap-table td {
+  border: 1px solid var(--input-border);
+  padding: var(--space-2);
+  vertical-align: top;
+  position: relative;
+  min-width: 1em;
+}
+[data-surface="notes"] .tiptap .tiptap-table th {
+  background: color-mix(in oklab, var(--input-border) 30%, transparent);
+  font-weight: 600;
+  text-align: left;
+}
+[data-surface="notes"] .tiptap .tiptap-callout {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--border-radius);
+  border-left: 3px solid;
+  background: color-mix(in oklab, var(--accent) 6%, transparent);
+  margin: 0;
+}
+[data-surface="notes"] .tiptap .tiptap-callout[data-callout-kind="note"] {
+  border-left-color: var(--accent);
+}
+[data-surface="notes"] .tiptap .tiptap-callout[data-callout-kind="tip"] {
+  border-left-color: var(--success, #2ecc71);
+  background: color-mix(in oklab, var(--success, #2ecc71) 8%, transparent);
+}
+[data-surface="notes"] .tiptap .tiptap-callout[data-callout-kind="important"] {
+  border-left-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+[data-surface="notes"] .tiptap .tiptap-callout[data-callout-kind="warning"] {
+  border-left-color: var(--warning, #e67e22);
+  background: color-mix(in oklab, var(--warning, #e67e22) 8%, transparent);
+}
+[data-surface="notes"] .tiptap .tiptap-callout[data-callout-kind="caution"] {
+  border-left-color: var(--error, #e74c3c);
+  background: color-mix(in oklab, var(--error, #e74c3c) 8%, transparent);
+}
+[data-surface="notes"] .tiptap .tiptap-callout-icon {
+  flex: 0 0 auto;
+  font-size: var(--text-lg);
+  user-select: none;
+}
+[data-surface="notes"] .tiptap .tiptap-callout-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+[data-surface="notes"] .tiptap .tiptap-callout-body > * + * {
+  margin-top: var(--space-2);
+}
+[data-surface="notes"] .tiptap .Tiptap-mathematics-render {
+  display: inline-block;
+  padding: 0 var(--space-1);
+}
+[data-surface="notes"] .tiptap .Tiptap-mathematics-editor {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  background: color-mix(in oklab, var(--input-border) 30%, transparent);
+  padding: 1px var(--space-1);
+  border-radius: 3px;
+}
+[data-surface="notes"] .tiptap .tiptap-page-mention {
+  display: inline-block;
+  padding: 0 var(--space-1);
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  color: var(--accent);
+  border-radius: 4px;
+  font-size: 0.95em;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+[data-surface="notes"] .tiptap .tiptap-page-mention:hover {
+  background: color-mix(in oklab, var(--accent) 24%, transparent);
+}
+[data-surface="notes"] .tiptap .tiptap-page-mention::before {
+  content: "[[";
+  opacity: 0.4;
+  margin-right: calc(var(--space-1) / 2);
+}
+[data-surface="notes"] .tiptap .tiptap-page-mention::after {
+  content: "]]";
+  opacity: 0.4;
+  margin-left: calc(var(--space-1) / 2);
+}
+[data-surface="notes"] .tiptap .tiptap-tag-mention {
+  display: inline-block;
+  padding: 0 var(--space-1);
+  background: color-mix(in oklab, var(--secondary) 14%, transparent);
+  color: var(--secondary);
+  border-radius: 999px;
+  font-size: 0.9em;
+  font-weight: 500;
+  cursor: pointer;
+}
+[data-surface="notes"] .tiptap .tiptap-tag-mention::before {
+  content: "#";
+  opacity: 0.6;
+  margin-right: 1px;
+}
+[data-surface="notes"] .tiptap .tiptap-query-block {
+  margin: var(--space-2) 0;
+  user-select: none;
+}
+[data-surface="notes"] .tiptap .tiptap-query-block.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--border-radius);
+}
+[data-surface="notes"] .tiptap .tiptap-embed-block {
+  margin: var(--space-2) 0;
+  user-select: none;
+}
+[data-surface="notes"] .tiptap .tiptap-embed-block.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--border-radius);
+}
+

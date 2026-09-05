@@ -95,15 +95,15 @@
         display: flex;
         align-items: flex-start;
         gap: var(--space-5);
-        padding: var(--space-6) 0 var(--space-2);
+        padding: var(--space-2) 0;
     }
 
     .about-app-icon {
-        width: 64px;
-        height: 64px;
-        border-radius: var(--radius-lg);
+        width: 72px;
+        height: 72px;
+        border-radius: 17px;
         object-fit: cover;
-        box-shadow: var(--elev-1);
+        box-shadow: 0 8px 20px rgba(var(--shadow-ink), var(--elev-alpha-2)), 0 0 0 var(--hairline) var(--content-border);
         flex-shrink: 0;
     }
 
@@ -155,17 +155,35 @@
     .about-cards {
         display: flex;
         flex-direction: column;
-        gap: var(--space-2);
+        gap: 0;
+        background: var(--surface);
+        border-radius: var(--radius-lg);
+        box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
+        overflow: hidden;
     }
 
     .about-card {
         display: block;
         text-decoration: none;
         color: inherit;
+        border-radius: 0;
+        box-shadow: none;
+        position: relative;
+    }
+
+    .about-card + .about-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: var(--space-4);
+        right: 0;
+        height: var(--hairline);
+        background: var(--separator);
     }
 
     .about-card .list-row {
         padding: var(--space-3) var(--space-4);
+        border-radius: 0;
     }
 
     .about-card-desc {

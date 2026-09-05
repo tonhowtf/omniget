@@ -41,7 +41,7 @@ pub async fn search_videos(
     args.extend(omniget_core::core::ytdlp::insecure_tls_args());
     args.push(search_query);
 
-    let output = crate::core::process::command(&ytdlp_path)
+    let output = omniget_core::core::ytdlp::ytdlp_command(&ytdlp_path)
         .args(&args)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())

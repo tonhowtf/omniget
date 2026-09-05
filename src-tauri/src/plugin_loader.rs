@@ -278,6 +278,10 @@ fn load_single_plugin(
             detail.push_str(&s.to_string());
             source = s.source();
         }
+        if let Some(hint) = load_error_hint(&detail) {
+            detail.push_str(". ");
+            detail.push_str(hint);
+        }
         PluginLoadError::simple(
             "library_load",
             format!("Failed to load {}: {detail}", lib_path.display()),
@@ -432,6 +436,22 @@ fn load_single_plugin(
     })
 }
 
+
+fn load_error_hint(detail: &str) -> Option<&'static str> {
+    if !cfg!(windows) {
+        return None;
+    }
+    if detail.contains("os error 126") {
+        Some("A library this plugin depends on is missing, usually the Microsoft Visual C++ Redistributable (x64). Install it from https://aka.ms/vs/17/release/vc_redist.x64.exe and restart OmniGet")
+    } else if detail.contains("os error 5") || detail.contains("os error 225") {
+        Some("Windows blocked the file. Check Windows Security > Protection history for the plugin DLL and allow it, then reinstall the plugin from the Marketplace")
+    } else if detail.contains("os error 193") {
+        Some("The plugin file is corrupted or truncated. Remove it and reinstall it from the Marketplace")
+    } else {
+        None
+    }
+}
+
 fn find_native_lib(dir: &Path, rust_crate: Option<&str>) -> Option<PathBuf> {
     let extensions = if cfg!(target_os = "windows") {
         &["dll"][..]
@@ -568,7 +588,6 @@ mod plugin_id_tests {
             "study",
             "telegram",
             "convert",
-            "misc",
             "my-plugin_2",
             "wtf.tonho.x",
         ] {

@@ -755,7 +755,7 @@
   }
   .toc-item.active {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
   }
 
   .toc-label {

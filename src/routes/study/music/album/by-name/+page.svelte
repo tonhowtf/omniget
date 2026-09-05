@@ -83,5 +83,5 @@
   .album-page { display: flex; flex-direction: column; gap: 12px; }
   .track-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
   .muted { color: var(--tertiary); font-size: 13px; }
-  .error { color: var(--error, #dc2626); font-size: 13px; }
+  .error { color: var(--error); font-size: 13px; }
 </style>

@@ -148,8 +148,8 @@
     font-size: 14px;
     font-weight: 700;
   }
-  .badge.ok { color: var(--green, #4ade80); }
-  .badge.fail { color: var(--red, #f87171); }
+  .badge.ok { color: var(--success); }
+  .badge.fail { color: var(--danger); }
   .rpc-input {
     width: 100%;
     padding: 8px 10px;

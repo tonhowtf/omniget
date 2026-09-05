@@ -40,6 +40,7 @@ use crate::extension_storage::{
     cookie_limit, write_extension_metadata, ExtensionCookie, ExtensionPayload,
 };
 use crate::storage::config;
+use tauri::Manager;
 
 /// Range of ports we'll try when picking a fresh `bridge.port`. Chosen above
 /// the most common dev-server / Vite ranges so collisions are rare.
@@ -209,7 +210,10 @@ pub async fn spawn(app: AppHandle) {
         .route("/v1/health", get(health))
         .route("/v1/pair", get(pair))
         .route("/v1/enqueue", post(enqueue))
+        .route("/v1/queue", get(queue_state))
+        .route("/v1/log/{id}", get(download_log))
         .route("/v1/cookies", post(cookies_export))
+        .route("/mcp", post(mcp_post).get(mcp_get).delete(mcp_get))
         .with_state(state)
         .layer(cors);
 
@@ -220,6 +224,34 @@ pub async fn spawn(app: AppHandle) {
             tracing::warn!("local bridge stopped: {error}");
         }
     });
+}
+
+/// Estado da fila, o mesmo `QueueItemInfo` que a tela recebe. Serve para a
+/// extensão mostrar progresso e para harness de teste observar o app por
+/// fora sem instrumentar a UI. Mesmo bearer do `enqueue`.
+async fn queue_state(State(state): State<BridgeState>, headers: HeaderMap) -> Response {
+    if !check_bearer(&headers, &state.token) {
+        return unauthorized();
+    }
+    let app_state = state.app.state::<crate::AppState>();
+    let items = {
+        let q = app_state.download_queue.lock().await;
+        q.get_state()
+    };
+    (StatusCode::OK, Json(items)).into_response()
+}
+
+/// Últimas linhas do log de um download (até 200, redigidas na origem).
+async fn download_log(
+    State(state): State<BridgeState>,
+    headers: HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<u64>,
+) -> Response {
+    if !check_bearer(&headers, &state.token) {
+        return unauthorized();
+    }
+    let lines = crate::core::download_log::get(id);
+    (StatusCode::OK, Json(lines)).into_response()
 }
 
 async fn health() -> Json<HealthResponse> {
@@ -491,6 +523,38 @@ fn error_response(status: StatusCode, code: &'static str, message: String) -> Re
 
 pub fn build_pairing_url(port: u16) -> String {
     format!("http://127.0.0.1:{port}")
+}
+
+// ── MCP (Streamable HTTP, só JSON) ─────────────────────────────────────
+
+/// `POST /mcp`: JSON-RPC do MCP. Mesmo bearer da extensão; 403 quando a
+/// tool "Servidor MCP" está desligada; 202 sem corpo para notificações.
+async fn mcp_post(State(state): State<BridgeState>, headers: HeaderMap, body: axum::body::Bytes) -> Response {
+    if !check_bearer(&headers, &state.token) {
+        return unauthorized();
+    }
+    if !crate::mcp::enabled() {
+        return (StatusCode::FORBIDDEN, Json(serde_json::json!({ "error": "MCP server is disabled in OmniGet → Tools → MCP server" }))).into_response();
+    }
+    let msg: serde_json::Value = match serde_json::from_slice(&body) {
+        Ok(v) => v,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "jsonrpc": "2.0", "id": null, "error": { "code": -32700, "message": format!("parse error: {}", e) } })),
+            )
+                .into_response()
+        }
+    };
+    match crate::mcp::handle_body(&state.app, &msg).await {
+        Some(resp) => (StatusCode::OK, Json(resp)).into_response(),
+        None => StatusCode::ACCEPTED.into_response(),
+    }
+}
+
+/// Sem canal SSE: quem pedir GET recebe 405 e continua só com POST.
+async fn mcp_get() -> Response {
+    StatusCode::METHOD_NOT_ALLOWED.into_response()
 }
 
 #[cfg(test)]

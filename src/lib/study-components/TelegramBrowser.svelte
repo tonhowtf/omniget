@@ -3539,7 +3539,7 @@
   }
   .tg-mini-row.active {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
   }
   .tg-mini-row.active .tg-mini-name {
     color: white;
@@ -3598,7 +3598,7 @@
     padding: 0 5px;
     border-radius: 9px;
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     font-size: 10px;
     font-weight: 700;
     flex-shrink: 0;
@@ -4372,7 +4372,7 @@
     height: 24px;
     border-radius: 50%;
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -4429,7 +4429,7 @@
     padding: 1px 6px;
     border-radius: 4px;
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     font-size: 9px;
     font-weight: 700;
     z-index: 2;
@@ -4469,12 +4469,12 @@
     color: var(--tertiary);
   }
   .action.star.active {
-    color: var(--warning, #f59e0b);
-    border-color: var(--warning, #f59e0b);
+    color: var(--warning);
+    border-color: var(--warning);
   }
   .action.star:hover:not(:disabled) {
-    color: var(--warning, #f59e0b);
-    border-color: var(--warning, #f59e0b);
+    color: var(--warning);
+    border-color: var(--warning);
   }
   .search-input {
     flex: 1;
@@ -4514,8 +4514,8 @@
   }
   .favorites-card .avatar.fav {
     background: linear-gradient(135deg,
-      color-mix(in oklab, var(--warning, #f59e0b) 90%, white),
-      color-mix(in oklab, var(--warning, #f59e0b) 60%, black));
+      color-mix(in oklab, var(--warning) 90%, white),
+      color-mix(in oklab, var(--warning) 60%, black));
     color: #fff;
   }
   .smart-card .avatar.smart {
@@ -4613,13 +4613,13 @@
     border-color: color-mix(in oklab, var(--success) 30%, var(--content-border));
   }
   .status-pill[data-status="checking"] .status-dot {
-    background: var(--warning, #f59e0b);
+    background: var(--warning);
     animation: pulse 1.4s ease-in-out infinite;
   }
   .status-spinner {
     width: 12px;
     height: 12px;
-    color: var(--warning, #f59e0b);
+    color: var(--warning);
     animation: status-spin 900ms linear infinite;
   }
   @keyframes status-spin {
@@ -4672,9 +4672,9 @@
     gap: 4px;
     padding: 3px 10px;
     border-radius: var(--tg-radius-pill);
-    background: color-mix(in oklab, var(--warning, #f59e0b) 18%, transparent);
-    border: 1px solid color-mix(in oklab, var(--warning, #f59e0b) 40%, var(--content-border));
-    color: var(--warning, #f59e0b);
+    background: color-mix(in oklab, var(--warning) 18%, transparent);
+    border: 1px solid color-mix(in oklab, var(--warning) 40%, var(--content-border));
+    color: var(--warning);
     font-family: var(--font-mono, "IBM Plex Mono", monospace);
     font-size: 11px;
     font-variant-numeric: tabular-nums;

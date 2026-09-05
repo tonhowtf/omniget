@@ -297,7 +297,7 @@
   }
 
   .error {
-    color: var(--error, #dc2626);
+    color: var(--error);
     font-size: 13px;
     margin: 0;
   }

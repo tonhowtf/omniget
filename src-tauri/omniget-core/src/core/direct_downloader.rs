@@ -10,7 +10,7 @@ use tokio::sync::{mpsc, Semaphore};
 use tokio_util::sync::CancellationToken;
 
 use crate::core::http_fetcher::{
-    get_global_max_concurrent_segments, HttpFetcher, HttpFetcherConfig,
+    get_global_max_concurrent_segments, probe_remote, HttpFetcher, HttpFetcherConfig,
 };
 use crate::models::progress::ProgressUpdate;
 
@@ -121,33 +121,26 @@ fn is_fatal_error(err: &anyhow::Error) -> bool {
     false
 }
 
+/// `Err` só quando o host não responde de jeito nenhum; resposta estranha
+/// (sem tamanho, sem Range) vira `Ok` com o que deu para saber.
 async fn probe_url(
     client: &reqwest::Client,
     url: &str,
     headers: Option<&reqwest::header::HeaderMap>,
-) -> ProbeResult {
-    let mut request = client.head(url);
-    if let Some(h) = headers {
-        request = request.headers(h.clone());
-    }
-    match tokio::time::timeout(Duration::from_secs(15), request.send()).await {
-        Ok(Ok(resp)) if resp.status().is_success() => {
-            let content_length = resp.content_length();
-            let accept_ranges = resp
-                .headers()
-                .get("accept-ranges")
-                .and_then(|v| v.to_str().ok())
-                .map(|v| v.contains("bytes"))
-                .unwrap_or(false);
-            ProbeResult {
-                content_length,
-                accept_ranges,
-            }
+) -> anyhow::Result<ProbeResult> {
+    match probe_remote(client, url, headers, Duration::from_secs(12)).await {
+        Ok(p) => Ok(ProbeResult {
+            content_length: p.content_length,
+            accept_ranges: p.accept_ranges,
+        }),
+        Err(e) if e.to_string().starts_with("unreachable") => Err(e),
+        Err(e) => {
+            tracing::debug!("[direct] probe failed, streaming without Range: {}", e);
+            Ok(ProbeResult {
+                content_length: None,
+                accept_ranges: false,
+            })
         }
-        _ => ProbeResult {
-            content_length: None,
-            accept_ranges: false,
-        },
     }
 }
 
@@ -164,7 +157,7 @@ async fn download_attempt(
         std::fs::create_dir_all(parent)?;
     }
 
-    let probe = probe_url(client, url, headers.as_ref()).await;
+    let probe = probe_url(client, url, headers.as_ref()).await?;
 
     let use_chunked =
         probe.accept_ranges && probe.content_length.is_some_and(|s| s > CHUNK_THRESHOLD);
@@ -174,6 +167,14 @@ async fn download_attempt(
             Ok(size) => return Ok(size),
             Err(fetch_err) => {
                 if is_fatal_error(&fetch_err) {
+                    return Err(fetch_err);
+                }
+                if fetch_err.to_string().contains("HTTP 429") {
+                    // Não cair para o stream único: o host ainda está
+                    // contando as conexões que acabaram de fechar. Espera e
+                    // deixa a tentativa seguinte rodar com menos segmentos.
+                    let _ = std::fs::remove_file(&part_path);
+                    tokio::time::sleep(Duration::from_secs(5)).await;
                     return Err(fetch_err);
                 }
                 let _ = std::fs::remove_file(&part_path);
@@ -254,6 +255,7 @@ async fn run_http_fetcher(
         None => teto,
     };
     let inicio = std::time::Instant::now();
+    let _active = super::adaptive_concurrency::ActiveDownloadGuard::new();
     let cfg = HttpFetcherConfig {
         min_size_for_chunked: 0,
         concurrent_segments: concurrent,
@@ -269,7 +271,26 @@ async fn run_http_fetcher(
     if let Some(c) = cancel {
         fetcher = fetcher.with_cancel(c.clone());
     }
-    let result = fetcher.download(progress_tx.clone()).await?;
+    let result = match fetcher.download(progress_tx.clone()).await {
+        Ok(r) => r,
+        Err(e) => {
+            // 429 com N conexões é o host dizendo "menos": registra para o
+            // tuner cortar pela metade na próxima tentativa (o Hetzner speed
+            // server devolveu 429 três vezes seguidas com 8 segmentos e o
+            // retry cego repetia os mesmos 8).
+            if e.to_string().contains("HTTP 429") {
+                if let Some(h) = &host {
+                    concurrency_tuner().lock().await.record_rate_limit(h);
+                    tracing::warn!(
+                        "[direct] {} rate-limited with {} segments; next attempt uses fewer",
+                        h,
+                        concurrent
+                    );
+                }
+            }
+            return Err(e);
+        }
+    };
 
     // So conta como amostra o que durou o suficiente para a medida significar
     // alguma coisa: um arquivo de 200 KB mede latencia, nao vazao.
@@ -293,10 +314,7 @@ async fn run_http_fetcher(
 /// codigo async.
 fn concurrency_tuner() -> &'static tokio::sync::Mutex<super::adaptive_concurrency::ConcurrencyTuner>
 {
-    static TUNER: std::sync::OnceLock<
-        tokio::sync::Mutex<super::adaptive_concurrency::ConcurrencyTuner>,
-    > = std::sync::OnceLock::new();
-    TUNER.get_or_init(|| tokio::sync::Mutex::new(Default::default()))
+    super::adaptive_concurrency::global()
 }
 
 fn host_of(url: &str) -> Option<String> {

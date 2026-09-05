@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "OmniGet",
   "description": "Detect supported media pages and send them to OmniGet with one click.",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "default_locale": "en",
   "browser_specific_settings": {
     "gecko": {
@@ -16,7 +16,8 @@
     "webRequest",
     "storage",
     "menus",
-    "alarms"
+    "alarms",
+    "scripting"
   ],
   "host_permissions": [
     "http://127.0.0.1/*",
@@ -72,6 +73,7 @@
     "*://*.vimeocdn.com/*",
     "*://*.udemy.com/*",
     "*://*.udemycdn.com/*",
+    "*://*.rocketseat.com.br/*",
     "*://*.bilibili.com/*",
     "*://*.bilivideo.com/*",
     "*://b23.tv/*",
@@ -82,7 +84,9 @@
     "*://*/*"
   ],
   "background": {
-    "scripts": ["src/background.js"],
+    "scripts": [
+      "src/background.js"
+    ],
     "type": "module"
   },
   "action": {

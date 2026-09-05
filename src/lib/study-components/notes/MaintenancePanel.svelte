@@ -327,9 +327,9 @@
   .warn-soft {
     margin: 0;
     padding: 8px 10px;
-    background: color-mix(in oklab, var(--warning, #f59e0b) 12%, transparent);
+    background: color-mix(in oklab, var(--warning) 12%, transparent);
     border-radius: var(--border-radius);
-    color: var(--warning, #f59e0b);
+    color: var(--warning);
     font-size: 12px;
   }
   code {

@@ -9,6 +9,7 @@ export const PLATFORM_ICONS: Record<string, string> = {
   greatcourses: '<path d="M4 5l4 14 4-10 4 10 4-14" />',
   thinkific: '<path d="M5 5h14" /><path d="M12 5v15" />',
   rocketseat: '<path d="M12 2l-4 6h8z" /><path d="M12 8v12" /><path d="M9 18l3 4 3-4" />',
+  metaanalysis: '<path d="M12 3v18" /><path d="M4 7h6" /><rect x="9" y="5.5" width="3" height="3" /><path d="M14 12h6" /><rect x="10.5" y="10.5" width="3" height="3" /><path d="M5 17h6" /><rect x="8" y="15.5" width="3" height="3" />',
 };
 
 export const DEFAULT_ICON = '<path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />';

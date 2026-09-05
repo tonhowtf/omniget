@@ -19,6 +19,7 @@ export const PLATFORM_DISPLAY_NAMES: Record<string, string> = {
   vimeo: "Vimeo",
   hotmart: "Hotmart",
   udemy: "Udemy",
+  metaanalysis: "Meta-Analysis Academy",
   magnet: "BitTorrent",
   p2p: "P2P",
   direct_file: "Direct file",

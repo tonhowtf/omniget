@@ -80,8 +80,8 @@
     align-items: center;
     gap: 6px;
     padding: 7px 14px;
-    background: var(--accent);
-    color: white;
+    background: var(--cta);
+    color: var(--on-cta);
     border: 0;
     border-radius: 999px;
     font-size: 13px;

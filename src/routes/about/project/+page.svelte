@@ -3,7 +3,7 @@
   import { t } from "$lib/i18n";
 
   const GITHUB_URL = "https://github.com/tonhowtf/omniget";
-  const APP_VERSION = "0.9.0";
+  const APP_VERSION = "0.9.1";
 
   async function openGitHub() {
     await open(GITHUB_URL);
@@ -159,7 +159,7 @@
 
   .feature-item::before {
     content: "• ";
-    color: var(--blue);
+    color: var(--accent);
   }
 
   .version {

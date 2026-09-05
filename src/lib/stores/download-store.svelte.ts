@@ -35,6 +35,32 @@ export type CourseDownloadItem = BaseItem & {
   currentModuleIndex: number;
 };
 
+/** Stream (formato) que o yt-dlp está baixando; vem de `%(info.*)s` no template de progresso. */
+export type StreamInfo = {
+  format_id: string;
+  height?: number;
+  width?: number;
+  fps?: number;
+  vcodec?: string;
+  acodec?: string;
+  ext?: string;
+  filesize?: number;
+  format_note?: string;
+};
+
+/** Último comando yt-dlp rodado para o item, já redigido no backend. */
+export type CommandRecord = {
+  program: string;
+  args: string[];
+  display: string;
+  attempt: number;
+  max_attempts: number;
+  player_client?: string;
+  connections: number;
+  engine: string;
+  overridden: boolean;
+};
+
 export type GenericDownloadItem = BaseItem & {
   kind: "generic";
   platform: string;
@@ -48,6 +74,22 @@ export type GenericDownloadItem = BaseItem & {
   thumbnail_url?: string | null;
   quality?: string | null;
   downloadMode?: string | null;
+  author?: string | null;
+  durationSeconds?: number | null;
+  stream?: StreamInfo | null;
+  streamsDone?: StreamInfo[];
+  plannedFormats?: string[] | null;
+  fragmentIndex?: number | null;
+  fragmentCount?: number | null;
+  startedAtMs?: number | null;
+  command?: CommandRecord | null;
+};
+
+export type GenericProgressExtra = {
+  stream?: StreamInfo | null;
+  fragmentIndex?: number | null;
+  fragmentCount?: number | null;
+  plannedFormats?: string[] | null;
 };
 
 export type DownloadItem = CourseDownloadItem | GenericDownloadItem;
@@ -251,6 +293,16 @@ type QueueItemInfo = {
   eta_seconds?: number | null;
   quality?: string | null;
   download_mode?: string | null;
+  author?: string | null;
+  duration_seconds?: number | null;
+  phase?: string | null;
+  stream?: StreamInfo | null;
+  streams_done?: StreamInfo[];
+  planned_formats?: string[] | null;
+  fragment_index?: number | null;
+  fragment_count?: number | null;
+  started_at_ms?: number | null;
+  command?: CommandRecord | null;
 };
 
 function queueStatusToDownloadStatus(status: { type: string; data?: unknown }): DownloadStatus {
@@ -308,7 +360,7 @@ export function syncQueueState(items: QueueItemInfo[]) {
       speed: effectiveSpeed,
       downloadedBytes: qi.downloaded_bytes,
       totalBytes: qi.total_bytes,
-      phase: (existing?.kind === "generic" ? existing.phase : undefined) ?? "queued",
+      phase: qi.phase ?? (existing?.kind === "generic" ? existing.phase : undefined) ?? "queued",
       etaSeconds: qi.eta_seconds ?? null,
       status: dlStatus,
       error: extractError(qi.status),
@@ -321,6 +373,15 @@ export function syncQueueState(items: QueueItemInfo[]) {
       external: qi.external,
       quality: qi.quality ?? null,
       downloadMode: qi.download_mode ?? null,
+      author: qi.author ?? null,
+      durationSeconds: qi.duration_seconds ?? null,
+      stream: qi.stream ?? (existing?.kind === "generic" ? existing.stream : null) ?? null,
+      streamsDone: qi.streams_done ?? (existing?.kind === "generic" ? existing.streamsDone : undefined) ?? [],
+      plannedFormats: qi.planned_formats ?? (existing?.kind === "generic" ? existing.plannedFormats : null) ?? null,
+      fragmentIndex: qi.fragment_index ?? null,
+      fragmentCount: qi.fragment_count ?? null,
+      startedAtMs: qi.started_at_ms ?? null,
+      command: qi.command ?? null,
     });
 
     if (dlStatus === "downloading" || dlStatus === "seeding") {
@@ -374,10 +435,12 @@ export function upsertGenericProgress(
   totalBytes: number | null,
   phase: string,
   etaSeconds?: number | null,
+  extra?: GenericProgressExtra,
 ) {
   const now = Date.now();
   if (suppressedGenericIds.has(id)) return;
   const existing = downloads.get(id);
+  const prev = existing?.kind === "generic" ? existing : undefined;
 
   let speed = speedBytesPerSec;
   if (existing && existing.kind === "generic" && existing.speed > 0 && speedBytesPerSec > 0) {
@@ -392,22 +455,37 @@ export function upsertGenericProgress(
 
   const effectiveSpeed = resolvedStatus === "downloading" ? speed : 0;
 
+  // Evento de progresso é um patch por cima do item, não uma substituição:
+  // thumbnail, tipo, comando e afins só chegam pelo `queue-state-update`.
+  const nextStream = extra?.stream ?? prev?.stream ?? null;
+  let streamsDone = prev?.streamsDone ?? [];
+  if (nextStream && prev?.stream && prev.stream.format_id !== nextStream.format_id) {
+    if (!streamsDone.some((s) => s.format_id === prev.stream!.format_id)) {
+      streamsDone = [...streamsDone, prev.stream];
+    }
+  }
   downloads.set(id, {
+    ...(prev ?? {}),
     kind: "generic",
     id,
-    name: title,
-    platform,
+    name: title || prev?.name || "",
+    platform: platform || prev?.platform || "",
     percent: Math.max(0, percent),
     speed: effectiveSpeed,
     downloadedBytes,
-    totalBytes,
+    totalBytes: totalBytes ?? prev?.totalBytes ?? null,
     phase,
     etaSeconds: etaSeconds ?? null,
     status: resolvedStatus,
     startedAt: existing?.startedAt ?? now,
     lastUpdateAt: now,
-    quality: existing?.kind === "generic" ? existing.quality : undefined,
-    downloadMode: existing?.kind === "generic" ? existing.downloadMode : undefined,
+    quality: prev?.quality,
+    downloadMode: prev?.downloadMode,
+    stream: nextStream,
+    streamsDone,
+    fragmentIndex: extra?.fragmentIndex ?? prev?.fragmentIndex ?? null,
+    fragmentCount: extra?.fragmentCount ?? prev?.fragmentCount ?? null,
+    plannedFormats: extra?.plannedFormats ?? prev?.plannedFormats ?? null,
   });
 
   if (resolvedStatus === "downloading") {

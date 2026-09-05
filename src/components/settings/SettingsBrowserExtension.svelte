@@ -220,15 +220,15 @@
 <style>
   .bridge-intro {
     margin: 0 0 12px;
-    color: var(--color-text-muted, #95a0b7);
+    color: var(--text-muted);
     font-size: 13px;
     line-height: 1.5;
   }
   .pair-success {
-    color: var(--success, #4caf50);
+    color: var(--success);
   }
   .pair-expired {
-    color: var(--warning, #e0a030);
+    color: var(--warning);
   }
   .token-display {
     font-family: var(--font-mono, "IBM Plex Mono", monospace);
@@ -256,6 +256,6 @@
     border-color: transparent;
   }
   .bridge-action.primary:hover { background: var(--accent-lo, var(--accent)); }
-  .bridge-action.danger { color: #ff8b6f; border-color: rgba(255, 139, 111, 0.3); }
+  .bridge-action.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
   .bridge-action.danger:hover { background: rgba(255, 139, 111, 0.1); }
 </style>

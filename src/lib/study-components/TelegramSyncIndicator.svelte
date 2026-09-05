@@ -143,12 +143,12 @@
   }
 
   .dot-good {
-    background: var(--green, #10b981);
-    box-shadow: 0 0 0 3px color-mix(in oklab, var(--green, #10b981) 18%, transparent);
+    background: var(--green);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--green) 18%, transparent);
   }
 
   .dot-stale {
-    background: var(--gold, #f59e0b);
+    background: var(--warning);
   }
 
   .dot-off {

@@ -84,6 +84,43 @@
     }
   }
 
+  // Replay download (through the backend) and an AI review, per game.
+  let replayBusy = $state<number | null>(null);
+  let replayNote = $state<Record<number, string>>({});
+  let reviewBusy = $state<number | null>(null);
+  let reviews = $state<Record<number, string>>({});
+
+  async function downloadReplay(gameId: number) {
+    if (replayBusy) return;
+    replayBusy = gameId;
+    try {
+      const path = await invoke<string>("league_sgp_download_replay", { gameId });
+      replayNote = { ...replayNote, [gameId]: `${$t("league.replay_saved")} ${path}` };
+    } catch (e: any) {
+      replayNote = { ...replayNote, [gameId]: typeof e === "string" ? e : (e?.message ?? String(e)) };
+    } finally {
+      replayBusy = null;
+    }
+  }
+
+  async function reviewGame(gameId: number) {
+    if (reviewBusy) return;
+    reviewBusy = gameId;
+    try {
+      const text = await invoke<string>("league_coach_review", { gameId, language: languageName($locale ?? "en") });
+      reviews = { ...reviews, [gameId]: text };
+    } catch (e: any) {
+      reviews = { ...reviews, [gameId]: typeof e === "string" ? e : (e?.message ?? String(e)) };
+    } finally {
+      reviewBusy = null;
+    }
+  }
+
+  function languageName(code: string): string {
+    const names: Record<string, string> = { en: "English", pt: "Brazilian Portuguese", es: "Spanish", fr: "French", it: "Italian", ja: "Japanese", ru: "Russian", el: "Greek", zh: "Simplified Chinese", "zh-TW": "Traditional Chinese", fa: "Persian" };
+    return names[code] ?? "English";
+  }
+
   let perkIcons = $state<Record<number, string>>({});
   let lookupPuuid = $state("");
   let lookupName = $state("");
@@ -338,6 +375,23 @@
             {:else}
               <p class="empty-hint">{$t("league.match_detail_unavailable")}</p>
             {/if}
+            <div class="game-actions">
+              <button class="button subtle" onclick={() => downloadReplay(game.gameId)} disabled={replayBusy === game.gameId}>
+                {replayBusy === game.gameId ? $t("league.replay_downloading") : $t("league.replay_download")}
+              </button>
+              <button class="button subtle" onclick={() => reviewGame(game.gameId)} disabled={reviewBusy === game.gameId}>
+                {reviewBusy === game.gameId ? $t("league.coach_working") : $t("league.review_ai")}
+              </button>
+              {#if game.source === "sgp"}
+                <span class="dim">{$t("league.history_source_sgp")}</span>
+              {/if}
+            </div>
+            {#if replayNote[game.gameId]}
+              <p class="dim replay-note">{replayNote[game.gameId]}</p>
+            {/if}
+            {#if reviews[game.gameId]}
+              <div class="coach-output">{reviews[game.gameId]}</div>
+            {/if}
           {/if}
         {/each}
       </div>
@@ -374,3 +428,9 @@
     {/if}
   </section>
 {/if}
+
+<style>
+  .game-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+  .replay-note { font-size: 12px; word-break: break-all; }
+  .coach-output { white-space: pre-wrap; line-height: 1.5; font-size: 13px; margin-top: 6px; }
+</style>

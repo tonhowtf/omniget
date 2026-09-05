@@ -26,15 +26,33 @@ const TRACKED_PLATFORMS = {
   "pinterest.com": "pinterest",
   "bsky.app": "bluesky",
   "bsky.social": "bluesky",
+  "hotmart.com": "hotmart",
+  "udemy.com": "udemy",
+  "rocketseat.com.br": "rocketseat",
 };
 
-function rootDomainOf(host) {
+// Two-label public suffixes: the registrable name is the last three labels
+// (`app.rocketseat.com.br` -> `rocketseat.com.br`). Mirrors the desktop side
+// (`cookies/platform.rs`), so both file the capture under the same bucket.
+const TWO_LABEL_PUBLIC_SUFFIXES = new Set([
+  "com.br", "net.br", "org.br", "edu.br", "gov.br", "art.br", "eng.br",
+  "co.uk", "org.uk", "ac.uk", "gov.uk", "me.uk",
+  "com.au", "net.au", "org.au", "edu.au",
+  "co.jp", "ne.jp", "or.jp", "ac.jp",
+  "com.mx", "org.mx", "com.ar", "com.co", "com.pe", "com.cl", "com.ve", "com.uy",
+  "co.za", "co.nz", "co.in", "co.kr", "co.id", "com.sg", "com.hk", "com.tw", "com.my",
+  "com.tr", "com.pt", "com.es", "com.pl", "com.ua", "com.ru", "com.cn", "com.ph",
+]);
+
+export function rootDomainOf(host) {
   const h = (host || "").replace(/^\./, "").toLowerCase();
   const parts = h.split(".");
-  if (parts.length >= 2) {
-    return parts.slice(-2).join(".");
+  if (parts.length < 2) return h;
+  const lastTwo = parts.slice(-2).join(".");
+  if (parts.length >= 3 && TWO_LABEL_PUBLIC_SUFFIXES.has(lastTwo)) {
+    return parts.slice(-3).join(".");
   }
-  return h;
+  return lastTwo;
 }
 
 export function detectPlatformKind(hostname) {

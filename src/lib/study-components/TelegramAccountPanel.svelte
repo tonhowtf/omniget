@@ -505,7 +505,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    border: 1px solid color-mix(in oklab, var(--green, #10b981) 35%, transparent);
+    border: 1px solid color-mix(in oklab, var(--green) 35%, transparent);
   }
 
   .active-row {
@@ -518,7 +518,7 @@
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--blue), color-mix(in oklab, var(--blue) 60%, var(--green, #10b981)));
+    background: linear-gradient(135deg, var(--blue), color-mix(in oklab, var(--blue) 60%, var(--green)));
     color: #fff;
     display: flex;
     align-items: center;
@@ -553,7 +553,7 @@
   .active-badge {
     font-size: 10.5px;
     font-weight: 700;
-    background: var(--green, #10b981);
+    background: var(--green);
     color: #fff;
     padding: 3px 10px;
     border-radius: 12px;

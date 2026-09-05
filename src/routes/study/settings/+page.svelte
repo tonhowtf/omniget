@@ -267,12 +267,12 @@
   }
 
   .dot.saving {
-    background: var(--warning, #f59e0b);
+    background: var(--warning);
     animation: pulse 1.2s ease-in-out infinite;
   }
 
   .dot.saved {
-    background: var(--success, #16a34a);
+    background: var(--success);
   }
 
   .tabs {
@@ -316,10 +316,10 @@
   }
 
   .error {
-    color: var(--error, #dc2626);
+    color: var(--error);
     font-size: 13px;
     padding: 12px 14px;
-    background: color-mix(in oklab, var(--error, #dc2626) 10%, transparent);
+    background: color-mix(in oklab, var(--error) 10%, transparent);
     border-radius: 8px;
   }
 
@@ -329,7 +329,7 @@
     left: 50%;
     transform: translateX(-50%);
     padding: 10px 16px;
-    background: color-mix(in oklab, var(--success, #16a34a) 90%, black);
+    background: color-mix(in oklab, var(--success) 90%, black);
     color: white;
     border-radius: 8px;
     font-size: 13px;
@@ -339,7 +339,7 @@
   }
 
   .toast.err {
-    background: var(--error, #dc2626);
+    background: var(--error);
   }
 
   @keyframes slide-up {

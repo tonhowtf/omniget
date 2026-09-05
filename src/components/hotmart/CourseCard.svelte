@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { open as openExternal } from "@tauri-apps/plugin-shell";
   import { t } from "$lib/i18n";
 
   type CardDownloadStatus = "idle" | "downloading" | "complete" | "error";
@@ -8,9 +9,11 @@
     price: string;
     imageUrl?: string;
     externalPlatform?: boolean;
+    externalUrl?: string;
     downloadStatus?: CardDownloadStatus;
     downloadPercent?: number;
     onDownload: () => void;
+    onChooseSections?: () => void;
   };
 
   let {
@@ -18,9 +21,11 @@
     price,
     imageUrl,
     externalPlatform = false,
+    externalUrl,
     downloadStatus = "idle",
     downloadPercent = 0,
     onDownload,
+    onChooseSections,
   }: CourseCardProps = $props();
 
   let isDisabled = $derived(downloadStatus === "complete");
@@ -63,21 +68,33 @@
       {/if}
     </div>
     {#if externalPlatform}
-      <button class="button elevated card-download" disabled>
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M18 6L6 18M6 6l12 12" />
-        </svg>
-        {$t("hotmart.unavailable")}
-      </button>
+      <p class="card-hint">{$t("hotmart.external_platform_hint")}</p>
+      {#if externalUrl}
+        <button class="button elevated card-download" onclick={() => openExternal(externalUrl)}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            <polyline points="15 3 21 3 21 9" />
+            <line x1="10" y1="14" x2="21" y2="3" />
+          </svg>
+          {$t("hotmart.open_external")}
+        </button>
+      {:else}
+        <button class="button elevated card-download" disabled>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+          {$t("hotmart.unavailable")}
+        </button>
+      {/if}
     {:else if downloadStatus === "downloading"}
       <button class="button elevated card-download status-downloading" onclick={handleClick}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -143,6 +160,11 @@
         </svg>
         {$t("hotmart.download_btn")}
       </button>
+      {#if onChooseSections}
+        <button class="card-sections" onclick={onChooseSections}>
+          {$t("courses.sections_choose")}
+        </button>
+      {/if}
     {/if}
   </div>
 </div>
@@ -231,8 +253,32 @@
   }
 
   .card-badge.external {
-    background: var(--orange);
-    color: #000;
+    background: var(--warning);
+    color: var(--on-warning);
+  }
+
+  .card-sections {
+    background: transparent;
+    border: none;
+    color: var(--tertiary);
+    font-size: var(--text-sm);
+    padding: 2px 0;
+    cursor: pointer;
+    text-align: center;
+    border-radius: var(--border-radius);
+  }
+
+  .card-sections:hover {
+    color: var(--secondary);
+    text-decoration: underline;
+  }
+
+  .card-hint {
+    margin-block: 0;
+    font-size: var(--text-sm);
+    line-height: 1.4;
+    color: var(--gray);
+    user-select: text;
   }
 
   .card-download {
@@ -263,8 +309,8 @@
   }
 
   .status-complete {
-    background: var(--green);
-    color: #000;
+    background: var(--success);
+    color: var(--on-success);
   }
 
   .status-complete:disabled {
@@ -272,15 +318,15 @@
   }
 
   .status-error {
-    background: var(--red);
-    color: #fff;
+    background: var(--danger);
+    color: var(--on-error);
   }
 
   .btn-spinner {
     width: 14px;
     height: 14px;
     border: 2px solid var(--input-border);
-    border-top-color: var(--blue);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
     flex-shrink: 0;
@@ -302,7 +348,7 @@
 
   .mini-progress-fill {
     height: 100%;
-    background: var(--blue);
+    background: var(--accent);
     border-radius: 2px;
     transition: width 0.3s ease-out;
   }

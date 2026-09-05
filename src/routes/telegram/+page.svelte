@@ -1605,7 +1605,7 @@
 {/if}
 
 <style>
-  .plugin-guard { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - var(--padding) * 4); gap: calc(var(--padding) * 1.5); text-align: center; color: var(--gray); }
+  .plugin-guard { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 140px); gap: calc(var(--padding) * 1.5); text-align: center; color: var(--gray); }
   .plugin-guard h2 { font-size: 18px; color: var(--secondary); }
   .plugin-guard p { font-size: 14px; max-width: 300px; }
   .guard-link { padding: 10px 24px; font-size: 14px; font-weight: 500; background: var(--cta); color: var(--on-cta); border-radius: var(--border-radius); text-decoration: none; }
@@ -1617,7 +1617,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: calc(100vh - var(--padding) * 4);
+    min-height: calc(100vh - 140px);
     gap: var(--padding);
   }
 

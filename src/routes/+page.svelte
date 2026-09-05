@@ -28,6 +28,7 @@
     isUrl,
   } from "$lib/home/omnibox-controller";
   import { getDownloads, formatBytes } from "$lib/stores/download-store.svelte";
+  import { getDownloadStats } from "$lib/stores/download-stats.svelte";
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { onClipboardUrl } from "$lib/stores/clipboard-monitor";
@@ -123,6 +124,16 @@
     try { localStorage.setItem(STUDY_NOTICE_DISMISS_KEY, "1"); } catch {}
   }
   let mediaPreview = $derived(getMediaPreview());
+  let dlStats = $derived(getDownloadStats());
+  let coursesPluginInstalled = $state<boolean | null>(null);
+
+  onMount(() => {
+    invoke<{ id: string; enabled: boolean }[]>("list_plugins")
+      .then((plugins) => {
+        coursesPluginInstalled = plugins.some((p) => p.id === "courses" && p.enabled);
+      })
+      .catch(() => {});
+  });
   let pendingExternalPrefill = $derived(getPendingExternalPrefill());
   let previewImageLoading = $state(true);
   let showP2pSendDialog = $state(false);
@@ -308,11 +319,6 @@
     }
   });
 
-  let showLoopIcon = $derived(
-    omniState.kind === "detected" ||
-    omniState.kind === "preparing" ||
-    omniState.kind === "batch"
-  );
 
   let showOmnibox = $derived(showOmniboxForState(omniState));
   let showInspector = $derived(showInspectorForState(omniState));
@@ -979,34 +985,26 @@
 
   {#if isStage}
     <div class="home-stage">
-      <div class="home-stage-tools">
-        <div class="mac-segmented" role="tablist">
-          <button
-            type="button"
-            class="mac-segmented-btn"
-            class:active={!advancedMode}
-            role="tab"
-            aria-selected={!advancedMode}
-            onclick={() => { advancedMode = false; }}
-          >
-            {$t('omnibox.mode_normal')}
-          </button>
-          <button
-            type="button"
-            class="mac-segmented-btn"
-            class:active={advancedMode}
-            role="tab"
-            aria-selected={advancedMode}
-            onclick={() => { advancedMode = true; }}
-          >
-            {$t('omnibox.mode_advanced')}
-          </button>
-        </div>
-      </div>
       <HomeHero emotion={mascotEmotion} stage celebrate={mascotEmotion === "amazed"} />
-      <h1 class="home-stage-title">{$t('home.hero_title')}</h1>
-      <p class="home-stage-copy">{$t('home.hero_subtitle')}</p>
-      <HomeUrlBar variant="stage" bind:url bind:mode={homeInputMode} onInput={handleInput} onModeChange={handleHomeModeChange} />
+      <div class="home-stage-head">
+        <h1 class="home-stage-title">{$t('home.hero_title')}</h1>
+        <p class="home-stage-copy">{$t('home.hero_subtitle')}</p>
+      </div>
+      <HomeUrlBar
+        variant="stage"
+        bind:url
+        bind:mode={homeInputMode}
+        onInput={handleInput}
+        onModeChange={handleHomeModeChange}
+        onAdvanced={() => { advancedMode = true; }}
+      />
+      <p class="home-value">
+        {#if dlStats.totalDownloads > 0}
+          {@html $t('home.value_line', { count: `<strong>${dlStats.totalDownloads.toLocaleString()}</strong>`, size: `<strong>${formatBytes(dlStats.totalBytes)}</strong>` })}
+        {:else}
+          {$t('home.value_first')}
+        {/if}
+      </p>
       <SupportedServices />
     </div>
   {:else}
@@ -1020,30 +1018,12 @@
       />
     </div>
     <div class="home-mac-main">
-      <div class="mac-segmented" role="tablist">
-        <button
-          type="button"
-          class="mac-segmented-btn"
-          class:active={!advancedMode}
-          role="tab"
-          aria-selected={!advancedMode}
-          onclick={() => { advancedMode = false; }}
-        >
-          {$t('omnibox.mode_normal')}
-        </button>
-        <button
-          type="button"
-          class="mac-segmented-btn"
-          class:active={advancedMode}
-          role="tab"
-          aria-selected={advancedMode}
-          onclick={() => { advancedMode = true; }}
-        >
-          {$t('omnibox.mode_advanced')}
-        </button>
-      </div>
-
       {#if advancedMode}
+        <div class="home-secondary home-secondary--start">
+          <button type="button" class="home-secondary-link" onclick={() => { advancedMode = false; }}>
+            {$t('home.action_simple')}
+          </button>
+        </div>
         <OmniboxAdvanced />
       {:else}
     {#if externalNotice}
@@ -1066,17 +1046,6 @@
       </div>
     {/if}
 
-    {#if showLoopIcon}
-      <img
-        src="/loop.png"
-        alt=""
-        width="40"
-        height="40"
-        class="loop-icon"
-        class:loop-bounce={omniState.kind === "detected" || omniState.kind === "batch"}
-        class:loop-pulse={omniState.kind === "preparing"}
-      />
-    {/if}
 
     {#if omniState.kind === "detecting"}
       <div class="feedback feedback-enter">
@@ -1096,7 +1065,13 @@
     {/if}
 
     {#if showOmnibox}
-      <HomeUrlBar bind:url bind:mode={homeInputMode} onInput={handleInput} onModeChange={handleHomeModeChange} />
+      <HomeUrlBar
+        bind:url
+        bind:mode={homeInputMode}
+        onInput={handleInput}
+        onModeChange={handleHomeModeChange}
+        onAdvanced={() => { advancedMode = true; }}
+      />
     {/if}
 
     {#if omniState.kind === "batch"}
@@ -1137,7 +1112,6 @@
       {#if omniState.kind === "idle"}
         <SupportedServices />
       {/if}
-    </div>
 
     <HomeInspector open={showInspector} title={$t('home.inspector_title')}>
       {#if omniState.kind === "detected"}
@@ -1211,7 +1185,13 @@
           </p>
         {/if}
         {#if COURSE_PLATFORMS.has(omniState.info.platform)}
-          <button class="button action-btn" onclick={handleAction}>{$t(omniState.info.platform === "udemy" ? 'omnibox.go_to_udemy' : 'omnibox.go_to_hotmart')}</button>
+          {#if coursesPluginInstalled === false}
+            <p class="course-upsell">{$t('omnibox.courses_plugin_needed')}</p>
+            <button class="download-primary-btn" onclick={() => goto("/marketplace")}>{$t('omnibox.install_courses_plugin')}</button>
+          {:else}
+            <p class="course-upsell">{$t('omnibox.courses_plugin_ready')}</p>
+            <button class="download-primary-btn" onclick={handleAction}>{$t(omniState.info.platform === "udemy" ? 'omnibox.go_to_udemy' : 'omnibox.go_to_hotmart')}</button>
+          {/if}
         {:else}
           {@const playlistBlocked = omniState.info.content_type === "playlist" && playlistEntries.length > 0 && selectedPlaylistItems.size === 0}
           {@const torrentBlocked = torrentEntries.length > 0 && selectedTorrentFiles.size === 0}
@@ -1304,6 +1284,8 @@
         </div>
       {/if}
     </HomeInspector>
+    </div>
+
   </div>
   {/if}
 
@@ -1333,14 +1315,16 @@
   .study-maintenance-banner {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-3);
     width: 100%;
     max-width: 640px;
-    padding: 8px 12px;
-    background: color-mix(in oklab, var(--secondary) 8%, transparent);
-    border-radius: var(--border-radius);
-    color: var(--secondary);
-    font-size: 12px;
+    margin: var(--space-3) auto 0;
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+    background: color-mix(in srgb, var(--warning) 9%, transparent);
+    box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--warning) 22%, transparent);
+    border-radius: var(--radius-lg);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
     line-height: 1.4;
   }
 
@@ -1353,94 +1337,49 @@
   }
 
   .study-maintenance-text strong {
-    font-weight: 500;
-    font-size: 12.5px;
+    font-weight: 600;
+    font-size: var(--text-sm);
     color: var(--text);
   }
 
   .study-maintenance-text span {
-    color: var(--secondary);
-    font-size: 11.5px;
+    color: var(--text-dim);
+    font-size: var(--text-sm);
   }
 
   .study-maintenance-dismiss {
     background: transparent;
     border: none;
-    padding: 4px;
-    margin: -4px;
-    border-radius: 4px;
-    color: var(--secondary);
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    opacity: 0.55;
-    transition: opacity 0.15s ease, background 0.15s ease;
+    flex-shrink: 0;
+    transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
   }
 
   .study-maintenance-dismiss:hover {
-    opacity: 1;
-    background: color-mix(in oklab, var(--text) 6%, transparent);
-  }
-
-  .omnibox-area {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-3);
-    width: 100%;
-    max-width: 640px;
-  }
-
-  .loop-icon {
-    pointer-events: none;
-    border-radius: 10px;
-    user-select: none;
-  }
-
-  .loop-bounce {
-    animation: loopBounce 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-
-  @keyframes loopBounce {
-    0% {
-      opacity: 0;
-      transform: scale(0.6) translateY(6px);
-    }
-    60% {
-      opacity: 1;
-      transform: scale(1.08) translateY(-2px);
-    }
-    100% {
-      transform: scale(1) translateY(0);
-    }
-  }
-
-  .loop-pulse {
-    animation: loopPulse 1.8s ease-in-out infinite;
-  }
-
-  @keyframes loopPulse {
-    0%, 100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.7;
-      transform: scale(0.95);
-    }
+    color: var(--text);
+    background: var(--fill-2);
   }
 
   .batch-options {
     display: flex;
     flex-direction: column;
-    gap: var(--padding);
+    gap: var(--space-3);
   }
 
+  /* detection line under the omnibox */
   .feedback {
     display: flex;
     align-items: center;
-    gap: calc(var(--padding) / 2);
+    gap: 6px;
+    min-height: 20px;
+    padding: 0 var(--space-1);
   }
 
   .feedback-icon {
@@ -1449,15 +1388,15 @@
   }
 
   .feedback[data-supported="true"] {
-    color: var(--green);
+    color: var(--success);
   }
 
   .feedback[data-supported="false"] {
-    color: var(--gray);
+    color: var(--text-dim);
   }
 
   .feedback-text {
-    font-size: 12.5px;
+    font-size: var(--text-sm);
     font-weight: 500;
   }
 
@@ -1467,57 +1406,57 @@
   }
 
   .feedback-spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid var(--input-border);
-    border-top-color: var(--secondary);
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--fill-3);
+    border-top-color: var(--text-muted);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
 
   @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
+    to { transform: rotate(360deg); }
   }
 
   .feedback-enter {
-    animation: feedbackEnter 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: feedbackEnter var(--duration-base) var(--ease-out);
   }
 
   @keyframes feedbackEnter {
-    from {
-      opacity: 0;
-      transform: scale(0.9);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
+    from { opacity: 0; transform: translateY(-2px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
+  /* the one primary action on the page */
   .download-primary-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
     background: var(--cta);
     color: var(--on-cta);
-    font-size: var(--text-base);
+    font-size: var(--text-md);
     font-weight: 600;
-    height: 32px;
+    letter-spacing: var(--track-snug);
+    height: 40px;
     padding: 0 var(--space-4);
     border-radius: var(--radius-md);
     border: none;
     cursor: pointer;
     width: 100%;
-    transition: background 150ms;
+    box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--on-cta) 12%, transparent);
+    transition: background var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
   }
 
   @media (hover: hover) {
-    .download-primary-btn:hover {
+    .download-primary-btn:hover:not(:disabled) {
       background: var(--cta-hover);
     }
   }
 
-  .download-primary-btn:active {
+  .download-primary-btn:active:not(:disabled) {
     background: var(--cta-press);
+    transform: scale(0.99);
   }
 
   .download-primary-btn:focus-visible {
@@ -1526,36 +1465,39 @@
   }
 
   .download-primary-btn:disabled {
-    opacity: 0.5;
+    opacity: 0.45;
     cursor: not-allowed;
   }
 
+  /* playlist / torrent pickers: a grouped list */
   .playlist-picker {
     width: 100%;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 10px 12px;
-    background: var(--control-bg);
-    border-radius: var(--border-radius);
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface-mut);
+    border-radius: var(--radius-md);
+    box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
   }
 
   .playlist-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: var(--space-2);
   }
 
   .playlist-count {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--secondary);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
   }
 
   .playlist-bulk {
     display: flex;
-    gap: 10px;
+    gap: var(--space-3);
   }
 
   .playlist-link {
@@ -1563,21 +1505,23 @@
     border: none;
     padding: 0;
     font: inherit;
-    font-size: 12px;
-    color: var(--accent);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--accent-hi);
     cursor: pointer;
   }
 
   .playlist-link:hover {
     text-decoration: underline;
+    text-underline-offset: 2px;
   }
 
   .playlist-status {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 12.5px;
-    color: var(--gray);
+    font-size: var(--text-sm);
+    color: var(--text-dim);
   }
 
   .playlist-list {
@@ -1588,28 +1532,29 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 2px;
   }
 
   .playlist-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 5px 4px;
-    border-radius: calc(var(--border-radius) - 3px);
+    gap: var(--space-2);
+    min-height: 28px;
+    padding: 3px var(--space-1);
+    border-radius: var(--radius-xs);
     cursor: pointer;
-    font-size: 13px;
-    color: var(--secondary);
+    font-size: var(--text-base);
+    color: var(--text);
   }
 
   .playlist-item:hover {
-    background: var(--button-elevated);
+    background: var(--fill-1);
   }
 
   .playlist-idx {
-    color: var(--gray);
+    color: var(--text-dim);
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
+    font-size: var(--text-sm);
   }
 
   .playlist-title {
@@ -1623,23 +1568,27 @@
   .torrent-size {
     margin-left: auto;
     flex-shrink: 0;
-    padding-left: 8px;
-    color: var(--gray);
+    padding-left: var(--space-2);
+    color: var(--text-dim);
+    font-size: var(--text-sm);
     font-variant-numeric: tabular-nums;
   }
 
+  /* disclosure: "Options" / "Advanced" */
   .options-panel {
     width: 100%;
   }
 
   .options-toggle {
-    font-size: 12.5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--text-sm);
     font-weight: 500;
-    color: var(--gray);
+    color: var(--text-muted);
     cursor: pointer;
     list-style: none;
-    text-align: center;
-    padding: 4px 0;
+    padding: var(--space-1) 0;
     user-select: none;
   }
 
@@ -1651,116 +1600,118 @@
     content: "";
   }
 
+  .options-toggle::before {
+    content: "";
+    width: 9px;
+    height: 9px;
+    background: currentColor;
+    clip-path: polygon(30% 10%, 75% 50%, 30% 90%, 22% 82%, 58% 50%, 22% 18%);
+    transition: transform var(--duration-fast) var(--ease-out);
+    opacity: 0.7;
+  }
+
+  .options-panel[open] > .options-toggle::before {
+    transform: rotate(90deg);
+  }
+
   @media (hover: hover) {
     .options-toggle:hover {
-      color: var(--secondary);
+      color: var(--text);
     }
   }
 
   .options-content {
     display: flex;
     flex-direction: column;
-    gap: var(--padding);
-    padding-top: var(--padding);
+    gap: var(--space-4);
+    padding: var(--space-3) 0 var(--space-1);
     width: 100%;
   }
 
-  .referer-input-wrapper {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .referer-label {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--gray);
-  }
-
-  .referer-input {
-    padding: 6px var(--padding);
-    font-size: 13px;
-    background: var(--control-bg);
-    border: none;
-    border-radius: calc(var(--border-radius) - 2px);
-    color: var(--secondary);
-  }
-
-  .referer-input::placeholder {
-    color: var(--gray);
-  }
-
-  .referer-input:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
-  }
-
+  .referer-input-wrapper,
   .timerange-wrapper {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
   }
 
+  .referer-label,
   .timerange-label {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--gray);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text-dim);
+  }
+
+  .referer-input,
+  .timerange-input {
+    height: var(--control-h);
+    padding: 0 var(--space-2);
+    font-size: var(--text-base);
+    background: var(--control-bg);
+    border: none;
+    border-radius: var(--radius-sm);
+    box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
+    color: var(--text);
+    transition: box-shadow var(--duration-fast) var(--ease-out);
+  }
+
+  .referer-input::placeholder,
+  .timerange-input::placeholder {
+    color: var(--text-dim);
+  }
+
+  .referer-input:focus-visible,
+  .timerange-input:focus-visible {
+    outline: none;
+    box-shadow:
+      inset 0 0 0 var(--hairline) var(--accent),
+      0 0 0 3px var(--accent-soft);
   }
 
   .timerange-inputs {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
   }
 
   .timerange-input {
     width: 96px;
-    padding: 6px var(--padding);
-    font-size: 13px;
-    background: var(--control-bg);
-    border: none;
-    border-radius: calc(var(--border-radius) - 2px);
-    color: var(--secondary);
     text-align: center;
-  }
-
-  .timerange-input::placeholder {
-    color: var(--gray);
-  }
-
-  .timerange-input:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
+    font-variant-numeric: tabular-nums;
   }
 
   .timerange-sep {
-    color: var(--gray);
+    color: var(--text-dim);
   }
 
   .timerange-hint {
-    font-size: 11.5px;
-    color: var(--gray);
+    font-size: var(--text-xs);
+    color: var(--text-dim);
   }
 
   .schedule-presets {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-bottom: 6px;
+    margin-bottom: 2px;
   }
 
   .schedule-preset {
-    padding: 4px 10px;
-    font-size: 12px;
-    background: var(--fill-2);
+    height: 24px;
+    padding: 0 var(--space-3);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    background: var(--fill-1);
     border: none;
-    border-radius: calc(var(--border-radius) - 2px);
-    color: var(--text);
+    border-radius: var(--radius-full);
+    color: var(--text-muted);
     cursor: pointer;
+    transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
   }
 
   .schedule-preset:hover {
-    background: var(--button-elevated);
+    background: var(--fill-2);
+    color: var(--text);
   }
 
   .schedule-row {
@@ -1779,98 +1730,73 @@
     min-width: 5.4em;
   }
 
+  .course-upsell {
+    margin: 0;
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+    color: var(--text-muted);
+  }
+
   .cookie-hint {
     display: flex;
     align-items: center;
     gap: 6px;
     margin: 0;
-    font-size: 12px;
+    font-size: var(--text-sm);
     color: var(--warning);
   }
   .cookie-hint.expired {
     color: var(--error);
-  }
-  .cookie-hint svg {
-    flex-shrink: 0;
   }
   .cookie-hint-link {
     background: none;
     border: 0;
     padding: 0;
     font: inherit;
-    font-size: 12px;
-    color: var(--accent);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--accent-hi);
     cursor: pointer;
     text-decoration: underline;
     text-underline-offset: 2px;
-  }
-  .cookie-hint-link:hover {
-    filter: brightness(1.15);
-  }
-
-  .action-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: var(--padding) calc(var(--padding) * 2);
-    font-size: 14.5px;
-    font-weight: 500;
-    background: var(--fill-2);
-    border: none;
-    border-radius: var(--border-radius);
-    color: var(--button-text);
-    cursor: pointer;
-    box-shadow: var(--button-box-shadow);
-  }
-
-  @media (hover: hover) {
-    .action-btn:hover {
-      background: var(--button-hover);
-    }
-  }
-
-  .action-btn:active {
-    background: var(--button-press);
-  }
-
-  .action-btn:disabled {
-    cursor: default;
   }
 
   .feedback-card {
     display: flex;
     flex-direction: column;
-    gap: var(--padding);
-    padding: var(--padding) calc(var(--padding) * 1.5);
-    background: var(--control-bg);
-    border-radius: var(--border-radius);
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-mut);
+    border-radius: var(--radius-lg);
+    box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
   }
 
   .feedback-card[data-status="error"] {
-    background: color-mix(in srgb, var(--error) 12%, var(--control-bg));
+    background: color-mix(in srgb, var(--error) 10%, var(--surface-mut));
+    box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--error) 30%, transparent);
   }
 
   .external-url-card {
     width: 100%;
-    background: color-mix(in srgb, var(--accent) 10%, var(--control-bg));
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface-mut));
+    box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--accent) 30%, transparent);
   }
 
   .card-row {
     display: flex;
     align-items: center;
-    gap: calc(var(--padding) / 2);
+    gap: var(--space-2);
   }
 
   .card-text {
-    font-size: 13px;
+    font-size: var(--text-base);
     font-weight: 500;
-    color: var(--secondary);
+    color: var(--text);
   }
 
   .card-title {
-    font-size: 13px;
-    font-weight: 500;
+    font-size: var(--text-base);
+    font-weight: 600;
     flex: 1;
     min-width: 0;
     overflow: hidden;
@@ -1879,30 +1805,28 @@
   }
 
   .card-error-text {
-    color: var(--secondary);
+    color: var(--text);
+    white-space: normal;
+    line-height: var(--leading-base);
   }
 
   .card-status-icon {
     flex-shrink: 0;
     pointer-events: none;
-    color: var(--blue);
-  }
-
-  .card-status-icon.error {
-    color: var(--red);
+    color: var(--accent-hi);
   }
 
   .card-actions {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--padding);
+    justify-content: flex-end;
+    gap: var(--space-2);
   }
 
   .card-subtext {
-    font-size: 11.5px;
-    font-weight: 500;
-    color: var(--gray);
+    font-size: var(--text-sm);
+    font-weight: 400;
+    color: var(--text-dim);
   }
 
   .external-url-text {
@@ -1910,95 +1834,51 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
   }
 
   .card-action-btn {
-    padding: 6px 12px;
-    font-size: 13px;
+    height: var(--control-h);
+    padding: 0 var(--space-3);
+    font-size: var(--text-base);
   }
 
   .dismiss-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     background: transparent;
     border: none;
+    border-radius: var(--radius-full);
     cursor: pointer;
-    color: var(--secondary);
+    color: var(--text-dim);
     padding: 0;
   }
 
-  .search-hint {
-    color: var(--gray);
-  }
-
-  .quick-actions {
-    display: flex;
-    gap: var(--space-2);
-    margin-bottom: var(--space-3);
-  }
-
-  .quick-action-btn {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-4);
-    font-size: var(--text-sm);
-    border: none;
-    border-radius: var(--radius-sm);
-    background: var(--surface);
+  .dismiss-btn:hover {
+    background: var(--fill-2);
     color: var(--text);
-    cursor: pointer;
-    transition: background var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
   }
 
-  @media (hover: hover) {
-    .quick-action-btn:hover {
-      background: var(--surface-hi);
-      transform: translateY(-1px);
-    }
-  }
-
-  .quick-action-btn:active {
-    transform: scale(0.98);
-    background: var(--surface-hi);
-  }
-
-  .quick-action-btn svg {
-    opacity: 0.7;
-    flex-shrink: 0;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .quick-action-btn {
-      transition: none;
-    }
-    .quick-action-btn:hover,
-    .quick-action-btn:active {
-      transform: none;
-    }
+  .search-hint {
+    color: var(--text-dim);
   }
 
   .terms-note {
     flex-shrink: 0;
-    font-size: 9px;
-    color: var(--gray);
-    text-align: left;
-    opacity: 0.35;
-    padding: 0 var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--text-faint);
+    text-align: center;
+    padding: var(--space-2) var(--space-1) var(--space-3);
   }
 
   .terms-link {
-    color: var(--blue);
-    text-decoration: none;
-  }
-
-  @media (hover: hover) {
-    .terms-link:hover {
-      text-decoration: underline;
-    }
+    color: var(--text-dim);
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -2008,14 +1888,6 @@
 
     .feedback-spinner {
       animation-duration: 1.5s;
-    }
-
-    .loop-bounce {
-      animation: none;
-    }
-
-    .loop-pulse {
-      animation: none;
     }
   }
 </style>

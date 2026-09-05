@@ -83,6 +83,17 @@ pub async fn detect_platform(url: String) -> Result<PlatformInfo, String> {
             let is_valid_url = url::Url::parse(&url)
                 .map(|u| u.scheme() == "http" || u.scheme() == "https")
                 .unwrap_or(false);
+            if is_valid_url
+                && omniget_core::platforms::direct_file::looks_like_direct_file(&url).await
+            {
+                tracing::debug!("[perf] detect_platform took {:?}", _timer_start.elapsed());
+                return Ok(PlatformInfo {
+                    platform: "direct_file".to_string(),
+                    supported: true,
+                    content_id: None,
+                    content_type: Some("file".to_string()),
+                });
+            }
             let result = Ok(PlatformInfo {
                 platform: if is_valid_url {
                     "generic".to_string()
@@ -125,15 +136,13 @@ pub async fn prefetch_media_info(
     let settings = config::load_settings(&app);
     crate::core::http_client::init_proxy(settings.proxy);
 
-    let platform = Platform::from_url(&url);
-    let platform_name = platform
-        .map(|p| p.to_string())
-        .unwrap_or_else(|| "generic".to_string());
-
-    let downloader = match state.registry.find_platform(&url) {
-        Some(d) => d,
+    let resolved = match crate::core::url_resolver::resolve_downloader(&state.registry, &url).await
+    {
+        Some(r) => r,
         None => return Err("No downloader available".to_string()),
     };
+    let downloader = resolved.downloader;
+    let platform_name = resolved.platform_name;
 
     let ytdlp_path = ytdlp::find_ytdlp_cached().await;
 
@@ -772,7 +781,7 @@ pub async fn livechat_fetch(url: String) -> Result<LiveChatResult, String> {
 
     let out_template = tmp.join("chat.%(ext)s");
     let result = (|| async {
-        let output = omniget_core::core::process::command(&ytdlp_path)
+        let output = omniget_core::core::ytdlp::ytdlp_command(&ytdlp_path)
             .arg("--skip-download")
             .arg("--write-subs")
             .arg("--sub-langs")
@@ -908,17 +917,16 @@ pub async fn download_from_url(
         download_id = q.next_available_id(download_id);
     }
 
-    let downloader = match state.registry.find_platform(&url) {
-        Some(d) => d,
+    let resolved = match crate::core::url_resolver::resolve_downloader(&state.registry, &url).await
+    {
+        Some(r) => r,
         None => {
             tracing::debug!("[perf] download_from_url took {:?}", _timer_start.elapsed());
             return Err("No downloader available for this URL".to_string());
         }
     };
-
-    let platform_name = platform
-        .map(|p| p.to_string())
-        .unwrap_or_else(|| "generic".to_string());
+    let downloader = resolved.downloader;
+    let platform_name = resolved.platform_name;
     let title = url.clone();
     let ytdlp_path = ytdlp::find_ytdlp_cached().await;
 
@@ -1320,6 +1328,37 @@ pub async fn remove_download(
     } else {
         Err("Download not found".to_string())
     }
+}
+
+/// Último comando yt-dlp rodado para este download (argv redigido). `None`
+/// quando o item nunca chegou a rodar o yt-dlp (arquivo direto, torrent…).
+#[tauri::command]
+pub fn get_download_command(download_id: u64) -> Option<omniget_core::core::ytdlp::CommandRecord> {
+    omniget_core::core::ytdlp::get_command(download_id)
+}
+
+/// "Editar e tentar de novo": recebe o comando como texto, tokeniza como um
+/// shell faria (sem rodar shell nenhum) e re-enfileira o item com esse argv.
+#[tauri::command]
+pub async fn retry_download_with_command(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    download_id: u64,
+    command: String,
+) -> Result<String, String> {
+    let argv = omniget_core::core::shell_words::split(&command)
+        .map_err(|e| format!("Invalid command: {}", e))?;
+    if argv.is_empty() {
+        return Err("Command is empty".to_string());
+    }
+    let state_to_emit = {
+        let mut q = state.download_queue.lock().await;
+        q.retry_with_command(download_id, argv)?;
+        q.get_state()
+    };
+    emit_queue_state_from_state(&app, state_to_emit);
+    queue::try_start_next(app, state.download_queue.clone()).await;
+    Ok("Download re-queued with custom command".to_string())
 }
 
 #[tauri::command]

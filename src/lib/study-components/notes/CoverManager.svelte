@@ -203,7 +203,7 @@
   }
   .error-msg {
     margin: 0;
-    color: var(--error, #e74c3c);
+    color: var(--error);
     font-size: 12px;
   }
   footer {

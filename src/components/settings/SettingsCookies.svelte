@@ -876,8 +876,8 @@
   .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
   .danger-btn {
     padding: 7px 16px;
-    background: #d33;
-    color: white;
+    background: var(--danger);
+    color: var(--on-status);
     border: 0;
     border-radius: 999px;
     font: inherit;

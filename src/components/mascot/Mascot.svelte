@@ -2,6 +2,9 @@
   type MascotEmotion = "idle" | "downloading" | "error" | "stalled" | "queue" | "complete" | "amazed";
 
   function emotionToSrc(e: MascotEmotion): string {
+    // amazed.png ships with a baked-in background, which reads as a grey
+    // square on the hero; the celebratory thumbs-up has a clean alpha channel.
+    if (e === "amazed") return "/mascot/complete.png";
     return `/mascot/${e}.png`;
   }
 
@@ -109,14 +112,15 @@
   }
 
   .mascot.stage {
-    height: 168px;
+    height: 128px;
   }
 
   .mascot-img {
     height: 100px;
     width: auto;
+    border-radius: var(--radius-xl);
     opacity: 0;
-    transform: scale(0.85);
+    transform: scale(0.9);
     transition:
       opacity var(--duration-base) var(--ease-out),
       transform var(--duration-bounce) var(--ease-spring),
@@ -130,8 +134,7 @@
   }
 
   .mascot.stage .mascot-img {
-    height: 168px;
-    filter: drop-shadow(0 18px 28px color-mix(in srgb, var(--accent) 28%, transparent));
+    height: 128px;
   }
 
   .mascot-img.visible {
@@ -146,16 +149,16 @@
   }
 
   .mascot-bubble {
-    background: var(--surface-hi);
-    border-radius: var(--radius-md);
-    padding: var(--space-2) var(--space-4);
+    background: var(--popup-bg);
+    border-radius: var(--radius-lg);
+    padding: var(--space-2) var(--space-3);
     font-size: var(--text-sm);
     color: var(--text);
     max-width: 280px;
     text-align: center;
     margin-top: var(--space-2);
     position: relative;
-    box-shadow: var(--elev-1);
+    box-shadow: var(--elev-2);
     animation: bubbleFadeIn var(--duration-base) var(--ease-out);
   }
 
@@ -167,7 +170,7 @@
     transform: translateX(-50%);
     width: 12px;
     height: 6px;
-    background: var(--surface-hi);
+    background: var(--popup-bg);
     clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
   }
 
@@ -187,8 +190,5 @@
       transform: none;
     }
 
-    .mascot.stage .mascot-img {
-      filter: none;
-    }
   }
 </style>

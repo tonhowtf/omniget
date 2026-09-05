@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /*
- * Screenshot harness for the visual remake.
+ * Screenshot harness for visual review.
  * Usage: node scripts/shots.mjs [phase] [--routes=/a,/b] [--themes=light,dark]
- * Captures every main route at 3 viewports x 2 themes into remake/shots/<phase>/.
+ * Captures every main route at 3 viewports x 2 themes into .shots/<phase>/ (gitignored).
  * Runs against `vite dev` (port 1420) with the Tauri IPC fully mocked, so no
  * real backend, credentials or user data are involved.
  */
@@ -18,7 +18,7 @@ const argOf = (name) => {
 };
 
 const BASE = "http://localhost:1420";
-const OUT = path.resolve("remake/shots", PHASE);
+const OUT = path.resolve(process.env.SHOTS_OUT || ".shots", PHASE);
 
 const VIEWPORTS = [
   { name: "390x844", width: 390, height: 844 },
@@ -27,6 +27,22 @@ const VIEWPORTS = [
 ];
 
 const THEMES = (argOf("themes") || "light,dark").split(",");
+const VP_FILTER = argOf("vp") ? argOf("vp").split(",") : null;
+// --platform=other makes the page believe it runs on Windows/Linux (no titlebar
+// overlay, opaque materials, controls on the right).
+const PLATFORM = argOf("platform") || "macos";
+// --full captures the whole scrollable page instead of just the viewport.
+const FULL_PAGE = process.argv.includes("--full");
+// --vp accepts the preset names and also ad-hoc WxH sizes (e.g. --vp=1440x1700
+// to fit a long list without scrolling).
+const ACTIVE_VIEWPORTS = VP_FILTER
+  ? VP_FILTER.map((name) => {
+      const preset = VIEWPORTS.find((v) => v.name === name);
+      if (preset) return preset;
+      const m = /^(\d+)x(\d+)$/.exec(name);
+      return m ? { name, width: Number(m[1]), height: Number(m[2]) } : null;
+    }).filter(Boolean)
+  : VIEWPORTS;
 
 const DEFAULT_ROUTES = [
   "/_kitchen-sink",
@@ -177,10 +193,11 @@ const HISTORY = [
 ];
 
 const QUEUE = [
-  { id: 1, url: "https://www.youtube.com/watch?v=live1", platform: "youtube", title: "Conference Keynote 2026 — Day 1 (4K)", status: { type: "Downloading" }, percent: 42.5, speed_bytes_per_sec: 11534336, downloaded_bytes: 891289600, total_bytes: 2097152000, file_path: null, file_size_bytes: null, file_count: null, thumbnail_url: null, eta_seconds: 105 },
+  { id: 1, url: "https://www.youtube.com/watch?v=live1", platform: "youtube", title: "Conference Keynote 2026 — Day 1 (4K)", status: { type: "Active" }, percent: 42.5, speed_bytes_per_sec: 11534336, downloaded_bytes: 891289600, total_bytes: 2097152000, file_path: null, file_size_bytes: null, file_count: null, thumbnail_url: null, eta_seconds: 105, kind: "video", author: "Devs Conf", duration_seconds: 5412, phase: "downloading_video", planned_formats: ["299", "140"], stream: { format_id: "299", height: 1080, width: 1920, fps: 60, vcodec: "avc1.64002a", acodec: "none", ext: "mp4", filesize: 2097152000, format_note: "1080p60" }, fragment_index: 12, fragment_count: 25, started_at_ms: Date.now() - 83000, command: { program: "yt-dlp", args: [], display: "yt-dlp -f 'bv*[height<=1080]+ba[ext=m4a]/bv*[height<=1080]+ba/b' --ignore-config -N 8 --extractor-args 'youtube:player_client=default;formats=dashy' --throttled-rate 100K -o '/Users/demo/Downloads/OmniGet/%(title).200s [%(id)s].%(ext)s' https://www.youtube.com/watch?v=live1", attempt: 1, max_attempts: 3, player_client: "default", connections: 8, engine: "native", overridden: false } },
+  { id: 5, url: "https://vimeo.com/123456", platform: "vimeo", title: "Product walkthrough — spring release", status: { type: "Active" }, percent: 3, speed_bytes_per_sec: 0, downloaded_bytes: 0, total_bytes: null, file_path: null, file_size_bytes: null, file_count: null, thumbnail_url: null, eta_seconds: null, kind: "video", phase: "fetching_info", started_at_ms: Date.now() - 4000 },
   { id: 2, url: "https://www.twitch.tv/videos/222", platform: "twitch", title: "Speedrun VOD — GDQ finals", status: { type: "Queued" }, percent: 0, speed_bytes_per_sec: 0, downloaded_bytes: 0, total_bytes: null, file_path: null, file_size_bytes: null, file_count: null, thumbnail_url: null, eta_seconds: null },
   { id: 3, url: "https://www.bilibili.com/video/BV1xx", platform: "bilibili", title: "Lo-fi mix for late nights", status: { type: "Complete" }, percent: 100, speed_bytes_per_sec: 0, downloaded_bytes: 104857600, total_bytes: 104857600, file_path: "/Users/demo/Downloads/OmniGet/Bilibili/lofi.mp4", file_size_bytes: 104857600, file_count: 1, thumbnail_url: null, eta_seconds: null },
-  { id: 4, url: "https://www.youtube.com/watch?v=priv1", platform: "youtube", title: "Members-only masterclass", status: { type: "Error", data: "ERROR: [youtube] priv1: Private video. Sign in if you've been granted access" }, percent: 0, speed_bytes_per_sec: 0, downloaded_bytes: 0, total_bytes: null, file_path: null, file_size_bytes: null, file_count: null, thumbnail_url: null, eta_seconds: null },
+  { id: 4, url: "https://www.youtube.com/watch?v=priv1", platform: "youtube", title: "Members-only masterclass", status: { type: "Error", data: { message: "ERROR: [youtube] priv1: Private video. Sign in if you've been granted access", retryable: false } }, percent: 0, speed_bytes_per_sec: 0, downloaded_bytes: 0, total_bytes: null, file_path: null, file_size_bytes: null, file_count: null, thumbnail_url: null, eta_seconds: null, kind: "video", author: "Masterclass Co.", command: { program: "yt-dlp", args: [], display: "yt-dlp -f 'bv*+ba[ext=m4a]/bv*+ba/b' --ignore-config -N 8 --extractor-args 'youtube:player_client=ios;formats=dashy' --cookies '/Users/demo/Library/Application Support/wtf.tonho.omniget/cookies/youtube.txt' -o '/Users/demo/Downloads/OmniGet/%(title).200s [%(id)s].%(ext)s' https://www.youtube.com/watch?v=priv1", attempt: 3, max_attempts: 3, player_client: "ios", connections: 8, engine: "native", overridden: false } },
 ];
 
 const REGISTRY = [
@@ -236,6 +253,13 @@ function initScript(theme) {
         case "check_plugin_updates": return [];
         case "rpc_set_idle_stats": return null;
         case "plugin_command": return null;
+        case "get_download_log": return args && args.downloadId === 1
+          ? ["[omniget] $ yt-dlp -f 'bv*[height<=1080]+ba' … https://www.youtube.com/watch?v=live1", "[youtube] live1: Downloading webpage", "[info] live1: Downloading 2 format(s): 299+140", "[dashsegments] Total fragments: 25", "[download] Destination: Conference Keynote 2026.f299.mp4"]
+          : args && args.downloadId === 4
+            ? ["[omniget] $ yt-dlp -f 'bv*+ba' … https://www.youtube.com/watch?v=priv1", "ERROR: [youtube] priv1: Private video. Sign in if you've been granted access"]
+            : [];
+        case "get_download_command": return null;
+        case "retry_download_with_command": return "ok";
         case "diagnose_download_error": {
           const t = String(args.stderr || "").toLowerCase();
           if (t.includes("private video") || t.includes("sign in")) {
@@ -300,7 +324,7 @@ async function main() {
   const failures = [];
 
   for (const theme of THEMES) {
-    for (const vp of VIEWPORTS) {
+    for (const vp of ACTIVE_VIEWPORTS) {
       const ctx = await browser.newContext({
         viewport: { width: vp.width, height: vp.height },
         colorScheme: theme === "light" ? "light" : "dark",
@@ -308,10 +332,16 @@ async function main() {
         reducedMotion: "reduce",
       });
       await ctx.addInitScript(initScript(theme));
+      if (PLATFORM !== "macos") {
+        await ctx.addInitScript(() => {
+          Object.defineProperty(navigator, "platform", { get: () => "Win32" });
+          Object.defineProperty(navigator, "userAgentData", { get: () => ({ platform: "Windows" }) });
+        });
+      }
       const page = await ctx.newPage();
       for (const route of ROUTES) {
         const slug = route === "/" ? "home" : route.replace(/^\//, "").replace(/[\/?=&]/g, "-");
-        const file = path.join(OUT, `${slug}__${vp.name}__${theme}.png`);
+        const file = path.join(OUT, `${slug}__${vp.name}__${theme}${PLATFORM === "macos" ? "" : "__" + PLATFORM}.png`);
         try {
           await page.goto(BASE + route, { waitUntil: "domcontentloaded", timeout: 30000 });
           await page.evaluate(() => document.fonts.ready.catch(() => {}));
@@ -320,7 +350,7 @@ async function main() {
             if (window.__MOCK_EMIT) window.__MOCK_EMIT("queue-state-update", queue);
           }, QUEUE);
           await page.waitForTimeout(700);
-          await page.screenshot({ path: file });
+          await page.screenshot({ path: file, fullPage: FULL_PAGE });
           count++;
           process.stdout.write(`\r${count} shots (${slug} ${vp.name} ${theme})        `);
         } catch (e) {

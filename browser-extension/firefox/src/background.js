@@ -4,6 +4,7 @@ import { createActionFeedbackController } from "./action-feedback.js";
 import { registerSnifferListeners, getMediaCount, getMediaCountForPage, getDetectedMedia, getDetectedMediaForUrl, getPageKeyForTab, restoreMedia } from "./media-sniffer.js";
 import { summarizeCookies } from "./cookie-summary.js";
 import { loadSnifferState, isSnifferEnabled, setSnifferEnabled } from "./sniffer-toggle.js";
+import { loadH264State, isH264Enabled, isBlock60, setH264 } from "./h264-toggle.js";
 import { registerContextMenu, getContextMenuId } from "./context-menu.js";
 import { openOmnigetScheme } from "./send-via-scheme.js";
 import {
@@ -110,6 +111,7 @@ const actionFeedback = createActionFeedbackController({
 let snifferRegistered = false;
 
 loadSnifferState().then(async (enabled) => {
+loadH264State().catch(() => {});
   await restoreMedia();
   if (enabled) {
     registerSnifferListeners(onMediaDetected);
@@ -240,6 +242,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         tabUrl: pageUrl,
       });
     });
+    return true;
+  }
+
+  if (msg.type === "getH264") {
+    sendResponse({ enabled: isH264Enabled(), block60: isBlock60() });
+    return false;
+  }
+
+  if (msg.type === "toggleH264") {
+    setH264(msg.enabled, msg.block60).then((r) => sendResponse(r)).catch(() => sendResponse({ enabled: isH264Enabled(), block60: isBlock60() }));
     return true;
   }
 
@@ -463,6 +475,8 @@ const TRACKED_COOKIE_NAMES = new Set([
   "sc_anonymous_id",
   "moe_uuid",
   "datadome",
+  "skylab_next_access_token_v4",
+  "skylab_next_refresh_token_v4",
 ]);
 
 const TRACKED_DOMAIN_SUFFIXES = [
@@ -479,6 +493,7 @@ const TRACKED_DOMAIN_SUFFIXES = [
   ".pinterest.com",
   ".hotmart.com",
   ".udemy.com",
+  ".rocketseat.com.br",
   ".bsky.app",
   ".bsky.social",
   ".telegram.org",
@@ -499,6 +514,7 @@ function platformForDomain(domain) {
   if (d.endsWith(".pinterest.com")) return "pinterest";
   if (d.endsWith(".hotmart.com")) return "hotmart";
   if (d.endsWith(".udemy.com")) return "udemy";
+  if (d.endsWith(".rocketseat.com.br") || d === "rocketseat.com.br") return "rocketseat";
   if (d.endsWith(".bsky.app") || d.endsWith(".bsky.social")) return "bluesky";
   if (d.endsWith(".telegram.org")) return "telegram";
   if (d.endsWith(".soundcloud.com") || d === "soundcloud.com") return "soundcloud";
@@ -598,6 +614,7 @@ async function scanAllPlatformsForCookies() {
     "pinterest",
     "hotmart",
     "udemy",
+    "rocketseat",
     "bluesky",
     "telegram",
   ];

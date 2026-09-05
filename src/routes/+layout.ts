@@ -11,6 +11,11 @@ export const load = async ({ url }) => {
   } catch {
     // First run or settings unavailable — use defaultLocale
   }
-  await loadTranslations(lang, url.pathname);
+  try {
+    await loadTranslations(lang, url.pathname);
+  } catch (e) {
+    // O inglês estático em `$lib/i18n` segura a UI; só registra o motivo.
+    console.warn(`[i18n] could not load "${lang}":`, e);
+  }
   return {};
 };

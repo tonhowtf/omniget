@@ -397,7 +397,7 @@
     padding: 0 10px;
   }
   .tpl-delete:hover {
-    color: var(--red);
+    color: var(--danger);
   }
   .empty-hint {
     margin: 0;

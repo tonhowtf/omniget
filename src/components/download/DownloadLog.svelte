@@ -1,24 +1,41 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
 
-  type Props = { id: number };
-  let { id }: Props = $props();
+  type Props = { id: number; status?: string };
+  let { id, status = "downloading" }: Props = $props();
 
   let expanded = $state(false);
   let lines = $state<string[]>([]);
   let loading = $state(false);
   let preEl: HTMLPreElement | null = $state(null);
   let atBottom = $state(true);
-  let unlisten: UnlistenFn | null = null;
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
+
+  // Última linha do yt-dlp, mostrada inline enquanto o log está fechado: é a
+  // resposta mais barata para "o que ele está fazendo agora?" sem abrir 200
+  // linhas (padrão do Seal, `currentLine`).
+  let lastLine = $state("");
+  let showLast = $derived(!expanded && !!lastLine && (status === "downloading" || status === "paused" || status === "error"));
+
+  function isNoise(line: string): boolean {
+    const l = line.trim();
+    return !l || l.startsWith("download:") || l.startsWith("[download]") && /\d+(\.\d+)?%/.test(l);
+  }
 
   async function refresh() {
     try {
       const next = await invoke<string[]>("get_download_log", { downloadId: id });
       lines = next;
+      for (let i = next.length - 1; i >= 0; i--) {
+        if (!isNoise(next[i])) {
+          lastLine = next[i];
+          break;
+        }
+      }
     } catch (_) {
       lines = [];
     }
@@ -31,23 +48,35 @@
       await refresh();
       loading = false;
       atBottom = true;
-      unlisten = await listen<{ id: number }>("download-log-update", (event) => {
-        if (event.payload && event.payload.id === id) {
-          refresh();
-        }
-      });
       refreshTimer = setInterval(refresh, 1000);
-    } else {
-      if (unlisten) {
-        unlisten();
-        unlisten = null;
-      }
-      if (refreshTimer) {
-        clearInterval(refreshTimer);
-        refreshTimer = null;
-      }
+    } else if (refreshTimer) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
     }
   }
+
+  onMount(() => {
+    let unlisten: UnlistenFn | null = null;
+    let disposed = false;
+    if (status === "downloading" || status === "paused" || status === "error") {
+      void refresh();
+    }
+    listen<{ id: number; line?: string }>("download-log-update", (event) => {
+      if (!event.payload || event.payload.id !== id) return;
+      const line = event.payload.line;
+      if (typeof line === "string" && !isNoise(line)) {
+        lastLine = line;
+      }
+      if (expanded) void refresh();
+    }).then((fn) => {
+      if (disposed) fn();
+      else unlisten = fn;
+    });
+    return () => {
+      disposed = true;
+      if (unlisten) unlisten();
+    };
+  });
 
   $effect(() => {
     if (expanded && atBottom && preEl && lines.length) {
@@ -74,10 +103,6 @@
 
   $effect(() => {
     return () => {
-      if (unlisten) {
-        unlisten();
-        unlisten = null;
-      }
       if (refreshTimer) {
         clearInterval(refreshTimer);
         refreshTimer = null;
@@ -87,6 +112,12 @@
 </script>
 
 <div class="download-log">
+  {#if showLast}
+    <div class="log-last" title={lastLine}>
+      <span class="log-last-dot" aria-hidden="true"></span>
+      <code>{lastLine}</code>
+    </div>
+  {/if}
   <button
     type="button"
     class="log-toggle"
@@ -130,25 +161,55 @@
     margin-top: 6px;
   }
 
+  .log-last {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--text-faint);
+    font-size: 11px;
+  }
+
+  .log-last-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: var(--radius-full);
+    background: var(--text-faint);
+    flex-shrink: 0;
+  }
+
+  .log-last code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
   .log-toggle {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
+    gap: 4px;
+    height: 20px;
+    padding: 0 6px;
+    margin-left: -6px;
     background: transparent;
     border: none;
-    border-radius: var(--border-radius);
-    color: var(--tertiary);
-    font-size: 11px;
+    border-radius: var(--radius-xs);
+    color: var(--text-dim);
+    font-size: var(--text-xs);
+    font-weight: 500;
     cursor: pointer;
     align-self: flex-start;
-    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+    transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
   }
 
   .log-toggle:hover {
-    background: var(--button);
-    color: var(--secondary);
-    border-color: var(--input-border);
+    background: var(--fill-2);
+    color: var(--text);
   }
 
   .log-panel {

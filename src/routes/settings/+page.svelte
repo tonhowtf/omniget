@@ -100,8 +100,8 @@
 
   const CORE_THEMES = [
     { id: "system", labelKey: "settings.appearance.theme_system", colors: null as string[] | null },
-    { id: "light", labelKey: null, label: "Light", colors: ["#fafafa", "#1a1a1a", "#E05500"] },
-    { id: "dark", labelKey: null, label: "Dark", colors: ["#0a0a0a", "#e8e8e8", "#FF7D38"] },
+    { id: "light", labelKey: null, label: "Light", colors: ["#F6F4F0", "#1E1C19", "#FF9D24"] },
+    { id: "dark", labelKey: null, label: "Dark", colors: ["#1B1B1D", "#F4F2EE", "#FF9D24"] },
   ];
   const MORE_THEMES = [
     { id: "catppuccin-latte", label: "Catppuccin Latte", colors: ["#eff1f5", "#4c4f69", "#1e66f5"] },
@@ -349,6 +349,18 @@
     };
   });
 
+  const CATEGORY_ICONS: Record<string, string> = {
+    appearance: "M12 3a9 9 0 1 0 0 18c1.2 0 1.6-.9 1.2-1.7-.5-1 .1-2.3 1.3-2.3H16a5 5 0 0 0 5-5c0-5-4-9-9-9zM7.5 12a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm3-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm5 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2z",
+    typography: "M4 7V5h16v2M12 5v14M9 19h6",
+    downloads: "M12 4v11m0 0 4-4m-4 4-4-4M5 20h14",
+    network: "M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM3 12h18M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16",
+    cookies: "M12 3a9 9 0 1 0 9 9 3 3 0 0 1-3-3 3 3 0 0 1-3-3 3 3 0 0 1-3-3zM8 12h.01M12 16h.01M9 8h.01M15 13h.01",
+    channels: "M4 6h16v12H4zM4 10h16M9 14h6",
+    ai: "M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z",
+    plugins: "M9 3h6v2.5a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2zM6 7h12a2 2 0 0 1 2 2v4h-2a2 2 0 1 0 0 4h2v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2h2a2 2 0 1 0 0-4H4V9a2 2 0 0 1 2-2z",
+    advanced: "M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6",
+  };
+
   function groupHasSearchMatch(group: (typeof SETTINGS_NAV_GROUPS)[number]): boolean {
     if (!isSearching) return true;
     return group.items.some(([cat]) => (categoryMatchCounts[cat] ?? 0) > 0);
@@ -530,6 +542,9 @@
                     class:search-match={isSearching && (categoryMatchCounts[cat] ?? 0) > 0}
                     onclick={() => { activeCategory = cat; searchQuery = ""; }}
                   >
+                    <span class="settings-mac-cat-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d={CATEGORY_ICONS[cat] ?? "M12 6v12M6 12h12"} /></svg>
+                    </span>
                     <span class="settings-mac-cat-label">{$t(key)}</span>
                     {#if isSearching && (categoryMatchCounts[cat] ?? 0) > 0}
                       <span class="settings-cat-match-count">{categoryMatchCounts[cat]}</span>

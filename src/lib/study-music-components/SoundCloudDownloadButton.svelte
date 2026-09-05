@@ -90,7 +90,7 @@
     content: "";
     position: absolute;
     inset: 3px;
-    background: var(--button, #1a1a1a);
+    background: var(--button);
     border-radius: 50%;
   }
   .pct {

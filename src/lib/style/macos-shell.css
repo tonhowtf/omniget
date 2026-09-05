@@ -1,52 +1,155 @@
+/*
+ * OmniGet shell — window chrome in the macOS idiom.
+ *
+ *   ┌──────────────┬────────────────────────────────────────────┐
+ *   │ ●●●          │  Title            [segmented]   [⌕ search]  │  ← titlebar/toolbar (glass)
+ *   │ sidebar      │ ┌──────────────────────────────────────────┐│
+ *   │ (glass over  │ │  content pane (opaque, rounded, inset)   ││
+ *   │  window bg)  │ │                                          ││
+ *   │              │ └──────────────────────────────────────────┘│
+ *   └──────────────┴────────────────────────────────────────────┘
+ *
+ * The sidebar and toolbar are chrome and sit on the window material; the
+ * content pane is the one opaque, elevated surface. Everything inside the
+ * pane uses the grouped-list primitives, never a second shadowed card.
+ */
+
 [data-shell="mac"] {
-  --sidebar-width: 220px;
+  --sidebar-width: 224px;
   --titlebar-height: 44px;
   --toolbar-height: 44px;
   --inspector-width: 320px;
+  --pane-inset: 8px;
+  --pane-radius: var(--radius-lg);
 }
 
 [data-platform="macos"] {
   --titlebar-height: 52px;
 }
 
-.mac-shell {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
-  background: var(--bg);
-}
-
-.mac-shell-body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
+/* ---------- Titlebar / toolbar ---------- */
 
 .mac-titlebar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
+  gap: var(--space-3);
   height: var(--titlebar-height);
-  padding: 0 var(--space-4);
+  padding: 0 calc(var(--pane-inset) + var(--space-2)) 0 var(--space-4);
   background: transparent;
   flex-shrink: 0;
-  /* Arrastar é feito por `data-tauri-drag-region` no markup, não por
-     `-webkit-app-region` — essa propriedade é do Chromium/Electron e o WKWebView
-     do macOS a ignora, o que deixava a janela impossível de arrastar. */
   user-select: none;
+  /* drag is `data-tauri-drag-region` in markup; WKWebView ignores -webkit-app-region */
 }
 
-.mac-titlebar-title--quiet {
-  flex: 1;
-  min-height: 1px;
-}
-
-.mac-titlebar-actions {
-  margin-left: auto;
+.mac-titlebar-leading {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
+}
+
+.mac-titlebar-title {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: var(--track-snug);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mac-titlebar-title--quiet {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.mac-titlebar-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.mac-titlebar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.mac-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.mac-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .mac-toolbar-btn:hover:not(:disabled) {
+    background: var(--fill-2);
+    color: var(--text);
+  }
+}
+
+.mac-toolbar-btn:active:not(:disabled) {
+  background: var(--fill-3);
+}
+
+.mac-toolbar-btn.active,
+.mac-toolbar-btn[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+}
+
+.mac-toolbar-btn.prominent {
+  background: var(--cta);
+  color: var(--on-cta);
+  padding: 0 var(--space-3);
+}
+
+@media (hover: hover) {
+  .mac-toolbar-btn.prominent:hover:not(:disabled) {
+    background: var(--cta-hover);
+    color: var(--on-cta);
+  }
+}
+
+.mac-toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.mac-toolbar-btn:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.mac-toolbar-sep {
+  width: var(--hairline);
+  height: 16px;
+  margin: 0 var(--space-1);
+  background: var(--separator);
 }
 
 .mac-search-field {
@@ -54,25 +157,27 @@
   align-items: center;
   gap: 6px;
   height: 28px;
-  min-width: 196px;
-  padding: 0 8px 0 10px;
+  min-width: 180px;
+  padding: 0 6px 0 9px;
   background: var(--control-bg);
   color: var(--text-dim);
   border: none;
   border-radius: var(--radius-md);
-  cursor: pointer;
+  box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
+  cursor: text;
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
 }
 
 .mac-search-glyph {
   flex-shrink: 0;
-  opacity: 0.85;
+  opacity: 0.8;
 }
 
 .mac-search-label {
   flex: 1;
   text-align: left;
-  font-size: var(--text-sm);
-  font-weight: 500;
+  font-size: var(--text-base);
+  font-weight: 400;
 }
 
 .mac-search-field .kbd {
@@ -82,7 +187,7 @@
 @media (hover: hover) {
   .mac-search-field:hover {
     color: var(--text-muted);
-    background: var(--fill-2);
+    background: var(--control-bg-hover);
   }
 }
 
@@ -91,7 +196,11 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 980px) {
+  .mac-titlebar-center {
+    display: none;
+  }
+
   .mac-search-field {
     min-width: 28px;
     width: 28px;
@@ -105,22 +214,222 @@
   }
 }
 
-/* Semáforos do overlay ficam sobre a sidebar, não sobre este painel. */
-[data-platform="macos"] .mac-titlebar {
-  padding-left: var(--space-4);
+/* Windows and Linux keep the native title bar: `titleBarStyle: Overlay` is
+   macOS-only in tauri-runtime-wry, so the OS draws its own bar with the
+   window controls *above* the webview. Nothing overlaps our toolbar there,
+   which is why no space is reserved on the trailing edge. */
+[data-platform="other"] .mac-titlebar {
+  padding-right: calc(var(--pane-inset) + var(--space-2));
 }
 
-/* Windows e Linux desenham minimizar/maximizar/fechar à direita, em cima de
-   onde ficavam as ações do app. Reservar o espaço é o que impede o botão de
-   busca de disputar pixel com o botão de fechar. */
-[data-platform="other"] .mac-titlebar-actions {
-  margin-right: 140px;
+[data-platform="other"] .mac-source-list-drag {
+  height: var(--space-3);
+}
+
+/* ---------- Sidebar (source list) ---------- */
+
+.mac-source-list {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  padding: 0 var(--space-2) var(--space-2);
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-shrink: 0;
+  position: relative;
+  scrollbar-width: none;
+}
+
+.mac-source-list::-webkit-scrollbar {
+  display: none;
+}
+
+.mac-source-list-drag {
+  display: block;
+  flex-shrink: 0;
+  height: var(--titlebar-height);
+  margin: 0 calc(var(--space-2) * -1) var(--space-1);
+}
+
+.mac-nav-section {
+  margin-bottom: var(--space-4);
+}
+
+.mac-nav-section:last-child {
+  margin-bottom: 0;
+}
+
+.mac-nav-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-2) var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-dim);
+  min-height: 20px;
+}
+
+.mac-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: var(--text-base);
+  font-weight: 450;
+  text-decoration: none;
+  position: relative;
+  transition: background var(--duration-fast) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) {
+  .mac-nav-item:hover:not(.active) {
+    background: var(--fill-1);
+  }
+}
+
+.mac-nav-item:active:not(.active) {
+  background: var(--fill-2);
+}
+
+.mac-nav-item.active {
+  background: var(--sidebar-highlight);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--secondary) 6%, transparent);
+}
+
+.mac-nav-item:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.mac-nav-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mac-nav-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--fill-2);
+  border-radius: var(--radius-full);
+  font-variant-numeric: tabular-nums;
+}
+
+.mac-nav-badge.live {
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.mac-plugins-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  padding: 0;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.mac-nav-section:hover .mac-plugins-toggle,
+.mac-plugins-toggle:focus-visible,
+.mac-plugins-toggle[aria-expanded="false"] {
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .mac-plugins-toggle:hover {
+    background: var(--fill-2);
+    color: var(--text);
+  }
+}
+
+.mac-source-list-footer {
+  margin-top: auto;
+  padding-top: var(--space-3);
+}
+
+/* Narrow windows: icon-only rail */
+@media (max-width: 860px) {
+  [data-shell="mac"] {
+    --sidebar-width: 64px;
+  }
+
+  .mac-nav-label,
+  .mac-nav-section-header,
+  .mac-nav-badge {
+    display: none;
+  }
+
+  .mac-nav-item {
+    justify-content: center;
+    padding: 0;
+    height: 34px;
+  }
+
+  .mac-nav-item :global(.nav-tile) {
+    --tile-size: 26px;
+  }
+}
+
+/* ---------- Content pane ---------- */
+
+.mac-pane {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--pane-bg);
+  border-radius: var(--pane-radius);
+  box-shadow:
+    inset 0 0 0 var(--hairline) var(--content-border),
+    inset 0 1px 0 color-mix(in srgb, var(--secondary) 5%, transparent),
+    0 1px 2px rgba(var(--shadow-ink), var(--elev-alpha-1));
+  margin: 0 var(--pane-inset) var(--pane-inset) 0;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Plugin surfaces expect to be flex children of a column that fills the pane
+   (`flex: 1; min-height: 0`), so this wrapper is a flex column, not a block. */
+.mac-pane-scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .mac-content {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-4);
+  padding: var(--space-5);
   min-width: 0;
 }
 
@@ -139,156 +448,39 @@
   overflow: hidden;
 }
 
-.mac-source-list {
-  width: var(--sidebar-width);
-  min-width: var(--sidebar-width);
+/* A page inside the pane: 20pt margins, readable measure by default */
+.page {
+  padding: var(--space-5) var(--space-6) var(--space-7);
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.page-wide {
+  max-width: none;
+}
+
+.page-head {
   display: flex;
-  flex-direction: column;
-  background: var(--sidebar-bg);
-  padding: var(--space-2);
-  overflow-y: auto;
-  flex-shrink: 0;
-}
-
-[data-platform="macos"] .mac-source-list {
-  background: var(--material);
-  backdrop-filter: var(--material-blur);
-  -webkit-backdrop-filter: var(--material-blur);
-}
-
-.mac-source-list-drag {
-  display: none;
-  flex-shrink: 0;
-}
-
-[data-platform="macos"] .mac-source-list-drag {
-  display: block;
-  height: var(--titlebar-height);
-  margin: calc(var(--space-2) * -1) calc(var(--space-2) * -1) var(--space-1);
-}
-
-.mac-nav-section {
-  margin-bottom: var(--space-3);
-}
-
-.mac-nav-section-header {
-  display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--text-dim);
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 
-.mac-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 32px;
-  padding: 0 10px;
-  border-radius: var(--radius-sm);
-  color: var(--text);
+.page-head .page-title {
+  margin: 0;
+}
+
+.page-lede {
   font-size: var(--text-base);
-  font-weight: 500;
-  text-decoration: none;
-  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
-  position: relative;
-}
-
-@media (hover: hover) {
-  .mac-nav-item:hover {
-    background: var(--sidebar-highlight);
-  }
-}
-
-.mac-nav-item.active {
-  background: var(--sidebar-highlight);
-  color: var(--text);
-}
-
-.mac-nav-item.active .nav-icon {
-  color: var(--accent);
-}
-
-.mac-nav-item:focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.mac-nav-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mac-nav-badge {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 calc(var(--space-1) * 1.25);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 18px;
-  text-align: center;
-  color: var(--on-accent);
-  background: var(--accent);
-  border-radius: var(--radius-full);
-}
-
-.mac-plugins-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: none;
-  background: transparent;
+  line-height: var(--leading-base);
   color: var(--text-dim);
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  padding: 0;
+  max-width: 60ch;
+  margin-top: var(--space-1);
 }
 
-@media (hover: hover) {
-  .mac-plugins-toggle:hover {
-    background: var(--sidebar-highlight);
-    color: var(--text);
-  }
-}
-
-.mac-segmented {
-  display: inline-flex;
-  padding: calc(var(--space-1) / 2);
-  background: var(--surface-mut);
-  border-radius: var(--radius-md);
-}
-
-.mac-segmented-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 24px;
-  padding: calc(var(--space-1) * 1.25) var(--space-3);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  border-radius: calc(var(--radius-md) - 2px);
-  cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
-}
-
-.mac-segmented-btn.active {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--elev-1);
-}
+/* ---------- Inspector (trailing pane) ---------- */
 
 .mac-inspector {
   width: var(--inspector-width);
@@ -297,43 +489,56 @@
   overflow-y: auto;
   padding: var(--space-4);
   flex-shrink: 0;
-  border-radius: var(--radius-lg);
-  margin: 0 var(--space-3) var(--space-3) 0;
+  border-left: var(--hairline) solid var(--separator);
 }
+
+/* ---------- Command palette (Spotlight-style) ---------- */
 
 .mac-command-backdrop {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--bg) 30%, transparent);
+  background: color-mix(in srgb, var(--bg) 24%, transparent);
   z-index: 200;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 18vh;
+  padding-top: 16vh;
+  animation: fade-in var(--duration-fast) var(--ease-out);
 }
 
 .mac-command-palette {
-  width: min(560px, calc(100vw - 48px));
-  background: var(--material);
+  width: min(600px, calc(100vw - 48px));
+  background: var(--material-thick);
   backdrop-filter: var(--material-blur);
   -webkit-backdrop-filter: var(--material-blur);
   border-radius: var(--radius-xl);
   box-shadow: var(--elev-3);
   overflow: hidden;
+  animation: pop-in var(--duration-base) var(--ease-spring);
+  transform-origin: top center;
 }
 
 .mac-command-input-row {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  height: 52px;
+  padding: 0 var(--space-4);
+  border-bottom: var(--hairline) solid var(--separator);
+}
+
+.mac-command-input-row > svg {
+  color: var(--text-dim);
+  flex-shrink: 0;
 }
 
 .mac-command-input {
   flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
+  font-weight: 400;
   color: var(--text);
   outline: none;
 }
@@ -342,10 +547,21 @@
   color: var(--text-dim);
 }
 
+.mac-command-input::-webkit-search-cancel-button {
+  display: none;
+}
+
 .mac-command-list {
-  max-height: 320px;
+  max-height: 360px;
   overflow-y: auto;
   padding: var(--space-2);
+}
+
+.mac-command-group {
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-dim);
 }
 
 .mac-command-item {
@@ -353,43 +569,86 @@
   align-items: center;
   gap: var(--space-3);
   width: 100%;
-  padding: var(--space-2) var(--space-3);
+  height: 36px;
+  padding: 0 var(--space-3);
   border: none;
   background: transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   color: var(--text);
   font-size: var(--text-base);
   text-align: left;
   cursor: pointer;
 }
 
-@media (hover: hover) {
-  .mac-command-item:hover {
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
-  }
+.mac-command-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--fill-2);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.mac-command-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mac-command-item-group {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
 }
 
 .mac-command-item.selected {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.mac-command-item.selected .mac-command-item-group,
+.mac-command-item.selected .mac-command-item-icon {
+  color: inherit;
+  background: color-mix(in srgb, var(--on-accent) 12%, transparent);
+}
+
+.mac-command-empty {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--text-dim);
+  font-size: var(--text-base);
 }
 
 .mac-command-footer {
   display: flex;
   gap: var(--space-4);
   padding: var(--space-2) var(--space-4);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--text-dim);
+  border-top: var(--hairline) solid var(--separator);
 }
 
-.mac-kbd {
+.mac-command-footer span {
   display: inline-flex;
   align-items: center;
-  padding: 1px calc(var(--space-1) * 1.25);
-  border-radius: 4px;
-  background: var(--fill-2);
-  font-size: 10px;
-  font-family: var(--font-mono);
+  gap: 4px;
 }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.96) translateY(-6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ---------- Settings shell (System Settings) ---------- */
 
 .settings-mac {
   display: flex;
@@ -399,15 +658,6 @@
   gap: 0;
 }
 
-.settings-mac-sidebar {
-  width: 200px;
-  flex-shrink: 0;
-  padding: var(--space-2);
-  background: var(--sidebar-bg);
-  border-radius: var(--radius-md);
-  overflow-y: auto;
-}
-
 .settings-mac-body {
   display: flex;
   flex: 1;
@@ -415,49 +665,98 @@
   overflow: hidden;
 }
 
+.settings-mac-sidebar {
+  width: 208px;
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-2);
+  background: var(--surface-mut);
+  border-right: var(--hairline) solid var(--separator);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 .settings-mac-cat {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+  gap: 9px;
   width: 100%;
   text-align: left;
-  padding: calc(var(--space-3) / 2) var(--space-3);
+  height: 30px;
+  padding: 0 var(--space-2);
   border: none;
   background: transparent;
   border-radius: var(--radius-sm);
   font-size: var(--text-base);
   color: var(--text);
   cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .settings-mac-cat:hover:not(.active) {
+    background: var(--fill-1);
+  }
+}
+
+.settings-mac-cat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--fill-2);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.settings-mac-cat-icon svg {
+  width: 13px;
+  height: 13px;
 }
 
 .settings-mac-cat-label {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-mac-cat.search-match {
-  color: var(--accent);
-  font-weight: 600;
+  color: var(--text);
 }
 
 .settings-cat-match-count {
   flex-shrink: 0;
-  min-width: 1.25rem;
-  padding: 0 calc(var(--space-3) / 2);
-  font-size: 11px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: var(--text-xs);
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 18px;
   text-align: center;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-  color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-hi);
 }
 
 .settings-mac-cat.active {
-  background: var(--sidebar-highlight);
-  color: var(--text);
-  font-weight: 600;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 500;
+}
+
+.settings-mac-cat.active .settings-mac-cat-icon {
+  background: color-mix(in srgb, var(--on-accent) 14%, transparent);
+  color: inherit;
+}
+
+.settings-mac-cat:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
 }
 
 .settings-mac-nav-group {
@@ -476,14 +775,22 @@
 .settings-mac-content {
   flex: 1;
   min-width: 0;
-  padding: var(--space-4);
+  padding: var(--space-5) var(--space-6) var(--space-7);
   overflow-y: auto;
 }
+
+.settings-mac-content > * {
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ---------- Downloads shell ---------- */
 
 .downloads-mac.downloads-page {
   max-width: none;
   margin: 0;
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-5) var(--space-6);
   gap: var(--space-3);
   flex: 1;
   min-height: 0;
@@ -500,7 +807,8 @@
 
 .downloads-mac .downloads-stats {
   font-size: var(--text-sm);
-  color: var(--text-muted);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
 }
 
 .downloads-mac .filter-pills {
@@ -522,9 +830,10 @@
 }
 
 .downloads-table-wrap {
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   background: var(--surface);
+  box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
 }
 
 .downloads-table {
@@ -537,24 +846,29 @@
   text-align: left;
   padding: var(--space-2) var(--space-3);
   font-weight: 600;
-  color: var(--text-muted);
-  background: var(--surface-mut);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  color: var(--text-dim);
+  font-size: var(--text-xs);
+  border-bottom: var(--hairline) solid var(--separator);
 }
 
 .downloads-table td {
-  padding: calc(var(--space-5) / 2.4) var(--space-3);
+  padding: var(--space-2) var(--space-3);
   color: var(--text);
   vertical-align: middle;
+  border-bottom: var(--hairline) solid var(--separator);
+}
+
+.downloads-table tr:last-child td {
+  border-bottom: none;
 }
 
 @media (hover: hover) {
   .downloads-table tbody tr:hover {
-    background: color-mix(in srgb, var(--accent) 6%, transparent);
+    background: var(--fill-1);
   }
 }
+
+/* ---------- Home ---------- */
 
 .home-mac {
   display: flex;
@@ -563,23 +877,12 @@
   width: 100%;
   flex: 1;
   min-height: 0;
-  padding: var(--space-3) var(--space-4) var(--space-3);
+  padding: var(--space-3) var(--space-5) var(--space-3);
 }
 
 .home-mac--stage {
   padding: 0;
   gap: 0;
-}
-
-.shell:has(.home-mac--stage) {
-  background:
-    radial-gradient(ellipse 75% 58% at 58% 36%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 70%),
-    radial-gradient(ellipse 50% 34% at 58% 100%, color-mix(in srgb, var(--cta) 24%, transparent), transparent 72%),
-    var(--bg);
-}
-
-.shell-body:has(.home-mac--stage) {
-  background: transparent;
 }
 
 .home-stage {
@@ -589,137 +892,135 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-4);
+  gap: var(--space-5);
   position: relative;
-  padding: var(--space-6) var(--space-4) var(--space-8);
+  padding: var(--space-6) var(--space-5) var(--space-8);
+  isolation: isolate;
 }
 
-.home-stage-tools {
+/* one warm light behind the mascot — the single decorative moment of the page */
+.home-stage::before {
+  content: "";
   position: absolute;
-  top: var(--space-3);
-  right: var(--space-4);
+  top: 8%;
+  left: 50%;
+  width: min(560px, 80%);
+  aspect-ratio: 1.4;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--accent-glow), transparent 70%);
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.home-stage-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
 }
 
 .home-stage-title {
   margin: 0;
-  font-size: 28px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  line-height: var(--leading-3xl);
+  font-weight: 700;
+  letter-spacing: var(--track-tight);
   color: var(--text);
 }
 
 .home-stage-copy {
   margin: 0;
-  max-width: 26rem;
+  max-width: 34rem;
   text-align: center;
-  font-size: var(--text-base);
-  line-height: 1.5;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
   color: var(--text-muted);
 }
 
-.home-capabilities {
+.home-secondary {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: var(--space-3);
+  gap: var(--space-1) var(--space-2);
 }
 
-.home-capability {
-  display: flex;
-  flex-direction: column;
+.home-secondary-link {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  min-width: 84px;
-  padding: var(--space-2);
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
   border: none;
   background: transparent;
   color: var(--text-muted);
-  cursor: pointer;
-  border-radius: var(--radius-md);
-}
-
-.home-capability-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--accent) 16%, var(--control-bg));
-  color: var(--text);
-  box-shadow: 0 10px 22px -12px color-mix(in srgb, var(--accent) 45%, transparent);
-}
-
-.home-capability-label {
   font-size: var(--text-sm);
   font-weight: 500;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
 }
 
-.home-capability.active {
-  color: var(--text);
-}
-
-.home-capability.active .home-capability-icon {
-  background: color-mix(in srgb, var(--accent) 28%, var(--control-bg));
-  color: var(--accent);
+.home-secondary-link > svg {
+  color: var(--text-dim);
+  flex-shrink: 0;
 }
 
 @media (hover: hover) {
-  .home-capability:hover .home-capability-icon {
-    background: color-mix(in srgb, var(--accent) 22%, var(--control-bg));
+  .home-secondary-link:hover {
+    color: var(--text);
+    background: var(--fill-1);
   }
 }
 
-.home-capability:focus-visible {
+.home-secondary-link:focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-offset);
 }
 
-[data-theme^="eink"] .shell:has(.home-mac--stage),
-[data-reduce-transparency="true"] .shell:has(.home-mac--stage) {
-  background: var(--bg);
+.home-value {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
-[data-theme^="eink"] .home-capability-icon,
-[data-reduce-transparency="true"] .home-capability-icon,
-[data-theme^="eink"] .omnibox-wrapper.prominent,
-[data-reduce-transparency="true"] .omnibox-wrapper.prominent {
-  box-shadow: none;
-}
-
-[data-theme^="eink"] .mascot.stage .mascot-img,
-[data-reduce-transparency="true"] .mascot.stage .mascot-img {
-  filter: none;
+.home-value strong {
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 .home-mac-workspace {
   display: flex;
+  flex-direction: column;
+  align-items: center;
   flex: 1;
   gap: 0;
   min-width: 0;
   min-height: 0;
-  overflow: visible;
+  overflow-y: auto;
   background: transparent;
-  align-items: stretch;
+  padding: var(--space-4) var(--space-5) var(--space-3);
 }
 
 .home-mac-workspace--idle {
   justify-content: center;
-  align-items: center;
 }
 
 .home-mac-hero {
   flex-shrink: 0;
-  width: 132px;
-  padding: var(--space-5) var(--space-3) var(--space-4);
+  width: 100%;
+  max-width: 640px;
+  padding: 0 0 var(--space-3);
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  align-items: flex-end;
+  justify-content: flex-start;
   background: transparent;
   overflow: visible;
-}
-
-.home-mac-workspace--idle .home-mac-hero {
-  align-items: center;
 }
 
 .home-mac-hero .mascot-bubble {
@@ -730,70 +1031,17 @@
 }
 
 .home-mac-main {
-  flex: 1;
+  flex-shrink: 0;
+  width: 100%;
   min-width: 0;
-  min-height: 0;
-  max-width: 560px;
-  padding: var(--space-4) var(--space-4) var(--space-4) 0;
+  max-width: 640px;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  overflow-y: auto;
 }
 
-.home-mac-workspace--idle .home-mac-main {
-  justify-content: center;
+.home-secondary--start {
+  justify-content: flex-start;
+  margin-bottom: var(--space-1);
 }
 
-@media (max-width: 900px) {
-  .home-mac-workspace {
-    flex-direction: column;
-  }
-
-  .home-mac-workspace--idle {
-    justify-content: flex-start;
-    align-items: stretch;
-  }
-
-  .home-mac-hero {
-    width: 100%;
-    padding: var(--space-3);
-    justify-content: flex-start;
-  }
-
-  .home-mac-workspace--idle .home-mac-hero {
-    align-items: flex-start;
-  }
-
-  .home-mac-main {
-    max-width: none;
-    padding: var(--space-3);
-  }
-
-  .home-mac-workspace--idle .home-mac-main {
-    justify-content: flex-start;
-  }
-
-  .mac-inspector {
-    width: 100%;
-    min-width: 0;
-    margin: 0 var(--space-3) var(--space-3);
-  }
-}
-
-@media (max-width: 860px) {
-  .mac-source-list {
-    width: 72px;
-    min-width: 72px;
-  }
-
-  .mac-nav-label,
-  .mac-nav-section-header {
-    display: none;
-  }
-
-  .mac-nav-item {
-    justify-content: center;
-    padding: var(--space-2);
-  }
-}

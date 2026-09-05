@@ -99,6 +99,14 @@ pub async fn enqueue_external_inner(
         torrent_files: None,
         scheduled_at_ms: None,
         stop_at_ms: None,
+        phase: None,
+        current_stream: None,
+        streams_done: Vec::new(),
+        planned_formats: None,
+        fragment_index: None,
+        fragment_count: None,
+        started_at_ms: Some(crate::core::queue::now_ms()),
+        ytdlp_argv_override: None,
     };
 
     {

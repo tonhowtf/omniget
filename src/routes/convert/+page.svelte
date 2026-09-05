@@ -6,7 +6,6 @@
   import { t } from "$lib/i18n";
   import { pluginInvoke } from "$lib/plugin-invoke";
   import { showToast } from "$lib/stores/toast-store.svelte";
-  import ContextHint from "$components/hints/ContextHint.svelte";
   import {
     getFiles,
     getOptions,
@@ -287,7 +286,10 @@
   </div>
 {:else}
 <div class="convert">
-  <h2 class="page-title">{$t('convert.title')}</h2>
+  <div class="convert-head">
+    <h1 class="page-title">{$t('convert.title')}</h1>
+    <p class="convert-subtitle">{$t('convert.subtitle')}</p>
+  </div>
 
   {#if hwAccel}
     <div class="hwaccel-info">
@@ -299,20 +301,19 @@
     </div>
   {/if}
 
-  <section class="section">
-    <div class="actions-row">
-      <button class="button" onclick={selectFiles}>{$t('convert.select_files')}</button>
-      {#if files.length > 0}
-        <button class="button clear-btn" onclick={clearFiles}>{$t('convert.clear_all')}</button>
-      {/if}
-    </div>
-  </section>
-
   {#if files.length === 0}
-    <div class="empty">
-      <span class="empty-text">{$t('convert.empty')} <ContextHint text={$t('hints.convert')} dismissKey="convert" /></span>
+    <div class="empty-state convert-empty">
+      <p class="empty-state-title">{$t('convert.empty_title')}</p>
+      <p class="empty-state-hint">{$t('convert.empty_hint')}</p>
+      <button class="btn btn-primary btn-lg" onclick={selectFiles}>{$t('convert.select_files')}</button>
     </div>
   {:else}
+    <section class="section">
+      <div class="actions-row">
+        <button class="btn btn-secondary" onclick={selectFiles}>{$t('convert.add_more')}</button>
+        <button class="btn btn-ghost" onclick={clearFiles}>{$t('convert.clear_all')}</button>
+      </div>
+    </section>
     <section class="section">
       <h5 class="section-title">{$t('convert.file_list')}</h5>
       <div class="card">
@@ -482,7 +483,7 @@
 {/if}
 
 <style>
-  .plugin-guard { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - var(--padding) * 4); gap: calc(var(--padding) * 1.5); text-align: center; color: var(--gray); }
+  .plugin-guard { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 140px); gap: calc(var(--padding) * 1.5); text-align: center; color: var(--gray); }
   .plugin-guard h2 { font-size: 18px; color: var(--secondary); }
   .plugin-guard p { font-size: 14px; max-width: 300px; }
   .guard-link { padding: 10px 24px; font-size: 14px; font-weight: 500; background: var(--cta); color: var(--on-cta); border-radius: var(--border-radius); text-decoration: none; }
@@ -495,7 +496,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    min-height: calc(100vh - var(--padding) * 4);
+    min-height: calc(100vh - 140px);
     padding-top: calc(var(--padding) * 2);
     gap: calc(var(--padding) * 1.5);
   }
@@ -505,9 +506,31 @@
     max-width: 560px;
   }
 
+  .convert-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .convert-head .page-title {
+    margin-bottom: 0;
+  }
+
+  .convert-subtitle {
+    margin: 0;
+    font-size: var(--text-base);
+    color: var(--text-muted);
+  }
+
+  .convert-empty {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-7) var(--space-5);
+  }
+
   .hwaccel-info {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
   }
 
   .hwaccel-badge {
@@ -518,7 +541,7 @@
   }
 
   .hwaccel-badge.detected {
-    color: var(--green);
+    color: var(--success);
     background: color-mix(in srgb, var(--success) 10%, transparent);
   }
 
@@ -535,8 +558,8 @@
 
   .actions-row {
     display: flex;
-    gap: calc(var(--padding) / 2);
-    justify-content: center;
+    gap: var(--space-2);
+    justify-content: flex-start;
     align-items: center;
   }
 
@@ -604,21 +627,21 @@
   }
 
   .status-label.converting {
-    color: var(--blue);
+    color: var(--accent);
   }
 
   .status-label.complete {
-    color: var(--green);
+    color: var(--success);
   }
 
   .status-label.error {
-    color: var(--red);
+    color: var(--danger);
   }
 
   .percent {
     font-size: var(--text-sm);
     font-weight: 500;
-    color: var(--blue);
+    color: var(--accent);
     font-variant-numeric: tabular-nums;
   }
 
@@ -632,7 +655,7 @@
 
   .progress-fill {
     height: 100%;
-    background: var(--blue);
+    background: var(--accent);
     border-radius: 3px;
     transition: width 0.1s;
   }
@@ -649,7 +672,7 @@
 
   @media (hover: hover) {
     .remove-btn:hover {
-      color: var(--red);
+      color: var(--danger);
     }
   }
 
@@ -704,7 +727,7 @@
   }
 
   .input-text:focus-visible {
-    border-color: var(--blue);
+    border-color: var(--accent);
     outline: none;
   }
 
@@ -718,8 +741,8 @@
     padding: calc(var(--padding) / 1.5) calc(var(--padding) * 2);
     font-size: var(--text-base);
     font-weight: 500;
-    background: var(--blue);
-    color: #fff;
+    background: var(--cta);
+    color: var(--on-cta);
     border: none;
     border-radius: var(--border-radius);
     cursor: pointer;
@@ -745,26 +768,9 @@
     padding: calc(var(--padding) / 1.5) calc(var(--padding) * 2);
     font-size: var(--text-base);
     font-weight: 500;
-    color: var(--red);
+    color: var(--danger);
   }
 
-  .clear-btn {
-    font-size: var(--text-base);
-    font-weight: 500;
-    color: var(--gray);
-  }
 
-  .empty {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 200px;
-  }
 
-  .empty-text {
-    font-size: var(--text-base);
-    font-weight: 500;
-    color: var(--gray);
-    text-align: center;
-  }
 </style>

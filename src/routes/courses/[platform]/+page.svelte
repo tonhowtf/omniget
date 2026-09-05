@@ -5,6 +5,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { open } from "@tauri-apps/plugin-dialog";
   import CourseCard from "$components/hotmart/CourseCard.svelte";
+  import CourseSectionsDialog from "$components/hotmart/CourseSectionsDialog.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { getDownloads } from "$lib/stores/download-store.svelte";
   import { getSettings } from "$lib/stores/settings-store.svelte";
@@ -18,7 +19,7 @@
     color: string;
     icon: string;
     login_methods: LoginMethod[];
-    commands: { check_session: string; logout: string; list: string; refresh: string; download: string; cancel?: string; search?: string };
+    commands: { check_session: string; logout: string; list: string; refresh: string; download: string; cancel?: string; search?: string; curriculum?: string };
     features: { captcha_event?: string; has_search?: boolean; download_arg_name?: string; list_returns_key?: string; item_subtitle_field?: string; session_display?: string; string_ids?: boolean };
   };
 
@@ -44,9 +45,33 @@
   let otpSent = $state(false);
   let otpCode = $state("");
 
+  type CookieAccount = { slug: string; alias?: string; captured_at_ms: number; last_used_at_ms?: number | null };
+  let cookieAccounts = $state<CookieAccount[]>([]);
+  let cookieDomain = $state("");
+  let usingSavedCookies = $state(false);
+
   let checking = $state(true);
   let loggedIn = $state(false);
   let sessionEmail = $state("");
+  let sessionNotice = $state<"" | "expired" | "unreachable">("");
+  let sessionNoticeDetail = $state("");
+
+  function errorMessage(e: unknown): string {
+    if (typeof e === "string") return e;
+    if (e instanceof Error) return e.message;
+    if (e && typeof e === "object" && "message" in e && typeof e.message === "string") return e.message;
+    return String(e);
+  }
+
+  function isMissingCommand(msg: string): boolean {
+    const lower = msg.toLowerCase();
+    return (
+      lower.startsWith("err_plugin_outdated") ||
+      lower.includes("unknown command") ||
+      (lower.includes("command") && lower.includes("not found")) ||
+      lower.includes("no handler")
+    );
+  }
 
   let items: any[] = $state([]);
   let loadingItems = $state(false);
@@ -142,6 +167,65 @@
     loadConfig(id);
   });
 
+  function loginUrlFor(cfg: PlatformConfig): string {
+    for (const m of cfg.login_methods) {
+      const url = m.extra_fields?.find((f) => f.key === "url")?.placeholder;
+      if (url) return url;
+    }
+    return `https://www.${cfg.id}.com/`;
+  }
+
+  // Cookies the browser extension (or an import) already stored for this
+  // platform in the Cookie Manager, so the "Cookies" tab can reuse them
+  // instead of asking for a paste (#310).
+  async function loadCookieAccounts(cfg: PlatformConfig) {
+    cookieAccounts = [];
+    cookieDomain = "";
+    if (!cfg.login_methods.some((m) => m.method_type === "cookies")) return;
+    try {
+      const result = await invoke<{ domain: string; accounts: CookieAccount[] }>(
+        "cookies_accounts_for_url",
+        { url: loginUrlFor(cfg) }
+      );
+      cookieDomain = result.domain;
+      cookieAccounts = result.accounts.slice().sort((a, b) => {
+        const lhs = a.last_used_at_ms ?? a.captured_at_ms;
+        const rhs = b.last_used_at_ms ?? b.captured_at_ms;
+        return rhs - lhs;
+      });
+    } catch {
+      cookieAccounts = [];
+    }
+  }
+
+  async function useSavedCookies(account: CookieAccount) {
+    if (!config || !currentMethod || currentMethod.method_type !== "cookies") return;
+    usingSavedCookies = true;
+    error = "";
+    try {
+      const entries = await invoke<{ name: string; value: string; domain: string; path: string }[]>(
+        "cookies_read_as_json",
+        { request: { domain: cookieDomain, slug: account.slug } }
+      );
+      if (entries.length === 0) {
+        error = $t("courses.saved_cookies_empty");
+        return;
+      }
+      const args: Record<string, any> = currentMethod.command.includes("udemy")
+        ? { cookieJson: JSON.stringify(entries) }
+        : { cookies: entries };
+      const result = await pluginInvoke<string>("courses", currentMethod.command, args);
+      sessionEmail = result || "OK";
+      loggedIn = true;
+      sessionNotice = "";
+      loadItems();
+    } catch (e: any) {
+      error = typeof e === "string" ? e : e.message ?? $t("common.error");
+    } finally {
+      usingSavedCookies = false;
+    }
+  }
+
   async function loadConfig(id: string) {
     checking = true;
     configError = "";
@@ -149,6 +233,7 @@
     try {
       config = await pluginInvoke<PlatformConfig>("courses", "get_platform_config", { platform: id });
       console.log(`[courses/${id}] config loaded:`, JSON.stringify(config));
+      loadCookieAccounts(config);
       if (config.features.captcha_event) {
         const evt = config.features.captcha_event;
         const unlisten = listen(evt, () => { captchaWarning = true; });
@@ -171,13 +256,25 @@
 
   async function checkSession() {
     if (!config) return;
+    sessionNotice = "";
+    sessionNoticeDetail = "";
     try {
       const result = await pluginInvoke<string>("courses", config.commands.check_session);
       sessionEmail = result;
       loggedIn = true;
       loadItems();
-    } catch {
+    } catch (e) {
       loggedIn = false;
+      const msg = errorMessage(e);
+      const lower = msg.toLowerCase();
+      if (isMissingCommand(msg)) {
+        configError = $t("courses.update_plugin_for_platform");
+      } else if (lower.includes("session_expired")) {
+        sessionNotice = "expired";
+      } else if (!lower.includes("not_authenticated") && !lower.includes("not authenticated")) {
+        sessionNotice = "unreachable";
+        sessionNoticeDetail = msg;
+      }
     } finally {
       checking = false;
     }
@@ -231,6 +328,7 @@
 
       sessionEmail = result || email || "OK";
       loggedIn = true;
+      sessionNotice = "";
       loadItems();
     } catch (e: any) {
       const msg = typeof e === "string" ? e : e.message ?? "";
@@ -278,6 +376,7 @@
       const email = await pluginInvoke<string>("courses", config.commands.check_session);
       loggedIn = true;
       sessionEmail = email;
+      sessionNotice = "";
       loadItems();
     } catch (e: any) {
       error = typeof e === "string" ? e : e.message ?? $t("common.error");
@@ -340,7 +439,15 @@
     return downloads.get(Number(getItemId(item)))?.percent ?? 0;
   }
 
-  async function downloadItem(item: any) {
+  let sectionsCourseId = $state<number | string | null>(null);
+  let sectionsCourse = $state<any>(null);
+
+  function chooseSections(item: any) {
+    sectionsCourse = item;
+    sectionsCourseId = getItemId(item);
+  }
+
+  async function downloadItem(item: any, sectionIds: number[] = []) {
     if (!config) return;
     const status = getDownloadStatus(item);
     if (status === "downloading") {
@@ -376,6 +483,7 @@
       await pluginInvoke("courses", config.commands.download, {
         [argName]: JSON.stringify(item),
         outputDir,
+        ...(sectionIds.length > 0 ? { sectionIds } : {}),
       });
       showToast("info", $t("toast.download_preparing"));
     } catch (e: any) {
@@ -509,12 +617,23 @@
             price={getItemSubtitle(item)}
             imageUrl={getItemImage(item)}
             externalPlatform={item.external_platform === true}
+            externalUrl={typeof item.external_url === "string" ? item.external_url : undefined}
             downloadStatus={getDownloadStatus(item)}
             downloadPercent={getDownloadPercent(item)}
             onDownload={() => downloadItem(item)}
+            onChooseSections={config.commands.curriculum && item.external_platform !== true ? () => chooseSections(item) : undefined}
           />
         {/each}
       </div>
+
+      {#if config.commands.curriculum}
+        <CourseSectionsDialog
+          bind:courseId={sectionsCourseId}
+          courseName={sectionsCourse ? getItemName(sectionsCourse) : ""}
+          command={config.commands.curriculum}
+          onConfirm={(ids) => sectionsCourse && downloadItem(sectionsCourse, ids)}
+        />
+      {/if}
 
       {#if totalPages > 1}
         <div class="pagination">
@@ -540,6 +659,17 @@
   <div class="page-center">
     <div class="login-card">
       <h2>{config.name}</h2>
+
+      {#if sessionNotice === "expired"}
+        <div class="session-notice" role="status">{$t("courses.session_expired")}</div>
+      {:else if sessionNotice === "unreachable"}
+        <div class="session-notice unreachable" role="status">
+          <strong>{$t("courses.not_reachable")}</strong>
+          <span>{$t("courses.not_reachable_hint")}</span>
+          {#if sessionNoticeDetail}<code>{sessionNoticeDetail}</code>{/if}
+          <button class="button" onclick={checkSession}>{$t("common.retry")}</button>
+        </div>
+      {/if}
 
       {#if config.login_methods.length > 1}
         <div class="login-tabs">
@@ -621,9 +751,22 @@
               <span class="button file-btn">{$t("udemy.upload_file") ?? "Upload file"}</span>
             </label>
           {:else if currentMethod.method_type === "cookies"}
+            {#if cookieAccounts.length > 0}
+              <div class="saved-cookies">
+                <span class="field-label">{$t("courses.saved_cookies_title")}</span>
+                <p class="browser-hint">{$t("courses.saved_cookies_hint")}</p>
+                <div class="saved-cookies-list">
+                  {#each cookieAccounts as account (account.slug)}
+                    <button type="button" class="button" onclick={() => useSavedCookies(account)} disabled={loading || usingSavedCookies}>
+                      {usingSavedCookies ? $t("hotmart.authenticating") : $t("courses.use_saved_cookies", { account: account.alias || account.slug })}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
             <label class="field">
-              <span class="field-label">Cookies JSON</span>
-              <textarea placeholder="Paste cookies JSON..." bind:value={cookiesText} class="input token-input" disabled={loading} required></textarea>
+              <span class="field-label">{$t("courses.cookies_paste_label")}</span>
+              <textarea placeholder={$t("courses.cookies_paste_placeholder")} bind:value={cookiesText} class="input token-input" disabled={loading} required></textarea>
             </label>
             <label class="file-upload-label">
               <input type="file" accept=".json,.txt" onchange={handleFileUpload} class="file-input" />
@@ -655,6 +798,20 @@
 {/if}
 
 <style>
+  .saved-cookies {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border, rgba(127, 127, 127, 0.25));
+  }
+
+  .saved-cookies-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
   .back-link {
     display: inline-flex;
     align-items: center;
@@ -674,7 +831,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: calc(100vh - var(--padding) * 4 - 40px);
+    min-height: calc(100vh - 180px);
     gap: var(--padding);
   }
 
@@ -877,7 +1034,7 @@
 
   .otp-hint {
     font-size: var(--text-sm);
-    color: var(--green);
+    color: var(--success);
     text-align: center;
     font-weight: 500;
   }
@@ -910,13 +1067,13 @@
   }
 
   .error-msg {
-    color: var(--red);
+    color: var(--danger);
     font-size: var(--text-sm);
     font-weight: 500;
   }
 
   .captcha-warning {
-    color: var(--orange);
+    color: var(--warning);
     font-size: var(--text-sm);
     font-weight: 500;
   }
@@ -933,7 +1090,7 @@
     width: 24px;
     height: 24px;
     border: 2px solid var(--input-border);
-    border-top-color: var(--blue);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
   }
@@ -960,4 +1117,18 @@
     text-align: center;
     padding: calc(var(--padding) * 4) 0;
   }
+  .session-notice {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--padding) / 2);
+    padding: calc(var(--padding) * 0.75) var(--padding);
+    font-size: var(--text-sm);
+    color: var(--secondary);
+    background: color-mix(in srgb, var(--warning) 12%, transparent);
+    border-radius: var(--border-radius);
+  }
+  .session-notice.unreachable { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+  .session-notice span { color: var(--gray); }
+  .session-notice code { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; color: var(--gray); word-break: break-word; }
+  .session-notice .button { align-self: flex-start; }
 </style>

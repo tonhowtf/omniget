@@ -123,7 +123,7 @@
   .version-value {
     font-size: var(--text-sm);
     font-weight: 500;
-    color: var(--blue);
+    color: var(--accent);
   }
 
   .loading {
@@ -137,7 +137,7 @@
     width: 24px;
     height: 24px;
     border: 2px solid var(--input-border);
-    border-top-color: var(--blue);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
   }
@@ -208,7 +208,7 @@
 
   .markdown-content :global(li::before) {
     content: "•";
-    color: var(--blue);
+    color: var(--accent);
     margin-right: 6px;
   }
 
@@ -244,7 +244,7 @@
   }
 
   .markdown-content :global(a) {
-    color: var(--blue);
+    color: var(--accent);
     text-decoration: none;
   }
 

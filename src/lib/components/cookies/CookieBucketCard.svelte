@@ -513,10 +513,10 @@
     font-weight: 600;
   }
   .expiry.stale {
-    color: #f4a72b;
+    color: var(--warning);
   }
   .expiry.expired {
-    color: #d33;
+    color: var(--danger);
   }
   .actions {
     display: flex;
@@ -553,8 +553,8 @@
     color: var(--accent);
   }
   .ghost-btn.danger:hover {
-    border-color: #d33;
-    color: #d33;
+    border-color: var(--danger);
+    color: var(--danger);
   }
   .status-dot {
     width: 8px;
@@ -563,9 +563,9 @@
     align-self: start;
     margin-top: 6px;
   }
-  .status-dot[data-state="fresh"] { background: #1DB954; }
-  .status-dot[data-state="aging"] { background: #f4a72b; }
-  .status-dot[data-state="stale"] { background: #d33; }
+  .status-dot[data-state="fresh"] { background: var(--success); }
+  .status-dot[data-state="aging"] { background: var(--warning); }
+  .status-dot[data-state="stale"] { background: var(--danger); }
   .status-dot[data-state="empty"] { background: var(--tertiary); opacity: 0.4; }
 
   .extra-accounts {
@@ -632,8 +632,8 @@
     color: var(--accent);
   }
   .mini-btn.danger:hover {
-    border-color: #d33;
-    color: #d33;
+    border-color: var(--danger);
+    color: var(--danger);
   }
   .add-account-btn {
     margin-top: 8px;

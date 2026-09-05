@@ -262,3 +262,20 @@ remake/shots/
 
 # Sessao autonoma (scratch)
 /.sessao/
+
+# Nunca commitar: Markdown, material de estudo/auditoria, e qualquer coisa do Claude/agentes
+*.md
+/docs/
+/remake/
+/mobbin/
+/.visual-audit/
+/.impeccable/
+/.sessao/
+/.varredura/
+/.agents/
+/.claude/
+skills-lock.json
+/.shots/
+
+# Estudos de engenharia reversa (nunca entram no git)
+/estudos/

@@ -361,7 +361,7 @@
     color: var(--tertiary);
   }
   .state.err {
-    color: var(--error, #dc2626);
+    color: var(--error);
   }
   .foot {
     display: flex;
@@ -409,16 +409,16 @@
     background: color-mix(in oklab, var(--accent) 8%, transparent);
   }
   .btn.danger {
-    background: var(--error, #dc2626);
+    background: var(--error);
     color: white;
-    border-color: var(--error, #dc2626);
+    border-color: var(--error);
   }
   .btn.ghost.danger {
     background: transparent;
-    color: var(--error, #dc2626);
-    border-color: color-mix(in oklab, var(--error, #dc2626) 40%, var(--input-border));
+    color: var(--error);
+    border-color: color-mix(in oklab, var(--error) 40%, var(--input-border));
   }
   .btn.ghost.danger:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--error, #dc2626) 10%, transparent);
+    background: color-mix(in oklab, var(--error) 10%, transparent);
   }
 </style>

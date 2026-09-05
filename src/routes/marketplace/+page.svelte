@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
+  import { setToolbar } from "$lib/stores/toolbar-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
 
   type PluginNavInfo = {
@@ -91,6 +92,9 @@
   onMount(async () => {
     await refreshPlugins();
     loadingInstalled = false;
+    if (plugins.length === 0) {
+      switchTab("browse");
+    }
 
     if (plugins.length > 0) {
       invoke<UpdateInfo[]>("check_plugin_updates")
@@ -197,26 +201,20 @@
 
   let sidebarPlugins = $derived(plugins.filter((p) => p.enabled));
   let hiddenPlugins = $derived(plugins.filter((p) => !p.enabled));
+
+  $effect(() => {
+    return setToolbar({
+      segments: [
+        { id: "installed", label: $t("marketplace.installed") as string, count: plugins.length },
+        { id: "browse", label: $t("marketplace.browse") as string },
+      ],
+      activeSegment: activeTab,
+      onSegment: (id) => switchTab(id as "installed" | "browse"),
+    });
+  });
 </script>
 
-<div class="marketplace-page">
-
-  <div class="tabs">
-    <button
-      class="tab"
-      class:active={activeTab === "installed"}
-      onclick={() => switchTab("installed")}
-    >
-      {$t("marketplace.installed")}
-    </button>
-    <button
-      class="tab"
-      class:active={activeTab === "browse"}
-      onclick={() => switchTab("browse")}
-    >
-      {$t("marketplace.browse")}
-    </button>
-  </div>
+<div class="marketplace-page page">
 
   {#if activeTab === "installed"}
     {#if loadingInstalled}
@@ -225,6 +223,7 @@
       </div>
     {:else if plugins.length === 0}
       <div class="empty">
+        <img class="empty-state-art" src="/emoji/electric_plug.png" alt="" width="72" height="72" draggable="false" />
         <p>{$t("marketplace.no_plugins")}</p>
         <button class="btn btn-primary retry-btn" onclick={() => switchTab("browse")}>
           {$t("marketplace.browse")}
@@ -269,6 +268,7 @@
       </div>
     {:else if browseError}
       <div class="empty">
+        <img class="empty-state-art" src="/emoji/satellite_antenna.png" alt="" width="72" height="72" draggable="false" />
         <p>{$t("marketplace.browse_error")}</p>
         <p class="error-hint">{$t("marketplace.browse_error_hint")}</p>
         <button class="btn btn-secondary retry-btn" onclick={loadBrowse}>{$t("marketplace.browse_retry")}</button>
@@ -350,9 +350,6 @@
       <div class="plugin-info">
         <div class="plugin-name-row">
           <span class="plugin-name">{plugin.name}</span>
-          <span class="status-pill" class:on={plugin.enabled}>
-            {plugin.enabled ? $t("marketplace.status_in_sidebar") : $t("marketplace.status_hidden")}
-          </span>
         </div>
         <span class="plugin-meta">
           {$t("marketplace.version", { version: plugin.version })}
@@ -428,124 +425,92 @@
   .marketplace-page {
     display: flex;
     flex-direction: column;
-    gap: calc(var(--padding) * 2);
-    width: 100%;
-    max-width: 720px;
-    align-items: stretch;
-  }
-
-  h1 {
-    font-size: 20px;
-    font-weight: 500;
-  }
-
-  .tabs {
-    display: inline-flex;
-    align-self: flex-start;
-    gap: 2px;
-    background: var(--button);
-    border-radius: var(--border-radius);
-    padding: 3px;
-    width: fit-content;
-    max-width: 100%;
-  }
-
-  .tab {
-    flex: 0 1 auto;
-    min-width: 7rem;
-    padding: 8px 16px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--gray);
-    background: none;
-    border: none;
-    border-radius: calc(var(--border-radius) - 3px);
-    cursor: pointer;
-  }
-
-  .tab.active {
-    background: var(--button-elevated);
-    color: var(--secondary);
-  }
-
-  @media (hover: hover) {
-    .tab:not(.active):hover {
-      color: var(--secondary);
-    }
+    gap: var(--space-3);
+    max-width: 760px;
   }
 
   .loading {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: var(--padding);
-    padding: calc(var(--padding) * 4);
-  }
-
-  .spinner {
-    width: 20px;
-    height: 20px;
-    border: 2px solid var(--input-border);
-    border-top-color: var(--secondary);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
+    justify-content: center;
+    padding: var(--space-8) 0;
   }
 
   .empty {
-    text-align: center;
-    padding: calc(var(--padding) * 4);
-    color: var(--gray);
-    font-size: 14px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--padding);
+    gap: var(--space-2);
+    padding: var(--space-8) var(--space-4);
+    text-align: center;
+    color: var(--text-dim);
+    font-size: var(--text-base);
+  }
+
+  .empty p {
+    margin: 0;
   }
 
   .error-hint {
-    max-width: 420px;
     font-size: var(--text-sm);
-    line-height: 1.5;
-    color: var(--gray);
+    max-width: 360px;
   }
 
   .retry-btn {
-    padding: 8px 16px;
-    font-size: 13px;
-    font-weight: 500;
-    background: var(--button);
-    color: var(--secondary);
-    border: none;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    box-shadow: var(--button-box-shadow);
+    margin-top: var(--space-2);
   }
 
-  @media (hover: hover) {
-    .retry-btn:hover {
-      background: var(--button-hover);
-    }
+  .installed-hint {
+    margin: 0;
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+    color: var(--text-dim);
+    max-width: 60ch;
   }
 
+  .plugin-section-label {
+    margin: var(--space-3) 0 0;
+    padding: 0 var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text-dim);
+  }
+
+  /* App Store list: one grouped surface, 64pt rows, icon tile, trailing action */
   .plugin-list {
     display: flex;
     flex-direction: column;
-    gap: var(--padding);
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
+    overflow: hidden;
   }
 
   .plugin-card {
-    background: var(--surface);
-    border: none;
-    border-radius: var(--radius-md);
-    padding: var(--space-4);
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+    padding: var(--space-3) var(--space-3);
+    position: relative;
     transition: background var(--duration-fast) var(--ease-out);
+  }
+
+  .plugin-card + .plugin-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: calc(var(--space-3) + 40px + var(--space-3));
+    right: 0;
+    height: var(--hairline);
+    background: var(--separator);
+  }
+
+  @media (hover: hover) {
+    .plugin-card:hover {
+      background: var(--fill-1);
+    }
   }
 
   .plugin-card.skeleton {
@@ -556,155 +521,127 @@
     display: block;
     height: 12px;
     border-radius: var(--radius-xs);
-    background: linear-gradient(
-      90deg,
-      var(--surface-mut) 0%,
-      var(--surface-hi) 50%,
-      var(--surface-mut) 100%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+    background: var(--fill-2);
+    animation: skeleton-shimmer 1.4s var(--ease-in-out) infinite;
   }
 
-  .skeleton-line-name { width: 40%; height: 16px; margin-bottom: var(--space-1); }
-  .skeleton-line-meta { width: 25%; height: 11px; }
-  .skeleton-line-action { width: 80px; height: 28px; border-radius: var(--radius-sm); }
-  .skeleton-line-desc { width: 92%; height: 11px; margin-top: var(--space-2); }
-  .skeleton-line-desc-2 { width: 60%; height: 11px; }
+  .skeleton-line-name { width: 140px; height: 14px; }
+  .skeleton-line-meta { width: 90px; height: 10px; margin-top: 6px; }
+  .skeleton-line-action { width: 64px; height: 24px; border-radius: var(--radius-full); }
+  .skeleton-line-desc { width: 70%; }
+  .skeleton-line-desc-2 { width: 45%; }
 
   @keyframes skeleton-shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .skeleton-line {
       animation: none;
-      background: var(--surface-mut);
-    }
-  }
-
-  @media (hover: hover) {
-    .plugin-card:hover {
-      background: var(--surface-hi);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .plugin-card {
-      transition: none;
     }
   }
 
   .plugin-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--padding);
+    gap: var(--space-3);
+  }
+
+  .plugin-header::before {
+    content: "";
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 85%, white), var(--accent-lo));
+    box-shadow: inset 0 0 0 var(--hairline) rgba(0, 0, 0, 0.12);
+    background-image:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(30,18,0,0.85)' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M9.2 3.4h5.6v2.3a2 2 0 0 1-2 2h-1.6a2 2 0 0 1-2-2V3.4z'/><path d='M6.4 6.8h11.2c.88 0 1.6.72 1.6 1.6v4.7h-2.15a1.85 1.85 0 1 0 0 3.7H19.2v2.55c0 .88-.72 1.6-1.6 1.6H6.4c-.88 0-1.6-.72-1.6-1.6V16.8h2.15a1.85 1.85 0 1 0 0-3.7H4.8V8.4c0-.88.72-1.6 1.6-1.6z'/></svg>"),
+      linear-gradient(160deg, color-mix(in srgb, var(--accent) 85%, white), var(--accent-lo));
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 22px 22px, cover;
   }
 
   .plugin-info {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
     min-width: 0;
+    flex: 1;
   }
 
   .plugin-name-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
+    min-width: 0;
   }
 
   .plugin-name {
     font-size: var(--text-base);
-    font-weight: 500;
-    color: var(--secondary);
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .badge-official,
+  .badge-community {
+    display: inline-flex;
+    align-items: center;
+    height: 16px;
+    padding: 0 6px;
+    border-radius: var(--radius-full);
+    font-size: var(--text-caption);
+    font-weight: 600;
+    white-space: nowrap;
   }
 
   .badge-official {
-    font-size: 10px;
-    font-weight: 600;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: var(--cta);
-    color: var(--on-cta);
+    background: var(--accent-soft);
+    color: var(--accent-hi);
   }
 
   .badge-community {
-    font-size: 10px;
-    font-weight: 500;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: var(--button);
-    color: var(--gray);
+    background: var(--fill-2);
+    color: var(--text-muted);
   }
 
   .installed-badge {
-    font-size: 11px;
+    font-size: var(--text-sm);
     font-weight: 500;
-    color: var(--green);
+    color: var(--text-dim);
   }
 
   .plugin-meta {
-    font-size: 11.5px;
-    color: var(--gray);
-    display: flex;
-    align-items: center;
-    gap: 4px;
+    font-size: var(--text-sm);
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 
   .meta-sep {
     opacity: 0.5;
+    margin: 0 2px;
   }
 
   .plugin-desc {
-    font-size: 13px;
-    color: var(--gray);
-    line-height: 1.4;
+    margin: 0 0 0 calc(40px + var(--space-3));
+    font-size: var(--text-sm);
+    line-height: var(--leading-sm);
+    color: var(--text-muted);
   }
 
   .plugin-actions {
-    flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-
-  .installed-hint {
-    font-size: var(--text-sm);
-    color: var(--text-muted);
-    line-height: 1.5;
-    margin: 0;
-  }
-
-  .plugin-section-label {
-    font-size: var(--text-xs);
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin: 0 0 var(--space-2);
-  }
-
-  .plugin-card.active-sidebar {
-    background: var(--surface);
-  }
-
-  .status-pill {
-    font-size: 10px;
-    font-weight: 600;
-    padding: 2px 7px;
-    border-radius: var(--radius-full);
-    background: var(--surface-hi);
-    color: var(--text-muted);
-  }
-
-  .status-pill.on {
-    background: color-mix(in srgb, var(--accent) 18%, transparent);
-    color: var(--accent);
+    gap: var(--space-3);
+    flex-shrink: 0;
   }
 
   .sidebar-toggle-row {
@@ -714,119 +651,76 @@
   }
 
   .sidebar-toggle-label {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    white-space: nowrap;
+    font-size: var(--text-sm);
+    color: var(--text-dim);
   }
 
-  .toggle {
-    position: relative;
-    width: 44px;
-    height: 24px;
-    border-radius: var(--radius-full);
-    background: var(--surface-hi);
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    flex-shrink: 0;
-    transition: background var(--duration-base) var(--ease-out);
-  }
-
-  .toggle.on {
-    background: var(--accent);
-  }
-
-  .toggle-knob {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 20px;
-    height: 20px;
-    border-radius: var(--radius-full);
-    background: #fff;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-    transition: transform var(--duration-base) var(--ease-out);
-    pointer-events: none;
-  }
-
-  .toggle.on .toggle-knob {
-    transform: translateX(20px);
-  }
-
-  .toggle:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .toggle, .toggle-knob {
-      transition: none;
-    }
-  }
-
-  .install-btn,
   .update-btn {
-    padding: 6px 14px;
-    font-size: 12px;
-    font-weight: 500;
+    height: 24px;
+    padding: 0 var(--space-3);
     border: none;
-    border-radius: calc(var(--border-radius) - 2px);
-    cursor: pointer;
+    border-radius: var(--radius-full);
     background: var(--cta);
     color: var(--on-cta);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .update-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
   }
 
   .update-hint {
-    font-size: 11px;
-    color: var(--cta);
-    font-weight: 500;
+    margin-left: calc(40px + var(--space-3));
+    font-size: var(--text-sm);
+    color: var(--accent-hi);
   }
 
   .load-error {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 10px 12px;
-    border-radius: var(--border-radius);
-    background: color-mix(in srgb, var(--error, #c1121f) 12%, transparent);
-    border: 1px solid color-mix(in srgb, var(--error, #c1121f) 35%, transparent);
-    font-size: 12px;
-    color: var(--secondary);
+    gap: 2px;
+    margin-left: calc(40px + var(--space-3));
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+    font-size: var(--text-sm);
+    color: var(--text);
   }
 
   .load-error.incompatible {
-    background: color-mix(in srgb, var(--warning, #f59e0b) 12%, transparent);
-    border-color: color-mix(in srgb, var(--warning, #f59e0b) 35%, transparent);
+    background: color-mix(in srgb, var(--warning) 12%, transparent);
   }
 
   .load-error strong {
-    font-size: 12px;
-    color: var(--secondary);
+    font-weight: 600;
   }
 
   .load-error code {
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: 11px;
-    word-break: break-word;
-    background: var(--surface);
-    padding: 2px 6px;
-    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--text-dim);
+    word-break: break-all;
   }
 
   .uninstall-btn {
-    padding: 4px 12px;
-    font-size: var(--text-sm);
-    font-weight: 500;
+    height: 24px;
+    padding: 0 var(--space-2);
     border: none;
     border-radius: var(--radius-sm);
-    cursor: pointer;
     background: transparent;
-    color: var(--text-muted);
+    color: var(--text-dim);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
   }
 
   @media (hover: hover) {
     .uninstall-btn:hover {
-      background: color-mix(in srgb, var(--danger) 10%, transparent);
+      background: color-mix(in srgb, var(--danger) 12%, transparent);
       color: var(--danger);
     }
   }
@@ -836,40 +730,40 @@
     outline-offset: var(--focus-ring-offset);
   }
 
-  .install-btn:disabled {
-    opacity: 0.5;
-    cursor: default;
+  /* App Store "GET" pill */
+  .install-btn {
+    height: 26px;
+    min-width: 72px;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-full);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    letter-spacing: 0.01em;
   }
 
-  @media (hover: hover) {
-    .install-btn:not(:disabled):hover {
-      background: var(--cta-hover);
-    }
+  .install-btn:disabled {
+    opacity: 0.6;
   }
 
   .tag-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 6px;
+    margin-left: calc(40px + var(--space-3));
   }
 
   .tag {
-    font-size: 11px;
-    font-weight: 500;
-    padding: 2px 8px;
-    border-radius: 4px;
-    background: var(--button);
-    color: var(--gray);
+    height: 18px;
+    font-size: var(--text-caption);
   }
 
   .cap-details {
-    width: 100%;
+    margin-left: calc(40px + var(--space-3));
   }
 
   .cap-summary {
-    font-size: 11.5px;
-    font-weight: 500;
-    color: var(--gray);
+    font-size: var(--text-xs);
+    color: var(--text-dim);
     cursor: pointer;
     list-style: none;
     user-select: none;
@@ -885,34 +779,35 @@
 
   @media (hover: hover) {
     .cap-summary:hover {
-      color: var(--secondary);
+      color: var(--text);
     }
   }
 
   .cap-list {
-    list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding-top: 6px;
+    gap: 2px;
+    margin: var(--space-1) 0 0;
+    padding: 0;
+    list-style: none;
   }
 
   .cap-item {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 11.5px;
-    color: var(--gray);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
   }
 
   .cap-item svg {
     flex-shrink: 0;
-    color: var(--green);
-    pointer-events: none;
+    color: var(--text-dim);
   }
+
   @media (prefers-reduced-motion: reduce) {
     .loading :global(.spinner) {
-      animation: mp-soft-pulse calc(var(--duration-bounce) * 3) var(--ease-in-out) infinite;
+      animation: mp-soft-pulse 1.5s var(--ease-in-out) infinite;
     }
   }
 

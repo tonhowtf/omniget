@@ -44,10 +44,10 @@
 <style>
   .mode-group {
     display: flex;
-    background: var(--fill-1);
-    border-radius: var(--border-radius);
-    padding: 3px;
-    gap: 2px;
+    background: var(--fill-2);
+    border-radius: var(--radius-md);
+    padding: 2px;
+    gap: 1px;
   }
 
   .mode-btn {
@@ -56,36 +56,38 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 8px 12px;
+    height: 26px;
+    padding: 0 var(--space-3);
     font-size: var(--text-sm);
     font-weight: 500;
-    color: var(--gray);
+    color: var(--text-muted);
     background: none;
     border: none;
-    border-radius: calc(var(--border-radius) - 3px);
+    border-radius: 6px;
     cursor: pointer;
     white-space: nowrap;
+    transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
   }
 
   .mode-btn.active {
-    background: var(--cta);
-    color: var(--on-cta);
+    background: var(--surface-hi);
+    color: var(--text);
+    box-shadow: 0 1px 2px rgba(var(--shadow-ink), var(--elev-alpha-1)), inset 0 0 0 var(--hairline) var(--content-border);
   }
 
   .mode-btn.active svg {
-    color: var(--on-cta);
+    color: var(--accent-hi);
   }
 
   @media (hover: hover) {
     .mode-btn:not(.active):hover {
-      color: var(--secondary);
-      background: var(--button-elevated);
+      color: var(--text);
     }
   }
 
   .mode-btn:focus-visible {
     outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
+    outline-offset: -1px;
   }
 
   .mode-btn svg {

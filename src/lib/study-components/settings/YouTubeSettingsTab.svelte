@@ -347,7 +347,7 @@
   .btn.primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    color: var(--on-accent);
   }
   .btn.ghost {
     background: transparent;
@@ -417,7 +417,7 @@
     font-size: 13px;
     margin: 10px 0;
   }
-  .test-summary .error { color: var(--danger, #d33); }
+  .test-summary .error { color: var(--danger); }
   .cascade-table {
     width: 100%;
     border-collapse: collapse;
@@ -441,7 +441,7 @@
     color: var(--secondary);
   }
   .error-message {
-    color: var(--danger, #d33);
+    color: var(--danger);
     font-size: 12px;
     margin: 0;
   }

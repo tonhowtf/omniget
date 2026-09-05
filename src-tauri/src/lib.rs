@@ -18,6 +18,7 @@ pub mod extension_storage;
 pub mod external_url;
 pub mod hotkey;
 pub mod local_bridge;
+pub mod mcp;
 pub mod models;
 pub mod platforms;
 pub mod plugin_host;
@@ -589,10 +590,13 @@ pub fn run() {
                     core::flight_recorder::record(line);
                     let should_emit = core::download_log::push_line(id, line);
                     if should_emit {
+                        // A linha vai junto para o card mostrar "a última
+                        // coisa que o yt-dlp disse" sem pedir o log inteiro
+                        // a cada evento.
                         let _ = tauri::Emitter::emit(
                             &app_handle,
                             "download-log-update",
-                            serde_json::json!({ "id": id }),
+                            serde_json::json!({ "id": id, "line": line }),
                         );
                     }
                 }));
@@ -781,14 +785,49 @@ pub fn run() {
                         .build()
                         .expect("startup runtime");
                     rt.block_on(async {
-                        if let Some(ytdlp) = core::ytdlp::find_ytdlp_cached().await {
-                            match core::ytdlp::check_ytdlp_update(&ytdlp).await {
-                                Ok(true) => tracing::info!("yt-dlp updated successfully"),
-                                Ok(false) => tracing::debug!("yt-dlp already up to date"),
-                                Err(e) => tracing::warn!("yt-dlp update check failed: {}", e),
-                            }
+                        // Garante o yt-dlp (zipapp quando há Python, senão o
+                        // onefile) antes do primeiro download pedir por ele.
+                        if let Err(e) = core::ytdlp::ensure_ytdlp().await {
+                            tracing::warn!("yt-dlp not available at startup: {}", e);
                         }
                         core::dependencies::ensure_js_runtime().await;
+                        let _ = tokio::task::spawn_blocking(
+                            core::ytdlp::cleanup_stale_pyinstaller_dirs,
+                        )
+                        .await;
+                        // O `--update-to` é um bootstrap inteiro do yt-dlp
+                        // mais rede, e trocar o binário com download ativo
+                        // quebra o processo (B2). Espera o app assentar e só
+                        // roda sem yt-dlp em andamento; se a fila está cheia,
+                        // tenta de novo a cada 5 min por até uma hora.
+                        tokio::time::sleep(std::time::Duration::from_secs(45)).await;
+                        for _ in 0..12 {
+                            let Some(ytdlp) = core::ytdlp::find_ytdlp_cached().await else {
+                                break;
+                            };
+                            match core::ytdlp::check_ytdlp_update_detailed(&ytdlp).await {
+                                Ok(core::ytdlp::UpdateCheck::Updated) => {
+                                    tracing::info!("yt-dlp updated successfully");
+                                    break;
+                                }
+                                Ok(core::ytdlp::UpdateCheck::UpToDate)
+                                | Ok(core::ytdlp::UpdateCheck::AlreadyChecked) => {
+                                    tracing::debug!("yt-dlp already up to date");
+                                    break;
+                                }
+                                Ok(core::ytdlp::UpdateCheck::Busy) => {
+                                    tracing::debug!(
+                                        "yt-dlp update check deferred: downloads running"
+                                    );
+                                    tokio::time::sleep(std::time::Duration::from_secs(300))
+                                        .await;
+                                }
+                                Err(e) => {
+                                    tracing::warn!("yt-dlp update check failed: {}", e);
+                                    break;
+                                }
+                            }
+                        }
                     });
                 })
                 .ok();
@@ -969,6 +1008,30 @@ pub fn run() {
             commands::league::league_ability_cooldowns,
             commands::league::league_spectate,
             commands::league::league_dodge,
+            commands::league::profile::league_profile_state,
+            commands::league::profile::league_set_chat_rank,
+            commands::league::profile::league_reset_chat_rank,
+            commands::league::profile::league_set_challenge_crystal,
+            commands::league::profile::league_set_chat_icon,
+            commands::league::profile::league_challenges,
+            commands::league::profile::league_set_challenge_prefs,
+            commands::league::profile::league_set_regalia,
+            commands::league::profile::league_friends,
+            commands::league::profile::league_remove_friends,
+            commands::league::profile::league_random_champion,
+            commands::league::profile::league_declare_champion,
+            commands::league::skins::league_roll_skin,
+            commands::league::skins::league_roll_ward,
+            commands::league::skins::league_skin_carousel,
+            commands::league::sgp::league_sgp_status,
+            commands::league::sgp::league_sgp_match_history,
+            commands::league::sgp::league_sgp_ranked,
+            commands::league::sgp::league_sgp_summoners,
+            commands::league::sgp::league_sgp_download_replay,
+            commands::league::coach::league_coach_review,
+            commands::league::coach::league_coach_trends,
+            commands::league::coach::league_coach_ask,
+            commands::league::coach::league_coach_ready,
             commands::bilibili_auth::bilibili_qr_generate,
             commands::bilibili_auth::bilibili_qr_poll,
             commands::bilibili_auth::bilibili_captcha_challenge,
@@ -1055,6 +1118,8 @@ pub fn run() {
             commands::downloads::update_max_concurrent,
             commands::downloads::clear_finished_downloads,
             commands::downloads::get_download_log,
+            commands::downloads::get_download_command,
+            commands::downloads::retry_download_with_command,
             commands::downloads::parse_batch_file,
             commands::downloads::get_recovery_items,
             commands::downloads::discard_recovery,
@@ -1080,6 +1145,209 @@ pub fn run() {
             commands::settings::rotate_bridge_token,
             commands::settings::bridge_open_pairing,
             commands::dependencies::check_dependencies,
+            commands::spicetify::spicetify_status,
+            commands::spicetify::spicetify_install,
+            commands::spicetify::spicetify_action,
+            commands::spicetify::spicetify_set_theme,
+            commands::spicetify::spicetify_remove_addon,
+            commands::spicetify::spicetify_install_marketplace,
+            commands::tools::text::tool_humanize,
+            commands::tools::ai::tool_ollama_status,
+            commands::tools::ai::tool_ollama_recommended,
+            commands::tools::ai::tool_ollama_pull,
+            commands::tools::ai::tool_ollama_delete,
+            commands::tools::ai::tool_pricing_info,
+            commands::tools::ai::tool_pricing_search,
+            commands::tools::ai::tool_pricing_for,
+            commands::tools::ai::tool_usage_report,
+            commands::tools::ai::tool_usage_clear,
+            commands::tools::documents::tool_slideshare,
+            commands::tools::documents::tool_gdocs_parse,
+            commands::tools::documents::tool_gdocs_download,
+            commands::tools::documents::tool_calameo,
+            commands::tools::documents::tool_gallery_status,
+            commands::tools::documents::tool_gallery_install,
+            commands::tools::documents::tool_gallery_download,
+            commands::tools::downloads::tool_aria2_status,
+            commands::tools::downloads::tool_aria2_download,
+            commands::tools::downloads::tool_manifest_download,
+            commands::tools::files::tool_dupes_scan,
+            commands::tools::files::tool_dupes_delete,
+            commands::tools::files::tool_rename_plan,
+            commands::tools::files::tool_rename_apply,
+            commands::tools::files::tool_file_search_backend,
+            commands::tools::files::tool_file_search,
+            commands::tools::files::tool_awake_set,
+            commands::tools::files::tool_awake_get,
+            commands::tools::images::tool_upscale_status,
+            commands::tools::images::tool_upscale_install,
+            commands::tools::images::tool_upscale_run,
+            commands::tools::images::tool_resize,
+            commands::tools::images::tool_ocr_status,
+            commands::tools::images::tool_ocr_run,
+            commands::tools::phone::tool_kde_status,
+            commands::tools::phone::tool_kde_share,
+            commands::tools::phone::tool_kde_ping,
+            commands::tools::phone::tool_kde_refresh,
+            commands::tools::speech::tool_whisper_status,
+            commands::tools::speech::tool_whisper_install,
+            commands::tools::speech::tool_whisper_model_download,
+            commands::tools::speech::tool_whisper_model_remove,
+            commands::tools::speech::tool_whisper_transcribe,
+            commands::tools::speech::tool_tts_voices,
+            commands::tools::speech::tool_tts_speak,
+            commands::tools::speech::tool_srt_translate,
+            commands::tools::speech::tool_dub,
+            commands::tools::ai::tool_keys_kinds,
+            commands::tools::ai::tool_keys_list,
+            commands::tools::ai::tool_keys_save,
+            commands::tools::ai::tool_keys_delete,
+            commands::tools::ai::tool_keys_test,
+            commands::tools::ai::tool_keys_balance,
+            commands::tools::ai::tool_keys_models,
+            commands::tools::ai::tool_keys_export,
+            commands::tools::ai::tool_keys_use,
+            commands::tools::ai::tool_mcp_status,
+            commands::tools::ai::tool_mcp_set_enabled,
+            commands::tools::ai::tool_mcp_selftest,
+            commands::tools::desktop::tool_hotkeys_get,
+            commands::tools::desktop::tool_hotkey_set,
+            commands::tools::desktop::tool_autoclick_start,
+            commands::tools::desktop::tool_autoclick_stop,
+            commands::tools::desktop::tool_autoclick_state,
+            commands::tools::desktop::tool_autoclick_mouse,
+            commands::tools::desktop::tool_dictation_devices,
+            commands::tools::desktop::tool_dictation_options,
+            commands::tools::desktop::tool_dictation_set_options,
+            commands::tools::desktop::tool_dictation_state,
+            commands::tools::desktop::tool_dictation_start,
+            commands::tools::desktop::tool_dictation_stop,
+            commands::tools::desktop::tool_record_sources,
+            commands::tools::desktop::tool_record_state,
+            commands::tools::desktop::tool_record_start,
+            commands::tools::desktop::tool_record_stop,
+            commands::tools::desktop::tool_record_save_replay,
+            commands::tools::desktop::tool_vs_status,
+            commands::tools::desktop::tool_vs_launch,
+            commands::tools::desktop::tool_vs_clone,
+            commands::tools::desktop::tool_vs_design,
+            commands::tools::desktop::tool_vs_isolate,
+            commands::tools::pdf::tool_pdf_status,
+            commands::tools::pdf::tool_pdf_info,
+            commands::tools::pdf::tool_pdf_merge,
+            commands::tools::pdf::tool_pdf_split,
+            commands::tools::pdf::tool_pdf_render,
+            commands::tools::pdf::tool_pdf_text,
+            commands::tools::pdf::tool_pdf_from_images,
+            commands::tools::pdf::tool_pdf_compress,
+            commands::tools::pdf::tool_pdf_sanitize,
+            commands::tools::pdf::tool_pdf_ocr,
+            commands::tools::pdf::tool_pdf_office,
+            commands::tools::system::tool_win_tweaks_status,
+            commands::tools::system::tool_win_tweak_apply,
+            commands::tools::system::tool_clean_scan,
+            commands::tools::system::tool_clean_run,
+            commands::tools::system::tool_disk_volumes,
+            commands::tools::system::tool_disk_scan,
+            commands::tools::system::tool_disk_trash,
+            commands::tools::system::tool_startup_list,
+            commands::tools::system::tool_startup_set,
+            commands::tools::system::tool_uninstall_list,
+            commands::tools::system::tool_uninstall_leftovers,
+            commands::tools::system::tool_uninstall_run,
+            commands::tools::system::tool_debloat_list,
+            commands::tools::system::tool_debloat_remove,
+            commands::tools::system::tool_debloat_restore,
+            commands::tools::system::tool_registry_scan,
+            commands::tools::system::tool_registry_fix,
+            commands::tools::system::tool_registry_backups_dir,
+            commands::tools::system::tool_updater_status,
+            commands::tools::system::tool_updater_upgrade,
+            commands::tools::youtube::tool_sponsorblock,
+            commands::tools::youtube::tool_ryd,
+            commands::tools::youtube::tool_yt_video_id,
+            commands::tools::youtube::tool_save_url,
+            commands::tools::x::tool_x_session,
+            commands::tools::x::tool_x_query_ids_refresh,
+            commands::tools::x::tool_x_cancel,
+            commands::tools::x::tool_x_post,
+            commands::tools::x::tool_x_thread,
+            commands::tools::x::tool_x_export_posts,
+            commands::tools::x::tool_x_export_users,
+            commands::tools::x::tool_x_render_posts,
+            commands::tools::x::tool_x_profile,
+            commands::tools::x::tool_x_profile_lookup,
+            commands::tools::x::tool_x_media,
+            commands::tools::x::tool_x_media_posts,
+            commands::tools::x::tool_x_search,
+            commands::tools::x::tool_x_trends,
+            commands::tools::x::tool_x_bookmarks_export,
+            commands::tools::x::tool_x_follows_audit,
+            commands::tools::x::tool_x_unfollow,
+            commands::tools::x::tool_x_whitelist_get,
+            commands::tools::x::tool_x_whitelist_set,
+            commands::tools::x::tool_x_archive_open,
+            commands::tools::x::tool_x_archive_export,
+            commands::tools::x::tool_x_grok_config,
+            commands::tools::x::tool_x_grok_config_set,
+            commands::tools::x::tool_x_grok_ask,
+            commands::tools::x::tool_x_data_url,
+            commands::tools::x::tool_x_save_data_url,
+            commands::tools::x::tool_x_write_text,
+            commands::tools::pinterest::tool_pin_inspect,
+            commands::tools::pinterest::tool_pin_list,
+            commands::tools::pinterest::tool_pin_related,
+            commands::tools::pinterest::tool_pin_boards_search,
+            commands::tools::pinterest::tool_pin_download,
+            commands::tools::pinterest::tool_pin_download_many,
+            commands::tools::pinterest::tool_pin_backup,
+            commands::tools::pinterest::tool_pin_dupes,
+            commands::tools::pinterest::tool_pin_unsave,
+            commands::tools::pinterest::tool_pin_palette,
+            commands::tools::pinterest::tool_pin_export,
+            commands::tools::pinterest::tool_pin_keywords,
+            commands::tools::pinterest::tool_pin_source,
+            commands::tools::pinterest::tool_pin_expand,
+            commands::tools::instagram::tool_ig_accounts,
+            commands::tools::instagram::tool_ig_whoami,
+            commands::tools::instagram::tool_ig_parse,
+            commands::tools::instagram::tool_ig_cancel,
+            commands::tools::instagram::tool_ig_post,
+            commands::tools::instagram::tool_ig_resolve,
+            commands::tools::instagram::tool_ig_download,
+            commands::tools::instagram::tool_ig_download_bulk,
+            commands::tools::instagram::tool_ig_profile,
+            commands::tools::instagram::tool_ig_friendship,
+            commands::tools::instagram::tool_ig_profile_media,
+            commands::tools::instagram::tool_ig_stories,
+            commands::tools::instagram::tool_ig_stories_tray,
+            commands::tools::instagram::tool_ig_highlights,
+            commands::tools::instagram::tool_ig_highlight_items,
+            commands::tools::instagram::tool_ig_story_viewers,
+            commands::tools::instagram::tool_ig_follow_lists,
+            commands::tools::instagram::tool_ig_whitelist_get,
+            commands::tools::instagram::tool_ig_whitelist_set,
+            commands::tools::instagram::tool_ig_actions_today,
+            commands::tools::instagram::tool_ig_actions,
+            commands::tools::instagram::tool_ig_resolve_users,
+            commands::tools::instagram::tool_ig_snapshot_take,
+            commands::tools::instagram::tool_ig_snapshots,
+            commands::tools::instagram::tool_ig_snapshot_diff,
+            commands::tools::instagram::tool_ig_snapshot_delete,
+            commands::tools::instagram::tool_ig_ghosts,
+            commands::tools::instagram::tool_ig_export,
+            commands::tools::instagram::tool_ig_write_csv,
+            commands::tools::instagram::tool_ig_read_text,
+            commands::tools::instagram::tool_ig_analytics,
+            commands::tools::instagram::tool_ig_hashtag,
+            commands::tools::instagram::tool_ig_comments,
+            commands::tools::instagram::tool_ig_likers,
+            commands::tools::instagram::tool_ig_giveaway,
+            commands::tools::instagram::tool_ig_publish,
+            commands::tools::instagram::tool_ig_publish_graph,
+            commands::tools::instagram::tool_ig_schedule_list,
+            commands::tools::instagram::tool_ig_schedule_add,
+            commands::tools::instagram::tool_ig_schedule_remove,
             commands::dependencies::check_ytdlp_available,
             commands::dependencies::install_dependency,
             commands::dependencies::dependency_archived_versions,

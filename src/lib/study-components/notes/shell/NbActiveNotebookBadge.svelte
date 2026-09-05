@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatBinding } from "$lib/platform";
   import { onMount } from "svelte";
   import { notebooksStore } from "$lib/study-notes/notebooks-store.svelte";
 
@@ -74,7 +75,7 @@
           {/if}
           <span class="menu-name">{nb.name}</span>
           <span class="menu-count">{nb.page_count}</span>
-          <span class="menu-shortcut">⌘⌥{i + 1}</span>
+          <span class="menu-shortcut">{formatBinding(`CmdOrCtrl+Alt+${i + 1}`)}</span>
         </button>
       {/each}
     </div>

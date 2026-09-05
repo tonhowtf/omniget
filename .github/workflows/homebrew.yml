@@ -1,0 +1,67 @@
+# Issue #189: Homebrew install for macOS. Runs when a draft release is published
+# (drafts have no public download URLs yet) and regenerates the cask in
+# tonhowtf/homebrew-tap from the release's two DMGs. Requires the
+# HOMEBREW_TAP_TOKEN secret: a fine-grained PAT with contents:write on the tap repo.
+name: Publish to Homebrew tap
+
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (e.g. v0.9.0)'
+        required: true
+
+jobs:
+  homebrew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip without token
+        id: gate
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN secret not set - skipping Homebrew tap update"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout tap
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: tonhowtf/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Regenerate cask
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          base="https://github.com/$REPO/releases/download/$TAG"
+          curl -fsSL -o arm.dmg "$base/omniget_${version}_aarch64.dmg"
+          curl -fsSL -o intel.dmg "$base/omniget_${version}_x64.dmg"
+          arm_sha=$(sha256sum arm.dmg | cut -d' ' -f1)
+          intel_sha=$(sha256sum intel.dmg | cut -d' ' -f1)
+          cask=tap/Casks/omniget.rb
+          sed -i -E "s/^  version \".*\"/  version \"$version\"/" "$cask"
+          python3 - "$cask" "$arm_sha" "$intel_sha" <<'PY'
+          import re, sys
+          path, arm, intel = sys.argv[1:4]
+          src = open(path).read()
+          src = re.sub(r'(on_arm do\n\s+sha256 ")[0-9a-f]{64}', lambda m: m.group(1) + arm, src, count=1)
+          src = re.sub(r'(on_intel do\n\s+sha256 ")[0-9a-f]{64}', lambda m: m.group(1) + intel, src, count=1)
+          open(path, "w").write(src)
+          PY
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/omniget.rb
+          git diff --cached --quiet && { echo "cask already at $version"; exit 0; }
+          git commit -m "omniget $version"
+          git push

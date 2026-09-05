@@ -344,7 +344,7 @@
   .action:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); }
   .action.primary {
     background: var(--accent);
-    color: var(--on-accent, #000);
+    color: var(--on-accent);
     border-color: transparent;
   }
   .action.primary:hover:not(:disabled) { filter: brightness(1.08); }

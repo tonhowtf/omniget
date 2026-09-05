@@ -44,55 +44,216 @@
   "error_launch_failed_detail": {
     "message": "OmniGet がインストールされていてシステムによってブロックされていないことを確認してから、もう一度お試しください。"
   },
-  "popup_send_default": { "message": "OmniGet に送信" },
-  "popup_send_audio": { "message": "音声を送信" },
-  "popup_video_found_one": { "message": "動画が見つかりました" },
-  "popup_videos_found": { "message": "$count$ 件の動画が見つかりました", "placeholders": { "count": { "content": "$1" } } },
-  "popup_listening_title": { "message": "メディアを検出中…" },
-  "popup_listening_hint": { "message": "ページが読み込むと、動画や音声がここに表示されます。" },
-  "popup_paused_title": { "message": "メディア検出は一時停止中" },
-  "popup_paused_hint": { "message": "上のスイッチをオンにして、このページの動画を検出します。" },
-  "popup_send_all": { "message": "すべて送信（$count$ 件）", "placeholders": { "count": { "content": "$1" } } },
-  "popup_detected_one": { "message": "1 件の動画を検出" },
-  "popup_detected_many": { "message": "$count$ 件の動画を検出", "placeholders": { "count": { "content": "$1" } } },
-  "popup_video_n": { "message": "動画 $n$", "placeholders": { "n": { "content": "$1" } } },
-  "popup_kind_audio": { "message": "音声" },
-  "popup_kind_video": { "message": "動画" },
-  "popup_download_aria": { "message": "$name$ をダウンロード", "placeholders": { "name": { "content": "$1" } } },
-  "popup_sending": { "message": "送信中…" },
-  "popup_sent": { "message": "送信しました！" },
-  "popup_sending_n": { "message": "$count$ 件の動画を送信中…", "placeholders": { "count": { "content": "$1" } } },
-  "popup_sent_n": { "message": "$count$ 件の動画を送信しました！", "placeholders": { "count": { "content": "$1" } } },
-  "popup_sent_failed": { "message": "$sent$ 件送信、$failed$ 件失敗", "placeholders": { "sent": { "content": "$1" }, "failed": { "content": "$2" } } },
-  "popup_not_running": { "message": "OmniGet が起動していません" },
-  "popup_try_again": { "message": "再試行" },
-  "popup_get_app": { "message": "OmniGet を入手" },
-  "popup_lbl_course": { "message": "コースを OmniGet に送信" },
-  "popup_lbl_playlist": { "message": "プレイリストを OmniGet に送信" },
-  "popup_lbl_video": { "message": "動画を OmniGet に送信" },
-  "popup_lbl_reel": { "message": "リールを OmniGet に送信" },
-  "popup_lbl_post": { "message": "投稿を OmniGet に送信" },
-  "popup_lbl_short": { "message": "ショートを OmniGet に送信" },
-  "popup_lbl_clip": { "message": "クリップを OmniGet に送信" },
-  "popup_lbl_image": { "message": "画像を OmniGet に送信" },
-  "popup_lbl_audio": { "message": "音声を OmniGet に送信" },
-  "popup_lbl_profile": { "message": "プロフィールを OmniGet に送信" },
-  "popup_lbl_page": { "message": "ページを OmniGet に送信" },
-  "popup_ck_saving": { "message": "クッキーを保存中…" },
-  "popup_ck_saved": { "message": "$count$ 件のクッキーを保存", "placeholders": { "count": { "content": "$1" } } },
-  "popup_ck_btn": { "message": "サイトのクッキーを保存" },
-  "popup_ck_meta": { "message": "$domain$ • $kind$", "placeholders": { "domain": { "content": "$1" }, "kind": { "content": "$2" } } },
-  "popup_ck_hint": { "message": "このサイトのクッキーを OmniGet のクッキーマネージャーに送信します。" },
-  "popup_ckerr_no_url": { "message": "アクティブなタブがありません" },
-  "popup_ckerr_invalid_url": { "message": "このページは検査できません" },
-  "popup_ckerr_unsupported": { "message": "http/https ページのみ" },
-  "popup_ckerr_no_api": { "message": "クッキー API がブロックされています" },
-  "popup_ckerr_no_cookies": { "message": "このサイトのクッキーがありません" },
-  "popup_ckerr_missing_token": { "message": "先に OmniGet をペアリングしてください" },
-  "popup_ckerr_missing_endpoint": { "message": "OmniGet が見つかりません" },
-  "popup_ckerr_fetch_failed": { "message": "OmniGet が起動していません" },
-  "popup_ckerr_unauthorized": { "message": "ペアリングトークンが無効です" },
-  "popup_ckerr_default": { "message": "クッキーを保存できませんでした" },
-  "popup_open_app_label": { "message": "ダウンロード時にアプリを開く" },
-  "popup_sniffer_label": { "message": "メディア検出" }
+  "popup_send_default": {
+    "message": "OmniGet に送信"
+  },
+  "popup_send_audio": {
+    "message": "音声を送信"
+  },
+  "popup_video_found_one": {
+    "message": "動画が見つかりました"
+  },
+  "popup_videos_found": {
+    "message": "$count$ 件の動画が見つかりました",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_listening_title": {
+    "message": "メディアを検出中…"
+  },
+  "popup_listening_hint": {
+    "message": "ページが読み込むと、動画や音声がここに表示されます。"
+  },
+  "popup_paused_title": {
+    "message": "メディア検出は一時停止中"
+  },
+  "popup_paused_hint": {
+    "message": "上のスイッチをオンにして、このページの動画を検出します。"
+  },
+  "popup_send_all": {
+    "message": "すべて送信（$count$ 件）",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_detected_one": {
+    "message": "1 件の動画を検出"
+  },
+  "popup_detected_many": {
+    "message": "$count$ 件の動画を検出",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_video_n": {
+    "message": "動画 $n$",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_kind_audio": {
+    "message": "音声"
+  },
+  "popup_kind_video": {
+    "message": "動画"
+  },
+  "popup_download_aria": {
+    "message": "$name$ をダウンロード",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_sending": {
+    "message": "送信中…"
+  },
+  "popup_sent": {
+    "message": "送信しました！"
+  },
+  "popup_sending_n": {
+    "message": "$count$ 件の動画を送信中…",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_sent_n": {
+    "message": "$count$ 件の動画を送信しました！",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_sent_failed": {
+    "message": "$sent$ 件送信、$failed$ 件失敗",
+    "placeholders": {
+      "sent": {
+        "content": "$1"
+      },
+      "failed": {
+        "content": "$2"
+      }
+    }
+  },
+  "popup_not_running": {
+    "message": "OmniGet が起動していません"
+  },
+  "popup_try_again": {
+    "message": "再試行"
+  },
+  "popup_get_app": {
+    "message": "OmniGet を入手"
+  },
+  "popup_lbl_course": {
+    "message": "コースを OmniGet に送信"
+  },
+  "popup_lbl_playlist": {
+    "message": "プレイリストを OmniGet に送信"
+  },
+  "popup_lbl_video": {
+    "message": "動画を OmniGet に送信"
+  },
+  "popup_lbl_reel": {
+    "message": "リールを OmniGet に送信"
+  },
+  "popup_lbl_post": {
+    "message": "投稿を OmniGet に送信"
+  },
+  "popup_lbl_short": {
+    "message": "ショートを OmniGet に送信"
+  },
+  "popup_lbl_clip": {
+    "message": "クリップを OmniGet に送信"
+  },
+  "popup_lbl_image": {
+    "message": "画像を OmniGet に送信"
+  },
+  "popup_lbl_audio": {
+    "message": "音声を OmniGet に送信"
+  },
+  "popup_lbl_profile": {
+    "message": "プロフィールを OmniGet に送信"
+  },
+  "popup_lbl_page": {
+    "message": "ページを OmniGet に送信"
+  },
+  "popup_ck_saving": {
+    "message": "クッキーを保存中…"
+  },
+  "popup_ck_saved": {
+    "message": "$count$ 件のクッキーを保存",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_ck_btn": {
+    "message": "サイトのクッキーを保存"
+  },
+  "popup_ck_meta": {
+    "message": "$domain$ • $kind$",
+    "placeholders": {
+      "domain": {
+        "content": "$1"
+      },
+      "kind": {
+        "content": "$2"
+      }
+    }
+  },
+  "popup_ck_hint": {
+    "message": "このサイトのクッキーを OmniGet のクッキーマネージャーに送信します。"
+  },
+  "popup_ckerr_no_url": {
+    "message": "アクティブなタブがありません"
+  },
+  "popup_ckerr_invalid_url": {
+    "message": "このページは検査できません"
+  },
+  "popup_ckerr_unsupported": {
+    "message": "http/https ページのみ"
+  },
+  "popup_ckerr_no_api": {
+    "message": "クッキー API がブロックされています"
+  },
+  "popup_ckerr_no_cookies": {
+    "message": "このサイトのクッキーがありません"
+  },
+  "popup_ckerr_missing_token": {
+    "message": "先に OmniGet をペアリングしてください"
+  },
+  "popup_ckerr_missing_endpoint": {
+    "message": "OmniGet が見つかりません"
+  },
+  "popup_ckerr_fetch_failed": {
+    "message": "OmniGet が起動していません"
+  },
+  "popup_ckerr_unauthorized": {
+    "message": "ペアリングトークンが無効です"
+  },
+  "popup_ckerr_default": {
+    "message": "クッキーを保存できませんでした"
+  },
+  "popup_open_app_label": {
+    "message": "ダウンロード時にアプリを開く"
+  },
+  "popup_sniffer_label": {
+    "message": "メディア検出"
+  },
+  "popup_h264_label": {
+    "message": "YouTube で H.264 を強制"
+  }
 }

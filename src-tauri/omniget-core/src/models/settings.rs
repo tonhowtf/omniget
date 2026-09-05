@@ -134,6 +134,31 @@ pub struct LeagueSettings {
     pub pick_champions: Vec<i64>,
     #[serde(default)]
     pub ban_champions: Vec<i64>,
+    /// Auto-pick ignores the list and locks a random legal champion instead.
+    #[serde(default)]
+    pub pick_random: bool,
+    /// Rolls a random owned skin (and chroma) the moment a champion is locked.
+    #[serde(default)]
+    pub skin_roulette: bool,
+    #[serde(default)]
+    pub skin_roulette_include_base: bool,
+    /// Rolls a random owned ward skin on lock-in.
+    #[serde(default)]
+    pub ward_roulette: bool,
+    /// Falls back to the client's backend (SGP) when the local history is thin.
+    #[serde(default = "default_sgp_enabled")]
+    pub sgp_enabled: bool,
+    /// Tone of the AI coach: "objective", "roast" or "praise".
+    #[serde(default = "default_coach_style")]
+    pub coach_style: String,
+}
+
+fn default_sgp_enabled() -> bool {
+    true
+}
+
+fn default_coach_style() -> String {
+    "objective".to_string()
 }
 
 fn default_league_enabled() -> bool {
@@ -166,6 +191,12 @@ impl Default for LeagueSettings {
             auto_message: String::new(),
             pick_champions: Vec::new(),
             ban_champions: Vec::new(),
+            pick_random: false,
+            skin_roulette: false,
+            skin_roulette_include_base: false,
+            ward_roulette: false,
+            sgp_enabled: default_sgp_enabled(),
+            coach_style: default_coach_style(),
         }
     }
 }
@@ -228,6 +259,8 @@ pub struct DownloadSettings {
     pub embed_metadata: bool,
     #[serde(default = "default_true")]
     pub embed_thumbnail: bool,
+    #[serde(default)]
+    pub write_nfo_sidecar: bool,
     #[serde(default)]
     pub clipboard_detection: bool,
     #[serde(default)]
@@ -611,6 +644,7 @@ impl Default for AppSettings {
                 download_descriptions: true,
                 embed_metadata: true,
                 embed_thumbnail: true,
+                write_nfo_sidecar: false,
                 clipboard_detection: false,
                 auto_download_on_paste: false,
                 filename_template: default_filename_template(),

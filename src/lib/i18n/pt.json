@@ -358,7 +358,117 @@
     "history_empty": "Nenhuma partida encontrada ainda.",
     "refresh": "Atualizar",
     "victory": "Vitória",
-    "defeat": "Derrota"
+    "defeat": "Derrota",
+    "tab_profile": "Perfil",
+    "tab_coach": "Coach",
+    "profile_title": "Editor de perfil",
+    "profile_desc": "Tudo que o cliente deixa mudar em como você aparece para os outros. Nada aqui mexe no jogo em si.",
+    "profile_section_presence": "Presença",
+    "status_offline": "Offline",
+    "status_mobile": "Celular",
+    "profile_message_hint": "Até 255 caracteres. A caixa do próprio cliente para em 140.",
+    "profile_section_icon": "Ícones",
+    "profile_icon_search": "Buscar ícone por nome ou id",
+    "profile_icon_chat": "Ícone do chat",
+    "profile_icon_chat_saved": "Ícone do chat atualizado",
+    "profile_icon_hint": "O ícone de perfil precisa ser seu. O ícone do chat (hovercard e lista de amigos) aceita qualquer um.",
+    "profile_section_rank": "Elo mostrado no chat",
+    "rank_queue": "Fila",
+    "rank_tier": "Elo",
+    "rank_division": "Divisão",
+    "rank_reset": "Restaurar elo real",
+    "rank_saved": "Elo do chat atualizado",
+    "rank_hint": "Só o hovercard e os cartões sociais mudam. Sua ranqueada continua igual.",
+    "crystal_title": "Cristal de desafios",
+    "crystal_level": "Nível",
+    "crystal_points": "Pontos",
+    "crystal_saved": "Cristal atualizado",
+    "tokens_title": "Medalhas, título e banner",
+    "tokens_desc": "Escolha até três medalhas de desafio para o perfil. A mesma medalha pode ocupar todos os espaços.",
+    "tokens_slot": "Espaço",
+    "tokens_empty": "Nenhuma medalha conquistada ainda",
+    "tokens_none": "Nenhuma",
+    "tokens_clear": "Limpar",
+    "tokens_saved": "Preferências do perfil atualizadas",
+    "tokens_search": "Filtrar medalhas",
+    "title_label": "Título",
+    "title_none": "Sem título",
+    "banner_label": "Banner",
+    "banner_none": "Sem banner",
+    "friends_title": "Amigos",
+    "friends_desc": "Carregue a lista, marque quem remover e confirme. A remoção é definitiva.",
+    "friends_load": "Carregar",
+    "friends_select_all": "Selecionar visíveis",
+    "friends_clear_selection": "Limpar seleção",
+    "friends_remove": "Remover selecionados",
+    "friends_remove_confirm": "Eles saem da sua lista de amigos de vez.",
+    "friends_remove_go": "Remover",
+    "friends_removed": "Removidos",
+    "friends_count": "Amigos",
+    "wallet_rp": "RP",
+    "wallet_be": "Essência Azul",
+    "raffle_title": "Sorteio",
+    "raffle_lane": "Sortear lane",
+    "raffle_lane_apply": "Usar como preferência",
+    "raffle_champion": "Sortear campeão",
+    "raffle_class_any": "Qualquer classe",
+    "raffle_class_fighter": "Lutador",
+    "raffle_class_mage": "Mago",
+    "raffle_class_assassin": "Assassino",
+    "raffle_class_marksman": "Atirador",
+    "raffle_class_support": "Suporte",
+    "raffle_class_tank": "Tanque",
+    "raffle_declare": "Declarar",
+    "raffle_lock": "Travar",
+    "raffle_again": "Sortear de novo",
+    "raffle_pool": "campeões no bolo",
+    "skin_title": "Roleta de skin",
+    "skin_roll": "Sortear skin",
+    "skin_roll_ward": "Sortear sentinela",
+    "skin_rolled": "Saiu",
+    "skin_lock_first": "Trave um campeão primeiro",
+    "pick_random": "Campeão aleatório",
+    "pick_random_desc": "Ignora a lista e trava um campeão aleatório permitido, inclusive na ranqueada. Campeões que aliados estão declarando são evitados.",
+    "skin_roulette": "Roleta de skin",
+    "skin_roulette_desc": "Na hora que você trava o campeão, uma skin e chroma que você possui são aplicados ao acaso. Sorteios recentes são pulados.",
+    "skin_include_base": "Incluir a skin base",
+    "ward_roulette": "Roleta de sentinela",
+    "ward_roulette_desc": "Também sorteia uma skin de sentinela sua ao travar.",
+    "sgp_enabled": "Dados do backend (SGP)",
+    "sgp_enabled_desc": "Quando o histórico local do cliente vem curto ou escondido, pergunta direto ao backend da Riot com os tokens do próprio cliente. Também habilita baixar replays.",
+    "coach_title": "Coach de IA",
+    "coach_desc": "O modelo de IA configurado lê seus próprios dados de partida, mais dados de meta do OP.GG, e responde como um coach.",
+    "coach_not_configured": "Configure um provedor de IA primeiro.",
+    "coach_open_settings": "Abrir ajustes",
+    "coach_style": "Tom",
+    "coach_style_objective": "Objetivo",
+    "coach_style_roast": "Zoeira",
+    "coach_style_praise": "Encorajador",
+    "coach_review_title": "Revisar uma partida",
+    "coach_review_pick": "Escolha uma partida recente",
+    "coach_review_run": "Revisar",
+    "coach_trends_title": "Tendências",
+    "coach_trends_games": "partidas",
+    "coach_trends_run": "Analisar",
+    "coach_ask_title": "Pergunte ao coach",
+    "coach_ask_placeholder": "Pergunte sobre o draft atual, a partida ou sua fase recente",
+    "coach_ask_run": "Perguntar",
+    "coach_quick_draft": "Analise este draft e me dê um plano",
+    "coach_quick_early": "Como devem ser meus primeiros 10 minutos?",
+    "coach_quick_now": "O que eu faço agora?",
+    "coach_quick_improve": "O que eu devo corrigir primeiro?",
+    "coach_working": "Pensando…",
+    "coach_result": "Coach",
+    "coach_copy": "Copiar",
+    "coach_copied": "Copiado",
+    "coach_error_no_games": "Sem partidas recentes para analisar",
+    "coach_privacy": "Dados da partida e, quando fizer sentido, dados de meta do OP.GG são enviados ao provedor de IA configurado.",
+    "replay_download": "Baixar replay",
+    "replay_downloading": "Baixando…",
+    "replay_saved": "Replay salvo em",
+    "review_ai": "Revisar com IA",
+    "history_source_sgp": "via backend",
+    "search_source_sgp": "Histórico buscado no backend da Riot (SGP), porque o cliente escondeu."
   },
   "nav": {
     "home": "Início",
@@ -371,7 +481,8 @@
     "section_app": "App",
     "section_plugins": "Plugins",
     "expand_plugins": "Expand plugins",
-    "collapse_plugins": "Collapse plugins"
+    "collapse_plugins": "Collapse plugins",
+    "tools": "Ferramentas"
   },
   "command_palette": {
     "open": "Search",
@@ -385,13 +496,16 @@
     "action_paste": "Colar URL da área de transferência"
   },
   "home": {
-    "mode_url": "URL",
-    "mode_batch": "Batch",
-    "mode_torrent": "Torrent",
-    "mode_p2p": "P2P",
     "inspector_title": "Download options",
     "hero_title": "OmniGet",
-    "hero_subtitle": "Cole um link ou pesquise. A gente cuida do resto."
+    "hero_subtitle": "Cole um link ou pesquise. A gente cuida do resto.",
+    "action_batch": "Many links at once",
+    "action_torrent": "Open a .torrent file",
+    "action_p2p": "Send a file to someone",
+    "action_advanced": "Advanced options",
+    "action_simple": "Back to the simple view",
+    "value_line": "{{count}} files · {{size}} saved with OmniGet",
+    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies."
   },
   "tools": {
     "tab": "Ferramentas",
@@ -435,9 +549,1845 @@
     "lc_desc": "Baixe o replay do chat de uma live encerrada, filtre e exporte em JSON ou CSV.",
     "lc_action": "Buscar chat ao vivo",
     "lc_none": "Sem replay de chat para este vídeo.",
-    "lc_exported": "Exportado {{name}}"
+    "lc_exported": "Exportado {{name}}",
+    "hub": {
+      "title": "Ferramentas",
+      "subtitle": "Tudo que o OmniGet faz além de baixar, num lugar só.",
+      "search_placeholder": "Buscar ferramenta, categoria ou plataforma…",
+      "filter_label": "Plataforma",
+      "categories": "Categorias",
+      "ready_now": "Prontas para usar",
+      "results": "Resultados",
+      "open_category": "Ver todas",
+      "filter_all": "Tudo",
+      "filter_cross": "Multiplataforma",
+      "filter_windows": "Windows",
+      "filter_macos": "macOS",
+      "filter_linux": "Linux",
+      "only_windows": "Só Windows",
+      "only_macos": "Só macOS",
+      "only_linux": "Só Linux",
+      "cross": "Multiplataforma",
+      "runs_on": "Roda em",
+      "soon": "Em breve",
+      "beta": "Beta",
+      "tool_count": "{{count}} ferramentas",
+      "tool_count_one": "1 ferramenta",
+      "empty_title": "Nada encontrado",
+      "empty_desc": "Tente outra palavra, ou mude o filtro de plataforma.",
+      "not_on_this_os": "Esta ferramenta não roda no seu sistema ({{os}}).",
+      "soon_title": "Em desenvolvimento",
+      "soon_desc": "Esta ferramenta está no plano do OmniGet e ainda não funciona. Ela aparece aqui para você saber o que vem por aí."
+    },
+    "categories": {
+      "youtube": {
+        "name": "YouTube",
+        "desc": "Baixar, extrair legendas, miniaturas, comentários e metadados."
+      },
+      "video": {
+        "name": "Edição de vídeo",
+        "desc": "Cortar, converter, gravar e montar vídeos sem sair do OmniGet."
+      },
+      "instagram": {
+        "name": "Instagram",
+        "desc": "Seguidores, unfollowers e download de posts."
+      },
+      "x": {
+        "name": "X / Twitter",
+        "desc": "Threads, post em imagem, raio-X de perfil, mídia, favoritos, seguidores, seu arquivo e Grok."
+      },
+      "spotify": {
+        "name": "Spotify",
+        "desc": "Temas e extensões do cliente oficial com o Spicetify."
+      },
+      "pdf": {
+        "name": "PDF",
+        "desc": "Juntar, dividir, comprimir, converter e reconhecer texto."
+      },
+      "system": {
+        "name": "Sistema",
+        "desc": "Limpeza, espaço em disco, inicialização e ajustes do Windows."
+      },
+      "automation": {
+        "name": "Automação",
+        "desc": "Cliques automáticos e rotinas repetitivas."
+      },
+      "ai": {
+        "name": "IA",
+        "desc": "Modelos locais, chaves de API e preços."
+      },
+      "speech": {
+        "name": "Voz e legendas",
+        "desc": "Transcrever, traduzir legendas, texto para voz e dublagem, local sempre que der."
+      },
+      "documents": {
+        "name": "Documentos",
+        "desc": "Slides, revistas, arquivos do Google e galerias de imagens salvos como arquivos."
+      },
+      "images": {
+        "name": "Imagens",
+        "desc": "Aumentar resolução, redimensionar e converter imagens em lote."
+      },
+      "files": {
+        "name": "Arquivos",
+        "desc": "Duplicados, renomear em massa, busca instantânea e manter acordado."
+      },
+      "downloads": {
+        "name": "Downloads",
+        "desc": "Downloads acelerados e manifestos HLS/DASH."
+      },
+      "phone": {
+        "name": "Celular",
+        "desc": "Enviar arquivos, links e texto para o celular com o KDE Connect."
+      },
+      "pinterest": {
+        "name": "Pinterest",
+        "desc": "Downloads na qualidade original, backup de boards, busca sem IA, duplicados, fontes e paletas."
+      }
+    },
+    "catalog": {
+      "yt-download": {
+        "name": "Baixar vídeo",
+        "desc": "Cole um link e escolha qualidade, formato e legendas."
+      },
+      "yt-metadata": {
+        "name": "Metadados",
+        "desc": "Salva título, descrição e capa do vídeo sem baixar o vídeo em si."
+      },
+      "yt-thumbnails": {
+        "name": "Miniaturas",
+        "desc": "Veja todas as capas disponíveis e salve em qualquer resolução."
+      },
+      "yt-subtitles": {
+        "name": "Legendas",
+        "desc": "Baixe legendas, ou junte dois idiomas num arquivo bilíngue."
+      },
+      "yt-comments": {
+        "name": "Comentários e capítulos",
+        "desc": "Busque comentários ou marcadores de capítulo, filtre e exporte em JSON ou CSV."
+      },
+      "yt-livechat": {
+        "name": "Chat da live",
+        "desc": "Salve o replay do chat de uma transmissão em JSON ou CSV."
+      },
+      "yt-workshop": {
+        "name": "Oficina de legendas",
+        "desc": "Edite, traduza e sincronize arquivos de legenda."
+      },
+      "video-clip": {
+        "name": "Cortar trecho",
+        "desc": "Escolha um vídeo do disco e corte um pedaço. O resultado cai na fila de downloads."
+      },
+      "video-convert": {
+        "name": "Converter",
+        "desc": "Troque container, codec, resolução ou comprima um arquivo."
+      },
+      "video-record": {
+        "name": "Gravar tela",
+        "desc": "Grave a tela com áudio do sistema. O buffer de replay recorta o que acabou de acontecer."
+      },
+      "video-editor": {
+        "name": "Editor de timeline",
+        "desc": "Timeline multi-track com cortes, transições e títulos. Um substituto livre do CapCut."
+      },
+      "video-captions": {
+        "name": "Legendas automáticas",
+        "desc": "Transcreva a fala localmente e grave ou exporte as legendas."
+      },
+      "video-tts": {
+        "name": "Texto para voz",
+        "desc": "Transforme um roteiro em narração com vozes locais."
+      },
+      "ig-unfollowers": {
+        "name": "Quem não me segue",
+        "desc": "Compare seguidores e seguindo, proteja contas numa lista branca e deixe de seguir num ritmo seguro."
+      },
+      "ig-download": {
+        "name": "Baixar post",
+        "desc": "Foto, vídeo, reel, IGTV ou carrossel a partir de um link, na melhor qualidade."
+      },
+      "spotify-spicetify": {
+        "name": "Temas e cores",
+        "desc": "Personalize o cliente do Spotify com temas do Spicetify. Atualiza pelo próprio Spicetify."
+      },
+      "spotify-extensions": {
+        "name": "Extensões",
+        "desc": "Instale extensões e custom apps do Spicetify pelo Marketplace."
+      },
+      "pdf-merge": {
+        "name": "Juntar",
+        "desc": "Una vários PDFs em um só, na ordem que quiser."
+      },
+      "pdf-split": {
+        "name": "Dividir",
+        "desc": "Extraia páginas ou quebre um PDF em partes."
+      },
+      "pdf-compress": {
+        "name": "Comprimir",
+        "desc": "Reduza o tamanho de um PDF mantendo a leitura."
+      },
+      "pdf-convert": {
+        "name": "Converter",
+        "desc": "PDF para imagem ou Word, e de volta."
+      },
+      "pdf-ocr": {
+        "name": "OCR",
+        "desc": "Deixe PDFs escaneados pesquisáveis reconhecendo o texto."
+      },
+      "sys-clean": {
+        "name": "Limpar caches",
+        "desc": "Remova temporários, logs e caches de navegadores e apps. Revise antes de apagar."
+      },
+      "sys-disk": {
+        "name": "Analisador de disco",
+        "desc": "Veja o que ocupa espaço num treemap interativo."
+      },
+      "sys-startup": {
+        "name": "Inicialização",
+        "desc": "Escolha o que abre junto com o sistema."
+      },
+      "sys-uninstall": {
+        "name": "Desinstalador",
+        "desc": "Remova apps e as sobras que eles deixam."
+      },
+      "sys-debloat": {
+        "name": "Debloat do Windows",
+        "desc": "Remova apps pré-instalados do Windows que você nunca usa."
+      },
+      "sys-registry": {
+        "name": "Limpar registro",
+        "desc": "Encontre e remova entradas quebradas ou órfãs do registro."
+      },
+      "sys-privacy": {
+        "name": "Privacidade",
+        "desc": "Controle telemetria, ID de anúncios e rastreamento do Windows."
+      },
+      "sys-updater": {
+        "name": "Atualizar programas",
+        "desc": "Atualize programas em massa via winget, Chocolatey e Scoop."
+      },
+      "auto-clicker": {
+        "name": "Autoclicker",
+        "desc": "Clique na velocidade exata que você definir, com atalhos, limites e faixas aleatórias."
+      },
+      "ai-keys": {
+        "name": "Chaves de API",
+        "desc": "Guarde chaves e contas num lugar só, veja saldo e uso, exporte para seus clientes."
+      },
+      "ai-prices": {
+        "name": "Comparar preços",
+        "desc": "Compare o custo do mesmo modelo entre provedores."
+      },
+      "speech-transcribe": {
+        "name": "Transcrever",
+        "desc": "Áudio ou vídeo vira legenda com whisper.cpp, offline. Os modelos baixam sob demanda."
+      },
+      "speech-tts": {
+        "name": "Texto para voz",
+        "desc": "Vozes naturais do Microsoft Edge, grátis, com legenda sincronizada."
+      },
+      "speech-translate": {
+        "name": "Traduzir legenda",
+        "desc": "Traduz um SRT com a IA configurada ou um servidor LibreTranslate, mantendo os tempos."
+      },
+      "speech-dub": {
+        "name": "Dublar por legenda",
+        "desc": "Transforma um SRT em faixa de voz que cabe em cada linha e, se quiser, troca o áudio do vídeo."
+      },
+      "ai-ollama": {
+        "name": "Modelos locais (Ollama)",
+        "desc": "Ver, baixar e remover modelos locais; usar como provedor grátis."
+      },
+      "ai-usage": {
+        "name": "Gastos com IA",
+        "desc": "Quanto o OmniGet gastou com IA, por dia, modelo e tarefa."
+      },
+      "ai-mcp": {
+        "name": "Servidor MCP",
+        "desc": "Deixar Claude, Goose ou Cursor operarem as tools do OmniGet."
+      },
+      "yt-sponsorblock": {
+        "name": "SponsorBlock",
+        "desc": "Ver trechos de patrocínio, intro e outro e pegar os argumentos do yt-dlp para baixar sem eles."
+      },
+      "yt-dislikes": {
+        "name": "Dislikes",
+        "desc": "Likes, dislikes e nota pelo Return YouTube Dislike."
+      },
+      "yt-frames": {
+        "name": "Capa real",
+        "desc": "Os frames que o CDN já tem (25/50/75%) no lugar da capa caça-clique."
+      },
+      "yt-codec": {
+        "name": "Forçar H.264",
+        "desc": "Opção da extensão para evitar VP9/AV1 em máquinas fracas."
+      },
+      "pdf-sanitize": {
+        "name": "PDF seguro",
+        "desc": "Remonta o PDF a partir dos pixels para tirar scripts e formulários."
+      },
+      "doc-slideshare": {
+        "name": "SlideShare em PDF",
+        "desc": "Cada slide no maior tamanho, montado num PDF só."
+      },
+      "doc-google": {
+        "name": "Exportar do Google",
+        "desc": "Docs, Slides e Planilhas públicos como PDF, DOCX, PPTX ou XLSX."
+      },
+      "doc-calameo": {
+        "name": "Páginas do Calameo",
+        "desc": "Salva as páginas de uma publicação do Calameo (SVG ou JPG)."
+      },
+      "doc-gallery": {
+        "name": "Galerias de imagens",
+        "desc": "Galerias e perfis inteiros de 250+ sites com o gallery-dl."
+      },
+      "doc-scribd": {
+        "name": "Scribd",
+        "desc": "Salvar livros legíveis em PDF usando a sua própria sessão."
+      },
+      "img-upscale": {
+        "name": "Aumentar resolução",
+        "desc": "Real-ESRGAN em qualquer GPU com Vulkan: 2×, 3× ou 4× com IA."
+      },
+      "img-resize": {
+        "name": "Redimensionar imagens",
+        "desc": "Lote por largura, altura, caber em ou porcentagem, convertendo o formato se quiser."
+      },
+      "img-ocr": {
+        "name": "OCR",
+        "desc": "Copiar o texto de imagens e slides."
+      },
+      "files-dupes": {
+        "name": "Duplicados",
+        "desc": "Acha arquivos idênticos por hash e libera espaço com segurança."
+      },
+      "files-rename": {
+        "name": "Renomear em massa",
+        "desc": "Regex, contadores e caixa com prévia antes de aplicar."
+      },
+      "files-search": {
+        "name": "Buscar arquivos",
+        "desc": "Busca instantânea com Everything, Spotlight ou fd."
+      },
+      "files-awake": {
+        "name": "Manter acordado",
+        "desc": "Impede o computador de dormir durante trabalhos longos."
+      },
+      "dl-aria2": {
+        "name": "Download acelerado",
+        "desc": "Arquivos grandes com 16 conexões, retomada e checksum via aria2."
+      },
+      "dl-manifest": {
+        "name": "Manifesto HLS / DASH",
+        "desc": "Cole um .m3u8 ou .mpd com Referer e cookie; o FFmpeg salva um MP4."
+      },
+      "phone-send": {
+        "name": "Enviar para o celular",
+        "desc": "Arquivos, links e texto para um dispositivo pareado no KDE Connect."
+      },
+      "sys-harden": {
+        "name": "Endurecer o Windows",
+        "desc": "Macros, AutoRun, script host, UAC e Defender segundo o hardentools, reversível."
+      },
+      "speech-clone": {
+        "name": "Clonar voz",
+        "desc": "Transforme uma amostra de 3 a 15 segundos numa voz que fala qualquer texto, sem sair da máquina."
+      },
+      "speech-design": {
+        "name": "Criar voz",
+        "desc": "Descreva idade, sotaque, tom e ritmo e receba uma voz nova."
+      },
+      "speech-isolate": {
+        "name": "Isolar voz",
+        "desc": "Separe a voz da música e do ruído de fundo."
+      },
+      "speech-dictation": {
+        "name": "Ditado",
+        "desc": "Fale com um atalho global e o texto aparece onde o cursor está."
+      },
+      "ai-humanize": {
+        "name": "Humanizar texto",
+        "desc": "Reescreva um texto com cara de IA para soar como gente, sem mudar o que ele diz. Roda na IA configurada."
+      },
+      "pin-download": {
+        "name": "Baixar pin",
+        "desc": "Imagem na qualidade original, vídeo em MP4, GIF, carrossel ou páginas de story."
+      },
+      "pin-board": {
+        "name": "Backup de board",
+        "desc": "Todos os pins de um board ou seção com originais, vídeos, CSV/JSON e sincronização incremental."
+      },
+      "pin-profile": {
+        "name": "Backup de perfil",
+        "desc": "Todos os boards públicos de um perfil, uma pasta por board, mais os pins criados."
+      },
+      "pin-search": {
+        "name": "Buscar sem IA e sem anúncio",
+        "desc": "Busque no Pinterest com filtros que escondem imagens de IA, pins promovidos e vídeos, e baixe."
+      },
+      "pin-related": {
+        "name": "Pins parecidos",
+        "desc": "O \"Mais como este\" de qualquer pin, com filtros e download."
+      },
+      "pin-source": {
+        "name": "Achar a fonte",
+        "desc": "Link de destino, criador, checagem de link morto, Wayback Machine e busca reversa de imagem."
+      },
+      "pin-dupes": {
+        "name": "Duplicados no board",
+        "desc": "Pins iguais e quase iguais em um board, com opção de desfazer o save."
+      },
+      "pin-palette": {
+        "name": "Paleta de cores",
+        "desc": "Paleta de um board ou pin em hex, CSS ou JSON."
+      },
+      "pin-export": {
+        "name": "Galeria offline, PDF, CSV",
+        "desc": "Um board como galeria HTML com busca, moodboard em PDF ou planilha."
+      },
+      "pin-keywords": {
+        "name": "Ideias de palavras-chave",
+        "desc": "Sugestões da busca, refinamentos e as palavras que os pins do topo usam."
+      },
+      "x-download": {
+        "name": "Baixar post",
+        "desc": "Vídeos, imagens e GIFs de qualquer post, na melhor qualidade."
+      },
+      "x-thread": {
+        "name": "Desenrolar thread",
+        "desc": "A thread inteira numa página só, exportada em Markdown, HTML ou texto."
+      },
+      "x-card": {
+        "name": "Post em imagem",
+        "desc": "Transforme um post num card PNG bonito para compartilhar."
+      },
+      "x-profile": {
+        "name": "Raio-X de perfil",
+        "desc": "Engajamento, melhor horário, melhores posts e hashtags de qualquer conta."
+      },
+      "x-media": {
+        "name": "Mídia do perfil",
+        "desc": "Todas as fotos e vídeos de um perfil, em qualidade original, de uma vez."
+      },
+      "x-search": {
+        "name": "Busca avançada",
+        "desc": "Monte buscas com os operadores do X, veja os trends e exporte."
+      },
+      "x-bookmarks": {
+        "name": "Exportar favoritos",
+        "desc": "Todos os seus favoritos com pastas, em JSON, CSV, Markdown ou HTML."
+      },
+      "x-unfollow": {
+        "name": "Quem não segue de volta",
+        "desc": "Compare seguindo × seguidores e deixe de seguir com segurança e whitelist."
+      },
+      "x-archive": {
+        "name": "Seu arquivo do X",
+        "desc": "Abra o zip de dados offline: estatísticas, melhores posts, curtidas e listas."
+      },
+      "x-grok": {
+        "name": "Grok",
+        "desc": "Pergunte ao Grok com busca ao vivo no X ou resuma uma thread, pela API xAI ou pela sua sessão."
+      },
+      "ig-bulk": {
+        "name": "Baixar vários links",
+        "desc": "Cole uma lista de links ou um .txt e baixe tudo de uma vez."
+      },
+      "ig-audio": {
+        "name": "Áudio do reel",
+        "desc": "Guarde só o som de um reel ou vídeo, em M4A ou MP3."
+      },
+      "ig-stories": {
+        "name": "Stories",
+        "desc": "Baixe stories, inclusive de melhores amigos, sem marcar como visto."
+      },
+      "ig-highlights": {
+        "name": "Destaques",
+        "desc": "Baixe um destaque ou todos os destaques de um perfil."
+      },
+      "ig-story-viewers": {
+        "name": "Quem viu meu story",
+        "desc": "Liste e exporte quem assistiu cada um dos seus stories ativos."
+      },
+      "ig-viewer": {
+        "name": "Ver perfil",
+        "desc": "Bio, contagens, foto em HD e se a conta segue você."
+      },
+      "ig-avatar": {
+        "name": "Foto de perfil em HD",
+        "desc": "Salve a foto de perfil de qualquer conta em tamanho cheio."
+      },
+      "ig-profile-media": {
+        "name": "Baixar um perfil",
+        "desc": "Todos os posts, reels, marcados ou salvos, com o limite que você escolher."
+      },
+      "ig-fans": {
+        "name": "Fãs",
+        "desc": "Contas que seguem você mas você não segue, com opção de remover seguidores."
+      },
+      "ig-mutuals": {
+        "name": "Mútuos",
+        "desc": "Contas que você segue e seguem de volta."
+      },
+      "ig-unfollowed": {
+        "name": "Quem deixou de me seguir",
+        "desc": "Snapshots das suas listas ao longo do tempo mostram quem saiu e quem chegou."
+      },
+      "ig-ghosts": {
+        "name": "Seguidores fantasmas",
+        "desc": "Seguidores que nunca curtem nem comentam, e os que mais engajam."
+      },
+      "ig-whitelist": {
+        "name": "Lista branca",
+        "desc": "Contas que nunca são sugeridas para deixar de seguir."
+      },
+      "ig-export": {
+        "name": "Export de dados",
+        "desc": "Leia o \"Baixe suas informações\" da Meta offline: pedidos pendentes, melhores amigos, bloqueados e mais."
+      },
+      "ig-analytics": {
+        "name": "Análise de perfil",
+        "desc": "Taxa de engajamento, ritmo, melhores dias e horas, hashtags e top posts de qualquer perfil público."
+      },
+      "ig-benchmark": {
+        "name": "Comparar perfis",
+        "desc": "Métricas de até seis perfis lado a lado."
+      },
+      "ig-hashtag": {
+        "name": "Explorar hashtag",
+        "desc": "Total de posts, recentes e populares, hashtags relacionadas, download."
+      },
+      "ig-comments": {
+        "name": "Exportar comentários",
+        "desc": "Todos os comentários de um post em CSV, com filtro."
+      },
+      "ig-likers": {
+        "name": "Quem curtiu",
+        "desc": "Liste e exporte as contas que curtiram um post."
+      },
+      "ig-giveaway": {
+        "name": "Sorteio",
+        "desc": "Sorteie ganhadores entre os comentários com regras de menções, palavra e uma participação por pessoa."
+      },
+      "ig-publish": {
+        "name": "Publicar",
+        "desc": "Foto, carrossel, reel, vídeo ou story pela sua sessão ou pela API oficial."
+      },
+      "ig-schedule": {
+        "name": "Agendar posts",
+        "desc": "Enfileire posts para uma data e hora; o OmniGet publica enquanto estiver aberto."
+      }
+    },
+    "spicetify": {
+      "title": "Spicetify",
+      "cli_row": "Spicetify CLI",
+      "cli_missing": "Não instalado",
+      "cli_source_managed": "gerido pelo OmniGet",
+      "cli_source_system": "encontrado no sistema",
+      "cli_source_custom": "caminho personalizado",
+      "install": "Instalar",
+      "installing": "Instalando…",
+      "upgrade": "Atualizar Spicetify",
+      "upgrading": "Atualizando…",
+      "spotify_row": "Spotify",
+      "spotify_missing": "Spotify não encontrado",
+      "spotify_hint": "Instale o Spotify pelo site spotify.com. A versão da Mac App Store ou da Microsoft Store não pode ser personalizada.",
+      "spotify_download": "Baixar o Spotify",
+      "state_row": "Estado",
+      "state_applied": "Personalizado",
+      "state_original": "Original",
+      "apply": "Aplicar",
+      "restore": "Restaurar",
+      "working": "Trabalhando…",
+      "appearance": "Aparência",
+      "theme": "Tema",
+      "theme_default": "Padrão do Spotify",
+      "scheme": "Esquema de cores",
+      "apply_theme": "Aplicar tema",
+      "no_themes": "Nenhum tema ainda. Instale o Marketplace para ver centenas deles.",
+      "marketplace": "Marketplace",
+      "marketplace_desc": "Veja e instale temas, extensões e apps de dentro do Spotify.",
+      "marketplace_install": "Instalar Marketplace",
+      "marketplace_installed": "Instalado",
+      "marketplace_hint": "Abra o Spotify e clique em Marketplace na barra lateral.",
+      "addons": "Extensões e apps",
+      "extensions": "Extensões",
+      "custom_apps": "Custom apps",
+      "addons_empty": "Nada instalado. O Marketplace adiciona itens aqui.",
+      "remove": "Remover",
+      "advanced": "Avançado",
+      "refresh": "Recarregar tema",
+      "restart": "Reiniciar Spotify",
+      "block_updates": "Bloquear atualizações do Spotify",
+      "unblock_updates": "Permitir atualizações do Spotify",
+      "block_updates_desc": "Uma atualização do Spotify desfaz a personalização até você aplicar de novo.",
+      "open_config": "Abrir pasta de config",
+      "devtools": "Ativar ferramentas de desenvolvedor",
+      "log": "Última saída",
+      "flatpak": "Dentro do Flatpak o app não consegue alterar o Spotify instalado no sistema.",
+      "done": "Pronto",
+      "failed": "Falhou",
+      "install_first": "Instale o Spicetify para continuar.",
+      "first_apply_hint": "A primeira aplicação faz um backup do Spotify. O Spotify reinicia em seguida."
+    },
+    "common": {
+      "installed": "Instalado",
+      "not_installed": "Não instalado",
+      "install": "Instalar",
+      "installing": "Instalando…",
+      "update": "Atualizar",
+      "download": "Baixar",
+      "downloading": "Baixando…",
+      "remove": "Remover",
+      "refresh": "Atualizar",
+      "choose": "Escolher…",
+      "add": "Adicionar…",
+      "file": "arquivo",
+      "files": "arquivos",
+      "output_folder": "Pasta de saída",
+      "same_folder": "Mesma pasta do arquivo",
+      "ask_on_run": "Perguntada ao executar",
+      "optional": "opcional",
+      "working": "Trabalhando…",
+      "done": "Pronto",
+      "failed": "falhou",
+      "result": "Resultado",
+      "reveal": "Mostrar na pasta",
+      "open": "Abrir",
+      "play": "Tocar",
+      "save": "Salvar",
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "yt_url": "Link do YouTube ou ID do vídeo"
+    },
+    "whisper": {
+      "engine": "Motor",
+      "models": "Modelos",
+      "transcribe": "Transcrever",
+      "file_hint": "Escolha um arquivo de áudio ou vídeo",
+      "model": "Modelo",
+      "language": "Idioma",
+      "max_len": "Máximo de caracteres por linha",
+      "max_len_hint": "0 deixa o modelo decidir; 42 fica bom para legenda",
+      "prompt": "Vocabulário",
+      "prompt_hint": "Nomes e termos que precisam sair escritos certo",
+      "translate": "Traduzir para inglês",
+      "converting": "Convertendo o áudio…",
+      "working": "Transcrevendo",
+      "run": "Transcrever",
+      "cues": "linhas",
+      "open_workshop": "Abrir no Subtitle Workshop"
+    },
+    "tts": {
+      "voice": "Voz",
+      "language": "Idioma",
+      "rate": "Velocidade",
+      "pitch": "Tom",
+      "text": "Texto",
+      "placeholder": "Digite ou cole o texto para narrar…",
+      "chars": "caracteres",
+      "free_note": "Serviço grátis do Microsoft Edge, precisa de internet",
+      "run": "Gerar áudio",
+      "words": "palavras"
+    },
+    "srtt": {
+      "input": "Legenda",
+      "file": "Arquivo SRT",
+      "file_hint": "Escolha um .srt, .vtt ou .ass",
+      "from_to": "De → para",
+      "bilingual": "Bilíngue",
+      "bilingual_hint": "Mantém o texto original embaixo da tradução",
+      "engine": "Motor",
+      "provider": "Provedor",
+      "llm": "IA configurada",
+      "context": "Contexto",
+      "context_hint": "Tema e termos ajudam o modelo a manter a terminologia",
+      "context_placeholder": "Curso de React; manter 'hook' e 'state' em inglês",
+      "llm_note": "Usa o provedor definido em Configurações → IA.",
+      "open_settings": "Abrir configurações",
+      "server": "Servidor",
+      "run": "Traduzir",
+      "failed_lines": "linhas não traduzidas"
+    },
+    "dub": {
+      "intro": "Cada linha da legenda é falada pelo Edge TTS, acelerada para caber no tempo dela e misturada numa faixa só. Funciona melhor com linhas que não se sobrepõem.",
+      "srt": "Legenda",
+      "srt_hint": "Escolha o .srt para dar voz",
+      "video": "Vídeo",
+      "max_speed": "Aceleração máxima",
+      "max_speed_hint": "Acima disso a voz soaria corrida; a linha só passa do tempo",
+      "keep_original": "Volume do áudio original",
+      "synth": "Sintetizando",
+      "mix": "Misturando…",
+      "mux": "Trocando o áudio…",
+      "run": "Dublar",
+      "sped_up": "aceleradas"
+    },
+    "ollama": {
+      "daemon": "Serviço",
+      "running": "rodando",
+      "stopped": "parado",
+      "stopped_hint": "Instale o Ollama e abra; o OmniGet fala com ele na porta 11434.",
+      "get": "Baixar o Ollama",
+      "use_hint": "Em Configurações → IA escolha o provedor local com a URL base",
+      "installed": "Modelos instalados",
+      "none": "Nenhum modelo ainda. Baixe um abaixo.",
+      "loaded": "na memória",
+      "recommended": "Recomendados",
+      "custom_placeholder": "Qualquer modelo do ollama.com (ex.: mistral:7b)"
+    },
+    "pricing": {
+      "search": "Buscar modelo ou provedor…",
+      "all": "todos os modos",
+      "estimate_for": "Estimativa para",
+      "models": "modelos",
+      "source": "preços do LiteLLM, por 1M de tokens",
+      "model": "Modelo",
+      "provider": "Provedor",
+      "caps": "Recursos",
+      "estimate": "Estimativa"
+    },
+    "usage": {
+      "calls": "chamadas",
+      "intro": "Toda chamada de IA que o OmniGet faz fica registrada localmente; o custo usa a tabela de preços atual.",
+      "unknown_price": "sem preço conhecido",
+      "by_day": "Por dia",
+      "by_model": "Por modelo",
+      "by_task": "Por tarefa",
+      "empty": "Nada ainda. Use qualquer tool de IA e ela aparece aqui.",
+      "clear": "Limpar registro",
+      "clear_confirm": "Apagar todo o registro de uso de IA?"
+    },
+    "sb": {
+      "lookup": "Consultar",
+      "segments": "trechos",
+      "skippable": "puláveis",
+      "votes": "votos",
+      "none": "Ninguém enviou trechos para esse vídeo.",
+      "download_without": "Baixar sem esses trechos",
+      "args_hint": "Adicione aos argumentos do yt-dlp em Configurações → Avançado, ou copie os capítulos:",
+      "copy_chapters": "Copiar capítulos"
+    },
+    "ryd": {
+      "lookup": "Consultar",
+      "positive": "positivo",
+      "note": "estimado pelo Return YouTube Dislike a partir dos usuários da extensão",
+      "deleted": "vídeo apagado"
+    },
+    "frames": {
+      "show": "Mostrar",
+      "intro": "O CDN do YouTube guarda três frames automáticos de todo vídeo (hq1, hq2, hq3). Eles mostram como o vídeo é de verdade.",
+      "bad_url": "Isso não parece um vídeo do YouTube."
+    },
+    "slideshare": {
+      "run": "Salvar em PDF",
+      "pages": "páginas"
+    },
+    "gdocs": {
+      "check": "Verificar",
+      "bad_url": "Cole um link do docs.google.com (Documentos, Apresentações ou Planilhas).",
+      "note": "Funciona para arquivos públicos ou 'qualquer pessoa com o link'. Os privados precisam de Arquivo → Fazer download no navegador."
+    },
+    "calameo": {
+      "intro": "As páginas são salvas uma a uma numa pasta. Quando a publicação entrega páginas JPEG, um PDF também é montado.",
+      "page": "Página"
+    },
+    "gallery": {
+      "engine": "Motor",
+      "placeholder": "URL de galeria, álbum ou perfil (Pinterest, Instagram, ArtStation, Reddit…)",
+      "cookies": "Arquivo de cookies",
+      "files": "arquivos"
+    },
+    "upscale": {
+      "engine": "Motor",
+      "gpu_note": "precisa de GPU com Vulkan (integrada serve)",
+      "model": "Modelo",
+      "run": "Aumentar"
+    },
+    "resize": {
+      "mode": "Tamanho",
+      "width": "largura",
+      "height": "altura",
+      "fit": "caber em",
+      "format": "Formato",
+      "quality": "qualidade",
+      "keep": "manter",
+      "run": "Redimensionar"
+    },
+    "dupes": {
+      "folders": "Pastas",
+      "folders_hint": "Adicione as pastas a comparar",
+      "min_size": "Tamanho mínimo",
+      "extensions": "Extensões",
+      "walking": "Listando arquivos…",
+      "scan": "Procurar",
+      "groups": "grupos",
+      "wasted": "desperdiçados",
+      "scanned": "arquivos vistos",
+      "selected": "selecionados",
+      "auto_select": "Manter o mais antigo, marcar o resto",
+      "delete": "Apagar selecionados",
+      "delete_confirm": "Apagar definitivamente os arquivos selecionados?",
+      "deleted": "apagados",
+      "none": "Nenhum duplicado encontrado."
+    },
+    "rename": {
+      "find": "Procurar",
+      "find_hint": "Expressão regular; vazio significa o nome inteiro",
+      "replace": "Substituir por",
+      "replace_hint": "$1 para grupos; {n}, {n:3}, {name}, {ext}, {date}",
+      "options": "Opções",
+      "case_keep": "manter caixa",
+      "will_change": "vão mudar",
+      "conflicts": "conflitos",
+      "apply": "Renomear",
+      "renamed": "renomeados"
+    },
+    "fsearch": {
+      "placeholder": "Nome do arquivo…",
+      "everywhere": "Em todo lugar",
+      "results": "resultados"
+    },
+    "awake": {
+      "on": "Mantendo o computador acordado",
+      "off": "Desligado",
+      "intro": "Bloqueia a suspensão e o descanso de tela até você parar ou fechar o OmniGet.",
+      "start": "Manter acordado",
+      "stop": "Parar",
+      "note": "Os downloads já mantêm o computador acordado quando a opção está ligada em Configurações."
+    },
+    "aria2": {
+      "install_hint": "no Linux/macOS instale o aria2 pelo gerenciador de pacotes",
+      "options": "Opções",
+      "file_name": "nome do arquivo",
+      "connections": "conexões"
+    },
+    "manifest": {
+      "intro": "Para players que expõem um .m3u8 ou .mpd (a maioria das plataformas de curso). Streams com DRM não são suportados.",
+      "referer_hint": "A página onde você assistiu; a maioria dos servidores recusa sem ela"
+    },
+    "wintweaks": {
+      "only_windows": "Esses ajustes só existem no Windows. A lista aparece para você saber o que a tool faz.",
+      "admin_hint": "Regras marcadas com admin precisam do OmniGet aberto como administrador.",
+      "restart": "Saia da conta ou reinicie para ver a mudança.",
+      "group_privacy": "Privacidade e telemetria",
+      "group_ui": "Interface",
+      "group_context": "Menu de contexto",
+      "group_harden": "Endurecimento",
+      "rules": {
+        "advertising-id": "Desligar ID de publicidade",
+        "tailored-experiences": "Desligar experiências personalizadas (dados de diagnóstico)",
+        "settings-suggested-content": "Esconder conteúdo sugerido em Configurações",
+        "apps-silent-install": "Impedir instalação silenciosa de apps",
+        "welcome-experience": "Esconder a experiência de boas-vindas",
+        "start-suggestions": "Esconder sugestões do menu Iniciar",
+        "lockscreen-tips": "Esconder dicas e anúncios na tela de bloqueio",
+        "bing-search": "Desligar o Bing na busca do Iniciar",
+        "diagnostic-data-minimal": "Dados de diagnóstico: só os obrigatórios",
+        "feedback-never": "Nunca pedir feedback",
+        "activity-history": "Desligar histórico de atividades",
+        "location-tracking": "Negar acesso à localização",
+        "copilot-off": "Desligar o Windows Copilot",
+        "recall-off": "Desligar o Recall (análise de dados por IA)",
+        "show-file-extensions": "Mostrar extensões de arquivo",
+        "show-hidden-files": "Mostrar arquivos ocultos",
+        "explorer-this-pc": "Abrir o Explorador em Este Computador",
+        "taskbar-left": "Alinhar a barra de tarefas à esquerda",
+        "taskbar-no-search": "Esconder a busca da barra de tarefas",
+        "taskbar-no-widgets": "Esconder os Widgets da barra de tarefas",
+        "taskbar-end-task": "Adicionar Finalizar tarefa ao clique direito da barra",
+        "classic-context-menu": "Menu de contexto clássico (completo)",
+        "onedrive-ad-explorer": "Esconder anúncios do OneDrive no Explorador",
+        "seconds-in-clock": "Mostrar segundos no relógio",
+        "autorun-off": "Desligar AutoRun em todas as unidades",
+        "autoplay-off": "Desligar reprodução automática",
+        "wsh-off": "Desligar o Windows Script Host (.vbs/.js)",
+        "office-macros-word": "Word: bloquear todas as macros",
+        "office-macros-excel": "Excel: bloquear todas as macros",
+        "office-macros-powerpoint": "PowerPoint: bloquear todas as macros",
+        "office-dde-word": "Word: não atualizar links automaticamente (DDE)",
+        "office-dde-excel": "Excel: não atualizar links automaticamente (DDE)",
+        "acrobat-js-off": "Acrobat Reader: desligar JavaScript",
+        "defender-pua": "Defender: bloquear apps potencialmente indesejados",
+        "uac-max": "UAC: sempre perguntar na área de trabalho segura",
+        "lsa-protection": "Proteção LSA (roubo de credenciais)",
+        "safe-dll-loading": "Modo seguro de busca de DLL"
+      }
+    },
+    "kde": {
+      "daemon": "kdeconnect-cli",
+      "device": "Dispositivo",
+      "no_devices": "Nenhum dispositivo pareado. Pareie primeiro pelo app do KDE Connect.",
+      "send": "Enviar",
+      "text": "Texto",
+      "pick_file": "Escolha um arquivo",
+      "sent": "Enviado"
+    },
+    "ocr": {
+      "engine": "Motor",
+      "languages": "Idiomas",
+      "languages_hint": "Códigos do Tesseract separados por +, ex.: por+eng",
+      "run": "Extrair texto",
+      "copy_all": "Copiar tudo"
+    },
+    "humanize": {
+      "input": "Texto",
+      "placeholder": "Cole o texto que parece escrito por chatbot…",
+      "run": "Humanizar",
+      "again": "Humanizar de novo",
+      "sample_show": "Adicionar amostra da sua escrita",
+      "sample_hide": "Esconder amostra",
+      "sample_hint": "Cole algo que você mesmo escreveu. A reescrita copia seu tamanho de frase, vocabulário e pontuação.",
+      "sample_placeholder": "Um ou dois parágrafos com a sua voz…",
+      "not_configured": "Configure um provedor de IA antes (OpenAI, Anthropic ou um endpoint local).",
+      "open_settings": "Abrir Ajustes",
+      "credit": "Padrões de \"Signs of AI writing\" da Wikipedia, empacotados por blader/humanizer (MIT). Nada é inventado: nomes, números e citações ficam como estão."
+    },
+    "pinterest": {
+      "url_placeholder": "Link de pin, board, seção, perfil ou pin.it",
+      "pin_placeholder": "Link do pin ou pin.it",
+      "board_placeholder": "Link de board, seção, perfil, busca ou pin.it",
+      "profile_placeholder": "Link do perfil ou nome de usuário",
+      "query_placeholder": "Buscar no Pinterest…",
+      "term_placeholder": "Palavra-chave, ex.: sala mid century",
+      "cookies": "Cookies",
+      "cookies_hint": "arquivo cookies.txt ou string de cookies; necessário para boards secretos e para desfazer saves",
+      "cookies_placeholder": "caminho do cookies.txt ou csrftoken=…; _pinterest_sess=…",
+      "inspect": "Inspecionar",
+      "download": "Baixar",
+      "backup": "Fazer backup",
+      "search": "Buscar",
+      "scan": "Procurar",
+      "export": "Exportar",
+      "load": "Carregar",
+      "limit": "Limite",
+      "limit_hint": "0 = tudo",
+      "filters": "Filtros",
+      "hide_promoted": "Esconder anúncios",
+      "hide_ai": "Esconder IA",
+      "ai_off": "desligado",
+      "ai_labeled": "rotulados + explícitos",
+      "ai_tools": "+ ferramentas citadas",
+      "ai_any": "+ qualquer menção a \"ia\"",
+      "only": "Só",
+      "only_all": "tudo",
+      "only_image": "imagens",
+      "only_video": "vídeos",
+      "only_gif": "GIFs",
+      "min_width": "Largura mín.",
+      "scope": "Escopo",
+      "scope_pins": "pins",
+      "scope_videos": "vídeos",
+      "scope_boards": "boards",
+      "results": "resultados",
+      "hidden": "escondidos pelos filtros",
+      "guides": "Buscas relacionadas",
+      "select_all": "Selecionar tudo",
+      "clear": "Limpar",
+      "selected": "selecionados",
+      "download_selected": "Baixar selecionados",
+      "download_all": "Baixar todos",
+      "options": "Opções de download",
+      "images": "Imagens",
+      "videos": "Vídeos",
+      "convert_webp": "Converter WebP para PNG",
+      "naming": "Nome dos arquivos",
+      "naming_id": "id do pin",
+      "naming_title": "título",
+      "naming_title_id": "título + id",
+      "sidecar": "JSON com metadados ao lado de cada arquivo",
+      "skip_downloaded": "Pular já baixados (sincronizar)",
+      "section_folders": "Uma pasta por seção",
+      "metadata": "Gravar pins.csv e pins.json",
+      "gallery": "Gravar galeria offline (index.html)",
+      "include_created": "Também os pins criados",
+      "saves": "saves",
+      "comments": "comentários",
+      "reactions": "reações",
+      "repins": "repins",
+      "followers": "seguidores",
+      "pins": "pins",
+      "boards": "boards",
+      "sections": "seções",
+      "following": "seguindo",
+      "kind_image": "imagem",
+      "kind_gif": "GIF",
+      "kind_video": "vídeo",
+      "kind_carousel": "carrossel",
+      "kind_story": "story",
+      "promoted": "anúncio",
+      "ai": "IA",
+      "ai_labeled_by_pinterest": "rotulado pelo Pinterest",
+      "ai_keyword": "palavra",
+      "open_pinterest": "Abrir no Pinterest",
+      "open_link": "Abrir link",
+      "copy_url": "Copiar URL da imagem",
+      "board": "Board",
+      "section": "Seção",
+      "profile": "Perfil",
+      "secret": "secreto",
+      "collaborative": "colaborativo",
+      "pinner": "Salvo por",
+      "creator": "Criado por",
+      "created": "Criado em",
+      "domain": "Domínio",
+      "uploaded": "enviado pelo usuário (sem link)",
+      "link": "Link de destino",
+      "link_alive": "o link está no ar",
+      "link_dead": "o link está morto ou bloqueado",
+      "link_status": "status HTTP",
+      "final_url": "URL final",
+      "wayback": "Cópia na Wayback Machine",
+      "no_wayback": "sem cópia na Wayback Machine",
+      "reverse": "Busca reversa de imagem",
+      "attribution": "Atribuição",
+      "rich": "Metadados da página",
+      "expanded": "Link expandido",
+      "threshold": "Semelhança",
+      "threshold_hint": "0 = só idênticos · 6 = parecidos · 12 = folgado",
+      "exact": "idênticos",
+      "near": "parecidos",
+      "distance": "distância",
+      "groups": "grupos",
+      "scanned": "pins analisados",
+      "no_dupes": "Nenhum duplicado encontrado.",
+      "unsave": "Desfazer save dos selecionados",
+      "keep_first": "Selecionar todos menos o primeiro de cada grupo",
+      "unsave_confirm": "Desfazer o save desses pins na sua conta? Não dá para voltar atrás.",
+      "unsave_needs_cookies": "Para desfazer saves é preciso informar os cookies da sessão.",
+      "unsaved": "removidos",
+      "colors": "Cores",
+      "swatches": "Das imagens",
+      "dominant": "Das cores dominantes do Pinterest",
+      "skip_extremes": "Ignorar quase branco e quase preto",
+      "copy_css": "Copiar CSS",
+      "copy_json": "Copiar JSON",
+      "copy_hex": "Copiar lista hex",
+      "pins_used": "pins amostrados",
+      "format": "Formato",
+      "fmt_html": "Galeria HTML",
+      "fmt_pdf": "PDF (um pin por página)",
+      "fmt_csv": "CSV",
+      "fmt_json": "JSON",
+      "offline": "Baixar as imagens para a pasta (funciona offline)",
+      "suggestions": "Sugestões",
+      "common": "Palavras comuns nos pins do topo",
+      "sample": "pins amostrados",
+      "use": "Usar",
+      "total": "pins",
+      "downloaded": "baixados",
+      "skipped": "pulados",
+      "failed": "falharam",
+      "files": "arquivos",
+      "boards_done": "boards",
+      "stage_list": "Listando pins…",
+      "stage_download": "Baixando…",
+      "stage_hash": "Comparando imagens…",
+      "stage_sample": "Amostrando cores…",
+      "stage_board": "Board",
+      "csv": "CSV",
+      "json": "JSON",
+      "html": "Galeria",
+      "open_gallery": "Abrir galeria",
+      "no_results": "Nada encontrado.",
+      "need_pin": "Cole o link de um pin.",
+      "more": "Carregar mais",
+      "session_on": "cookies de sessão carregados",
+      "session_off": "sem cookies: só conteúdo público"
+    },
+    "x": {
+      "err_login": "Entre no X primeiro (botão acima).",
+      "err_rate": "O X limitou as requisições. Tente de novo em uns {mins} min.",
+      "login": "Entrar no X",
+      "relogin": "Entrar de novo",
+      "login_ok": "Sessão salva no bucket x.com.",
+      "login_fail": "A janela de login fechou sem sessão.",
+      "logged_in": "Conectado ao X",
+      "logged_out": "Sem sessão no X",
+      "session_hint_in": "As ferramentas públicas dispensam login; favoritos, seguidores e o Grok do X usam esta sessão.",
+      "session_hint_out": "Opcional aqui: esta ferramenta usa dados públicos do X.",
+      "session_hint_required": "Esta ferramenta precisa da sua sessão do X. Os cookies ficam neste computador.",
+      "query_ids": "query IDs do GraphQL em cache",
+      "refresh_ids": "Atualizar IDs",
+      "refresh_ids_hint": "O X troca os query IDs do GraphQL a cada poucas semanas. Atualize se alguma ferramenta disser \"Query not found\".",
+      "post_placeholder": "Link do post (x.com/usuario/status/…)",
+      "handle_placeholder": "@usuario ou link do perfil",
+      "posts": "posts",
+      "words": "palavras",
+      "source": "fonte",
+      "truncated": "thread cortada pelo X",
+      "unroll": "Desenrolar",
+      "thread_intro": "Lê a thread inteira do autor numa página só e exporta em Markdown, HTML, texto ou JSON. Funciona sem login.",
+      "copy_md": "Copiar Markdown",
+      "open_on_x": "Abrir no X",
+      "replying_to": "Em resposta a",
+      "load_post": "Carregar post",
+      "card_theme": "Tema",
+      "theme_light": "Claro",
+      "theme_dim": "Dim",
+      "theme_dark": "Escuro",
+      "card_bg": "Fundo",
+      "card_scale": "Resolução",
+      "card_metrics": "Métricas",
+      "card_media": "Mídia",
+      "card_hint": "Cole o link de um post para transformá-lo em imagem.",
+      "copy_image": "Copiar imagem",
+      "copy_image_fail": "Não deu para copiar a imagem; salve como PNG.",
+      "save_png": "Salvar PNG",
+      "analyze": "Analisar",
+      "sample": "Amostra",
+      "sample_hint": "Quantos posts recentes ler. Mais posts, mais demora.",
+      "with_replies": "incluir respostas",
+      "followers": "seguidores",
+      "following": "seguindo",
+      "joined": "entrou em",
+      "engagement": "Engajamento",
+      "days": "dias",
+      "avg_likes": "curtidas médias",
+      "median_likes": "curtidas (mediana)",
+      "avg_reposts": "reposts médios",
+      "avg_replies": "respostas médias",
+      "avg_views": "visualizações médias",
+      "engagement_rate": "taxa de engajamento",
+      "posts_per_day": "posts / dia",
+      "media_share": "com mídia",
+      "reply_share": "respostas",
+      "link_share": "com links",
+      "best_time": "Melhor horário para postar (hora local, por média de curtidas)",
+      "by_hour": "Por hora",
+      "by_weekday": "Por dia da semana",
+      "top_posts": "Melhores posts",
+      "media_limit": "Posts a varrer",
+      "media_limit_hint": "Do mais novo ao mais antigo, pela aba Mídia do perfil.",
+      "all": "todos",
+      "media_kinds": "Baixar",
+      "photos": "fotos",
+      "videos": "vídeos",
+      "listing": "Listando",
+      "stop": "Parar",
+      "skipped": "já existiam",
+      "cancelled": "interrompido",
+      "search_builder": "Busca avançada",
+      "search_intro": "Monta a query com os operadores do X e roda sem login. Recentes = ordem cronológica.",
+      "raw_query": "query manual",
+      "q_words": "Todas estas palavras",
+      "q_phrase": "Frase exata",
+      "q_any": "Qualquer destas palavras",
+      "q_none": "Nenhuma destas palavras",
+      "q_from": "Da conta",
+      "q_to": "Em resposta a",
+      "q_mention": "Mencionando",
+      "q_lang": "Idioma",
+      "q_since": "Desde",
+      "q_until": "Até",
+      "q_min_faves": "Mín. de curtidas",
+      "q_min_reposts": "Mín. de reposts",
+      "q_any_media": "Qualquer conteúdo",
+      "q_with_media": "Com mídia",
+      "q_images": "Com imagens",
+      "q_videos": "Com vídeos",
+      "q_links": "Com links",
+      "q_no_replies": "sem respostas",
+      "q_no_reposts": "sem reposts",
+      "q_verified": "só verificados",
+      "feed_latest": "Recentes",
+      "feed_top": "Principais",
+      "search": "Buscar",
+      "trends": "Assuntos do momento",
+      "no_results": "Nenhum post para esta busca.",
+      "load_more": "Carregar mais",
+      "bookmarks": "favoritos",
+      "folders": "pastas",
+      "formats": "Formatos",
+      "bm_media": "Baixar a mídia também",
+      "bm_media_hint": "Fotos e vídeos em qualidade original numa subpasta media/.",
+      "bm_max": "Limite",
+      "bm_intro": "Lê as pastas primeiro e depois todos os favoritos, sem o limite de 800 da API oficial.",
+      "bm_stage_folders": "Lendo as pastas…",
+      "bm_stage_folder": "Pasta",
+      "export": "Exportar",
+      "preview": "Prévia",
+      "audit": "Auditoria",
+      "audit_hint": "Lê quem você segue e quem te segue e lista quem não segue de volta.",
+      "run_audit": "Verificar agora",
+      "whitelist": "Nunca deixar de seguir",
+      "whitelist_hint": "Um @usuario por linha. Eles somem da lista.",
+      "mutuals": "mútuos",
+      "not_following_back": "não seguem de volta",
+      "fans": "fãs (você não segue)",
+      "unfollowed_today": "deixados de seguir hoje",
+      "filter": "Filtrar…",
+      "select_all": "Todos",
+      "select_none": "Nenhum",
+      "empty_list": "Ninguém aqui.",
+      "unfollow_safety": "Segurança",
+      "unfollow_safety_hint": "Pausa aleatória entre cada unfollow e limite diário, para o X não sinalizar a conta.",
+      "delay": "Pausa",
+      "daily_cap": "Limite diário",
+      "selected": "selecionados",
+      "unfollow_selected": "Deixar de seguir",
+      "unfollow_confirm": "Deixar de seguir {n} contas? Roda devagar de propósito e pode ser parado a qualquer momento.",
+      "unfollowed": "deixados de seguir",
+      "unfollowing": "Deixando de seguir",
+      "waiting": "Aguardando",
+      "stopped": "parado",
+      "archive_file": "Arquivo",
+      "archive_hint": "Escolha o .zip que você baixou do X, ou a pasta extraída.",
+      "archive_zip": "Abrir .zip",
+      "archive_folder": "Abrir pasta",
+      "archive_intro": "Tudo é lido offline. Peça seus dados em",
+      "replies": "respostas",
+      "reposts": "reposts",
+      "likes_given": "curtidas dadas",
+      "likes_received": "curtidas recebidas",
+      "blocked": "bloqueados",
+      "muted": "silenciados",
+      "by_year": "Posts por ano",
+      "exp_tweets": "Posts",
+      "exp_likes": "Curtidas",
+      "exp_followers": "Seguidores",
+      "exp_following": "Seguindo",
+      "exp_not_following_back": "Não seguem de volta",
+      "exp_fans": "Fãs",
+      "exp_blocked": "Bloqueados",
+      "exp_muted": "Silenciados",
+      "export_for_all": "exporte para ver a lista inteira",
+      "grok_backend": "Como falar com o Grok",
+      "grok_backend_xai": "API da xAI com a sua chave: busca ao vivo no X, busca na web e citações. Cobrado por token na sua conta xAI.",
+      "grok_backend_x": "O Grok de dentro do X pela sua sessão. Grátis com a sua conta do X; sem chave.",
+      "grok_auto": "Auto",
+      "grok_settings": "Opções",
+      "grok_key_set": "Chave salva neste computador.",
+      "grok_key_hint": "Crie uma chave em",
+      "grok_models": "Modelos",
+      "grok_models_hint": "Nome do modelo da xAI para a API e id da opção de modelo do Grok no X.",
+      "grok_no_key": "Adicione uma chave da xAI nas opções, ou mude para o backend X.",
+      "grok_x_search": "buscar no X",
+      "grok_web_search": "buscar na web",
+      "grok_handles": "só destes @usuarios (opcional)",
+      "grok_context": "Anexar um post ou thread",
+      "grok_context_hint": "A thread inteira entra no prompt, para o Grok resumir ou responder sobre ela.",
+      "grok_summarize_prompt": "Resuma esta thread em 5 tópicos e liste as principais afirmações.",
+      "grok_prompt": "Pergunte ao Grok… (⌘↩ para enviar)",
+      "grok_ask": "Perguntar ao Grok"
+    },
+    "ig": {
+      "common": {
+        "cancel": "Cancelar",
+        "followers": "seguidores",
+        "following": "seguindo",
+        "posts": "posts",
+        "user_placeholder": "@usuário ou link do perfil"
+      },
+      "account": {
+        "label": "Conta do Instagram",
+        "checking": "Verificando a sessão…",
+        "none_title": "Sem sessão do Instagram",
+        "none_desc": "Abra o instagram.com logado num navegador com a extensão do OmniGet: os cookies são capturados sozinhos. Também dá para colar um cookies.txt em Ajustes → Cookies.",
+        "open_site": "Abrir instagram.com",
+        "cookies": "Cookies"
+      },
+      "grid": {
+        "items": "itens",
+        "select_all": "Todos",
+        "select_none": "Nenhum",
+        "copy_caption": "Copiar legenda",
+        "audio": "Só o áudio",
+        "audio_hint": "Guarda apenas o som dos vídeos e reels",
+        "audio_no": "Não, vídeo completo",
+        "caption_txt": "Legenda em .txt",
+        "metadata_json": "Metadados em .json",
+        "per_user": "Pasta por conta",
+        "skip_existing": "Pular existentes",
+        "skipped": "pulados"
+      },
+      "list": {
+        "filter": "Filtrar…",
+        "empty": "Nada por aqui.",
+        "private": "privado",
+        "more": "Mostrar mais",
+        "selected": "selecionados"
+      },
+      "download": {
+        "placeholder": "Link de post, reel, IGTV, story ou destaque",
+        "fetch": "Buscar",
+        "paste": "Colar",
+        "from_file": "De um arquivo…",
+        "hint": "Fotos, vídeos, reels, IGTV e carrosséis na melhor qualidade. Stories e destaques precisam da sua sessão. Link de perfil lista os posts mais recentes.",
+        "audio_hint": "Cole o link de um reel ou vídeo; o download guarda só a faixa de áudio (M4A sem recodificar, ou MP3).",
+        "nothing": "Não achei mídia neste link.",
+        "bulk_label": "Links, um por linha",
+        "bulk_placeholder": "https://www.instagram.com/p/…\nhttps://www.instagram.com/reel/…\nhttps://www.instagram.com/stories/usuario/…",
+        "bulk_hint": "Os arquivos vão para uma pasta por conta. Há uma pausa entre os links para a sessão não ser sinalizada."
+      },
+      "stories": {
+        "fetch": "Buscar",
+        "hint": "Os stories vêm pela API, então não ficam marcados como vistos. Stories de melhores amigos aparecem quando a conta compartilha com você.",
+        "hl_hint": "Escolha um destaque ou baixe todos.",
+        "none": "Esta conta não tem story ativo agora.",
+        "no_highlights": "Sem destaques neste perfil.",
+        "tray": "Quem tem stories agora",
+        "close_friends": "melhores amigos",
+        "not_seen": "Buscado sem marcar como visto",
+        "all_highlights": "Todos os destaques",
+        "mine": "Seus stories",
+        "mine_none": "Você não tem story ativo.",
+        "expires": "expira",
+        "viewers": "Quem viu",
+        "cf_note": "Stories de melhores amigos só aparecem se a outra conta colocou você na lista dela."
+      },
+      "profile": {
+        "lookup": "Consultar",
+        "what": "O que listar",
+        "tab_posts": "Posts",
+        "tab_reels": "Reels",
+        "tab_tagged": "Marcados",
+        "tab_saved": "Salvos (meus)",
+        "tab_stories": "Stories",
+        "tab_highlights": "Destaques",
+        "all": "Todos",
+        "list": "Listar",
+        "media_hint": "Lista primeiro, depois você escolhe o que baixar. Perfis grandes demoram: há pausa entre as páginas.",
+        "you": "É você",
+        "you_follow": "Você segue",
+        "you_dont_follow": "Você não segue",
+        "follows_you": "segue você",
+        "doesnt_follow_you": "não segue você",
+        "save_avatar": "Salvar foto em HD",
+        "go_stories": "Stories",
+        "go_highlights": "Destaques",
+        "go_media": "Baixar posts",
+        "go_analytics": "Análise"
+      },
+      "follow": {
+        "target_placeholder": "Vazio para a sua conta, ou @usuário para inspecionar um perfil público",
+        "scan": "Varrer",
+        "scan_hint": "Lê as listas de seguidores e seguindo pela sua sessão. As ações só valem para a sua própria conta.",
+        "not_back": "Não seguem de volta",
+        "fans": "Fãs",
+        "mutuals": "Mútuos",
+        "whitelisted": "na lista branca",
+        "whitelist": "Lista branca",
+        "whitelist_hint": "Contas daqui nunca aparecem para deixar de seguir (marcas, amigos, família).",
+        "whitelist_toggle": "Lista branca",
+        "add_whitelist": "Lista branca",
+        "unfollow": "Deixar de seguir",
+        "remove_follower": "Remover seguidor",
+        "pacing": "Ritmo",
+        "pacing_hint": "{{today}} de {{cap}} ações hoje. Lotes pequenos e pausas aleatórias mantêm a conta segura.",
+        "delay": "Segundos entre ações",
+        "pause": "Pausa longa a cada N ações",
+        "daily_cap": "Teto diário",
+        "confirm_unfollow": "Deixar de seguir {{count}} contas?",
+        "confirm_remove_follower": "Remover {{count}} seguidores?",
+        "confirm_hint": "Cerca de {{minutes}} min no ritmo atual. {{today}} de {{cap}} ações usadas hoje.",
+        "go": "Começar",
+        "report": "Relatório",
+        "remaining": "restantes",
+        "today": "{{today}} ações hoje",
+        "safety": "O Instagram limita ações em massa; fique abaixo de ~100 por dia e pare no primeiro aviso.",
+        "last_scan": "Última varredura",
+        "stop_finished": "terminou",
+        "stop_cancelled": "cancelado",
+        "stop_daily_cap": "teto diário atingido",
+        "stop_blocked": "o Instagram bloqueou a ação por enquanto",
+        "stop_rate_limited": "limite de requisições (429)",
+        "stop_login": "a sessão expirou",
+        "stop_checkpoint": "verificação pendente",
+        "stage_unfollow": "Deixando de seguir",
+        "stage_remove_follower": "Removendo",
+        "stage_pause": "Pausa longa",
+        "stage_waiting": "Esperando o Instagram"
+      },
+      "snap": {
+        "title": "Snapshots",
+        "hint": "Salve seus seguidores e seguindo agora; o próximo snapshot mostra quem saiu e quem chegou. Compare quaisquer dois com A e B.",
+        "take": "Tirar snapshot",
+        "saved": "Snapshot salvo",
+        "lost": "Deixaram de seguir você",
+        "new": "Novos seguidores",
+        "lost_following": "Você deixou de seguir",
+        "new_following": "Você começou a seguir"
+      },
+      "ghosts": {
+        "posts": "Posts a verificar",
+        "hint": "Seguidor fantasma nunca curtiu nem comentou nesses posts. Verificar comentários demora mais.",
+        "likes_only": "só curtidas",
+        "comments_some": "+ primeiros comentários",
+        "comments_more": "+ mais comentários",
+        "run": "Achar fantasmas",
+        "engaged": "engajados",
+        "ghosts": "Seguidores fantasmas",
+        "top_fans": "Seguidores mais engajados"
+      },
+      "export": {
+        "title": "Export de dados do Instagram",
+        "hint": "Funciona offline com o export JSON da Meta (\"Baixe suas informações\"). Nada é enviado a lugar nenhum.",
+        "request": "Pedir export",
+        "folder": "Abrir pasta…",
+        "zip": "Abrir .zip…",
+        "pending_sent": "pedidos pendentes",
+        "growth": "Seguidores por mês",
+        "none_resolved": "Não consegui resolver nenhuma dessas contas.",
+        "resolve_hint": "Os nomes são resolvidos pela sua sessão primeiro.",
+        "tab_not_following_back": "Não seguem de volta",
+        "tab_fans": "Fãs",
+        "tab_pending_sent": "Pedidos pendentes",
+        "tab_close_friends": "Melhores amigos",
+        "tab_recently_unfollowed": "Deixou de seguir há pouco",
+        "tab_received_requests": "Pedidos recebidos",
+        "tab_blocked": "Bloqueados",
+        "tab_restricted": "Restritos",
+        "tab_hide_story_from": "Story oculto de",
+        "tab_followers": "Seguidores",
+        "tab_following": "Seguindo"
+      },
+      "analytics": {
+        "run": "Analisar",
+        "hint": "Métricas públicas calculadas dos posts mais recentes: engajamento, ritmo, melhores dias e horas, hashtags.",
+        "compare_placeholder": "@marca @concorrente1 @concorrente2 (até 6)",
+        "metrics": "Métricas",
+        "when": "quando posta",
+        "weekday": "Engajamento por dia da semana",
+        "hour": "Posts por hora",
+        "m_followers": "Seguidores",
+        "m_following": "Seguindo",
+        "m_posts": "Posts",
+        "m_follow_ratio": "Seguidores / seguindo",
+        "m_engagement": "Taxa de engajamento",
+        "m_avg_likes": "Curtidas médias",
+        "m_avg_comments": "Comentários médios",
+        "m_avg_plays": "Plays médios (vídeos)",
+        "m_comment_ratio": "Comentários por 100 curtidas",
+        "m_posts_per_week": "Posts por semana",
+        "m_share_video": "Vídeos / reels",
+        "m_share_carousel": "Carrosséis",
+        "m_avg_hashtags": "Hashtags por post",
+        "m_avg_caption": "Tamanho da legenda",
+        "m_best_day": "Melhor dia",
+        "m_best_hour": "Hora mais comum",
+        "m_paid": "Parcerias pagas",
+        "day_sun": "Domingo",
+        "day_mon": "Segunda",
+        "day_tue": "Terça",
+        "day_wed": "Quarta",
+        "day_thu": "Quinta",
+        "day_fri": "Sexta",
+        "day_sat": "Sábado"
+      },
+      "hashtag": {
+        "run": "Explorar",
+        "recent": "Recentes",
+        "top": "Populares",
+        "avg": "Média",
+        "videos": "vídeos",
+        "related": "Hashtags relacionadas"
+      },
+      "comments": {
+        "fetch": "Buscar",
+        "comments": "comentários",
+        "people": "pessoas",
+        "likers": "Curtidas"
+      },
+      "giveaway": {
+        "rules": "Regras",
+        "winners": "Ganhadores",
+        "min_mentions": "Mínimo de menções",
+        "min_mentions_hint": "ex.: 2 = precisa marcar dois amigos",
+        "keyword": "Palavra obrigatória",
+        "exclude": "Excluir contas",
+        "unique": "Uma participação por pessoa",
+        "draw": "Sortear",
+        "result": "{{eligible}} participações válidas"
+      },
+      "publish": {
+        "how": "Como",
+        "via": "Publicar por",
+        "via_web": "Sessão web",
+        "via_graph": "API oficial",
+        "via_web_hint": "Usa a sessão capturada, como o navegador faz. Beta: o Instagram muda isso sem aviso.",
+        "via_graph_hint": "Graph API da Meta: conta profissional, um app e um token; os arquivos têm que ser URLs públicas.",
+        "token": "Token de acesso",
+        "token_hint": "Token de usuário de longa duração com instagram_content_publish.",
+        "ig_user": "ID da conta do Instagram",
+        "docs": "Documentação",
+        "what": "O quê",
+        "kind": "Tipo",
+        "kind_photo": "Foto",
+        "kind_carousel": "Carrossel",
+        "kind_reel": "Reel",
+        "kind_video": "Vídeo",
+        "kind_story": "Story",
+        "urls": "URLs públicas (uma por linha)",
+        "caption": "Legenda",
+        "caption_placeholder": "Escreva a legenda… #hashtags @menções",
+        "share_feed": "Mostrar também no feed",
+        "no_comments": "Desativar comentários",
+        "hide_likes": "Ocultar contagem de curtidas",
+        "alt": "Texto alternativo",
+        "no_files": "Escolha um arquivo primeiro",
+        "publish": "Publicar agora",
+        "published": "Publicado",
+        "schedule": "Agendar",
+        "scheduled": "Agendado",
+        "bad_time": "Escolha um horário no futuro",
+        "beta": "Beta. Teste com uma foto primeiro. Vídeos são transcodificados pelo Instagram depois do upload; o app espera a confirmação.",
+        "queue": "Fila",
+        "queue_empty": "Nada agendado.",
+        "queue_hint": "A fila só roda enquanto o OmniGet estiver aberto.",
+        "status_pending": "pendente",
+        "status_running": "publicando",
+        "status_done": "publicado",
+        "status_failed": "falhou",
+        "stage_upload": "Enviando",
+        "stage_cover": "Capa",
+        "stage_configure": "Configurando",
+        "stage_done": "Pronto",
+        "stage_container": "Criando container",
+        "stage_processing": "Processando",
+        "stage_publish": "Publicando"
+      }
+    },
+    "pdf": {
+      "pdfium_missing": "O PDFium não está instalado. É o mesmo renderizador que o app usa para PDFs; um clique baixa.",
+      "gs_missing": "não encontrado (brew install ghostscript · apt install ghostscript · winget install ArtifexSoftware.GhostScript)",
+      "soffice_missing": "LibreOffice não encontrado. Conversões com Word precisam dele: libreoffice.org",
+      "tesseract_hint": "brew install tesseract tesseract-lang · apt install tesseract-ocr · winget install UB-Mannheim.TesseractOCR",
+      "pages": "páginas",
+      "merged": "junto",
+      "no_text": "sem camada de texto",
+      "text": "texto",
+      "images": "Imagens",
+      "all": "todas",
+      "convert_to": "Conversão",
+      "hint_merge": "Adicione dois ou mais PDFs e ordene com as setas.",
+      "hint_split": "Adicione o PDF que você quer separar.",
+      "hint_compress": "Adicione os PDFs para reduzir. O Ghostscript mantém o texto; o modo imagens sempre funciona.",
+      "hint_convert": "Escolha a conversão e depois adicione os arquivos.",
+      "hint_ocr": "Adicione PDFs escaneados. O resultado mantém a imagem e ganha uma camada de texto invisível e pesquisável.",
+      "hint_sanitize": "Adicione PDFs em que você não confia. Cada página vira pixels e um PDF novo é remontado a partir deles.",
+      "split_mode": "Como dividir",
+      "split_extract": "extrair páginas num arquivo",
+      "split_ranges": "um arquivo por trecho",
+      "split_every": "a cada N páginas",
+      "split_each": "uma página por arquivo",
+      "split_hint": "Trechos usam números de página: 1-3, 5, 8- (8 até o fim). Separe vários arquivos com ;",
+      "method": "Método",
+      "auto": "automático",
+      "raster": "só imagens",
+      "gs_hint": "O Ghostscript recomprime imagens e fontes e mantém o texto selecionável.",
+      "raster_hint": "As páginas viram JPEG. Fica menor, mas o texto deixa de ser selecionável.",
+      "pages_hint": "Quais páginas: 1-3, 5, 8-. Vazio = todas.",
+      "sanitize_title": "Resolução",
+      "sanitize_hint": "Como o Dangerzone: scripts, formulários, links e anexos não sobrevivem. Mais dpi = mais nítido e maior.",
+      "run_merge": "Juntar",
+      "run_split": "Dividir",
+      "run_compress": "Comprimir",
+      "run_convert": "Converter",
+      "run_ocr": "Reconhecer texto",
+      "run_sanitize": "Deixar seguro"
+    },
+    "sysclean": {
+      "title": "Limpar caches",
+      "hint": "Só o conteúdo das pastas de cache, logs e temporários é removido; os apps recriam. Itens marcados como revisar podem guardar algo que você queira.",
+      "found": "encontrados",
+      "freed": "liberados",
+      "selected": "selecionados",
+      "select_safe": "Só os seguros",
+      "select_none": "Nenhum",
+      "run": "Limpar",
+      "to_trash": "Mover para a Lixeira",
+      "to_trash_hint": "Mais lento, mas recuperável. Desligado = apagado de vez.",
+      "items_removed": "itens removidos",
+      "review": "revisar",
+      "nothing": "Nada para limpar.",
+      "group_system": "Sistema",
+      "group_browsers": "Navegadores",
+      "group_apps": "Apps",
+      "group_dev": "Ferramentas de desenvolvimento",
+      "group_gaming": "Jogos"
+    },
+    "disk": {
+      "used": "usados",
+      "free": "livres",
+      "analyze": "Analisar",
+      "folder": "Qualquer pasta",
+      "folder_hint": "Varra uma pasta específica em vez do volume inteiro.",
+      "scanned": "itens",
+      "skipped": "ilegíveis",
+      "map": "Mapa",
+      "largest": "Maiores arquivos",
+      "trash": "Lixeira",
+      "trashed": "Movido para a Lixeira."
+    },
+    "startup": {
+      "enabled_of": "ligados de",
+      "hint": "Itens que abrem quando você entra. Itens do sistema exigem administrador e ficam só para leitura aqui.",
+      "none": "Nada abre junto com o sistema.",
+      "system": "sistema",
+      "locked": "Só administrador",
+      "source_launch_agent": "Launch Agent",
+      "source_login_item": "Item de Login",
+      "source_run": "Run do registro",
+      "source_run_once": "RunOnce",
+      "source_startup_folder": "Pasta Inicializar",
+      "source_autostart": "autostart",
+      "source_systemd_user": "systemd do usuário"
+    },
+    "uninstall": {
+      "apps": "apps",
+      "hint": "Selecione um app para ver o que ele deixa para trás antes de remover.",
+      "by_name": "por nome",
+      "by_size": "por tamanho",
+      "select": "Selecionar",
+      "run": "Desinstalar",
+      "needs_admin": "pede administrador",
+      "leftovers": "Sobras",
+      "leftovers_hint": "Os itens marcados vão para a Lixeira junto com o app.",
+      "no_leftovers": "Nenhuma sobra encontrada.",
+      "trashed": "sobras movidas para a Lixeira"
+    },
+    "debloat": {
+      "hint": "Apps da Store instalados para o seu usuário. Os sugeridos vêm do Sophia Script; Store, Calculadora, Fotos e runtimes nunca aparecem.",
+      "suggested_count": "sugeridos",
+      "total": "pacotes",
+      "show_all": "Mostrar todos",
+      "only_suggested": "Só sugeridos",
+      "provisioned": "Remover também para contas novas",
+      "provisioned_hint": "Remove o pacote provisionado (administrador). Senão ele volta em usuários novos do Windows.",
+      "run": "Remover",
+      "removed": "removidos",
+      "restore": "Restaurar",
+      "bloat": "bloat",
+      "non_removable": "não removível",
+      "none": "Nenhum pacote sugerido instalado."
+    },
+    "winreg": {
+      "title": "Limpar registro",
+      "hint": "Entradas que apontam para programas e arquivos que não existem mais. Cada chave é exportada para um .reg antes de apagar.",
+      "found": "entradas órfãs",
+      "run": "Remover",
+      "removed": "removidas",
+      "backups": "Backups",
+      "backups_made": "arquivos de backup gravados",
+      "clean": "Nenhuma entrada órfã.",
+      "cat_uninstall": "Programas desinstalados",
+      "cat_app_paths": "App Paths",
+      "cat_run": "Inicialização",
+      "cat_mui_cache": "MuiCache",
+      "cat_shared_dlls": "DLLs compartilhadas"
+    },
+    "updater": {
+      "available": "atualizações disponíveis",
+      "managers": "Gerenciadores",
+      "no_manager": "Nenhum gerenciador de pacotes encontrado. O winget vem com o Windows 10/11; Chocolatey e Scoop são opcionais.",
+      "run": "Atualizar selecionados",
+      "upgraded": "atualizados",
+      "up_to_date": "Tudo atualizado."
+    },
+    "keys": {
+      "accounts": "contas",
+      "hint": "As chaves ficam nesta máquina, na pasta de dados do app. Teste a conexão, veja o saldo onde o provedor permite e exporte para o cliente que você usa.",
+      "provider": "Provedor",
+      "name": "Nome",
+      "keep_hint": "deixe vazio para manter a chave salva",
+      "access_token": "Token de acesso do painel",
+      "user_id": "ID de usuário do painel",
+      "model": "Modelo padrão",
+      "notes": "Notas",
+      "cancel": "Cancelar",
+      "test": "Testar",
+      "balance": "Saldo",
+      "models": "modelos",
+      "use": "Usar no OmniGet",
+      "used": "O OmniGet passou a usar esta chave (Ajustes → IA).",
+      "edit": "Editar",
+      "none": "Nenhuma conta ainda. Adicione OpenAI, Anthropic, OpenRouter, DeepSeek, Gemini, Groq, xAI, Mistral, SiliconFlow, relay New API, Ollama ou qualquer endpoint OpenAI-compatível.",
+      "export": "Exportar",
+      "export_hint": "Marque as contas para exportar (nenhuma = todas).",
+      "generate": "Gerar"
+    },
+    "mcp": {
+      "server": "Servidor MCP",
+      "on": "Ligado. Agentes conectados a este endereço podem rodar as tools abaixo.",
+      "off": "Desligado. Pedidos em /mcp são recusados até você ligar.",
+      "bridge_off": "o bridge local está desligado em Ajustes → Extensão do navegador; o endpoint MCP precisa dele",
+      "endpoint": "Endereço",
+      "test": "Testar",
+      "token": "Token (bearer)",
+      "token_hint": "O mesmo token da extensão do navegador. Troque em Ajustes → Extensão do navegador.",
+      "show": "Mostrar",
+      "hide": "Ocultar",
+      "connect": "Conectar um cliente",
+      "connect_hint": "Copie o trecho do seu agente. Claude Code: rode o comando. Os outros: cole no arquivo de configuração.",
+      "tools": "tools expostas"
+    },
+    "autoclick": {
+      "running": "Clicando…",
+      "idle": "Parado",
+      "clicks": "cliques",
+      "start": "Começar",
+      "stop": "Parar",
+      "hotkey": "Atalho global",
+      "hotkey_hint": "liga e desliga de qualquer app",
+      "hotkey_none": "Sem atalho. Defina um como F6 ou CmdOrCtrl+Shift+C.",
+      "cps": "Cliques por segundo",
+      "cps_hint": "Até 1000. O segundo campo adiciona uma variação aleatória de ± % para o ritmo não ser perfeitamente regular.",
+      "button": "Botão",
+      "left": "esquerdo",
+      "right": "direito",
+      "middle": "meio",
+      "double": "clique duplo",
+      "hold": "tempo pressionado (ms)",
+      "limits": "Limites",
+      "limits_hint": "Parar depois de N cliques ou N segundos (0 = sem limite).",
+      "position": "Posição",
+      "position_cursor": "onde o cursor estiver",
+      "fixed": "fixa",
+      "grab": "Usar posição do cursor",
+      "delay": "Atraso inicial",
+      "delay_hint": "Segundos antes do primeiro clique, para você posicionar o cursor.",
+      "perm": "O macOS pede permissão de Acessibilidade para o OmniGet na primeira vez. No Wayland cliques sintéticos podem não funcionar."
+    },
+    "dictation": {
+      "phase_idle": "Pronto",
+      "phase_recording": "Gravando",
+      "phase_transcribing": "Transcrevendo…",
+      "hint": "Aperte o atalho (ou Começar), fale, aperte de novo. O texto é digitado onde o cursor estiver.",
+      "start": "Começar",
+      "stop": "Parar e digitar",
+      "hotkey_hint": "aperte uma vez para gravar, de novo para transcrever",
+      "whisper_missing": "O whisper.cpp não está instalado. Instale em Transcrever.",
+      "model_missing": "Nenhum modelo baixado. Pegue um em Transcrever (base ou small bastam).",
+      "models": "modelos disponíveis",
+      "open_whisper": "Transcrever",
+      "language": "Idioma",
+      "device": "Microfone",
+      "device_default": "padrão",
+      "output": "Entrega",
+      "output_type": "digitar o texto",
+      "output_paste": "colar (Cmd/Ctrl+V)",
+      "output_clipboard": "só copiar",
+      "output_type_hint": "Digita caractere por caractere onde o cursor está. Precisa de Acessibilidade no macOS.",
+      "output_paste_hint": "Põe o texto na área de transferência e aperta colar. Mais rápido para textos longos.",
+      "output_clipboard_hint": "Só copia; você cola.",
+      "space": "espaço no final",
+      "perm": "O macOS pede permissão de Microfone e de Acessibilidade na primeira vez."
+    },
+    "record": {
+      "recording": "Gravando",
+      "buffering": "Buffer de replay ligado",
+      "idle": "Sem gravação",
+      "start": "Gravar",
+      "start_replay": "Ligar buffer de replay",
+      "stop": "Parar",
+      "save_replay": "Salvar últimos",
+      "hotkey_hint": "salva o replay (ou para uma gravação normal)",
+      "screen": "Tela",
+      "audio": "Áudio",
+      "audio_hint": "Microfone ou dispositivo de áudio do sistema. No macOS o áudio do sistema precisa de um dispositivo virtual (BlackHole); no Windows do Stereo Mix; no Linux do monitor do PulseAudio.",
+      "no_audio": "sem áudio",
+      "replay": "Buffer de replay",
+      "replay_hint": "Guarda só os últimos N segundos num anel; aperte Salvar para gravar o que acabou de acontecer.",
+      "area": "Área",
+      "area_full": "tela inteira",
+      "quality": "Qualidade",
+      "quality_hint": "CRF menor = melhor e maior. 23 é o padrão do x264.",
+      "cursor": "cursor",
+      "default_dir": "Vídeos/OmniGet",
+      "perm": "O macOS pede permissão de Gravação de Tela para o OmniGet na primeira vez; se a gravação encerrar na hora, conceda em Privacidade e tente de novo."
+    },
+    "vs": {
+      "running": "rodando",
+      "not_running": "instalado, parado",
+      "engine": "engine",
+      "hint": "O VoiceStudio (open source, local) faz o trabalho pesado: o OmniGet fala com a API dele na porta 3900.",
+      "launching": "Abrindo o VoiceStudio; o backend leva alguns segundos.",
+      "base_url": "Endereço do backend",
+      "base_url_hint": "Mude só se o VoiceStudio rodar em outra porta ou máquina.",
+      "profile": "Voz salva",
+      "profile_hint": "Perfis salvos no VoiceStudio. Deixe vazio para usar uma amostra.",
+      "profile_none": "usar uma amostra",
+      "sample": "Amostra de voz",
+      "sample_hint": "3 a 15 segundos de fala limpa (wav, mp3, m4a…).",
+      "sample_text": "O que a amostra diz",
+      "save_as": "Salvar como voz",
+      "save_as_hint": "Nome para guardar esta voz no VoiceStudio para a próxima vez.",
+      "description": "Descreva a voz",
+      "description_hint": "Gênero, idade, tom, sotaque, humor. Palavras que o mapeador não conhece aparecem abaixo.",
+      "description_placeholder": "mulher idosa, voz grave, sotaque britânico, calma",
+      "isolate_hint": "Música ou gravação com voz sobre música/ruído.",
+      "instrumental": "Salvar também o instrumental",
+      "instrumental_hint": "Original menos a voz, misturado com o FFmpeg.",
+      "text_placeholder": "Texto para falar…",
+      "speed": "velocidade",
+      "run_clone": "Falar com esta voz",
+      "run_design": "Criar e falar",
+      "run_isolate": "Isolar voz",
+      "instruct": "Atributos de voz usados",
+      "unmatched": "não entendido",
+      "stage_profile": "salvando voz…",
+      "stage_generate": "sintetizando…",
+      "stage_describe": "lendo a descrição…",
+      "stage_upload": "enviando…",
+      "stage_separate": "separando (Demucs)…",
+      "stage_instrumental": "misturando instrumental…",
+      "stage_done": "pronto"
+    },
+    "codec": {
+      "what": "O que faz",
+      "what_hint": "Faz o YouTube entregar H.264 em vez de VP9/AV1. Máquinas antigas ou fracas decodificam H.264 por hardware, então o vídeo para de engasgar e a ventoinha sossega. Qualidades acima de 1080p podem ficar indisponíveis.",
+      "how": "Como ligar",
+      "step1": "Instale a extensão do OmniGet no navegador e pareie em Ajustes.",
+      "step2": "Abra o popup da extensão em qualquer aba e ligue a chave H.264 (terceiro interruptor do cabeçalho).",
+      "step3": "Recarregue o YouTube. A opção fica salva até você desligar.",
+      "extension": "Extensão do navegador",
+      "extension_hint": "A opção mora na extensão porque só ela consegue rodar antes de o player do YouTube carregar.",
+      "open_settings": "Parear extensão",
+      "userscript": "Sem a extensão",
+      "userscript_hint": "O mesmo truque como userscript para Tampermonkey / Violentmonkey."
+    }
   },
   "downloads": {
+    "phase_downloading": "Baixando",
+    "phase_downloading_video": "Baixando vídeo",
+    "phase_downloading_audio": "Baixando áudio",
+    "phase_postprocessing": "Finalizando (metadados, capa)",
+    "phase_finalizing": "Finalizando arquivo",
+    "phase_stalled": "Parado — esperando dados",
+    "phase_queued_starting": "Iniciando…",
+    "phase_waiting_rate_limit": "Aguardando o limite do site…",
+    "phase_extracting_audio": "Extraindo áudio…",
+    "phase_embedding_subtitles": "Embutindo legendas…",
+    "steps": {
+      "info": "Info",
+      "video": "Vídeo",
+      "audio": "Áudio",
+      "download": "Download",
+      "merge": "Juntar",
+      "finish": "Final"
+    },
+    "detail": {
+      "fragments": "fragmento {{index}}/{{count}}",
+      "connections": "{{count}} conexões",
+      "attempt": "tentativa {{attempt}}/{{max}}",
+      "client": "client {{client}}",
+      "custom_command": "seu comando",
+      "elapsed": "{{time}} decorridos"
+    },
+    "command": {
+      "title": "Comando",
+      "copy": "Copiar comando",
+      "copied": "Comando copiado",
+      "edit": "Editar e tentar de novo",
+      "run": "Rodar assim",
+      "cancel": "Cancelar",
+      "hint": "Edite as flags do yt-dlp abaixo. A URL fica, as flags de progresso entram sozinhas e o comando roda uma vez, sem retries automáticos. ⌘/Ctrl+Enter executa.",
+      "requeued": "Reenfileirado com o seu comando",
+      "invalid": "Não deu para rodar o comando: {{error}}",
+      "engine_custom": "próprio"
+    },
     "title": "Downloads",
     "empty": "Nenhum download em andamento",
     "status": {
@@ -567,7 +2517,14 @@
       "copied": "Log copiado",
       "copy_failed": "Não foi possível copiar o log",
       "empty": "Nenhuma linha no log ainda"
-    }
+    },
+    "empty_hint": "Paste a link on the home screen and it shows up here with speed, progress and a folder button.",
+    "empty_cta": "Paste a link",
+    "speed_unlimited": "No speed limit",
+    "error_details": "Technical details",
+    "view_queue": "Downloads",
+    "view_history": "Histórico",
+    "view_tools": "Ferramentas"
   },
   "toast": {
     "download_preparing": "Preparando download...",
@@ -777,6 +2734,8 @@
       "embed_metadata_desc": "Gravar título e artista nos arquivos baixados",
       "embed_thumbnail": "Embutir thumbnail como capa",
       "embed_thumbnail_desc": "Embutir capa de álbum em arquivos de áudio",
+      "write_nfo_sidecar": "Gravar .nfo para servidores de mídia",
+      "write_nfo_sidecar_desc": "Salva um arquivo .nfo ao lado de cada vídeo ou áudio para o Jellyfin, Kodi e Emby lerem título, criador e capa",
       "clipboard_detection": "Detecção de clipboard",
       "clipboard_detection_desc": "Detectar URLs copiadas automaticamente",
       "auto_download_on_paste": "Download automático ao colar",
@@ -1045,7 +3004,7 @@
       "max_concurrent_segments": "Pedaços baixados em paralelo para streams HLS (avançado)",
       "max_concurrent_segments_desc": "Parallel HLS segment fetches per stream. Leave default unless you know what you're doing.",
       "concurrent_fragments": "Pedaços baixados em paralelo (avançado)",
-      "concurrent_fragments_desc": "Quantos pedaços do arquivo o yt-dlp baixa ao mesmo tempo por vídeo",
+      "concurrent_fragments_desc": "Teto de conexões paralelas por download (fragmentos). O OmniGet começa em 8 e ajusta por site pela velocidade medida: só sobe quando o degrau anterior ganhou ≥10 % e cai pela metade a cada 429.",
       "max_retries": "Tentativas por segmento",
       "max_retries_desc": "How many times to retry a failed segment before giving up.",
       "stagger_delay": "Pausa entre cada download (ms)",
@@ -1422,7 +3381,10 @@
       "template_saved": "Template salvo",
       "template_delete": "Excluir template",
       "template_flags": "flags"
-    }
+    },
+    "courses_plugin_needed": "This is a course page. The free Courses plugin signs in with your account and downloads every lesson.",
+    "courses_plugin_ready": "Course pages are downloaded from the Courses tab with your account signed in.",
+    "install_courses_plugin": "Get the Courses plugin"
   },
   "about": {
     "tab": {
@@ -1577,7 +3539,11 @@
     "conversion_failed": "Falha na conversão",
     "toast_complete": "Conversão concluída",
     "toast_error": "Falha na conversão",
-    "no_ffmpeg": "FFmpeg não encontrado. Instale o FFmpeg para usar a conversão."
+    "no_ffmpeg": "FFmpeg não encontrado. Instale o FFmpeg para usar a conversão.",
+    "subtitle": "Change format, codec or size. Your GPU does the heavy lifting when it can.",
+    "empty_title": "No files yet",
+    "empty_hint": "Pick one or more videos or audio files. Options appear once they are loaded.",
+    "add_more": "Add files"
   },
   "changelog": {
     "title": "Novidades",
@@ -1591,39 +3557,27 @@
     "back": "Voltar",
     "finish": "Começar",
     "step_of": "Passo {{current}} de {{total}}",
-    "folder_title": "Onde guardar seus downloads?",
-    "folder_desc": "Escolha a pasta onde seus vídeos e cursos serão salvos.",
-    "folder_current": "Pasta atual:",
-    "folder_change": "Alterar pasta",
-    "deps_title": "Ferramentas Necessárias",
-    "deps_desc": "Preciso de algumas ferramentas para funcionar direitinho. Posso instalar tudo automaticamente!",
-    "deps_install_all": "Instalar tudo",
     "language_label": "Idioma",
-    "done_title": "Tudo pronto!",
-    "done_desc": "Cole uma URL na barra de pesquisa e veja a mágica acontecer.",
-    "plugins_title": "Turbine seu OmniGet",
-    "plugins_desc": "Escolha quais funcionalidades instalar. Voce pode adicionar ou remover depois pelo Marketplace.",
-    "hotkey_title": "Atalho Global",
-    "hotkey_desc": "Copie qualquer URL de video, pressione o atalho e o OmniGet comeca a baixar na hora — mesmo minimizado.",
-    "hotkey_on": "Ativado",
-    "hotkey_off": "Desativado",
-    "rpc_title": "Discord Rich Presence",
-    "rpc_desc": "Mostre no seu perfil do Discord que você está usando o OmniGet — incluindo o que está ouvindo, assistindo ou lendo.",
-    "rpc_on": "Ativado",
-    "rpc_off": "Desativado",
-    "rpc_privacy_note": "Mostra o que você está ouvindo, assistindo ou lendo. Seus downloads ficam privados.",
     "theme_label": "Tema",
     "theme_system": "Sistema",
     "theme_light": "Claro",
-    "theme_dark": "Escuro"
+    "theme_dark": "Escuro",
+    "deps_title": "Ferramentas Necessárias",
+    "deps_desc": "Preciso de algumas ferramentas para funcionar direitinho. Posso instalar tudo automaticamente!",
+    "deps_install_all": "Instalar tudo",
+    "deps_ready": "Everything is installed. You're ready to download.",
+    "done_title": "Tudo pronto!",
+    "done_desc": "Cole uma URL na barra de pesquisa e veja a mágica acontecer.",
+    "folder_current": "Pasta atual:",
+    "folder_change": "Alterar pasta",
+    "folder_title": "Onde guardar seus downloads?",
+    "more_later": "Plugins for courses and Telegram, the global hotkey and Discord presence live in Settings whenever you want them."
   },
   "hints": {
     "omnibox": "Cole aqui a URL do vídeo ou mídia que deseja baixar.",
     "telegram": "Conecte sua conta Telegram para baixar mídias de canais e grupos.",
     "hotkey": "Atalho global: baixa automaticamente a URL que está no seu clipboard.",
-    "clipboard": "Detecta URLs automaticamente quando você copia um link e preenche a omnibox.",
-    "downloads_empty": "Seus downloads aparecerão aqui. Volte à página inicial para começar.",
-    "convert": "Converta arquivos de mídia entre formatos usando FFmpeg."
+    "clipboard": "Detecta URLs automaticamente quando você copia um link e preenche a omnibox."
   },
   "common": {
     "cancel": "Cancelar",
@@ -1833,7 +3787,29 @@
     "browser_hint": "Uma janela do navegador vai abrir para fazer login. Depois de logar, a sessão será detectada automaticamente.",
     "otp_check_email": "Verifique seu email para o código de verificação.",
     "otp_code_label": "Código de Verificação",
-    "verify_code": "Verificar Código"
+    "verify_code": "Verificar Código",
+    "session_expired": "Session expired — sign in again",
+    "not_reachable": "Could not reach the platform",
+    "not_reachable_hint": "Check your connection or proxy, then try again. Signing in is still possible.",
+    "platform_hidden_hint": "Platforms the installed plugin does not support are hidden. Update it in the Marketplace to see more.",
+    "sections_choose": "Escolher seções…",
+    "sections_title": "Escolha o que baixar",
+    "sections_loading": "Carregando a estrutura do curso…",
+    "sections_load_failed": "Não foi possível carregar a estrutura do curso",
+    "sections_selected": "{{sections}} de {{total}} seções · {{lectures}} aulas",
+    "sections_select_all": "Selecionar todas",
+    "sections_select_none": "Limpar seleção",
+    "sections_lectures": "{{count}} aulas",
+    "sections_drm": "{{count}} com DRM, serão puladas",
+    "sections_none_selected": "Escolha pelo menos uma seção",
+    "sections_download": "Baixar {{count}} seções",
+    "sections_download_all": "Baixar o curso inteiro",
+    "saved_cookies_title": "Salvos no Gerenciador de Cookies",
+    "saved_cookies_hint": "Cookies capturados pela extensão do navegador para esta plataforma. Entre com um clique.",
+    "use_saved_cookies": "Usar cookies salvos ({{account}})",
+    "saved_cookies_empty": "A conta salva não tem cookies.",
+    "cookies_paste_label": "Cookies (JSON ou cookies.txt)",
+    "cookies_paste_placeholder": "Cole o JSON dos cookies ou um export cookies.txt (Netscape)..."
   },
   "hotmart": {
     "title": "Hotmart",
@@ -1864,7 +3840,9 @@
     "choose_folder": "Escolher pasta de download",
     "refresh": "Atualizar",
     "unknown_error": "Erro desconhecido",
-    "captcha_detected": "Captcha detectado — resolva na janela de login."
+    "captcha_detected": "Captcha detectado — resolva na janela de login.",
+    "external_platform_hint": "This course is delivered outside Hotmart Club, so OmniGet cannot download it from here. Open it on the creator's platform; if that platform is Udemy or Kiwify, sign in to it in Courses.",
+    "open_external": "Open on the platform"
   },
   "torrent": {
     "open_file": "Abrir .torrent"
@@ -4975,5 +6953,22 @@
     "text": "O yt-dlp não está instalado, então os downloads não começam. Instale em Configurações.",
     "open_settings": "Abrir Configurações",
     "dismiss": "Dispensar"
+  },
+  "misc": {
+    "hub": {
+      "title": "Utilities",
+      "subtitle": "Side tools that live next to the downloader.",
+      "beta": "Beta",
+      "studio_title": "Studio",
+      "studio_desc": "Record your screen with system audio. A replay buffer clips what just happened.",
+      "file_clip_title": "File clip",
+      "file_clip_desc": "Pick a video on disk and cut out a section. The result lands in your downloads queue.",
+      "library_title": "Library",
+      "library_desc": "Everything you imported, recorded or transcribed, searchable by title, transcript and notes.",
+      "models_title": "Models",
+      "models_desc": "Local AI models for transcription, translation and chat. Nothing leaves your machine.",
+      "tracking_title": "Parcel tracking",
+      "tracking_desc": "Follow packages from 8 Brazilian carriers in one place, refreshed automatically."
+    }
   }
 }

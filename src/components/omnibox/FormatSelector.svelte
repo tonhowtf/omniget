@@ -298,7 +298,7 @@
     padding: calc(var(--padding) / 2) var(--padding);
     background: var(--button-elevated);
     border-radius: calc(var(--border-radius) - 2px);
-    border-left: 3px solid var(--red);
+    border-left: 3px solid var(--danger);
   }
 
   .formats-error-text {
@@ -465,7 +465,7 @@
   }
 
   .format-ext {
-    color: var(--blue);
+    color: var(--accent);
   }
 
   .format-res {

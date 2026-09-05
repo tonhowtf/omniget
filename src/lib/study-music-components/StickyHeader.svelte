@@ -39,7 +39,7 @@
       backdrop-filter 200ms ease;
   }
   .sticky-header.opaque {
-    background: color-mix(in oklab, var(--background, #0e0e10) 88%, transparent);
+    background: color-mix(in oklab, var(--bg) 88%, transparent);
     border-bottom-color: rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(24px);
   }
