@@ -103,6 +103,82 @@ export function telegramDeleteMessages(args: {
   );
 }
 
+export type TelegramForumTopic = {
+  id: number;
+  title: string;
+  icon_color: number;
+  icon_emoji_id?: number | null;
+  is_closed?: boolean;
+  is_hidden?: boolean;
+};
+
+export type TelegramForumTopicsResult = {
+  is_forum: boolean;
+  topics: TelegramForumTopic[];
+};
+
+export function telegramListForumTopics(args: {
+  chatId: number;
+  chatType: TelegramChatType;
+  query?: string;
+}): Promise<TelegramForumTopicsResult> {
+  return pluginInvoke<TelegramForumTopicsResult>(
+    "telegram",
+    "telegram_list_forum_topics",
+    args,
+  );
+}
+
+/** Parsed shape of the plugin's forward-error string once JSON.parse'd -
+ * see `sanitize_forward_error` in the plugin's `lib.rs`. Forward errors that
+ * aren't from the plugin's own classifier (e.g. a Tauri transport failure)
+ * won't parse as this and should fall back to a generic message. */
+export type TelegramForwardErrorInfo = {
+  code:
+    | "flood_wait"
+    | "topic_closed"
+    | "worker_busy"
+    | "write_forbidden"
+    | "topic_or_message_gone"
+    | "network"
+    | "unknown";
+  retry_after_secs?: number | null;
+  message: string;
+};
+
+export function parseTelegramForwardError(
+  raw: unknown,
+): TelegramForwardErrorInfo | null {
+  if (typeof raw !== "string") return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      typeof parsed.code === "string" &&
+      typeof parsed.message === "string"
+    ) {
+      return parsed as TelegramForwardErrorInfo;
+    }
+  } catch {
+    /* not JSON - a plain string error (missing args, "Not authenticated", etc.) */
+  }
+  return null;
+}
+
+/** Emitted by the plugin between forward batches (only when the selection
+ * needed more than one `messages.forwardMessages` call). Listen for
+ * `"telegram-forward-progress"` via `@tauri-apps/api/event` while a forward
+ * is in flight. */
+export type TelegramForwardProgress = {
+  forwarded: number;
+  total: number;
+  batch: number;
+  batches_total: number;
+  retry_after_secs?: number;
+  retry_attempt?: number;
+};
+
 export function telegramForwardMessages(args: {
   fromChatId: number;
   fromChatType: TelegramChatType;
@@ -111,8 +187,12 @@ export function telegramForwardMessages(args: {
   messageIds: number[];
   dropAuthor?: boolean;
   dropCaptions?: boolean;
-}): Promise<{ ok: true }> {
-  return pluginInvoke<{ ok: true }>(
+  /** Forum topic to forward into. Omit for ordinary chats, private chats,
+   * plain channels, and Saved Messages - passing nothing reproduces the
+   * exact old (pre-forum-support) behavior. */
+  topicId?: number;
+}): Promise<{ ok: true; forwarded: number; skipped: number; total: number }> {
+  return pluginInvoke<{ ok: true; forwarded: number; skipped: number; total: number }>(
     "telegram",
     "telegram_forward_messages",
     args,
@@ -612,6 +692,14 @@ export function telegramAccountsSaveCurrent(args: {
   userId?: number;
 }): Promise<TelegramAccountProfile> {
   return pluginInvoke<TelegramAccountProfile>("telegram", "telegram_accounts_save_current", args);
+}
+
+export function telegramAccountsPrepareAdd(args: {
+  label: string;
+  phone?: string;
+  userId?: number;
+}): Promise<TelegramAccountProfile> {
+  return pluginInvoke<TelegramAccountProfile>("telegram", "telegram_accounts_prepare_add", args);
 }
 
 export function telegramAccountsRestore(args: { id: string }): Promise<{ ok: true; needs_restart: boolean }> {

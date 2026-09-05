@@ -48,6 +48,7 @@ claude.md
 *.study.md
 /ANALISE-PORTE.md
 /.tmp-edge-focus-shot
+/release-artifacts/
 
 
 # Logs

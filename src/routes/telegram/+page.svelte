@@ -14,7 +14,26 @@
   import TelegramCloneWizard from "$lib/study-components/TelegramCloneWizard.svelte";
   import TelegramAccountPanel from "$lib/study-components/TelegramAccountPanel.svelte";
   import TelegramSyncIndicator from "$lib/study-components/TelegramSyncIndicator.svelte";
-  import { telegramCreateFolder, isOmnigetFolder, type TelegramGlobalSearchHit, type TelegramMediaType } from "$lib/study-telegram-bridge";
+  import {
+    telegramCreateFolder,
+    telegramForwardMessages,
+    telegramGetSelf,
+    telegramListChatsPage,
+    telegramListForumTopics,
+    telegramRestorePeerHashes,
+    studyChatsCacheClear,
+    studyChatsCacheGet,
+    studyChatsCacheUpsert,
+    isOmnigetFolder,
+    parseTelegramForwardError,
+    type ChatPageOffset,
+    type TelegramChat as BridgeTelegramChat,
+    type TelegramForumTopic,
+    type TelegramForwardProgress,
+    type TelegramGlobalSearchHit,
+    type TelegramMediaType,
+    type TelegramSelf,
+  } from "$lib/study-telegram-bridge";
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
 
@@ -34,11 +53,7 @@
   let pluginStatus = $state<PluginStatus>("checking_plugin");
   let loadError = $state<PluginLoadError | null>(null);
 
-  type TelegramChat = {
-    id: number;
-    title: string;
-    chat_type: string;
-  };
+  type TelegramChat = BridgeTelegramChat;
 
   type TelegramMediaItem = {
     message_id: number;
@@ -74,8 +89,12 @@
 
   let chats: TelegramChat[] = $state([]);
   let loadingChats = $state(false);
+  let refreshingChats = $state(false);
   let chatsError = $state("");
   let chatSearch = $state("");
+  let selfInfo: TelegramSelf | null = $state(null);
+  let chatLoadGeneration = 0;
+  const CHAT_PAGE_SIZE = 40;
 
   let selectedChat: TelegramChat | null = $state(null);
   let mediaItems: TelegramMediaItem[] = $state([]);
@@ -93,16 +112,72 @@
     document: 0,
     audio: 0,
   });
+  let selectedMediaIds: Set<number> = $state(new Set());
+  let forwardDialog: HTMLDialogElement | null = $state(null);
+  let forwardSearchInput: HTMLInputElement | null = $state(null);
+  let forwardSearch = $state("");
+  let forwardBusy = $state(false);
+  let forwardTargetKey: string | null = $state(null);
+  let forwardError = $state("");
+  let loadingForwardDestinations = $state(false);
+
+  // Forum topic picker (second screen of the same dialog): shown when the
+  // chosen destination turns out to be a forum. Media selection lives in
+  // `selectedMediaIds`, untouched by any of this, so stepping back to the
+  // destination list never loses it.
+  let forwardStage: "destinations" | "topics" = $state("destinations");
+  let forwardTargetChat: TelegramChat | null = $state(null);
+  let topicSearch = $state("");
+  let topicSearchInput: HTMLInputElement | null = $state(null);
+  let topicHeading: HTMLHeadingElement | null = $state(null);
+  let forumTopics: TelegramForumTopic[] = $state([]);
+  let loadingTopics = $state(false);
+  let topicsError = $state("");
+  let forwardProgressText = $state("");
+  let activeTopicId: number | null = $state(null);
   type ScanCache = {
     chatId: number;
     chatType: string;
     byId: Map<number, TelegramMediaItem>;
   };
-  let scanCache: ScanCache | null = null;
+  let scanCache: ScanCache | null = $state(null);
   let mediaSearch = $state("");
   let searchDebounce: ReturnType<typeof setTimeout> | null = null;
   let isSearching = $state(false);
   let searchInputRef: HTMLInputElement | null = $state(null);
+
+  let selectedMediaCount = $derived(selectedMediaIds.size);
+  let allVisibleMediaSelected = $derived(
+    mediaItems.length > 0 && mediaItems.every((item) => selectedMediaIds.has(item.message_id)),
+  );
+  let savedMessagesChat = $derived.by<TelegramChat | null>(() => {
+    if (!selfInfo) return null;
+    const existing = chats.find(
+      (chat) => chat.chat_type === "private" && chat.id === selfInfo!.user_id,
+    );
+    return {
+      ...(existing ?? {
+        id: selfInfo.user_id,
+        chat_type: "private" as const,
+      }),
+      title: $t("study.library.telegram.saved_messages"),
+    };
+  });
+  let forwardCandidates = $derived.by(() => {
+    const candidates = savedMessagesChat
+      ? [
+          savedMessagesChat,
+          ...chats.filter((chat) => chatKey(chat) !== chatKey(savedMessagesChat!)),
+        ]
+      : chats;
+    return candidates.filter((chat) => {
+      if (selectedChat && chat.id === selectedChat.id && chat.chat_type === selectedChat.chat_type) {
+        return false;
+      }
+      const query = forwardSearch.trim().toLocaleLowerCase();
+      return !query || chat.title.toLocaleLowerCase().includes(query);
+    });
+  });
 
   let batchStatus: Map<number, { status: FileStatus; percent: number }> = $state(new Map());
   let activeBatchId: number | null = $state(null);
@@ -130,6 +205,7 @@
   let createFolderName = $state("");
   let createFolderBusy = $state(false);
   let createFolderError = $state("");
+  let createFolderInput = $state<HTMLInputElement>();
   let globalSearchOpen = $state(false);
 
   type TransferRecord = {
@@ -250,10 +326,15 @@
       createFolderOpen = false;
       createFolderName = "";
     } catch (e: any) {
-      createFolderError = typeof e === "string" ? e : (e?.message ?? "Erro ao criar pasta");
+      createFolderError = typeof e === "string" ? e : (e?.message ?? $t("telegram.create_folder_error"));
     } finally {
       createFolderBusy = false;
     }
+  }
+
+  function openCreateFolder() {
+    createFolderOpen = true;
+    requestAnimationFrame(() => createFolderInput?.focus());
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -332,6 +413,7 @@
     document.addEventListener("keydown", handleKeydown);
 
     return () => {
+      chatLoadGeneration++;
       stopQrPolling();
       onBatchFileStatus(null);
       resetThumbnails();
@@ -426,13 +508,26 @@
     }
   }
 
+  async function loadTelegramSelf() {
+    try {
+      selfInfo = await telegramGetSelf();
+    } catch {
+      selfInfo = null;
+    }
+  }
+
+  function enterChats(phoneNumber: string) {
+    sessionPhone = phoneNumber;
+    view = "chats";
+    void loadTelegramSelf();
+    void loadChats();
+  }
+
   async function checkSession() {
     view = "checking";
     try {
       const result = await pluginInvoke<string>("telegram", "telegram_check_session");
-      sessionPhone = result;
-      view = "chats";
-      loadChats();
+      enterChats(result);
     } catch {
       view = "qr";
       startQrLogin();
@@ -481,9 +576,7 @@
           : "";
         view = "password";
       } else if (status.startsWith("success:")) {
-        sessionPhone = status.slice("success:".length);
-        view = "chats";
-        loadChats();
+        enterChats(status.slice("success:".length));
       }
     } catch {
     }
@@ -518,9 +611,7 @@
     loading = true;
     try {
       const result = await pluginInvoke<string>("telegram", "telegram_verify_code", { code: code.trim() });
-      sessionPhone = result;
-      view = "chats";
-      loadChats();
+      enterChats(result);
     } catch (e: any) {
       const msg = typeof e === "string" ? e : e.message ?? "";
       if (msg === "invalid_code") {
@@ -541,9 +632,7 @@
     loading = true;
     try {
       const result = await pluginInvoke<string>("telegram", "telegram_verify_2fa", { password });
-      sessionPhone = result;
-      view = "chats";
-      loadChats();
+      enterChats(result);
     } catch (e: any) {
       const msg = typeof e === "string" ? e : e.message ?? "";
       if (msg === "invalid_password") {
@@ -561,10 +650,13 @@
     try {
       await pluginInvoke("telegram", "telegram_logout");
     } catch {}
+    studyChatsCacheClear().catch(() => {});
     sessionPhone = "";
+    selfInfo = null;
     chats = [];
     mediaItems = [];
     selectedChat = null;
+    selectedMediaIds = new Set();
     chatPhotos = new Map();
     phone = "";
     code = "";
@@ -574,15 +666,155 @@
     startQrLogin();
   }
 
-  async function loadChats() {
-    loadingChats = true;
-    chatsError = "";
+  function startAddingTelegramAccount() {
+    stopQrPolling();
+    studyChatsCacheClear().catch(() => {});
+    sessionPhone = "";
+    selfInfo = null;
+    chats = [];
+    mediaItems = [];
+    selectedChat = null;
+    selectedMediaIds = new Set();
+    chatPhotos = new Map();
+    phone = "";
+    code = "";
+    password = "";
+    passwordHint = "";
+    error = "";
+    view = "phone";
+  }
+
+  function chatKey(chat: TelegramChat): string {
+    return `${chat.chat_type}:${chat.id}`;
+  }
+
+  function isSavedMessages(chat: TelegramChat): boolean {
+    return !!selfInfo && chat.chat_type === "private" && chat.id === selfInfo.user_id;
+  }
+
+  function appendUniqueChats(current: TelegramChat[], incoming: TelegramChat[]): TelegramChat[] {
+    const seen = new Set(current.map(chatKey));
+    const fresh = incoming.filter((chat) => !seen.has(chatKey(chat)));
+    return fresh.length > 0 ? [...current, ...fresh] : current;
+  }
+
+  function mergeFreshChats(current: TelegramChat[], fresh: TelegramChat[]): TelegramChat[] {
+    const freshKeys = new Set(fresh.map(chatKey));
+    return [...fresh, ...current.filter((chat) => !freshKeys.has(chatKey(chat)))];
+  }
+
+  async function restoreChatsFromCache(generation: number): Promise<boolean> {
     try {
-      chats = await pluginInvoke<TelegramChat[]>("telegram", "telegram_list_chats");
-    } catch (e: any) {
-      chatsError = typeof e === "string" ? e : e.message ?? $t("telegram.chats_error");
+      const cached = await studyChatsCacheGet();
+      if (generation !== chatLoadGeneration || cached.chats.length === 0) return false;
+      chats = cached.chats.map((chat) => ({
+        id: chat.id,
+        title: chat.title,
+        chat_type: chat.chat_type,
+        peer_hash: chat.peer_hash,
+        last_message: chat.last_message ?? undefined,
+        last_message_date: chat.last_message_date ?? undefined,
+        unread_count: chat.unread_count,
+        is_muted: chat.is_muted,
+        is_pinned: chat.is_pinned,
+        is_verified: chat.is_verified,
+      }));
+      const hashes: [number, number][] = cached.chats
+        .filter((chat) => chat.peer_hash !== 0)
+        .map((chat) => [chat.id, chat.peer_hash]);
+      if (hashes.length > 0) telegramRestorePeerHashes(hashes).catch(() => {});
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function loadRemainingChats(
+    generation: number,
+    initialOffset: ChatPageOffset | null,
+    initialSortOrder: number,
+  ) {
+    let cursor = initialOffset;
+    let pageIndex = 0;
+    let cacheSortOrder = initialSortOrder;
+    refreshingChats = !!cursor;
+    try {
+      while (cursor && generation === chatLoadGeneration && pageIndex < 50) {
+        const page = await telegramListChatsPage({
+          offsetDate: cursor.date,
+          offsetId: cursor.id,
+          offsetPeer: {
+            peer_id: cursor.peer_id,
+            peer_type: cursor.peer_type,
+            peer_hash: cursor.peer_hash,
+          },
+          limit: CHAT_PAGE_SIZE,
+        });
+        if (generation !== chatLoadGeneration || page.chats.length === 0) break;
+        chats = appendUniqueChats(chats, page.chats);
+        cursor = page.next_offset;
+        pageIndex++;
+        studyChatsCacheUpsert({
+          chats: page.chats,
+          startingSortOrder: cacheSortOrder,
+          replace: false,
+        }).catch(() => {});
+        cacheSortOrder += page.chats.length;
+      }
+    } catch {
+      // The first page is already usable; a background pagination failure must not block it.
     } finally {
+      if (generation === chatLoadGeneration) refreshingChats = false;
+    }
+  }
+
+  async function loadChats(force = false, awaitRemaining = false) {
+    const generation = ++chatLoadGeneration;
+    loadingChats = chats.length === 0;
+    refreshingChats = chats.length > 0;
+    chatsError = "";
+
+    const hadCache = !force && (await restoreChatsFromCache(generation));
+    if (generation !== chatLoadGeneration) return;
+    if (hadCache) loadingChats = false;
+
+    try {
+      const page = await telegramListChatsPage({ limit: CHAT_PAGE_SIZE });
+      if (generation !== chatLoadGeneration) return;
+      chats = chats.length > 0 ? mergeFreshChats(chats, page.chats) : page.chats;
       loadingChats = false;
+      refreshingChats = !!page.next_offset;
+      const cacheReset = studyChatsCacheUpsert({
+        chats: page.chats,
+        startingSortOrder: 0,
+        replace: true,
+      }).catch(() => null);
+      const remainingChats = cacheReset.then(() => {
+        if (generation === chatLoadGeneration) {
+          return loadRemainingChats(generation, page.next_offset, page.chats.length);
+        }
+      });
+      if (awaitRemaining) await remainingChats;
+      else void remainingChats;
+    } catch (pageError: any) {
+      // Compatibility fallback for an older Telegram plugin without paginated chats.
+      if (hadCache) {
+        refreshingChats = false;
+        return;
+      }
+      try {
+        const allChats = await pluginInvoke<TelegramChat[]>("telegram", "telegram_list_chats");
+        if (generation !== chatLoadGeneration) return;
+        chats = allChats;
+        studyChatsCacheUpsert({ chats: allChats, startingSortOrder: 0, replace: true }).catch(() => {});
+      } catch (legacyError: any) {
+        chatsError = typeof legacyError === "string"
+          ? legacyError
+          : legacyError?.message ?? pageError?.message ?? $t("telegram.chats_error");
+      } finally {
+        loadingChats = false;
+        refreshingChats = false;
+      }
     }
   }
 
@@ -596,6 +828,7 @@
     batchDone = 0;
     batchTotal = 0;
     downloadingIds = new Set();
+    selectedMediaIds = new Set();
     resetThumbnails();
     scanCache = null;
     hasMore = true;
@@ -611,6 +844,7 @@
     batchDone = 0;
     batchTotal = 0;
     downloadingIds = new Set();
+    selectedMediaIds = new Set();
     resetThumbnails();
     scanCache = null;
     view = "chats";
@@ -677,6 +911,7 @@
     const byId = new Map<number, TelegramMediaItem>();
     scanPerTypeCount = { photo: 0, video: 0, document: 0, audio: 0 };
     scanFoundCount = 0;
+    selectedMediaIds = new Set();
 
     const filters: TelegramMediaType[] = ["photo", "video", "document", "audio"];
     const PAGE = 100;
@@ -724,11 +959,12 @@
     }
   }
 
-  function filterFromScanCache(filter: string): boolean {
+  function filterFromScanCache(filter: string, query = mediaSearch.trim()): boolean {
     if (!scanCache || !selectedChat) return false;
     if (scanCache.chatId !== selectedChat.id) return false;
     const items = Array.from(scanCache.byId.values())
       .filter((m) => filter === "all" || m.media_type === filter)
+      .filter((m) => !query || m.file_name.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
       .sort((a, b) => b.message_id - a.message_id);
     mediaItems = items;
     hasMore = false;
@@ -744,9 +980,10 @@
     if (!selectedChat) return;
     const query = mediaSearch.trim();
     if (!query) {
-      loadMedia();
+      if (!filterFromScanCache(mediaFilter, "")) loadMedia();
       return;
     }
+    if (filterFromScanCache(mediaFilter, query)) return;
     isSearching = true;
     loadingMedia = true;
     mediaError = "";
@@ -774,8 +1011,10 @@
       if (mediaSearch.trim()) {
         searchMedia();
       } else {
-        hasMore = true;
-        loadMedia();
+        if (!filterFromScanCache(mediaFilter, "")) {
+          hasMore = true;
+          loadMedia();
+        }
       }
     }, 400);
   }
@@ -794,6 +1033,226 @@
     if (filterFromScanCache(filter)) return;
     hasMore = true;
     loadMedia();
+  }
+
+  function toggleMediaSelection(messageId: number) {
+    const next = new Set(selectedMediaIds);
+    if (next.has(messageId)) next.delete(messageId);
+    else next.add(messageId);
+    selectedMediaIds = next;
+  }
+
+  function selectAllVisibleMedia() {
+    selectedMediaIds = new Set([
+      ...selectedMediaIds,
+      ...mediaItems.map((item) => item.message_id),
+    ]);
+  }
+
+  function clearMediaSelection() {
+    selectedMediaIds = new Set();
+  }
+
+  async function refreshForwardDestinations() {
+    if (loadingForwardDestinations || forwardBusy) return;
+    loadingForwardDestinations = true;
+    forwardError = "";
+    try {
+      await loadChats(true, true);
+      if (chatsError) forwardError = chatsError;
+    } finally {
+      loadingForwardDestinations = false;
+    }
+  }
+
+  function openForwardDialog() {
+    if (!selectedChat || selectedMediaIds.size === 0 || forwardBusy) return;
+    forwardStage = "destinations";
+    forwardTargetChat = null;
+    forwardSearch = "";
+    topicSearch = "";
+    forwardError = "";
+    topicsError = "";
+    forumTopics = [];
+    forwardTargetKey = null;
+    forwardDialog?.showModal();
+    requestAnimationFrame(() => forwardSearchInput?.focus());
+    void refreshForwardDestinations();
+  }
+
+  function closeForwardDialog() {
+    if (!forwardBusy) forwardDialog?.close();
+  }
+
+  /** Back arrow on the topic-picker screen. Media selection is untouched -
+   * it lives in `selectedMediaIds`, never cleared by anything in this
+   * function. */
+  function backToDestinations() {
+    if (forwardBusy) return;
+    forwardStage = "destinations";
+    forwardTargetChat = null;
+    forumTopics = [];
+    topicsError = "";
+    topicSearch = "";
+    requestAnimationFrame(() => forwardSearchInput?.focus());
+  }
+
+  let forumTopicsFetchToken = 0;
+
+  async function loadForumTopicsFor(targetChat: TelegramChat) {
+    const token = ++forumTopicsFetchToken;
+    topicsError = "";
+    loadingTopics = true;
+    try {
+      const result = await telegramListForumTopics({
+        chatId: targetChat.id,
+        chatType: targetChat.chat_type,
+      });
+      if (token !== forumTopicsFetchToken) return; // a newer request/close superseded this one
+      if (!result.is_forum) {
+        // Not actually a forum - forward straight away, exactly like the
+        // old (pre-topic-support) behavior.
+        forwardStage = "destinations";
+        await runForward(targetChat, undefined);
+        return;
+      }
+      forumTopics = result.topics;
+    } catch {
+      if (token !== forumTopicsFetchToken) return;
+      topicsError = $t("telegram.topic_load_error");
+    } finally {
+      if (token === forumTopicsFetchToken) loadingTopics = false;
+    }
+  }
+
+  /** Step 1: user picked a destination chat. Ordinary chats, private
+   * chats, and Saved Messages forward immediately (unchanged behavior);
+   * everything else is checked for forum topics first. */
+  async function pickForwardDestination(targetChat: TelegramChat) {
+    if (!selectedChat || selectedMediaIds.size === 0 || forwardBusy) return;
+    forwardTargetChat = targetChat;
+    forwardTargetKey = chatKey(targetChat);
+    forwardError = "";
+
+    if (targetChat.chat_type === "private" || isSavedMessages(targetChat)) {
+      await runForward(targetChat, undefined);
+      return;
+    }
+
+    forwardStage = "topics";
+    topicSearch = "";
+    forumTopics = [];
+    requestAnimationFrame(() => {
+      topicHeading?.focus();
+    });
+    await loadForumTopicsFor(targetChat);
+  }
+
+  function retryLoadTopics() {
+    if (!forwardTargetChat || loadingTopics) return;
+    void loadForumTopicsFor(forwardTargetChat);
+  }
+
+  /** Step 2 (forums only): user picked a topic. */
+  async function selectForumTopic(topic: TelegramForumTopic) {
+    if (!forwardTargetChat || topic.is_closed || forwardBusy) return;
+    activeTopicId = topic.id;
+    try {
+      await runForward(forwardTargetChat, topic.id);
+    } finally {
+      activeTopicId = null;
+    }
+  }
+
+  function mapForwardErrorToMessage(raw: unknown): string {
+    const asString =
+      raw instanceof Error ? raw.message : typeof raw === "string" ? raw : String(raw);
+    const info = parseTelegramForwardError(asString);
+    // Not our sanitized JSON shape at all (e.g. "missing 'topicId'", "Not
+    // authenticated" - a setup/validation error, not a Telegram RPC error).
+    // These are already short and safe to show as-is.
+    if (!info) return asString || $t("telegram.forward_error");
+    switch (info.code) {
+      case "write_forbidden":
+        return $t("telegram.forward_error_permission");
+      case "topic_closed":
+        return $t("telegram.forward_error_topic_closed");
+      case "worker_busy":
+        return $t("telegram.forward_error_worker_busy");
+      case "topic_or_message_gone":
+        return $t("telegram.forward_error_topic_gone");
+      case "flood_wait":
+        return typeof info.retry_after_secs === "number"
+          ? $t("telegram.forward_error_flood_wait", { seconds: info.retry_after_secs })
+          : $t("telegram.forward_error");
+      case "network":
+        return $t("telegram.forward_error_network");
+      default:
+        // Backend classified it as "unknown" - still surface the real
+        // Telegram error text instead of a context-free generic message,
+        // which is exactly the bug this feature exists to fix. The raw
+        // message already includes "batch X/Y, N of TOTAL already
+        // forwarded" when a partial failure happened (built server-side
+        // from its own batch loop, which is more reliable than trying to
+        // reconstruct that count from progress events on this side), and
+        // the sanitizer already stripped anything session/path-related.
+        return info.message || $t("telegram.forward_error");
+    }
+  }
+
+  async function runForward(targetChat: TelegramChat, topicId: number | undefined) {
+    if (!selectedChat || selectedMediaIds.size === 0) return;
+    forwardBusy = true;
+    forwardTargetKey = chatKey(targetChat);
+    forwardError = "";
+    forwardProgressText = "";
+    const total = selectedMediaIds.size;
+
+    let unlisten: UnlistenFn | null = null;
+    try {
+      unlisten = await listen<TelegramForwardProgress>(
+        "telegram-forward-progress",
+        (event) => {
+          const p = event.payload;
+          // Only surface progress when the selection actually needed more
+          // than one batch - a single-batch forward has nothing worth
+          // showing before it either finishes or fails.
+          if (p.batches_total > 1) {
+            forwardProgressText =
+              typeof p.retry_after_secs === "number"
+                ? $t("telegram.forward_retrying", {
+                    seconds: p.retry_after_secs,
+                    attempt: p.retry_attempt ?? 1,
+                  })
+                : $t("telegram.forward_progress", {
+                    forwarded: p.forwarded,
+                    total: p.total,
+                  });
+          }
+        },
+      );
+
+      const result = await telegramForwardMessages({
+        fromChatId: selectedChat.id,
+        fromChatType: selectedChat.chat_type,
+        toChatId: targetChat.id,
+        toChatType: targetChat.chat_type,
+        messageIds: Array.from(selectedMediaIds),
+        dropAuthor: false,
+        dropCaptions: false,
+        topicId,
+      });
+      forwardDialog?.close();
+      clearMediaSelection();
+      showToast("success", $t("telegram.forward_complete", { count: result.forwarded }));
+    } catch (err) {
+      forwardError = mapForwardErrorToMessage(err);
+    } finally {
+      unlisten?.();
+      forwardBusy = false;
+      forwardTargetKey = null;
+      forwardProgressText = "";
+    }
   }
 
   function formatSize(bytes: number): string {
@@ -1250,16 +1709,17 @@
           aria-label={$t("telegram.manage_accounts")}
           title={$t("telegram.manage_accounts")}
         >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
             <circle cx="12" cy="7" r="4" />
           </svg>
+          <span class="account-btn-label">{$t("telegram.accounts_button_label")}</span>
         </button>
         <button
           class="button"
           onclick={() => (cloneWizardOpen = true)}
-          aria-label="Clonar canais"
-          title="Clonar canais"
+          aria-label={$t("telegram.clone_channels")}
+          title={$t("telegram.clone_channels")}
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" />
@@ -1269,8 +1729,8 @@
         <button
           class="button transfers-btn"
           onclick={() => (transferPanelOpen = true)}
-          aria-label="Transferências"
-          title="Transferências"
+          aria-label={$t("telegram.transfers")}
+          title={$t("telegram.transfers")}
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 5v14M19 12l-7 7-7-7" />
@@ -1282,8 +1742,8 @@
         <button
           class="button"
           onclick={() => (globalSearchOpen = true)}
-          aria-label="Busca global"
-          title="Busca global (Ctrl+K)"
+          aria-label={$t("telegram.global_search")}
+          title={$t("telegram.global_search_shortcut")}
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8" />
@@ -1294,7 +1754,7 @@
           class="button"
           onclick={() => (perfPanelOpen = true)}
           aria-label="Performance"
-          title="Performance de download"
+          title={$t("telegram.download_performance")}
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3" />
@@ -1303,7 +1763,7 @@
         </button>
         <button
           class="button"
-          onclick={loadChats}
+          onclick={() => loadChats(true)}
           disabled={loadingChats}
           aria-label={$t("hotmart.refresh")}
         >
@@ -1326,7 +1786,7 @@
     {:else if chatsError}
       <div class="error-section">
         <p class="error-msg">{chatsError}</p>
-        <button class="button" onclick={loadChats}>{$t("common.retry")}</button>
+        <button class="button" onclick={() => loadChats(true)}>{$t("common.retry")}</button>
       </div>
     {:else if chats.length === 0}
       <p class="empty-text">{$t("telegram.no_chats")}</p>
@@ -1338,6 +1798,12 @@
             ? $t("telegram.chat_count_one", { count: chats.length })
             : $t("telegram.chat_count", { count: chats.length })}
         </span>
+        {#if refreshingChats}
+          <span class="chat-refresh-status" role="status">
+            <span class="spinner small"></span>
+            {$t("telegram.chats_refreshing")}
+          </span>
+        {/if}
       </div>
 
       <div class="view-mode-row">
@@ -1365,11 +1831,11 @@
           </button>
         </div>
         {#if chatViewMode === "drive"}
-          <button type="button" class="button create-folder-btn" onclick={() => (createFolderOpen = true)}>
+          <button type="button" class="button create-folder-btn" onclick={openCreateFolder}>
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 5v14M5 12h14" />
             </svg>
-            Nova pasta
+            {$t("study.library.telegram.create_folder")}
           </button>
         {/if}
       </div>
@@ -1377,7 +1843,9 @@
       <input
         type="text"
         class="input search-input"
-        placeholder={chatViewMode === "drive" ? "Buscar pasta..." : "Search..."}
+        placeholder={chatViewMode === "drive"
+          ? $t("study.library.telegram.search_chats")
+          : $t("telegram.search_chats")}
         bind:value={chatSearch}
       />
 
@@ -1559,11 +2027,58 @@
         </div>
       {/if}
 
+      {#if mediaItems.length > 0 && !isScanning}
+        <div class="selection-toolbar" role="group" aria-label={$t("telegram.forward_selected")}>
+          <span class="selection-count" role="status">
+            {$t("telegram.selected_count", { count: selectedMediaCount })}
+          </span>
+          <div class="selection-actions">
+            <button
+              type="button"
+              class="button selection-btn"
+              onclick={selectAllVisibleMedia}
+              disabled={allVisibleMediaSelected || mediaItems.length === 0 || forwardBusy}
+            >
+              {$t("telegram.select_all")}
+            </button>
+            <button
+              type="button"
+              class="button selection-btn"
+              onclick={clearMediaSelection}
+              disabled={selectedMediaCount === 0 || forwardBusy}
+            >
+              {$t("telegram.clear_selection")}
+            </button>
+            <button
+              type="button"
+              class="button primary forward-selected-btn"
+              onclick={openForwardDialog}
+              disabled={selectedMediaCount === 0 || forwardBusy}
+            >
+              {$t("telegram.forward_selected")} ({selectedMediaCount})
+            </button>
+          </div>
+        </div>
+      {/if}
+
       <div class="media-list">
         {#each mediaItems as item (item.message_id)}
           {@const itemStatus = getItemStatus(item.message_id)}
           {@const itemPercent = getItemPercent(item.message_id)}
-          <div class="media-item" use:observeThumbnail={{ messageId: item.message_id, mediaType: item.media_type }}>
+          <div
+            class="media-item"
+            class:selected={selectedMediaIds.has(item.message_id)}
+            use:observeThumbnail={{ messageId: item.message_id, mediaType: item.media_type }}
+          >
+            <label class="media-select-control">
+              <input
+                type="checkbox"
+                checked={selectedMediaIds.has(item.message_id)}
+                onchange={() => toggleMediaSelection(item.message_id)}
+                disabled={forwardBusy}
+                aria-label={`${$t("telegram.forward_selected")}: ${item.file_name}`}
+              />
+            </label>
             <div class="media-icon" class:has-thumb={(item.media_type === "photo" || item.media_type === "video") && thumbnails.get(item.message_id)}>
               {#if (item.media_type === "photo" || item.media_type === "video") && thumbnails.get(item.message_id)}
                 <img
@@ -1697,7 +2212,245 @@
 
 <TelegramCloneWizard bind:open={cloneWizardOpen} chats={chats} />
 
-<TelegramAccountPanel bind:open={accountPanelOpen} sessionPhone={sessionPhone} />
+<TelegramAccountPanel
+  bind:open={accountPanelOpen}
+  sessionPhone={sessionPhone}
+  onAddAccount={startAddingTelegramAccount}
+/>
+
+<dialog
+  class="forward-dialog"
+  bind:this={forwardDialog}
+  aria-labelledby="forward-dialog-title"
+  onclick={(event) => {
+    if (event.target === event.currentTarget) closeForwardDialog();
+  }}
+  oncancel={(event) => {
+    if (forwardBusy) event.preventDefault();
+  }}
+  onclose={() => {
+    forwardSearch = "";
+    forwardError = "";
+    forwardStage = "destinations";
+    forwardTargetChat = null;
+    forumTopics = [];
+    topicSearch = "";
+    topicsError = "";
+  }}
+>
+  <div class="forward-dialog-content">
+    {#if forwardStage === "destinations"}
+      <header class="forward-dialog-header">
+        <div>
+          <h3 id="forward-dialog-title">{$t("telegram.forward_destination")}</h3>
+          <p>{$t("telegram.selected_count", { count: selectedMediaCount })}</p>
+        </div>
+        <button
+          type="button"
+          class="button forward-close-btn"
+          onclick={closeForwardDialog}
+          disabled={forwardBusy}
+          aria-label={$t("common.close")}
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </header>
+
+      <label class="forward-search-label" for="forward-chat-search">{$t("telegram.search_chats")}</label>
+      <input
+        id="forward-chat-search"
+        type="search"
+        class="input"
+        placeholder={$t("telegram.search_chats")}
+        bind:value={forwardSearch}
+        bind:this={forwardSearchInput}
+        disabled={forwardBusy}
+      />
+
+      {#if forwardError}
+        <p class="forward-error" role="alert">{forwardError}</p>
+      {/if}
+      {#if forwardBusy && forwardProgressText}
+        <p class="forward-refresh-status" role="status">
+          <span class="spinner small" aria-hidden="true"></span>
+          {forwardProgressText}
+        </p>
+      {/if}
+
+      <div class="forward-chat-list">
+        {#each forwardCandidates as chat (chatKey(chat))}
+          <button
+            type="button"
+            class="forward-chat-row"
+            onclick={() => pickForwardDestination(chat)}
+            disabled={forwardBusy}
+            aria-busy={forwardBusy && forwardTargetKey === chatKey(chat)}
+          >
+            <span class="chat-avatar forward-avatar" class:saved={isSavedMessages(chat)} aria-hidden="true">
+              {#if isSavedMessages(chat)}
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-4-7 4V5z" />
+                </svg>
+              {:else}
+                {chat.title.charAt(0).toUpperCase()}
+              {/if}
+            </span>
+            <span class="forward-chat-info">
+              <span class="forward-chat-title">{chat.title}</span>
+              <span class="chat-type">
+                {isSavedMessages(chat)
+                  ? $t("study.library.telegram.saved_messages_hint")
+                  : chatTypeLabel(chat.chat_type)}
+              </span>
+            </span>
+            {#if forwardBusy && forwardTargetKey === chatKey(chat)}
+              <span class="forwarding-status">
+                <span class="spinner small"></span>
+                {$t("telegram.forwarding")}
+              </span>
+            {/if}
+          </button>
+        {/each}
+        {#if loadingForwardDestinations}
+          <p class="forward-refresh-status" role="status">
+            <span class="spinner small" aria-hidden="true"></span>
+            {$t("telegram.chats_refreshing")}
+          </p>
+        {:else if forwardCandidates.length === 0}
+          <div class="forward-empty">
+            <p>{$t("telegram.no_destination_chats")}</p>
+            <button
+              type="button"
+              class="button"
+              onclick={refreshForwardDestinations}
+              disabled={forwardBusy}
+            >
+              {$t("common.refresh")}
+            </button>
+          </div>
+        {/if}
+      </div>
+    {:else}
+      <header class="forward-dialog-header">
+        <div class="forward-topic-heading">
+          <button
+            type="button"
+            class="button forward-back-btn"
+            onclick={backToDestinations}
+            disabled={forwardBusy}
+            aria-label={$t("telegram.back_to_destinations")}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <div>
+            <h3 id="forward-dialog-title" tabindex="-1" bind:this={topicHeading}>
+              {$t("telegram.choose_topic")}
+            </h3>
+            <p>{forwardTargetChat?.title ?? ""}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          class="button forward-close-btn"
+          onclick={closeForwardDialog}
+          disabled={forwardBusy}
+          aria-label={$t("common.close")}
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </header>
+
+      <label class="forward-search-label" for="forward-topic-search">{$t("telegram.search_topics")}</label>
+      <input
+        id="forward-topic-search"
+        type="search"
+        class="input"
+        placeholder={$t("telegram.search_topics")}
+        bind:value={topicSearch}
+        bind:this={topicSearchInput}
+        disabled={forwardBusy || loadingTopics}
+      />
+
+      {#if forwardError}
+        <p class="forward-error" role="alert">{forwardError}</p>
+      {/if}
+      {#if forwardBusy && forwardProgressText}
+        <p class="forward-refresh-status" role="status">
+          <span class="spinner small" aria-hidden="true"></span>
+          {forwardProgressText}
+        </p>
+      {/if}
+
+      <div class="forward-chat-list">
+        {#if loadingTopics}
+          <p class="forward-refresh-status" role="status">
+            <span class="spinner small" aria-hidden="true"></span>
+            {$t("telegram.loading_topics")}
+          </p>
+        {:else if topicsError}
+          <div class="forward-empty">
+            <p role="alert">{topicsError}</p>
+            <button type="button" class="button" onclick={retryLoadTopics} disabled={forwardBusy}>
+              {$t("telegram.retry_topics")}
+            </button>
+          </div>
+        {:else}
+          {@const visibleTopics = forumTopics.filter(
+            (topic) =>
+              !topicSearch.trim() ||
+              topic.title.toLocaleLowerCase().includes(topicSearch.trim().toLocaleLowerCase()),
+          )}
+          {#each visibleTopics as topic (topic.id)}
+            <button
+              type="button"
+              class="forward-chat-row"
+              onclick={() => selectForumTopic(topic)}
+              disabled={forwardBusy || topic.is_closed}
+              aria-busy={forwardBusy && activeTopicId === topic.id}
+            >
+              <span
+                class="chat-avatar forward-avatar topic-avatar"
+                style={topic.icon_color ? `background:#${topic.icon_color.toString(16).padStart(6, "0")}` : undefined}
+                aria-hidden="true"
+              >
+                {topic.title.charAt(0).toUpperCase()}
+              </span>
+              <span class="forward-chat-info">
+                <span class="forward-chat-title">{topic.title}</span>
+                {#if topic.is_closed}
+                  <span class="chat-type topic-closed-badge">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="4" y="10" width="16" height="10" rx="2" />
+                      <path d="M8 10V7a4 4 0 118 0v3" />
+                    </svg>
+                    {$t("telegram.topic_closed")}
+                  </span>
+                {/if}
+              </span>
+              {#if forwardBusy && activeTopicId === topic.id}
+                <span class="forwarding-status">
+                  <span class="spinner small"></span>
+                  {$t("telegram.forwarding")}
+                </span>
+              {/if}
+            </button>
+          {/each}
+          {#if visibleTopics.length === 0}
+            <div class="forward-empty">
+              <p>{$t("telegram.no_topics")}</p>
+            </div>
+          {/if}
+        {/if}
+      </div>
+    {/if}
+  </div>
+</dialog>
 
 {#if createFolderOpen}
   <div
@@ -1707,25 +2460,25 @@
     onkeydown={(e) => { if (e.key === "Escape" && !createFolderBusy) createFolderOpen = false; }}
   >
     <div class="create-folder-dialog" role="dialog" aria-modal="true">
-      <h3>Nova pasta Drive</h3>
-      <p class="dialog-hint">Cria um canal Telegram com sufixo <code>[og]</code> para você usar como pasta privada de mídias.</p>
+      <h3>{$t("study.library.telegram.create_folder_title")}</h3>
+      <p class="dialog-hint">{$t("study.library.telegram.create_folder_hint")}</p>
       <form onsubmit={(e) => { e.preventDefault(); commitCreateFolder(); }}>
         <input
           type="text"
           class="input"
-          placeholder="Nome da pasta"
+          placeholder={$t("study.library.telegram.create_folder_placeholder")}
           bind:value={createFolderName}
+          bind:this={createFolderInput}
           disabled={createFolderBusy}
-          autofocus
           required
         />
         {#if createFolderError}
           <p class="dialog-error">{createFolderError}</p>
         {/if}
         <div class="dialog-actions">
-          <button type="button" class="button" onclick={() => (createFolderOpen = false)} disabled={createFolderBusy}>Cancelar</button>
-          <button type="submit" class="button primary" disabled={createFolderBusy || !createFolderName.trim()}>
-            {createFolderBusy ? "Criando..." : "Criar"}
+          <button type="button" class="button" onclick={() => (createFolderOpen = false)} disabled={createFolderBusy}>{$t("common.cancel")}</button>
+          <button type="submit" class="button primary" disabled={createFolderBusy}>
+            {createFolderBusy ? $t("telegram.creating_folder") : $t("telegram.create_folder_action")}
           </button>
         </div>
       </form>
@@ -1792,6 +2545,24 @@
   .session-bar :global(.button) {
     padding: calc(var(--padding) / 2) var(--padding);
     font-size: var(--text-sm);
+  }
+
+  .account-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(var(--padding) / 2);
+  }
+
+  .account-btn-label {
+    white-space: nowrap;
+  }
+
+  @media (max-width: 720px) {
+    /* Toolbar gets tight on small widths - fall back to the icon-only
+       look every other button here already has. */
+    .account-btn-label {
+      display: none;
+    }
   }
 
   .spinning {
@@ -2005,6 +2776,15 @@
     margin-block: 0;
   }
 
+  .chat-refresh-status {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(var(--padding) / 2);
+    color: var(--gray);
+    font-size: var(--text-sm);
+    font-weight: 500;
+  }
+
   .view-mode-row {
     display: flex;
     align-items: center;
@@ -2101,15 +2881,6 @@
     font-size: 12px;
     color: var(--gray);
     line-height: 1.5;
-  }
-
-  .dialog-hint code {
-    font-family: monospace;
-    background: var(--button-elevated);
-    padding: 1px 4px;
-    border-radius: 3px;
-    font-size: 11px;
-    color: var(--blue);
   }
 
   .create-folder-dialog form {
@@ -2295,6 +3066,8 @@
   .media-header-actions {
     display: flex;
     gap: calc(var(--padding) / 2);
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   .batch-download-btn,
@@ -2374,6 +3147,38 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .selection-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--padding);
+    padding: calc(var(--padding) / 2) var(--padding);
+    background: var(--button-elevated);
+    border-radius: var(--border-radius);
+  }
+
+  .selection-count {
+    color: var(--secondary);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .selection-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: calc(var(--padding) / 2);
+    flex-wrap: wrap;
+  }
+
+  .selection-btn,
+  .forward-selected-btn {
+    padding: calc(var(--padding) / 2) var(--padding);
+    font-size: var(--text-sm);
+  }
+
   .batch-progress-section {
     display: flex;
     flex-direction: column;
@@ -2408,6 +3213,38 @@
     padding: var(--padding);
     background: var(--button);
     border-radius: var(--border-radius);
+  }
+
+  .media-item.selected {
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
+  }
+
+  .media-select-control {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 40px;
+    cursor: pointer;
+  }
+
+  .media-select-control input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .media-select-control input:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .media-select-control input:disabled {
+    cursor: default;
   }
 
   .media-icon {
@@ -2485,6 +3322,229 @@
     display: flex;
     align-items: center;
     gap: calc(var(--padding) / 2);
+  }
+
+  .forward-dialog {
+    width: min(520px, calc(100vw - calc(var(--padding) * 2)));
+    max-height: min(680px, calc(100vh - calc(var(--padding) * 2)));
+    padding: 0;
+    border: 1px solid var(--content-border);
+    border-radius: var(--border-radius);
+    background: var(--popup-bg);
+    color: var(--secondary);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.32);
+    overflow: hidden;
+  }
+
+  .forward-dialog::backdrop {
+    background: var(--dialog-backdrop);
+  }
+
+  .forward-dialog-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--padding);
+    padding: calc(var(--padding) * 1.5);
+    max-height: inherit;
+  }
+
+  .forward-dialog-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--padding);
+  }
+
+  .forward-dialog-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  .forward-dialog-header p {
+    margin: 4px 0 0;
+    color: var(--gray);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .forward-close-btn {
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .forward-close-btn svg {
+    pointer-events: none;
+  }
+
+  .forward-search-label {
+    color: var(--secondary);
+    font-size: var(--text-sm);
+    font-weight: 500;
+  }
+
+  .forward-error {
+    margin: 0;
+    padding: calc(var(--padding) / 2) var(--padding);
+    border-radius: calc(var(--border-radius) - 2px);
+    background: color-mix(in oklab, var(--error) 12%, transparent);
+    color: var(--error);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+  }
+
+  .forward-chat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 80px;
+    max-height: 420px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .forward-chat-row {
+    width: 100%;
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    gap: var(--padding);
+    padding: calc(var(--padding) / 2) var(--padding);
+    border: 0;
+    border-radius: var(--border-radius);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+
+  @media (hover: hover) {
+    .forward-chat-row:hover:not(:disabled) {
+      background: var(--button-elevated);
+    }
+  }
+
+  .forward-chat-row:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: -2px;
+  }
+
+  .forward-chat-row:disabled {
+    cursor: default;
+    opacity: 0.65;
+  }
+
+  .forward-avatar {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    font-size: var(--text-sm);
+  }
+
+  .forward-avatar.saved {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+
+  .forward-avatar svg {
+    pointer-events: none;
+  }
+
+  .forward-topic-heading {
+    display: flex;
+    align-items: flex-start;
+    gap: calc(var(--padding) / 2);
+    min-width: 0;
+  }
+
+  .forward-back-btn {
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .forward-back-btn svg {
+    pointer-events: none;
+  }
+
+  .topic-avatar {
+    color: #fff;
+  }
+
+  .topic-closed-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .topic-closed-badge svg {
+    pointer-events: none;
+    flex-shrink: 0;
+  }
+
+  .forward-chat-info {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .forward-chat-title {
+    overflow: hidden;
+    color: var(--secondary);
+    font-size: var(--text-base);
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .forwarding-status {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(var(--padding) / 2);
+    color: var(--gray);
+    font-size: var(--text-sm);
+    white-space: nowrap;
+  }
+
+  .forward-refresh-status {
+    margin: 0;
+    padding: var(--padding);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--padding) / 2);
+    color: var(--gray);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    text-align: center;
+  }
+
+  .forward-empty {
+    padding: calc(var(--padding) * 2) var(--padding);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--padding);
+    color: var(--gray);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    text-align: center;
+  }
+
+  .forward-empty p {
+    margin: 0;
   }
 
   @media (max-width: 720px) {
@@ -2567,6 +3627,26 @@
     .media-header {
       flex-wrap: wrap;
       gap: 8px;
+    }
+
+    .selection-toolbar {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .selection-actions {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
+    .media-select-control {
+      width: 32px;
+      height: 40px;
+      flex-basis: 32px;
+    }
+
+    .forward-dialog-content {
+      padding: var(--padding);
     }
 
     .login-card {

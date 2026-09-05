@@ -714,6 +714,13 @@ pub fn run() {
                     .spawn(move || {
                         use tauri::Emitter;
 
+                        if let Err(e) = commands::plugins::install_bundled_telegram_plugin(
+                            &app_emit,
+                            &mgr_for_plugins,
+                        ) {
+                            tracing::warn!("could not install bundled Telegram plugin: {}", e);
+                        }
+
                         // Load already-installed plugins first so they are
                         // usable immediately (and offline), without waiting
                         // on any of the network calls below.

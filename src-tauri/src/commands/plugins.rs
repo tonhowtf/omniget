@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use omniget_plugin_sdk::{PluginHost, PluginManifest, RegistryEntry};
 use serde::{Deserialize, Serialize};
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 use crate::plugin_host::PluginHostImpl;
 use crate::plugin_loader::{PluginLoadError, PluginManager};
@@ -235,6 +235,114 @@ const REGISTRY_URLS: &[&str] = &[
     "https://raw.githubusercontent.com/tonhowtf/omniget-plugins/main/plugins.json",
     "https://cdn.jsdelivr.net/gh/tonhowtf/omniget-plugins@main/plugins.json",
 ];
+
+const BUNDLED_TELEGRAM_PLUGIN_ID: &str = "telegram";
+const TELEGRAM_PLUGIN_REPOSITORY: &str = "tonhowtf/omniget-plugin-telegram";
+
+fn copy_bundled_directory(
+    source: &std::path::Path,
+    destination: &std::path::Path,
+) -> Result<(), String> {
+    std::fs::create_dir_all(destination).map_err(|e| e.to_string())?;
+
+    for entry in std::fs::read_dir(source).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let file_type = entry.file_type().map_err(|e| e.to_string())?;
+        let target = destination.join(entry.file_name());
+
+        if file_type.is_dir() {
+            copy_bundled_directory(&entry.path(), &target)?;
+        } else if file_type.is_file() {
+            std::fs::copy(entry.path(), target).map_err(|e| e.to_string())?;
+        }
+    }
+
+    Ok(())
+}
+
+fn version_is_newer(candidate: &str, installed: &str) -> bool {
+    fn components(version: &str) -> Option<Vec<u64>> {
+        let version = version.trim().trim_start_matches('v');
+        let version = version.split_once('-').map_or(version, |(core, _)| core);
+        version
+            .split('.')
+            .map(|component| component.parse::<u64>().ok())
+            .collect()
+    }
+
+    let (Some(mut candidate), Some(mut installed)) = (components(candidate), components(installed))
+    else {
+        return false;
+    };
+    let length = candidate.len().max(installed.len());
+    candidate.resize(length, 0);
+    installed.resize(length, 0);
+    candidate > installed
+}
+
+/// Copies the Telegram plugin that ships with OmniGet before any registry work.
+/// This keeps a clean, offline install on the app-compatible version rather than
+/// downloading an older marketplace release that lacks newer commands.
+pub fn install_bundled_telegram_plugin(
+    app: &tauri::AppHandle,
+    state: &Arc<tokio::sync::RwLock<PluginManager>>,
+) -> Result<(), String> {
+    let source = app
+        .path()
+        .resolve(
+            "bundled-plugins/telegram",
+            tauri::path::BaseDirectory::Resource,
+        )
+        .map_err(|e| format!("resolve bundled Telegram plugin: {e}"))?;
+    let manifest_path = source.join("plugin.json");
+    let manifest: PluginManifest = serde_json::from_str(
+        &std::fs::read_to_string(&manifest_path)
+            .map_err(|e| format!("read bundled Telegram manifest: {e}"))?,
+    )
+    .map_err(|e| format!("parse bundled Telegram manifest: {e}"))?;
+
+    if manifest.id != BUNDLED_TELEGRAM_PLUGIN_ID {
+        return Err("bundled Telegram manifest has an unexpected id".to_string());
+    }
+
+    let destination = {
+        let manager = state.blocking_read();
+        if manager.is_user_removed(BUNDLED_TELEGRAM_PLUGIN_ID) {
+            return Ok(());
+        }
+        match manager
+            .installed_plugins()
+            .iter()
+            .find(|plugin| plugin.id == BUNDLED_TELEGRAM_PLUGIN_ID)
+        {
+            Some(installed) if !version_is_newer(&manifest.version, &installed.version) => {
+                return Ok(());
+            }
+            _ => manager
+                .plugin_dir(BUNDLED_TELEGRAM_PLUGIN_ID)
+                .map_err(|e| e.to_string())?,
+        }
+    };
+
+    copy_bundled_directory(&source, &destination)?;
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut manager = state.blocking_write();
+    manager
+        .register_installed(omniget_plugin_sdk::InstalledPlugin {
+            id: BUNDLED_TELEGRAM_PLUGIN_ID.to_string(),
+            version: manifest.version,
+            installed_at: now.clone(),
+            updated_at: now,
+            enabled: true,
+            repo: Some(TELEGRAM_PLUGIN_REPOSITORY.to_string()),
+            source_release: Some("bundled".to_string()),
+        })
+        .map_err(|e| e.to_string())?;
+
+    tracing::info!("installed bundled Telegram plugin");
+    Ok(())
+}
 
 #[derive(Debug, Serialize)]
 pub struct MarketplaceEntry {
@@ -571,7 +679,7 @@ pub async fn auto_update_plugins(state: Arc<tokio::sync::RwLock<PluginManager>>)
             },
             Err(_) => continue,
         };
-        if latest.is_empty() || latest == plugin.version {
+        if latest.is_empty() || !version_is_newer(&latest, &plugin.version) {
             continue;
         }
         tracing::info!(
@@ -631,7 +739,7 @@ pub async fn check_plugin_updates(
         };
 
         let latest = release.tag_name.trim_start_matches('v').to_string();
-        let has_update = latest != plugin.version;
+        let has_update = version_is_newer(&latest, &plugin.version);
 
         updates.push(PluginUpdateInfo {
             id: plugin.id.clone(),
@@ -653,4 +761,18 @@ pub async fn update_plugin(
     repo: String,
 ) -> Result<String, String> {
     install_plugin_from_registry(app, state, plugin_id, repo).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::version_is_newer;
+
+    #[test]
+    fn only_accepts_strictly_newer_plugin_versions() {
+        assert!(version_is_newer("1.1.0", "1.0.2"));
+        assert!(version_is_newer("v1.2.0", "1.1.9"));
+        assert!(!version_is_newer("1.0.2", "1.1.0"));
+        assert!(!version_is_newer("1.1.0", "1.1.0"));
+        assert!(!version_is_newer("invalid", "1.1.0"));
+    }
 }

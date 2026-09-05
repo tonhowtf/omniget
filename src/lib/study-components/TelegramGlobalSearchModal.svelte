@@ -1,5 +1,6 @@
 <script lang="ts">
   import { telegramSearchGlobalHits, type TelegramGlobalSearchHit } from "$lib/study-telegram-bridge";
+  import { t } from "$lib/i18n";
 
   let {
     open = $bindable(false),
@@ -47,7 +48,7 @@
     try {
       results = await telegramSearchGlobalHits({ query: q, limit: 50 });
     } catch (e: any) {
-      error = typeof e === "string" ? e : (e?.message ?? "Erro");
+      error = typeof e === "string" ? e : (e?.message ?? $t("common.error"));
       results = [];
     } finally {
       loading = false;
@@ -86,7 +87,7 @@
     onclick={(e) => { if (e.target === e.currentTarget) close(); }}
     onkeydown={(e) => { if (e.key === "Escape") close(); }}
   >
-    <div class="modal" role="dialog" aria-modal="true" aria-label="Busca global">
+    <div class="modal" role="dialog" aria-modal="true" aria-label={$t("telegram.global_search")} tabindex="-1">
       <header class="modal-header">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
           <circle cx="11" cy="11" r="8" />
@@ -95,7 +96,8 @@
         <input
           type="text"
           class="search-input"
-          placeholder="Buscar arquivos em todos os chats..."
+          placeholder={$t("telegram.toolbox.global_search_placeholder")}
+          aria-label={$t("telegram.global_search")}
           bind:value={query}
           bind:this={inputRef}
           oninput={onInput}
@@ -105,13 +107,13 @@
 
       <div class="results-area">
         {#if loading}
-          <div class="status"><span class="spinner"></span></div>
+          <div class="status" role="status"><span class="spinner" aria-hidden="true"></span>{$t("common.loading")}</div>
         {:else if error}
-          <div class="status status-error">{error}</div>
+          <div class="status status-error" role="alert">{error}</div>
         {:else if !query.trim()}
-          <div class="status">Digite para buscar arquivos.</div>
+          <div class="status">{$t("telegram.toolbox.global_search_prompt")}</div>
         {:else if results.length === 0}
-          <div class="status">Nenhum resultado para <strong>{query}</strong></div>
+          <div class="status">{$t("telegram.toolbox.no_results_for", { query })}</div>
         {:else}
           <ul class="results-list">
             {#each results as hit (hit.chat_id + ":" + hit.message_id)}
@@ -134,8 +136,8 @@
             {/each}
           </ul>
           <div class="results-footer">
-            <span>{results.length} resultado{results.length === 1 ? "" : "s"}</span>
-            <span class="kbd-hint">↑↓ navegar · Enter abrir</span>
+            <span>{$t("telegram.toolbox.results_count", { count: results.length })}</span>
+            <span class="kbd-hint">{$t("telegram.toolbox.search_keyboard_hint")}</span>
           </div>
         {/if}
       </div>

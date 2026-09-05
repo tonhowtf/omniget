@@ -1,0 +1,45 @@
+{
+  "id": "telegram",
+  "name": "Telegram Downloader",
+  "version": "1.1.5",
+  "min_omniget_version": "0.5.0",
+  "description": "Download photos, videos, files, and audio from Telegram channels and groups with QR code or phone login.",
+  "author": "tonhowtf",
+  "license": "GPL-3.0",
+  "homepage": "https://github.com/tonhowtf/omniget-plugin-telegram",
+  "icon": "assets/icon.png",
+  "nav": [
+    {
+      "route": "/telegram",
+      "label": {
+        "en": "Telegram",
+        "pt": "Telegram",
+        "zh": "Telegram",
+        "ja": "Telegram",
+        "fr": "Telegram",
+        "it": "Telegram",
+        "el": "Telegram"
+      },
+      "icon_svg": "M21 5L2 12.5l7 1M21 5l-5.5 15-4.5-7.5M21 5L9 13.5",
+      "group": "secondary",
+      "order": 35
+    }
+  ],
+  "events": {
+    "progress": [
+      "telegram-batch-file-status"
+    ],
+    "complete": []
+  },
+  "capabilities": [
+    "core:events",
+    "core:toast",
+    "core:settings",
+    "core:filesystem"
+  ],
+  "routes": {
+    "/telegram": "frontend/build/index.js",
+    "/telegram/*": "frontend/build/index.js"
+  },
+  "i18n": "i18n/"
+}

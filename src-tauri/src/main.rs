@@ -3,7 +3,15 @@
 fn check_portable_mode() {
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            if dir.join("portable.txt").exists() || dir.join(".portable").exists() {
+            let portable_exe_name = exe
+                .file_stem()
+                .and_then(|name| name.to_str())
+                .map(|name| name.to_ascii_lowercase().contains("portable"))
+                .unwrap_or(false);
+            if portable_exe_name
+                || dir.join("portable.txt").exists()
+                || dir.join(".portable").exists()
+            {
                 let data_dir = dir.join("data");
                 let _ = std::fs::create_dir_all(&data_dir);
                 std::env::set_var("OMNIGET_PORTABLE", "1");
