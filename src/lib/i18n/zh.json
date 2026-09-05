@@ -567,6 +567,16 @@
       "copied": "日志已复制",
       "copy_failed": "无法复制日志",
       "empty": "暂无日志"
+    },
+    "status_bar": {
+      "region_label": "下载进度",
+      "active": "{{count}} 个下载中",
+      "queued": "{{count}} 个排队中",
+      "paused_all": "全部已暂停",
+      "eta": "剩余 {{eta}}",
+      "open": "查看下载",
+      "indeterminate": "正在下载，总大小未知",
+      "complete": "下载完成"
     }
   },
   "toast": {

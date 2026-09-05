@@ -567,6 +567,16 @@
       "copied": "Log copied to clipboard",
       "copy_failed": "Couldn't copy log",
       "empty": "No log lines yet"
+    },
+    "status_bar": {
+      "region_label": "پیشرفت دانلود",
+      "active": "{{count}} در حال دانلود",
+      "queued": "{{count}} در صف",
+      "paused_all": "همه متوقف شده",
+      "eta": "{{eta}} باقی‌مانده",
+      "open": "مشاهده دانلودها",
+      "indeterminate": "در حال دانلود، حجم کل نامشخص",
+      "complete": "دانلودها کامل شد"
     }
   },
   "toast": {

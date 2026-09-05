@@ -56,11 +56,15 @@ export type SpeedPoint = { t: number; bps: number };
 
 const SPEED_SMOOTHING = 0.3;
 const SPEED_HISTORY_MAX = 60;
+const AGGREGATE_SAMPLE_MS = 900;
 
 let downloads = $state(new Map<number, DownloadItem>());
 const speedHistory = new Map<number, SpeedPoint[]>();
 const suppressedGenericIds = new Set<number>();
 let flushScheduled = false;
+
+let aggregateSpeedHistory = $state<SpeedPoint[]>([]);
+let lastAggregateSampleAt = 0;
 
 function pushSpeedPoint(id: number, bps: number) {
   let arr = speedHistory.get(id);
@@ -82,17 +86,53 @@ function clearSpeedHistory(id: number) {
   speedHistory.delete(id);
 }
 
+function sampleAggregateSpeed(now: number) {
+  let bps = 0;
+  let anyActive = false;
+  let anyPending = false;
+  for (const item of downloads.values()) {
+    if (item.status === "downloading") {
+      bps += Math.max(0, item.speed);
+      anyActive = true;
+    } else if (item.status === "queued" || item.status === "paused") {
+      anyPending = true;
+    }
+  }
+
+  if (!anyActive && !anyPending) {
+    if (aggregateSpeedHistory.length > 0) aggregateSpeedHistory = [];
+    lastAggregateSampleAt = 0;
+    return;
+  }
+
+  if (now - lastAggregateSampleAt < AGGREGATE_SAMPLE_MS) return;
+  if (!anyActive && aggregateSpeedHistory.length === 0) return;
+
+  lastAggregateSampleAt = now;
+  const next = aggregateSpeedHistory.length >= SPEED_HISTORY_MAX
+    ? aggregateSpeedHistory.slice(aggregateSpeedHistory.length - SPEED_HISTORY_MAX + 1)
+    : aggregateSpeedHistory.slice();
+  next.push({ t: now, bps });
+  aggregateSpeedHistory = next;
+}
+
+export function getAggregateSpeedHistory(): SpeedPoint[] {
+  return aggregateSpeedHistory;
+}
+
 function scheduleFlush() {
   if (flushScheduled) return;
   flushScheduled = true;
   requestAnimationFrame(() => {
     flushScheduled = false;
+    sampleAggregateSpeed(Date.now());
     downloads = new Map(downloads);
   });
 }
 
 function flushNow() {
   flushScheduled = false;
+  sampleAggregateSpeed(Date.now());
   downloads = new Map(downloads);
 }
 
@@ -137,6 +177,81 @@ export function getBadgeCount(): number {
 
 export function getPausedCount(): number {
   return getCounts().paused;
+}
+
+export type DownloadAggregate = {
+  activeCount: number;
+  queuedCount: number;
+  pausedCount: number;
+  speedBps: number;
+  downloadedBytes: number;
+  totalBytes: number | null;
+  percent: number | null;
+  etaSeconds: number | null;
+};
+
+export function getAggregate(): DownloadAggregate {
+  let activeCount = 0;
+  let queuedCount = 0;
+  let pausedCount = 0;
+  let speedBps = 0;
+  let downloadedBytes = 0;
+  let knownTotal = 0;
+  let allTotalsKnown = true;
+  let sawDownloading = false;
+  let maxItemEta: number | null = null;
+
+  for (const item of downloads.values()) {
+    if (item.status === "queued") { queuedCount++; continue; }
+    if (item.status === "paused") { pausedCount++; continue; }
+    if (item.status !== "downloading") continue;
+
+    activeCount++;
+    sawDownloading = true;
+    speedBps += Math.max(0, item.speed);
+
+    if (item.kind === "generic") {
+      downloadedBytes += Math.max(0, item.downloadedBytes);
+      if (item.totalBytes != null && item.totalBytes > 0) {
+        knownTotal += item.totalBytes;
+      } else {
+        allTotalsKnown = false;
+      }
+      const eta = item.etaSeconds;
+      if (eta != null && Number.isFinite(eta) && eta > 0) {
+        maxItemEta = maxItemEta === null ? eta : Math.max(maxItemEta, eta);
+      }
+    } else {
+      downloadedBytes += Math.max(0, item.bytesDownloaded);
+      allTotalsKnown = false;
+    }
+  }
+
+  const totalBytes = sawDownloading && allTotalsKnown && knownTotal > 0 ? knownTotal : null;
+  const percent = totalBytes !== null
+    ? Math.min(100, Math.max(0, (downloadedBytes / totalBytes) * 100))
+    : null;
+
+  let etaSeconds: number | null = null;
+  if (speedBps > 0) {
+    if (totalBytes !== null) {
+      const eta = Math.max(0, totalBytes - downloadedBytes) / speedBps;
+      etaSeconds = Number.isFinite(eta) && eta > 0 ? eta : null;
+    } else {
+      etaSeconds = maxItemEta;
+    }
+  }
+
+  return {
+    activeCount,
+    queuedCount,
+    pausedCount,
+    speedBps,
+    downloadedBytes,
+    totalBytes,
+    percent,
+    etaSeconds,
+  };
 }
 
 export function upsertProgress(

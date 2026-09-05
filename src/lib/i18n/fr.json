@@ -567,6 +567,16 @@
       "copied": "Journal copié",
       "copy_failed": "Impossible de copier le journal",
       "empty": "Aucune ligne dans le journal pour l'instant"
+    },
+    "status_bar": {
+      "region_label": "Progression des téléchargements",
+      "active": "{{count}} en cours",
+      "queued": "{{count}} en file",
+      "paused_all": "Tout en pause",
+      "eta": "{{eta}} restant",
+      "open": "Voir les téléchargements",
+      "indeterminate": "Téléchargement, taille totale inconnue",
+      "complete": "Téléchargements terminés"
     }
   },
   "toast": {

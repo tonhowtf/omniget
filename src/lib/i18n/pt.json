@@ -567,6 +567,16 @@
       "copied": "Log copiado",
       "copy_failed": "Não foi possível copiar o log",
       "empty": "Nenhuma linha no log ainda"
+    },
+    "status_bar": {
+      "region_label": "Progresso dos downloads",
+      "active": "{{count}} baixando",
+      "queued": "{{count}} na fila",
+      "paused_all": "Todos pausados",
+      "eta": "Faltam {{eta}}",
+      "open": "Ver downloads",
+      "indeterminate": "Baixando, tamanho total desconhecido",
+      "complete": "Downloads concluídos"
     }
   },
   "toast": {
