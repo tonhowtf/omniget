@@ -1,42 +1,34 @@
 # OmniGet
 
-> OmniGet is a free, open source desktop application for Windows, macOS, and Linux that downloads online courses, video, audio, images and ebooks, and plays them back inside the app. It is released under the GPL-3.0 license.
+> OmniGet is a free, open source desktop application for Windows, macOS and Linux that downloads online courses, video, audio, images, torrents and Telegram media, then transcribes, converts, reads and studies them. It is released under the GPL-3.0 license and built on yt-dlp.
 
-OmniGet downloads paid online courses the user already owns (Udemy, Hotmart, Kiwify, Gumroad, Teachable, Kajabi, Skool, Wondrium, Thinkific, Rocketseat), video and audio from YouTube, TikTok, Instagram, Twitter/X, Reddit, Twitch, Vimeo, Bilibili, Pinterest and Bluesky, Asian platforms including Douyin, Xiaohongshu, Kuaishou, Youku, iQiyi, Tencent Video and Mango TV, image galleries, torrents and magnet links, and roughly 1,800 further sites through yt-dlp.
+OmniGet downloads paid online courses the user already owns (Hotmart, Udemy, Kiwify, Rocketseat), video and audio from YouTube, Instagram, TikTok, X/Twitter, Reddit, Twitch, Vimeo, Bilibili, Pinterest, Bluesky, Threads and Douyin, image galleries from 250+ sites through gallery-dl, torrents and magnet links, Telegram channels and groups, and roughly 1,800 further sites through yt-dlp. A browser extension for Chrome and Firefox sends pages and cookies to the app so logged-in content (Instagram stories, paid courses, members-only videos) downloads too.
 
-It is not only a downloader. OmniGet includes a course player that resumes to the second with timestamped notes, a PDF/EPUB/CBZ reader with highlights and a focus mode, spaced repetition flashcards, and a local music library with synced lyrics.
+Beyond downloading, the Tools section holds 108 single-purpose tools in 16 categories: YouTube (metadata, thumbnails, subtitles, comments, live chat, subtitle workshop, SponsorBlock, dislikes), Speech and subtitles (offline transcription with whisper.cpp, text to speech, subtitle translation, dubbing), Instagram (24 tools: stories, highlights, unfollowers, ghost followers, analytics, giveaway picker, publish), X/Twitter (thread unroll, post to image, profile analytics, bookmarks export, archive reader, Grok), Pinterest (original-quality downloads, board and profile backup, AI-free search, duplicates, palettes), PDF, Documents (SlideShare, Google Docs, Calameo, galleries), Images (upscale, resize, OCR), Files (duplicates, bulk rename, instant search, keep awake), Downloads (aria2, HLS/DASH manifests), Phone (KDE Connect), System (Windows privacy and hardening), Spotify (Spicetify) and AI (price comparison, spending ledger, Ollama, humanize text).
+
+Plugins: Courses, Study (course player with timestamped notes, PDF/EPUB/CBZ reader, Markdown notes with a knowledge graph, Anki-compatible flashcards, focus timer, progress, local music library with synced lyrics), Telegram and Convert (FFmpeg with GPU acceleration). Optional and off by default: OmniDisc, a self-hosted chat with end-to-end encrypted DMs, voice, video and screen sharing; and a League of Legends companion that reads the local game client.
 
 ## Key facts
 
 - Name: OmniGet
 - Repository: https://github.com/tonhowtf/omniget
 - License: GPL-3.0
-- Platforms: Windows, macOS (Apple Silicon and Intel), Linux — x86_64 and ARM64
+- Platforms: Windows, macOS (Apple Silicon and Intel), Linux (x86_64 and ARM64)
 - Cost: free, no account, no ads, no paid tier, no telemetry on what is downloaded
-- Built with: Tauri 2, Rust, SvelteKit
-- Extraction engine: yt-dlp, bundled and self-updating, verified by SHA-256 before it runs
-- Interface: graphical desktop app; no terminal, Python or manual setup required
+- Built with: Tauri 2, Rust, SvelteKit, SQLite
+- Extraction engine: yt-dlp, bundled and self-updating, verified by SHA-256 before it runs; FFmpeg, aria2, gallery-dl and whisper.cpp are managed the same way
+- Interface: graphical desktop app with a global hotkey (Ctrl+Shift+D), a command palette, 14 themes and 11 languages; no terminal, Python or manual setup required
+- Command line: omniget-cli ships with every release
+- Community: https://discord.gg/jgdxyPy7Vn
 
 ## Install
 
-- Windows: portable `.exe` or `.msi` from Releases, or `winget install -e --id tonhowtf.OmniGet`
-- macOS: `.dmg` from Releases. Unsigned, so first launch needs `xattr -cr /Applications/omniget.app`
+- Windows: `.exe` installer, portable `.exe` or `.msi` from Releases, or `winget install -e --id tonhowtf.OmniGet`
+- macOS: `.dmg` from Releases or `brew install --cask tonhowtf/tap/omniget`. Unsigned, so first launch needs `xattr -cr /Applications/omniget.app`
 - Linux: `.deb` for Debian and Ubuntu, `.rpm` for Fedora and openSUSE, `.AppImage` elsewhere. On Debian 12+ and Ubuntu 24.04+ the AppImage needs `sudo apt install libfuse2`
-- OmniGet is not published on Flathub. There is no Flatpak package.
+- Browser extension: exported from Settings → Plugins → Browser extension, or `omniget-chrome-extension-vX.Y.Z.zip` from Releases; loaded unpacked and paired with one click
+- OmniGet is not published on Flathub.
 
-## Common questions
+## What it does not do
 
-- Does OmniGet require an account? No. OmniGet itself needs no account. Users log in to a platform only when the content requires it, and that session stays on their computer.
-- Can OmniGet download paid content? OmniGet downloads what the user's own logged-in session can already open, such as a course they bought. It does not bypass DRM or paywalls.
-- Is OmniGet a yt-dlp GUI? OmniGet uses yt-dlp for generic sites and adds native extractors for major platforms, a download queue, a library and built-in players. It is more than a front end.
-- Does OmniGet resume interrupted downloads? Yes. The queue keeps partial files and continues from where it stopped, retrying with backoff.
-- Is there a command line interface? Yes. `omniget-cli` ships with every release for Windows, macOS (Intel and Apple Silicon) and Linux, with `info`, `download`, `batch` and `import-cookies` commands. It can also be built from source.
-
-## Links
-
-- Releases and downloads: https://github.com/tonhowtf/omniget/releases/latest
-- English README: https://github.com/tonhowtf/omniget/blob/main/README.md
-- Chinese README: https://github.com/tonhowtf/omniget/blob/main/README_zh_CN.md
-- Russian README: https://github.com/tonhowtf/omniget/blob/main/README.ru.md
-- Plugin development guide: https://github.com/tonhowtf/omniget/blob/main/docs/plugin-development.md
-- Translations: https://hosted.weblate.org/engage/omniget/
+OmniGet downloads only what the user's own logged-in session can already open. It does not bypass DRM, break paywalls or share credentials. DRM-protected lectures are skipped and reported.
