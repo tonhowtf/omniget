@@ -413,7 +413,10 @@ async fn latest_asset(
     ))
 }
 
-async fn download_verified(client: &reqwest::Client, asset: &ReleaseAsset) -> anyhow::Result<Vec<u8>> {
+async fn download_verified(
+    client: &reqwest::Client,
+    asset: &ReleaseAsset,
+) -> anyhow::Result<Vec<u8>> {
     let response = client.get(&asset.url).send().await?;
     if !response.status().is_success() {
         return Err(anyhow!(
@@ -425,10 +428,12 @@ async fn download_verified(client: &reqwest::Client, asset: &ReleaseAsset) -> an
     let bytes = response.bytes().await?.to_vec();
     // O GitHub publica o digest de todo asset; sem ele algo está errado na
     // resposta, e o binário vai ser executado. Fail-closed.
-    let expected = asset
-        .digest
-        .as_deref()
-        .ok_or_else(|| anyhow!("{} veio sem digest da API do GitHub; download descartado", asset.name))?;
+    let expected = asset.digest.as_deref().ok_or_else(|| {
+        anyhow!(
+            "{} veio sem digest da API do GitHub; download descartado",
+            asset.name
+        )
+    })?;
     integrity::verify_sha256(&bytes, expected, &asset.name)?;
     Ok(bytes)
 }
@@ -532,7 +537,9 @@ pub async fn install() -> anyhow::Result<PathBuf> {
     let exe = staging.join(bin_name("spicetify"));
     if !exe.exists() {
         let _ = std::fs::remove_dir_all(&staging);
-        return Err(anyhow!("o arquivo baixado nao contem o executavel do spicetify"));
+        return Err(anyhow!(
+            "o arquivo baixado nao contem o executavel do spicetify"
+        ));
     }
     make_executable(&exe);
 
@@ -545,7 +552,10 @@ pub async fn install() -> anyhow::Result<PathBuf> {
         if old.exists() {
             let _ = std::fs::rename(&old, &dir);
         }
-        return Err(anyhow!("nao foi possivel mover a instalacao para o lugar: {}", e));
+        return Err(anyhow!(
+            "nao foi possivel mover a instalacao para o lugar: {}",
+            e
+        ));
     }
     let _ = std::fs::remove_dir_all(&old);
 
@@ -598,14 +608,22 @@ pub async fn install_marketplace(bin: &Path, config_dir: &Path) -> anyhow::Resul
         std::fs::write(theme_dir.join("color.ini"), color_ini.bytes().await?)?;
     }
 
-    run_ok(bin, &["config", "custom_apps", "spicetify-marketplace-"]).await.ok();
+    run_ok(bin, &["config", "custom_apps", "spicetify-marketplace-"])
+        .await
+        .ok();
     run_ok(bin, &["config", "custom_apps", "marketplace"]).await?;
     run_ok(bin, &["config", "inject_css", "1", "replace_colors", "1"]).await?;
     let cfg = read_config(&config_dir.join("config-xpui.ini"));
     if cfg.current_theme.trim().len() <= 3 {
         run_ok(
             bin,
-            &["config", "current_theme", "marketplace", "color_scheme", "marketplace"],
+            &[
+                "config",
+                "current_theme",
+                "marketplace",
+                "color_scheme",
+                "marketplace",
+            ],
         )
         .await?;
     }

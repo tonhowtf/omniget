@@ -125,9 +125,8 @@ pub fn probe_says_direct_file(
     content_length.unwrap_or(0) >= DIRECT_FILE_MIN_BYTES
 }
 
-fn direct_probe_cache() -> &'static std::sync::Mutex<
-    std::collections::HashMap<String, (std::time::Instant, bool)>,
-> {
+fn direct_probe_cache(
+) -> &'static std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, bool)>> {
     static CACHE: std::sync::OnceLock<
         std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, bool)>>,
     > = std::sync::OnceLock::new();
@@ -150,8 +149,7 @@ pub async fn looks_like_direct_file(url: &str) -> bool {
             }
         }
     }
-    let hit = match tokio::time::timeout(std::time::Duration::from_secs(5), probe_file(url)).await
-    {
+    let hit = match tokio::time::timeout(std::time::Duration::from_secs(5), probe_file(url)).await {
         Ok(Some(p)) => probe_says_direct_file(
             p.content_type.as_deref(),
             p.content_length,
@@ -292,8 +290,12 @@ mod tests {
 
     #[test]
     fn unknown_extension_is_the_only_case_worth_probing() {
-        assert!(has_unknown_extension("https://nbg1-speed.hetzner.com/100MB.xyz"));
-        assert!(has_unknown_extension("https://example.com/files/blob.abc123"));
+        assert!(has_unknown_extension(
+            "https://nbg1-speed.hetzner.com/100MB.xyz"
+        ));
+        assert!(has_unknown_extension(
+            "https://example.com/files/blob.abc123"
+        ));
         // página, mídia e arquivo conhecido já se decidem sozinhos
         assert!(!has_unknown_extension("https://example.com/index.html"));
         assert!(!has_unknown_extension("https://example.com/video.mp4"));
@@ -316,8 +318,16 @@ mod tests {
             Some(10),
             Some("x.bin")
         ));
-        assert!(!probe_says_direct_file(Some("text/html; charset=utf-8"), Some(50_000_000), None));
-        assert!(!probe_says_direct_file(Some("application/octet-stream"), Some(1000), None));
+        assert!(!probe_says_direct_file(
+            Some("text/html; charset=utf-8"),
+            Some(50_000_000),
+            None
+        ));
+        assert!(!probe_says_direct_file(
+            Some("application/octet-stream"),
+            Some(1000),
+            None
+        ));
         assert!(!probe_says_direct_file(None, None, None));
     }
 }

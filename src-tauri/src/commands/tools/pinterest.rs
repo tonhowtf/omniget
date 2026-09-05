@@ -10,14 +10,18 @@ use futures::StreamExt;
 use omniget_core::core::tools::pinterest::analysis::{self, DupeGroup, Swatch};
 use omniget_core::core::tools::pinterest::api::Feed;
 use omniget_core::core::tools::pinterest::media::{self, DownloadOptions};
-use omniget_core::core::tools::pinterest::{export, parse_target, Board, Pin, PinClient, Section, Target, User};
+use omniget_core::core::tools::pinterest::{
+    export, parse_target, Board, Pin, PinClient, Section, Target, User,
+};
 use omniget_core::core::tools::{report, ProgressFn};
 use serde::{Deserialize, Serialize};
 
 use super::{err, progress};
 
 fn client(cookies: &Option<String>) -> Result<Arc<PinClient>, String> {
-    PinClient::new(cookies.as_deref()).map(Arc::new).map_err(err)
+    PinClient::new(cookies.as_deref())
+        .map(Arc::new)
+        .map_err(err)
 }
 
 fn target_of(url: &str) -> Result<Target, String> {
@@ -54,7 +58,9 @@ fn keep(p: &Pin, f: &Filters) -> bool {
     if f.skip_promoted && p.is_promoted {
         return false;
     }
-    if f.ai_level > 0 && (p.ai.labeled || (p.ai.keyword_level > 0 && p.ai.keyword_level >= f.ai_level)) {
+    if f.ai_level > 0
+        && (p.ai.labeled || (p.ai.keyword_level > 0 && p.ai.keyword_level >= f.ai_level))
+    {
         return false;
     }
     if !f.only_kind.is_empty() {
@@ -70,7 +76,13 @@ fn keep(p: &Pin, f: &Filters) -> bool {
         }
     }
     if f.min_width > 0 {
-        let w = p.image.as_ref().map(|m| m.width).filter(|w| *w > 0).or_else(|| p.image_large.as_ref().map(|m| m.width)).unwrap_or(0);
+        let w = p
+            .image
+            .as_ref()
+            .map(|m| m.width)
+            .filter(|w| *w > 0)
+            .or_else(|| p.image_large.as_ref().map(|m| m.width))
+            .unwrap_or(0);
         if w > 0 && w < f.min_width {
             return false;
         }
@@ -117,10 +129,17 @@ pub async fn tool_pin_inspect(url: String, cookies: Option<String>) -> Result<In
             }
             out.board = Some(b);
         }
-        Target::Section { user, slug, section } => {
+        Target::Section {
+            user,
+            slug,
+            section,
+        } => {
             let b = c.board(user, slug).await.map_err(err)?;
             let secs = c.board_sections(&b.id).await.unwrap_or_default();
-            out.section = secs.iter().find(|x| &x.slug == section || x.title.eq_ignore_ascii_case(section)).cloned();
+            out.section = secs
+                .iter()
+                .find(|x| &x.slug == section || x.title.eq_ignore_ascii_case(section))
+                .cloned();
             out.sections = secs;
             out.board = Some(b);
         }
@@ -146,7 +165,14 @@ pub struct ListOut {
     pub hidden: usize,
 }
 
-async fn list_pins(c: &PinClient, target: &Target, limit: usize, filters: &Filters, pid: &str, p: &ProgressFn) -> Result<(String, Vec<Pin>, Vec<String>, usize), String> {
+async fn list_pins(
+    c: &PinClient,
+    target: &Target,
+    limit: usize,
+    filters: &Filters,
+    pid: &str,
+    p: &ProgressFn,
+) -> Result<(String, Vec<Pin>, Vec<String>, usize), String> {
     let (feed, title) = c.feed_for(target).await.map_err(err)?;
     let mut guides = Vec::new();
     if let Feed::Search { .. } = &feed {
@@ -155,9 +181,17 @@ async fn list_pins(c: &PinClient, target: &Target, limit: usize, filters: &Filte
         }
     }
     // com filtro, pede um pouco mais para compensar o que cai
-    let fetch = if limit == 0 { 0 } else if filters.skip_promoted || filters.ai_level > 0 || !filters.only_kind.is_empty() { limit * 2 } else { limit };
+    let fetch = if limit == 0 {
+        0
+    } else if filters.skip_promoted || filters.ai_level > 0 || !filters.only_kind.is_empty() {
+        limit * 2
+    } else {
+        limit
+    };
     let pins = c
-        .collect(&feed, fetch, |n| report(p, pid, "list", n as u64, None, Some(title.clone())))
+        .collect(&feed, fetch, |n| {
+            report(p, pid, "list", n as u64, None, Some(title.clone()))
+        })
         .await
         .map_err(err)?;
     let before = pins.len();
@@ -170,18 +204,44 @@ async fn list_pins(c: &PinClient, target: &Target, limit: usize, filters: &Filte
 }
 
 #[tauri::command]
-pub async fn tool_pin_list(app: tauri::AppHandle, url: String, cookies: Option<String>, limit: Option<usize>, filters: Option<Filters>) -> Result<ListOut, String> {
+pub async fn tool_pin_list(
+    app: tauri::AppHandle,
+    url: String,
+    cookies: Option<String>,
+    limit: Option<usize>,
+    filters: Option<Filters>,
+) -> Result<ListOut, String> {
     let c = client(&cookies)?;
     let (target, _) = resolve(&c, &url).await?;
     let filters = filters.unwrap_or_default();
     let p = progress(&app);
-    let (title, pins, guides, hidden) = list_pins(&c, &target, limit.unwrap_or(100), &filters, "pinterest:list", &p).await?;
-    Ok(ListOut { title, target, pins, guides, hidden })
+    let (title, pins, guides, hidden) = list_pins(
+        &c,
+        &target,
+        limit.unwrap_or(100),
+        &filters,
+        "pinterest:list",
+        &p,
+    )
+    .await?;
+    Ok(ListOut {
+        title,
+        target,
+        pins,
+        guides,
+        hidden,
+    })
 }
 
 /// Pins parecidos com um pin (o "More like this").
 #[tauri::command]
-pub async fn tool_pin_related(app: tauri::AppHandle, url: String, cookies: Option<String>, limit: Option<usize>, filters: Option<Filters>) -> Result<ListOut, String> {
+pub async fn tool_pin_related(
+    app: tauri::AppHandle,
+    url: String,
+    cookies: Option<String>,
+    limit: Option<usize>,
+    filters: Option<Filters>,
+) -> Result<ListOut, String> {
     let c = client(&cookies)?;
     let (target, _) = resolve(&c, &url).await?;
     let Target::Pin { id } = &target else {
@@ -191,26 +251,48 @@ pub async fn tool_pin_related(app: tauri::AppHandle, url: String, cookies: Optio
     let p = progress(&app);
     let feed = Feed::Related { pin_id: id.clone() };
     let pins = c
-        .collect(&feed, limit.unwrap_or(60) * 2, |n| report(&p, "pinterest:related", "list", n as u64, None, None))
+        .collect(&feed, limit.unwrap_or(60) * 2, |n| {
+            report(&p, "pinterest:related", "list", n as u64, None, None)
+        })
         .await
         .map_err(err)?;
     let before = pins.len();
-    let mut kept: Vec<Pin> = pins.into_iter().filter(|x| x.id != *id && keep(x, &filters)).collect();
+    let mut kept: Vec<Pin> = pins
+        .into_iter()
+        .filter(|x| x.id != *id && keep(x, &filters))
+        .collect();
     kept.truncate(limit.unwrap_or(60));
-    Ok(ListOut { title: format!("parecidos com {}", id), target, hidden: before - kept.len(), pins: kept, guides: vec![] })
+    Ok(ListOut {
+        title: format!("parecidos com {}", id),
+        target,
+        hidden: before - kept.len(),
+        pins: kept,
+        guides: vec![],
+    })
 }
 
 /// Busca de boards por palavra.
 #[tauri::command]
-pub async fn tool_pin_boards_search(query: String, cookies: Option<String>, limit: Option<usize>) -> Result<Vec<Board>, String> {
+pub async fn tool_pin_boards_search(
+    query: String,
+    cookies: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<Board>, String> {
     let c = client(&cookies)?;
-    c.search_boards(&query, limit.unwrap_or(40)).await.map_err(err)
+    c.search_boards(&query, limit.unwrap_or(40))
+        .await
+        .map_err(err)
 }
 
 // ───────────────────────── baixar ─────────────────────────
 
 #[tauri::command]
-pub async fn tool_pin_download(app: tauri::AppHandle, url: String, opts: DownloadOptions, cookies: Option<String>) -> Result<media::PinFiles, String> {
+pub async fn tool_pin_download(
+    app: tauri::AppHandle,
+    url: String,
+    opts: DownloadOptions,
+    cookies: Option<String>,
+) -> Result<media::PinFiles, String> {
     let c = client(&cookies)?;
     let (target, _) = resolve(&c, &url).await?;
     let Target::Pin { id } = &target else {
@@ -220,9 +302,16 @@ pub async fn tool_pin_download(app: tauri::AppHandle, url: String, opts: Downloa
     report(&p, "pinterest:pin", "download", 0, Some(1), None);
     let pin = c.pin(id).await.map_err(err)?;
     let dir = PathBuf::from(&opts.dest);
-    let files = media::download_pin(&c, &pin, &dir, &opts).await.map_err(err)?;
+    let files = media::download_pin(&c, &pin, &dir, &opts)
+        .await
+        .map_err(err)?;
     report(&p, "pinterest:pin", "done", 1, Some(1), None);
-    Ok(media::PinFiles { id: pin.id.clone(), files, skipped: false, error: None })
+    Ok(media::PinFiles {
+        id: pin.id.clone(),
+        files,
+        skipped: false,
+        error: None,
+    })
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -234,11 +323,28 @@ pub struct ManyOut {
     pub files: usize,
 }
 
-async fn download_many(c: Arc<PinClient>, pins: Vec<Pin>, opts: &DownloadOptions, root: &Path, pid: &str, p: &ProgressFn) -> (HashMap<String, Vec<String>>, ManyOut) {
-    let archive = if opts.skip_downloaded { media::load_archive(root) } else { Default::default() };
+async fn download_many(
+    c: Arc<PinClient>,
+    pins: Vec<Pin>,
+    opts: &DownloadOptions,
+    root: &Path,
+    pid: &str,
+    p: &ProgressFn,
+) -> (HashMap<String, Vec<String>>, ManyOut) {
+    let archive = if opts.skip_downloaded {
+        media::load_archive(root)
+    } else {
+        Default::default()
+    };
     let total = pins.len();
     let mut done = 0usize;
-    let mut out = ManyOut { dest: root.to_string_lossy().to_string(), downloaded: 0, skipped: 0, failed: vec![], files: 0 };
+    let mut out = ManyOut {
+        dest: root.to_string_lossy().to_string(),
+        downloaded: 0,
+        skipped: 0,
+        failed: vec![],
+        files: 0,
+    };
     let mut files_by_id: HashMap<String, Vec<String>> = HashMap::new();
     let opts = Arc::new(opts.clone());
     let root_buf = root.to_path_buf();
@@ -252,7 +358,9 @@ async fn download_many(c: Arc<PinClient>, pins: Vec<Pin>, opts: &DownloadOptions
                 return (pin, Ok(Vec::new()), true);
             }
             let dir = match (&pin.section, opts.section_folders) {
-                (Some(s), true) if !s.is_empty() => root.join(omniget_core::core::tools::sanitize_name(s)),
+                (Some(s), true) if !s.is_empty() => {
+                    root.join(omniget_core::core::tools::sanitize_name(s))
+                }
                 _ => root.clone(),
             };
             let r = media::download_pin(&c, &pin, &dir, &opts).await;
@@ -272,23 +380,47 @@ async fn download_many(c: Arc<PinClient>, pins: Vec<Pin>, opts: &DownloadOptions
                     media::append_archive(root, &pin.id);
                     files_by_id.insert(pin.id.clone(), files);
                 }
-                Err(e) => out.failed.push(media::PinFiles { id: pin.id.clone(), files: vec![], skipped: false, error: Some(e.to_string()) }),
+                Err(e) => out.failed.push(media::PinFiles {
+                    id: pin.id.clone(),
+                    files: vec![],
+                    skipped: false,
+                    error: Some(e.to_string()),
+                }),
             }
         }
-        report(p, pid, "download", done as u64, Some(total as u64), Some(pin.title.clone()));
+        report(
+            p,
+            pid,
+            "download",
+            done as u64,
+            Some(total as u64),
+            Some(pin.title.clone()),
+        );
     }
     (files_by_id, out)
 }
 
 /// Baixa uma lista de pins já listada (resultados de busca selecionados).
 #[tauri::command]
-pub async fn tool_pin_download_many(app: tauri::AppHandle, pins: Vec<Pin>, opts: DownloadOptions, cookies: Option<String>) -> Result<ManyOut, String> {
+pub async fn tool_pin_download_many(
+    app: tauri::AppHandle,
+    pins: Vec<Pin>,
+    opts: DownloadOptions,
+    cookies: Option<String>,
+) -> Result<ManyOut, String> {
     let c = client(&cookies)?;
     let root = PathBuf::from(&opts.dest);
     std::fs::create_dir_all(&root).map_err(err)?;
     let p = progress(&app);
     let (_, out) = download_many(c, pins, &opts, &root, "pinterest:many", &p).await;
-    report(&p, "pinterest:many", "done", out.downloaded as u64, Some(out.downloaded as u64), None);
+    report(
+        &p,
+        "pinterest:many",
+        "done",
+        out.downloaded as u64,
+        Some(out.downloaded as u64),
+        None,
+    );
     Ok(out)
 }
 
@@ -336,18 +468,50 @@ pub struct BackupOut {
 }
 
 /// Lista um board com as seções nomeadas (pins soltos + cada seção).
-async fn board_with_sections(c: &PinClient, board: &Board, limit: usize, pid: &str, p: &ProgressFn) -> Result<Vec<Pin>, String> {
+async fn board_with_sections(
+    c: &PinClient,
+    board: &Board,
+    limit: usize,
+    pid: &str,
+    p: &ProgressFn,
+) -> Result<Vec<Pin>, String> {
     let mut all: Vec<Pin> = Vec::new();
     let loose = c
-        .collect(&Feed::Board { board_id: board.id.clone(), include_sections: false }, limit, |n| report(p, pid, "list", n as u64, None, Some(board.name.clone())))
+        .collect(
+            &Feed::Board {
+                board_id: board.id.clone(),
+                include_sections: false,
+            },
+            limit,
+            |n| report(p, pid, "list", n as u64, None, Some(board.name.clone())),
+        )
         .await
         .map_err(err)?;
     all.extend(loose);
     if board.section_count > 0 && (limit == 0 || all.len() < limit) {
         for sec in c.board_sections(&board.id).await.unwrap_or_default() {
-            let want = if limit == 0 { 0 } else { limit.saturating_sub(all.len()).max(1) };
+            let want = if limit == 0 {
+                0
+            } else {
+                limit.saturating_sub(all.len()).max(1)
+            };
             let pins = c
-                .collect(&Feed::Section { section_id: sec.id.clone() }, want, |n| report(p, pid, "list", (all.len() + n) as u64, None, Some(sec.title.clone())))
+                .collect(
+                    &Feed::Section {
+                        section_id: sec.id.clone(),
+                    },
+                    want,
+                    |n| {
+                        report(
+                            p,
+                            pid,
+                            "list",
+                            (all.len() + n) as u64,
+                            None,
+                            Some(sec.title.clone()),
+                        )
+                    },
+                )
                 .await
                 .unwrap_or_default();
             for mut x in pins {
@@ -367,7 +531,14 @@ async fn board_with_sections(c: &PinClient, board: &Board, limit: usize, pid: &s
     Ok(all)
 }
 
-async fn write_outputs(title: &str, dest: &Path, pins: &[Pin], files: &HashMap<String, Vec<String>>, metadata: bool, gallery: bool) -> (Option<String>, Option<String>, Option<String>) {
+async fn write_outputs(
+    title: &str,
+    dest: &Path,
+    pins: &[Pin],
+    files: &HashMap<String, Vec<String>>,
+    metadata: bool,
+    gallery: bool,
+) -> (Option<String>, Option<String>, Option<String>) {
     let mut csv_path = None;
     let mut json_path = None;
     let mut html_path = None;
@@ -385,7 +556,11 @@ async fn write_outputs(title: &str, dest: &Path, pins: &[Pin], files: &HashMap<S
     }
     if gallery {
         let p = dest.join("index.html");
-        let sub = format!("{} pins · OmniGet · {}", pins.len(), chrono::Local::now().format("%Y-%m-%d %H:%M"));
+        let sub = format!(
+            "{} pins · OmniGet · {}",
+            pins.len(),
+            chrono::Local::now().format("%Y-%m-%d %H:%M")
+        );
         let html = export::html_gallery(title, &sub, pins, files, &dest.to_string_lossy());
         if tokio::fs::write(&p, html).await.is_ok() {
             html_path = Some(p.to_string_lossy().to_string());
@@ -396,7 +571,10 @@ async fn write_outputs(title: &str, dest: &Path, pins: &[Pin], files: &HashMap<S
 
 /// Backup de board, seção, perfil (todos os boards), busca ou relacionados.
 #[tauri::command]
-pub async fn tool_pin_backup(app: tauri::AppHandle, opts: BackupOptions) -> Result<BackupOut, String> {
+pub async fn tool_pin_backup(
+    app: tauri::AppHandle,
+    opts: BackupOptions,
+) -> Result<BackupOut, String> {
     let c = client(&opts.cookies)?;
     let (target, _) = resolve(&c, &opts.url).await?;
     let p = progress(&app);
@@ -409,7 +587,11 @@ pub async fn tool_pin_backup(app: tauri::AppHandle, opts: BackupOptions) -> Resu
         let user = c.user(username).await.map_err(err)?;
         let boards = c.user_boards(username).await.map_err(err)?;
         let mut agg = BackupOut {
-            title: if user.name.is_empty() { username.clone() } else { user.name.clone() },
+            title: if user.name.is_empty() {
+                username.clone()
+            } else {
+                user.name.clone()
+            },
             dest: root.to_string_lossy().to_string(),
             total: 0,
             hidden: 0,
@@ -425,11 +607,23 @@ pub async fn tool_pin_backup(app: tauri::AppHandle, opts: BackupOptions) -> Resu
         let mut all_pins: Vec<Pin> = Vec::new();
         let mut all_files: HashMap<String, Vec<String>> = HashMap::new();
         for (i, b) in boards.iter().enumerate() {
-            report(&p, pid, "board", i as u64, Some(boards.len() as u64), Some(b.name.clone()));
+            report(
+                &p,
+                pid,
+                "board",
+                i as u64,
+                Some(boards.len() as u64),
+                Some(b.name.clone()),
+            );
             let pins = match board_with_sections(&c, b, opts.limit, pid, &p).await {
                 Ok(x) => x,
                 Err(e) => {
-                    agg.failed.push(media::PinFiles { id: b.id.clone(), files: vec![], skipped: false, error: Some(e) });
+                    agg.failed.push(media::PinFiles {
+                        id: b.id.clone(),
+                        files: vec![],
+                        skipped: false,
+                        error: Some(e),
+                    });
                     continue;
                 }
             };
@@ -438,7 +632,11 @@ pub async fn tool_pin_backup(app: tauri::AppHandle, opts: BackupOptions) -> Resu
                 .into_iter()
                 .filter(|x| keep(x, &opts.filters))
                 .map(|mut x| {
-                    x.board = Some(omniget_core::core::tools::pinterest::api::BoardRef { id: Some(b.id.clone()), name: Some(b.name.clone()), url: Some(b.url.clone()) });
+                    x.board = Some(omniget_core::core::tools::pinterest::api::BoardRef {
+                        id: Some(b.id.clone()),
+                        name: Some(b.name.clone()),
+                        url: Some(b.url.clone()),
+                    });
                     x
                 })
                 .collect();
@@ -446,7 +644,8 @@ pub async fn tool_pin_backup(app: tauri::AppHandle, opts: BackupOptions) -> Resu
             agg.total += pins.len();
             let bdir = root.join(omniget_core::core::tools::sanitize_name(&b.name));
             std::fs::create_dir_all(&bdir).map_err(err)?;
-            let (files, out) = download_many(c.clone(), pins.clone(), &opts.download, &bdir, pid, &p).await;
+            let (files, out) =
+                download_many(c.clone(), pins.clone(), &opts.download, &bdir, pid, &p).await;
             agg.downloaded += out.downloaded;
             agg.skipped += out.skipped;
             agg.files += out.files;
@@ -457,11 +656,18 @@ pub async fn tool_pin_backup(app: tauri::AppHandle, opts: BackupOptions) -> Resu
         }
         if opts.include_created {
             let pins = c
-                .collect(&Feed::UserCreated { username: username.clone() }, opts.limit, |n| report(&p, pid, "list", n as u64, None, Some("criados".into())))
+                .collect(
+                    &Feed::UserCreated {
+                        username: username.clone(),
+                    },
+                    opts.limit,
+                    |n| report(&p, pid, "list", n as u64, None, Some("criados".into())),
+                )
                 .await
                 .unwrap_or_default();
             let cdir = root.join("_criados");
-            let (files, out) = download_many(c.clone(), pins.clone(), &opts.download, &cdir, pid, &p).await;
+            let (files, out) =
+                download_many(c.clone(), pins.clone(), &opts.download, &cdir, pid, &p).await;
             agg.total += pins.len();
             agg.downloaded += out.downloaded;
             agg.skipped += out.skipped;
@@ -470,11 +676,26 @@ pub async fn tool_pin_backup(app: tauri::AppHandle, opts: BackupOptions) -> Resu
             all_files.extend(files);
             all_pins.extend(pins);
         }
-        let (csv, json, html) = write_outputs(&agg.title, &root, &all_pins, &all_files, opts.metadata, opts.gallery).await;
+        let (csv, json, html) = write_outputs(
+            &agg.title,
+            &root,
+            &all_pins,
+            &all_files,
+            opts.metadata,
+            opts.gallery,
+        )
+        .await;
         agg.csv_path = csv;
         agg.json_path = json;
         agg.html_path = html;
-        report(&p, pid, "done", agg.downloaded as u64, Some(agg.total as u64), None);
+        report(
+            &p,
+            pid,
+            "done",
+            agg.downloaded as u64,
+            Some(agg.total as u64),
+            None,
+        );
         return Ok(agg);
     }
 
@@ -483,17 +704,29 @@ pub async fn tool_pin_backup(app: tauri::AppHandle, opts: BackupOptions) -> Resu
             let b = c.board(user, slug).await.map_err(err)?;
             let pins = board_with_sections(&c, &b, opts.limit, pid, &p).await?;
             let before = pins.len();
-            let pins: Vec<Pin> = pins.into_iter().filter(|x| keep(x, &opts.filters)).collect();
+            let pins: Vec<Pin> = pins
+                .into_iter()
+                .filter(|x| keep(x, &opts.filters))
+                .collect();
             (b.name.clone(), pins.clone(), before - pins.len())
         }
         _ => {
-            let (title, pins, _, hidden) = list_pins(&c, &target, opts.limit, &opts.filters, pid, &p).await?;
+            let (title, pins, _, hidden) =
+                list_pins(&c, &target, opts.limit, &opts.filters, pid, &p).await?;
             (title, pins, hidden)
         }
     };
     let (files, out) = download_many(c.clone(), pins.clone(), &opts.download, &root, pid, &p).await;
-    let (csv_path, json_path, html_path) = write_outputs(&title, &root, &pins, &files, opts.metadata, opts.gallery).await;
-    report(&p, pid, "done", out.downloaded as u64, Some(pins.len() as u64), None);
+    let (csv_path, json_path, html_path) =
+        write_outputs(&title, &root, &pins, &files, opts.metadata, opts.gallery).await;
+    report(
+        &p,
+        pid,
+        "done",
+        out.downloaded as u64,
+        Some(pins.len() as u64),
+        None,
+    );
     Ok(BackupOut {
         title,
         dest: out.dest,
@@ -528,7 +761,13 @@ pub struct DupesOut {
 }
 
 #[tauri::command]
-pub async fn tool_pin_dupes(app: tauri::AppHandle, url: String, cookies: Option<String>, limit: Option<usize>, threshold: Option<u32>) -> Result<DupesOut, String> {
+pub async fn tool_pin_dupes(
+    app: tauri::AppHandle,
+    url: String,
+    cookies: Option<String>,
+    limit: Option<usize>,
+    threshold: Option<u32>,
+) -> Result<DupesOut, String> {
     let c = client(&cookies)?;
     let (target, _) = resolve(&c, &url).await?;
     let p = progress(&app);
@@ -538,7 +777,18 @@ pub async fn tool_pin_dupes(app: tauri::AppHandle, url: String, cookies: Option<
             let b = c.board(user, slug).await.map_err(err)?;
             board_with_sections(&c, &b, limit.unwrap_or(0), pid, &p).await?
         }
-        _ => list_pins(&c, &target, limit.unwrap_or(0), &Filters::default(), pid, &p).await?.1,
+        _ => {
+            list_pins(
+                &c,
+                &target,
+                limit.unwrap_or(0),
+                &Filters::default(),
+                pid,
+                &p,
+            )
+            .await?
+            .1
+        }
     };
     let title = match &target {
         Target::Board { slug, .. } => slug.clone(),
@@ -547,14 +797,24 @@ pub async fn tool_pin_dupes(app: tauri::AppHandle, url: String, cookies: Option<
     let total = pins.len();
     let inputs: Vec<(String, Option<String>, Option<String>)> = pins
         .iter()
-        .map(|pin| (pin.id.clone(), pin.image_signature.clone(), pin.thumb.clone().or_else(|| pin.image_large.as_ref().map(|m| m.url.clone()))))
+        .map(|pin| {
+            (
+                pin.id.clone(),
+                pin.image_signature.clone(),
+                pin.thumb
+                    .clone()
+                    .or_else(|| pin.image_large.as_ref().map(|m| m.url.clone())),
+            )
+        })
         .collect();
     let jobs = inputs.into_iter().map(|(id, sig, thumb)| {
         let c = c.clone();
         async move {
             let hash = match thumb {
                 Some(u) => match c.http().get(&u).send().await {
-                    Ok(r) if r.status().is_success() => r.bytes().await.ok().and_then(|b| analysis::dhash(&b)),
+                    Ok(r) if r.status().is_success() => {
+                        r.bytes().await.ok().and_then(|b| analysis::dhash(&b))
+                    }
                     _ => None,
                 },
                 None => None,
@@ -566,16 +826,36 @@ pub async fn tool_pin_dupes(app: tauri::AppHandle, url: String, cookies: Option<
     let mut stream = futures::stream::iter(jobs).buffer_unordered(8);
     while let Some(it) = stream.next().await {
         items.push(it);
-        report(&p, pid, "hash", items.len() as u64, Some(total as u64), None);
+        report(
+            &p,
+            pid,
+            "hash",
+            items.len() as u64,
+            Some(total as u64),
+            None,
+        );
     }
     let groups: Vec<DupeGroup> = analysis::group_dupes(&items, threshold.unwrap_or(6));
     let by_id: HashMap<&str, &Pin> = pins.iter().map(|x| (x.id.as_str(), x)).collect();
     let groups = groups
         .into_iter()
-        .map(|g| DupeGroupOut { kind: g.kind, distance: g.distance, pins: g.ids.iter().filter_map(|id| by_id.get(id.as_str()).map(|x| (*x).clone())).collect() })
+        .map(|g| DupeGroupOut {
+            kind: g.kind,
+            distance: g.distance,
+            pins: g
+                .ids
+                .iter()
+                .filter_map(|id| by_id.get(id.as_str()).map(|x| (*x).clone()))
+                .collect(),
+        })
         .collect();
     report(&p, pid, "done", total as u64, Some(total as u64), None);
-    Ok(DupesOut { title, scanned: total, groups, has_session: c.has_session() })
+    Ok(DupesOut {
+        title,
+        scanned: total,
+        groups,
+        has_session: c.has_session(),
+    })
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -586,12 +866,18 @@ pub struct UnsaveOut {
 
 /// Desfaz saves seus (exige cookies de sessão). Sequencial de propósito.
 #[tauri::command]
-pub async fn tool_pin_unsave(ids: Vec<String>, cookies: Option<String>) -> Result<UnsaveOut, String> {
+pub async fn tool_pin_unsave(
+    ids: Vec<String>,
+    cookies: Option<String>,
+) -> Result<UnsaveOut, String> {
     let c = client(&cookies)?;
     if !c.has_session() {
         return Err("informe os cookies da sua sessao do Pinterest para desfazer saves".into());
     }
-    let mut out = UnsaveOut { done: vec![], failed: vec![] };
+    let mut out = UnsaveOut {
+        done: vec![],
+        failed: vec![],
+    };
     for id in ids {
         match c.unsave(&id).await {
             Ok(()) => out.done.push(id),
@@ -615,7 +901,14 @@ pub struct PaletteOut {
 }
 
 #[tauri::command]
-pub async fn tool_pin_palette(app: tauri::AppHandle, url: String, cookies: Option<String>, limit: Option<usize>, colors: Option<usize>, skip_extremes: Option<bool>) -> Result<PaletteOut, String> {
+pub async fn tool_pin_palette(
+    app: tauri::AppHandle,
+    url: String,
+    cookies: Option<String>,
+    limit: Option<usize>,
+    colors: Option<usize>,
+    skip_extremes: Option<bool>,
+) -> Result<PaletteOut, String> {
     let c = client(&cookies)?;
     let (target, _) = resolve(&c, &url).await?;
     let p = progress(&app);
@@ -626,7 +919,15 @@ pub async fn tool_pin_palette(app: tauri::AppHandle, url: String, cookies: Optio
             (pin.title.clone(), vec![pin])
         }
         _ => {
-            let (t, pins, _, _) = list_pins(&c, &target, limit.unwrap_or(60), &Filters::default(), pid, &p).await?;
+            let (t, pins, _, _) = list_pins(
+                &c,
+                &target,
+                limit.unwrap_or(60),
+                &Filters::default(),
+                pid,
+                &p,
+            )
+            .await?;
             (t, pins)
         }
     };
@@ -635,14 +936,30 @@ pub async fn tool_pin_palette(app: tauri::AppHandle, url: String, cookies: Optio
     let total = pins.len();
     let inputs: Vec<Option<String>> = pins
         .iter()
-        .map(|pin| if total == 1 { pin.image_large.as_ref().map(|m| m.url.clone()).or_else(|| pin.thumb.clone()) } else { pin.thumb.clone() })
+        .map(|pin| {
+            if total == 1 {
+                pin.image_large
+                    .as_ref()
+                    .map(|m| m.url.clone())
+                    .or_else(|| pin.thumb.clone())
+            } else {
+                pin.thumb.clone()
+            }
+        })
         .collect();
     let jobs = inputs.into_iter().map(|u| {
         let c = c.clone();
         async move {
             match u {
                 Some(u) => match c.http().get(&u).send().await {
-                    Ok(r) if r.status().is_success() => r.bytes().await.ok().map(|b| analysis::sample_pixels(&b, if total == 1 { 2304 } else { 400 }, skip)).unwrap_or_default(),
+                    Ok(r) if r.status().is_success() => r
+                        .bytes()
+                        .await
+                        .ok()
+                        .map(|b| {
+                            analysis::sample_pixels(&b, if total == 1 { 2304 } else { 400 }, skip)
+                        })
+                        .unwrap_or_default(),
                     _ => Vec::new(),
                 },
                 None => Vec::new(),
@@ -658,10 +975,18 @@ pub async fn tool_pin_palette(app: tauri::AppHandle, url: String, cookies: Optio
         report(&p, pid, "sample", done as u64, Some(total as u64), None);
     }
     let swatches = analysis::kmeans_palette(&samples, k);
-    let dom: Vec<[u8; 3]> = pins.iter().filter_map(|x| x.dominant_color.as_deref().and_then(analysis::parse_hex)).collect();
+    let dom: Vec<[u8; 3]> = pins
+        .iter()
+        .filter_map(|x| x.dominant_color.as_deref().and_then(analysis::parse_hex))
+        .collect();
     let dominant = analysis::kmeans_palette(&dom, k.min(dom.len().max(1)));
     report(&p, pid, "done", total as u64, Some(total as u64), None);
-    Ok(PaletteOut { title, pins_used: total, swatches, dominant })
+    Ok(PaletteOut {
+        title,
+        pins_used: total,
+        swatches,
+        dominant,
+    })
 }
 
 // ───────────────────────── exportar ─────────────────────────
@@ -691,7 +1016,10 @@ pub struct ExportOut {
 }
 
 #[tauri::command]
-pub async fn tool_pin_export(app: tauri::AppHandle, opts: ExportOptions) -> Result<ExportOut, String> {
+pub async fn tool_pin_export(
+    app: tauri::AppHandle,
+    opts: ExportOptions,
+) -> Result<ExportOut, String> {
     let c = client(&opts.cookies)?;
     let (target, _) = resolve(&c, &opts.url).await?;
     let p = progress(&app);
@@ -700,10 +1028,16 @@ pub async fn tool_pin_export(app: tauri::AppHandle, opts: ExportOptions) -> Resu
         Target::Board { user, slug } => {
             let b = c.board(user, slug).await.map_err(err)?;
             let pins = board_with_sections(&c, &b, opts.limit, pid, &p).await?;
-            (b.name.clone(), pins.into_iter().filter(|x| keep(x, &opts.filters)).collect::<Vec<_>>())
+            (
+                b.name.clone(),
+                pins.into_iter()
+                    .filter(|x| keep(x, &opts.filters))
+                    .collect::<Vec<_>>(),
+            )
         }
         _ => {
-            let (t, pins, _, _) = list_pins(&c, &target, opts.limit, &opts.filters, pid, &p).await?;
+            let (t, pins, _, _) =
+                list_pins(&c, &target, opts.limit, &opts.filters, pid, &p).await?;
             (t, pins)
         }
     };
@@ -716,23 +1050,41 @@ pub async fn tool_pin_export(app: tauri::AppHandle, opts: ExportOptions) -> Resu
     let path = match opts.format.as_str() {
         "csv" => {
             let path = dest.join(format!("{}.csv", stem));
-            tokio::fs::write(&path, export::csv(&pins, &HashMap::new())).await.map_err(err)?;
+            tokio::fs::write(&path, export::csv(&pins, &HashMap::new()))
+                .await
+                .map_err(err)?;
             path
         }
         "json" => {
             let path = dest.join(format!("{}.json", stem));
-            tokio::fs::write(&path, serde_json::to_string_pretty(&pins).map_err(err)?).await.map_err(err)?;
+            tokio::fs::write(&path, serde_json::to_string_pretty(&pins).map_err(err)?)
+                .await
+                .map_err(err)?;
             path
         }
         "pdf" => {
-            let work = omniget_core::core::tools::temp_dir().join(format!("pinterest-pdf-{}", uuid::Uuid::new_v4()));
+            let work = omniget_core::core::tools::temp_dir()
+                .join(format!("pinterest-pdf-{}", uuid::Uuid::new_v4()));
             std::fs::create_dir_all(&work).map_err(err)?;
             let mut images: Vec<Vec<u8>> = Vec::new();
             for (i, pin) in pins.iter().enumerate() {
-                report(&p, pid, "download", i as u64, Some(pins.len() as u64), Some(pin.title.clone()));
-                let Some(m) = pin.image.as_ref().or(pin.image_large.as_ref()) else { continue };
-                let Ok((bytes, _)) = media::fetch_image(&c, &m.url).await else { continue };
-                let jpeg = omniget_core::core::tools::pinterest::export::to_jpeg(bytes, &work, i).await.map_err(err)?;
+                report(
+                    &p,
+                    pid,
+                    "download",
+                    i as u64,
+                    Some(pins.len() as u64),
+                    Some(pin.title.clone()),
+                );
+                let Some(m) = pin.image.as_ref().or(pin.image_large.as_ref()) else {
+                    continue;
+                };
+                let Ok((bytes, _)) = media::fetch_image(&c, &m.url).await else {
+                    continue;
+                };
+                let jpeg = omniget_core::core::tools::pinterest::export::to_jpeg(bytes, &work, i)
+                    .await
+                    .map_err(err)?;
                 images.push(jpeg);
             }
             let _ = std::fs::remove_dir_all(&work);
@@ -762,15 +1114,30 @@ pub async fn tool_pin_export(app: tauri::AppHandle, opts: ExportOptions) -> Resu
                 let (f, _) = download_many(c.clone(), pins.clone(), &dl, &folder, pid, &p).await;
                 files = f;
             }
-            let sub = format!("{} pins · OmniGet · {}", pins.len(), chrono::Local::now().format("%Y-%m-%d %H:%M"));
+            let sub = format!(
+                "{} pins · OmniGet · {}",
+                pins.len(),
+                chrono::Local::now().format("%Y-%m-%d %H:%M")
+            );
             let html = export::html_gallery(&title, &sub, &pins, &files, &folder.to_string_lossy());
             let path = folder.join("index.html");
             tokio::fs::write(&path, html).await.map_err(err)?;
             path
         }
     };
-    report(&p, pid, "done", pins.len() as u64, Some(pins.len() as u64), None);
-    Ok(ExportOut { title, path: path.to_string_lossy().to_string(), pins: pins.len() })
+    report(
+        &p,
+        pid,
+        "done",
+        pins.len() as u64,
+        Some(pins.len() as u64),
+        None,
+    );
+    Ok(ExportOut {
+        title,
+        path: path.to_string_lossy().to_string(),
+        pins: pins.len(),
+    })
 }
 
 // ───────────────────────── palavras-chave ─────────────────────────
@@ -787,23 +1154,65 @@ pub struct KeywordsOut {
 }
 
 #[tauri::command]
-pub async fn tool_pin_keywords(term: String, cookies: Option<String>) -> Result<KeywordsOut, String> {
+pub async fn tool_pin_keywords(
+    term: String,
+    cookies: Option<String>,
+) -> Result<KeywordsOut, String> {
     let c = client(&cookies)?;
     let term = term.trim().to_string();
     if term.is_empty() {
         return Err("digite um termo".into());
     }
     let suggestions = c.typeahead(&term).await.unwrap_or_default();
-    let feed = Feed::Search { query: term.clone(), scope: "pins".into() };
+    let feed = Feed::Search {
+        query: term.clone(),
+        scope: "pins".into(),
+    };
     let (pins, _, guides) = c.feed_page(&feed, None, 50).await.map_err(err)?;
-    let stop: &[&str] = &["the", "and", "for", "with", "your", "this", "that", "from", "you", "are", "how", "our", "para", "com", "que", "uma", "dos", "das", "los", "las", "por", "una", "more", "ideas", "idea", "pin", "pinterest", "http", "https", "www", "com"];
+    let stop: &[&str] = &[
+        "the",
+        "and",
+        "for",
+        "with",
+        "your",
+        "this",
+        "that",
+        "from",
+        "you",
+        "are",
+        "how",
+        "our",
+        "para",
+        "com",
+        "que",
+        "uma",
+        "dos",
+        "das",
+        "los",
+        "las",
+        "por",
+        "una",
+        "more",
+        "ideas",
+        "idea",
+        "pin",
+        "pinterest",
+        "http",
+        "https",
+        "www",
+        "com",
+    ];
     let mut counts: HashMap<String, usize> = HashMap::new();
     for p in &pins {
         let text = format!("{} {} {}", p.title, p.description, p.alt_text).to_lowercase();
         let mut seen: Vec<String> = Vec::new();
         for w in text.split(|c: char| !(c.is_alphanumeric() || c == '#' || c == '-')) {
             let w = w.trim_matches('-');
-            if w.len() < 3 || stop.contains(&w) || w.chars().all(|c| c.is_ascii_digit()) || seen.iter().any(|s| s == w) {
+            if w.len() < 3
+                || stop.contains(&w)
+                || w.chars().all(|c| c.is_ascii_digit())
+                || seen.iter().any(|s| s == w)
+            {
                 continue;
             }
             seen.push(w.to_string());
@@ -813,7 +1222,13 @@ pub async fn tool_pin_keywords(term: String, cookies: Option<String>) -> Result<
     let mut common: Vec<(String, usize)> = counts.into_iter().filter(|(_, n)| *n >= 2).collect();
     common.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
     common.truncate(40);
-    Ok(KeywordsOut { term, suggestions, guides, common, sample: pins.len() })
+    Ok(KeywordsOut {
+        term,
+        suggestions,
+        guides,
+        common,
+        sample: pins.len(),
+    })
 }
 
 // ───────────────────────── fonte ─────────────────────────
@@ -839,7 +1254,13 @@ pub struct SourceOut {
 
 async fn check_link(url: &str) -> LinkCheck {
     let Ok(client) = omniget_core::core::tools::client() else {
-        return LinkCheck { url: url.into(), status: None, final_url: None, ok: false, error: Some("cliente".into()) };
+        return LinkCheck {
+            url: url.into(),
+            status: None,
+            final_url: None,
+            ok: false,
+            error: Some("cliente".into()),
+        };
     };
     let timeout = std::time::Duration::from_secs(15);
     let r = match client.head(url).timeout(timeout).send().await {
@@ -849,9 +1270,21 @@ async fn check_link(url: &str) -> LinkCheck {
     match r {
         Ok(r) => {
             let st = r.status().as_u16();
-            LinkCheck { url: url.into(), status: Some(st), final_url: Some(r.url().to_string()), ok: (200..400).contains(&st), error: None }
+            LinkCheck {
+                url: url.into(),
+                status: Some(st),
+                final_url: Some(r.url().to_string()),
+                ok: (200..400).contains(&st),
+                error: None,
+            }
         }
-        Err(e) => LinkCheck { url: url.into(), status: None, final_url: None, ok: false, error: Some(e.to_string()) },
+        Err(e) => LinkCheck {
+            url: url.into(),
+            status: None,
+            final_url: None,
+            ok: false,
+            error: Some(e.to_string()),
+        },
     }
 }
 
@@ -865,7 +1298,9 @@ async fn wayback(url: &str) -> Option<String> {
         .await
         .ok()?;
     let v: serde_json::Value = r.json().await.ok()?;
-    v["archived_snapshots"]["closest"]["url"].as_str().map(|s| s.to_string())
+    v["archived_snapshots"]["closest"]["url"]
+        .as_str()
+        .map(|s| s.to_string())
 }
 
 #[tauri::command]
@@ -876,20 +1311,46 @@ pub async fn tool_pin_source(url: String, cookies: Option<String>) -> Result<Sou
         return Err("cole o link de um pin".into());
     };
     let pin = c.pin(id).await.map_err(err)?;
-    let img = pin.image.as_ref().or(pin.image_large.as_ref()).map(|m| m.url.clone()).unwrap_or_default();
+    let img = pin
+        .image
+        .as_ref()
+        .or(pin.image_large.as_ref())
+        .map(|m| m.url.clone())
+        .unwrap_or_default();
     let enc = urlencoding::encode(&img).to_string();
     let reverse = if img.is_empty() {
         vec![]
     } else {
         vec![
-            ("Google Lens".to_string(), format!("https://lens.google.com/uploadbyurl?url={}", enc)),
-            ("TinEye".to_string(), format!("https://tineye.com/search?url={}", enc)),
-            ("Yandex".to_string(), format!("https://yandex.com/images/search?rpt=imageview&url={}", enc)),
-            ("Bing".to_string(), format!("https://www.bing.com/images/search?view=detailv2&iss=sbi&q=imgurl:{}", enc)),
-            ("SauceNAO".to_string(), format!("https://saucenao.com/search.php?url={}", enc)),
+            (
+                "Google Lens".to_string(),
+                format!("https://lens.google.com/uploadbyurl?url={}", enc),
+            ),
+            (
+                "TinEye".to_string(),
+                format!("https://tineye.com/search?url={}", enc),
+            ),
+            (
+                "Yandex".to_string(),
+                format!("https://yandex.com/images/search?rpt=imageview&url={}", enc),
+            ),
+            (
+                "Bing".to_string(),
+                format!(
+                    "https://www.bing.com/images/search?view=detailv2&iss=sbi&q=imgurl:{}",
+                    enc
+                ),
+            ),
+            (
+                "SauceNAO".to_string(),
+                format!("https://saucenao.com/search.php?url={}", enc),
+            ),
         ]
     };
-    let link_url = pin.link.clone().or_else(|| pin.rich.as_ref().and_then(|r| r.url.clone()));
+    let link_url = pin
+        .link
+        .clone()
+        .or_else(|| pin.rich.as_ref().and_then(|r| r.url.clone()));
     let (link, wb) = match &link_url {
         Some(l) => {
             let chk = check_link(l).await;
@@ -898,7 +1359,13 @@ pub async fn tool_pin_source(url: String, cookies: Option<String>) -> Result<Sou
         }
         None => (None, None),
     };
-    Ok(SourceOut { pin, link, wayback: wb, reverse, resolved_url })
+    Ok(SourceOut {
+        pin,
+        link,
+        wayback: wb,
+        reverse,
+        resolved_url,
+    })
 }
 
 /// Expande pin.it e devolve a URL final + alvo reconhecido.

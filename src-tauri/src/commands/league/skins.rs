@@ -73,7 +73,11 @@ pub fn selectable_skins(carousel: &Value) -> Vec<SkinOption> {
                         .unwrap_or_default();
                     Some(SkinOption {
                         id: s.get("id").and_then(Value::as_i64)?,
-                        name: s.get("name").and_then(Value::as_str).unwrap_or("").to_string(),
+                        name: s
+                            .get("name")
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                            .to_string(),
                         is_base: s.get("isBase").and_then(Value::as_bool).unwrap_or(false),
                         chromas,
                     })
@@ -120,7 +124,11 @@ pub fn roll<R: rand::Rng>(
     let skin = pool[rng.random_range(0..pool.len())];
     // Slot 0 is "no chroma"; each chroma takes one more slot.
     let slot = rng.random_range(0..=skin.chromas.len());
-    let chroma = if slot == 0 { None } else { skin.chromas.get(slot - 1) };
+    let chroma = if slot == 0 {
+        None
+    } else {
+        skin.chromas.get(slot - 1)
+    };
     Some(Roll {
         skin_id: skin.id,
         skin_name: skin.name.clone(),
@@ -130,8 +138,7 @@ pub fn roll<R: rand::Rng>(
 }
 
 /// Recent rolls per champion, so the same skin does not come back every game.
-static HISTORY: Lazy<Mutex<HashMap<i64, VecDeque<i64>>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static HISTORY: Lazy<Mutex<HashMap<i64, VecDeque<i64>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 /// Champion the automatic roll already handled in this champ select.
 static ROLLED_FOR: Lazy<Mutex<Option<i64>>> = Lazy::new(|| Mutex::new(None));
 static WARD_ROLLED: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
@@ -159,7 +166,11 @@ async fn recent(champion_id: i64) -> Vec<i64> {
         .unwrap_or_default()
 }
 
-async fn roll_and_apply(client: &LcuClient, champion_id: i64, include_base: bool) -> Result<Roll, String> {
+async fn roll_and_apply(
+    client: &LcuClient,
+    champion_id: i64,
+    include_base: bool,
+) -> Result<Roll, String> {
     let carousel = lcu_get_raw(client, "/lol-champ-select/v1/skin-carousel-skins").await?;
     let skins = selectable_skins(&carousel);
     let history = recent(champion_id).await;
@@ -271,7 +282,9 @@ pub(crate) async fn on_champ_select(
         let already = { *ROLLED_FOR.lock().await == Some(champion) };
         if !already {
             *ROLLED_FOR.lock().await = Some(champion);
-            if let Err(e) = roll_and_apply(client, champion, settings.skin_roulette_include_base).await {
+            if let Err(e) =
+                roll_and_apply(client, champion, settings.skin_roulette_include_base).await
+            {
                 tracing::debug!("[league] skin roulette skipped: {}", e);
             }
         }
@@ -297,7 +310,8 @@ pub async fn league_roll_skin(include_base: Option<bool>) -> Result<Roll, String
     if champion <= 0 {
         return Err("lock a champion first".to_string());
     }
-    let include_base = include_base.unwrap_or_else(|| super::league_settings().skin_roulette_include_base);
+    let include_base =
+        include_base.unwrap_or_else(|| super::league_settings().skin_roulette_include_base);
     roll_and_apply(&client, champion, include_base).await
 }
 
@@ -337,7 +351,11 @@ mod tests {
             is_base: base,
             chromas: chromas
                 .iter()
-                .map(|c| Chroma { id: *c, name: format!("chroma {}", c), colors: vec![] })
+                .map(|c| Chroma {
+                    id: *c,
+                    name: format!("chroma {}", c),
+                    colors: vec![],
+                })
                 .collect(),
         }
     }

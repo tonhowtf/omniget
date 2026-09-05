@@ -25,8 +25,12 @@ pub fn parse_slide_urls(html: &str) -> Vec<String> {
             let mut best: Option<(u32, &str)> = None;
             for part in c[1].split(',') {
                 let mut it = part.split_whitespace();
-                let (Some(u), w) = (it.next(), it.next()) else { continue };
-                let width = w.and_then(|w| w.trim_end_matches('w').parse::<u32>().ok()).unwrap_or(0);
+                let (Some(u), w) = (it.next(), it.next()) else {
+                    continue;
+                };
+                let width = w
+                    .and_then(|w| w.trim_end_matches('w').parse::<u32>().ok())
+                    .unwrap_or(0);
                 if best.map(|(bw, _)| width > bw).unwrap_or(true) {
                     best = Some((width, u));
                 }
@@ -46,7 +50,11 @@ pub fn parse_slide_urls(html: &str) -> Vec<String> {
 
 pub fn og_title(html: &str) -> Option<String> {
     let re = regex::Regex::new(r#"<meta[^>]*property="og:title"[^>]*content="([^"]*)""#).ok()?;
-    re.captures(html).map(|c| c[1].replace("&amp;", "&").replace("&quot;", "\"").replace("&#39;", "'"))
+    re.captures(html).map(|c| {
+        c[1].replace("&amp;", "&")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+    })
 }
 
 /// Converte qualquer imagem em JPEG pelo ffmpeg (webp/png escapam do DCTDecode).
@@ -71,12 +79,22 @@ pub(crate) async fn ensure_jpeg(data: Vec<u8>, work: &Path, idx: usize) -> anyho
     Ok(tokio::fs::read(&output).await?)
 }
 
-pub async fn download(url: &str, dest_dir: &str, progress: super::ProgressFn) -> anyhow::Result<SlidesResult> {
+pub async fn download(
+    url: &str,
+    dest_dir: &str,
+    progress: super::ProgressFn,
+) -> anyhow::Result<SlidesResult> {
     if !url.contains("slideshare.net") {
         return Err(anyhow!("cole um link do slideshare.net"));
     }
     let client = super::client()?;
-    let html = client.get(url).send().await?.error_for_status()?.text().await?;
+    let html = client
+        .get(url)
+        .send()
+        .await?
+        .error_for_status()?
+        .text()
+        .await?;
     let urls = parse_slide_urls(&html);
     if urls.is_empty() {
         return Err(anyhow!("nao encontrei slides nessa pagina (o SlideShare pode ter mudado o HTML ou o deck e privado)"));
@@ -87,8 +105,22 @@ pub async fn download(url: &str, dest_dir: &str, progress: super::ProgressFn) ->
     let mut images = Vec::with_capacity(urls.len());
     let id = format!("slides:{}", url);
     for (i, u) in urls.iter().enumerate() {
-        super::report(&progress, &id, "download", i as u64, Some(urls.len() as u64), None);
-        let data = client.get(u).send().await?.error_for_status()?.bytes().await?.to_vec();
+        super::report(
+            &progress,
+            &id,
+            "download",
+            i as u64,
+            Some(urls.len() as u64),
+            None,
+        );
+        let data = client
+            .get(u)
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?
+            .to_vec();
         images.push(ensure_jpeg(data, &work, i).await?);
     }
     let pdf = super::jpeg_pdf::build_pdf(&images)?;
@@ -97,8 +129,19 @@ pub async fn download(url: &str, dest_dir: &str, progress: super::ProgressFn) ->
     let pdf_path = dir.join(format!("{}.pdf", super::sanitize_name(&title)));
     tokio::fs::write(&pdf_path, &pdf).await?;
     let _ = std::fs::remove_dir_all(&work);
-    super::report(&progress, &id, "done", urls.len() as u64, Some(urls.len() as u64), None);
-    Ok(SlidesResult { title, pages: images.len(), pdf_path: pdf_path.to_string_lossy().to_string() })
+    super::report(
+        &progress,
+        &id,
+        "done",
+        urls.len() as u64,
+        Some(urls.len() as u64),
+        None,
+    );
+    Ok(SlidesResult {
+        title,
+        pages: images.len(),
+        pdf_path: pdf_path.to_string_lossy().to_string(),
+    })
 }
 
 #[cfg(test)]

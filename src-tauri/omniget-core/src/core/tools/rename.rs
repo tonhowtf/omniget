@@ -55,7 +55,10 @@ pub fn expand_tokens(template: &str, n: u32, name: &str, ext: &str) -> String {
     re.replace_all(template, |c: &regex::Captures| {
         let key = &c[1];
         if key.starts_with('n') {
-            let pad = c.get(2).and_then(|m| m.as_str().parse::<usize>().ok()).unwrap_or(1);
+            let pad = c
+                .get(2)
+                .and_then(|m| m.as_str().parse::<usize>().ok())
+                .unwrap_or(1);
             format!("{:0width$}", n, width = pad)
         } else if key == "name" {
             name.to_string()
@@ -84,12 +87,22 @@ pub fn plan(opts: &RenameOptions) -> Result<Vec<RenamePlan>, String> {
     let mut n = opts.counter_start;
     for f in &opts.files {
         let p = Path::new(f);
-        let file_name = p.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+        let file_name = p
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
         let (stem, ext) = match (p.file_stem(), p.extension()) {
-            (Some(s), Some(e)) => (s.to_string_lossy().to_string(), e.to_string_lossy().to_string()),
+            (Some(s), Some(e)) => (
+                s.to_string_lossy().to_string(),
+                e.to_string_lossy().to_string(),
+            ),
             _ => (file_name.clone(), String::new()),
         };
-        let subject = if opts.apply_to_extension { file_name.clone() } else { stem.clone() };
+        let subject = if opts.apply_to_extension {
+            file_name.clone()
+        } else {
+            stem.clone()
+        };
         let replacement = expand_tokens(&opts.replacement, n, &stem, &ext);
         let mut new = match &re {
             Some(re) => re.replace_all(&subject, replacement.as_str()).to_string(),
@@ -102,13 +115,22 @@ pub fn plan(opts: &RenameOptions) -> Result<Vec<RenamePlan>, String> {
             "title" => title_case(&new),
             _ => new,
         };
-        let new_name = if opts.apply_to_extension || ext.is_empty() { new } else { format!("{}.{}", new, ext) };
+        let new_name = if opts.apply_to_extension || ext.is_empty() {
+            new
+        } else {
+            format!("{}.{}", new, ext)
+        };
         let new_name = super::sanitize_name(&new_name);
         let to = p.with_file_name(&new_name);
         let to_s = to.to_string_lossy().to_string();
         let changed = new_name != file_name;
         let conflict = changed && (to.exists() || !targets.insert(to_s.to_lowercase()));
-        out.push(RenamePlan { from: f.clone(), to: to_s, changed, conflict });
+        out.push(RenamePlan {
+            from: f.clone(),
+            to: to_s,
+            changed,
+            conflict,
+        });
         if changed {
             n += 1;
         }
@@ -135,7 +157,10 @@ mod tests {
     #[test]
     fn tokens_and_regex() {
         let opts = RenameOptions {
-            files: vec!["/x/Aula 01 - intro.mp4".into(), "/x/Aula 02 - loops.mp4".into()],
+            files: vec![
+                "/x/Aula 01 - intro.mp4".into(),
+                "/x/Aula 02 - loops.mp4".into(),
+            ],
             pattern: r"^Aula (\d+) - ".into(),
             replacement: "{n:2}. ".into(),
             case_insensitive: false,

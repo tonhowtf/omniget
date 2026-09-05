@@ -29,8 +29,8 @@ pub mod yt_templates;
 #[cfg(not(target_os = "android"))]
 pub mod dependencies;
 #[cfg(not(target_os = "android"))]
+pub mod search;
+#[cfg(not(target_os = "android"))]
 pub mod spicetify;
 #[cfg(not(target_os = "android"))]
 pub mod tools;
-#[cfg(not(target_os = "android"))]
-pub mod search;

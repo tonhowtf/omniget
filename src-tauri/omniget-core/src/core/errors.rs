@@ -120,7 +120,11 @@ mod tests {
 
     #[test]
     fn network_and_rate_limit_still_retry() {
-        assert!(!is_terminal_category(classify_download_error("HTTP Error 429").0));
-        assert!(!is_terminal_category(classify_download_error("connection reset").0));
+        assert!(!is_terminal_category(
+            classify_download_error("HTTP Error 429").0
+        ));
+        assert!(!is_terminal_category(
+            classify_download_error("connection reset").0
+        ));
     }
 }

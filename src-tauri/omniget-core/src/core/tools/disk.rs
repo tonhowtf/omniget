@@ -22,7 +22,12 @@ fn volume_at(path: &Path, name: &str) -> Option<Volume> {
     if total == 0 {
         return None;
     }
-    Some(Volume { path: path.to_string_lossy().to_string(), name: name.to_string(), total, free })
+    Some(Volume {
+        path: path.to_string_lossy().to_string(),
+        name: name.to_string(),
+        total,
+        free,
+    })
 }
 
 pub fn volumes() -> Vec<Volume> {
@@ -56,7 +61,11 @@ pub fn volumes() -> Vec<Volume> {
         push(PathBuf::from("/"), "/".into());
         push(PathBuf::from("/home"), "/home".into());
         let user = std::env::var("USER").unwrap_or_default();
-        for base in [format!("/media/{}", user), format!("/run/media/{}", user), "/mnt".to_string()] {
+        for base in [
+            format!("/media/{}", user),
+            format!("/run/media/{}", user),
+            "/mnt".to_string(),
+        ] {
             if let Ok(rd) = std::fs::read_dir(&base) {
                 for e in rd.flatten() {
                     let name = e.file_name().to_string_lossy().to_string();
@@ -98,7 +107,12 @@ pub struct DiskScan {
 
 /// Varre `root` e devolve a árvore até `max_depth` níveis, com no máximo
 /// `max_children` filhos por nó (o resto vira "outros").
-pub fn scan(root: &str, max_depth: usize, max_children: usize, progress: &super::ProgressFn) -> anyhow::Result<DiskScan> {
+pub fn scan(
+    root: &str,
+    max_depth: usize,
+    max_children: usize,
+    progress: &super::ProgressFn,
+) -> anyhow::Result<DiskScan> {
     let root_path = PathBuf::from(root.trim());
     if !root_path.is_dir() {
         anyhow::bail!("pasta nao encontrada: {}", root_path.display());
@@ -113,20 +127,32 @@ pub fn scan(root: &str, max_depth: usize, max_children: usize, progress: &super:
     let mut skipped = 0u64;
     let mut last = std::time::Instant::now();
 
-    let walker = walkdir::WalkDir::new(&root_path).follow_links(false).min_depth(1);
+    let walker = walkdir::WalkDir::new(&root_path)
+        .follow_links(false)
+        .min_depth(1);
     // Pilha "caminho → bytes" para fechar diretórios ao sair deles: walkdir é
     // pré-ordem, então guardamos o acumulado de cada diretório aberto.
     let mut open: Vec<(PathBuf, u64, u64)> = vec![(root_path.clone(), 0, 0)];
     let mut immediate: HashMap<PathBuf, Vec<(String, u64, bool, u64)>> = HashMap::new();
 
-    fn close_until(open: &mut Vec<(PathBuf, u64, u64)>, immediate: &mut HashMap<PathBuf, Vec<(String, u64, bool, u64)>>, keep: &Path) {
+    fn close_until(
+        open: &mut Vec<(PathBuf, u64, u64)>,
+        immediate: &mut HashMap<PathBuf, Vec<(String, u64, bool, u64)>>,
+        keep: &Path,
+    ) {
         while open.len() > 1 && !keep.starts_with(&open.last().unwrap().0) {
             let (p, b, f) = open.pop().unwrap();
             let parent = open.last_mut().unwrap();
             parent.1 += b;
             parent.2 += f;
-            let name = p.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-            immediate.entry(parent.0.clone()).or_default().push((name, b, true, f));
+            let name = p
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+            immediate
+                .entry(parent.0.clone())
+                .or_default()
+                .push((name, b, true, f));
         }
     }
 
@@ -140,7 +166,14 @@ pub fn scan(root: &str, max_depth: usize, max_children: usize, progress: &super:
         };
         scanned += 1;
         if last.elapsed() > std::time::Duration::from_millis(250) {
-            super::report(progress, "disk", "progress", scanned, None, Some(entry.path().to_string_lossy().to_string()));
+            super::report(
+                progress,
+                "disk",
+                "progress",
+                scanned,
+                None,
+                Some(entry.path().to_string_lossy().to_string()),
+            );
             last = std::time::Instant::now();
         }
         let path = entry.path().to_path_buf();
@@ -155,9 +188,15 @@ pub fn scan(root: &str, max_depth: usize, max_children: usize, progress: &super:
                 top.2 += 1;
             }
             let name = entry.file_name().to_string_lossy().to_string();
-            immediate.entry(parent).or_default().push((name, bytes, false, 1));
+            immediate
+                .entry(parent)
+                .or_default()
+                .push((name, bytes, false, 1));
             if largest.len() < 60 || bytes > largest.last().map(|b| b.bytes).unwrap_or(0) {
-                largest.push(BigFile { path: path.to_string_lossy().to_string(), bytes });
+                largest.push(BigFile {
+                    path: path.to_string_lossy().to_string(),
+                    bytes,
+                });
                 largest.sort_by_key(|b| std::cmp::Reverse(b.bytes));
                 largest.truncate(60);
             }
@@ -167,7 +206,16 @@ pub fn scan(root: &str, max_depth: usize, max_children: usize, progress: &super:
     let (_, root_bytes, root_files) = open.pop().unwrap_or((root_path.clone(), 0, 0));
 
     #[allow(clippy::too_many_arguments)]
-    fn build(path: &Path, name: String, bytes: u64, files: u64, depth: usize, max_depth: usize, max_children: usize, immediate: &HashMap<PathBuf, Vec<(String, u64, bool, u64)>>) -> Node {
+    fn build(
+        path: &Path,
+        name: String,
+        bytes: u64,
+        files: u64,
+        depth: usize,
+        max_depth: usize,
+        max_children: usize,
+        immediate: &HashMap<PathBuf, Vec<(String, u64, bool, u64)>>,
+    ) -> Node {
         let mut children = Vec::new();
         if depth < max_depth {
             if let Some(list) = immediate.get(path) {
@@ -180,9 +228,25 @@ pub fn scan(root: &str, max_depth: usize, max_children: usize, progress: &super:
                     if i < max_children {
                         let child_path = path.join(&n);
                         if is_dir {
-                            children.push(build(&child_path, n, b, f, depth + 1, max_depth, max_children, immediate));
+                            children.push(build(
+                                &child_path,
+                                n,
+                                b,
+                                f,
+                                depth + 1,
+                                max_depth,
+                                max_children,
+                                immediate,
+                            ));
                         } else {
-                            children.push(Node { name: n, path: child_path.to_string_lossy().to_string(), bytes: b, is_dir: false, files: 1, children: vec![] });
+                            children.push(Node {
+                                name: n,
+                                path: child_path.to_string_lossy().to_string(),
+                                bytes: b,
+                                is_dir: false,
+                                files: 1,
+                                children: vec![],
+                            });
                         }
                     } else {
                         rest_bytes += b;
@@ -191,17 +255,48 @@ pub fn scan(root: &str, max_depth: usize, max_children: usize, progress: &super:
                     }
                 }
                 if rest_n > 0 {
-                    children.push(Node { name: format!("… {} itens", rest_n), path: String::new(), bytes: rest_bytes, is_dir: false, files: rest_files, children: vec![] });
+                    children.push(Node {
+                        name: format!("… {} itens", rest_n),
+                        path: String::new(),
+                        bytes: rest_bytes,
+                        is_dir: false,
+                        files: rest_files,
+                        children: vec![],
+                    });
                 }
             }
         }
-        Node { name, path: path.to_string_lossy().to_string(), bytes, is_dir: true, files, children }
+        Node {
+            name,
+            path: path.to_string_lossy().to_string(),
+            bytes,
+            is_dir: true,
+            files,
+            children,
+        }
     }
 
-    let name = root_path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| root_path.to_string_lossy().to_string());
-    let root_node = build(&root_path, name, root_bytes, root_files, 0, max_depth, max_children, &immediate);
+    let name = root_path
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| root_path.to_string_lossy().to_string());
+    let root_node = build(
+        &root_path,
+        name,
+        root_bytes,
+        root_files,
+        0,
+        max_depth,
+        max_children,
+        &immediate,
+    );
     super::report(progress, "disk", "done", scanned, Some(scanned), None);
-    Ok(DiskScan { root: root_node, largest, scanned, skipped })
+    Ok(DiskScan {
+        root: root_node,
+        largest,
+        scanned,
+        skipped,
+    })
 }
 
 /// Move para a lixeira (nunca apaga direto).
@@ -231,7 +326,13 @@ mod tests {
         std::fs::write(dir.join("a/x.bin"), vec![0u8; 300]).unwrap();
         std::fs::write(dir.join("a/b/y.bin"), vec![0u8; 200]).unwrap();
         std::fs::write(dir.join("z.bin"), vec![0u8; 100]).unwrap();
-        let s = scan(&dir.to_string_lossy(), 3, 50, &super::super::noop_progress()).unwrap();
+        let s = scan(
+            &dir.to_string_lossy(),
+            3,
+            50,
+            &super::super::noop_progress(),
+        )
+        .unwrap();
         assert_eq!(s.root.bytes, 600);
         assert_eq!(s.root.files, 3);
         let a = s.root.children.iter().find(|c| c.name == "a").unwrap();

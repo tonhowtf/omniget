@@ -13,7 +13,10 @@ pub fn csv_escape(s: &str) -> String {
 }
 
 fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 pub fn posts_csv(posts: &[XPost]) -> String {
@@ -38,7 +41,12 @@ pub fn posts_csv(posts: &[XPost]) -> String {
             p.reply_to_id.clone().unwrap_or_default(),
             p.quote.as_ref().map(|q| q.url.clone()).unwrap_or_default(),
         ];
-        out.push_str(&row.iter().map(|c| csv_escape(c)).collect::<Vec<_>>().join(","));
+        out.push_str(
+            &row.iter()
+                .map(|c| csv_escape(c))
+                .collect::<Vec<_>>()
+                .join(","),
+        );
         out.push('\n');
     }
     out
@@ -63,40 +71,81 @@ pub fn users_csv(users: &[XUser]) -> String {
             u.follows_me.map(|b| b.to_string()).unwrap_or_default(),
             u.followed_by_me.map(|b| b.to_string()).unwrap_or_default(),
         ];
-        out.push_str(&row.iter().map(|c| csv_escape(c)).collect::<Vec<_>>().join(","));
+        out.push_str(
+            &row.iter()
+                .map(|c| csv_escape(c))
+                .collect::<Vec<_>>()
+                .join(","),
+        );
         out.push('\n');
     }
     out
 }
 
 fn date_short(iso: &str) -> String {
-    iso.get(..16).map(|s| s.replace('T', " ")).unwrap_or_else(|| iso.to_string())
+    iso.get(..16)
+        .map(|s| s.replace('T', " "))
+        .unwrap_or_else(|| iso.to_string())
 }
 
 pub fn posts_markdown(title: &str, posts: &[XPost]) -> String {
     let mut out = format!("# {}\n\n", title);
     if let Some(first) = posts.first() {
-        out.push_str(&format!("**{}** (@{}) · {}\n\n", first.author.name, first.author.handle, first.url));
+        out.push_str(&format!(
+            "**{}** (@{}) · {}\n\n",
+            first.author.name, first.author.handle, first.url
+        ));
     }
     for (i, p) in posts.iter().enumerate() {
         if posts.len() > 1 {
-            out.push_str(&format!("### {}/{} · {}\n\n", i + 1, posts.len(), date_short(&p.created_at)));
+            out.push_str(&format!(
+                "### {}/{} · {}\n\n",
+                i + 1,
+                posts.len(),
+                date_short(&p.created_at)
+            ));
         }
-        if posts.len() > 1 && posts.first().map(|f| f.author.handle != p.author.handle).unwrap_or(false) {
+        if posts.len() > 1
+            && posts
+                .first()
+                .map(|f| f.author.handle != p.author.handle)
+                .unwrap_or(false)
+        {
             out.push_str(&format!("_@{}_\n\n", p.author.handle));
         }
         out.push_str(p.text.trim());
         out.push_str("\n\n");
         for m in &p.media {
             match m.kind.as_str() {
-                "photo" => out.push_str(&format!("![{}]({})\n\n", if m.alt.is_empty() { "imagem" } else { &m.alt }, m.url)),
+                "photo" => out.push_str(&format!(
+                    "![{}]({})\n\n",
+                    if m.alt.is_empty() { "imagem" } else { &m.alt },
+                    m.url
+                )),
                 _ => out.push_str(&format!("[{}]({})\n\n", m.kind, m.url)),
             }
         }
         if let Some(q) = &p.quote {
-            out.push_str(&format!("> **@{}**: {}\n> {}\n\n", q.author.handle, q.text.replace('\n', "\n> "), q.url));
+            out.push_str(&format!(
+                "> **@{}**: {}\n> {}\n\n",
+                q.author.handle,
+                q.text.replace('\n', "\n> "),
+                q.url
+            ));
         }
-        out.push_str(&format!("♥ {} · ↻ {} · 💬 {}{} · [{}]({})\n\n", p.likes, p.reposts, p.replies, if p.views > 0 { format!(" · 👁 {}", p.views) } else { String::new() }, p.id, p.url));
+        out.push_str(&format!(
+            "♥ {} · ↻ {} · 💬 {}{} · [{}]({})\n\n",
+            p.likes,
+            p.reposts,
+            p.replies,
+            if p.views > 0 {
+                format!(" · 👁 {}", p.views)
+            } else {
+                String::new()
+            },
+            p.id,
+            p.url
+        ));
     }
     out.trim_end().to_string() + "\n"
 }
@@ -104,7 +153,15 @@ pub fn posts_markdown(title: &str, posts: &[XPost]) -> String {
 pub fn posts_text(posts: &[XPost]) -> String {
     posts
         .iter()
-        .map(|p| format!("@{} · {}\n{}\n{}", p.author.handle, date_short(&p.created_at), p.text.trim(), p.url))
+        .map(|p| {
+            format!(
+                "@{} · {}\n{}\n{}",
+                p.author.handle,
+                date_short(&p.created_at),
+                p.text.trim(),
+                p.url
+            )
+        })
         .collect::<Vec<_>>()
         .join("\n\n---\n\n")
         + "\n"
@@ -116,14 +173,30 @@ pub fn posts_html(title: &str, posts: &[XPost]) -> String {
         let mut media = String::new();
         for m in &p.media {
             match m.kind.as_str() {
-                "photo" => media.push_str(&format!("<a href=\"{0}\"><img src=\"{0}\" alt=\"{1}\" loading=\"lazy\"></a>", html_escape(&m.url), html_escape(&m.alt))),
-                _ => media.push_str(&format!("<video src=\"{}\" poster=\"{}\" controls preload=\"none\"></video>", html_escape(&m.url), html_escape(&m.thumb))),
+                "photo" => media.push_str(&format!(
+                    "<a href=\"{0}\"><img src=\"{0}\" alt=\"{1}\" loading=\"lazy\"></a>",
+                    html_escape(&m.url),
+                    html_escape(&m.alt)
+                )),
+                _ => media.push_str(&format!(
+                    "<video src=\"{}\" poster=\"{}\" controls preload=\"none\"></video>",
+                    html_escape(&m.url),
+                    html_escape(&m.thumb)
+                )),
             }
         }
         let quote = p
             .quote
             .as_ref()
-            .map(|q| format!("<blockquote><b>@{}</b> {}<br><a href=\"{}\">{}</a></blockquote>", html_escape(&q.author.handle), html_escape(&q.text).replace('\n', "<br>"), html_escape(&q.url), html_escape(&q.url)))
+            .map(|q| {
+                format!(
+                    "<blockquote><b>@{}</b> {}<br><a href=\"{}\">{}</a></blockquote>",
+                    html_escape(&q.author.handle),
+                    html_escape(&q.text).replace('\n', "<br>"),
+                    html_escape(&q.url),
+                    html_escape(&q.url)
+                )
+            })
             .unwrap_or_default();
         body.push_str(&format!(
             "<article><header><img class=\"avatar\" src=\"{}\" alt=\"\"><div><b>{}</b> <span class=\"h\">@{}</span><br><time>{}</time></div></header><p>{}</p><div class=\"media\">{}</div>{}<footer>♥ {} · ↻ {} · 💬 {} · 👁 {} · <a href=\"{}\">abrir no X</a></footer></article>\n",
@@ -149,7 +222,12 @@ pub fn posts_html(title: &str, posts: &[XPost]) -> String {
 }
 
 /// Escreve `posts` em `dest` no formato pedido e devolve o caminho.
-pub fn write_posts(posts: &[XPost], format: &str, dest: &std::path::Path, title: &str) -> anyhow::Result<String> {
+pub fn write_posts(
+    posts: &[XPost],
+    format: &str,
+    dest: &std::path::Path,
+    title: &str,
+) -> anyhow::Result<String> {
     let content = match format {
         "json" => serde_json::to_string_pretty(posts)?,
         "csv" => posts_csv(posts),
@@ -165,11 +243,22 @@ pub fn write_posts(posts: &[XPost], format: &str, dest: &std::path::Path, title:
     Ok(dest.to_string_lossy().to_string())
 }
 
-pub fn write_users(users: &[XUser], format: &str, dest: &std::path::Path) -> anyhow::Result<String> {
+pub fn write_users(
+    users: &[XUser],
+    format: &str,
+    dest: &std::path::Path,
+) -> anyhow::Result<String> {
     let content = match format {
         "json" => serde_json::to_string_pretty(users)?,
         "csv" => users_csv(users),
-        "md" | "markdown" | "txt" => users.iter().map(|u| format!("- @{} · {} · {}", u.handle, u.name, u.url())).collect::<Vec<_>>().join("\n") + "\n",
+        "md" | "markdown" | "txt" => {
+            users
+                .iter()
+                .map(|u| format!("- @{} · {} · {}", u.handle, u.name, u.url()))
+                .collect::<Vec<_>>()
+                .join("\n")
+                + "\n"
+        }
         other => anyhow::bail!("formato desconhecido: {}", other),
     };
     if let Some(parent) = dest.parent() {

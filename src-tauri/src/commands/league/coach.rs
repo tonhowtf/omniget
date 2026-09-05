@@ -57,7 +57,10 @@ pub fn opgg_result(envelope: &Value) -> Result<Value, String> {
             .get("message")
             .and_then(Value::as_str)
             .unwrap_or("unknown error");
-        return Err(format!("op.gg: {}", message.lines().next().unwrap_or(message)));
+        return Err(format!(
+            "op.gg: {}",
+            message.lines().next().unwrap_or(message)
+        ));
     }
     let text = envelope
         .get("result")
@@ -71,7 +74,9 @@ pub fn opgg_result(envelope: &Value) -> Result<Value, String> {
 }
 
 pub async fn opgg_call(tool: &str, args: Value) -> Result<Value, String> {
-    let http = HTTP.clone().ok_or_else(|| "http client init failed".to_string())?;
+    let http = HTTP
+        .clone()
+        .ok_or_else(|| "http client init failed".to_string())?;
     for attempt in 0..2 {
         let session = {
             let cached = OPGG_SESSION.lock().await.clone();
@@ -222,7 +227,13 @@ fn system_prompt(style: &str, language: &str) -> String {
 /// A participant trimmed to what a coach reads, from the match detail shape.
 pub fn compact_participant(p: &Value, minutes: f64) -> Value {
     let f = |k: &str| p.get(k).and_then(Value::as_f64).unwrap_or(0.0);
-    let per_min = |v: f64| if minutes > 0.0 { (v / minutes * 10.0).round() / 10.0 } else { 0.0 };
+    let per_min = |v: f64| {
+        if minutes > 0.0 {
+            (v / minutes * 10.0).round() / 10.0
+        } else {
+            0.0
+        }
+    };
     json!({
         "player": p.get("gameName").and_then(Value::as_str).unwrap_or(""),
         "championId": p.get("championId"),
@@ -296,13 +307,24 @@ fn prompt_json(value: &Value, cap: usize) -> String {
 
 /// Post-game review of one match.
 #[tauri::command]
-pub async fn league_coach_review(game_id: i64, style: Option<String>, language: Option<String>) -> Result<String, String> {
+pub async fn league_coach_review(
+    game_id: i64,
+    style: Option<String>,
+    language: Option<String>,
+) -> Result<String, String> {
     ensure_enabled()?;
     let client = get_client().await?;
     let detail = super::league_match_detail(game_id).await?;
     let me = lcu_get_raw(&client, "/lol-summoner/v1/current-summoner").await?;
-    let my_puuid = me.get("puuid").and_then(Value::as_str).unwrap_or("").to_string();
-    let duration = detail.get("gameDuration").and_then(Value::as_f64).unwrap_or(0.0);
+    let my_puuid = me
+        .get("puuid")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let duration = detail
+        .get("gameDuration")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
     let minutes = duration / 60.0;
     let champions = champion_summary(&client).await;
     let participants: Vec<&Value> = detail
@@ -351,9 +373,12 @@ pub async fn league_coach_review(game_id: i64, style: Option<String>, language: 
 pub fn trend_rows(games: &[Value], puuid: &str, champions: &Value) -> Value {
     let mut rows: Vec<Value> = Vec::new();
     let mut wins = 0usize;
-    let mut by_champion: std::collections::HashMap<String, (usize, usize)> = std::collections::HashMap::new();
-    let mut by_role: std::collections::HashMap<String, (usize, usize)> = std::collections::HashMap::new();
-    let (mut k, mut d, mut a, mut cs, mut vision, mut minutes) = (0f64, 0f64, 0f64, 0f64, 0f64, 0f64);
+    let mut by_champion: std::collections::HashMap<String, (usize, usize)> =
+        std::collections::HashMap::new();
+    let mut by_role: std::collections::HashMap<String, (usize, usize)> =
+        std::collections::HashMap::new();
+    let (mut k, mut d, mut a, mut cs, mut vision, mut minutes) =
+        (0f64, 0f64, 0f64, 0f64, 0f64, 0f64);
     for game in games {
         let participants = match game.get("participants").and_then(Value::as_array) {
             Some(p) => p,
@@ -365,11 +390,20 @@ pub fn trend_rows(games: &[Value], puuid: &str, champions: &Value) -> Value {
             let identities = game.get("participantIdentities").and_then(Value::as_array);
             let pid = identities.and_then(|ids| {
                 ids.iter()
-                    .find(|i| i.get("player").and_then(|p| p.get("puuid")).and_then(Value::as_str) == Some(puuid))
+                    .find(|i| {
+                        i.get("player")
+                            .and_then(|p| p.get("puuid"))
+                            .and_then(Value::as_str)
+                            == Some(puuid)
+                    })
                     .and_then(|i| i.get("participantId").and_then(Value::as_i64))
             });
-            pid.and_then(|pid| participants.iter().find(|p| p.get("participantId").and_then(Value::as_i64) == Some(pid)))
-                .or_else(|| participants.first())
+            pid.and_then(|pid| {
+                participants
+                    .iter()
+                    .find(|p| p.get("participantId").and_then(Value::as_i64) == Some(pid))
+            })
+            .or_else(|| participants.first())
         };
         let me = match me {
             Some(m) => m,
@@ -378,9 +412,15 @@ pub fn trend_rows(games: &[Value], puuid: &str, champions: &Value) -> Value {
         let stats = me.get("stats").cloned().unwrap_or(Value::Null);
         let f = |key: &str| stats.get(key).and_then(Value::as_f64).unwrap_or(0.0);
         let win = stats.get("win").and_then(Value::as_bool).unwrap_or(false);
-        let duration = game.get("gameDuration").and_then(Value::as_f64).unwrap_or(0.0);
+        let duration = game
+            .get("gameDuration")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0);
         let mins = duration / 60.0;
-        let champ = champion_name(champions, me.get("championId").and_then(Value::as_i64).unwrap_or(0));
+        let champ = champion_name(
+            champions,
+            me.get("championId").and_then(Value::as_i64).unwrap_or(0),
+        );
         let role = me
             .get("timeline")
             .and_then(|t| t.get("teamPosition").or_else(|| t.get("lane")))
@@ -448,15 +488,26 @@ pub fn trend_rows(games: &[Value], puuid: &str, champions: &Value) -> Value {
 
 /// Trends over the last N games of the current player.
 #[tauri::command]
-pub async fn league_coach_trends(count: Option<u32>, style: Option<String>, language: Option<String>) -> Result<String, String> {
+pub async fn league_coach_trends(
+    count: Option<u32>,
+    style: Option<String>,
+    language: Option<String>,
+) -> Result<String, String> {
     ensure_enabled()?;
     let client = get_client().await?;
     let count = count.unwrap_or(20).clamp(5, 40);
     let me = lcu_get_raw(&client, "/lol-summoner/v1/current-summoner").await?;
-    let puuid = me.get("puuid").and_then(Value::as_str).unwrap_or("").to_string();
+    let puuid = me
+        .get("puuid")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
     let history = lcu_get_raw(
         &client,
-        &format!("/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex={}", count.saturating_sub(1)),
+        &format!(
+            "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex={}",
+            count.saturating_sub(1)
+        ),
     )
     .await?;
     let games: Vec<Value> = history
@@ -492,7 +543,10 @@ async fn live_context(client: &LcuClient, champions: &Value) -> Value {
     let mut context = json!({ "phase": phase });
     if phase == "ChampSelect" {
         if let Ok(session) = lcu_get_raw(client, "/lol-champ-select/v1/session").await {
-            let cell = session.get("localPlayerCellId").and_then(Value::as_i64).unwrap_or(-1);
+            let cell = session
+                .get("localPlayerCellId")
+                .and_then(Value::as_i64)
+                .unwrap_or(-1);
             let team = |key: &str| -> Vec<Value> {
                 session
                     .get(key)
@@ -513,9 +567,20 @@ async fn live_context(client: &LcuClient, champions: &Value) -> Value {
             };
             let allies = team("myTeam");
             let enemies = team("theirTeam");
-            let me = allies.iter().find(|m| m.get("me") == Some(&json!(true))).cloned();
-            let my_champ = me.as_ref().and_then(|m| m.get("champion").and_then(Value::as_str)).unwrap_or("?").to_string();
-            let my_pos = me.as_ref().and_then(|m| m.get("position").and_then(Value::as_str)).unwrap_or("").to_string();
+            let me = allies
+                .iter()
+                .find(|m| m.get("me") == Some(&json!(true)))
+                .cloned();
+            let my_champ = me
+                .as_ref()
+                .and_then(|m| m.get("champion").and_then(Value::as_str))
+                .unwrap_or("?")
+                .to_string();
+            let my_pos = me
+                .as_ref()
+                .and_then(|m| m.get("position").and_then(Value::as_str))
+                .unwrap_or("")
+                .to_string();
             context["allies"] = json!(allies);
             context["enemies"] = json!(enemies);
             if my_champ != "?" {
@@ -528,9 +593,16 @@ async fn live_context(client: &LcuClient, champions: &Value) -> Value {
                 // in the same position; enemies do not expose positions, so the
                 // first enemy champion is offered when the position is a lane.
                 if position != "all" {
-                    if let Some(enemy) = enemies.iter().find_map(|e| e.get("champion").and_then(Value::as_str)).filter(|c| *c != "?") {
-                        if let Some(guide) = opgg_matchup(&champ_key, &opgg_champion_name(enemy), position).await {
-                            context["opggMatchupSample"] = json!({ "opponent": enemy, "guide": guide });
+                    if let Some(enemy) = enemies
+                        .iter()
+                        .find_map(|e| e.get("champion").and_then(Value::as_str))
+                        .filter(|c| *c != "?")
+                    {
+                        if let Some(guide) =
+                            opgg_matchup(&champ_key, &opgg_champion_name(enemy), position).await
+                        {
+                            context["opggMatchupSample"] =
+                                json!({ "opponent": enemy, "guide": guide });
                         }
                     }
                 }
@@ -562,7 +634,11 @@ async fn live_context(client: &LcuClient, champions: &Value) -> Value {
 
 /// Free question, answered against whatever the client is doing right now.
 #[tauri::command]
-pub async fn league_coach_ask(question: String, style: Option<String>, language: Option<String>) -> Result<String, String> {
+pub async fn league_coach_ask(
+    question: String,
+    style: Option<String>,
+    language: Option<String>,
+) -> Result<String, String> {
     ensure_enabled()?;
     let question = question.trim().to_string();
     if question.is_empty() {
@@ -575,10 +651,24 @@ pub async fn league_coach_ask(question: String, style: Option<String>, language:
     let champions = champion_summary(&client).await;
     let mut context = live_context(&client, &champions).await;
     // Outside a game the last few results give the model something to anchor on.
-    if context.get("phase").and_then(Value::as_str).map(|p| p != "ChampSelect" && p != "InProgress").unwrap_or(true) {
+    if context
+        .get("phase")
+        .and_then(Value::as_str)
+        .map(|p| p != "ChampSelect" && p != "InProgress")
+        .unwrap_or(true)
+    {
         if let Ok(me) = lcu_get_raw(&client, "/lol-summoner/v1/current-summoner").await {
-            let puuid = me.get("puuid").and_then(Value::as_str).unwrap_or("").to_string();
-            if let Ok(history) = lcu_get_raw(&client, "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=7").await {
+            let puuid = me
+                .get("puuid")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            if let Ok(history) = lcu_get_raw(
+                &client,
+                "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=7",
+            )
+            .await
+            {
                 let games: Vec<Value> = history
                     .get("games")
                     .and_then(|g| g.get("games"))

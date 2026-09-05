@@ -20,7 +20,11 @@ pub fn render(info: &MediaInfo, source_url: &str) -> String {
     }
     if let Some(d) = info.duration_seconds {
         if d > 0.0 {
-            write_tag(&mut buf, "runtime", &format!("{}", (d / 60.0).round().max(1.0) as i64));
+            write_tag(
+                &mut buf,
+                "runtime",
+                &format!("{}", (d / 60.0).round().max(1.0) as i64),
+            );
         }
     }
     if let Some(thumb) = info.thumbnail_url.as_deref() {
@@ -104,7 +108,9 @@ mod tests {
         assert!(xml.contains("<runtime>2</runtime>"));
         assert!(xml.contains("<thumb>https://img.example/t.jpg?a=1&amp;b=2</thumb>"));
         assert!(xml.contains("<tag>youtube</tag>"));
-        assert!(xml.contains("<uniqueid type=\"url\" default=\"true\">https://youtu.be/abc?x=1&amp;y=2</uniqueid>"));
+        assert!(xml.contains(
+            "<uniqueid type=\"url\" default=\"true\">https://youtu.be/abc?x=1&amp;y=2</uniqueid>"
+        ));
         assert!(xml.contains("<dateadded>"));
         assert!(xml.trim_end().ends_with("</movie>"));
     }

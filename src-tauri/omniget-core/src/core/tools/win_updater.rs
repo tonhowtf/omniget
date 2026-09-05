@@ -29,7 +29,10 @@ async fn have(bin: &str) -> bool {
 }
 
 async fn output(program: &str, args: &[&str]) -> anyhow::Result<String> {
-    let o = crate::core::process::command(program).args(args).output().await?;
+    let o = crate::core::process::command(program)
+        .args(args)
+        .output()
+        .await?;
     // winget devolve códigos != 0 quando não há nada, então não falha por status.
     Ok(String::from_utf8_lossy(&o.stdout).to_string())
 }
@@ -38,13 +41,18 @@ async fn output(program: &str, args: &[&str]) -> anyhow::Result<String> {
 /// ("Name  Id  Version  Available  Source"). A linha de traços delimita.
 pub fn parse_winget(text: &str) -> Vec<Outdated> {
     let lines: Vec<&str> = text.lines().collect();
-    let Some(sep) = lines.iter().position(|l| l.trim_start().starts_with("---")) else { return vec![] };
+    let Some(sep) = lines.iter().position(|l| l.trim_start().starts_with("---")) else {
+        return vec![];
+    };
     if sep == 0 {
         return vec![];
     }
     let header = lines[sep - 1];
     let col = |name: &str| header.find(name);
-    let (Some(id_i), Some(ver_i), Some(av_i)) = (col("Id"), col("Version"), col("Available")) else { return vec![] };
+    let (Some(id_i), Some(ver_i), Some(av_i)) = (col("Id"), col("Version"), col("Available"))
+    else {
+        return vec![];
+    };
     let src_i = col("Source").unwrap_or(header.len());
     let cut = |l: &str, a: usize, b: usize| -> String {
         let chars: Vec<char> = l.chars().collect();
@@ -64,7 +72,13 @@ pub fn parse_winget(text: &str) -> Vec<Outdated> {
         if id.is_empty() || available.is_empty() || name.contains("upgrades available") {
             continue;
         }
-        out.push(Outdated { manager: "winget".into(), id, name, current, available });
+        out.push(Outdated {
+            manager: "winget".into(),
+            id,
+            name,
+            current,
+            available,
+        });
     }
     out
 }
@@ -77,7 +91,13 @@ pub fn parse_choco(text: &str) -> Vec<Outdated> {
             if c.len() < 3 || c[0].is_empty() {
                 return None;
             }
-            Some(Outdated { manager: "choco".into(), id: c[0].into(), name: c[0].into(), current: c[1].into(), available: c[2].into() })
+            Some(Outdated {
+                manager: "choco".into(),
+                id: c[0].into(),
+                name: c[0].into(),
+                current: c[1].into(),
+                available: c[2].into(),
+            })
         })
         .collect()
 }
@@ -85,20 +105,36 @@ pub fn parse_choco(text: &str) -> Vec<Outdated> {
 /// `scoop status`: tabela "Name  Installed Version  Latest Version  ..."
 pub fn parse_scoop(text: &str) -> Vec<Outdated> {
     let lines: Vec<&str> = text.lines().collect();
-    let Some(sep) = lines.iter().position(|l| l.trim_start().starts_with("----")) else { return vec![] };
+    let Some(sep) = lines
+        .iter()
+        .position(|l| l.trim_start().starts_with("----"))
+    else {
+        return vec![];
+    };
     let mut out = Vec::new();
     for l in lines.iter().skip(sep + 1) {
         let cols: Vec<&str> = l.split_whitespace().collect();
         if cols.len() < 3 {
             continue;
         }
-        out.push(Outdated { manager: "scoop".into(), id: cols[0].into(), name: cols[0].into(), current: cols[1].into(), available: cols[2].into() });
+        out.push(Outdated {
+            manager: "scoop".into(),
+            id: cols[0].into(),
+            name: cols[0].into(),
+            current: cols[1].into(),
+            available: cols[2].into(),
+        });
     }
     out
 }
 
 pub async fn status() -> UpdaterStatus {
-    let mut s = UpdaterStatus { winget: false, choco: false, scoop: false, items: vec![] };
+    let mut s = UpdaterStatus {
+        winget: false,
+        choco: false,
+        scoop: false,
+        items: vec![],
+    };
     if !cfg!(target_os = "windows") {
         return s;
     }
@@ -106,7 +142,17 @@ pub async fn status() -> UpdaterStatus {
     s.choco = have("choco").await;
     s.scoop = have("scoop").await;
     if s.winget {
-        if let Ok(t) = output("winget", &["upgrade", "--include-unknown", "--accept-source-agreements", "--disable-interactivity"]).await {
+        if let Ok(t) = output(
+            "winget",
+            &[
+                "upgrade",
+                "--include-unknown",
+                "--accept-source-agreements",
+                "--disable-interactivity",
+            ],
+        )
+        .await
+        {
             s.items.extend(parse_winget(&t));
         }
     }
@@ -133,21 +179,55 @@ pub async fn upgrade(items: &[Outdated], progress: &super::ProgressFn) -> Upgrad
     let mut r = UpgradeResult::default();
     let total = items.len() as u64;
     for (i, it) in items.iter().enumerate() {
-        super::report(progress, "updater", "progress", i as u64, Some(total), Some(it.name.clone()));
+        super::report(
+            progress,
+            "updater",
+            "progress",
+            i as u64,
+            Some(total),
+            Some(it.name.clone()),
+        );
         let res = match it.manager.as_str() {
             "winget" => {
                 crate::core::process::command("winget")
-                    .args(["upgrade", "--id", &it.id, "--exact", "--silent", "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity"])
+                    .args([
+                        "upgrade",
+                        "--id",
+                        &it.id,
+                        "--exact",
+                        "--silent",
+                        "--accept-package-agreements",
+                        "--accept-source-agreements",
+                        "--disable-interactivity",
+                    ])
                     .output()
                     .await
             }
-            "choco" => crate::core::process::command("choco").args(["upgrade", &it.id, "-y", "--no-progress"]).output().await,
-            "scoop" => crate::core::process::command("scoop").args(["update", &it.id]).output().await,
+            "choco" => {
+                crate::core::process::command("choco")
+                    .args(["upgrade", &it.id, "-y", "--no-progress"])
+                    .output()
+                    .await
+            }
+            "scoop" => {
+                crate::core::process::command("scoop")
+                    .args(["update", &it.id])
+                    .output()
+                    .await
+            }
             _ => Err(std::io::Error::other("gerenciador desconhecido")),
         };
         match res {
             Ok(o) if o.status.success() => r.upgraded.push(it.name.clone()),
-            Ok(o) => r.failed.push(format!("{}: {}", it.name, String::from_utf8_lossy(&o.stdout).lines().last().unwrap_or("").trim())),
+            Ok(o) => r.failed.push(format!(
+                "{}: {}",
+                it.name,
+                String::from_utf8_lossy(&o.stdout)
+                    .lines()
+                    .last()
+                    .unwrap_or("")
+                    .trim()
+            )),
             Err(e) => r.failed.push(format!("{}: {}", it.name, anyhow!(e))),
         }
     }

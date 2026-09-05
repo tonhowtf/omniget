@@ -27,7 +27,11 @@ impl MiniUser {
         MiniUser {
             pk: {
                 let p = s(v, "pk");
-                if p.is_empty() { s(v, "id") } else { p }
+                if p.is_empty() {
+                    s(v, "id")
+                } else {
+                    p
+                }
             },
             username: s(v, "username"),
             full_name: s(v, "full_name"),
@@ -38,23 +42,55 @@ impl MiniUser {
     }
 }
 
-async fn friendship_list(client: &IgClient, user_id: &str, which: &str, limit: usize, flag: &AtomicBool, progress: &super::super::ProgressFn, job: &str) -> Result<Vec<MiniUser>, IgError> {
+async fn friendship_list(
+    client: &IgClient,
+    user_id: &str,
+    which: &str,
+    limit: usize,
+    flag: &AtomicBool,
+    progress: &super::super::ProgressFn,
+    job: &str,
+) -> Result<Vec<MiniUser>, IgError> {
     let mut out = Vec::new();
     let mut max_id: Option<String> = None;
     let id = format!("ig:{}", job);
     loop {
-        let mut q = vec![("count", "50".to_string()), ("search_surface", "follow_list_page".to_string())];
+        let mut q = vec![
+            ("count", "50".to_string()),
+            ("search_surface", "follow_list_page".to_string()),
+        ];
         if let Some(m) = &max_id {
             q.push(("max_id", m.clone()));
         }
-        let json = client.get_json(&format!("/api/v1/friendships/{}/{}/", user_id, which), &q).await?;
-        let users = json.get("users").and_then(|u| u.as_array()).cloned().unwrap_or_default();
+        let json = client
+            .get_json(&format!("/api/v1/friendships/{}/{}/", user_id, which), &q)
+            .await?;
+        let users = json
+            .get("users")
+            .and_then(|u| u.as_array())
+            .cloned()
+            .unwrap_or_default();
         for us in &users {
             out.push(MiniUser::from_value(us));
         }
-        super::super::report(progress, &id, which, out.len() as u64, if limit > 0 { Some(limit as u64) } else { None }, None);
-        max_id = json.get("next_max_id").and_then(|m| match m { Value::String(x) => Some(x.clone()), Value::Number(n) => Some(n.to_string()), _ => None });
-        if users.is_empty() || max_id.is_none() || (limit > 0 && out.len() >= limit) || super::cancelled(flag) {
+        super::super::report(
+            progress,
+            &id,
+            which,
+            out.len() as u64,
+            if limit > 0 { Some(limit as u64) } else { None },
+            None,
+        );
+        max_id = json.get("next_max_id").and_then(|m| match m {
+            Value::String(x) => Some(x.clone()),
+            Value::Number(n) => Some(n.to_string()),
+            _ => None,
+        });
+        if users.is_empty()
+            || max_id.is_none()
+            || (limit > 0 && out.len() >= limit)
+            || super::cancelled(flag)
+        {
             break;
         }
         client.pause().await;
@@ -62,11 +98,25 @@ async fn friendship_list(client: &IgClient, user_id: &str, which: &str, limit: u
     Ok(out)
 }
 
-pub async fn followers(client: &IgClient, user_id: &str, limit: usize, flag: &AtomicBool, progress: &super::super::ProgressFn, job: &str) -> Result<Vec<MiniUser>, IgError> {
+pub async fn followers(
+    client: &IgClient,
+    user_id: &str,
+    limit: usize,
+    flag: &AtomicBool,
+    progress: &super::super::ProgressFn,
+    job: &str,
+) -> Result<Vec<MiniUser>, IgError> {
     friendship_list(client, user_id, "followers", limit, flag, progress, job).await
 }
 
-pub async fn following(client: &IgClient, user_id: &str, limit: usize, flag: &AtomicBool, progress: &super::super::ProgressFn, job: &str) -> Result<Vec<MiniUser>, IgError> {
+pub async fn following(
+    client: &IgClient,
+    user_id: &str,
+    limit: usize,
+    flag: &AtomicBool,
+    progress: &super::super::ProgressFn,
+    job: &str,
+) -> Result<Vec<MiniUser>, IgError> {
     friendship_list(client, user_id, "following", limit, flag, progress, job).await
 }
 
@@ -84,7 +134,11 @@ pub struct FollowAnalysis {
     pub following: Vec<MiniUser>,
 }
 
-pub fn analyze(followers: Vec<MiniUser>, following: Vec<MiniUser>, whitelist: &HashSet<String>) -> FollowAnalysis {
+pub fn analyze(
+    followers: Vec<MiniUser>,
+    following: Vec<MiniUser>,
+    whitelist: &HashSet<String>,
+) -> FollowAnalysis {
     let fset: HashSet<&str> = followers.iter().map(|u| u.pk.as_str()).collect();
     let gset: HashSet<&str> = following.iter().map(|u| u.pk.as_str()).collect();
     let mut whitelisted = 0;
@@ -100,27 +154,63 @@ pub fn analyze(followers: Vec<MiniUser>, following: Vec<MiniUser>, whitelist: &H
         })
         .cloned()
         .collect();
-    let fans = followers.iter().filter(|u| !gset.contains(u.pk.as_str())).cloned().collect();
-    let mutuals = following.iter().filter(|u| fset.contains(u.pk.as_str())).cloned().collect();
-    FollowAnalysis { followers_count: followers.len(), following_count: following.len(), not_following_back, fans, mutuals, whitelisted, followers, following }
+    let fans = followers
+        .iter()
+        .filter(|u| !gset.contains(u.pk.as_str()))
+        .cloned()
+        .collect();
+    let mutuals = following
+        .iter()
+        .filter(|u| fset.contains(u.pk.as_str()))
+        .cloned()
+        .collect();
+    FollowAnalysis {
+        followers_count: followers.len(),
+        following_count: following.len(),
+        not_following_back,
+        fans,
+        mutuals,
+        whitelisted,
+        followers,
+        following,
+    }
 }
 
 // ── Ações ────────────────────────────────────────────────────────────────
 
 pub async fn unfollow(client: &IgClient, user_id: &str) -> Result<(), IgError> {
-    let r = client.post_form(&format!("/api/v1/web/friendships/{}/unfollow/", user_id), &[]).await;
+    let r = client
+        .post_form(
+            &format!("/api/v1/web/friendships/{}/unfollow/", user_id),
+            &[],
+        )
+        .await;
     match r {
         Ok(_) => Ok(()),
-        Err(IgError::NotFound(_)) | Err(IgError::Other(_)) => client.post_form(&format!("/web/friendships/{}/unfollow/", user_id), &[]).await.map(|_| ()),
+        Err(IgError::NotFound(_)) | Err(IgError::Other(_)) => client
+            .post_form(&format!("/web/friendships/{}/unfollow/", user_id), &[])
+            .await
+            .map(|_| ()),
         Err(e) => Err(e),
     }
 }
 
 pub async fn remove_follower(client: &IgClient, user_id: &str) -> Result<(), IgError> {
-    let r = client.post_form(&format!("/api/v1/web/friendships/{}/remove_follower/", user_id), &[]).await;
+    let r = client
+        .post_form(
+            &format!("/api/v1/web/friendships/{}/remove_follower/", user_id),
+            &[],
+        )
+        .await;
     match r {
         Ok(_) => Ok(()),
-        Err(IgError::NotFound(_)) | Err(IgError::Other(_)) => client.post_form(&format!("/web/friendships/{}/remove_follower/", user_id), &[]).await.map(|_| ()),
+        Err(IgError::NotFound(_)) | Err(IgError::Other(_)) => client
+            .post_form(
+                &format!("/web/friendships/{}/remove_follower/", user_id),
+                &[],
+            )
+            .await
+            .map(|_| ()),
         Err(e) => Err(e),
     }
 }
@@ -138,7 +228,13 @@ pub struct Pacing {
 
 impl Default for Pacing {
     fn default() -> Self {
-        Pacing { delay_min_ms: 6000, delay_max_ms: 14000, pause_every: 5, pause_ms: 300_000, daily_cap: 100 }
+        Pacing {
+            delay_min_ms: 6000,
+            delay_max_ms: 14000,
+            pause_every: 5,
+            pause_ms: 300_000,
+            daily_cap: 100,
+        }
     }
 }
 
@@ -154,14 +250,21 @@ fn counter_path(owner: &str) -> std::path::PathBuf {
 
 pub fn actions_today(owner: &str) -> u32 {
     let c: DailyCounter = super::read_json(&counter_path(owner));
-    if c.day == chrono::Local::now().format("%Y-%m-%d").to_string() { c.count } else { 0 }
+    if c.day == chrono::Local::now().format("%Y-%m-%d").to_string() {
+        c.count
+    } else {
+        0
+    }
 }
 
 fn bump_today(owner: &str) -> u32 {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     let mut c: DailyCounter = super::read_json(&counter_path(owner));
     if c.day != today {
-        c = DailyCounter { day: today, count: 0 };
+        c = DailyCounter {
+            day: today,
+            count: 0,
+        };
     }
     c.count += 1;
     let _ = super::write_json(&counter_path(owner), &c);
@@ -181,7 +284,15 @@ pub struct ActionReport {
 /// Executa `unfollow` ou `remove_follower` numa lista com ritmo humano.
 /// Para em 429 (espera 10 min e tenta mais uma vez), em bloqueio, em
 /// sessão caída, no teto diário e quando o job é cancelado.
-pub async fn run_actions(client: &IgClient, action: &str, users: Vec<MiniUser>, pacing: &Pacing, flag: &AtomicBool, progress: &super::super::ProgressFn, job: &str) -> ActionReport {
+pub async fn run_actions(
+    client: &IgClient,
+    action: &str,
+    users: Vec<MiniUser>,
+    pacing: &Pacing,
+    flag: &AtomicBool,
+    progress: &super::super::ProgressFn,
+    job: &str,
+) -> ActionReport {
     let owner = client.session.user_id.clone();
     let id = format!("ig:{}", job);
     let total = users.len() as u64;
@@ -196,15 +307,34 @@ pub async fn run_actions(client: &IgClient, action: &str, users: Vec<MiniUser>, 
             stopped = "cancelled".into();
             let mut rest = vec![user];
             rest.extend(iter);
-            return ActionReport { actions_today: actions_today(&owner), done, failed, remaining: rest, stopped };
+            return ActionReport {
+                actions_today: actions_today(&owner),
+                done,
+                failed,
+                remaining: rest,
+                stopped,
+            };
         }
         if actions_today(&owner) >= pacing.daily_cap {
             stopped = "daily_cap".into();
             let mut rest = vec![user];
             rest.extend(iter);
-            return ActionReport { actions_today: actions_today(&owner), done, failed, remaining: rest, stopped };
+            return ActionReport {
+                actions_today: actions_today(&owner),
+                done,
+                failed,
+                remaining: rest,
+                stopped,
+            };
         }
-        super::super::report(progress, &id, action, done.len() as u64, Some(total), Some(format!("@{}", user.username)));
+        super::super::report(
+            progress,
+            &id,
+            action,
+            done.len() as u64,
+            Some(total),
+            Some(format!("@{}", user.username)),
+        );
         let result = match action {
             "remove_follower" => remove_follower(client, &user.pk).await,
             _ => unfollow(client, &user.pk).await,
@@ -217,9 +347,20 @@ pub async fn run_actions(client: &IgClient, action: &str, users: Vec<MiniUser>, 
             }
             Err(IgError::RateLimited) if !waited_429 => {
                 waited_429 = true;
-                super::super::report(progress, &id, "waiting", done.len() as u64, Some(total), Some("429".into()));
+                super::super::report(
+                    progress,
+                    &id,
+                    "waiting",
+                    done.len() as u64,
+                    Some(total),
+                    Some("429".into()),
+                );
                 tokio::time::sleep(std::time::Duration::from_secs(600)).await;
-                match if action == "remove_follower" { remove_follower(client, &user.pk).await } else { unfollow(client, &user.pk).await } {
+                match if action == "remove_follower" {
+                    remove_follower(client, &user.pk).await
+                } else {
+                    unfollow(client, &user.pk).await
+                } {
                     Ok(()) => {
                         bump_today(&owner);
                         done.push(user);
@@ -227,11 +368,22 @@ pub async fn run_actions(client: &IgClient, action: &str, users: Vec<MiniUser>, 
                     Err(e) => {
                         stopped = "rate_limited".into();
                         failed.push((user, e.to_string()));
-                        return ActionReport { actions_today: actions_today(&owner), done, failed, remaining: iter.collect(), stopped };
+                        return ActionReport {
+                            actions_today: actions_today(&owner),
+                            done,
+                            failed,
+                            remaining: iter.collect(),
+                            stopped,
+                        };
                     }
                 }
             }
-            Err(e @ (IgError::RateLimited | IgError::ActionBlocked | IgError::Checkpoint | IgError::LoginRequired)) => {
+            Err(
+                e @ (IgError::RateLimited
+                | IgError::ActionBlocked
+                | IgError::Checkpoint
+                | IgError::LoginRequired),
+            ) => {
                 stopped = match e {
                     IgError::RateLimited => "rate_limited",
                     IgError::ActionBlocked => "blocked",
@@ -240,19 +392,38 @@ pub async fn run_actions(client: &IgClient, action: &str, users: Vec<MiniUser>, 
                 }
                 .into();
                 failed.push((user, e.to_string()));
-                return ActionReport { actions_today: actions_today(&owner), done, failed, remaining: iter.collect(), stopped };
+                return ActionReport {
+                    actions_today: actions_today(&owner),
+                    done,
+                    failed,
+                    remaining: iter.collect(),
+                    stopped,
+                };
             }
             Err(e) => failed.push((user, e.to_string())),
         }
         super::super::report(progress, &id, action, done.len() as u64, Some(total), None);
         if pacing.pause_every > 0 && n > 0 && n.is_multiple_of(pacing.pause_every) {
-            super::super::report(progress, &id, "pause", done.len() as u64, Some(total), Some(format!("{}s", pacing.pause_ms / 1000)));
+            super::super::report(
+                progress,
+                &id,
+                "pause",
+                done.len() as u64,
+                Some(total),
+                Some(format!("{}s", pacing.pause_ms / 1000)),
+            );
             tokio::time::sleep(std::time::Duration::from_millis(pacing.pause_ms)).await;
         } else {
             super::sleep_jitter(pacing.delay_min_ms, pacing.delay_max_ms).await;
         }
     }
-    ActionReport { actions_today: actions_today(&owner), done, failed, remaining: Vec::new(), stopped }
+    ActionReport {
+        actions_today: actions_today(&owner),
+        done,
+        failed,
+        remaining: Vec::new(),
+        stopped,
+    }
 }
 
 // ── Lista branca ─────────────────────────────────────────────────────────
@@ -275,7 +446,11 @@ pub fn whitelist_set(owner: &str, wl: &Whitelist) -> anyhow::Result<()> {
 }
 
 pub fn whitelist_keys(wl: &Whitelist) -> HashSet<String> {
-    wl.users.iter().flat_map(|u| [u.pk.clone(), u.username.to_lowercase()]).filter(|k| !k.is_empty()).collect()
+    wl.users
+        .iter()
+        .flat_map(|u| [u.pk.clone(), u.username.to_lowercase()])
+        .filter(|k| !k.is_empty())
+        .collect()
 }
 
 // ── Snapshots ────────────────────────────────────────────────────────────
@@ -315,7 +490,12 @@ pub fn snapshots_list(owner: &str) -> Vec<SnapshotMeta> {
             if p.extension().map(|x| x == "json").unwrap_or(false) {
                 let snap: Snapshot = super::read_json(&p);
                 if snap.taken_at > 0 {
-                    out.push(SnapshotMeta { file: p.to_string_lossy().to_string(), taken_at: snap.taken_at, followers: snap.followers.len(), following: snap.following.len() });
+                    out.push(SnapshotMeta {
+                        file: p.to_string_lossy().to_string(),
+                        taken_at: snap.taken_at,
+                        followers: snap.followers.len(),
+                        following: snap.following.len(),
+                    });
                 }
             }
         }
@@ -339,15 +519,28 @@ pub struct SnapshotDiff {
 }
 
 pub fn snapshot_diff(a: &Snapshot, b: &Snapshot) -> SnapshotDiff {
-    let by_pk = |v: &[MiniUser]| -> HashMap<String, MiniUser> { v.iter().map(|u| (u.pk.clone(), u.clone())).collect() };
+    let by_pk = |v: &[MiniUser]| -> HashMap<String, MiniUser> {
+        v.iter().map(|u| (u.pk.clone(), u.clone())).collect()
+    };
     let (fa, fb) = (by_pk(&a.followers), by_pk(&b.followers));
     let (ga, gb) = (by_pk(&a.following), by_pk(&b.following));
     let only = |x: &HashMap<String, MiniUser>, y: &HashMap<String, MiniUser>| -> Vec<MiniUser> {
-        let mut v: Vec<MiniUser> = x.iter().filter(|(k, _)| !y.contains_key(*k)).map(|(_, u)| u.clone()).collect();
+        let mut v: Vec<MiniUser> = x
+            .iter()
+            .filter(|(k, _)| !y.contains_key(*k))
+            .map(|(_, u)| u.clone())
+            .collect();
         v.sort_by(|p, q| p.username.cmp(&q.username));
         v
     };
-    SnapshotDiff { from: a.taken_at, to: b.taken_at, new_followers: only(&fb, &fa), lost_followers: only(&fa, &fb), new_following: only(&gb, &ga), lost_following: only(&ga, &gb) }
+    SnapshotDiff {
+        from: a.taken_at,
+        to: b.taken_at,
+        new_followers: only(&fb, &fa),
+        lost_followers: only(&fa, &fb),
+        new_following: only(&gb, &ga),
+        lost_following: only(&ga, &gb),
+    }
 }
 
 #[cfg(test)]
@@ -355,7 +548,11 @@ mod tests {
     use super::*;
 
     fn u(pk: &str) -> MiniUser {
-        MiniUser { pk: pk.into(), username: format!("u{}", pk), ..Default::default() }
+        MiniUser {
+            pk: pk.into(),
+            username: format!("u{}", pk),
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -364,16 +561,38 @@ mod tests {
         let following = vec![u("2"), u("3"), u("4")];
         let wl: HashSet<String> = ["4".to_string()].into_iter().collect();
         let a = analyze(followers, following, &wl);
-        assert_eq!(a.not_following_back.iter().map(|x| x.pk.as_str()).collect::<Vec<_>>(), vec!["3"]);
-        assert_eq!(a.fans.iter().map(|x| x.pk.as_str()).collect::<Vec<_>>(), vec!["1"]);
-        assert_eq!(a.mutuals.iter().map(|x| x.pk.as_str()).collect::<Vec<_>>(), vec!["2"]);
+        assert_eq!(
+            a.not_following_back
+                .iter()
+                .map(|x| x.pk.as_str())
+                .collect::<Vec<_>>(),
+            vec!["3"]
+        );
+        assert_eq!(
+            a.fans.iter().map(|x| x.pk.as_str()).collect::<Vec<_>>(),
+            vec!["1"]
+        );
+        assert_eq!(
+            a.mutuals.iter().map(|x| x.pk.as_str()).collect::<Vec<_>>(),
+            vec!["2"]
+        );
         assert_eq!(a.whitelisted, 1);
     }
 
     #[test]
     fn diff_snapshots() {
-        let a = Snapshot { taken_at: 1, owner: "me".into(), followers: vec![u("1"), u("2")], following: vec![u("9")] };
-        let b = Snapshot { taken_at: 2, owner: "me".into(), followers: vec![u("2"), u("3")], following: vec![] };
+        let a = Snapshot {
+            taken_at: 1,
+            owner: "me".into(),
+            followers: vec![u("1"), u("2")],
+            following: vec![u("9")],
+        };
+        let b = Snapshot {
+            taken_at: 2,
+            owner: "me".into(),
+            followers: vec![u("2"), u("3")],
+            following: vec![],
+        };
         let d = snapshot_diff(&a, &b);
         assert_eq!(d.new_followers[0].pk, "3");
         assert_eq!(d.lost_followers[0].pk, "1");

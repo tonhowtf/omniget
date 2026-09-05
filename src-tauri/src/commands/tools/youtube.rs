@@ -3,8 +3,13 @@ use omniget_core::core::tools::{ryd, sponsorblock};
 use super::err;
 
 #[tauri::command]
-pub async fn tool_sponsorblock(url: String, categories: Option<Vec<String>>) -> Result<sponsorblock::SponsorResult, String> {
-    sponsorblock::segments(&url, &categories.unwrap_or_default()).await.map_err(err)
+pub async fn tool_sponsorblock(
+    url: String,
+    categories: Option<Vec<String>>,
+) -> Result<sponsorblock::SponsorResult, String> {
+    sponsorblock::segments(&url, &categories.unwrap_or_default())
+        .await
+        .map_err(err)
 }
 
 #[tauri::command]

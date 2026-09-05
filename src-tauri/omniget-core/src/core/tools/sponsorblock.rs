@@ -7,7 +7,17 @@ use sha2::{Digest, Sha256};
 
 pub const SERVER: &str = "https://sponsor.ajay.app";
 pub const CATEGORIES: &[&str] = &[
-    "sponsor", "selfpromo", "interaction", "intro", "outro", "preview", "music_offtopic", "filler", "exclusive_access", "poi_highlight", "chapter",
+    "sponsor",
+    "selfpromo",
+    "interaction",
+    "intro",
+    "outro",
+    "preview",
+    "music_offtopic",
+    "filler",
+    "exclusive_access",
+    "poi_highlight",
+    "chapter",
 ];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,15 +50,22 @@ pub struct SponsorResult {
 /// Aceita URL completa, `youtu.be/ID`, `shorts/ID` ou o próprio ID.
 pub fn video_id(input: &str) -> Option<String> {
     let s = input.trim();
-    if s.len() == 11 && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    if s.len() == 11
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
         return Some(s.to_string());
     }
-    let re = regex::Regex::new(r"(?:v=|youtu\.be/|shorts/|embed/|live/)([A-Za-z0-9_-]{11})").ok()?;
-    re.captures(s).and_then(|c| c.get(1)).map(|m| m.as_str().to_string())
+    let re =
+        regex::Regex::new(r"(?:v=|youtu\.be/|shorts/|embed/|live/)([A-Za-z0-9_-]{11})").ok()?;
+    re.captures(s)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().to_string())
 }
 
 pub async fn segments(input: &str, categories: &[String]) -> anyhow::Result<SponsorResult> {
-    let id = video_id(input).ok_or_else(|| anyhow!("nao reconheci um video do YouTube em: {}", input))?;
+    let id = video_id(input)
+        .ok_or_else(|| anyhow!("nao reconheci um video do YouTube em: {}", input))?;
     let cats: Vec<&str> = if categories.is_empty() {
         CATEGORIES.to_vec()
     } else {
@@ -74,20 +91,31 @@ pub async fn segments(input: &str, categories: &[String]) -> anyhow::Result<Spon
         for v in arr {
             if v["videoID"].as_str() == Some(id.as_str()) {
                 if let Some(list) = v["segments"].as_array() {
-                    segs.extend(list.iter().filter_map(|s| serde_json::from_value(s.clone()).ok()));
+                    segs.extend(
+                        list.iter()
+                            .filter_map(|s| serde_json::from_value(s.clone()).ok()),
+                    );
                 }
             }
         }
     } else {
         return Err(anyhow!("SponsorBlock: HTTP {}", resp.status()));
     }
-    segs.sort_by(|a, b| a.segment[0].partial_cmp(&b.segment[0]).unwrap_or(std::cmp::Ordering::Equal));
+    segs.sort_by(|a, b| {
+        a.segment[0]
+            .partial_cmp(&b.segment[0])
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     let skipped: f64 = segs
         .iter()
         .filter(|s| s.action_type == "skip" || s.action_type.is_empty())
         .map(|s| (s.segment[1] - s.segment[0]).max(0.0))
         .sum();
-    let mut used: Vec<&str> = segs.iter().filter(|s| s.action_type != "chapter" && s.action_type != "poi").map(|s| s.category.as_str()).collect();
+    let mut used: Vec<&str> = segs
+        .iter()
+        .filter(|s| s.action_type != "chapter" && s.action_type != "poi")
+        .map(|s| s.category.as_str())
+        .collect();
     used.sort();
     used.dedup();
     let ytdlp_args = if used.is_empty() {
@@ -95,7 +123,12 @@ pub async fn segments(input: &str, categories: &[String]) -> anyhow::Result<Spon
     } else {
         format!("--sponsorblock-remove {}", used.join(","))
     };
-    Ok(SponsorResult { video_id: id, segments: segs, skipped_seconds: skipped, ytdlp_args })
+    Ok(SponsorResult {
+        video_id: id,
+        segments: segs,
+        skipped_seconds: skipped,
+        ytdlp_args,
+    })
 }
 
 #[cfg(test)]
@@ -104,8 +137,14 @@ mod tests {
 
     #[test]
     fn extracts_ids() {
-        assert_eq!(video_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1").as_deref(), Some("dQw4w9WgXcQ"));
-        assert_eq!(video_id("https://youtu.be/dQw4w9WgXcQ").as_deref(), Some("dQw4w9WgXcQ"));
+        assert_eq!(
+            video_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1").as_deref(),
+            Some("dQw4w9WgXcQ")
+        );
+        assert_eq!(
+            video_id("https://youtu.be/dQw4w9WgXcQ").as_deref(),
+            Some("dQw4w9WgXcQ")
+        );
         assert_eq!(video_id("dQw4w9WgXcQ").as_deref(), Some("dQw4w9WgXcQ"));
         assert_eq!(video_id("https://example.com"), None);
     }

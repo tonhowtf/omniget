@@ -2,7 +2,9 @@
 //! inicialização, desinstalador e (só Windows) debloat, registro e
 //! atualizador. A lógica mora em `omniget_core::core::tools`.
 
-use omniget_core::core::tools::{disk, startup, sysclean, uninstall, win_apps, win_registry, win_tweaks, win_updater};
+use omniget_core::core::tools::{
+    disk, startup, sysclean, uninstall, win_apps, win_registry, win_tweaks, win_updater,
+};
 use serde::Serialize;
 
 use super::{err, progress};
@@ -22,13 +24,20 @@ pub async fn tool_win_tweak_apply(id: String, enable: bool) -> Result<win_tweaks
 #[tauri::command]
 pub async fn tool_clean_scan(app: tauri::AppHandle) -> Result<Vec<sysclean::CleanRule>, String> {
     let p = progress(&app);
-    tokio::task::spawn_blocking(move || sysclean::scan(&p)).await.map_err(err)
+    tokio::task::spawn_blocking(move || sysclean::scan(&p))
+        .await
+        .map_err(err)
 }
 
 #[tauri::command]
-pub async fn tool_clean_run(app: tauri::AppHandle, req: sysclean::CleanRequest) -> Result<sysclean::CleanResult, String> {
+pub async fn tool_clean_run(
+    app: tauri::AppHandle,
+    req: sysclean::CleanRequest,
+) -> Result<sysclean::CleanResult, String> {
     let p = progress(&app);
-    tokio::task::spawn_blocking(move || sysclean::clean(&req, &p)).await.map_err(err)
+    tokio::task::spawn_blocking(move || sysclean::clean(&req, &p))
+        .await
+        .map_err(err)
 }
 
 // ── Analisador de disco ──
@@ -39,9 +48,19 @@ pub fn tool_disk_volumes() -> Vec<disk::Volume> {
 }
 
 #[tauri::command]
-pub async fn tool_disk_scan(app: tauri::AppHandle, root: String, depth: Option<usize>, children: Option<usize>) -> Result<disk::DiskScan, String> {
+pub async fn tool_disk_scan(
+    app: tauri::AppHandle,
+    root: String,
+    depth: Option<usize>,
+    children: Option<usize>,
+) -> Result<disk::DiskScan, String> {
     let p = progress(&app);
-    tokio::task::spawn_blocking(move || disk::scan(&root, depth.unwrap_or(4), children.unwrap_or(40), &p)).await.map_err(err)?.map_err(err)
+    tokio::task::spawn_blocking(move || {
+        disk::scan(&root, depth.unwrap_or(4), children.unwrap_or(40), &p)
+    })
+    .await
+    .map_err(err)?
+    .map_err(err)
 }
 
 #[derive(Serialize)]
@@ -64,7 +83,10 @@ pub async fn tool_startup_list() -> Vec<startup::StartupItem> {
 }
 
 #[tauri::command]
-pub async fn tool_startup_set(item: startup::StartupItem, enabled: bool) -> Result<Vec<startup::StartupItem>, String> {
+pub async fn tool_startup_set(
+    item: startup::StartupItem,
+    enabled: bool,
+) -> Result<Vec<startup::StartupItem>, String> {
     startup::set_enabled(&item, enabled).await.map_err(err)?;
     Ok(startup::list().await)
 }
@@ -78,11 +100,16 @@ pub async fn tool_uninstall_list(app: tauri::AppHandle) -> Vec<uninstall::App> {
 
 #[tauri::command]
 pub async fn tool_uninstall_leftovers(app: uninstall::App) -> Vec<uninstall::Leftover> {
-    tokio::task::spawn_blocking(move || uninstall::leftovers(&app)).await.unwrap_or_default()
+    tokio::task::spawn_blocking(move || uninstall::leftovers(&app))
+        .await
+        .unwrap_or_default()
 }
 
 #[tauri::command]
-pub async fn tool_uninstall_run(app: uninstall::App, leftovers: Vec<String>) -> uninstall::UninstallResult {
+pub async fn tool_uninstall_run(
+    app: uninstall::App,
+    leftovers: Vec<String>,
+) -> uninstall::UninstallResult {
     uninstall::uninstall(&app, &leftovers).await
 }
 
@@ -94,7 +121,11 @@ pub async fn tool_debloat_list() -> Result<Vec<win_apps::AppxPackage>, String> {
 }
 
 #[tauri::command]
-pub async fn tool_debloat_remove(app: tauri::AppHandle, names: Vec<String>, provisioned: Option<bool>) -> win_apps::RemoveResult {
+pub async fn tool_debloat_remove(
+    app: tauri::AppHandle,
+    names: Vec<String>,
+    provisioned: Option<bool>,
+) -> win_apps::RemoveResult {
     win_apps::remove(&names, provisioned.unwrap_or(false), &progress(&app)).await
 }
 
@@ -124,6 +155,9 @@ pub async fn tool_updater_status() -> win_updater::UpdaterStatus {
 }
 
 #[tauri::command]
-pub async fn tool_updater_upgrade(app: tauri::AppHandle, items: Vec<win_updater::Outdated>) -> win_updater::UpgradeResult {
+pub async fn tool_updater_upgrade(
+    app: tauri::AppHandle,
+    items: Vec<win_updater::Outdated>,
+) -> win_updater::UpgradeResult {
     win_updater::upgrade(&items, &progress(&app)).await
 }

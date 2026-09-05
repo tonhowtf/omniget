@@ -25,22 +25,102 @@ pub struct Server {
 }
 
 const SERVERS: &[Server] = &[
-    Server { id: "BR1", match_history: "https://usw2-red.pp.sgp.pvp.net", common: "https://br-red.lol.sgp.pvp.net", region_path: None },
-    Server { id: "NA1", match_history: "https://usw2-red.pp.sgp.pvp.net", common: "https://na-red.lol.sgp.pvp.net", region_path: None },
-    Server { id: "LA1", match_history: "https://usw2-red.pp.sgp.pvp.net", common: "https://lan-red.lol.sgp.pvp.net", region_path: None },
-    Server { id: "LA2", match_history: "https://usw2-red.pp.sgp.pvp.net", common: "https://las-red.lol.sgp.pvp.net", region_path: None },
-    Server { id: "PBE", match_history: "https://usw2-red.pp.sgp.pvp.net", common: "https://pbe-red.lol.sgp.pvp.net", region_path: Some("PBE1") },
-    Server { id: "EUW", match_history: "https://euc1-red.pp.sgp.pvp.net", common: "https://euw-red.lol.sgp.pvp.net", region_path: Some("EUW1") },
-    Server { id: "RU", match_history: "https://euc1-red.pp.sgp.pvp.net", common: "https://ru-red.lol.sgp.pvp.net", region_path: None },
-    Server { id: "TR1", match_history: "https://euc1-red.pp.sgp.pvp.net", common: "https://tr-red.lol.sgp.pvp.net", region_path: None },
-    Server { id: "JP", match_history: "https://apne1-red.pp.sgp.pvp.net", common: "https://jp-red.lol.sgp.pvp.net", region_path: Some("JP1") },
-    Server { id: "KR", match_history: "https://apne1-red.pp.sgp.pvp.net", common: "https://kr-red.lol.sgp.pvp.net", region_path: None },
-    Server { id: "OC1", match_history: "https://apse1-red.pp.sgp.pvp.net", common: "https://oce-red.lol.sgp.pvp.net", region_path: None },
-    Server { id: "TW2", match_history: "https://apse1-red.pp.sgp.pvp.net", common: "https://tw2-red.lol.sgp.pvp.net", region_path: None },
-    Server { id: "SG2", match_history: "https://apse1-red.pp.sgp.pvp.net", common: "https://sg2-red.lol.sgp.pvp.net", region_path: None },
-    Server { id: "PH2", match_history: "https://apse1-red.pp.sgp.pvp.net", common: "https://ph2-red.lol.sgp.pvp.net", region_path: None },
-    Server { id: "VN2", match_history: "https://apse1-red.pp.sgp.pvp.net", common: "https://vn2-red.lol.sgp.pvp.net", region_path: None },
-    Server { id: "TH2", match_history: "https://apse1-red.pp.sgp.pvp.net", common: "https://th2-red.lol.sgp.pvp.net", region_path: None },
+    Server {
+        id: "BR1",
+        match_history: "https://usw2-red.pp.sgp.pvp.net",
+        common: "https://br-red.lol.sgp.pvp.net",
+        region_path: None,
+    },
+    Server {
+        id: "NA1",
+        match_history: "https://usw2-red.pp.sgp.pvp.net",
+        common: "https://na-red.lol.sgp.pvp.net",
+        region_path: None,
+    },
+    Server {
+        id: "LA1",
+        match_history: "https://usw2-red.pp.sgp.pvp.net",
+        common: "https://lan-red.lol.sgp.pvp.net",
+        region_path: None,
+    },
+    Server {
+        id: "LA2",
+        match_history: "https://usw2-red.pp.sgp.pvp.net",
+        common: "https://las-red.lol.sgp.pvp.net",
+        region_path: None,
+    },
+    Server {
+        id: "PBE",
+        match_history: "https://usw2-red.pp.sgp.pvp.net",
+        common: "https://pbe-red.lol.sgp.pvp.net",
+        region_path: Some("PBE1"),
+    },
+    Server {
+        id: "EUW",
+        match_history: "https://euc1-red.pp.sgp.pvp.net",
+        common: "https://euw-red.lol.sgp.pvp.net",
+        region_path: Some("EUW1"),
+    },
+    Server {
+        id: "RU",
+        match_history: "https://euc1-red.pp.sgp.pvp.net",
+        common: "https://ru-red.lol.sgp.pvp.net",
+        region_path: None,
+    },
+    Server {
+        id: "TR1",
+        match_history: "https://euc1-red.pp.sgp.pvp.net",
+        common: "https://tr-red.lol.sgp.pvp.net",
+        region_path: None,
+    },
+    Server {
+        id: "JP",
+        match_history: "https://apne1-red.pp.sgp.pvp.net",
+        common: "https://jp-red.lol.sgp.pvp.net",
+        region_path: Some("JP1"),
+    },
+    Server {
+        id: "KR",
+        match_history: "https://apne1-red.pp.sgp.pvp.net",
+        common: "https://kr-red.lol.sgp.pvp.net",
+        region_path: None,
+    },
+    Server {
+        id: "OC1",
+        match_history: "https://apse1-red.pp.sgp.pvp.net",
+        common: "https://oce-red.lol.sgp.pvp.net",
+        region_path: None,
+    },
+    Server {
+        id: "TW2",
+        match_history: "https://apse1-red.pp.sgp.pvp.net",
+        common: "https://tw2-red.lol.sgp.pvp.net",
+        region_path: None,
+    },
+    Server {
+        id: "SG2",
+        match_history: "https://apse1-red.pp.sgp.pvp.net",
+        common: "https://sg2-red.lol.sgp.pvp.net",
+        region_path: None,
+    },
+    Server {
+        id: "PH2",
+        match_history: "https://apse1-red.pp.sgp.pvp.net",
+        common: "https://ph2-red.lol.sgp.pvp.net",
+        region_path: None,
+    },
+    Server {
+        id: "VN2",
+        match_history: "https://apse1-red.pp.sgp.pvp.net",
+        common: "https://vn2-red.lol.sgp.pvp.net",
+        region_path: None,
+    },
+    Server {
+        id: "TH2",
+        match_history: "https://apse1-red.pp.sgp.pvp.net",
+        common: "https://th2-red.lol.sgp.pvp.net",
+        region_path: None,
+    },
 ];
 
 /// Normalises the region the client reports into a server id. Some clients
@@ -135,8 +215,12 @@ async fn target(client: &LcuClient) -> Result<Target, String> {
     if !enabled() {
         return Err("sgp disabled".to_string());
     }
-    let region = client.region.clone().ok_or_else(|| "region unknown".to_string())?;
-    let server = server_for(&region).ok_or_else(|| format!("region {} has no sgp config", region))?;
+    let region = client
+        .region
+        .clone()
+        .ok_or_else(|| "region unknown".to_string())?;
+    let server =
+        server_for(&region).ok_or_else(|| format!("region {} has no sgp config", region))?;
     let tokens = tokens(client).await?;
     Ok(Target { server, tokens })
 }
@@ -152,7 +236,9 @@ async fn send(
     path: &str,
     body: Option<Value>,
 ) -> Result<reqwest::Response, String> {
-    let http = HTTP.clone().ok_or_else(|| "http client init failed".to_string())?;
+    let http = HTTP
+        .clone()
+        .ok_or_else(|| "http client init failed".to_string())?;
     let (host, token) = match kind {
         TokenKind::Entitlements => (target.server.match_history, &target.tokens.entitlements),
         TokenKind::LeagueSession => (target.server.common, &target.tokens.league_session),
@@ -187,7 +273,12 @@ async fn get_json(target: &Target, kind: TokenKind, path: &str) -> Result<Value,
 }
 
 /// Match history in the client's own (match-v5 style) shape.
-async fn match_history_raw(target: &Target, puuid: &str, start: u32, count: u32) -> Result<Value, String> {
+async fn match_history_raw(
+    target: &Target,
+    puuid: &str,
+    start: u32,
+    count: u32,
+) -> Result<Value, String> {
     get_json(
         target,
         TokenKind::Entitlements,
@@ -270,13 +361,23 @@ pub fn game_to_local(game: &Value, puuid: &str) -> Option<Value> {
 /// Games for a player from the backend, already in the local shape. Empty
 /// (not an error) when SGP is off or the region is unsupported, so callers can
 /// fall through quietly.
-pub(crate) async fn match_history_local(client: &LcuClient, puuid: &str, start: u32, count: u32) -> Result<Vec<Value>, String> {
+pub(crate) async fn match_history_local(
+    client: &LcuClient,
+    puuid: &str,
+    start: u32,
+    count: u32,
+) -> Result<Vec<Value>, String> {
     let target = target(client).await?;
     let raw = match_history_raw(&target, puuid, start, count.min(50)).await?;
     Ok(raw
         .get("games")
         .and_then(Value::as_array)
-        .map(|games| games.iter().filter_map(|g| game_to_local(g, puuid)).collect())
+        .map(|games| {
+            games
+                .iter()
+                .filter_map(|g| game_to_local(g, puuid))
+                .collect()
+        })
         .unwrap_or_default())
 }
 
@@ -311,13 +412,18 @@ pub async fn league_sgp_status() -> Result<SgpStatus, String> {
 
 /// Match history for any player, straight from the backend.
 #[tauri::command]
-pub async fn league_sgp_match_history(puuid: String, start: Option<u32>, count: Option<u32>) -> Result<Value, String> {
+pub async fn league_sgp_match_history(
+    puuid: String,
+    start: Option<u32>,
+    count: Option<u32>,
+) -> Result<Value, String> {
     ensure_enabled()?;
     if puuid.is_empty() || !puuid.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
         return Err("invalid player".to_string());
     }
     let client = get_client().await?;
-    let games = match_history_local(&client, &puuid, start.unwrap_or(0), count.unwrap_or(20)).await?;
+    let games =
+        match_history_local(&client, &puuid, start.unwrap_or(0), count.unwrap_or(20)).await?;
     Ok(json!({ "games": { "games": games }, "source": "sgp" }))
 }
 
@@ -352,11 +458,17 @@ pub async fn league_sgp_summoners(puuids: Vec<String>) -> Result<Value, String> 
         "/summoner-ledge/v1/regions/{}/summoners/puuids",
         region_segment(&target.server)
     );
-    send(&target, TokenKind::LeagueSession, reqwest::Method::POST, &path, Some(json!(puuids)))
-        .await?
-        .json::<Value>()
-        .await
-        .map_err(|e| format!("sgp decode failed: {}", e))
+    send(
+        &target,
+        TokenKind::LeagueSession,
+        reqwest::Method::POST,
+        &path,
+        Some(json!(puuids)),
+    )
+    .await?
+    .json::<Value>()
+    .await
+    .map_err(|e| format!("sgp decode failed: {}", e))
 }
 
 /// Downloads the replay file for a game into the default download folder.
@@ -373,7 +485,14 @@ pub async fn league_sgp_download_replay(game_id: i64) -> Result<String, String> 
         "/match-history-query/v3/product/lol/matchId/{}_{}/infoType/replay",
         region, game_id
     );
-    let response = send(&target, TokenKind::Entitlements, reqwest::Method::GET, &path, None).await?;
+    let response = send(
+        &target,
+        TokenKind::Entitlements,
+        reqwest::Method::GET,
+        &path,
+        None,
+    )
+    .await?;
     let bytes = response
         .bytes()
         .await
@@ -405,7 +524,10 @@ mod tests {
         assert_eq!(server_id("euw"), "EUW");
         assert_eq!(server_id("OCE"), "OC1");
         assert!(server_for("BR").is_some());
-        assert!(server_for("EUN1").is_none(), "no host is guessed for a region outside the table");
+        assert!(
+            server_for("EUN1").is_none(),
+            "no host is guessed for a region outside the table"
+        );
         assert_eq!(server_for("EUW").unwrap().region_path, Some("EUW1"));
         assert_eq!(region_segment(&server_for("BR1").unwrap()), "BR1");
     }
@@ -437,7 +559,10 @@ mod tests {
         assert_eq!(p["stats"]["item5"], 0);
         assert_eq!(p["timeline"]["lane"], "MIDDLE");
         assert_eq!(local["participantIdentities"][0]["player"]["puuid"], "me");
-        assert_eq!(local["participantIdentities"][0]["player"]["gameName"], "Me");
+        assert_eq!(
+            local["participantIdentities"][0]["player"]["gameName"],
+            "Me"
+        );
         assert!(game_to_local(&json!({ "json": {} }), "me").is_none());
     }
 }

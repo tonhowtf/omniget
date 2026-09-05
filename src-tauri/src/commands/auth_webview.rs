@@ -440,10 +440,7 @@ async fn extract_cookies_native_or_empty(
     }
 }
 
-async fn extract_cookies_js(
-    window: &tauri::WebviewWindow,
-    default_domain: &str,
-) -> JsExtraction {
+async fn extract_cookies_js(window: &tauri::WebviewWindow, default_domain: &str) -> JsExtraction {
     let js = r#"
 (function() {
     try {
@@ -1154,7 +1151,9 @@ mod tests {
         assert!(!has_any_cookie(&[cookie("oidc.abc123")], &targets));
         assert!(!target_matches("*", "anything"));
         assert!(wants_storage(&targets));
-        assert!(!wants_storage(&parse_cookie_targets("access_token|dj_session_id")));
+        assert!(!wants_storage(&parse_cookie_targets(
+            "access_token|dj_session_id"
+        )));
     }
 
     #[test]

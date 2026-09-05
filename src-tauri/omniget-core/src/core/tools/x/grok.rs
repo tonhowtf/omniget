@@ -36,7 +36,10 @@ fn path() -> std::path::PathBuf {
 }
 
 pub fn config() -> GrokConfig {
-    let mut c: GrokConfig = std::fs::read_to_string(path()).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+    let mut c: GrokConfig = std::fs::read_to_string(path())
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
     if c.xai_model.is_empty() {
         c.xai_model = DEFAULT_XAI_MODEL.into();
     }
@@ -48,11 +51,19 @@ pub fn config() -> GrokConfig {
 
 pub fn view() -> GrokConfigView {
     let c = config();
-    GrokConfigView { has_xai_key: !c.xai_key.is_empty(), xai_model: c.xai_model, x_model: c.x_model }
+    GrokConfigView {
+        has_xai_key: !c.xai_key.is_empty(),
+        xai_model: c.xai_model,
+        x_model: c.x_model,
+    }
 }
 
 /// `xai_key`: `None` mantem, `Some("")` apaga.
-pub fn set(xai_key: Option<String>, xai_model: Option<String>, x_model: Option<String>) -> anyhow::Result<GrokConfigView> {
+pub fn set(
+    xai_key: Option<String>,
+    xai_model: Option<String>,
+    x_model: Option<String>,
+) -> anyhow::Result<GrokConfigView> {
     let mut c = config();
     if let Some(k) = xai_key {
         c.xai_key = k.trim().to_string();
@@ -129,11 +140,21 @@ async fn ask_xai(cfg: &GrokConfig, req: GrokRequest) -> anyhow::Result<GrokAnswe
     if cfg.xai_key.is_empty() {
         anyhow::bail!("GROK_NO_KEY");
     }
-    let model = if req.model.trim().is_empty() { cfg.xai_model.clone() } else { req.model.trim().to_string() };
+    let model = if req.model.trim().is_empty() {
+        cfg.xai_model.clone()
+    } else {
+        req.model.trim().to_string()
+    };
     let mut tools = Vec::new();
     if req.x_search {
         let mut t = json!({ "type": "x_search" });
-        let handles: Vec<String> = req.handles.iter().map(|h| h.trim().trim_start_matches('@').to_string()).filter(|h| !h.is_empty()).take(20).collect();
+        let handles: Vec<String> = req
+            .handles
+            .iter()
+            .map(|h| h.trim().trim_start_matches('@').to_string())
+            .filter(|h| !h.is_empty())
+            .take(20)
+            .collect();
         if !handles.is_empty() {
             t["allowed_x_handles"] = json!(handles);
         }
@@ -155,52 +176,120 @@ async fn ask_xai(cfg: &GrokConfig, req: GrokRequest) -> anyhow::Result<GrokAnswe
     if !tools.is_empty() {
         body["tools"] = json!(tools);
     }
-    let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder()).timeout(std::time::Duration::from_secs(180)).build()?;
-    let resp = client.post("https://api.x.ai/v1/responses").bearer_auth(&cfg.xai_key).json(&body).send().await?;
+    let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
+        .timeout(std::time::Duration::from_secs(180))
+        .build()?;
+    let resp = client
+        .post("https://api.x.ai/v1/responses")
+        .bearer_auth(&cfg.xai_key)
+        .json(&body)
+        .send()
+        .await?;
     let status = resp.status();
-    let v: Value = resp.json().await.map_err(|e| anyhow!("xAI: resposta invalida ({})", e))?;
+    let v: Value = resp
+        .json()
+        .await
+        .map_err(|e| anyhow!("xAI: resposta invalida ({})", e))?;
     if !status.is_success() {
-        let msg = v.pointer("/error/message").or_else(|| v.get("error")).and_then(|m| m.as_str()).unwrap_or("erro").to_string();
+        let msg = v
+            .pointer("/error/message")
+            .or_else(|| v.get("error"))
+            .and_then(|m| m.as_str())
+            .unwrap_or("erro")
+            .to_string();
         return Err(anyhow!("xAI HTTP {}: {}", status, msg));
     }
     let mut text = String::new();
     let mut citations: Vec<Citation> = Vec::new();
-    for item in v.get("output").and_then(|o| o.as_array()).into_iter().flatten() {
+    for item in v
+        .get("output")
+        .and_then(|o| o.as_array())
+        .into_iter()
+        .flatten()
+    {
         if item.get("type").and_then(|t| t.as_str()) != Some("message") {
             continue;
         }
-        for c in item.get("content").and_then(|c| c.as_array()).into_iter().flatten() {
+        for c in item
+            .get("content")
+            .and_then(|c| c.as_array())
+            .into_iter()
+            .flatten()
+        {
             if c.get("type").and_then(|t| t.as_str()) == Some("output_text") {
                 text.push_str(c.get("text").and_then(|t| t.as_str()).unwrap_or(""));
-                for a in c.get("annotations").and_then(|a| a.as_array()).into_iter().flatten() {
+                for a in c
+                    .get("annotations")
+                    .and_then(|a| a.as_array())
+                    .into_iter()
+                    .flatten()
+                {
                     if let Some(url) = a.get("url").and_then(|u| u.as_str()) {
-                        citations.push(Citation { url: url.to_string(), title: a.get("title").and_then(|t| t.as_str()).unwrap_or("").to_string() });
+                        citations.push(Citation {
+                            url: url.to_string(),
+                            title: a
+                                .get("title")
+                                .and_then(|t| t.as_str())
+                                .unwrap_or("")
+                                .to_string(),
+                        });
                     }
                 }
             }
         }
     }
     if text.is_empty() {
-        text = v.get("output_text").and_then(|t| t.as_str()).unwrap_or("").to_string();
+        text = v
+            .get("output_text")
+            .and_then(|t| t.as_str())
+            .unwrap_or("")
+            .to_string();
     }
-    for c in v.get("citations").and_then(|c| c.as_array()).into_iter().flatten() {
+    for c in v
+        .get("citations")
+        .and_then(|c| c.as_array())
+        .into_iter()
+        .flatten()
+    {
         if let Some(url) = c.as_str() {
             if !citations.iter().any(|x| x.url == url) {
-                citations.push(Citation { url: url.to_string(), title: String::new() });
+                citations.push(Citation {
+                    url: url.to_string(),
+                    title: String::new(),
+                });
             }
         }
     }
-    let input_tokens = v.pointer("/usage/input_tokens").and_then(|t| t.as_u64()).unwrap_or(0);
-    let output_tokens = v.pointer("/usage/output_tokens").and_then(|t| t.as_u64()).unwrap_or(0);
+    let input_tokens = v
+        .pointer("/usage/input_tokens")
+        .and_then(|t| t.as_u64())
+        .unwrap_or(0);
+    let output_tokens = v
+        .pointer("/usage/output_tokens")
+        .and_then(|t| t.as_u64())
+        .unwrap_or(0);
     crate::core::tools::usage::record("grok", "xai", &model, input_tokens, output_tokens, None);
-    Ok(GrokAnswer { text, citations, model, backend: "xai".into(), input_tokens, output_tokens })
+    Ok(GrokAnswer {
+        text,
+        citations,
+        model,
+        backend: "xai".into(),
+        input_tokens,
+        output_tokens,
+    })
 }
 
 async fn ask_x(cfg: &GrokConfig, req: GrokRequest) -> anyhow::Result<GrokAnswer> {
     let client = super::client::XClient::new()?;
     client.require_login()?;
-    let model = if req.model.trim().is_empty() { cfg.x_model.clone() } else { req.model.trim().to_string() };
-    let conv = client.gql_post("CreateGrokConversation", json!({}), None).await?;
+    let model = if req.model.trim().is_empty() {
+        cfg.x_model.clone()
+    } else {
+        req.model.trim().to_string()
+    };
+    let conv = client
+        .gql_post("CreateGrokConversation", json!({}), None)
+        .await?;
     let conversation_id = conv
         .pointer("/data/create_grok_conversation/conversation_id")
         .and_then(|c| c.as_str())
@@ -226,11 +315,21 @@ async fn ask_x(cfg: &GrokConfig, req: GrokRequest) -> anyhow::Result<GrokAnswer>
         "isReasoning": false
     });
     let uuid = uuid::Uuid::new_v4().simple().to_string();
-    let extra = [("x-client-uuid", uuid.as_str()), ("Referer", "https://x.com/i/grok")];
-    let resp = match client.post_json_raw("https://api.x.com/2/grok/add_response.json", &body, &extra).await {
+    let extra = [
+        ("x-client-uuid", uuid.as_str()),
+        ("Referer", "https://x.com/i/grok"),
+    ];
+    let resp = match client
+        .post_json_raw("https://api.x.com/2/grok/add_response.json", &body, &extra)
+        .await
+    {
         Ok(r) => r,
         Err(first) => client
-            .post_json_raw("https://x.com/i/api/2/grok/add_response.json", &body, &extra)
+            .post_json_raw(
+                "https://x.com/i/api/2/grok/add_response.json",
+                &body,
+                &extra,
+            )
             .await
             .map_err(|e| anyhow!("{} / {}", first, e))?,
     };
@@ -238,10 +337,16 @@ async fn ask_x(cfg: &GrokConfig, req: GrokRequest) -> anyhow::Result<GrokAnswer>
     let mut text = String::new();
     let mut citations: Vec<Citation> = Vec::new();
     for line in raw.lines() {
-        let Ok(v) = serde_json::from_str::<Value>(line.trim()) else { continue };
+        let Ok(v) = serde_json::from_str::<Value>(line.trim()) else {
+            continue;
+        };
         let Some(r) = v.get("result") else { continue };
         if let Some(m) = r.get("message").and_then(|m| m.as_str()) {
-            if r.get("sender").and_then(|s| s.as_str()).map(|s| s != "USER").unwrap_or(true) {
+            if r.get("sender")
+                .and_then(|s| s.as_str())
+                .map(|s| s != "USER")
+                .unwrap_or(true)
+            {
                 text.push_str(m);
             }
         }
@@ -252,7 +357,14 @@ async fn ask_x(cfg: &GrokConfig, req: GrokRequest) -> anyhow::Result<GrokAnswer>
             for w in r.get(key).and_then(|a| a.as_array()).into_iter().flatten() {
                 if let Some(url) = w.get("url").and_then(|u| u.as_str()) {
                     if !citations.iter().any(|c| c.url == url) {
-                        citations.push(Citation { url: url.to_string(), title: w.get("title").and_then(|t| t.as_str()).unwrap_or("").to_string() });
+                        citations.push(Citation {
+                            url: url.to_string(),
+                            title: w
+                                .get("title")
+                                .and_then(|t| t.as_str())
+                                .unwrap_or("")
+                                .to_string(),
+                        });
                     }
                 }
             }
@@ -264,7 +376,17 @@ async fn ask_x(cfg: &GrokConfig, req: GrokRequest) -> anyhow::Result<GrokAnswer>
         }
     }
     if text.trim().is_empty() {
-        return Err(anyhow!("Grok nao respondeu (modelo `{}` pode nao existir mais; troque nas opcoes)", model));
+        return Err(anyhow!(
+            "Grok nao respondeu (modelo `{}` pode nao existir mais; troque nas opcoes)",
+            model
+        ));
     }
-    Ok(GrokAnswer { text, citations, model, backend: "x".into(), input_tokens: 0, output_tokens: 0 })
+    Ok(GrokAnswer {
+        text,
+        citations,
+        model,
+        backend: "x".into(),
+        input_tokens: 0,
+        output_tokens: 0,
+    })
 }

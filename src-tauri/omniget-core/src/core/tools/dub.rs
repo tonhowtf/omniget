@@ -64,7 +64,10 @@ pub fn atempo_chain(speed: f64) -> String {
 pub async fn dub(opts: DubOptions, progress: super::ProgressFn) -> anyhow::Result<DubResult> {
     let id = "dub";
     let srt = tokio::fs::read_to_string(&opts.srt_path).await?;
-    let cues: Vec<Cue> = parse_cues(&srt).into_iter().filter(|c| !c.text.trim().is_empty()).collect();
+    let cues: Vec<Cue> = parse_cues(&srt)
+        .into_iter()
+        .filter(|c| !c.text.trim().is_empty())
+        .collect();
     if cues.is_empty() {
         return Err(anyhow!("a legenda nao tem falas"));
     }
@@ -72,7 +75,10 @@ pub async fn dub(opts: DubOptions, progress: super::ProgressFn) -> anyhow::Resul
     let work = super::temp_dir().join(format!("dub-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&work)?;
     let out_dir = if opts.output_dir.trim().is_empty() {
-        Path::new(&opts.srt_path).parent().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("."))
+        Path::new(&opts.srt_path)
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."))
     } else {
         PathBuf::from(opts.output_dir.trim())
     };
@@ -86,7 +92,14 @@ pub async fn dub(opts: DubOptions, progress: super::ProgressFn) -> anyhow::Resul
     let mut pieces: Vec<(PathBuf, u64, u64)> = Vec::new(); // (mp3, start_ms, slot_ms)
     let total = cues.len() as u64;
     for (i, cue) in cues.iter().enumerate() {
-        super::report(&progress, id, "synthesize", i as u64, Some(total), Some(cue.text.clone()));
+        super::report(
+            &progress,
+            id,
+            "synthesize",
+            i as u64,
+            Some(total),
+            Some(cue.text.clone()),
+        );
         let mp3 = work.join(format!("{:05}.mp3", i));
         let tts = TtsOptions {
             text: cue.text.replace('\n', " "),
@@ -96,8 +109,16 @@ pub async fn dub(opts: DubOptions, progress: super::ProgressFn) -> anyhow::Resul
             volume: "+0%".into(),
         };
         edge_tts::synthesize(tts, &mp3, super::noop_progress()).await?;
-        let slot_end = cues.get(i + 1).map(|n| n.start_ms).unwrap_or(cue.end_ms).max(cue.end_ms);
-        pieces.push((mp3, cue.start_ms, slot_end.saturating_sub(cue.start_ms).max(300)));
+        let slot_end = cues
+            .get(i + 1)
+            .map(|n| n.start_ms)
+            .unwrap_or(cue.end_ms)
+            .max(cue.end_ms);
+        pieces.push((
+            mp3,
+            cue.start_ms,
+            slot_end.saturating_sub(cue.start_ms).max(300),
+        ));
     }
 
     // 2) mede duração real e decide a velocidade
@@ -138,10 +159,21 @@ pub async fn dub(opts: DubOptions, progress: super::ProgressFn) -> anyhow::Resul
             labels,
             group.len()
         ));
-        cmd.args(["-filter_complex", &filter, "-map", "[out]", "-c:a", "pcm_s16le"]).arg(&out);
+        cmd.args([
+            "-filter_complex",
+            &filter,
+            "-map",
+            "[out]",
+            "-c:a",
+            "pcm_s16le",
+        ])
+        .arg(&out);
         let output = cmd.output().await?;
         if !output.status.success() {
-            return Err(anyhow!("ffmpeg (mix) falhou: {}", String::from_utf8_lossy(&output.stderr).trim()));
+            return Err(anyhow!(
+                "ffmpeg (mix) falhou: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
         }
         group_files.push(out);
     }
@@ -156,11 +188,27 @@ pub async fn dub(opts: DubOptions, progress: super::ProgressFn) -> anyhow::Resul
         for j in 0..group_files.len() {
             filter.push_str(&format!("[{j}:a]"));
         }
-        filter.push_str(&format!("amix=inputs={}:dropout_transition=0:normalize=0[out]", group_files.len()));
-        cmd.args(["-filter_complex", &filter, "-map", "[out]", "-c:a", "aac", "-b:a", "160k"]).arg(&dub_audio);
+        filter.push_str(&format!(
+            "amix=inputs={}:dropout_transition=0:normalize=0[out]",
+            group_files.len()
+        ));
+        cmd.args([
+            "-filter_complex",
+            &filter,
+            "-map",
+            "[out]",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "160k",
+        ])
+        .arg(&dub_audio);
         let output = cmd.output().await?;
         if !output.status.success() {
-            return Err(anyhow!("ffmpeg (final) falhou: {}", String::from_utf8_lossy(&output.stderr).trim()));
+            return Err(anyhow!(
+                "ffmpeg (final) falhou: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
         }
     }
 
@@ -169,10 +217,16 @@ pub async fn dub(opts: DubOptions, progress: super::ProgressFn) -> anyhow::Resul
     if !opts.video_path.trim().is_empty() {
         super::report(&progress, id, "mux", 0, Some(1), None);
         let video = Path::new(opts.video_path.trim());
-        let ext = video.extension().map(|e| e.to_string_lossy().to_string()).unwrap_or_else(|| "mp4".into());
+        let ext = video
+            .extension()
+            .map(|e| e.to_string_lossy().to_string())
+            .unwrap_or_else(|| "mp4".into());
         let out = out_dir.join(format!("{}.dub.{}", stem, ext));
         let mut cmd = crate::core::process::command(&ffmpeg);
-        cmd.args(["-y", "-hide_banner", "-loglevel", "error", "-i"]).arg(video).arg("-i").arg(&dub_audio);
+        cmd.args(["-y", "-hide_banner", "-loglevel", "error", "-i"])
+            .arg(video)
+            .arg("-i")
+            .arg(&dub_audio);
         if opts.keep_original_volume > 0.0 {
             let f = format!(
                 "[0:a]volume={:.2}[o];[1:a]volume=1.0[d];[o][d]amix=inputs=2:dropout_transition=0:normalize=0[a]",
@@ -182,10 +236,14 @@ pub async fn dub(opts: DubOptions, progress: super::ProgressFn) -> anyhow::Resul
         } else {
             cmd.args(["-map", "0:v", "-map", "1:a"]);
         }
-        cmd.args(["-c:v", "copy", "-c:a", "aac", "-shortest"]).arg(&out);
+        cmd.args(["-c:v", "copy", "-c:a", "aac", "-shortest"])
+            .arg(&out);
         let output = cmd.output().await?;
         if !output.status.success() {
-            return Err(anyhow!("ffmpeg (mux) falhou: {}", String::from_utf8_lossy(&output.stderr).trim()));
+            return Err(anyhow!(
+                "ffmpeg (mux) falhou: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
         }
         video_out = Some(out.to_string_lossy().to_string());
     }

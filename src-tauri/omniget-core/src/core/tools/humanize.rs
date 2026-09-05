@@ -57,7 +57,11 @@ fn strip_fence(s: &str) -> &str {
         if let Some(end) = inner.rfind("```") {
             let body = &inner[..end];
             // pula o identificador de linguagem na primeira linha, se houver
-            return body.split_once('\n').map(|(_, rest)| rest).unwrap_or(body).trim();
+            return body
+                .split_once('\n')
+                .map(|(_, rest)| rest)
+                .unwrap_or(body)
+                .trim();
         }
     }
     t

@@ -78,7 +78,10 @@ pub fn id_for(op: &str) -> Option<String> {
     if let Some(id) = c.ids.get(op) {
         return Some(id.clone());
     }
-    TABLE.iter().find(|(name, _)| *name == op).map(|(_, id)| id.to_string())
+    TABLE
+        .iter()
+        .find(|(name, _)| *name == op)
+        .map(|(_, id)| id.to_string())
 }
 
 /// Idade do cache em segundos (`None` = nunca raspado).
@@ -96,7 +99,8 @@ fn script_urls(html: &str) -> Vec<String> {
     // build atual (x-web / Vite) e legada (responsive-web) linkadas direto
     for re in [
         regex::Regex::new(r"https://[\w.-]+/x-web/[\w./-]+\.js").unwrap(),
-        regex::Regex::new(r"https://[\w.-]+/responsive-web/client-web(?:-legacy)?/[\w./~-]+\.js").unwrap(),
+        regex::Regex::new(r"https://[\w.-]+/responsive-web/client-web(?:-legacy)?/[\w./~-]+\.js")
+            .unwrap(),
     ] {
         for m in re.find_iter(html) {
             urls.push(m.as_str().to_string());
@@ -116,23 +120,48 @@ fn script_urls(html: &str) -> Vec<String> {
             names.insert(c[1].to_string(), c[2].to_string());
         }
     }
-    let wanted = ["Bookmark", "Grok", "LoggedInMain", "HoverCard", "UserProfile", "UserHandler", "TweetActivity", "TweetEditHistory", "HomeTimeline", "Follow", "Search", "Explore", "Lists"];
+    let wanted = [
+        "Bookmark",
+        "Grok",
+        "LoggedInMain",
+        "HoverCard",
+        "UserProfile",
+        "UserHandler",
+        "TweetActivity",
+        "TweetEditHistory",
+        "HomeTimeline",
+        "Follow",
+        "Search",
+        "Explore",
+        "Lists",
+    ];
     for (id, hash) in &hashes {
         let name = names.get(id).cloned().unwrap_or_else(|| id.clone());
         if name.starts_with("i18n/") || name.starts_with("ondemand.countries") || name == "vendor" {
             continue;
         }
         if wanted.iter().any(|w| name.contains(w)) {
-            urls.push(format!("https://abs.twimg.com/responsive-web/client-web/{}.{}a.js", name, hash));
+            urls.push(format!(
+                "https://abs.twimg.com/responsive-web/client-web/{}.{}a.js",
+                name, hash
+            ));
         }
     }
     let mut seen = std::collections::HashSet::new();
-    urls.into_iter().filter(|u| !u.contains("/i18n/") && seen.insert(u.clone())).collect()
+    urls.into_iter()
+        .filter(|u| !u.contains("/i18n/") && seen.insert(u.clone()))
+        .collect()
 }
 
 pub fn extract_ops(js: &str) -> Vec<(String, String)> {
-    let re = regex::Regex::new(r#"queryId:\s*"([A-Za-z0-9_-]+)"[^}]{0,300}?operationName:\s*"([A-Za-z0-9_]+)""#).unwrap();
-    let re2 = regex::Regex::new(r#"operationName:\s*"([A-Za-z0-9_]+)"[^}]{0,300}?queryId:\s*"([A-Za-z0-9_-]+)""#).unwrap();
+    let re = regex::Regex::new(
+        r#"queryId:\s*"([A-Za-z0-9_-]+)"[^}]{0,300}?operationName:\s*"([A-Za-z0-9_]+)""#,
+    )
+    .unwrap();
+    let re2 = regex::Regex::new(
+        r#"operationName:\s*"([A-Za-z0-9_]+)"[^}]{0,300}?queryId:\s*"([A-Za-z0-9_-]+)""#,
+    )
+    .unwrap();
     let mut out = Vec::new();
     for c in re.captures_iter(js) {
         out.push((c[2].to_string(), c[1].to_string()));
@@ -147,7 +176,11 @@ pub fn extract_ops(js: &str) -> Vec<(String, String)> {
 /// bundles e atualiza o cache. Devolve quantas operacoes conhece agora.
 pub async fn refresh(http: &reqwest::Client, cookie: Option<&str>) -> anyhow::Result<usize> {
     let mut html = String::new();
-    for page in ["https://x.com/home", "https://x.com/i/flow/login", "https://x.com/"] {
+    for page in [
+        "https://x.com/home",
+        "https://x.com/i/flow/login",
+        "https://x.com/",
+    ] {
         let mut req = http.get(page);
         if let Some(c) = cookie {
             req = req.header("Cookie", c);
@@ -155,7 +188,11 @@ pub async fn refresh(http: &reqwest::Client, cookie: Option<&str>) -> anyhow::Re
         if let Ok(resp) = req.send().await {
             if let Ok(text) = resp.text().await {
                 if text.contains("document.location = \"") {
-                    if let Some(next) = text.split("document.location = \"").nth(1).and_then(|s| s.split('"').next()) {
+                    if let Some(next) = text
+                        .split("document.location = \"")
+                        .nth(1)
+                        .and_then(|s| s.split('"').next())
+                    {
                         if let Ok(r2) = http.get(next).send().await {
                             if let Ok(t2) = r2.text().await {
                                 html.push_str(&t2);
@@ -214,8 +251,14 @@ mod tests {
     fn extracts_ops_from_bundle() {
         let js = r#"e.exports={queryId:"XMOz5h24KAZ86qKffKTLdQ",operationName:"TweetDetail",operationType:"query",metadata:{}};x={operationName:"Bookmarks",queryId:"iblrFnKr6PZUR-dWpfXG6g"}"#;
         let ops = extract_ops(js);
-        assert!(ops.contains(&("TweetDetail".to_string(), "XMOz5h24KAZ86qKffKTLdQ".to_string())));
-        assert!(ops.contains(&("Bookmarks".to_string(), "iblrFnKr6PZUR-dWpfXG6g".to_string())));
+        assert!(ops.contains(&(
+            "TweetDetail".to_string(),
+            "XMOz5h24KAZ86qKffKTLdQ".to_string()
+        )));
+        assert!(ops.contains(&(
+            "Bookmarks".to_string(),
+            "iblrFnKr6PZUR-dWpfXG6g".to_string()
+        )));
     }
 
     #[test]
@@ -223,7 +266,9 @@ mod tests {
         let html = r#"<script src="https://abs.twimg.com/responsive-web/client-web/main.abcdef1a.js"></script>p.u=e=>""+({1:"bundle.Bookmarks",2:"vendor"}[e]||e)+"."+({1:"0123abc",2:"deadbee"})[e]+"a.js""#;
         let urls = script_urls(html);
         assert!(urls.iter().any(|u| u.contains("main.abcdef1a.js")));
-        assert!(urls.iter().any(|u| u.ends_with("bundle.Bookmarks.0123abca.js")));
+        assert!(urls
+            .iter()
+            .any(|u| u.ends_with("bundle.Bookmarks.0123abca.js")));
         assert!(!urls.iter().any(|u| u.contains("vendor")));
     }
 }

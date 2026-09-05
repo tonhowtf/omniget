@@ -32,15 +32,27 @@ impl Thread {
 }
 
 pub async fn unroll(input: &str) -> anyhow::Result<Thread> {
-    let id = super::post_id_from(input).ok_or_else(|| anyhow!("nao reconheci um post do X em: {}", input))?;
+    let id = super::post_id_from(input)
+        .ok_or_else(|| anyhow!("nao reconheci um post do X em: {}", input))?;
     match super::fx::thread(&id).await {
         Ok((focal, posts, truncated)) => {
-            let posts = if posts.is_empty() { vec![focal.clone()] } else { posts };
-            Ok(Thread { focal, posts, truncated, source: "fxtwitter".into() })
+            let posts = if posts.is_empty() {
+                vec![focal.clone()]
+            } else {
+                posts
+            };
+            Ok(Thread {
+                focal,
+                posts,
+                truncated,
+                source: "fxtwitter".into(),
+            })
         }
         Err(fx_err) => {
             tracing::info!("[x] fxtwitter falhou ({}), tentando GraphQL", fx_err);
-            unroll_graphql(&id).await.map_err(|e| anyhow!("{} / {}", fx_err, e))
+            unroll_graphql(&id)
+                .await
+                .map_err(|e| anyhow!("{} / {}", fx_err, e))
         }
     }
 }
@@ -76,12 +88,24 @@ async fn unroll_graphql(id: &str) -> anyhow::Result<Thread> {
         cursor = next;
     }
     let all = super::dedup_posts(all);
-    let focal = all.iter().find(|p| p.id == id).cloned().ok_or_else(|| anyhow!("post indisponivel"))?;
+    let focal = all
+        .iter()
+        .find(|p| p.id == id)
+        .cloned()
+        .ok_or_else(|| anyhow!("post indisponivel"))?;
     let author = focal.author.handle.to_ascii_lowercase();
-    let mut by_id: std::collections::HashMap<String, XPost> = all.iter().filter(|p| p.author.handle.to_ascii_lowercase() == author).map(|p| (p.id.clone(), p.clone())).collect();
+    let mut by_id: std::collections::HashMap<String, XPost> = all
+        .iter()
+        .filter(|p| p.author.handle.to_ascii_lowercase() == author)
+        .map(|p| (p.id.clone(), p.clone()))
+        .collect();
     // sobe ate a raiz
     let mut root = focal.clone();
-    while let Some(parent) = root.reply_to_id.clone().and_then(|pid| by_id.get(&pid).cloned()) {
+    while let Some(parent) = root
+        .reply_to_id
+        .clone()
+        .and_then(|pid| by_id.get(&pid).cloned())
+    {
         root = parent;
     }
     // desce pela cadeia de respostas do autor
@@ -89,7 +113,11 @@ async fn unroll_graphql(id: &str) -> anyhow::Result<Thread> {
     by_id.remove(&root.id);
     loop {
         let last = chain.last().unwrap().id.clone();
-        let next = by_id.values().filter(|p| p.reply_to_id.as_deref() == Some(last.as_str())).min_by_key(|p| p.timestamp).cloned();
+        let next = by_id
+            .values()
+            .filter(|p| p.reply_to_id.as_deref() == Some(last.as_str()))
+            .min_by_key(|p| p.timestamp)
+            .cloned();
         match next {
             Some(p) => {
                 by_id.remove(&p.id);
@@ -101,7 +129,12 @@ async fn unroll_graphql(id: &str) -> anyhow::Result<Thread> {
     if !chain.iter().any(|p| p.id == focal.id) {
         chain = vec![focal.clone()];
     }
-    Ok(Thread { focal, posts: chain, truncated: false, source: "graphql".into() })
+    Ok(Thread {
+        focal,
+        posts: chain,
+        truncated: false,
+        source: "graphql".into(),
+    })
 }
 
 fn find_show_more(v: &serde_json::Value) -> Option<String> {

@@ -19,7 +19,9 @@ pub async fn tool_kde_share(device: String, kind: String, value: String) -> Resu
 
 #[tauri::command]
 pub async fn tool_kde_ping(device: String, message: Option<String>) -> Result<String, String> {
-    kdeconnect::ping(&device, message.as_deref().unwrap_or("")).await.map_err(err)
+    kdeconnect::ping(&device, message.as_deref().unwrap_or(""))
+        .await
+        .map_err(err)
 }
 
 #[tauri::command]

@@ -681,7 +681,10 @@ pub async fn probe_remote(
             None
         }
         Err(_) => {
-            return Err(anyhow!("unreachable: connect timed out after {:?}", timeout));
+            return Err(anyhow!(
+                "unreachable: connect timed out after {:?}",
+                timeout
+            ));
         }
     };
 
@@ -1004,7 +1007,11 @@ async fn download_segment(
         let cur_end = seg.end_ceiling.load(Ordering::Relaxed);
         let target = (cur_end + 1).saturating_sub(range_start);
         if written >= target {
-            stop_reason = if cur_end < end { "ceiling shrank" } else { "done" };
+            stop_reason = if cur_end < end {
+                "ceiling shrank"
+            } else {
+                "done"
+            };
             break;
         }
         let res = tokio::time::timeout(cfg.read_timeout, stream.next()).await;
@@ -1148,7 +1155,10 @@ mod tests {
     #[test]
     fn content_length_comes_from_the_header_not_the_body() {
         let mut h = reqwest::header::HeaderMap::new();
-        h.insert(reqwest::header::CONTENT_LENGTH, "104857600".parse().unwrap());
+        h.insert(
+            reqwest::header::CONTENT_LENGTH,
+            "104857600".parse().unwrap(),
+        );
         assert_eq!(header_content_length(&h), Some(104857600));
         h.insert(reqwest::header::CONTENT_LENGTH, "0".parse().unwrap());
         assert_eq!(header_content_length(&h), None);
@@ -1159,9 +1169,15 @@ mod tests {
     #[test]
     fn content_range_total_parses_the_denominator() {
         let mut h = reqwest::header::HeaderMap::new();
-        h.insert(reqwest::header::CONTENT_RANGE, "bytes 0-0/1234".parse().unwrap());
+        h.insert(
+            reqwest::header::CONTENT_RANGE,
+            "bytes 0-0/1234".parse().unwrap(),
+        );
         assert_eq!(content_range_total(&h), Some(1234));
-        h.insert(reqwest::header::CONTENT_RANGE, "bytes 0-0/*".parse().unwrap());
+        h.insert(
+            reqwest::header::CONTENT_RANGE,
+            "bytes 0-0/*".parse().unwrap(),
+        );
         assert_eq!(content_range_total(&h), None);
     }
 
@@ -1180,7 +1196,10 @@ mod tests {
                 .unwrap(),
         );
         assert_eq!(header_filename(&h).as_deref(), Some("vídeo.mp4"));
-        h.insert(reqwest::header::CONTENT_DISPOSITION, "inline".parse().unwrap());
+        h.insert(
+            reqwest::header::CONTENT_DISPOSITION,
+            "inline".parse().unwrap(),
+        );
         assert_eq!(header_filename(&h), None);
     }
 

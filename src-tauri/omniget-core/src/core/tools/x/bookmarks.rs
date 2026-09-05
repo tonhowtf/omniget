@@ -38,9 +38,16 @@ fn folders_from(v: &Value) -> Vec<BookmarkFolder> {
     fn walk(v: &Value, out: &mut Vec<BookmarkFolder>) {
         match v {
             Value::Object(m) => {
-                if let (Some(id), Some(name)) = (m.get("id").and_then(|x| x.as_str()), m.get("name").and_then(|x| x.as_str())) {
+                if let (Some(id), Some(name)) = (
+                    m.get("id").and_then(|x| x.as_str()),
+                    m.get("name").and_then(|x| x.as_str()),
+                ) {
                     if m.contains_key("media") || m.contains_key("bookmark_count") || m.len() <= 4 {
-                        out.push(BookmarkFolder { id: id.to_string(), name: name.to_string(), count: 0 });
+                        out.push(BookmarkFolder {
+                            id: id.to_string(),
+                            name: name.to_string(),
+                            count: 0,
+                        });
                         return;
                     }
                 }
@@ -70,24 +77,31 @@ fn find_key(v: &Value, key: &str) -> Option<Value> {
 }
 
 pub async fn folders(client: &XClient) -> anyhow::Result<Vec<BookmarkFolder>> {
-    let v = client.gql_get("BookmarkFoldersSlice", json!({}), json!({}), None).await?;
+    let v = client
+        .gql_get("BookmarkFoldersSlice", json!({}), json!({}), None)
+        .await?;
     Ok(folders_from(&v))
 }
 
 /// Lista tudo (com pastas) sem gravar nada; `max` = 0 e sem limite.
-pub async fn collect(max: usize, progress: &ProgressFn) -> anyhow::Result<(Vec<BookmarkItem>, Vec<BookmarkFolder>, bool)> {
+pub async fn collect(
+    max: usize,
+    progress: &ProgressFn,
+) -> anyhow::Result<(Vec<BookmarkItem>, Vec<BookmarkFolder>, bool)> {
     let client = XClient::new()?;
     client.require_login()?;
     super::clear_cancel(JOB);
     super::report(progress, JOB, "folders", 0, None, None);
     let mut folders = folders(&client).await.unwrap_or_default();
-    let mut folder_of: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    let mut folder_of: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
     for f in folders.iter_mut() {
         if super::cancelled(JOB) {
             break;
         }
         super::report(progress, JOB, "folder", 0, None, Some(f.name.clone()));
-        let vars = json!({ "bookmark_collection_id": f.id, "count": 50, "includePromotedContent": false });
+        let vars =
+            json!({ "bookmark_collection_id": f.id, "count": 50, "includePromotedContent": false });
         let name = f.name.clone();
         let mut ids: Vec<String> = Vec::new();
         let _ = client
@@ -107,25 +121,40 @@ pub async fn collect(max: usize, progress: &ProgressFn) -> anyhow::Result<(Vec<B
     let vars = json!({ "count": 100, "includePromotedContent": false, "withClientEventToken": false, "withBirdwatchNotes": false, "withVoice": true, "withV2Timeline": true });
     let p2 = progress.clone();
     client
-        .paginate("Bookmarks", vars, json!({ "graphql_timeline_v2_bookmark_timeline": true }), max, JOB, |page| {
-            let got = super::parse::tweets_from(page);
-            let n = got.len();
-            posts.extend(got);
-            super::report(&p2, JOB, "bookmarks", posts.len() as u64, None, None);
-            n
-        })
+        .paginate(
+            "Bookmarks",
+            vars,
+            json!({ "graphql_timeline_v2_bookmark_timeline": true }),
+            max,
+            JOB,
+            |page| {
+                let got = super::parse::tweets_from(page);
+                let n = got.len();
+                posts.extend(got);
+                super::report(&p2, JOB, "bookmarks", posts.len() as u64, None, None);
+                n
+            },
+        )
         .await?;
     let cancelled = super::cancelled(JOB);
     let mut posts = super::dedup_posts(posts);
     if max > 0 {
         posts.truncate(max);
     }
-    let items = posts.into_iter().map(|p| BookmarkItem { folders: folder_of.get(&p.id).cloned().unwrap_or_default(), post: p }).collect();
+    let items = posts
+        .into_iter()
+        .map(|p| BookmarkItem {
+            folders: folder_of.get(&p.id).cloned().unwrap_or_default(),
+            post: p,
+        })
+        .collect();
     Ok((items, folders, cancelled))
 }
 
 fn csv(items: &[BookmarkItem]) -> String {
-    let mut out = String::from("id,url,created_at,author,name,text,likes,reposts,replies,views,folders,media_urls\n");
+    let mut out = String::from(
+        "id,url,created_at,author,name,text,likes,reposts,replies,views,folders,media_urls\n",
+    );
     for it in items {
         let p = &it.post;
         let row = [
@@ -140,15 +169,30 @@ fn csv(items: &[BookmarkItem]) -> String {
             p.replies.to_string(),
             p.views.to_string(),
             it.folders.join("; "),
-            p.media.iter().map(|m| m.url.clone()).collect::<Vec<_>>().join(" "),
+            p.media
+                .iter()
+                .map(|m| m.url.clone())
+                .collect::<Vec<_>>()
+                .join(" "),
         ];
-        out.push_str(&row.iter().map(|c| super::export::csv_escape(c)).collect::<Vec<_>>().join(","));
+        out.push_str(
+            &row.iter()
+                .map(|c| super::export::csv_escape(c))
+                .collect::<Vec<_>>()
+                .join(","),
+        );
         out.push('\n');
     }
     out
 }
 
-pub async fn export(dest: &str, formats: &[String], with_media: bool, max: usize, progress: ProgressFn) -> anyhow::Result<BookmarksResult> {
+pub async fn export(
+    dest: &str,
+    formats: &[String],
+    with_media: bool,
+    max: usize,
+    progress: ProgressFn,
+) -> anyhow::Result<BookmarksResult> {
     let (items, folders, cancelled) = collect(max, &progress).await?;
     let dir = std::path::Path::new(dest);
     std::fs::create_dir_all(dir)?;
@@ -156,7 +200,11 @@ pub async fn export(dest: &str, formats: &[String], with_media: bool, max: usize
     let mut files = Vec::new();
     let posts: Vec<XPost> = items.iter().map(|i| i.post.clone()).collect();
     for f in formats {
-        let path = dir.join(format!("x-bookmarks-{}.{}", stamp, super::export::ext_for(f)));
+        let path = dir.join(format!(
+            "x-bookmarks-{}.{}",
+            stamp,
+            super::export::ext_for(f)
+        ));
         let written = match f.as_str() {
             "json" => {
                 std::fs::write(&path, serde_json::to_string_pretty(&items)?)?;
@@ -172,9 +220,25 @@ pub async fn export(dest: &str, formats: &[String], with_media: bool, max: usize
     }
     let mut media_files = 0;
     if with_media && !cancelled {
-        let r = super::media::download_posts(&posts, &dir.join("media"), true, true, JOB, &progress).await?;
+        let r =
+            super::media::download_posts(&posts, &dir.join("media"), true, true, JOB, &progress)
+                .await?;
         media_files = r.files.len();
     }
-    super::report(&progress, JOB, "done", items.len() as u64, Some(items.len() as u64), None);
-    Ok(BookmarksResult { count: items.len(), folders, files, media_files, cancelled, preview: items.into_iter().take(60).collect() })
+    super::report(
+        &progress,
+        JOB,
+        "done",
+        items.len() as u64,
+        Some(items.len() as u64),
+        None,
+    );
+    Ok(BookmarksResult {
+        count: items.len(),
+        folders,
+        files,
+        media_files,
+        cancelled,
+        preview: items.into_iter().take(60).collect(),
+    })
 }

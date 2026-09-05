@@ -31,7 +31,14 @@ fn path() -> Option<PathBuf> {
 }
 
 /// Grava sem bloquear quem chamou; erro de disco vira só um log.
-pub fn record(task: &str, provider: &str, model: &str, input_tokens: u64, output_tokens: u64, cost_usd: Option<f64>) {
+pub fn record(
+    task: &str,
+    provider: &str,
+    model: &str,
+    input_tokens: u64,
+    output_tokens: u64,
+    cost_usd: Option<f64>,
+) {
     let entry = UsageEntry {
         ts: chrono::Utc::now().to_rfc3339(),
         task: task.to_string(),
@@ -47,9 +54,15 @@ pub fn record(task: &str, provider: &str, model: &str, input_tokens: u64, output
     if let Some(parent) = p.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let Ok(line) = serde_json::to_string(&entry) else { return };
+    let Ok(line) = serde_json::to_string(&entry) else {
+        return;
+    };
     use std::io::Write;
-    match std::fs::OpenOptions::new().create(true).append(true).open(&p) {
+    match std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&p)
+    {
         Ok(mut f) => {
             let _ = writeln!(f, "{}", line);
         }
@@ -59,8 +72,12 @@ pub fn record(task: &str, provider: &str, model: &str, input_tokens: u64, output
 
 pub fn read_all() -> Vec<UsageEntry> {
     let Some(p) = path() else { return vec![] };
-    let Ok(text) = std::fs::read_to_string(&p) else { return vec![] };
-    text.lines().filter_map(|l| serde_json::from_str(l).ok()).collect()
+    let Ok(text) = std::fs::read_to_string(&p) else {
+        return vec![];
+    };
+    text.lines()
+        .filter_map(|l| serde_json::from_str(l).ok())
+        .collect()
 }
 
 pub fn clear() -> anyhow::Result<()> {
@@ -100,13 +117,18 @@ pub async fn report(days: u32) -> UsageReport {
     let since = chrono::Utc::now() - chrono::Duration::days(days.max(1) as i64);
     let entries: Vec<UsageEntry> = read_all()
         .into_iter()
-        .filter(|e| chrono::DateTime::parse_from_rfc3339(&e.ts).map(|t| t.with_timezone(&chrono::Utc) >= since).unwrap_or(false))
+        .filter(|e| {
+            chrono::DateTime::parse_from_rfc3339(&e.ts)
+                .map(|t| t.with_timezone(&chrono::Utc) >= since)
+                .unwrap_or(false)
+        })
         .collect();
     let mut by_day: BTreeMap<String, Bucket> = BTreeMap::new();
     let mut by_model: BTreeMap<String, Bucket> = BTreeMap::new();
     let mut by_task: BTreeMap<String, Bucket> = BTreeMap::new();
     let mut total = Bucket::default();
-    let mut price_cache: std::collections::HashMap<String, Option<super::pricing::ModelPrice>> = Default::default();
+    let mut price_cache: std::collections::HashMap<String, Option<super::pricing::ModelPrice>> =
+        Default::default();
     for e in &entries {
         let cost = match e.cost_usd {
             Some(c) => Some(c),
@@ -123,8 +145,15 @@ pub async fn report(days: u32) -> UsageReport {
             }
         };
         let day = e.ts.get(..10).unwrap_or("").to_string();
-        for (map, key) in [(&mut by_day, day), (&mut by_model, e.model.clone()), (&mut by_task, e.task.clone())] {
-            let b = map.entry(key.clone()).or_insert_with(|| Bucket { key, ..Default::default() });
+        for (map, key) in [
+            (&mut by_day, day),
+            (&mut by_model, e.model.clone()),
+            (&mut by_task, e.task.clone()),
+        ] {
+            let b = map.entry(key.clone()).or_insert_with(|| Bucket {
+                key,
+                ..Default::default()
+            });
             b.calls += 1;
             b.input_tokens += e.input_tokens;
             b.output_tokens += e.output_tokens;
@@ -142,7 +171,12 @@ pub async fn report(days: u32) -> UsageReport {
         }
     }
     let mut by_model: Vec<Bucket> = by_model.into_values().collect();
-    by_model.sort_by(|a, b| b.cost_usd.partial_cmp(&a.cost_usd).unwrap_or(std::cmp::Ordering::Equal).then(b.calls.cmp(&a.calls)));
+    by_model.sort_by(|a, b| {
+        b.cost_usd
+            .partial_cmp(&a.cost_usd)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(b.calls.cmp(&a.calls))
+    });
     UsageReport {
         since: since.to_rfc3339(),
         calls: total.calls,

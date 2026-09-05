@@ -19,7 +19,10 @@ fn hotkeys_file() -> Option<std::path::PathBuf> {
 }
 
 pub fn tool_hotkeys() -> HashMap<String, String> {
-    hotkeys_file().and_then(|p| std::fs::read_to_string(p).ok()).and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
+    hotkeys_file()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
 }
 
 fn save_hotkeys(map: &HashMap<String, String>) -> Result<(), String> {
@@ -34,7 +37,12 @@ pub fn register_tool_hotkeys(app: &tauri::AppHandle) {
         match binding.parse::<Shortcut>() {
             Ok(s) => {
                 if let Err(e) = app.global_shortcut().register(s) {
-                    tracing::warn!("[tools] atalho {} ({}) nao registrou: {}", binding, action, e);
+                    tracing::warn!(
+                        "[tools] atalho {} ({}) nao registrou: {}",
+                        binding,
+                        action,
+                        e
+                    );
                 }
             }
             Err(e) => tracing::warn!("[tools] atalho invalido {}: {}", binding, e),
@@ -44,7 +52,14 @@ pub fn register_tool_hotkeys(app: &tauri::AppHandle) {
 
 /// Qual ação de tool este atalho dispara, se alguma.
 pub fn action_for(shortcut: &Shortcut) -> Option<String> {
-    tool_hotkeys().into_iter().find(|(_, b)| b.parse::<Shortcut>().map(|s| s == *shortcut).unwrap_or(false)).map(|(a, _)| a)
+    tool_hotkeys()
+        .into_iter()
+        .find(|(_, b)| {
+            b.parse::<Shortcut>()
+                .map(|s| s == *shortcut)
+                .unwrap_or(false)
+        })
+        .map(|(a, _)| a)
 }
 
 pub fn on_hotkey(app: &tauri::AppHandle, action: &str) {
@@ -54,15 +69,25 @@ pub fn on_hotkey(app: &tauri::AppHandle, action: &str) {
                 let _ = app.emit("tool-autoclick", serde_json::json!({ "running": running }));
             }
             Err(e) => {
-                let _ = app.emit("tool-autoclick", serde_json::json!({ "running": false, "error": e.to_string() }));
+                let _ = app.emit(
+                    "tool-autoclick",
+                    serde_json::json!({ "running": false, "error": e.to_string() }),
+                );
             }
         },
         "dictation" => {
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
-                let r = if dictation::is_recording() { dictation_finish(&app).await.map(|_| ()) } else { dictation::start(progress(&app)).await.map_err(err) };
+                let r = if dictation::is_recording() {
+                    dictation_finish(&app).await.map(|_| ())
+                } else {
+                    dictation::start(progress(&app)).await.map_err(err)
+                };
                 if let Err(e) = r {
-                    let _ = app.emit("tool-dictation", serde_json::json!({ "phase": "idle", "error": e }));
+                    let _ = app.emit(
+                        "tool-dictation",
+                        serde_json::json!({ "phase": "idle", "error": e }),
+                    );
                 }
             });
         }
@@ -71,13 +96,21 @@ pub fn on_hotkey(app: &tauri::AppHandle, action: &str) {
             tauri::async_runtime::spawn(async move {
                 let st = screen_record::state();
                 let r = if st.running && st.replay {
-                    screen_record::save_replay().await.map(|p| serde_json::json!({ "saved": p }))
+                    screen_record::save_replay()
+                        .await
+                        .map(|p| serde_json::json!({ "saved": p }))
                 } else if st.running {
-                    screen_record::stop().await.map(|s| serde_json::to_value(s).unwrap_or_default())
+                    screen_record::stop()
+                        .await
+                        .map(|s| serde_json::to_value(s).unwrap_or_default())
                 } else {
                     Err(anyhow::anyhow!("nenhuma gravacao ativa"))
                 };
-                let _ = app.emit("tool-record", r.map_err(|e| e.to_string()).unwrap_or_else(|e| serde_json::json!({ "error": e })));
+                let _ = app.emit(
+                    "tool-record",
+                    r.map_err(|e| e.to_string())
+                        .unwrap_or_else(|e| serde_json::json!({ "error": e })),
+                );
             });
         }
         _ => {}
@@ -91,7 +124,11 @@ pub fn tool_hotkeys_get() -> HashMap<String, String> {
 
 /// Define (ou apaga, com `binding` vazio) o atalho de uma ação.
 #[tauri::command]
-pub fn tool_hotkey_set(app: tauri::AppHandle, action: String, binding: String) -> Result<HashMap<String, String>, String> {
+pub fn tool_hotkey_set(
+    app: tauri::AppHandle,
+    action: String,
+    binding: String,
+) -> Result<HashMap<String, String>, String> {
     let mut map = tool_hotkeys();
     if let Some(old) = map.get(&action) {
         if let Ok(s) = old.parse::<Shortcut>() {
@@ -102,11 +139,15 @@ pub fn tool_hotkey_set(app: tauri::AppHandle, action: String, binding: String) -
     if binding.is_empty() {
         map.remove(&action);
     } else {
-        let s: Shortcut = binding.parse().map_err(|e| format!("atalho invalido: {}", e))?;
+        let s: Shortcut = binding
+            .parse()
+            .map_err(|e| format!("atalho invalido: {}", e))?;
         if map.values().any(|b| b == &binding) {
             return Err("este atalho ja esta em uso por outra tool".into());
         }
-        app.global_shortcut().register(s).map_err(|e| format!("nao registrou o atalho: {}", e))?;
+        app.global_shortcut()
+            .register(s)
+            .map_err(|e| format!("nao registrou o atalho: {}", e))?;
         map.insert(action, binding);
     }
     save_hotkeys(&map)?;
@@ -116,7 +157,9 @@ pub fn tool_hotkey_set(app: tauri::AppHandle, action: String, binding: String) -
 // ── Autoclicker ────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub fn tool_autoclick_start(opts: autoclick::ClickOptions) -> Result<autoclick::ClickState, String> {
+pub fn tool_autoclick_start(
+    opts: autoclick::ClickOptions,
+) -> Result<autoclick::ClickState, String> {
     autoclick::start(opts).map_err(err)?;
     Ok(autoclick::state())
 }
@@ -150,7 +193,9 @@ pub fn tool_dictation_options() -> dictation::DictationOptions {
 }
 
 #[tauri::command]
-pub fn tool_dictation_set_options(opts: dictation::DictationOptions) -> dictation::DictationOptions {
+pub fn tool_dictation_set_options(
+    opts: dictation::DictationOptions,
+) -> dictation::DictationOptions {
     dictation::set_options(opts);
     dictation::options()
 }
@@ -161,9 +206,14 @@ pub fn tool_dictation_state() -> dictation::DictationState {
 }
 
 #[tauri::command]
-pub async fn tool_dictation_start(app: tauri::AppHandle) -> Result<dictation::DictationState, String> {
+pub async fn tool_dictation_start(
+    app: tauri::AppHandle,
+) -> Result<dictation::DictationState, String> {
     dictation::start(progress(&app)).await.map_err(err)?;
-    let _ = app.emit("tool-dictation", serde_json::json!({ "phase": "recording" }));
+    let _ = app.emit(
+        "tool-dictation",
+        serde_json::json!({ "phase": "recording" }),
+    );
     Ok(dictation::state())
 }
 
@@ -174,13 +224,18 @@ pub struct DictationOut {
 }
 
 async fn dictation_finish(app: &tauri::AppHandle) -> Result<DictationOut, String> {
-    let _ = app.emit("tool-dictation", serde_json::json!({ "phase": "transcribing" }));
+    let _ = app.emit(
+        "tool-dictation",
+        serde_json::json!({ "phase": "transcribing" }),
+    );
     let text = dictation::stop(progress(app)).await.map_err(err)?;
     let opts = dictation::options();
     let delivered = match opts.output.as_str() {
         "paste" => {
             app.clipboard().write_text(text.clone()).map_err(err)?;
-            let r = tokio::task::spawn_blocking(dictation::press_paste).await.map_err(err)?;
+            let r = tokio::task::spawn_blocking(dictation::press_paste)
+                .await
+                .map_err(err)?;
             match r {
                 Ok(_) => "paste",
                 Err(_) => "clipboard",
@@ -192,20 +247,31 @@ async fn dictation_finish(app: &tauri::AppHandle) -> Result<DictationOut, String
         }
         _ => {
             let t = text.clone();
-            let r = tokio::task::spawn_blocking(move || dictation::type_text(&t)).await.map_err(err)?;
+            let r = tokio::task::spawn_blocking(move || dictation::type_text(&t))
+                .await
+                .map_err(err)?;
             match r {
                 Ok(_) => "type",
                 Err(e) => {
                     // Sem permissão para digitar: pelo menos deixa no clipboard.
                     app.clipboard().write_text(text.clone()).map_err(err)?;
-                    let _ = app.emit("tool-dictation", serde_json::json!({ "phase": "idle", "warning": e.to_string() }));
+                    let _ = app.emit(
+                        "tool-dictation",
+                        serde_json::json!({ "phase": "idle", "warning": e.to_string() }),
+                    );
                     "clipboard"
                 }
             }
         }
     };
-    let _ = app.emit("tool-dictation", serde_json::json!({ "phase": "idle", "text": text, "delivered": delivered }));
-    Ok(DictationOut { text, delivered: delivered.into() })
+    let _ = app.emit(
+        "tool-dictation",
+        serde_json::json!({ "phase": "idle", "text": text, "delivered": delivered }),
+    );
+    Ok(DictationOut {
+        text,
+        delivered: delivered.into(),
+    })
 }
 
 #[tauri::command]
@@ -226,7 +292,9 @@ pub fn tool_record_state() -> screen_record::RecordState {
 }
 
 #[tauri::command]
-pub async fn tool_record_start(opts: screen_record::RecordOptions) -> Result<screen_record::RecordState, String> {
+pub async fn tool_record_start(
+    opts: screen_record::RecordOptions,
+) -> Result<screen_record::RecordState, String> {
     screen_record::start(opts).await.map_err(err)
 }
 
@@ -253,16 +321,40 @@ pub async fn tool_vs_launch() -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn tool_vs_clone(app: tauri::AppHandle, opts: voicestudio::CloneOptions) -> Result<voicestudio::SpeechResult, String> {
-    voicestudio::clone_speak(opts, progress(&app)).await.map_err(err)
+pub async fn tool_vs_clone(
+    app: tauri::AppHandle,
+    opts: voicestudio::CloneOptions,
+) -> Result<voicestudio::SpeechResult, String> {
+    voicestudio::clone_speak(opts, progress(&app))
+        .await
+        .map_err(err)
 }
 
 #[tauri::command]
-pub async fn tool_vs_design(app: tauri::AppHandle, opts: voicestudio::DesignOptions) -> Result<voicestudio::DesignResult, String> {
-    voicestudio::design_speak(opts, progress(&app)).await.map_err(err)
+pub async fn tool_vs_design(
+    app: tauri::AppHandle,
+    opts: voicestudio::DesignOptions,
+) -> Result<voicestudio::DesignResult, String> {
+    voicestudio::design_speak(opts, progress(&app))
+        .await
+        .map_err(err)
 }
 
 #[tauri::command]
-pub async fn tool_vs_isolate(app: tauri::AppHandle, base_url: Option<String>, input: String, output_dir: Option<String>, instrumental: Option<bool>) -> Result<Vec<String>, String> {
-    voicestudio::isolate(base_url.as_deref().unwrap_or(""), &input, output_dir.as_deref().unwrap_or(""), instrumental.unwrap_or(true), progress(&app)).await.map_err(err)
+pub async fn tool_vs_isolate(
+    app: tauri::AppHandle,
+    base_url: Option<String>,
+    input: String,
+    output_dir: Option<String>,
+    instrumental: Option<bool>,
+) -> Result<Vec<String>, String> {
+    voicestudio::isolate(
+        base_url.as_deref().unwrap_or(""),
+        &input,
+        output_dir.as_deref().unwrap_or(""),
+        instrumental.unwrap_or(true),
+        progress(&app),
+    )
+    .await
+    .map_err(err)
 }

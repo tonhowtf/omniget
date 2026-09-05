@@ -109,22 +109,97 @@ pub struct Kind {
 }
 
 pub const KINDS: &[Kind] = &[
-    Kind { id: "openai", name: "OpenAI", base_url: "https://api.openai.com/v1", balance: false, env: "OPENAI_API_KEY" },
-    Kind { id: "anthropic", name: "Anthropic", base_url: "https://api.anthropic.com/v1", balance: false, env: "ANTHROPIC_API_KEY" },
-    Kind { id: "openrouter", name: "OpenRouter", base_url: "https://openrouter.ai/api/v1", balance: true, env: "OPENROUTER_API_KEY" },
-    Kind { id: "deepseek", name: "DeepSeek", base_url: "https://api.deepseek.com", balance: true, env: "DEEPSEEK_API_KEY" },
-    Kind { id: "gemini", name: "Google Gemini", base_url: "https://generativelanguage.googleapis.com/v1beta", balance: false, env: "GEMINI_API_KEY" },
-    Kind { id: "groq", name: "Groq", base_url: "https://api.groq.com/openai/v1", balance: false, env: "GROQ_API_KEY" },
-    Kind { id: "xai", name: "xAI (Grok)", base_url: "https://api.x.ai/v1", balance: false, env: "XAI_API_KEY" },
-    Kind { id: "mistral", name: "Mistral", base_url: "https://api.mistral.ai/v1", balance: false, env: "MISTRAL_API_KEY" },
-    Kind { id: "siliconflow", name: "SiliconFlow", base_url: "https://api.siliconflow.cn/v1", balance: true, env: "SILICONFLOW_API_KEY" },
-    Kind { id: "newapi", name: "New API / One API (relay)", base_url: "https://seu-site.com/v1", balance: true, env: "OPENAI_API_KEY" },
-    Kind { id: "ollama", name: "Ollama (local)", base_url: "http://localhost:11434/v1", balance: false, env: "" },
-    Kind { id: "custom", name: "OpenAI-compatível", base_url: "https://…/v1", balance: false, env: "OPENAI_API_KEY" },
+    Kind {
+        id: "openai",
+        name: "OpenAI",
+        base_url: "https://api.openai.com/v1",
+        balance: false,
+        env: "OPENAI_API_KEY",
+    },
+    Kind {
+        id: "anthropic",
+        name: "Anthropic",
+        base_url: "https://api.anthropic.com/v1",
+        balance: false,
+        env: "ANTHROPIC_API_KEY",
+    },
+    Kind {
+        id: "openrouter",
+        name: "OpenRouter",
+        base_url: "https://openrouter.ai/api/v1",
+        balance: true,
+        env: "OPENROUTER_API_KEY",
+    },
+    Kind {
+        id: "deepseek",
+        name: "DeepSeek",
+        base_url: "https://api.deepseek.com",
+        balance: true,
+        env: "DEEPSEEK_API_KEY",
+    },
+    Kind {
+        id: "gemini",
+        name: "Google Gemini",
+        base_url: "https://generativelanguage.googleapis.com/v1beta",
+        balance: false,
+        env: "GEMINI_API_KEY",
+    },
+    Kind {
+        id: "groq",
+        name: "Groq",
+        base_url: "https://api.groq.com/openai/v1",
+        balance: false,
+        env: "GROQ_API_KEY",
+    },
+    Kind {
+        id: "xai",
+        name: "xAI (Grok)",
+        base_url: "https://api.x.ai/v1",
+        balance: false,
+        env: "XAI_API_KEY",
+    },
+    Kind {
+        id: "mistral",
+        name: "Mistral",
+        base_url: "https://api.mistral.ai/v1",
+        balance: false,
+        env: "MISTRAL_API_KEY",
+    },
+    Kind {
+        id: "siliconflow",
+        name: "SiliconFlow",
+        base_url: "https://api.siliconflow.cn/v1",
+        balance: true,
+        env: "SILICONFLOW_API_KEY",
+    },
+    Kind {
+        id: "newapi",
+        name: "New API / One API (relay)",
+        base_url: "https://seu-site.com/v1",
+        balance: true,
+        env: "OPENAI_API_KEY",
+    },
+    Kind {
+        id: "ollama",
+        name: "Ollama (local)",
+        base_url: "http://localhost:11434/v1",
+        balance: false,
+        env: "",
+    },
+    Kind {
+        id: "custom",
+        name: "OpenAI-compatível",
+        base_url: "https://…/v1",
+        balance: false,
+        env: "OPENAI_API_KEY",
+    },
 ];
 
 fn kind_of(id: &str) -> &'static Kind {
-    KINDS.iter().find(|k| k.id == id).unwrap_or(&KINDS[KINDS.len() - 1])
+    KINDS
+        .iter()
+        .find(|k| k.id == id)
+        .unwrap_or(&KINDS[KINDS.len() - 1])
 }
 
 // ── Armazenamento ──────────────────────────────────────────────────────
@@ -136,7 +211,10 @@ fn file() -> Option<std::path::PathBuf> {
 }
 
 fn load() -> Vec<KeyEntry> {
-    file().and_then(|p| std::fs::read_to_string(p).ok()).and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
+    file()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
 }
 
 fn save(list: &[KeyEntry]) -> anyhow::Result<()> {
@@ -159,13 +237,19 @@ pub fn entry_with_secret(id: &str) -> anyhow::Result<KeyEntry> {
 }
 
 fn get(id: &str) -> anyhow::Result<KeyEntry> {
-    load().into_iter().find(|e| e.id == id).ok_or_else(|| anyhow!("chave nao encontrada"))
+    load()
+        .into_iter()
+        .find(|e| e.id == id)
+        .ok_or_else(|| anyhow!("chave nao encontrada"))
 }
 
 fn update<F: FnOnce(&mut KeyEntry)>(id: &str, f: F) -> anyhow::Result<KeyView> {
     let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let mut list = load();
-    let e = list.iter_mut().find(|e| e.id == id).ok_or_else(|| anyhow!("chave nao encontrada"))?;
+    let e = list
+        .iter_mut()
+        .find(|e| e.id == id)
+        .ok_or_else(|| anyhow!("chave nao encontrada"))?;
     f(e);
     let v = e.view();
     save(&list)?;
@@ -184,7 +268,10 @@ pub fn upsert(mut entry: KeyEntry) -> anyhow::Result<KeyView> {
     if entry.name.is_empty() {
         entry.name = kind_of(&entry.kind).name.to_string();
     }
-    if let Some(existing) = list.iter_mut().find(|e| e.id == entry.id && !entry.id.is_empty()) {
+    if let Some(existing) = list
+        .iter_mut()
+        .find(|e| e.id == entry.id && !entry.id.is_empty())
+    {
         if entry.key.trim().is_empty() {
             entry.key = existing.key.clone();
         }
@@ -216,12 +303,18 @@ pub fn delete(id: &str) -> anyhow::Result<()> {
 // ── Rede ───────────────────────────────────────────────────────────────
 
 fn client() -> anyhow::Result<reqwest::Client> {
-    Ok(crate::core::http_client::apply_global_proxy(reqwest::Client::builder()).timeout(std::time::Duration::from_secs(30)).build()?)
+    Ok(
+        crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
+            .timeout(std::time::Duration::from_secs(30))
+            .build()?,
+    )
 }
 
 /// Site do painel (New API): base sem o `/v1`.
 fn site_of(base: &str) -> String {
-    base.trim_end_matches('/').trim_end_matches("/v1").to_string()
+    base.trim_end_matches('/')
+        .trim_end_matches("/v1")
+        .to_string()
 }
 
 /// GET /models (ou equivalente) → ids dos modelos.
@@ -239,7 +332,18 @@ pub async fn models(entry: &KeyEntry) -> anyhow::Result<Vec<String>> {
                 .json()
                 .await?
         }
-        "gemini" => c.get(format!("{}/models?pageSize=1000&key={}", entry.base_url, entry.key)).send().await?.error_for_status().map_err(|e| anyhow!("Gemini: {}", e))?.json().await?,
+        "gemini" => {
+            c.get(format!(
+                "{}/models?pageSize=1000&key={}",
+                entry.base_url, entry.key
+            ))
+            .send()
+            .await?
+            .error_for_status()
+            .map_err(|e| anyhow!("Gemini: {}", e))?
+            .json()
+            .await?
+        }
         _ => {
             let mut req = c.get(format!("{}/models", entry.base_url));
             if !entry.key.is_empty() {
@@ -249,15 +353,34 @@ pub async fn models(entry: &KeyEntry) -> anyhow::Result<Vec<String>> {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
             if !status.is_success() {
-                return Err(anyhow!("HTTP {}: {}", status.as_u16(), text.chars().take(200).collect::<String>()));
+                return Err(anyhow!(
+                    "HTTP {}: {}",
+                    status.as_u16(),
+                    text.chars().take(200).collect::<String>()
+                ));
             }
-            serde_json::from_str(&text).map_err(|_| anyhow!("resposta nao e JSON: {}", text.chars().take(120).collect::<String>()))?
+            serde_json::from_str(&text).map_err(|_| {
+                anyhow!(
+                    "resposta nao e JSON: {}",
+                    text.chars().take(120).collect::<String>()
+                )
+            })?
         }
     };
-    let arr = json.get("data").or_else(|| json.get("models")).and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let arr = json
+        .get("data")
+        .or_else(|| json.get("models"))
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
     let mut ids: Vec<String> = arr
         .iter()
-        .filter_map(|m| m.get("id").or_else(|| m.get("name")).and_then(|v| v.as_str()).map(|s| s.trim_start_matches("models/").to_string()))
+        .filter_map(|m| {
+            m.get("id")
+                .or_else(|| m.get("name"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.trim_start_matches("models/").to_string())
+        })
         .collect();
     ids.sort();
     Ok(ids)
@@ -298,24 +421,62 @@ pub async fn balance(id: &str) -> anyhow::Result<KeyView> {
     let c = client()?;
     let text: String = match entry.kind.as_str() {
         "openrouter" => {
-            let j: serde_json::Value = c.get(format!("{}/credits", entry.base_url)).bearer_auth(&entry.key).send().await?.error_for_status()?.json().await?;
+            let j: serde_json::Value = c
+                .get(format!("{}/credits", entry.base_url))
+                .bearer_auth(&entry.key)
+                .send()
+                .await?
+                .error_for_status()?
+                .json()
+                .await?;
             let d = &j["data"];
             let total = d["total_credits"].as_f64().unwrap_or(0.0);
             let used = d["total_usage"].as_f64().unwrap_or(0.0);
-            format!("{} ({} usados de {})", usd(total - used), usd(used), usd(total))
+            format!(
+                "{} ({} usados de {})",
+                usd(total - used),
+                usd(used),
+                usd(total)
+            )
         }
         "deepseek" => {
-            let j: serde_json::Value = c.get(format!("{}/user/balance", site_of(&entry.base_url))).bearer_auth(&entry.key).send().await?.error_for_status()?.json().await?;
+            let j: serde_json::Value = c
+                .get(format!("{}/user/balance", site_of(&entry.base_url)))
+                .bearer_auth(&entry.key)
+                .send()
+                .await?
+                .error_for_status()?
+                .json()
+                .await?;
             let info = &j["balance_infos"][0];
-            format!("{} {}", info["total_balance"].as_str().unwrap_or("?"), info["currency"].as_str().unwrap_or(""))
+            format!(
+                "{} {}",
+                info["total_balance"].as_str().unwrap_or("?"),
+                info["currency"].as_str().unwrap_or("")
+            )
         }
         "siliconflow" => {
-            let j: serde_json::Value = c.get(format!("{}/user/info", entry.base_url)).bearer_auth(&entry.key).send().await?.error_for_status()?.json().await?;
-            format!("{} CNY", j["data"]["balance"].as_str().or_else(|| j["data"]["totalBalance"].as_str()).unwrap_or("?"))
+            let j: serde_json::Value = c
+                .get(format!("{}/user/info", entry.base_url))
+                .bearer_auth(&entry.key)
+                .send()
+                .await?
+                .error_for_status()?
+                .json()
+                .await?;
+            format!(
+                "{} CNY",
+                j["data"]["balance"]
+                    .as_str()
+                    .or_else(|| j["data"]["totalBalance"].as_str())
+                    .unwrap_or("?")
+            )
         }
         "newapi" => {
             if entry.access_token.is_empty() {
-                return Err(anyhow!("informe o token de acesso e o ID de usuario do painel"));
+                return Err(anyhow!(
+                    "informe o token de acesso e o ID de usuario do painel"
+                ));
             }
             let j: serde_json::Value = c
                 .get(format!("{}/api/user/self", site_of(&entry.base_url)))
@@ -327,7 +488,10 @@ pub async fn balance(id: &str) -> anyhow::Result<KeyView> {
                 .json()
                 .await?;
             if j["success"].as_bool() == Some(false) {
-                return Err(anyhow!("{}", j["message"].as_str().unwrap_or("painel recusou")));
+                return Err(anyhow!(
+                    "{}",
+                    j["message"].as_str().unwrap_or("painel recusou")
+                ));
             }
             let d = &j["data"];
             let quota = d["quota"].as_f64().unwrap_or(0.0) / 500_000.0;
@@ -347,11 +511,24 @@ fn is_openai_compatible(kind: &str) -> bool {
 
 pub fn export(format: &str, ids: &[String]) -> anyhow::Result<String> {
     let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    let list: Vec<KeyEntry> = load().into_iter().filter(|e| ids.is_empty() || ids.contains(&e.id)).collect();
+    let list: Vec<KeyEntry> = load()
+        .into_iter()
+        .filter(|e| ids.is_empty() || ids.contains(&e.id))
+        .collect();
     if list.is_empty() {
         return Err(anyhow!("nenhuma chave selecionada"));
     }
-    let slug = |s: &str| s.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '_' }).collect::<String>();
+    let slug = |s: &str| {
+        s.chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() {
+                    c.to_ascii_lowercase()
+                } else {
+                    '_'
+                }
+            })
+            .collect::<String>()
+    };
     Ok(match format {
         "env" => {
             let mut out = String::new();

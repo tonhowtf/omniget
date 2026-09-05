@@ -42,7 +42,11 @@ pub async fn status() -> Aria2Status {
         Some(p) => crate::core::dependencies::check_version_at_path(p, "aria2c").await,
         None => None,
     };
-    Aria2Status { installed: p.is_some(), path: p.map(|p| p.to_string_lossy().to_string()), version }
+    Aria2Status {
+        installed: p.is_some(),
+        path: p.map(|p| p.to_string_lossy().to_string()),
+        version,
+    }
 }
 
 /// `[#a1b2c3 12MiB/100MiB(12%) CN:16 DL:5.0MiB ETA:10s]`
@@ -52,15 +56,35 @@ pub fn parse_progress(line: &str) -> Option<(u64, String)> {
     Some((c[1].parse().ok()?, c[2].to_string()))
 }
 
-pub async fn download(opts: Aria2Options, progress: super::ProgressFn) -> anyhow::Result<Aria2Result> {
+pub async fn download(
+    opts: Aria2Options,
+    progress: super::ProgressFn,
+) -> anyhow::Result<Aria2Result> {
     use tokio::io::{AsyncBufReadExt, BufReader};
-    let bin = crate::core::dependencies::ensure_aria2c().await.ok_or_else(|| anyhow!("aria2c nao esta instalado (Linux/macOS: instale pelo gerenciador de pacotes)"))?;
+    let bin = crate::core::dependencies::ensure_aria2c()
+        .await
+        .ok_or_else(|| {
+            anyhow!("aria2c nao esta instalado (Linux/macOS: instale pelo gerenciador de pacotes)")
+        })?;
     std::fs::create_dir_all(&opts.dest_dir)?;
     let conns = opts.connections.clamp(1, 16).to_string();
     let mut cmd = crate::core::process::command(&bin);
     cmd.args([
-        "--dir", &opts.dest_dir, "-x", &conns, "-s", &conns, "-k", "1M", "--continue=true", "--auto-file-renaming=false",
-        "--allow-overwrite=true", "--summary-interval=1", "--console-log-level=warn", "--download-result=hide", "--file-allocation=none",
+        "--dir",
+        &opts.dest_dir,
+        "-x",
+        &conns,
+        "-s",
+        &conns,
+        "-k",
+        "1M",
+        "--continue=true",
+        "--auto-file-renaming=false",
+        "--allow-overwrite=true",
+        "--summary-interval=1",
+        "--console-log-level=warn",
+        "--download-result=hide",
+        "--file-allocation=none",
     ]);
     if !opts.file_name.trim().is_empty() {
         cmd.args(["--out", opts.file_name.trim()]);
@@ -73,8 +97,13 @@ pub async fn download(opts: Aria2Options, progress: super::ProgressFn) -> anyhow
             cmd.arg(format!("--header={}", h.trim()));
         }
     }
-    cmd.arg(&opts.url).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
-    let mut child = cmd.spawn().map_err(|e| anyhow!("nao foi possivel iniciar o aria2c: {}", e))?;
+    cmd.arg(&opts.url)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| anyhow!("nao foi possivel iniciar o aria2c: {}", e))?;
     let stdout = child.stdout.take();
     let id = format!("aria2:{}", opts.url);
     let p2 = progress.clone();
@@ -111,14 +140,18 @@ pub async fn download(opts: Aria2Options, progress: super::ProgressFn) -> anyhow
     };
     let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
     super::report(&progress, &id, "done", 100, Some(100), None);
-    Ok(Aria2Result { path: path.to_string_lossy().to_string(), bytes })
+    Ok(Aria2Result {
+        path: path.to_string_lossy().to_string(),
+        bytes,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     #[test]
     fn parses_line() {
-        let (p, s) = super::parse_progress("[#2089b0 12MiB/100MiB(12%) CN:16 DL:5.0MiB ETA:10s]").unwrap();
+        let (p, s) =
+            super::parse_progress("[#2089b0 12MiB/100MiB(12%) CN:16 DL:5.0MiB ETA:10s]").unwrap();
         assert_eq!(p, 12);
         assert_eq!(s, "5.0MiB");
     }

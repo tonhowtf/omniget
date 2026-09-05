@@ -62,7 +62,10 @@ impl Cubic {
 }
 
 fn interpolate(from: &[f64], to: &[f64], f: f64) -> Vec<f64> {
-    from.iter().zip(to).map(|(a, b)| a * (1.0 - f) + b * f).collect()
+    from.iter()
+        .zip(to)
+        .map(|(a, b)| a * (1.0 - f) + b * f)
+        .collect()
 }
 
 fn rotation_matrix(deg: f64) -> [f64; 4] {
@@ -120,10 +123,16 @@ fn calc_anim_key(frames: &[f64], target_time: f64) -> String {
         .map(|(i, x)| solve(*x, if i % 2 == 1 { -1.0 } else { 0.0 }, 1.0, false))
         .collect();
     let val = Cubic { curves }.get_value(target_time);
-    let color: Vec<f64> = interpolate(&from_color, &to_color, val).into_iter().map(|c| c.clamp(0.0, 255.0)).collect();
+    let color: Vec<f64> = interpolate(&from_color, &to_color, val)
+        .into_iter()
+        .map(|c| c.clamp(0.0, 255.0))
+        .collect();
     let rotation = interpolate(&[0.0], &[to_rotation], val);
     let matrix = rotation_matrix(rotation[0]);
-    let mut parts: Vec<String> = color[..3].iter().map(|c| format!("{:x}", c.round() as i64)).collect();
+    let mut parts: Vec<String> = color[..3]
+        .iter()
+        .map(|c| format!("{:x}", c.round() as i64))
+        .collect();
     for value in matrix {
         let mut rounded = (value * 100.0).round() / 100.0;
         if rounded < 0.0 {
@@ -143,7 +152,11 @@ fn calc_anim_key(frames: &[f64], target_time: f64) -> String {
     parts.join("").replace(['.', '-'], "")
 }
 
-async fn page_text(http: &reqwest::Client, url: &str, cookie: Option<&str>) -> anyhow::Result<String> {
+async fn page_text(
+    http: &reqwest::Client,
+    url: &str,
+    cookie: Option<&str>,
+) -> anyhow::Result<String> {
     let mut req = http.get(url);
     if let Some(c) = cookie {
         req = req.header("Cookie", c);
@@ -152,7 +165,12 @@ async fn page_text(http: &reqwest::Client, url: &str, cookie: Option<&str>) -> a
     if !text.contains(">document.location =") {
         return Ok(text);
     }
-    let next = text.split("document.location = \"").nth(1).and_then(|s| s.split('"').next()).unwrap_or("").to_string();
+    let next = text
+        .split("document.location = \"")
+        .nth(1)
+        .and_then(|s| s.split('"').next())
+        .unwrap_or("")
+        .to_string();
     let mut req = http.get(&next);
     if let Some(c) = cookie {
         req = req.header("Cookie", c);
@@ -162,7 +180,10 @@ async fn page_text(http: &reqwest::Client, url: &str, cookie: Option<&str>) -> a
         return Ok(text);
     }
     let re = regex::Regex::new(r#"<input[^>]*name="([^"]+)"[^>]*value="([^"]*)""#).unwrap();
-    let form: Vec<(String, String)> = re.captures_iter(&text).map(|c| (c[1].to_string(), c[2].to_string())).collect();
+    let form: Vec<(String, String)> = re
+        .captures_iter(&text)
+        .map(|c| (c[1].to_string(), c[2].to_string()))
+        .collect();
     let mut req = http.post("https://x.com/x/migrate").form(&form);
     if let Some(c) = cookie {
         req = req.header("Cookie", c);
@@ -171,8 +192,12 @@ async fn page_text(http: &reqwest::Client, url: &str, cookie: Option<&str>) -> a
 }
 
 fn verification_bytes(html: &str) -> anyhow::Result<Vec<u8>> {
-    let re1 = regex::Regex::new(r#"<meta[^>]*name="twitter-site-verification"[^>]*content="([^"]+)""#).unwrap();
-    let re2 = regex::Regex::new(r#"<meta[^>]*content="([^"]+)"[^>]*name="twitter-site-verification""#).unwrap();
+    let re1 =
+        regex::Regex::new(r#"<meta[^>]*name="twitter-site-verification"[^>]*content="([^"]+)""#)
+            .unwrap();
+    let re2 =
+        regex::Regex::new(r#"<meta[^>]*content="([^"]+)"[^>]*name="twitter-site-verification""#)
+            .unwrap();
     let content = re1
         .captures(html)
         .or_else(|| re2.captures(html))
@@ -182,14 +207,21 @@ fn verification_bytes(html: &str) -> anyhow::Result<Vec<u8>> {
 }
 
 fn anim_frames(html: &str, vk: &[u8]) -> anyhow::Result<Vec<Vec<f64>>> {
-    let re_svg = regex::Regex::new(r#"(?s)<svg[^>]*id="loading-x-anim-\d+"[^>]*>(.*?)</svg>"#).unwrap();
+    let re_svg =
+        regex::Regex::new(r#"(?s)<svg[^>]*id="loading-x-anim-\d+"[^>]*>(.*?)</svg>"#).unwrap();
     let re_g = regex::Regex::new(r#"(?s)<g[^>]*>(.*?)</g>"#).unwrap();
     let re_path = regex::Regex::new(r#"<path[^>]*\sd="([^"]+)""#).unwrap();
     let mut ds: Vec<String> = Vec::new();
     for svg in re_svg.captures_iter(html) {
         let inner = &svg[1];
-        let g = re_g.captures(inner).map(|c| c[1].to_string()).unwrap_or_else(|| inner.to_string());
-        let paths: Vec<String> = re_path.captures_iter(&g).map(|c| c[1].trim().to_string()).collect();
+        let g = re_g
+            .captures(inner)
+            .map(|c| c[1].to_string())
+            .unwrap_or_else(|| inner.to_string());
+        let paths: Vec<String> = re_path
+            .captures_iter(&g)
+            .map(|c| c[1].trim().to_string())
+            .collect();
         if let Some(d) = paths.get(1) {
             ds.push(d.clone());
         }
@@ -203,7 +235,11 @@ fn anim_frames(html: &str, vk: &[u8]) -> anyhow::Result<Vec<Vec<f64>>> {
     let re_num = regex::Regex::new(r"[^\d]+").unwrap();
     let mut rows = Vec::new();
     for part in body.split('C') {
-        let nums: Vec<f64> = re_num.replace_all(part, " ").split_whitespace().filter_map(|x| x.parse().ok()).collect();
+        let nums: Vec<f64> = re_num
+            .replace_all(part, " ")
+            .split_whitespace()
+            .filter_map(|x| x.parse().ok())
+            .collect();
         rows.push(nums);
     }
     Ok(rows)
@@ -213,14 +249,17 @@ fn script_urls(html: &str) -> Vec<String> {
     let mut urls = Vec::new();
     for re in [
         regex::Regex::new(r"https://[\w.-]+/x-web/[\w./-]+\.js").unwrap(),
-        regex::Regex::new(r"https://[\w.-]+/responsive-web/client-web(?:-legacy)?/[\w./~-]+\.js").unwrap(),
+        regex::Regex::new(r"https://[\w.-]+/responsive-web/client-web(?:-legacy)?/[\w./~-]+\.js")
+            .unwrap(),
     ] {
         for m in re.find_iter(html) {
             urls.push(m.as_str().to_string());
         }
     }
     let mut seen = std::collections::HashSet::new();
-    urls.into_iter().filter(|u| seen.insert(u.clone())).collect()
+    urls.into_iter()
+        .filter(|u| seen.insert(u.clone()))
+        .collect()
 }
 
 fn indices_re() -> regex::Regex {
@@ -231,16 +270,32 @@ fn join_url(base: &str, rel: &str) -> String {
     if rel.starts_with("http") {
         return rel.to_string();
     }
-    url::Url::parse(base).ok().and_then(|b| b.join(rel).ok()).map(|u| u.to_string()).unwrap_or_else(|| rel.to_string())
+    url::Url::parse(base)
+        .ok()
+        .and_then(|b| b.join(rel).ok())
+        .map(|u| u.to_string())
+        .unwrap_or_else(|| rel.to_string())
 }
 
-async fn indices(http: &reqwest::Client, html: &str, cookie: Option<&str>) -> anyhow::Result<Vec<usize>> {
+async fn indices(
+    http: &reqwest::Client,
+    html: &str,
+    cookie: Option<&str>,
+) -> anyhow::Result<Vec<usize>> {
     let scripts = script_urls(html);
-    let x_web: Vec<String> = scripts.iter().filter(|u| u.contains("/x-web/")).cloned().collect();
+    let x_web: Vec<String> = scripts
+        .iter()
+        .filter(|u| u.contains("/x-web/"))
+        .cloned()
+        .collect();
     if x_web.iter().any(|u| u.contains("entry-client-logged-out")) {
         anyhow::bail!("o X serviu a versao deslogada da pagina");
     }
-    let pool = if x_web.is_empty() { scripts.clone() } else { x_web };
+    let pool = if x_web.is_empty() {
+        scripts.clone()
+    } else {
+        x_web
+    };
     let re = indices_re();
     let mut url = pool.iter().find(|u| re.is_match(u)).cloned();
     if url.is_none() {
@@ -265,7 +320,10 @@ async fn indices(http: &reqwest::Client, html: &str, cookie: Option<&str>) -> an
     let url = url.ok_or_else(|| anyhow::anyhow!("chunk de assinatura do X nao encontrado"))?;
     let text = page_text(http, &url, cookie).await?;
     let re_idx = regex::Regex::new(r"\(\w\[(\d{1,2})\],\s*16\)").unwrap();
-    let items: Vec<usize> = re_idx.captures_iter(&text).filter_map(|c| c[1].parse().ok()).collect();
+    let items: Vec<usize> = re_idx
+        .captures_iter(&text)
+        .filter_map(|c| c[1].parse().ok())
+        .collect();
     if items.is_empty() {
         anyhow::bail!("indices de assinatura nao encontrados");
     }
@@ -286,19 +344,30 @@ impl TxIdGen {
         }
         let frame_time = ((frame_time as f64 / 10.0 + 0.5).floor() * 10.0) as i64;
         let frame_idx = (vk.get(idx[0]).copied().unwrap_or(0) % 16) as usize;
-        let row = rows.get(frame_idx).ok_or_else(|| anyhow::anyhow!("frame da animacao fora do intervalo"))?;
+        let row = rows
+            .get(frame_idx)
+            .ok_or_else(|| anyhow::anyhow!("frame da animacao fora do intervalo"))?;
         if row.len() < 11 {
             anyhow::bail!("frame da animacao incompleto");
         }
         let anim_key = calc_anim_key(row, frame_time as f64 / 4096.0);
-        Ok(Self { vk_bytes: vk, anim_key })
+        Ok(Self {
+            vk_bytes: vk,
+            anim_key,
+        })
     }
 
     pub fn calc(&self, method: &str, path: &str) -> String {
         let now_ms = chrono::Utc::now().timestamp_millis();
         let ts = ((now_ms - 1_682_924_400_000) as f64 / 1000.0).floor() as i64;
         let ts_bytes: Vec<u8> = (0..4).map(|i| ((ts >> (i * 8)) & 0xff) as u8).collect();
-        let payload = format!("{}!{}!{}obfiowerehiring{}", method.to_uppercase(), path, ts, self.anim_key);
+        let payload = format!(
+            "{}!{}!{}obfiowerehiring{}",
+            method.to_uppercase(),
+            path,
+            ts,
+            self.anim_key
+        );
         let hash = Sha256::digest(payload.as_bytes());
         let mut pld: Vec<u8> = Vec::new();
         pld.extend_from_slice(&self.vk_bytes);
@@ -308,7 +377,10 @@ impl TxIdGen {
         let num: u8 = rand::random();
         let mut out = vec![num];
         out.extend(pld.iter().map(|x| x ^ num));
-        base64::engine::general_purpose::STANDARD.encode(&out).trim_end_matches('=').to_string()
+        base64::engine::general_purpose::STANDARD
+            .encode(&out)
+            .trim_end_matches('=')
+            .to_string()
     }
 }
 
@@ -326,7 +398,9 @@ mod tests {
 
     #[test]
     fn anim_key_is_deterministic() {
-        let frames: Vec<f64> = vec![10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 128.0, 10.0, 20.0, 30.0, 40.0];
+        let frames: Vec<f64> = vec![
+            10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 128.0, 10.0, 20.0, 30.0, 40.0,
+        ];
         let a = calc_anim_key(&frames, 0.3);
         let b = calc_anim_key(&frames, 0.3);
         assert_eq!(a, b);
@@ -335,7 +409,10 @@ mod tests {
 
     #[test]
     fn calc_produces_base64() {
-        let g = TxIdGen { vk_bytes: vec![1, 2, 3, 4, 5, 6, 7, 8], anim_key: "abc".into() };
+        let g = TxIdGen {
+            vk_bytes: vec![1, 2, 3, 4, 5, 6, 7, 8],
+            anim_key: "abc".into(),
+        };
         let id = g.calc("GET", "/i/api/graphql/x/y");
         assert!(id.len() > 20 && !id.ends_with('='));
     }

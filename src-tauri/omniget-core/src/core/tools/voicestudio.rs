@@ -46,18 +46,35 @@ fn base(url: &str) -> String {
 }
 
 fn client(secs: u64) -> anyhow::Result<reqwest::Client> {
-    Ok(reqwest::Client::builder().timeout(std::time::Duration::from_secs(secs)).no_proxy().build()?)
+    Ok(reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(secs))
+        .no_proxy()
+        .build()?)
 }
 
 fn find_app() -> Option<PathBuf> {
     let candidates: Vec<PathBuf> = if cfg!(target_os = "macos") {
-        vec![PathBuf::from("/Applications/VoiceStudio.app"), dirs::home_dir().unwrap_or_default().join("Applications/VoiceStudio.app")]
+        vec![
+            PathBuf::from("/Applications/VoiceStudio.app"),
+            dirs::home_dir()
+                .unwrap_or_default()
+                .join("Applications/VoiceStudio.app"),
+        ]
     } else if cfg!(target_os = "windows") {
         let mut v = Vec::new();
         for var in ["LOCALAPPDATA", "ProgramFiles"] {
             if let Ok(b) = std::env::var(var) {
-                v.push(PathBuf::from(&b).join("VoiceStudio").join("VoiceStudio.exe"));
-                v.push(PathBuf::from(&b).join("Programs").join("VoiceStudio").join("VoiceStudio.exe"));
+                v.push(
+                    PathBuf::from(&b)
+                        .join("VoiceStudio")
+                        .join("VoiceStudio.exe"),
+                );
+                v.push(
+                    PathBuf::from(&b)
+                        .join("Programs")
+                        .join("VoiceStudio")
+                        .join("VoiceStudio.exe"),
+                );
             }
         }
         v
@@ -65,8 +82,12 @@ fn find_app() -> Option<PathBuf> {
         vec![
             PathBuf::from("/usr/bin/voicestudio"),
             PathBuf::from("/opt/VoiceStudio/voicestudio"),
-            dirs::home_dir().unwrap_or_default().join("Applications/VoiceStudio.AppImage"),
-            dirs::home_dir().unwrap_or_default().join(".local/bin/voicestudio"),
+            dirs::home_dir()
+                .unwrap_or_default()
+                .join("Applications/VoiceStudio.AppImage"),
+            dirs::home_dir()
+                .unwrap_or_default()
+                .join(".local/bin/voicestudio"),
         ]
     };
     candidates.into_iter().find(|p| p.exists())
@@ -75,7 +96,15 @@ fn find_app() -> Option<PathBuf> {
 pub async fn status(base_url: &str) -> VsStatus {
     let b = base(base_url);
     let app = find_app();
-    let mut s = VsStatus { base_url: b.clone(), running: false, installed: app.is_some(), app_path: app.map(|p| p.to_string_lossy().to_string()), version: None, engine: None, profiles: vec![] };
+    let mut s = VsStatus {
+        base_url: b.clone(),
+        running: false,
+        installed: app.is_some(),
+        app_path: app.map(|p| p.to_string_lossy().to_string()),
+        version: None,
+        engine: None,
+        profiles: vec![],
+    };
     let Ok(c) = client(4) else { return s };
     if let Ok(r) = c.get(format!("{}/health", b)).send().await {
         if r.status().is_success() {
@@ -88,7 +117,11 @@ pub async fn status(base_url: &str) -> VsStatus {
     if s.running {
         if let Ok(r) = c.get(format!("{}/engines/tts", b)).send().await {
             if let Ok(j) = r.json::<serde_json::Value>().await {
-                s.engine = j.get("active").and_then(|v| v.as_str()).map(String::from).or_else(|| j.get("selected").and_then(|v| v.as_str()).map(String::from));
+                s.engine = j
+                    .get("active")
+                    .and_then(|v| v.as_str())
+                    .map(String::from)
+                    .or_else(|| j.get("selected").and_then(|v| v.as_str()).map(String::from));
             }
         }
         s.profiles = profiles(&b).await.unwrap_or_default();
@@ -98,17 +131,43 @@ pub async fn status(base_url: &str) -> VsStatus {
 
 pub async fn profiles(base_url: &str) -> anyhow::Result<Vec<Profile>> {
     let c = client(10)?;
-    let j: serde_json::Value = c.get(format!("{}/profiles", base(base_url))).send().await?.error_for_status()?.json().await?;
-    let arr = j.as_array().cloned().or_else(|| j.get("profiles").and_then(|v| v.as_array()).cloned()).unwrap_or_default();
+    let j: serde_json::Value = c
+        .get(format!("{}/profiles", base(base_url)))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    let arr = j
+        .as_array()
+        .cloned()
+        .or_else(|| j.get("profiles").and_then(|v| v.as_array()).cloned())
+        .unwrap_or_default();
     Ok(arr
         .iter()
         .filter_map(|p| {
             Some(Profile {
                 id: p.get("id")?.as_str()?.to_string(),
-                name: p.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                kind: p.get("kind").and_then(|v| v.as_str()).unwrap_or("clone").to_string(),
-                language: p.get("language").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                instruct: p.get("instruct").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                name: p
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                kind: p
+                    .get("kind")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("clone")
+                    .to_string(),
+                language: p
+                    .get("language")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                instruct: p
+                    .get("instruct")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
             })
         })
         .collect())
@@ -118,7 +177,10 @@ pub async fn profiles(base_url: &str) -> anyhow::Result<Vec<Profile>> {
 pub async fn launch() -> anyhow::Result<()> {
     let app = find_app().ok_or_else(|| anyhow!("VoiceStudio nao encontrado"))?;
     if cfg!(target_os = "macos") {
-        crate::core::process::command("open").arg(&app).output().await?;
+        crate::core::process::command("open")
+            .arg(&app)
+            .output()
+            .await?;
     } else {
         crate::core::process::command(&app).spawn()?;
     }
@@ -129,7 +191,11 @@ async fn wav_from(resp: reqwest::Response, output: &Path) -> anyhow::Result<Path
     let status = resp.status();
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
-        return Err(anyhow!("VoiceStudio HTTP {}: {}", status.as_u16(), text.chars().take(300).collect::<String>()));
+        return Err(anyhow!(
+            "VoiceStudio HTTP {}: {}",
+            status.as_u16(),
+            text.chars().take(300).collect::<String>()
+        ));
     }
     let bytes = resp.bytes().await?;
     if bytes.len() < 100 {
@@ -147,7 +213,14 @@ fn stamp() -> String {
 }
 
 fn out_path(output_dir: &str, name: &str) -> PathBuf {
-    let dir = if output_dir.trim().is_empty() { dirs::audio_dir().or_else(dirs::home_dir).unwrap_or_default().join("OmniGet") } else { PathBuf::from(output_dir.trim()) };
+    let dir = if output_dir.trim().is_empty() {
+        dirs::audio_dir()
+            .or_else(dirs::home_dir)
+            .unwrap_or_default()
+            .join("OmniGet")
+    } else {
+        PathBuf::from(output_dir.trim())
+    };
     dir.join(format!("{} {}.wav", name, stamp()))
 }
 
@@ -188,25 +261,67 @@ pub struct SpeechResult {
 }
 
 /// Clona a voz da amostra (ou usa o perfil) e fala o texto.
-pub async fn clone_speak(opts: CloneOptions, progress: super::ProgressFn) -> anyhow::Result<SpeechResult> {
+pub async fn clone_speak(
+    opts: CloneOptions,
+    progress: super::ProgressFn,
+) -> anyhow::Result<SpeechResult> {
     let b = base(&opts.base_url);
     let c = client(900)?;
-    let mut profile_id = if opts.profile_id.trim().is_empty() { None } else { Some(opts.profile_id.trim().to_string()) };
+    let mut profile_id = if opts.profile_id.trim().is_empty() {
+        None
+    } else {
+        Some(opts.profile_id.trim().to_string())
+    };
     if profile_id.is_none() && !opts.save_as.trim().is_empty() {
-        super::report(&progress, "voicestudio", "profile", 0, None, Some(opts.save_as.clone()));
+        super::report(
+            &progress,
+            "voicestudio",
+            "profile",
+            0,
+            None,
+            Some(opts.save_as.clone()),
+        );
         let sample = std::fs::read(&opts.sample).map_err(|e| anyhow!("amostra: {}", e))?;
-        let file_name = Path::new(&opts.sample).file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "sample.wav".into());
+        let file_name = Path::new(&opts.sample)
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "sample.wav".into());
         let form = reqwest::multipart::Form::new()
             .text("name", opts.save_as.trim().to_string())
             .text("kind", "clone")
             .text("ref_text", opts.sample_text.clone())
-            .text("language", if opts.language.is_empty() { "Auto".to_string() } else { opts.language.clone() })
-            .part("ref_audio", reqwest::multipart::Part::bytes(sample).file_name(file_name));
-        let j: serde_json::Value = c.post(format!("{}/profiles", b)).multipart(form).send().await?.error_for_status().map_err(|e| anyhow!("criar perfil: {}", e))?.json().await?;
-        profile_id = j.get("id").or_else(|| j.get("profile_id")).and_then(|v| v.as_str()).map(String::from);
+            .text(
+                "language",
+                if opts.language.is_empty() {
+                    "Auto".to_string()
+                } else {
+                    opts.language.clone()
+                },
+            )
+            .part(
+                "ref_audio",
+                reqwest::multipart::Part::bytes(sample).file_name(file_name),
+            );
+        let j: serde_json::Value = c
+            .post(format!("{}/profiles", b))
+            .multipart(form)
+            .send()
+            .await?
+            .error_for_status()
+            .map_err(|e| anyhow!("criar perfil: {}", e))?
+            .json()
+            .await?;
+        profile_id = j
+            .get("id")
+            .or_else(|| j.get("profile_id"))
+            .and_then(|v| v.as_str())
+            .map(String::from);
     }
     super::report(&progress, "voicestudio", "generate", 0, None, None);
-    let mut form = reqwest::multipart::Form::new().text("text", opts.text.clone()).text("speed", opts.speed.to_string()).text("stream", "false");
+    let mut form = reqwest::multipart::Form::new()
+        .text("text", opts.text.clone())
+        .text("speed", opts.speed.to_string())
+        .text("stream", "false");
     if !opts.language.is_empty() {
         form = form.text("language", opts.language.clone());
     }
@@ -214,17 +329,35 @@ pub async fn clone_speak(opts: CloneOptions, progress: super::ProgressFn) -> any
         form = form.text("profile_id", pid.clone());
     } else {
         let sample = std::fs::read(&opts.sample).map_err(|e| anyhow!("amostra: {}", e))?;
-        let file_name = Path::new(&opts.sample).file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "sample.wav".into());
-        form = form.part("ref_audio", reqwest::multipart::Part::bytes(sample).file_name(file_name));
+        let file_name = Path::new(&opts.sample)
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "sample.wav".into());
+        form = form.part(
+            "ref_audio",
+            reqwest::multipart::Part::bytes(sample).file_name(file_name),
+        );
         if !opts.sample_text.trim().is_empty() {
             form = form.text("ref_text", opts.sample_text.clone());
         }
     }
-    let resp = c.post(format!("{}/generate", b)).multipart(form).send().await?;
-    let seconds = resp.headers().get("x-audio-duration").and_then(|v| v.to_str().ok()).and_then(|s| s.parse::<f64>().ok());
+    let resp = c
+        .post(format!("{}/generate", b))
+        .multipart(form)
+        .send()
+        .await?;
+    let seconds = resp
+        .headers()
+        .get("x-audio-duration")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse::<f64>().ok());
     let out = wav_from(resp, &out_path(&opts.output_dir, "Voz clonada")).await?;
     super::report(&progress, "voicestudio", "done", 1, Some(1), None);
-    Ok(SpeechResult { output: out.to_string_lossy().to_string(), profile_id, seconds })
+    Ok(SpeechResult {
+        output: out.to_string_lossy().to_string(),
+        profile_id,
+        seconds,
+    })
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -252,7 +385,10 @@ pub struct DesignResult {
 }
 
 /// Descrição em texto → atributos → voz nova falando o texto.
-pub async fn design_speak(opts: DesignOptions, progress: super::ProgressFn) -> anyhow::Result<DesignResult> {
+pub async fn design_speak(
+    opts: DesignOptions,
+    progress: super::ProgressFn,
+) -> anyhow::Result<DesignResult> {
     let b = base(&opts.base_url);
     let c = client(900)?;
     super::report(&progress, "voicestudio", "describe", 0, None, None);
@@ -265,9 +401,29 @@ pub async fn design_speak(opts: DesignOptions, progress: super::ProgressFn) -> a
         .map_err(|e| anyhow!("describe: {}", e))?
         .json()
         .await?;
-    let instruct = j.get("instruct").and_then(|v| v.as_str()).unwrap_or("").to_string();
-    let matched: Vec<String> = j.get("matched").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|m| m.get("phrase").and_then(|p| p.as_str()).map(String::from)).collect()).unwrap_or_default();
-    let unmatched: Vec<String> = j.get("unmatched").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|m| m.as_str().map(String::from)).collect()).unwrap_or_default();
+    let instruct = j
+        .get("instruct")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let matched: Vec<String> = j
+        .get("matched")
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|m| m.get("phrase").and_then(|p| p.as_str()).map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    let unmatched: Vec<String> = j
+        .get("unmatched")
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|m| m.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
     let mut profile_id = None;
     if !opts.save_as.trim().is_empty() {
         let attrs = j.get("attrs").cloned().unwrap_or(serde_json::json!({}));
@@ -276,40 +432,91 @@ pub async fn design_speak(opts: DesignOptions, progress: super::ProgressFn) -> a
             .text("kind", "design")
             .text("instruct", instruct.clone())
             .text("vd_states", attrs.to_string())
-            .text("language", if opts.language.is_empty() { "Auto".to_string() } else { opts.language.clone() });
-        if let Ok(r) = c.post(format!("{}/profiles", b)).multipart(form).send().await {
+            .text(
+                "language",
+                if opts.language.is_empty() {
+                    "Auto".to_string()
+                } else {
+                    opts.language.clone()
+                },
+            );
+        if let Ok(r) = c
+            .post(format!("{}/profiles", b))
+            .multipart(form)
+            .send()
+            .await
+        {
             if let Ok(pj) = r.json::<serde_json::Value>().await {
                 profile_id = pj.get("id").and_then(|v| v.as_str()).map(String::from);
             }
         }
     }
     super::report(&progress, "voicestudio", "generate", 0, None, None);
-    let mut form = reqwest::multipart::Form::new().text("text", opts.text.clone()).text("instruct", instruct.clone()).text("stream", "false");
+    let mut form = reqwest::multipart::Form::new()
+        .text("text", opts.text.clone())
+        .text("instruct", instruct.clone())
+        .text("stream", "false");
     if !opts.language.is_empty() {
         form = form.text("language", opts.language.clone());
     }
     if let Some(pid) = &profile_id {
         form = form.text("profile_id", pid.clone());
     }
-    let resp = c.post(format!("{}/generate", b)).multipart(form).send().await?;
+    let resp = c
+        .post(format!("{}/generate", b))
+        .multipart(form)
+        .send()
+        .await?;
     let out = wav_from(resp, &out_path(&opts.output_dir, "Voz criada")).await?;
     super::report(&progress, "voicestudio", "done", 1, Some(1), None);
-    Ok(DesignResult { output: out.to_string_lossy().to_string(), instruct, matched, unmatched, profile_id })
+    Ok(DesignResult {
+        output: out.to_string_lossy().to_string(),
+        instruct,
+        matched,
+        unmatched,
+        profile_id,
+    })
 }
 
 /// Demucs no VoiceStudio: devolve só a voz. O instrumental é a diferença,
 /// feita aqui com o FFmpeg (voz invertida somada ao original).
-pub async fn isolate(base_url: &str, input: &str, output_dir: &str, instrumental: bool, progress: super::ProgressFn) -> anyhow::Result<Vec<String>> {
+pub async fn isolate(
+    base_url: &str,
+    input: &str,
+    output_dir: &str,
+    instrumental: bool,
+    progress: super::ProgressFn,
+) -> anyhow::Result<Vec<String>> {
     let b = base(base_url);
     let c = client(1800)?;
     super::report(&progress, "voicestudio", "upload", 0, None, None);
     let data = std::fs::read(input).map_err(|e| anyhow!("entrada: {}", e))?;
-    let file_name = Path::new(input).file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "audio.wav".into());
-    let form = reqwest::multipart::Form::new().part("audio", reqwest::multipart::Part::bytes(data).file_name(file_name));
+    let file_name = Path::new(input)
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "audio.wav".into());
+    let form = reqwest::multipart::Form::new().part(
+        "audio",
+        reqwest::multipart::Part::bytes(data).file_name(file_name),
+    );
     super::report(&progress, "voicestudio", "separate", 0, None, None);
-    let resp = c.post(format!("{}/clean-audio", b)).multipart(form).send().await?;
-    let stem = Path::new(input).file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "audio".into());
-    let dir = if output_dir.trim().is_empty() { Path::new(input).parent().map(Path::to_path_buf).unwrap_or_default() } else { PathBuf::from(output_dir.trim()) };
+    let resp = c
+        .post(format!("{}/clean-audio", b))
+        .multipart(form)
+        .send()
+        .await?;
+    let stem = Path::new(input)
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "audio".into());
+    let dir = if output_dir.trim().is_empty() {
+        Path::new(input)
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_default()
+    } else {
+        PathBuf::from(output_dir.trim())
+    };
     std::fs::create_dir_all(&dir)?;
     let vocals = dir.join(format!("{} (voz).wav", stem));
     wav_from(resp, &vocals).await?;

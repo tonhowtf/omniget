@@ -23,9 +23,32 @@ fn csv_cell(s: &str) -> String {
 }
 
 pub const CSV_HEADER: &[&str] = &[
-    "id", "pin_url", "title", "description", "alt_text", "link", "domain", "board", "section", "pinner", "creator", "created_at",
-    "kind", "image_url", "width", "height", "video_url", "saves", "repins", "comments", "reactions", "promoted", "ai_labeled",
-    "ai_keyword", "dominant_color", "local_files",
+    "id",
+    "pin_url",
+    "title",
+    "description",
+    "alt_text",
+    "link",
+    "domain",
+    "board",
+    "section",
+    "pinner",
+    "creator",
+    "created_at",
+    "kind",
+    "image_url",
+    "width",
+    "height",
+    "video_url",
+    "saves",
+    "repins",
+    "comments",
+    "reactions",
+    "promoted",
+    "ai_labeled",
+    "ai_keyword",
+    "dominant_color",
+    "local_files",
 ];
 
 pub fn csv(pins: &[Pin], files: &HashMap<String, Vec<String>>) -> String {
@@ -42,16 +65,28 @@ pub fn csv(pins: &[Pin], files: &HashMap<String, Vec<String>>) -> String {
             p.alt_text.clone(),
             p.link.clone().unwrap_or_default(),
             p.domain.clone().unwrap_or_default(),
-            p.board.as_ref().and_then(|b| b.name.clone()).unwrap_or_default(),
+            p.board
+                .as_ref()
+                .and_then(|b| b.name.clone())
+                .unwrap_or_default(),
             p.section.clone().unwrap_or_default(),
-            p.pinner.as_ref().and_then(|x| x.username.clone()).unwrap_or_default(),
-            p.creator.as_ref().and_then(|x| x.username.clone()).unwrap_or_default(),
+            p.pinner
+                .as_ref()
+                .and_then(|x| x.username.clone())
+                .unwrap_or_default(),
+            p.creator
+                .as_ref()
+                .and_then(|x| x.username.clone())
+                .unwrap_or_default(),
             p.created_at.clone().unwrap_or_default(),
             p.kind.clone(),
             img.map(|m| m.url.clone()).unwrap_or_default(),
             img.map(|m| m.width.to_string()).unwrap_or_default(),
             img.map(|m| m.height.to_string()).unwrap_or_default(),
-            p.video.as_ref().and_then(|v| v.mp4.clone().or_else(|| v.hls.clone())).unwrap_or_default(),
+            p.video
+                .as_ref()
+                .and_then(|v| v.mp4.clone().or_else(|| v.hls.clone()))
+                .unwrap_or_default(),
             p.saves.to_string(),
             p.repins.to_string(),
             p.comments.to_string(),
@@ -62,14 +97,22 @@ pub fn csv(pins: &[Pin], files: &HashMap<String, Vec<String>>) -> String {
             p.dominant_color.clone().unwrap_or_default(),
             files.get(&p.id).map(|f| f.join(" | ")).unwrap_or_default(),
         ];
-        out.push_str(&row.iter().map(|c| csv_cell(c)).collect::<Vec<_>>().join(","));
+        out.push_str(
+            &row.iter()
+                .map(|c| csv_cell(c))
+                .collect::<Vec<_>>()
+                .join(","),
+        );
         out.push('\n');
     }
     out
 }
 
 fn esc(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 /// Caminho relativo à pasta da galeria (os arquivos ficam dentro dela).
@@ -84,7 +127,13 @@ fn rel(root: &str, file: &str) -> String {
 
 /// Galeria HTML de arquivo único. `files` aponta para os arquivos locais;
 /// sem arquivo local a imagem vem do CDN (736x).
-pub fn html_gallery(title: &str, subtitle: &str, pins: &[Pin], files: &HashMap<String, Vec<String>>, root: &str) -> String {
+pub fn html_gallery(
+    title: &str,
+    subtitle: &str,
+    pins: &[Pin],
+    files: &HashMap<String, Vec<String>>,
+    root: &str,
+) -> String {
     let mut sections: Vec<String> = Vec::new();
     for p in pins {
         let s = p.section.clone().unwrap_or_default();
@@ -99,11 +148,19 @@ pub fn html_gallery(title: &str, subtitle: &str, pins: &[Pin], files: &HashMap<S
             f.iter()
                 .find(|x| {
                     let l = x.to_lowercase();
-                    l.ends_with(".jpg") || l.ends_with(".jpeg") || l.ends_with(".png") || l.ends_with(".webp") || l.ends_with(".gif")
+                    l.ends_with(".jpg")
+                        || l.ends_with(".jpeg")
+                        || l.ends_with(".png")
+                        || l.ends_with(".webp")
+                        || l.ends_with(".gif")
                 })
                 .cloned()
         });
-        let video_local = files.get(&p.id).and_then(|f| f.iter().find(|x| x.to_lowercase().ends_with(".mp4")).cloned());
+        let video_local = files.get(&p.id).and_then(|f| {
+            f.iter()
+                .find(|x| x.to_lowercase().ends_with(".mp4"))
+                .cloned()
+        });
         let src = local
             .map(|f| rel(root, &f))
             .or_else(|| p.image_large.as_ref().map(|m| m.url.clone()))
@@ -112,20 +169,46 @@ pub fn html_gallery(title: &str, subtitle: &str, pins: &[Pin], files: &HashMap<S
         let sec = p.section.clone().unwrap_or_default();
         let text = format!("{} {} {}", p.title, p.description, p.alt_text).to_lowercase();
         let media = if let Some(v) = video_local {
-            format!(r#"<video src="{}" controls muted loop playsinline poster="{}"></video>"#, esc(&rel(root, &v)), esc(&src))
+            format!(
+                r#"<video src="{}" controls muted loop playsinline poster="{}"></video>"#,
+                esc(&rel(root, &v)),
+                esc(&src)
+            )
         } else {
-            format!(r#"<img src="{}" alt="{}" loading="lazy">"#, esc(&src), esc(&p.title))
+            format!(
+                r#"<img src="{}" alt="{}" loading="lazy">"#,
+                esc(&src),
+                esc(&p.title)
+            )
         };
         let link = p
             .link
             .as_ref()
-            .map(|l| format!(r#" · <a href="{}" target="_blank" rel="noopener">{}</a>"#, esc(l), esc(p.domain.as_deref().unwrap_or("site"))))
+            .map(|l| {
+                format!(
+                    r#" · <a href="{}" target="_blank" rel="noopener">{}</a>"#,
+                    esc(l),
+                    esc(p.domain.as_deref().unwrap_or("site"))
+                )
+            })
             .unwrap_or_default();
         let badges = format!(
             "{}{}{}",
-            if p.kind == "video" { r#"<span class="b">vídeo</span>"# } else { "" },
-            if p.is_promoted { r#"<span class="b warn">anúncio</span>"# } else { "" },
-            if p.ai.labeled || p.ai.keyword_level >= 2 { r#"<span class="b ai">IA</span>"# } else { "" },
+            if p.kind == "video" {
+                r#"<span class="b">vídeo</span>"#
+            } else {
+                ""
+            },
+            if p.is_promoted {
+                r#"<span class="b warn">anúncio</span>"#
+            } else {
+                ""
+            },
+            if p.ai.labeled || p.ai.keyword_level >= 2 {
+                r#"<span class="b ai">IA</span>"#
+            } else {
+                ""
+            },
         );
         items.push_str(&format!(
             r#"<figure data-sec="{sec}" data-text="{text}" data-kind="{kind}">{media}<figcaption><strong>{title}</strong><span class="meta">{saves} saves{link}</span>{badges}<a class="open" href="{url}" target="_blank" rel="noopener">abrir no Pinterest</a></figcaption></figure>
@@ -143,7 +226,13 @@ pub fn html_gallery(title: &str, subtitle: &str, pins: &[Pin], files: &HashMap<S
     }
     let section_buttons: String = sections
         .iter()
-        .map(|s| format!(r#"<button data-sec="{0}">{1}</button>"#, esc(s), if s.is_empty() { "sem seção" } else { s }))
+        .map(|s| {
+            format!(
+                r#"<button data-sec="{0}">{1}</button>"#,
+                esc(s),
+                if s.is_empty() { "sem seção" } else { s }
+            )
+        })
         .collect();
     format!(
         r##"<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title>
@@ -174,7 +263,11 @@ q.addEventListener('input',apply);btns.forEach(b=>b.addEventListener('click',()=
 </script></body></html>"##,
         title = esc(title),
         subtitle = esc(subtitle),
-        secs = if sections.len() > 1 { section_buttons } else { String::new() },
+        secs = if sections.len() > 1 {
+            section_buttons
+        } else {
+            String::new()
+        },
         items = items,
     )
 }
@@ -185,7 +278,11 @@ mod tests {
 
     #[test]
     fn csv_escapes() {
-        let p = Pin { id: "1".into(), title: "a, \"b\"".into(), ..Default::default() };
+        let p = Pin {
+            id: "1".into(),
+            title: "a, \"b\"".into(),
+            ..Default::default()
+        };
         let out = csv(&[p], &HashMap::new());
         assert!(out.lines().nth(1).unwrap().contains("\"a, \"\"b\"\"\""));
         assert!(out.starts_with("id,pin_url,title"));
@@ -193,9 +290,18 @@ mod tests {
 
     #[test]
     fn gallery_has_items_and_sections() {
-        let mut a = Pin { id: "1".into(), title: "One".into(), section: Some("Sala".into()), ..Default::default() };
+        let mut a = Pin {
+            id: "1".into(),
+            title: "One".into(),
+            section: Some("Sala".into()),
+            ..Default::default()
+        };
         a.thumb = Some("https://i.pinimg.com/236x/x.jpg".into());
-        let b = Pin { id: "2".into(), title: "Two".into(), ..Default::default() };
+        let b = Pin {
+            id: "2".into(),
+            title: "Two".into(),
+            ..Default::default()
+        };
         let html = html_gallery("Board", "2 pins", &[a, b], &HashMap::new(), "/tmp/x");
         assert!(html.contains("<figure data-sec=\"Sala\""));
         assert!(html.contains("sem seção"));

@@ -37,7 +37,11 @@ pub fn jpeg_info(data: &[u8]) -> anyhow::Result<JpegInfo> {
             let height = u16::from_be_bytes([data[i + 5], data[i + 6]]) as u32;
             let width = u16::from_be_bytes([data[i + 7], data[i + 8]]) as u32;
             let components = data[i + 9];
-            return Ok(JpegInfo { width, height, components });
+            return Ok(JpegInfo {
+                width,
+                height,
+                components,
+            });
         }
         i += 2 + len;
     }
@@ -69,12 +73,23 @@ pub fn build_pdf(images: &[Vec<u8>]) -> anyhow::Result<Vec<u8>> {
         out.extend_from_slice(body);
     };
 
-    push_obj(&mut out, &mut offsets, b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
-    let kids: Vec<String> = (0..n_pages).map(|i| format!("{} 0 R", obj_page(i))).collect();
     push_obj(
         &mut out,
         &mut offsets,
-        format!("2 0 obj\n<< /Type /Pages /Kids [{}] /Count {} >>\nendobj\n", kids.join(" "), n_pages).as_bytes(),
+        b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+    );
+    let kids: Vec<String> = (0..n_pages)
+        .map(|i| format!("{} 0 R", obj_page(i)))
+        .collect();
+    push_obj(
+        &mut out,
+        &mut offsets,
+        format!(
+            "2 0 obj\n<< /Type /Pages /Kids [{}] /Count {} >>\nendobj\n",
+            kids.join(" "),
+            n_pages
+        )
+        .as_bytes(),
     );
     for (i, img) in images.iter().enumerate() {
         let info = jpeg_info(img)?;
@@ -128,7 +143,12 @@ pub fn build_pdf(images: &[Vec<u8>]) -> anyhow::Result<Vec<u8>> {
         out.extend_from_slice(format!("{:010} 00000 n \n", off).as_bytes());
     }
     out.extend_from_slice(
-        format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{}\n%%EOF\n", total_objs + 1, xref_at).as_bytes(),
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{}\n%%EOF\n",
+            total_objs + 1,
+            xref_at
+        )
+        .as_bytes(),
     );
     Ok(out)
 }
@@ -140,7 +160,9 @@ mod tests {
     /// JPEG 1x1 mínimo (cinza) só com os marcadores que o parser precisa.
     fn tiny_jpeg() -> Vec<u8> {
         let mut v = vec![0xFF, 0xD8];
-        v.extend_from_slice(&[0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x02, 0x00, 0x03, 0x01, 0x01, 0x11, 0x00]);
+        v.extend_from_slice(&[
+            0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x02, 0x00, 0x03, 0x01, 0x01, 0x11, 0x00,
+        ]);
         v.extend_from_slice(&[0xFF, 0xD9]);
         v
     }

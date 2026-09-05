@@ -70,9 +70,27 @@ fn set_phase(p: &str) {
 
 pub fn state() -> DictationState {
     let phase = PHASE.lock().unwrap_or_else(|e| e.into_inner()).clone();
-    let seconds = REC.lock().unwrap_or_else(|e| e.into_inner()).as_ref().map(|r| r.started.elapsed().as_secs()).unwrap_or(0);
-    let (last_text, error) = LAST.lock().unwrap_or_else(|e| e.into_inner()).clone().unwrap_or_default();
-    DictationState { phase: if phase.is_empty() { "idle".into() } else { phase }, seconds, last_text, error }
+    let seconds = REC
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+        .map(|r| r.started.elapsed().as_secs())
+        .unwrap_or(0);
+    let (last_text, error) = LAST
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+        .unwrap_or_default();
+    DictationState {
+        phase: if phase.is_empty() {
+            "idle".into()
+        } else {
+            phase
+        },
+        seconds,
+        last_text,
+        error,
+    }
 }
 
 pub fn set_options(opts: DictationOptions) {
@@ -80,15 +98,31 @@ pub fn set_options(opts: DictationOptions) {
 }
 
 pub fn options() -> DictationOptions {
-    OPTS.lock().unwrap_or_else(|e| e.into_inner()).clone().unwrap_or_else(|| serde_json::from_str("{}").unwrap())
+    OPTS.lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+        .unwrap_or_else(|| serde_json::from_str("{}").unwrap())
 }
 
 /// Dispositivos de entrada de áudio que o FFmpeg enxerga.
 pub async fn devices() -> Vec<AudioDevice> {
-    let Ok(ffmpeg) = crate::core::dependencies::ensure_ffmpeg().await else { return vec![] };
+    let Ok(ffmpeg) = crate::core::dependencies::ensure_ffmpeg().await else {
+        return vec![];
+    };
     let mut out = Vec::new();
     if cfg!(target_os = "macos") {
-        let o = crate::core::process::command(&ffmpeg).args(["-hide_banner", "-f", "avfoundation", "-list_devices", "true", "-i", ""]).output().await;
+        let o = crate::core::process::command(&ffmpeg)
+            .args([
+                "-hide_banner",
+                "-f",
+                "avfoundation",
+                "-list_devices",
+                "true",
+                "-i",
+                "",
+            ])
+            .output()
+            .await;
         if let Ok(o) = o {
             let text = String::from_utf8_lossy(&o.stderr);
             let mut in_audio = false;
@@ -106,7 +140,10 @@ pub async fn devices() -> Vec<AudioDevice> {
                             let idx = &l[i + 1..i + j];
                             let name = l[i + j + 1..].trim();
                             if idx.chars().all(|c| c.is_ascii_digit()) {
-                                out.push(AudioDevice { id: idx.to_string(), name: name.to_string() });
+                                out.push(AudioDevice {
+                                    id: idx.to_string(),
+                                    name: name.to_string(),
+                                });
                             }
                         }
                     }
@@ -114,24 +151,48 @@ pub async fn devices() -> Vec<AudioDevice> {
             }
         }
     } else if cfg!(target_os = "windows") {
-        let o = crate::core::process::command(&ffmpeg).args(["-hide_banner", "-list_devices", "true", "-f", "dshow", "-i", "dummy"]).output().await;
+        let o = crate::core::process::command(&ffmpeg)
+            .args([
+                "-hide_banner",
+                "-list_devices",
+                "true",
+                "-f",
+                "dshow",
+                "-i",
+                "dummy",
+            ])
+            .output()
+            .await;
         if let Ok(o) = o {
             let text = String::from_utf8_lossy(&o.stderr);
             for l in text.lines() {
                 if l.contains("(audio)") {
                     if let Some(name) = l.split('"').nth(1) {
-                        out.push(AudioDevice { id: name.to_string(), name: name.to_string() });
+                        out.push(AudioDevice {
+                            id: name.to_string(),
+                            name: name.to_string(),
+                        });
                     }
                 }
             }
         }
     } else {
-        out.push(AudioDevice { id: "default".into(), name: "PulseAudio / PipeWire (default)".into() });
-        if let Ok(o) = crate::core::process::command("pactl").args(["list", "short", "sources"]).output().await {
+        out.push(AudioDevice {
+            id: "default".into(),
+            name: "PulseAudio / PipeWire (default)".into(),
+        });
+        if let Ok(o) = crate::core::process::command("pactl")
+            .args(["list", "short", "sources"])
+            .output()
+            .await
+        {
             for l in String::from_utf8_lossy(&o.stdout).lines() {
                 let cols: Vec<&str> = l.split('\t').collect();
                 if cols.len() > 1 && !cols[1].ends_with(".monitor") {
-                    out.push(AudioDevice { id: cols[1].to_string(), name: cols[1].to_string() });
+                    out.push(AudioDevice {
+                        id: cols[1].to_string(),
+                        name: cols[1].to_string(),
+                    });
                 }
             }
         }
@@ -142,11 +203,30 @@ pub async fn devices() -> Vec<AudioDevice> {
 fn input_args(device: &str) -> Vec<String> {
     let dev = device.trim();
     if cfg!(target_os = "macos") {
-        vec!["-f".into(), "avfoundation".into(), "-i".into(), format!(":{}", if dev.is_empty() { "0" } else { dev })]
+        vec![
+            "-f".into(),
+            "avfoundation".into(),
+            "-i".into(),
+            format!(":{}", if dev.is_empty() { "0" } else { dev }),
+        ]
     } else if cfg!(target_os = "windows") {
-        vec!["-f".into(), "dshow".into(), "-i".into(), format!("audio={}", if dev.is_empty() { "default" } else { dev })]
+        vec![
+            "-f".into(),
+            "dshow".into(),
+            "-i".into(),
+            format!("audio={}", if dev.is_empty() { "default" } else { dev }),
+        ]
     } else {
-        vec!["-f".into(), "pulse".into(), "-i".into(), if dev.is_empty() { "default".into() } else { dev.to_string() }]
+        vec![
+            "-f".into(),
+            "pulse".into(),
+            "-i".into(),
+            if dev.is_empty() {
+                "default".into()
+            } else {
+                dev.to_string()
+            },
+        ]
     }
 }
 
@@ -163,10 +243,17 @@ pub async fn start(progress: super::ProgressFn) -> anyhow::Result<()> {
     let mut cmd = crate::core::process::command(&ffmpeg);
     cmd.args(["-y", "-hide_banner", "-loglevel", "error"]);
     cmd.args(input_args(&opts.device));
-    cmd.args(["-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le"]).arg(&wav);
-    cmd.stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::piped());
+    cmd.args(["-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le"])
+        .arg(&wav);
+    cmd.stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped());
     let child = cmd.spawn().map_err(|e| anyhow!("ffmpeg: {}", e))?;
-    *REC.lock().unwrap_or_else(|e| e.into_inner()) = Some(Recording { child, wav, started: Instant::now() });
+    *REC.lock().unwrap_or_else(|e| e.into_inner()) = Some(Recording {
+        child,
+        wav,
+        started: Instant::now(),
+    });
     set_phase("recording");
     *LAST.lock().unwrap_or_else(|e| e.into_inner()) = None;
     super::report(&progress, "dictation", "recording", 0, None, None);
@@ -176,7 +263,9 @@ pub async fn start(progress: super::ProgressFn) -> anyhow::Result<()> {
 /// Para a gravação, transcreve e entrega o texto. Devolve o texto.
 pub async fn stop(progress: super::ProgressFn) -> anyhow::Result<String> {
     let rec = REC.lock().unwrap_or_else(|e| e.into_inner()).take();
-    let Some(mut rec) = rec else { return Err(anyhow!("nao esta gravando")) };
+    let Some(mut rec) = rec else {
+        return Err(anyhow!("nao esta gravando"));
+    };
     set_phase("transcribing");
     super::report(&progress, "dictation", "transcribing", 0, None, None);
     let result: anyhow::Result<String> = async {
@@ -189,7 +278,8 @@ pub async fn stop(progress: super::ProgressFn) -> anyhow::Result<String> {
             let _ = stdin.write_all(b"q\n").await;
             let _ = stdin.flush().await;
         }
-        let status = tokio::time::timeout(std::time::Duration::from_secs(8), rec.child.wait()).await;
+        let status =
+            tokio::time::timeout(std::time::Duration::from_secs(8), rec.child.wait()).await;
         if status.is_err() {
             let _ = rec.child.kill().await;
         }
@@ -199,7 +289,10 @@ pub async fn stop(progress: super::ProgressFn) -> anyhow::Result<String> {
                 use tokio::io::AsyncReadExt;
                 let _ = e.read_to_string(&mut err).await;
             }
-            return Err(anyhow!("nada foi gravado (microfone/permissao?) {}", err.trim()));
+            return Err(anyhow!(
+                "nada foi gravado (microfone/permissao?) {}",
+                err.trim()
+            ));
         }
         let opts = options();
         let out_dir = super::temp_dir().join("dictation-out");
@@ -234,12 +327,27 @@ pub async fn stop(progress: super::ProgressFn) -> anyhow::Result<String> {
     match result {
         Ok(text) => {
             *LAST.lock().unwrap_or_else(|e| e.into_inner()) = Some((text.clone(), None));
-            super::report(&progress, "dictation", "done", 1, Some(1), Some(text.clone()));
+            super::report(
+                &progress,
+                "dictation",
+                "done",
+                1,
+                Some(1),
+                Some(text.clone()),
+            );
             Ok(text)
         }
         Err(e) => {
-            *LAST.lock().unwrap_or_else(|e| e.into_inner()) = Some((String::new(), Some(e.to_string())));
-            super::report(&progress, "dictation", "error", 0, None, Some(e.to_string()));
+            *LAST.lock().unwrap_or_else(|e| e.into_inner()) =
+                Some((String::new(), Some(e.to_string())));
+            super::report(
+                &progress,
+                "dictation",
+                "error",
+                0,
+                None,
+                Some(e.to_string()),
+            );
             Err(e)
         }
     }
@@ -252,7 +360,8 @@ pub fn is_recording() -> bool {
 /// Digita o texto onde o cursor estiver.
 pub fn type_text(text: &str) -> anyhow::Result<()> {
     use enigo::{Enigo, Keyboard, Settings};
-    let mut enigo = Enigo::new(&Settings::default()).map_err(|e| anyhow!("teclado: {} (macOS: permissao de Acessibilidade)", e))?;
+    let mut enigo = Enigo::new(&Settings::default())
+        .map_err(|e| anyhow!("teclado: {} (macOS: permissao de Acessibilidade)", e))?;
     // Um instante para o usuário soltar o atalho antes de digitar.
     std::thread::sleep(std::time::Duration::from_millis(150));
     enigo.text(text).map_err(|e| anyhow!("digitar: {}", e))?;
@@ -264,10 +373,20 @@ pub fn press_paste() -> anyhow::Result<()> {
     use enigo::{Direction, Enigo, Key, Keyboard, Settings};
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| anyhow!("teclado: {}", e))?;
     std::thread::sleep(std::time::Duration::from_millis(150));
-    let modifier = if cfg!(target_os = "macos") { Key::Meta } else { Key::Control };
-    enigo.key(modifier, Direction::Press).map_err(|e| anyhow!("{}", e))?;
-    enigo.key(Key::Unicode('v'), Direction::Click).map_err(|e| anyhow!("{}", e))?;
-    enigo.key(modifier, Direction::Release).map_err(|e| anyhow!("{}", e))?;
+    let modifier = if cfg!(target_os = "macos") {
+        Key::Meta
+    } else {
+        Key::Control
+    };
+    enigo
+        .key(modifier, Direction::Press)
+        .map_err(|e| anyhow!("{}", e))?;
+    enigo
+        .key(Key::Unicode('v'), Direction::Click)
+        .map_err(|e| anyhow!("{}", e))?;
+    enigo
+        .key(modifier, Direction::Release)
+        .map_err(|e| anyhow!("{}", e))?;
     Ok(())
 }
 

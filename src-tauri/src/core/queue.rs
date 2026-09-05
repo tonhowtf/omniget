@@ -38,10 +38,10 @@ fn shared_http_client() -> &'static reqwest::Client {
 
 use crate::core::ffmpeg::{self, MetadataEmbed};
 use crate::models::media::MediaInfo;
-use omniget_core::core::ytdlp::CommandRecord;
-use omniget_core::models::progress::StreamInfo;
 use crate::platforms::traits::PlatformDownloader;
 use crate::storage::config;
+use omniget_core::core::ytdlp::CommandRecord;
+use omniget_core::models::progress::StreamInfo;
 
 struct CachedInfo {
     info: MediaInfo,
@@ -541,7 +541,11 @@ impl DownloadQueue {
                     .unwrap_or(true);
                 if changed {
                     if let Some(prev) = item.current_stream.take() {
-                        if !item.streams_done.iter().any(|d| d.format_id == prev.format_id) {
+                        if !item
+                            .streams_done
+                            .iter()
+                            .any(|d| d.format_id == prev.format_id)
+                        {
                             item.streams_done.push(prev);
                         }
                     }
@@ -877,11 +881,16 @@ impl DownloadQueue {
             .iter_mut()
             .find(|i| i.id == id)
             .ok_or_else(|| "Download not found".to_string())?;
-        if !matches!(item.status, QueueStatus::Error { .. } | QueueStatus::Complete { .. }) {
+        if !matches!(
+            item.status,
+            QueueStatus::Error { .. } | QueueStatus::Complete { .. }
+        ) {
             return Err("Download is still running".to_string());
         }
         if omniget_core::core::ytdlp::get_command(id).is_none() {
-            return Err("This download did not run yt-dlp; there is no command to edit".to_string());
+            return Err(
+                "This download did not run yt-dlp; there is no command to edit".to_string(),
+            );
         }
         item.status = QueueStatus::Queued;
         item.cancel_token = CancellationToken::new();

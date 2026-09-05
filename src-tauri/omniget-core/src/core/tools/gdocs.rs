@@ -14,7 +14,10 @@ pub struct GdocInfo {
 }
 
 pub fn parse(url: &str) -> Option<GdocInfo> {
-    let re = regex::Regex::new(r"docs\.google\.com/(document|presentation|spreadsheets)/d/([A-Za-z0-9_-]+)").ok()?;
+    let re = regex::Regex::new(
+        r"docs\.google\.com/(document|presentation|spreadsheets)/d/([A-Za-z0-9_-]+)",
+    )
+    .ok()?;
     let c = re.captures(url)?;
     let kind = c[1].to_string();
     let formats = match kind.as_str() {
@@ -22,11 +25,18 @@ pub fn parse(url: &str) -> Option<GdocInfo> {
         "presentation" => vec!["pdf", "pptx", "odp", "txt"],
         _ => vec!["pdf", "xlsx", "ods", "csv"],
     };
-    Some(GdocInfo { kind, id: c[2].to_string(), formats: formats.into_iter().map(String::from).collect() })
+    Some(GdocInfo {
+        kind,
+        id: c[2].to_string(),
+        formats: formats.into_iter().map(String::from).collect(),
+    })
 }
 
 pub fn export_url(info: &GdocInfo, format: &str) -> String {
-    format!("https://docs.google.com/{}/d/{}/export?format={}", info.kind, info.id, format)
+    format!(
+        "https://docs.google.com/{}/d/{}/export?format={}",
+        info.kind, info.id, format
+    )
 }
 
 fn filename_from_disposition(v: &str) -> Option<String> {
@@ -42,16 +52,29 @@ fn filename_from_disposition(v: &str) -> Option<String> {
     Some(s[..end].trim_matches('"').to_string())
 }
 
-pub async fn download(url: &str, format: &str, dest_dir: &str, progress: super::ProgressFn) -> anyhow::Result<String> {
-    let info = parse(url).ok_or_else(|| anyhow!("cole um link de docs.google.com (Documentos, Apresentações ou Planilhas)"))?;
+pub async fn download(
+    url: &str,
+    format: &str,
+    dest_dir: &str,
+    progress: super::ProgressFn,
+) -> anyhow::Result<String> {
+    let info = parse(url).ok_or_else(|| {
+        anyhow!("cole um link de docs.google.com (Documentos, Apresentações ou Planilhas)")
+    })?;
     if !info.formats.iter().any(|f| f == format) {
-        return Err(anyhow!("formato {} nao disponivel para {}", format, info.kind));
+        return Err(anyhow!(
+            "formato {} nao disponivel para {}",
+            format,
+            info.kind
+        ));
     }
     let client = super::client()?;
     let export = export_url(&info, format);
     let resp = client.get(&export).send().await?;
     if resp.status().as_u16() == 401 || resp.status().as_u16() == 403 {
-        return Err(anyhow!("o arquivo nao e publico; abra no navegador e use Arquivo > Fazer download"));
+        return Err(anyhow!(
+            "o arquivo nao e publico; abra no navegador e use Arquivo > Fazer download"
+        ));
     }
     if !resp.status().is_success() {
         return Err(anyhow!("Google Docs: HTTP {}", resp.status()));
@@ -67,7 +90,14 @@ pub async fn download(url: &str, format: &str, dest_dir: &str, progress: super::
     let dest = dir.join(super::sanitize_name(&name));
     let bytes = resp.bytes().await?;
     tokio::fs::write(&dest, &bytes).await?;
-    super::report(&progress, "gdocs", "done", bytes.len() as u64, Some(bytes.len() as u64), None);
+    super::report(
+        &progress,
+        "gdocs",
+        "done",
+        bytes.len() as u64,
+        Some(bytes.len() as u64),
+        None,
+    );
     Ok(dest.to_string_lossy().to_string())
 }
 
@@ -81,12 +111,21 @@ mod tests {
         assert_eq!(i.kind, "presentation");
         assert_eq!(i.id, "1AbC_d-e");
         assert!(parse("https://drive.google.com/x").is_none());
-        assert_eq!(export_url(&i, "pdf"), "https://docs.google.com/presentation/d/1AbC_d-e/export?format=pdf");
+        assert_eq!(
+            export_url(&i, "pdf"),
+            "https://docs.google.com/presentation/d/1AbC_d-e/export?format=pdf"
+        );
     }
 
     #[test]
     fn disposition() {
-        assert_eq!(filename_from_disposition("attachment; filename=\"a b.pdf\"").as_deref(), Some("a b.pdf"));
-        assert_eq!(filename_from_disposition("attachment; filename*=UTF-8''caf%C3%A9.pdf").as_deref(), Some("café.pdf"));
+        assert_eq!(
+            filename_from_disposition("attachment; filename=\"a b.pdf\"").as_deref(),
+            Some("a b.pdf")
+        );
+        assert_eq!(
+            filename_from_disposition("attachment; filename*=UTF-8''caf%C3%A9.pdf").as_deref(),
+            Some("café.pdf")
+        );
     }
 }

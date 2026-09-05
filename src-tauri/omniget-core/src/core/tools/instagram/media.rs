@@ -75,10 +75,24 @@ fn best_video(v: &Value) -> Option<(String, u64, u64)> {
 fn file_of(v: &Value) -> Option<MediaFile> {
     let image = best_candidate(v, "image_versions2");
     if let Some((url, w, h)) = best_video(v) {
-        return Some(MediaFile { url, kind: "video".into(), width: w, height: h, poster: image.map(|i| i.0), pk: s(v, "pk") });
+        return Some(MediaFile {
+            url,
+            kind: "video".into(),
+            width: w,
+            height: h,
+            poster: image.map(|i| i.0),
+            pk: s(v, "pk"),
+        });
     }
     let (url, w, h) = image?;
-    Some(MediaFile { url, kind: "image".into(), width: w, height: h, poster: None, pk: s(v, "pk") })
+    Some(MediaFile {
+        url,
+        kind: "image".into(),
+        width: w,
+        height: h,
+        poster: None,
+        pk: s(v, "pk"),
+    })
 }
 
 fn tags(text: &str, prefix: char) -> Vec<String> {
@@ -86,7 +100,9 @@ fn tags(text: &str, prefix: char) -> Vec<String> {
     for word in text.split(|c: char| c.is_whitespace() || c == ',' || c == '.' && false) {
         let mut chars = word.chars();
         if chars.next() == Some(prefix) {
-            let tag: String = chars.take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '.').collect();
+            let tag: String = chars
+                .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '.')
+                .collect();
             let tag = tag.trim_end_matches('.').to_lowercase();
             if !tag.is_empty() && !out.contains(&tag) {
                 out.push(tag);
@@ -101,8 +117,16 @@ fn tags(text: &str, prefix: char) -> Vec<String> {
 pub fn parse_item(v: &Value) -> Option<MediaItem> {
     let user = v.get("user").cloned().unwrap_or(Value::Null);
     let username = s(&user, "username");
-    let caption = v.get("caption").and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or("").to_string();
-    let expiring_at = v.get("expiring_at").and_then(|x| x.as_i64()).filter(|x| *x > 0);
+    let caption = v
+        .get("caption")
+        .and_then(|c| c.get("text"))
+        .and_then(|t| t.as_str())
+        .unwrap_or("")
+        .to_string();
+    let expiring_at = v
+        .get("expiring_at")
+        .and_then(|x| x.as_i64())
+        .filter(|x| *x > 0);
     let mut files = Vec::new();
     if let Some(children) = v.get("carousel_media").and_then(|c| c.as_array()) {
         for child in children {
@@ -118,10 +142,18 @@ pub fn parse_item(v: &Value) -> Option<MediaItem> {
     }
     let code = {
         let c = s(v, "code");
-        if c.is_empty() { super::pk_to_shortcode(u(v, "pk")) } else { c }
+        if c.is_empty() {
+            super::pk_to_shortcode(u(v, "pk"))
+        } else {
+            c
+        }
     };
     let pk = s(v, "pk");
-    let product_type = if expiring_at.is_some() || v.get("expiring_at").is_some() { "story".to_string() } else { s(v, "product_type") };
+    let product_type = if expiring_at.is_some() || v.get("expiring_at").is_some() {
+        "story".to_string()
+    } else {
+        s(v, "product_type")
+    };
     let url = if product_type == "story" {
         format!("{}/stories/{}/{}/", super::BASE, username, pk)
     } else if product_type == "clips" {
@@ -129,11 +161,23 @@ pub fn parse_item(v: &Value) -> Option<MediaItem> {
     } else {
         format!("{}/p/{}/", super::BASE, code)
     };
-    let thumbnail = best_candidate(v, "image_versions2").map(|c| c.0).or_else(|| files.first().and_then(|f| f.poster.clone().or(Some(f.url.clone())))).unwrap_or_default();
+    let thumbnail = best_candidate(v, "image_versions2")
+        .map(|c| c.0)
+        .or_else(|| {
+            files
+                .first()
+                .and_then(|f| f.poster.clone().or(Some(f.url.clone())))
+        })
+        .unwrap_or_default();
     let coauthors = v
         .get("coauthor_producers")
         .and_then(|c| c.as_array())
-        .map(|a| a.iter().map(|x| s(x, "username")).filter(|x| !x.is_empty()).collect())
+        .map(|a| {
+            a.iter()
+                .map(|x| s(x, "username"))
+                .filter(|x| !x.is_empty())
+                .collect()
+        })
         .unwrap_or_default();
     Some(MediaItem {
         media_type: u(v, "media_type") as u8,
@@ -142,13 +186,22 @@ pub fn parse_item(v: &Value) -> Option<MediaItem> {
         expiring_at,
         like_count: u(v, "like_count"),
         comment_count: u(v, "comment_count"),
-        play_count: u(v, "play_count").max(u(v, "view_count")).max(u(v, "ig_play_count")),
+        play_count: u(v, "play_count")
+            .max(u(v, "view_count"))
+            .max(u(v, "ig_play_count")),
         owner_id: s(&user, "pk"),
         full_name: s(&user, "full_name"),
         username,
         thumbnail,
-        duration: v.get("video_duration").and_then(|x| x.as_f64()).unwrap_or(0.0),
-        location: v.get("location").and_then(|l| l.get("name")).and_then(|n| n.as_str()).map(|x| x.to_string()),
+        duration: v
+            .get("video_duration")
+            .and_then(|x| x.as_f64())
+            .unwrap_or(0.0),
+        location: v
+            .get("location")
+            .and_then(|l| l.get("name"))
+            .and_then(|n| n.as_str())
+            .map(|x| x.to_string()),
         width: u(v, "original_width"),
         height: u(v, "original_height"),
         hashtags: tags(&caption, '#'),
@@ -166,10 +219,18 @@ pub fn parse_item(v: &Value) -> Option<MediaItem> {
 
 /// `GET /api/v1/media/{pk}/info/` — post, reel, carrossel ou IGTV.
 pub async fn post_info(client: &IgClient, shortcode: &str) -> Result<MediaItem, IgError> {
-    let pk = super::shortcode_to_pk(shortcode).ok_or_else(|| IgError::NotFound(format!("shortcode {}", shortcode)))?;
-    let json = client.get_json(&format!("/api/v1/media/{}/info/", pk), &[]).await?;
-    let item = json.get("items").and_then(|i| i.as_array()).and_then(|a| a.first()).ok_or_else(|| IgError::NotFound(format!("post {}", shortcode)))?;
-    parse_item(item).ok_or_else(|| IgError::Other("o post nao tem midia que eu saiba baixar".into()))
+    let pk = super::shortcode_to_pk(shortcode)
+        .ok_or_else(|| IgError::NotFound(format!("shortcode {}", shortcode)))?;
+    let json = client
+        .get_json(&format!("/api/v1/media/{}/info/", pk), &[])
+        .await?;
+    let item = json
+        .get("items")
+        .and_then(|i| i.as_array())
+        .and_then(|a| a.first())
+        .ok_or_else(|| IgError::NotFound(format!("post {}", shortcode)))?;
+    parse_item(item)
+        .ok_or_else(|| IgError::Other("o post nao tem midia que eu saiba baixar".into()))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -197,7 +258,10 @@ pub struct DownloadResult {
 fn ext_of(url: &str, kind: &str) -> String {
     let path = url.split('?').next().unwrap_or(url);
     let ext = path.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
-    if matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "webp" | "heic" | "mp4" | "mov") {
+    if matches!(
+        ext.as_str(),
+        "jpg" | "jpeg" | "png" | "webp" | "heic" | "mp4" | "mov"
+    ) {
         ext
     } else if kind == "video" {
         "mp4".into()
@@ -207,8 +271,14 @@ fn ext_of(url: &str, kind: &str) -> String {
 }
 
 pub fn base_name(item: &MediaItem) -> String {
-    let date = chrono::DateTime::from_timestamp(item.taken_at, 0).map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_else(|| "sem-data".into());
-    let user = if item.username.is_empty() { "instagram".to_string() } else { item.username.clone() };
+    let date = chrono::DateTime::from_timestamp(item.taken_at, 0)
+        .map(|d| d.format("%Y-%m-%d").to_string())
+        .unwrap_or_else(|| "sem-data".into());
+    let user = if item.username.is_empty() {
+        "instagram".to_string()
+    } else {
+        item.username.clone()
+    };
     super::super::sanitize_name(&format!("{}_{}_{}", user, date, item.code))
 }
 
@@ -216,16 +286,26 @@ async fn extract_audio(video: &Path, format: &str) -> anyhow::Result<PathBuf> {
     let ffmpeg = crate::core::dependencies::ensure_ffmpeg().await?;
     let out = video.with_extension(format);
     let mut cmd = crate::core::process::command(&ffmpeg);
-    cmd.args(["-y", "-hide_banner", "-loglevel", "error", "-i"]).arg(video).arg("-vn");
+    cmd.args(["-y", "-hide_banner", "-loglevel", "error", "-i"])
+        .arg(video)
+        .arg("-vn");
     if format == "mp3" {
         cmd.args(["-c:a", "libmp3lame", "-q:a", "2"]);
     } else {
         cmd.args(["-c:a", "copy"]);
     }
     cmd.arg(&out);
-    let status = cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::piped()).output().await?;
+    let status = cmd
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .await?;
     if !status.status.success() {
-        return Err(anyhow!("ffmpeg: {}", String::from_utf8_lossy(&status.stderr).trim()));
+        return Err(anyhow!(
+            "ffmpeg: {}",
+            String::from_utf8_lossy(&status.stderr).trim()
+        ));
     }
     Ok(out)
 }
@@ -263,12 +343,32 @@ pub async fn download_items(
             if super::cancelled(flag) {
                 break 'outer;
             }
-            let name = if multi { format!("{}_{:02}", base, idx + 1) } else { base.clone() };
+            let name = if multi {
+                format!("{}_{:02}", base, idx + 1)
+            } else {
+                base.clone()
+            };
             let ext = ext_of(&file.url, &file.kind);
             let target = folder.join(format!("{}.{}", name, ext));
             let audio = !opts.audio_only.is_empty() && file.kind == "video";
-            let final_target = if audio { target.with_extension(&opts.audio_only) } else { target.clone() };
-            super::super::report(progress, &id, "download", done, Some(total), Some(final_target.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()));
+            let final_target = if audio {
+                target.with_extension(&opts.audio_only)
+            } else {
+                target.clone()
+            };
+            super::super::report(
+                progress,
+                &id,
+                "download",
+                done,
+                Some(total),
+                Some(
+                    final_target
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_default(),
+                ),
+            );
             if opts.skip_existing && final_target.exists() {
                 skipped += 1;
                 done += 1;
@@ -300,11 +400,19 @@ pub async fn download_items(
             let _ = std::fs::write(folder.join(format!("{}.txt", base)), &item.caption);
         }
         if opts.metadata_json {
-            let _ = std::fs::write(folder.join(format!("{}.json", base)), serde_json::to_string_pretty(item).unwrap_or_default());
+            let _ = std::fs::write(
+                folder.join(format!("{}.json", base)),
+                serde_json::to_string_pretty(item).unwrap_or_default(),
+            );
         }
     }
     super::super::report(progress, &id, "done", done, Some(total), None);
-    Ok(DownloadResult { files, skipped, failed, dest: dest.to_string() })
+    Ok(DownloadResult {
+        files,
+        skipped,
+        failed,
+        dest: dest.to_string(),
+    })
 }
 
 #[cfg(test)]

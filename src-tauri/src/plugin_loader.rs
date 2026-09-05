@@ -436,7 +436,6 @@ fn load_single_plugin(
     })
 }
 
-
 fn load_error_hint(detail: &str) -> Option<&'static str> {
     if !cfg!(windows) {
         return None;

@@ -13,11 +13,16 @@ pub fn client() -> anyhow::Result<reqwest::Client> {
     use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, USER_AGENT};
     let mut headers = HeaderMap::new();
     headers.insert(USER_AGENT, HeaderValue::from_static("OmniGet"));
-    headers.insert(ACCEPT, HeaderValue::from_static("application/vnd.github+json"));
-    Ok(crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
-        .default_headers(headers)
-        .timeout(std::time::Duration::from_secs(600))
-        .build()?)
+    headers.insert(
+        ACCEPT,
+        HeaderValue::from_static("application/vnd.github+json"),
+    );
+    Ok(
+        crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
+            .default_headers(headers)
+            .timeout(std::time::Duration::from_secs(600))
+            .build()?,
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -61,11 +66,17 @@ pub async fn asset(
                 name: name.to_string(),
                 url: a["browser_download_url"].as_str().unwrap_or("").to_string(),
                 size: a["size"].as_u64().unwrap_or(0),
-                digest: a["digest"].as_str().and_then(integrity::parse_github_digest),
+                digest: a["digest"]
+                    .as_str()
+                    .and_then(integrity::parse_github_digest),
             });
         }
     }
-    Err(anyhow!("release {} de {} nao tem um asset para este sistema", tag, repo))
+    Err(anyhow!(
+        "release {} de {} nao tem um asset para este sistema",
+        tag,
+        repo
+    ))
 }
 
 /// Baixa e confere o hash. Sem digest na API o download é aceito só se
@@ -84,9 +95,17 @@ pub async fn download(
     match asset.digest.as_deref() {
         Some(expected) => integrity::verify_sha256(&bytes, expected, &asset.name)?,
         None if allow_unverified => {
-            tracing::warn!("[tools] {} veio sem digest; aceito sem verificacao", asset.name)
+            tracing::warn!(
+                "[tools] {} veio sem digest; aceito sem verificacao",
+                asset.name
+            )
         }
-        None => return Err(anyhow!("{} veio sem digest da API do GitHub; download descartado", asset.name)),
+        None => {
+            return Err(anyhow!(
+                "{} veio sem digest da API do GitHub; download descartado",
+                asset.name
+            ))
+        }
     }
     Ok(bytes)
 }
@@ -98,7 +117,9 @@ pub fn unpack(data: &[u8], name: &str, dest: &Path) -> anyhow::Result<()> {
             .map_err(|e| anyhow!("zip invalido: {}", e))?;
         for i in 0..archive.len() {
             let mut file = archive.by_index(i)?;
-            let Some(rel) = file.enclosed_name() else { continue };
+            let Some(rel) = file.enclosed_name() else {
+                continue;
+            };
             let out = dest.join(rel);
             if file.is_dir() {
                 std::fs::create_dir_all(&out)?;
@@ -115,12 +136,16 @@ pub fn unpack(data: &[u8], name: &str, dest: &Path) -> anyhow::Result<()> {
         let decoder = flate2::read::GzDecoder::new(std::io::Cursor::new(data));
         let mut archive = tar::Archive::new(decoder);
         archive.set_preserve_permissions(true);
-        archive.unpack(dest).map_err(|e| anyhow!("tar.gz invalido: {}", e))
+        archive
+            .unpack(dest)
+            .map_err(|e| anyhow!("tar.gz invalido: {}", e))
     } else if name.ends_with(".tar.xz") {
         let decoder = xz2::read::XzDecoder::new(std::io::Cursor::new(data));
         let mut archive = tar::Archive::new(decoder);
         archive.set_preserve_permissions(true);
-        archive.unpack(dest).map_err(|e| anyhow!("tar.xz invalido: {}", e))
+        archive
+            .unpack(dest)
+            .map_err(|e| anyhow!("tar.xz invalido: {}", e))
     } else {
         Err(anyhow!("formato de pacote desconhecido: {}", name))
     }
@@ -131,7 +156,9 @@ pub fn unpack(data: &[u8], name: &str, dest: &Path) -> anyhow::Result<()> {
 pub fn find_file(root: &Path, file_name: &str) -> Option<PathBuf> {
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        let Ok(rd) = std::fs::read_dir(&dir) else { continue };
+        let Ok(rd) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         for entry in rd.flatten() {
             let p = entry.path();
             if p.is_dir() {
@@ -164,7 +191,10 @@ pub fn swap_dir(staging: &Path, dir: &Path) -> anyhow::Result<()> {
         if old.exists() {
             let _ = std::fs::rename(&old, dir);
         }
-        return Err(anyhow!("nao foi possivel mover a instalacao para o lugar: {}", e));
+        return Err(anyhow!(
+            "nao foi possivel mover a instalacao para o lugar: {}",
+            e
+        ));
     }
     let _ = std::fs::remove_dir_all(&old);
     Ok(())

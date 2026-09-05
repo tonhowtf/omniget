@@ -209,9 +209,19 @@ async fn openai_chat(
         serde_json::from_str(&text).map_err(|e| format!("Bad JSON: {}", e))?;
     // Ledger de custo (Tools → Custos de IA): tokens que o provedor informou.
     let usage = json.get("usage");
-    let input = usage.and_then(|u| u.get("prompt_tokens")).and_then(|v| v.as_u64()).unwrap_or(0);
-    let output = usage.and_then(|u| u.get("completion_tokens")).and_then(|v| v.as_u64()).unwrap_or(0);
-    let provider = if endpoint.starts_with("https://api.openai.com") { "openai" } else { "local" };
+    let input = usage
+        .and_then(|u| u.get("prompt_tokens"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let output = usage
+        .and_then(|u| u.get("completion_tokens"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let provider = if endpoint.starts_with("https://api.openai.com") {
+        "openai"
+    } else {
+        "local"
+    };
     let cost = if provider == "local" { Some(0.0) } else { None };
     crate::core::tools::usage::record("chat", provider, model, input, output, cost);
     json.get("choices")
@@ -258,8 +268,14 @@ async fn anthropic_chat(
     let json: serde_json::Value =
         serde_json::from_str(&text).map_err(|e| format!("Bad JSON: {}", e))?;
     let usage = json.get("usage");
-    let input = usage.and_then(|u| u.get("input_tokens")).and_then(|v| v.as_u64()).unwrap_or(0);
-    let output = usage.and_then(|u| u.get("output_tokens")).and_then(|v| v.as_u64()).unwrap_or(0);
+    let input = usage
+        .and_then(|u| u.get("input_tokens"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let output = usage
+        .and_then(|u| u.get("output_tokens"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
     crate::core::tools::usage::record("chat", "anthropic", model, input, output, None);
     json.get("content")
         .and_then(|c| c.get(0))

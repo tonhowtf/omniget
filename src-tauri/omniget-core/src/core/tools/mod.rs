@@ -14,8 +14,8 @@ pub mod edge_tts;
 pub mod file_search;
 pub mod gallery;
 pub mod gdocs;
-pub mod humanize;
 pub mod github;
+pub mod humanize;
 pub mod image_resize;
 pub mod instagram;
 pub mod jpeg_pdf;
@@ -67,7 +67,14 @@ pub fn noop_progress() -> ProgressFn {
     Arc::new(|_| {})
 }
 
-pub fn report(p: &ProgressFn, id: &str, stage: &str, done: u64, total: Option<u64>, message: Option<String>) {
+pub fn report(
+    p: &ProgressFn,
+    id: &str,
+    stage: &str,
+    done: u64,
+    total: Option<u64>,
+    message: Option<String>,
+) {
     p(ToolProgress {
         id: id.to_string(),
         stage: stage.to_string(),
@@ -98,10 +105,12 @@ pub fn client() -> anyhow::Result<reqwest::Client> {
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
         ),
     );
-    Ok(crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
-        .default_headers(headers)
-        .timeout(std::time::Duration::from_secs(600))
-        .build()?)
+    Ok(
+        crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
+            .default_headers(headers)
+            .timeout(std::time::Duration::from_secs(600))
+            .build()?,
+    )
 }
 
 /// Baixa uma URL para um arquivo, em streaming, reportando bytes.

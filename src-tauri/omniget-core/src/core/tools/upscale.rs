@@ -53,8 +53,16 @@ fn models_of(bin: &Path) -> Vec<String> {
 
 pub fn status() -> UpscaleStatus {
     match locate() {
-        Some(p) => UpscaleStatus { installed: true, models: models_of(&p), path: Some(p.to_string_lossy().to_string()) },
-        None => UpscaleStatus { installed: false, path: None, models: vec![] },
+        Some(p) => UpscaleStatus {
+            installed: true,
+            models: models_of(&p),
+            path: Some(p.to_string_lossy().to_string()),
+        },
+        None => UpscaleStatus {
+            installed: false,
+            path: None,
+            models: vec![],
+        },
     }
 }
 
@@ -88,7 +96,9 @@ pub async fn install(progress: super::ProgressFn) -> anyhow::Result<String> {
     github::make_executable(&exe);
     github::swap_dir(&staging, &dir)?;
     github::strip_quarantine(&dir).await;
-    locate().map(|p| p.to_string_lossy().to_string()).ok_or_else(|| anyhow!("binario sumiu apos instalar"))
+    locate()
+        .map(|p| p.to_string_lossy().to_string())
+        .ok_or_else(|| anyhow!("binario sumiu apos instalar"))
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -123,7 +133,10 @@ pub struct UpscaleResult {
     pub failed: Vec<String>,
 }
 
-pub async fn run(opts: UpscaleOptions, progress: super::ProgressFn) -> anyhow::Result<UpscaleResult> {
+pub async fn run(
+    opts: UpscaleOptions,
+    progress: super::ProgressFn,
+) -> anyhow::Result<UpscaleResult> {
     use tokio::io::{AsyncBufReadExt, BufReader};
     let bin = locate().ok_or_else(|| anyhow!("Real-ESRGAN nao esta instalado"))?;
     let models_dir = bin.parent().map(|p| p.join("models")).unwrap_or_default();
@@ -138,17 +151,34 @@ pub async fn run(opts: UpscaleOptions, progress: super::ProgressFn) -> anyhow::R
             PathBuf::from(opts.output_dir.trim())
         };
         std::fs::create_dir_all(&out_dir)?;
-        let stem = inp.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "imagem".into());
+        let stem = inp
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "imagem".into());
         let out = out_dir.join(format!("{}_{}x.{}", stem, opts.scale, opts.format));
         let id = format!("upscale:{}", input);
         super::report(&progress, &id, "started", i as u64, Some(total), None);
         let mut cmd = crate::core::process::command(&bin);
-        cmd.arg("-i").arg(inp).arg("-o").arg(&out).arg("-m").arg(&models_dir);
-        cmd.args(["-n", &opts.model, "-s", &opts.scale.to_string(), "-f", &opts.format]);
+        cmd.arg("-i")
+            .arg(inp)
+            .arg("-o")
+            .arg(&out)
+            .arg("-m")
+            .arg(&models_dir);
+        cmd.args([
+            "-n",
+            &opts.model,
+            "-s",
+            &opts.scale.to_string(),
+            "-f",
+            &opts.format,
+        ]);
         if opts.tile_size > 0 {
             cmd.args(["-t", &opts.tile_size.to_string()]);
         }
-        cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::piped());
+        cmd.stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped());
         let mut child = cmd.spawn()?;
         let stderr = child.stderr.take();
         let p2 = progress.clone();
@@ -159,7 +189,10 @@ pub async fn run(opts: UpscaleOptions, progress: super::ProgressFn) -> anyhow::R
                 let mut lines = BufReader::new(e).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
                     let l = line.trim().to_string();
-                    if let Some(pct) = l.strip_suffix('%').and_then(|s| s.trim().parse::<f64>().ok()) {
+                    if let Some(pct) = l
+                        .strip_suffix('%')
+                        .and_then(|s| s.trim().parse::<f64>().ok())
+                    {
                         super::report(&p2, &id2, "progress", pct as u64, Some(100), None);
                     } else if !l.is_empty() {
                         tail = l;

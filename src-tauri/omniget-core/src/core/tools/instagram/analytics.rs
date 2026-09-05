@@ -76,7 +76,11 @@ fn top_counts(items: impl Iterator<Item = String>, n: usize) -> Vec<(String, u32
 
 pub fn compute(user: UserInfo, posts: &[MediaItem]) -> ProfileStats {
     let n = posts.len();
-    let mut st = ProfileStats { user, posts_analyzed: n, ..Default::default() };
+    let mut st = ProfileStats {
+        user,
+        posts_analyzed: n,
+        ..Default::default()
+    };
     if n == 0 {
         return st;
     }
@@ -86,7 +90,11 @@ pub fn compute(user: UserInfo, posts: &[MediaItem]) -> ProfileStats {
     let videos: Vec<&MediaItem> = posts.iter().filter(|p| p.play_count > 0).collect();
     st.avg_likes = f(total_likes) / n as f64;
     st.avg_comments = f(total_comments) / n as f64;
-    st.avg_plays = if videos.is_empty() { 0.0 } else { videos.iter().map(|p| f(p.play_count)).sum::<f64>() / videos.len() as f64 };
+    st.avg_plays = if videos.is_empty() {
+        0.0
+    } else {
+        videos.iter().map(|p| f(p.play_count)).sum::<f64>() / videos.len() as f64
+    };
     let mut likes: Vec<u64> = posts.iter().map(|p| p.like_count).collect();
     likes.sort_unstable();
     st.median_likes = likes[n / 2];
@@ -99,11 +107,17 @@ pub fn compute(user: UserInfo, posts: &[MediaItem]) -> ProfileStats {
     if st.user.following_count > 0 {
         st.follow_ratio = f(st.user.follower_count) / f(st.user.following_count);
     }
-    let count = |pred: &dyn Fn(&MediaItem) -> bool| posts.iter().filter(|p| pred(p)).count() as f64 / n as f64 * 100.0;
+    let count = |pred: &dyn Fn(&MediaItem) -> bool| {
+        posts.iter().filter(|p| pred(p)).count() as f64 / n as f64 * 100.0
+    };
     st.share_carousel = count(&|p| p.media_type == 8);
     st.share_video = count(&|p| p.media_type == 2);
     st.share_photo = count(&|p| p.media_type == 1);
-    st.avg_caption_len = posts.iter().map(|p| p.caption.chars().count() as f64).sum::<f64>() / n as f64;
+    st.avg_caption_len = posts
+        .iter()
+        .map(|p| p.caption.chars().count() as f64)
+        .sum::<f64>()
+        / n as f64;
     st.avg_hashtags = posts.iter().map(|p| p.hashtags.len() as f64).sum::<f64>() / n as f64;
     st.top_hashtags = top_counts(posts.iter().flat_map(|p| p.hashtags.iter().cloned()), 15);
     st.top_mentions = top_counts(posts.iter().flat_map(|p| p.mentions.iter().cloned()), 10);
@@ -121,15 +135,31 @@ pub fn compute(user: UserInfo, posts: &[MediaItem]) -> ProfileStats {
     }
     #[allow(clippy::needless_range_loop)]
     for i in 0..7 {
-        st.weekday_engagement[i] = if st.weekday_counts[i] > 0 { eng_sum[i] / st.weekday_counts[i] as f64 } else { 0.0 };
+        st.weekday_engagement[i] = if st.weekday_counts[i] > 0 {
+            eng_sum[i] / st.weekday_counts[i] as f64
+        } else {
+            0.0
+        };
     }
-    st.best_weekday = (0..7).max_by(|a, b| st.weekday_engagement[*a].partial_cmp(&st.weekday_engagement[*b]).unwrap()).unwrap_or(0) as u8;
+    st.best_weekday = (0..7)
+        .max_by(|a, b| {
+            st.weekday_engagement[*a]
+                .partial_cmp(&st.weekday_engagement[*b])
+                .unwrap()
+        })
+        .unwrap_or(0) as u8;
     st.best_hour = (0..24).max_by_key(|h| st.hour_counts[*h]).unwrap_or(0) as u8;
-    let (min_t, max_t) = posts.iter().fold((i64::MAX, 0i64), |(lo, hi), p| (lo.min(p.taken_at), hi.max(p.taken_at)));
+    let (min_t, max_t) = posts.iter().fold((i64::MAX, 0i64), |(lo, hi), p| {
+        (lo.min(p.taken_at), hi.max(p.taken_at))
+    });
     st.first_post_at = min_t;
     st.last_post_at = max_t;
     st.span_days = ((max_t - min_t).max(0) as f64) / 86400.0;
-    st.posts_per_week = if st.span_days >= 1.0 { n as f64 / (st.span_days / 7.0) } else { n as f64 };
+    st.posts_per_week = if st.span_days >= 1.0 {
+        n as f64 / (st.span_days / 7.0)
+    } else {
+        n as f64
+    };
     let mut ranked: Vec<&MediaItem> = posts.iter().collect();
     ranked.sort_by_key(|p| std::cmp::Reverse(p.like_count + p.comment_count));
     st.top_posts = ranked
@@ -163,7 +193,15 @@ pub struct GhostReport {
 }
 
 /// Seguidores que não curtiram nem comentaram nenhum dos últimos N posts.
-pub async fn ghosts(client: &IgClient, followers: Vec<MiniUser>, posts: &[MediaItem], comment_pages: usize, flag: &AtomicBool, progress: &super::super::ProgressFn, job: &str) -> Result<GhostReport, super::IgError> {
+pub async fn ghosts(
+    client: &IgClient,
+    followers: Vec<MiniUser>,
+    posts: &[MediaItem],
+    comment_pages: usize,
+    flag: &AtomicBool,
+    progress: &super::super::ProgressFn,
+    job: &str,
+) -> Result<GhostReport, super::IgError> {
     let id = format!("ig:{}", job);
     let mut engagement: HashMap<String, u32> = HashMap::new();
     let total = posts.len() as u64;
@@ -171,7 +209,14 @@ pub async fn ghosts(client: &IgClient, followers: Vec<MiniUser>, posts: &[MediaI
         if super::cancelled(flag) {
             break;
         }
-        super::super::report(progress, &id, "likers", i as u64, Some(total), Some(post.code.clone()));
+        super::super::report(
+            progress,
+            &id,
+            "likers",
+            i as u64,
+            Some(total),
+            Some(post.code.clone()),
+        );
         if let Ok((_, users)) = super::social::likers(client, &post.pk).await {
             for u in users {
                 *engagement.entry(u.pk).or_default() += 1;
@@ -180,7 +225,9 @@ pub async fn ghosts(client: &IgClient, followers: Vec<MiniUser>, posts: &[MediaI
         client.pause().await;
         if comment_pages > 0 {
             let limit = comment_pages * 20;
-            if let Ok(cs) = super::social::comments(client, &post.pk, limit, flag, progress, job).await {
+            if let Ok(cs) =
+                super::social::comments(client, &post.pk, limit, flag, progress, job).await
+            {
                 for c in cs {
                     *engagement.entry(c.user.pk).or_default() += 1;
                 }
@@ -189,12 +236,25 @@ pub async fn ghosts(client: &IgClient, followers: Vec<MiniUser>, posts: &[MediaI
         }
     }
     let engaged_set: HashSet<&String> = engagement.keys().collect();
-    let ghosts: Vec<MiniUser> = followers.iter().filter(|f| !engaged_set.contains(&f.pk)).cloned().collect();
-    let mut top_fans: Vec<(MiniUser, u32)> = followers.iter().filter_map(|f| engagement.get(&f.pk).map(|n| (f.clone(), *n))).collect();
+    let ghosts: Vec<MiniUser> = followers
+        .iter()
+        .filter(|f| !engaged_set.contains(&f.pk))
+        .cloned()
+        .collect();
+    let mut top_fans: Vec<(MiniUser, u32)> = followers
+        .iter()
+        .filter_map(|f| engagement.get(&f.pk).map(|n| (f.clone(), *n)))
+        .collect();
     top_fans.sort_by_key(|b| std::cmp::Reverse(b.1));
     top_fans.truncate(30);
     super::super::report(progress, &id, "done", total, Some(total), None);
-    Ok(GhostReport { posts_checked: posts.len(), followers_total: followers.len(), engaged: followers.len() - ghosts.len(), ghosts, top_fans })
+    Ok(GhostReport {
+        posts_checked: posts.len(),
+        followers_total: followers.len(),
+        engaged: followers.len() - ghosts.len(),
+        ghosts,
+        top_fans,
+    })
 }
 
 // ── Export oficial ───────────────────────────────────────────────────────
@@ -238,11 +298,21 @@ fn collect_users(v: &Value, out: &mut Vec<ExportUser>) {
                 for e in list {
                     let value = e.get("value").and_then(|x| x.as_str()).unwrap_or("");
                     let href = e.get("href").and_then(|x| x.as_str()).unwrap_or("");
-                    let username = if !value.is_empty() { value } else if !title.is_empty() { title } else { href.trim_end_matches('/').rsplit('/').next().unwrap_or("") };
+                    let username = if !value.is_empty() {
+                        value
+                    } else if !title.is_empty() {
+                        title
+                    } else {
+                        href.trim_end_matches('/').rsplit('/').next().unwrap_or("")
+                    };
                     if username.is_empty() {
                         continue;
                     }
-                    out.push(ExportUser { username: username.to_lowercase(), href: href.to_string(), timestamp: e.get("timestamp").and_then(|x| x.as_i64()).unwrap_or(0) });
+                    out.push(ExportUser {
+                        username: username.to_lowercase(),
+                        href: href.to_string(),
+                        timestamp: e.get("timestamp").and_then(|x| x.as_i64()).unwrap_or(0),
+                    });
                 }
             } else {
                 o.values().for_each(|x| collect_users(x, out));
@@ -256,7 +326,19 @@ fn read_export_files(path: &Path) -> anyhow::Result<Vec<(String, Vec<u8>)>> {
     let mut files = Vec::new();
     let wanted = |name: &str| {
         let n = name.to_lowercase();
-        n.ends_with(".json") && (n.contains("followers_and_following") || n.contains("connections/") || n.starts_with("followers") || n.contains("following") || n.contains("close_friends") || n.contains("pending_follow") || n.contains("blocked") || n.contains("unfollowed") || n.contains("follow_requests") || n.contains("restricted") || n.contains("hide_story") || n.contains("removed_suggestions"))
+        n.ends_with(".json")
+            && (n.contains("followers_and_following")
+                || n.contains("connections/")
+                || n.starts_with("followers")
+                || n.contains("following")
+                || n.contains("close_friends")
+                || n.contains("pending_follow")
+                || n.contains("blocked")
+                || n.contains("unfollowed")
+                || n.contains("follow_requests")
+                || n.contains("restricted")
+                || n.contains("hide_story")
+                || n.contains("removed_suggestions"))
     };
     if path.is_dir() {
         fn walk(dir: &Path, out: &mut Vec<(String, Vec<u8>)>, wanted: &dyn Fn(&str) -> bool) {
@@ -297,10 +379,20 @@ fn read_export_files(path: &Path) -> anyhow::Result<Vec<(String, Vec<u8>)>> {
 
 pub fn analyze_export(path: &str) -> anyhow::Result<ExportReport> {
     let files = read_export_files(Path::new(path))?;
-    let mut rep = ExportReport { source: path.to_string(), ..Default::default() };
+    let mut rep = ExportReport {
+        source: path.to_string(),
+        ..Default::default()
+    };
     for (name, bytes) in &files {
-        let Ok(v) = serde_json::from_slice::<Value>(bytes) else { continue };
-        let base = name.replace('\\', "/").rsplit('/').next().unwrap_or("").to_lowercase();
+        let Ok(v) = serde_json::from_slice::<Value>(bytes) else {
+            continue;
+        };
+        let base = name
+            .replace('\\', "/")
+            .rsplit('/')
+            .next()
+            .unwrap_or("")
+            .to_lowercase();
         let mut users = Vec::new();
         collect_users(&v, &mut users);
         rep.files_found.push(base.clone());
@@ -335,9 +427,23 @@ pub fn analyze_export(path: &str) -> anyhow::Result<ExportReport> {
     }
     let fset: HashSet<&str> = rep.followers.iter().map(|u| u.username.as_str()).collect();
     let gset: HashSet<&str> = rep.following.iter().map(|u| u.username.as_str()).collect();
-    rep.not_following_back = rep.following.iter().filter(|u| !fset.contains(u.username.as_str())).cloned().collect();
-    rep.fans = rep.followers.iter().filter(|u| !gset.contains(u.username.as_str())).cloned().collect();
-    rep.mutuals = rep.following.iter().filter(|u| fset.contains(u.username.as_str())).count();
+    rep.not_following_back = rep
+        .following
+        .iter()
+        .filter(|u| !fset.contains(u.username.as_str()))
+        .cloned()
+        .collect();
+    rep.fans = rep
+        .followers
+        .iter()
+        .filter(|u| !gset.contains(u.username.as_str()))
+        .cloned()
+        .collect();
+    rep.mutuals = rep
+        .following
+        .iter()
+        .filter(|u| fset.contains(u.username.as_str()))
+        .count();
     let mut by_month: HashMap<String, u32> = HashMap::new();
     for u in &rep.followers {
         if let Some(dt) = chrono::DateTime::from_timestamp(u.timestamp, 0) {
@@ -347,8 +453,10 @@ pub fn analyze_export(path: &str) -> anyhow::Result<ExportReport> {
     let mut months: Vec<(String, u32)> = by_month.into_iter().collect();
     months.sort();
     rep.followers_by_month = months;
-    rep.followers.sort_by_key(|u| std::cmp::Reverse(u.timestamp));
-    rep.following.sort_by_key(|u| std::cmp::Reverse(u.timestamp));
+    rep.followers
+        .sort_by_key(|u| std::cmp::Reverse(u.timestamp));
+    rep.following
+        .sort_by_key(|u| std::cmp::Reverse(u.timestamp));
     Ok(rep)
 }
 
@@ -365,17 +473,46 @@ mod tests {
         let mut g = Vec::new();
         collect_users(&following, &mut g);
         assert_eq!(f.len(), 1);
-        assert_eq!(g.iter().map(|u| u.username.as_str()).collect::<Vec<_>>(), vec!["bob", "alice"]);
+        assert_eq!(
+            g.iter().map(|u| u.username.as_str()).collect::<Vec<_>>(),
+            vec!["bob", "alice"]
+        );
     }
 
     #[test]
     fn stats_basics() {
         let mk = |likes: u64, ts: i64, mt: u8| MediaItem {
-            pk: String::new(), code: String::new(), media_type: mt, product_type: String::new(), taken_at: ts, expiring_at: None, caption: "#a #b".into(), like_count: likes, comment_count: 1, play_count: 0,
-            owner_id: String::new(), username: String::new(), full_name: String::new(), thumbnail: String::new(), files: vec![], duration: 0.0, location: None, url: String::new(), width: 0, height: 0,
-            hashtags: vec!["a".into(), "b".into()], mentions: vec![], is_paid_partnership: false, coauthors: vec![], title: None,
+            pk: String::new(),
+            code: String::new(),
+            media_type: mt,
+            product_type: String::new(),
+            taken_at: ts,
+            expiring_at: None,
+            caption: "#a #b".into(),
+            like_count: likes,
+            comment_count: 1,
+            play_count: 0,
+            owner_id: String::new(),
+            username: String::new(),
+            full_name: String::new(),
+            thumbnail: String::new(),
+            files: vec![],
+            duration: 0.0,
+            location: None,
+            url: String::new(),
+            width: 0,
+            height: 0,
+            hashtags: vec!["a".into(), "b".into()],
+            mentions: vec![],
+            is_paid_partnership: false,
+            coauthors: vec![],
+            title: None,
         };
-        let user = UserInfo { follower_count: 1000, following_count: 100, ..Default::default() };
+        let user = UserInfo {
+            follower_count: 1000,
+            following_count: 100,
+            ..Default::default()
+        };
         let st = compute(user, &[mk(100, 0, 1), mk(200, 7 * 86400, 8)]);
         assert_eq!(st.avg_likes, 150.0);
         assert!((st.engagement_rate - 15.1).abs() < 0.01);

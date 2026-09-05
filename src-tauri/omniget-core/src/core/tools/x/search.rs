@@ -23,7 +23,11 @@ pub async fn search(query: &str, feed: &str, cursor: Option<&str>) -> anyhow::Re
     }
     let feed = if feed == "top" { "top" } else { "latest" };
     match super::fx::search(q, feed, cursor).await {
-        Ok(page) => Ok(SearchPage { posts: page.items, cursor: page.cursor, source: "fxtwitter".into() }),
+        Ok(page) => Ok(SearchPage {
+            posts: page.items,
+            cursor: page.cursor,
+            source: "fxtwitter".into(),
+        }),
         Err(fx_err) => {
             let client = super::client::XClient::new()?;
             if !client.authed() {
@@ -39,8 +43,19 @@ pub async fn search(query: &str, feed: &str, cursor: Option<&str>) -> anyhow::Re
             if let Some(c) = cursor {
                 vars["cursor"] = json!(c);
             }
-            let v = client.gql_get("SearchTimeline", vars, json!({}), Some(json!({"withArticleRichContentState": false}))).await?;
-            Ok(SearchPage { posts: super::parse::tweets_from(&v), cursor: super::parse::bottom_cursor(&v), source: "graphql".into() })
+            let v = client
+                .gql_get(
+                    "SearchTimeline",
+                    vars,
+                    json!({}),
+                    Some(json!({"withArticleRichContentState": false})),
+                )
+                .await?;
+            Ok(SearchPage {
+                posts: super::parse::tweets_from(&v),
+                cursor: super::parse::bottom_cursor(&v),
+                source: "graphql".into(),
+            })
         }
     }
 }

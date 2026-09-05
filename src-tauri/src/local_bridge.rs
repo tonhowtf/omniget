@@ -529,7 +529,11 @@ pub fn build_pairing_url(port: u16) -> String {
 
 /// `POST /mcp`: JSON-RPC do MCP. Mesmo bearer da extensão; 403 quando a
 /// tool "Servidor MCP" está desligada; 202 sem corpo para notificações.
-async fn mcp_post(State(state): State<BridgeState>, headers: HeaderMap, body: axum::body::Bytes) -> Response {
+async fn mcp_post(
+    State(state): State<BridgeState>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Response {
     if !check_bearer(&headers, &state.token) {
         return unauthorized();
     }

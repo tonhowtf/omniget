@@ -200,7 +200,8 @@ pub fn toggle() -> anyhow::Result<bool> {
         stop();
         return Ok(false);
     }
-    let opts = last_options().ok_or_else(|| anyhow!("configure e inicie uma vez pela tela antes de usar o atalho"))?;
+    let opts = last_options()
+        .ok_or_else(|| anyhow!("configure e inicie uma vez pela tela antes de usar o atalho"))?;
     start(opts)?;
     Ok(true)
 }
@@ -219,7 +220,11 @@ mod tests {
         let t = Instant::now();
         sleep_until(t + Duration::from_millis(5));
         let e = t.elapsed();
-        assert!(e >= Duration::from_millis(5) && e < Duration::from_millis(25), "{:?}", e);
+        assert!(
+            e >= Duration::from_millis(5) && e < Duration::from_millis(25),
+            "{:?}",
+            e
+        );
     }
 
     #[test]

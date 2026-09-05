@@ -75,7 +75,10 @@ fn png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
     if bytes.len() < 24 || &bytes[..8] != b"\x89PNG\r\n\x1a\n" {
         return None;
     }
-    Some((u32::from_be_bytes(bytes[16..20].try_into().ok()?), u32::from_be_bytes(bytes[20..24].try_into().ok()?)))
+    Some((
+        u32::from_be_bytes(bytes[16..20].try_into().ok()?),
+        u32::from_be_bytes(bytes[20..24].try_into().ok()?),
+    ))
 }
 
 /// Garante JPEG (o upload web só aceita JPEG); converte PNG/WebP/HEIC pelo ffmpeg.
@@ -97,29 +100,53 @@ async fn as_jpeg(path: &Path) -> anyhow::Result<(Vec<u8>, u32, u32)> {
         .output()
         .await?;
     if !status.status.success() {
-        return Err(anyhow!("ffmpeg: {}", String::from_utf8_lossy(&status.stderr).trim()));
+        return Err(anyhow!(
+            "ffmpeg: {}",
+            String::from_utf8_lossy(&status.stderr).trim()
+        ));
     }
     let bytes = tokio::fs::read(&out).await?;
     let _ = tokio::fs::remove_file(&out).await;
-    let (w, h) = jpeg_dimensions(&bytes).or_else(|| png_dimensions(&bytes)).unwrap_or((1080, 1080));
+    let (w, h) = jpeg_dimensions(&bytes)
+        .or_else(|| png_dimensions(&bytes))
+        .unwrap_or((1080, 1080));
     Ok((bytes, w, h))
 }
 
-async fn rupload_photo(client: &IgClient, bytes: Vec<u8>, w: u32, h: u32, uid: &str, params_extra: &[(&str, Value)]) -> Result<(), IgError> {
+async fn rupload_photo(
+    client: &IgClient,
+    bytes: Vec<u8>,
+    w: u32,
+    h: u32,
+    uid: &str,
+    params_extra: &[(&str, Value)],
+) -> Result<(), IgError> {
     let name = format!("fb_uploader_{}", uid);
     let mut params = serde_json::json!({"media_type": 1, "upload_id": uid, "upload_media_height": h, "upload_media_width": w});
     for (k, v) in params_extra {
         params[k] = v.clone();
     }
     let mut h = HeaderMap::new();
-    h.insert("X-Instagram-Rupload-Params", HeaderValue::from_str(&params.to_string()).map_err(|e| IgError::Other(e.to_string()))?);
+    h.insert(
+        "X-Instagram-Rupload-Params",
+        HeaderValue::from_str(&params.to_string()).map_err(|e| IgError::Other(e.to_string()))?,
+    );
     h.insert("X-Entity-Name", HeaderValue::from_str(&name).unwrap());
-    h.insert("X-Entity-Length", HeaderValue::from_str(&bytes.len().to_string()).unwrap());
+    h.insert(
+        "X-Entity-Length",
+        HeaderValue::from_str(&bytes.len().to_string()).unwrap(),
+    );
     h.insert("X-Entity-Type", HeaderValue::from_static("image/jpeg"));
     h.insert("Offset", HeaderValue::from_static("0"));
     h.insert("Content-Type", HeaderValue::from_static("image/jpeg"));
     h.insert("X-Instagram-AJAX", HeaderValue::from_static("1"));
-    let json = client.post_raw(&format!("{}/rupload_igphoto/{}", super::BASE, name), h, bytes).await?;
+    let json = client
+        .post_raw(
+            &format!("{}/rupload_igphoto/{}", super::BASE, name),
+            h,
+            bytes,
+        )
+        .await?;
     if s(&json, "status") != "ok" {
         return Err(IgError::Other(format!("upload da foto: {}", json)));
     }
@@ -127,7 +154,16 @@ async fn rupload_photo(client: &IgClient, bytes: Vec<u8>, w: u32, h: u32, uid: &
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn rupload_video(client: &IgClient, bytes: Vec<u8>, w: u32, h: u32, duration_ms: u64, uid: &str, reel: bool, story: bool) -> Result<(), IgError> {
+async fn rupload_video(
+    client: &IgClient,
+    bytes: Vec<u8>,
+    w: u32,
+    h: u32,
+    duration_ms: u64,
+    uid: &str,
+    reel: bool,
+    story: bool,
+) -> Result<(), IgError> {
     let name = format!("fb_uploader_{}", uid);
     let mut params = serde_json::json!({
         "media_type": 2, "upload_id": uid, "upload_media_height": h, "upload_media_width": w,
@@ -142,14 +178,26 @@ async fn rupload_video(client: &IgClient, bytes: Vec<u8>, w: u32, h: u32, durati
         params["for_album"] = Value::String("0".into());
     }
     let mut hd = HeaderMap::new();
-    hd.insert("X-Instagram-Rupload-Params", HeaderValue::from_str(&params.to_string()).map_err(|e| IgError::Other(e.to_string()))?);
+    hd.insert(
+        "X-Instagram-Rupload-Params",
+        HeaderValue::from_str(&params.to_string()).map_err(|e| IgError::Other(e.to_string()))?,
+    );
     hd.insert("X-Entity-Name", HeaderValue::from_str(&name).unwrap());
-    hd.insert("X-Entity-Length", HeaderValue::from_str(&bytes.len().to_string()).unwrap());
+    hd.insert(
+        "X-Entity-Length",
+        HeaderValue::from_str(&bytes.len().to_string()).unwrap(),
+    );
     hd.insert("X-Entity-Type", HeaderValue::from_static("video/mp4"));
     hd.insert("Offset", HeaderValue::from_static("0"));
     hd.insert("Content-Type", HeaderValue::from_static("video/mp4"));
     hd.insert("X-Instagram-AJAX", HeaderValue::from_static("1"));
-    let json = client.post_raw(&format!("{}/rupload_igvideo/{}", super::BASE, name), hd, bytes).await?;
+    let json = client
+        .post_raw(
+            &format!("{}/rupload_igvideo/{}", super::BASE, name),
+            hd,
+            bytes,
+        )
+        .await?;
     if s(&json, "status") != "ok" {
         return Err(IgError::Other(format!("upload do video: {}", json)));
     }
@@ -158,9 +206,21 @@ async fn rupload_video(client: &IgClient, bytes: Vec<u8>, w: u32, h: u32, durati
 
 async fn probe_video(path: &Path) -> anyhow::Result<(u32, u32, u64)> {
     let info = crate::core::ffmpeg::probe(path).await?;
-    let stream = info.streams.iter().find(|s| s.codec_type == "video").ok_or_else(|| anyhow!("o arquivo nao tem faixa de video"))?;
-    let duration = if info.duration_seconds > 0.0 { info.duration_seconds } else { stream.duration_seconds.unwrap_or(0.0) };
-    Ok((stream.width.unwrap_or(1080), stream.height.unwrap_or(1920), (duration * 1000.0) as u64))
+    let stream = info
+        .streams
+        .iter()
+        .find(|s| s.codec_type == "video")
+        .ok_or_else(|| anyhow!("o arquivo nao tem faixa de video"))?;
+    let duration = if info.duration_seconds > 0.0 {
+        info.duration_seconds
+    } else {
+        stream.duration_seconds.unwrap_or(0.0)
+    };
+    Ok((
+        stream.width.unwrap_or(1080),
+        stream.height.unwrap_or(1920),
+        (duration * 1000.0) as u64,
+    ))
 }
 
 /// Extrai um frame como capa do vídeo.
@@ -168,7 +228,15 @@ async fn cover_frame(path: &Path) -> anyhow::Result<(Vec<u8>, u32, u32)> {
     let ffmpeg = crate::core::dependencies::ensure_ffmpeg().await?;
     let out = super::super::temp_dir().join(format!("ig-cover-{}.jpg", upload_id()));
     let status = crate::core::process::command(&ffmpeg)
-        .args(["-y", "-hide_banner", "-loglevel", "error", "-ss", "0.5", "-i"])
+        .args([
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-ss",
+            "0.5",
+            "-i",
+        ])
         .arg(path)
         .args(["-frames:v", "1", "-q:v", "2", "-pix_fmt", "yuvj420p"])
         .arg(&out)
@@ -178,7 +246,10 @@ async fn cover_frame(path: &Path) -> anyhow::Result<(Vec<u8>, u32, u32)> {
         .output()
         .await?;
     if !status.status.success() {
-        return Err(anyhow!("ffmpeg: {}", String::from_utf8_lossy(&status.stderr).trim()));
+        return Err(anyhow!(
+            "ffmpeg: {}",
+            String::from_utf8_lossy(&status.stderr).trim()
+        ));
     }
     let bytes = tokio::fs::read(&out).await?;
     let _ = tokio::fs::remove_file(&out).await;
@@ -189,7 +260,15 @@ async fn cover_frame(path: &Path) -> anyhow::Result<(Vec<u8>, u32, u32)> {
 fn result_of(json: &Value) -> PublishResult {
     let media = json.get("media").cloned().unwrap_or(Value::Null);
     let code = s(&media, "code");
-    PublishResult { media_id: s(&media, "pk"), url: if code.is_empty() { String::new() } else { format!("{}/p/{}/", super::BASE, code) }, code }
+    PublishResult {
+        media_id: s(&media, "pk"),
+        url: if code.is_empty() {
+            String::new()
+        } else {
+            format!("{}/p/{}/", super::BASE, code)
+        },
+        code,
+    }
 }
 
 fn common_form(req: &PublishRequest, uid: &str) -> Vec<(&'static str, String)> {
@@ -197,8 +276,14 @@ fn common_form(req: &PublishRequest, uid: &str) -> Vec<(&'static str, String)> {
         ("upload_id", uid.to_string()),
         ("caption", req.caption.clone()),
         ("source_type", "library".into()),
-        ("disable_comments", if req.disable_comments { "1" } else { "0" }.into()),
-        ("like_and_view_counts_disabled", if req.hide_like_counts { "1" } else { "0" }.into()),
+        (
+            "disable_comments",
+            if req.disable_comments { "1" } else { "0" }.into(),
+        ),
+        (
+            "like_and_view_counts_disabled",
+            if req.hide_like_counts { "1" } else { "0" }.into(),
+        ),
         ("custom_accessibility_caption", req.alt_text.clone()),
         ("usertags", "".into()),
         ("archive_only", "false".into()),
@@ -207,44 +292,97 @@ fn common_form(req: &PublishRequest, uid: &str) -> Vec<(&'static str, String)> {
 }
 
 /// Publica pela sessão web.
-pub async fn publish_web(client: &IgClient, req: &PublishRequest, progress: &super::super::ProgressFn, job: &str) -> anyhow::Result<PublishResult> {
+pub async fn publish_web(
+    client: &IgClient,
+    req: &PublishRequest,
+    progress: &super::super::ProgressFn,
+    job: &str,
+) -> anyhow::Result<PublishResult> {
     let id = format!("ig:{}", job);
     if req.files.is_empty() {
         return Err(anyhow!("escolha pelo menos um arquivo"));
     }
-    let report = |stage: &str, done: u64, total: u64| super::super::report(progress, &id, stage, done, Some(total), None);
+    let report = |stage: &str, done: u64, total: u64| {
+        super::super::report(progress, &id, stage, done, Some(total), None)
+    };
     let m = |e: IgError| anyhow!(e.to_string());
     match req.kind.as_str() {
         "photo" => {
             report("upload", 0, 2);
             let uid = upload_id();
             let (bytes, w, h) = as_jpeg(Path::new(&req.files[0])).await?;
-            rupload_photo(client, bytes, w, h, &uid, &[]).await.map_err(m)?;
+            rupload_photo(client, bytes, w, h, &uid, &[])
+                .await
+                .map_err(m)?;
             report("configure", 1, 2);
-            let json = client.post_form("/api/v1/media/configure/", &common_form(req, &uid)).await.map_err(m)?;
+            let json = client
+                .post_form("/api/v1/media/configure/", &common_form(req, &uid))
+                .await
+                .map_err(m)?;
             report("done", 2, 2);
             Ok(result_of(&json))
         }
         "story" => {
             let path = Path::new(&req.files[0]);
             let uid = upload_id();
-            let is_video = matches!(path.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()).as_deref(), Some("mp4" | "mov" | "m4v" | "webm"));
+            let is_video = matches!(
+                path.extension()
+                    .and_then(|e| e.to_str())
+                    .map(|e| e.to_lowercase())
+                    .as_deref(),
+                Some("mp4" | "mov" | "m4v" | "webm")
+            );
             report("upload", 0, 2);
             if is_video {
                 let (w, h, dur) = probe_video(path).await?;
                 let bytes = tokio::fs::read(path).await?;
-                rupload_video(client, bytes, w, h, dur, &uid, false, true).await.map_err(m)?;
+                rupload_video(client, bytes, w, h, dur, &uid, false, true)
+                    .await
+                    .map_err(m)?;
                 let (cover, cw, ch) = cover_frame(path).await?;
-                rupload_photo(client, cover, cw, ch, &uid, &[("media_type", Value::from(2))]).await.map_err(m)?;
+                rupload_photo(
+                    client,
+                    cover,
+                    cw,
+                    ch,
+                    &uid,
+                    &[("media_type", Value::from(2))],
+                )
+                .await
+                .map_err(m)?;
                 report("configure", 1, 2);
-                let json = client.post_form("/api/v1/media/configure_to_story/?video=1", &[("upload_id", uid.clone()), ("source_type", "library".into()), ("configure_mode", "1".into()), ("video_result", "".into()), ("length", (dur as f64 / 1000.0).to_string())]).await.map_err(m)?;
+                let json = client
+                    .post_form(
+                        "/api/v1/media/configure_to_story/?video=1",
+                        &[
+                            ("upload_id", uid.clone()),
+                            ("source_type", "library".into()),
+                            ("configure_mode", "1".into()),
+                            ("video_result", "".into()),
+                            ("length", (dur as f64 / 1000.0).to_string()),
+                        ],
+                    )
+                    .await
+                    .map_err(m)?;
                 report("done", 2, 2);
                 Ok(result_of(&json))
             } else {
                 let (bytes, w, h) = as_jpeg(path).await?;
-                rupload_photo(client, bytes, w, h, &uid, &[]).await.map_err(m)?;
+                rupload_photo(client, bytes, w, h, &uid, &[])
+                    .await
+                    .map_err(m)?;
                 report("configure", 1, 2);
-                let json = client.post_form("/api/v1/media/configure_to_story/", &[("upload_id", uid.clone()), ("source_type", "library".into()), ("configure_mode", "1".into())]).await.map_err(m)?;
+                let json = client
+                    .post_form(
+                        "/api/v1/media/configure_to_story/",
+                        &[
+                            ("upload_id", uid.clone()),
+                            ("source_type", "library".into()),
+                            ("configure_mode", "1".into()),
+                        ],
+                    )
+                    .await
+                    .map_err(m)?;
                 report("done", 2, 2);
                 Ok(result_of(&json))
             }
@@ -255,26 +393,60 @@ pub async fn publish_web(client: &IgClient, req: &PublishRequest, progress: &sup
             report("upload", 0, 3);
             let (w, h, dur) = probe_video(path).await?;
             let bytes = tokio::fs::read(path).await?;
-            rupload_video(client, bytes, w, h, dur, &uid, true, false).await.map_err(m)?;
+            rupload_video(client, bytes, w, h, dur, &uid, true, false)
+                .await
+                .map_err(m)?;
             report("cover", 1, 3);
             let (cover, cw, ch) = cover_frame(path).await?;
-            rupload_photo(client, cover, cw, ch, &uid, &[("media_type", Value::from(2))]).await.map_err(m)?;
+            rupload_photo(
+                client,
+                cover,
+                cw,
+                ch,
+                &uid,
+                &[("media_type", Value::from(2))],
+            )
+            .await
+            .map_err(m)?;
             report("configure", 2, 3);
             let mut form = common_form(req, &uid);
             form.push(("video_format", "video/mp4".into()));
             form.push(("length", (dur as f64 / 1000.0).to_string()));
-            form.push(("clips_share_to_feed", if req.share_to_feed || req.kind == "video" { "1" } else { "0" }.into()));
-            form.push(("share_to_feed", if req.share_to_feed || req.kind == "video" { "1" } else { "0" }.into()));
+            form.push((
+                "clips_share_to_feed",
+                if req.share_to_feed || req.kind == "video" {
+                    "1"
+                } else {
+                    "0"
+                }
+                .into(),
+            ));
+            form.push((
+                "share_to_feed",
+                if req.share_to_feed || req.kind == "video" {
+                    "1"
+                } else {
+                    "0"
+                }
+                .into(),
+            ));
             // O Instagram pode ainda estar transcodificando: tenta algumas vezes.
             let mut last = None;
             for attempt in 0..6 {
-                match client.post_form("/api/v1/media/configure_to_clips/?video=1", &form).await {
+                match client
+                    .post_form("/api/v1/media/configure_to_clips/?video=1", &form)
+                    .await
+                {
                     Ok(json) if s(&json, "status") == "ok" => {
                         report("done", 3, 3);
                         return Ok(result_of(&json));
                     }
                     Ok(json) => last = Some(anyhow!("configure: {}", json)),
-                    Err(IgError::Other(e)) if e.contains("Transcode") || e.contains("not ready") || e.contains("202") => {
+                    Err(IgError::Other(e))
+                        if e.contains("Transcode")
+                            || e.contains("not ready")
+                            || e.contains("202") =>
+                    {
                         last = Some(anyhow!(e));
                     }
                     Err(e) => return Err(m(e)),
@@ -294,17 +466,46 @@ pub async fn publish_web(client: &IgClient, req: &PublishRequest, progress: &sup
                 report("upload", i as u64, total);
                 let path = Path::new(f);
                 let uid = format!("{}{}", upload_id(), i);
-                let is_video = matches!(path.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()).as_deref(), Some("mp4" | "mov" | "m4v" | "webm"));
+                let is_video = matches!(
+                    path.extension()
+                        .and_then(|e| e.to_str())
+                        .map(|e| e.to_lowercase())
+                        .as_deref(),
+                    Some("mp4" | "mov" | "m4v" | "webm")
+                );
                 if is_video {
                     let (w, h, dur) = probe_video(path).await?;
                     let bytes = tokio::fs::read(path).await?;
-                    rupload_video(client, bytes, w, h, dur, &uid, false, false).await.map_err(m)?;
+                    rupload_video(client, bytes, w, h, dur, &uid, false, false)
+                        .await
+                        .map_err(m)?;
                     let (cover, cw, ch) = cover_frame(path).await?;
-                    rupload_photo(client, cover, cw, ch, &uid, &[("media_type", Value::from(2)), ("is_sidecar", Value::from("1"))]).await.map_err(m)?;
+                    rupload_photo(
+                        client,
+                        cover,
+                        cw,
+                        ch,
+                        &uid,
+                        &[
+                            ("media_type", Value::from(2)),
+                            ("is_sidecar", Value::from("1")),
+                        ],
+                    )
+                    .await
+                    .map_err(m)?;
                     children.push(serde_json::json!({"upload_id": uid, "source_type": "library", "video_result": "", "length": dur as f64 / 1000.0}));
                 } else {
                     let (bytes, w, h) = as_jpeg(path).await?;
-                    rupload_photo(client, bytes, w, h, &uid, &[("is_sidecar", Value::from("1"))]).await.map_err(m)?;
+                    rupload_photo(
+                        client,
+                        bytes,
+                        w,
+                        h,
+                        &uid,
+                        &[("is_sidecar", Value::from("1"))],
+                    )
+                    .await
+                    .map_err(m)?;
                     children.push(serde_json::json!({"upload_id": uid, "source_type": "library"}));
                 }
                 super::sleep_jitter(500, 1500).await;
@@ -312,8 +513,14 @@ pub async fn publish_web(client: &IgClient, req: &PublishRequest, progress: &sup
             report("configure", total - 1, total);
             let mut form = common_form(req, &sidecar_id);
             form.push(("client_sidecar_id", sidecar_id.clone()));
-            form.push(("children_metadata", serde_json::to_string(&children).unwrap_or_default()));
-            let json = client.post_form("/api/v1/media/configure_sidecar/", &form).await.map_err(m)?;
+            form.push((
+                "children_metadata",
+                serde_json::to_string(&children).unwrap_or_default(),
+            ));
+            let json = client
+                .post_form("/api/v1/media/configure_sidecar/", &form)
+                .await
+                .map_err(m)?;
             report("done", total, total);
             Ok(result_of(&json))
         }
@@ -331,11 +538,20 @@ pub struct GraphAuth {
 
 const GRAPH: &str = "https://graph.facebook.com/v21.0";
 
-async fn graph_post(http: &reqwest::Client, url: &str, form: &[(&str, String)]) -> anyhow::Result<Value> {
+async fn graph_post(
+    http: &reqwest::Client,
+    url: &str,
+    form: &[(&str, String)],
+) -> anyhow::Result<Value> {
     let resp = http.post(url).form(form).send().await?;
     let json: Value = resp.json().await?;
     if let Some(err) = json.get("error") {
-        return Err(anyhow!("Graph API: {}", err.get("message").and_then(|m| m.as_str()).unwrap_or("erro")));
+        return Err(anyhow!(
+            "Graph API: {}",
+            err.get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("erro")
+        ));
     }
     Ok(json)
 }
@@ -343,14 +559,26 @@ async fn graph_post(http: &reqwest::Client, url: &str, form: &[(&str, String)]) 
 async fn graph_get(http: &reqwest::Client, url: &str) -> anyhow::Result<Value> {
     let json: Value = http.get(url).send().await?.json().await?;
     if let Some(err) = json.get("error") {
-        return Err(anyhow!("Graph API: {}", err.get("message").and_then(|m| m.as_str()).unwrap_or("erro")));
+        return Err(anyhow!(
+            "Graph API: {}",
+            err.get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("erro")
+        ));
     }
     Ok(json)
 }
 
 async fn wait_container(http: &reqwest::Client, id: &str, token: &str) -> anyhow::Result<()> {
     for _ in 0..40 {
-        let st = graph_get(http, &format!("{}/{}?fields=status_code,status&access_token={}", GRAPH, id, token)).await?;
+        let st = graph_get(
+            http,
+            &format!(
+                "{}/{}?fields=status_code,status&access_token={}",
+                GRAPH, id, token
+            ),
+        )
+        .await?;
         match s(&st, "status_code").as_str() {
             "FINISHED" => return Ok(()),
             "ERROR" | "EXPIRED" => return Err(anyhow!("o container falhou: {}", s(&st, "status"))),
@@ -361,7 +589,12 @@ async fn wait_container(http: &reqwest::Client, id: &str, token: &str) -> anyhow
 }
 
 /// Publica pela API oficial. `req.files` são URLs públicas.
-pub async fn publish_graph(auth: &GraphAuth, req: &PublishRequest, progress: &super::super::ProgressFn, job: &str) -> anyhow::Result<PublishResult> {
+pub async fn publish_graph(
+    auth: &GraphAuth,
+    req: &PublishRequest,
+    progress: &super::super::ProgressFn,
+    job: &str,
+) -> anyhow::Result<PublishResult> {
     let id = format!("ig:{}", job);
     let http = super::super::client()?;
     let token = auth.access_token.trim().to_string();
@@ -370,17 +603,29 @@ pub async fn publish_graph(auth: &GraphAuth, req: &PublishRequest, progress: &su
         return Err(anyhow!("informe o token e o ID da conta do Instagram"));
     }
     if req.files.is_empty() || !req.files.iter().all(|f| f.starts_with("http")) {
-        return Err(anyhow!("a API oficial so aceita URLs publicas (https://…) para os arquivos"));
+        return Err(anyhow!(
+            "a API oficial so aceita URLs publicas (https://…) para os arquivos"
+        ));
     }
     let media_url = format!("{}/{}/media", GRAPH, user);
-    let is_video = |f: &str| f.split('?').next().unwrap_or(f).to_lowercase().ends_with(".mp4") || f.to_lowercase().ends_with(".mov");
+    let is_video = |f: &str| {
+        f.split('?')
+            .next()
+            .unwrap_or(f)
+            .to_lowercase()
+            .ends_with(".mp4")
+            || f.to_lowercase().ends_with(".mov")
+    };
     let creation_id = match req.kind.as_str() {
         "carousel" => {
             let total = req.files.len() as u64 + 2;
             let mut children = Vec::new();
             for (i, f) in req.files.iter().enumerate() {
                 super::super::report(progress, &id, "container", i as u64, Some(total), None);
-                let mut form = vec![("is_carousel_item", "true".to_string()), ("access_token", token.clone())];
+                let mut form = vec![
+                    ("is_carousel_item", "true".to_string()),
+                    ("access_token", token.clone()),
+                ];
                 if is_video(f) {
                     form.push(("media_type", "VIDEO".into()));
                     form.push(("video_url", f.clone()));
@@ -392,22 +637,50 @@ pub async fn publish_graph(auth: &GraphAuth, req: &PublishRequest, progress: &su
                 wait_container(&http, &cid, &token).await?;
                 children.push(cid);
             }
-            let c = graph_post(&http, &media_url, &[("media_type", "CAROUSEL".into()), ("children", children.join(",")), ("caption", req.caption.clone()), ("access_token", token.clone())]).await?;
+            let c = graph_post(
+                &http,
+                &media_url,
+                &[
+                    ("media_type", "CAROUSEL".into()),
+                    ("children", children.join(",")),
+                    ("caption", req.caption.clone()),
+                    ("access_token", token.clone()),
+                ],
+            )
+            .await?;
             s(&c, "id")
         }
         kind => {
             super::super::report(progress, &id, "container", 0, Some(3), None);
             let f = &req.files[0];
-            let mut form = vec![("caption", req.caption.clone()), ("access_token", token.clone())];
+            let mut form = vec![
+                ("caption", req.caption.clone()),
+                ("access_token", token.clone()),
+            ];
             match kind {
                 "story" => {
                     form.push(("media_type", "STORIES".into()));
-                    form.push((if is_video(f) { "video_url" } else { "image_url" }, f.clone()));
+                    form.push((
+                        if is_video(f) {
+                            "video_url"
+                        } else {
+                            "image_url"
+                        },
+                        f.clone(),
+                    ));
                 }
                 "reel" | "video" => {
                     form.push(("media_type", "REELS".into()));
                     form.push(("video_url", f.clone()));
-                    form.push(("share_to_feed", if req.share_to_feed || kind == "video" { "true" } else { "false" }.into()));
+                    form.push((
+                        "share_to_feed",
+                        if req.share_to_feed || kind == "video" {
+                            "true"
+                        } else {
+                            "false"
+                        }
+                        .into(),
+                    ));
                 }
                 _ => form.push(("image_url", f.clone())),
             }
@@ -418,11 +691,31 @@ pub async fn publish_graph(auth: &GraphAuth, req: &PublishRequest, progress: &su
     super::super::report(progress, &id, "processing", 1, Some(3), None);
     wait_container(&http, &creation_id, &token).await?;
     super::super::report(progress, &id, "publish", 2, Some(3), None);
-    let p = graph_post(&http, &format!("{}/{}/media_publish", GRAPH, user), &[("creation_id", creation_id), ("access_token", token.clone())]).await?;
+    let p = graph_post(
+        &http,
+        &format!("{}/{}/media_publish", GRAPH, user),
+        &[
+            ("creation_id", creation_id),
+            ("access_token", token.clone()),
+        ],
+    )
+    .await?;
     let media_id = s(&p, "id");
-    let link = graph_get(&http, &format!("{}/{}?fields=permalink,shortcode&access_token={}", GRAPH, media_id, token)).await.unwrap_or(Value::Null);
+    let link = graph_get(
+        &http,
+        &format!(
+            "{}/{}?fields=permalink,shortcode&access_token={}",
+            GRAPH, media_id, token
+        ),
+    )
+    .await
+    .unwrap_or(Value::Null);
     super::super::report(progress, &id, "done", 3, Some(3), None);
-    Ok(PublishResult { media_id, code: s(&link, "shortcode"), url: s(&link, "permalink") })
+    Ok(PublishResult {
+        media_id,
+        code: s(&link, "shortcode"),
+        url: s(&link, "permalink"),
+    })
 }
 
 // ── Agendamento ──────────────────────────────────────────────────────────
@@ -491,7 +784,10 @@ pub fn schedule_update(post: &ScheduledPost) -> anyhow::Result<()> {
 
 /// Próximo agendamento vencido e ainda pendente.
 pub fn schedule_due(now: i64) -> Option<ScheduledPost> {
-    schedule_list().posts.into_iter().find(|p| p.status == "pending" && p.run_at <= now)
+    schedule_list()
+        .posts
+        .into_iter()
+        .find(|p| p.status == "pending" && p.run_at <= now)
 }
 
 #[cfg(test)]
@@ -501,7 +797,10 @@ mod tests {
     #[test]
     fn jpeg_dims() {
         // JPEG mínimo: SOI + SOF0 (altura 2, largura 3).
-        let bytes = [0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x02, 0x00, 0x03, 0x01, 0x01, 0x11, 0x00, 0xFF, 0xD9];
+        let bytes = [
+            0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x02, 0x00, 0x03, 0x01, 0x01, 0x11,
+            0x00, 0xFF, 0xD9,
+        ];
         assert_eq!(jpeg_dimensions(&bytes), Some((3, 2)));
         assert_eq!(jpeg_dimensions(b"nope"), None);
     }

@@ -1,5 +1,5 @@
-use serde_json::Value;
 use rand::RngExt;
+use serde_json::Value;
 use std::collections::HashSet;
 
 /// Bans wait longer than picks by default in most rulesets, and a ban sent on the
@@ -119,13 +119,19 @@ pub fn local_pick_action(session: &Value, cell: i64) -> Option<(i64, bool)> {
     let groups = session.get("actions")?.as_array()?;
     for group in groups {
         for action in group.as_array().map(|a| a.as_slice()).unwrap_or(&[]) {
-            let actor = action.get("actorCellId").and_then(Value::as_i64).unwrap_or(-2);
+            let actor = action
+                .get("actorCellId")
+                .and_then(Value::as_i64)
+                .unwrap_or(-2);
             let kind = action.get("type").and_then(Value::as_str).unwrap_or("");
             if actor != cell || kind != "pick" {
                 continue;
             }
             let id = action.get("id").and_then(Value::as_i64)?;
-            let completed = action.get("completed").and_then(Value::as_bool).unwrap_or(false);
+            let completed = action
+                .get("completed")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
             return Some((id, completed));
         }
     }

@@ -33,9 +33,16 @@ async fn locate() -> Option<PathBuf> {
             "/opt/homebrew/bin/kdeconnect-cli",
         ]
     } else if cfg!(target_os = "windows") {
-        &[r"C:\Program Files\KDE Connect\bin\kdeconnect-cli.exe", r"C:\Program Files\KDE\bin\kdeconnect-cli.exe"]
+        &[
+            r"C:\Program Files\KDE Connect\bin\kdeconnect-cli.exe",
+            r"C:\Program Files\KDE\bin\kdeconnect-cli.exe",
+        ]
     } else {
-        &["/usr/bin/kdeconnect-cli", "/usr/lib/kdeconnectd/kdeconnect-cli", "/app/bin/kdeconnect-cli"]
+        &[
+            "/usr/bin/kdeconnect-cli",
+            "/usr/lib/kdeconnectd/kdeconnect-cli",
+            "/app/bin/kdeconnect-cli",
+        ]
     };
     candidates.iter().map(PathBuf::from).find(|p| p.exists())
 }
@@ -63,7 +70,12 @@ pub async fn status() -> KdeStatus {
         "sudo apt install kdeconnect  ·  flatpak install org.kde.kdeconnect".to_string()
     };
     let Some(bin) = locate().await else {
-        return KdeStatus { installed: false, path: None, devices: vec![], install_hint: hint };
+        return KdeStatus {
+            installed: false,
+            path: None,
+            devices: vec![],
+            install_hint: hint,
+        };
     };
     let devices = crate::core::process::command(&bin)
         .args(["-l"])
@@ -71,14 +83,27 @@ pub async fn status() -> KdeStatus {
         .await
         .map(|o| parse_devices(&String::from_utf8_lossy(&o.stdout)))
         .unwrap_or_default();
-    KdeStatus { installed: true, path: Some(bin.to_string_lossy().to_string()), devices, install_hint: hint }
+    KdeStatus {
+        installed: true,
+        path: Some(bin.to_string_lossy().to_string()),
+        devices,
+        install_hint: hint,
+    }
 }
 
 async fn run(args: &[&str]) -> anyhow::Result<String> {
-    let bin = locate().await.ok_or_else(|| anyhow!("kdeconnect-cli nao encontrado"))?;
-    let out = crate::core::process::command(&bin).args(args).output().await?;
+    let bin = locate()
+        .await
+        .ok_or_else(|| anyhow!("kdeconnect-cli nao encontrado"))?;
+    let out = crate::core::process::command(&bin)
+        .args(args)
+        .output()
+        .await?;
     if !out.status.success() {
-        return Err(anyhow!("kdeconnect-cli falhou: {}", String::from_utf8_lossy(&out.stderr).trim()));
+        return Err(anyhow!(
+            "kdeconnect-cli falhou: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
     }
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }

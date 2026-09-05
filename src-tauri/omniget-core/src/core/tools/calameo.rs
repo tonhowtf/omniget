@@ -23,13 +23,24 @@ pub fn page_prefix(html: &str) -> Option<String> {
     re2.captures(&img).map(|c| c[1].to_string())
 }
 
-pub async fn download(url: &str, dest_dir: &str, progress: super::ProgressFn) -> anyhow::Result<CalameoResult> {
+pub async fn download(
+    url: &str,
+    dest_dir: &str,
+    progress: super::ProgressFn,
+) -> anyhow::Result<CalameoResult> {
     if !url.contains("calameo.com") {
         return Err(anyhow!("cole um link do calameo.com"));
     }
     let client = super::client()?;
-    let html = client.get(url).send().await?.error_for_status()?.text().await?;
-    let prefix = page_prefix(&html).ok_or_else(|| anyhow!("nao achei as paginas desse documento (privado ou layout novo)"))?;
+    let html = client
+        .get(url)
+        .send()
+        .await?
+        .error_for_status()?
+        .text()
+        .await?;
+    let prefix = page_prefix(&html)
+        .ok_or_else(|| anyhow!("nao achei as paginas desse documento (privado ou layout novo)"))?;
     let title = super::slides::og_title(&html).unwrap_or_else(|| "calameo".to_string());
     let folder = PathBuf::from(dest_dir).join(super::sanitize_name(&title));
     std::fs::create_dir_all(&folder)?;
@@ -63,7 +74,9 @@ pub async fn download(url: &str, dest_dir: &str, progress: super::ProgressFn) ->
         break;
     }
     if n == 0 {
-        return Err(anyhow!("nenhuma pagina baixada; o documento pode exigir assinatura de URL"));
+        return Err(anyhow!(
+            "nenhuma pagina baixada; o documento pode exigir assinatura de URL"
+        ));
     }
     if format == "jpg" {
         // com JPEG dá para montar o PDF na hora
@@ -75,7 +88,12 @@ pub async fn download(url: &str, dest_dir: &str, progress: super::ProgressFn) ->
         tokio::fs::write(folder.with_extension("pdf"), pdf).await?;
     }
     super::report(&progress, &id, "done", n as u64, Some(n as u64), None);
-    Ok(CalameoResult { title, pages: n, folder: folder.to_string_lossy().to_string(), format })
+    Ok(CalameoResult {
+        title,
+        pages: n,
+        folder: folder.to_string_lossy().to_string(),
+        format,
+    })
 }
 
 #[cfg(test)]
@@ -84,7 +102,11 @@ mod tests {
 
     #[test]
     fn prefix_from_og_image() {
-        let html = r#"<meta property="og:image" content="https://i.calameoassets.com/240101/abc/p1.jpg">"#;
-        assert_eq!(page_prefix(html).as_deref(), Some("https://i.calameoassets.com/240101/abc/"));
+        let html =
+            r#"<meta property="og:image" content="https://i.calameoassets.com/240101/abc/p1.jpg">"#;
+        assert_eq!(
+            page_prefix(html).as_deref(),
+            Some("https://i.calameoassets.com/240101/abc/")
+        );
     }
 }

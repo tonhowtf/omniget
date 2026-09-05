@@ -29,7 +29,10 @@ const BLOAT: &[(&str, &str)] = &[
     ("Microsoft.GetHelp", "Obter Ajuda"),
     ("Microsoft.Getstarted", "Dicas"),
     ("Microsoft.MicrosoftOfficeHub", "Office Hub"),
-    ("Microsoft.MicrosoftSolitaireCollection", "Solitaire Collection"),
+    (
+        "Microsoft.MicrosoftSolitaireCollection",
+        "Solitaire Collection",
+    ),
     ("Microsoft.People", "Pessoas"),
     ("Microsoft.PowerAutomateDesktop", "Power Automate"),
     ("Microsoft.Todos", "To Do"),
@@ -63,7 +66,10 @@ const BLOAT: &[(&str, &str)] = &[
     ("Microsoft.WindowsCommunicationsApps", "Mail e Calendário"),
     ("Microsoft.OneDriveSync", "OneDrive (Store)"),
     ("Microsoft.QuickAssist", "Assistência Rápida"),
-    ("Microsoft.Windows.NarratorQuickStart", "Narrador (tutorial)"),
+    (
+        "Microsoft.Windows.NarratorQuickStart",
+        "Narrador (tutorial)",
+    ),
     ("MicrosoftCorporationII.QuickAssist", "Assistência Rápida"),
     ("MicrosoftCorporationII.MicrosoftFamily", "Microsoft Family"),
     ("MicrosoftWindows.CrossDevice", "Cross Device"),
@@ -154,13 +160,29 @@ fn is_protected(name: &str) -> bool {
 }
 
 fn suggestion(name: &str) -> Option<&'static str> {
-    BLOAT.iter().find(|(prefix, _)| name.starts_with(prefix)).map(|(_, label)| *label)
+    BLOAT
+        .iter()
+        .find(|(prefix, _)| name.starts_with(prefix))
+        .map(|(_, label)| *label)
 }
 
 async fn powershell(script: &str) -> anyhow::Result<String> {
-    let o = crate::core::process::command("powershell").args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script]).output().await?;
+    let o = crate::core::process::command("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+        ])
+        .output()
+        .await?;
     if !o.status.success() {
-        return Err(anyhow!("PowerShell: {}", String::from_utf8_lossy(&o.stderr).trim()));
+        return Err(anyhow!(
+            "PowerShell: {}",
+            String::from_utf8_lossy(&o.stderr).trim()
+        ));
     }
     Ok(String::from_utf8_lossy(&o.stdout).to_string())
 }
@@ -170,7 +192,8 @@ pub async fn list() -> anyhow::Result<Vec<AppxPackage>> {
         return Ok(vec![]);
     }
     let out = powershell("Get-AppxPackage | Where-Object { -not $_.IsFramework -and -not $_.IsResourcePackage } | Select-Object Name,PackageFullName,Version,Publisher,NonRemovable | ConvertTo-Json -Compress").await?;
-    let json: serde_json::Value = serde_json::from_str(out.trim()).unwrap_or(serde_json::Value::Null);
+    let json: serde_json::Value =
+        serde_json::from_str(out.trim()).unwrap_or(serde_json::Value::Null);
     let items: Vec<serde_json::Value> = match json {
         serde_json::Value::Array(a) => a,
         serde_json::Value::Object(_) => vec![json],
@@ -178,22 +201,55 @@ pub async fn list() -> anyhow::Result<Vec<AppxPackage>> {
     };
     let mut pkgs = Vec::new();
     for it in items {
-        let name = it.get("Name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let name = it
+            .get("Name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         if name.is_empty() || is_protected(&name) {
             continue;
         }
         let sug = suggestion(&name);
         pkgs.push(AppxPackage {
-            label: sug.map(String::from).unwrap_or_else(|| name.rsplit('.').next().unwrap_or(&name).to_string()),
+            label: sug
+                .map(String::from)
+                .unwrap_or_else(|| name.rsplit('.').next().unwrap_or(&name).to_string()),
             suggested: sug.is_some(),
-            full_name: it.get("PackageFullName").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            version: it.get("Version").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            publisher: it.get("Publisher").and_then(|v| v.as_str()).map(|p| p.split("O=").nth(1).unwrap_or(p).split(',').next().unwrap_or(p).to_string()).unwrap_or_default(),
-            non_removable: it.get("NonRemovable").and_then(|v| v.as_bool()).unwrap_or(false),
+            full_name: it
+                .get("PackageFullName")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            version: it
+                .get("Version")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            publisher: it
+                .get("Publisher")
+                .and_then(|v| v.as_str())
+                .map(|p| {
+                    p.split("O=")
+                        .nth(1)
+                        .unwrap_or(p)
+                        .split(',')
+                        .next()
+                        .unwrap_or(p)
+                        .to_string()
+                })
+                .unwrap_or_default(),
+            non_removable: it
+                .get("NonRemovable")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false),
             name,
         });
     }
-    pkgs.sort_by(|a, b| b.suggested.cmp(&a.suggested).then(a.label.to_lowercase().cmp(&b.label.to_lowercase())));
+    pkgs.sort_by(|a, b| {
+        b.suggested
+            .cmp(&a.suggested)
+            .then(a.label.to_lowercase().cmp(&b.label.to_lowercase()))
+    });
     Ok(pkgs)
 }
 
@@ -205,17 +261,31 @@ pub struct RemoveResult {
 
 /// Remove os pacotes do usuário atual; com `provisioned`, também impede que
 /// voltem para contas novas (precisa de administrador).
-pub async fn remove(names: &[String], provisioned: bool, progress: &super::ProgressFn) -> RemoveResult {
+pub async fn remove(
+    names: &[String],
+    provisioned: bool,
+    progress: &super::ProgressFn,
+) -> RemoveResult {
     let mut r = RemoveResult::default();
     let total = names.len() as u64;
     for (i, name) in names.iter().enumerate() {
-        super::report(progress, "debloat", "progress", i as u64, Some(total), Some(name.clone()));
+        super::report(
+            progress,
+            "debloat",
+            "progress",
+            i as u64,
+            Some(total),
+            Some(name.clone()),
+        );
         if is_protected(name) {
             r.failed.push(format!("{}: protegido", name));
             continue;
         }
         let safe = name.replace('\'', "");
-        let mut script = format!("Get-AppxPackage -Name '{}' | Remove-AppxPackage -ErrorAction Stop", safe);
+        let mut script = format!(
+            "Get-AppxPackage -Name '{}' | Remove-AppxPackage -ErrorAction Stop",
+            safe
+        );
         if provisioned {
             script.push_str(&format!("; Get-AppxProvisionedPackage -Online | Where-Object {{ $_.DisplayName -eq '{}' }} | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Out-Null", safe));
         }
@@ -249,7 +319,10 @@ mod tests {
         assert!(is_protected("Microsoft.WindowsStore"));
         assert!(is_protected("Microsoft.VCLibs.140.00"));
         assert!(!is_protected("Microsoft.BingNews"));
-        assert_eq!(suggestion("Microsoft.XboxGamingOverlay"), Some("Xbox Game Bar"));
+        assert_eq!(
+            suggestion("Microsoft.XboxGamingOverlay"),
+            Some("Xbox Game Bar")
+        );
         assert_eq!(suggestion("king.com.CandyCrushSaga"), Some("Candy Crush"));
         assert!(suggestion("Contoso.App").is_none());
     }

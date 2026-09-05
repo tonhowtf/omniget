@@ -56,13 +56,22 @@ pub const ARCHIVE: &str = ".omniget-pinterest.txt";
 
 pub fn load_archive(dest: &Path) -> HashSet<String> {
     std::fs::read_to_string(dest.join(ARCHIVE))
-        .map(|s| s.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect())
+        .map(|s| {
+            s.lines()
+                .map(|l| l.trim().to_string())
+                .filter(|l| !l.is_empty())
+                .collect()
+        })
         .unwrap_or_default()
 }
 
 pub fn append_archive(dest: &Path, id: &str) {
     use std::io::Write;
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dest.join(ARCHIVE)) {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dest.join(ARCHIVE))
+    {
         let _ = writeln!(f, "{}", id);
     }
 }
@@ -117,7 +126,13 @@ pub fn candidates(url: &str) -> Vec<String> {
 pub async fn fetch_image(client: &PinClient, url: &str) -> anyhow::Result<(Vec<u8>, &'static str)> {
     let mut last = String::new();
     for cand in candidates(url) {
-        let resp = match client.http().get(&cand).header("Referer", "https://www.pinterest.com/").send().await {
+        let resp = match client
+            .http()
+            .get(&cand)
+            .header("Referer", "https://www.pinterest.com/")
+            .send()
+            .await
+        {
             Ok(r) => r,
             Err(e) => {
                 last = e.to_string();
@@ -128,7 +143,12 @@ pub async fn fetch_image(client: &PinClient, url: &str) -> anyhow::Result<(Vec<u
             last = format!("HTTP {} em {}", resp.status(), cand);
             continue;
         }
-        let ct = resp.headers().get(reqwest::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+        let ct = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
         let bytes = resp.bytes().await?.to_vec();
         if bytes.len() < 64 {
             last = format!("resposta vazia em {}", cand);
@@ -160,7 +180,11 @@ fn webp_to_png(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
 
 pub fn base_name(pin: &Pin, naming: &str) -> String {
     let title = pin.title.trim();
-    let title = if title.is_empty() { pin.alt_text.trim() } else { title };
+    let title = if title.is_empty() {
+        pin.alt_text.trim()
+    } else {
+        title
+    };
     let short: String = title.chars().take(70).collect();
     let clean = super::super::sanitize_name(&short);
     match naming {
@@ -185,7 +209,12 @@ pub async fn download_video(client: &PinClient, video: &Video, out: &Path) -> an
         std::fs::create_dir_all(p)?;
     }
     if let Some(mp4) = &video.mp4 {
-        let resp = client.http().get(mp4).header("Referer", "https://www.pinterest.com/").send().await?;
+        let resp = client
+            .http()
+            .get(mp4)
+            .header("Referer", "https://www.pinterest.com/")
+            .send()
+            .await?;
         if resp.status().is_success() {
             let bytes = resp.bytes().await?;
             if bytes.len() > 1024 {
@@ -194,7 +223,10 @@ pub async fn download_video(client: &PinClient, video: &Video, out: &Path) -> an
             }
         }
     }
-    let hls = video.hls.as_ref().ok_or_else(|| anyhow!("pin sem URL de video"))?;
+    let hls = video
+        .hls
+        .as_ref()
+        .ok_or_else(|| anyhow!("pin sem URL de video"))?;
     let ffmpeg = crate::core::dependencies::ensure_ffmpeg().await?;
     let o = crate::core::process::command(&ffmpeg)
         .args([
@@ -222,24 +254,33 @@ pub async fn download_video(client: &PinClient, video: &Video, out: &Path) -> an
         .await?;
     if !o.status.success() {
         let err = String::from_utf8_lossy(&o.stderr);
-        return Err(anyhow!("ffmpeg nao converteu o video: {}", err.lines().last().unwrap_or("").trim()));
+        return Err(anyhow!(
+            "ffmpeg nao converteu o video: {}",
+            err.lines().last().unwrap_or("").trim()
+        ));
     }
     Ok(())
 }
 
 /// Baixa tudo de um pin para `dir`. Devolve os caminhos gravados.
-pub async fn download_pin(client: &PinClient, pin: &Pin, dir: &Path, opts: &DownloadOptions) -> anyhow::Result<Vec<String>> {
+pub async fn download_pin(
+    client: &PinClient,
+    pin: &Pin,
+    dir: &Path,
+    opts: &DownloadOptions,
+) -> anyhow::Result<Vec<String>> {
     let base = base_name(pin, &opts.naming);
     let mut files = Vec::new();
 
-    let save_image = |bytes: Vec<u8>, ext: &str, suffix: &str| -> anyhow::Result<(PathBuf, Vec<u8>)> {
-        let (bytes, ext) = if ext == "webp" && opts.convert_webp {
-            (webp_to_png(&bytes)?, "png")
-        } else {
-            (bytes, ext)
+    let save_image =
+        |bytes: Vec<u8>, ext: &str, suffix: &str| -> anyhow::Result<(PathBuf, Vec<u8>)> {
+            let (bytes, ext) = if ext == "webp" && opts.convert_webp {
+                (webp_to_png(&bytes)?, "png")
+            } else {
+                (bytes, ext)
+            };
+            Ok((dir.join(format!("{}{}.{}", base, suffix, ext)), bytes))
         };
-        Ok((dir.join(format!("{}{}.{}", base, suffix, ext)), bytes))
-    };
 
     let has_extras = !pin.extras.is_empty();
     if opts.images && !has_extras {
@@ -304,23 +345,46 @@ mod tests {
 
     #[test]
     fn candidate_chain() {
-        let c = candidates("https://i.pinimg.com/originals/3e/57/c1/3e57c1b723b8e9d39b8c09f6c5efbfb0.jpg");
-        assert_eq!(c[0], "https://i.pinimg.com/originals/3e/57/c1/3e57c1b723b8e9d39b8c09f6c5efbfb0.jpg");
-        assert!(c.contains(&"https://i.pinimg.com/originals/3e/57/c1/3e57c1b723b8e9d39b8c09f6c5efbfb0.png".to_string()));
-        assert!(c.contains(&"https://i.pinimg.com/736x/3e/57/c1/3e57c1b723b8e9d39b8c09f6c5efbfb0.jpg".to_string()));
-        assert_eq!(candidates("https://x/y.jpg"), vec!["https://x/y.jpg".to_string()]);
+        let c = candidates(
+            "https://i.pinimg.com/originals/3e/57/c1/3e57c1b723b8e9d39b8c09f6c5efbfb0.jpg",
+        );
+        assert_eq!(
+            c[0],
+            "https://i.pinimg.com/originals/3e/57/c1/3e57c1b723b8e9d39b8c09f6c5efbfb0.jpg"
+        );
+        assert!(c.contains(
+            &"https://i.pinimg.com/originals/3e/57/c1/3e57c1b723b8e9d39b8c09f6c5efbfb0.png"
+                .to_string()
+        ));
+        assert!(c.contains(
+            &"https://i.pinimg.com/736x/3e/57/c1/3e57c1b723b8e9d39b8c09f6c5efbfb0.jpg".to_string()
+        ));
+        assert_eq!(
+            candidates("https://x/y.jpg"),
+            vec!["https://x/y.jpg".to_string()]
+        );
     }
 
     #[test]
     fn sniff() {
-        assert_eq!(sniff_ext(b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01"), Some("jpg"));
+        assert_eq!(
+            sniff_ext(b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01"),
+            Some("jpg")
+        );
         assert_eq!(sniff_ext(b"RIFF\x00\x00\x00\x00WEBPVP8 "), Some("webp"));
-        assert_eq!(sniff_ext(b"GIF89a\x00\x00\x00\x00\x00\x00\x00"), Some("gif"));
+        assert_eq!(
+            sniff_ext(b"GIF89a\x00\x00\x00\x00\x00\x00\x00"),
+            Some("gif")
+        );
     }
 
     #[test]
     fn names() {
-        let mut p = Pin { id: "42".into(), title: "Mid Century: Living / Room".into(), ..Default::default() };
+        let mut p = Pin {
+            id: "42".into(),
+            title: "Mid Century: Living / Room".into(),
+            ..Default::default()
+        };
         assert_eq!(base_name(&p, "id"), "42");
         assert!(base_name(&p, "title-id").ends_with("-42"));
         p.title.clear();
@@ -340,12 +404,41 @@ mod live {
         let c = PinClient::new(None).unwrap();
         let dir = std::env::temp_dir().join("omniget-pinterest-live");
         let _ = std::fs::remove_dir_all(&dir);
-        let opts = DownloadOptions { dest: dir.to_string_lossy().to_string(), images: true, videos: true, convert_webp: true, naming: "title-id".into(), sidecar: true, skip_downloaded: true, section_folders: true };
-        let (pins, _, _) = c.feed_page(&Feed::Search { query: "mid century living room".into(), scope: "pins".into() }, None, 3).await.unwrap();
+        let opts = DownloadOptions {
+            dest: dir.to_string_lossy().to_string(),
+            images: true,
+            videos: true,
+            convert_webp: true,
+            naming: "title-id".into(),
+            sidecar: true,
+            skip_downloaded: true,
+            section_folders: true,
+        };
+        let (pins, _, _) = c
+            .feed_page(
+                &Feed::Search {
+                    query: "mid century living room".into(),
+                    scope: "pins".into(),
+                },
+                None,
+                3,
+            )
+            .await
+            .unwrap();
         let files = download_pin(&c, &pins[0], &dir, &opts).await.unwrap();
         println!("image files: {:?}", files);
         assert!(!files.is_empty());
-        let (vids, _, _) = c.feed_page(&Feed::Search { query: "cats".into(), scope: "videos".into() }, None, 3).await.unwrap();
+        let (vids, _, _) = c
+            .feed_page(
+                &Feed::Search {
+                    query: "cats".into(),
+                    scope: "videos".into(),
+                },
+                None,
+                3,
+            )
+            .await
+            .unwrap();
         let v = vids.iter().find(|p| p.video.is_some()).expect("video pin");
         let files = download_pin(&c, v, &dir, &opts).await.unwrap();
         println!("video files: {:?}", files);
@@ -354,7 +447,8 @@ mod live {
         let size = std::fs::metadata(mp4).unwrap().len();
         println!("mp4 {} bytes", size);
         assert!(size > 20_000);
-        let mut m: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        let mut m: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
         m.insert(pins[0].id.clone(), files.clone());
         let html = super::super::export::html_gallery("t", "s", &pins, &m, &dir.to_string_lossy());
         std::fs::write(dir.join("index.html"), html).unwrap();

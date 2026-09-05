@@ -35,7 +35,11 @@ const MODELS: &[(&str, u64, &str)] = &[
     ("base-q5_1", 60, "rápido, qualidade básica"),
     ("small-q5_1", 190, "equilíbrio para máquinas fracas"),
     ("medium-q5_0", 540, "boa qualidade, mais lento"),
-    ("large-v3-turbo-q5_0", 574, "recomendado: quase large-v3, 8× mais rápido"),
+    (
+        "large-v3-turbo-q5_0",
+        574,
+        "recomendado: quase large-v3, 8× mais rápido",
+    ),
     ("large-v3-turbo", 1620, "turbo sem quantização"),
     ("large-v3-q5_0", 1080, "melhor qualidade quantizado"),
     ("large-v3", 3100, "melhor qualidade, mais pesado"),
@@ -62,11 +66,16 @@ pub fn list_models() -> Vec<ModelInfo> {
                 .unwrap_or(0);
             ModelInfo {
                 id: id.to_string(),
-                label: id.replace('-', " ").replace("q5_0", "(q5)").replace("q5_1", "(q5)"),
+                label: id
+                    .replace('-', " ")
+                    .replace("q5_0", "(q5)")
+                    .replace("q5_1", "(q5)"),
                 size_mb: *mb,
                 note: note.to_string(),
                 installed: size > 0,
-                path: path.filter(|_| size > 0).map(|p| p.to_string_lossy().to_string()),
+                path: path
+                    .filter(|_| size > 0)
+                    .map(|p| p.to_string_lossy().to_string()),
                 size_bytes: size,
             }
         })
@@ -82,7 +91,14 @@ pub async fn download_model(id: &str, progress: ProgressFn) -> anyhow::Result<Pa
     let dest = dir.join(format!("ggml-{}.bin", id));
     let url = format!("{}/ggml-{}.bin", HF_BASE, id);
     let client = super::client()?;
-    super::download_to(&client, &url, &dest, &progress, &format!("whisper-model:{}", id)).await?;
+    super::download_to(
+        &client,
+        &url,
+        &dest,
+        &progress,
+        &format!("whisper-model:{}", id),
+    )
+    .await?;
     Ok(dest)
 }
 
@@ -133,7 +149,9 @@ pub async fn locate() -> Option<(PathBuf, &'static str)> {
 fn variants() -> Vec<String> {
     if cfg!(target_os = "windows") && cfg!(target_arch = "x86_64") {
         vec!["cpu".into(), "cuda".into()]
-    } else if cfg!(target_os = "linux") && (cfg!(target_arch = "x86_64") || cfg!(target_arch = "aarch64")) {
+    } else if cfg!(target_os = "linux")
+        && (cfg!(target_arch = "x86_64") || cfg!(target_arch = "aarch64"))
+    {
         vec!["cpu".into()]
     } else {
         vec![]
@@ -269,7 +287,10 @@ async fn to_wav16k(input: &Path) -> anyhow::Result<PathBuf> {
 
 fn parse_whisper_json(text: &str) -> anyhow::Result<(String, Vec<Cue>)> {
     let json: serde_json::Value = serde_json::from_str(text)?;
-    let language = json["result"]["language"].as_str().unwrap_or("").to_string();
+    let language = json["result"]["language"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
     let mut cues = Vec::new();
     if let Some(items) = json["transcription"].as_array() {
         for it in items {
@@ -279,14 +300,23 @@ fn parse_whisper_json(text: &str) -> anyhow::Result<(String, Vec<Cue>)> {
             if t.is_empty() {
                 continue;
             }
-            cues.push(Cue { start_ms: from, end_ms: to.max(from + 1), text: t });
+            cues.push(Cue {
+                start_ms: from,
+                end_ms: to.max(from + 1),
+                text: t,
+            });
         }
     }
     Ok((language, cues))
 }
 
-pub async fn transcribe(opts: TranscribeOptions, progress: ProgressFn) -> anyhow::Result<TranscribeResult> {
-    let (bin, _) = locate().await.ok_or_else(|| anyhow!("whisper-cli nao esta instalado"))?;
+pub async fn transcribe(
+    opts: TranscribeOptions,
+    progress: ProgressFn,
+) -> anyhow::Result<TranscribeResult> {
+    let (bin, _) = locate()
+        .await
+        .ok_or_else(|| anyhow!("whisper-cli nao esta instalado"))?;
     let model_path = models_dir()
         .ok_or_else(|| anyhow!("Could not determine data directory"))?
         .join(format!("ggml-{}.bin", opts.model));
@@ -306,7 +336,11 @@ pub async fn transcribe(opts: TranscribeOptions, progress: ProgressFn) -> anyhow
     let mut cmd = crate::core::process::command(&bin);
     cmd.arg("-m").arg(&model_path).arg("-f").arg(&wav);
     cmd.args(["-oj", "-pp", "-np", "-of"]).arg(&out_prefix);
-    let lang = if opts.language.trim().is_empty() { "auto" } else { opts.language.trim() };
+    let lang = if opts.language.trim().is_empty() {
+        "auto"
+    } else {
+        opts.language.trim()
+    };
     cmd.args(["-l", lang]);
     if opts.translate {
         cmd.arg("-tr");
@@ -323,7 +357,9 @@ pub async fn transcribe(opts: TranscribeOptions, progress: ProgressFn) -> anyhow
     cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
-    let mut child = cmd.spawn().map_err(|e| anyhow!("nao foi possivel iniciar o whisper-cli: {}", e))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| anyhow!("nao foi possivel iniciar o whisper-cli: {}", e))?;
 
     // `-pp` escreve "progress = 42%" no stderr.
     let stderr = child.stderr.take();
@@ -358,16 +394,26 @@ pub async fn transcribe(opts: TranscribeOptions, progress: ProgressFn) -> anyhow
     let (language, cues) = parse_whisper_json(&text)?;
 
     let out_dir = if opts.output_dir.trim().is_empty() {
-        input.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("."))
+        input
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."))
     } else {
         PathBuf::from(opts.output_dir.trim())
     };
     std::fs::create_dir_all(&out_dir)?;
-    let stem = input.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "transcricao".into());
+    let stem = input
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "transcricao".into());
     let srt_path = out_dir.join(format!("{}.srt", stem));
     let vtt_path = out_dir.join(format!("{}.vtt", stem));
     let txt_path = out_dir.join(format!("{}.txt", stem));
-    let plain = cues.iter().map(|c| c.text.as_str()).collect::<Vec<_>>().join("\n");
+    let plain = cues
+        .iter()
+        .map(|c| c.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
     tokio::fs::write(&srt_path, cues_to_srt(&cues)).await?;
     tokio::fs::write(&vtt_path, cues_to_vtt(&cues)).await?;
     tokio::fs::write(&txt_path, &plain).await?;

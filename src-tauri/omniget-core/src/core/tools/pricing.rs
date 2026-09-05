@@ -8,7 +8,8 @@ use std::path::PathBuf;
 use anyhow::anyhow;
 use serde::Serialize;
 
-const LITELLM_URL: &str = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
+const LITELLM_URL: &str =
+    "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
 const MAX_AGE: std::time::Duration = std::time::Duration::from_secs(24 * 3600);
 
 #[derive(Debug, Clone, Serialize)]
@@ -115,7 +116,10 @@ pub async fn info(force_refresh: bool) -> anyhow::Result<PricingInfo> {
         .and_then(|m| m.modified().ok())
         .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339());
     Ok(PricingInfo {
-        models: v.as_object().map(|o| o.len().saturating_sub(1)).unwrap_or(0),
+        models: v
+            .as_object()
+            .map(|o| o.len().saturating_sub(1))
+            .unwrap_or(0),
         updated_at: updated,
         path: path.map(|p| p.to_string_lossy().to_string()),
     })
@@ -124,13 +128,26 @@ pub async fn info(force_refresh: bool) -> anyhow::Result<PricingInfo> {
 /// Busca por substring nas chaves; todas as palavras precisam bater.
 pub async fn search(query: &str, mode: &str, limit: usize) -> anyhow::Result<Vec<ModelPrice>> {
     let v = load(false).await?;
-    let obj = v.as_object().ok_or_else(|| anyhow!("tabela de precos invalida"))?;
-    let tokens: Vec<String> = query.to_lowercase().split_whitespace().map(|s| s.to_string()).collect();
+    let obj = v
+        .as_object()
+        .ok_or_else(|| anyhow!("tabela de precos invalida"))?;
+    let tokens: Vec<String> = query
+        .to_lowercase()
+        .split_whitespace()
+        .map(|s| s.to_string())
+        .collect();
     let mut out: Vec<ModelPrice> = obj
         .iter()
         .filter(|(k, _)| *k != "sample_spec")
         .filter(|(k, val)| {
-            let hay = format!("{} {}", k.to_lowercase(), val["litellm_provider"].as_str().unwrap_or("").to_lowercase());
+            let hay = format!(
+                "{} {}",
+                k.to_lowercase(),
+                val["litellm_provider"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_lowercase()
+            );
             tokens.iter().all(|t| hay.contains(t))
                 && (mode.is_empty() || val["mode"].as_str() == Some(mode))
         })
@@ -151,7 +168,15 @@ pub async fn price_for(model: &str) -> Option<ModelPrice> {
     if let Some((_, rest)) = m.split_once('/') {
         candidates.push(rest.to_string());
     }
-    for p in ["openai/", "anthropic/", "gemini/", "openrouter/", "groq/", "deepseek/", "mistral/"] {
+    for p in [
+        "openai/",
+        "anthropic/",
+        "gemini/",
+        "openrouter/",
+        "groq/",
+        "deepseek/",
+        "mistral/",
+    ] {
         candidates.push(format!("{}{}", p, m));
     }
     // "claude-sonnet-4-5-20250929" -> "claude-sonnet-4-5"

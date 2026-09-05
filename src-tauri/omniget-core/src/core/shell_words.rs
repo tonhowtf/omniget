@@ -97,8 +97,26 @@ fn needs_quoting(arg: &str) -> bool {
             c.is_whitespace()
                 || matches!(
                     c,
-                    '\'' | '"' | '\\' | '$' | '`' | '!' | '*' | '?' | '[' | ']' | '(' | ')' | '{'
-                        | '}' | '<' | '>' | '|' | '&' | ';' | '#' | '~'
+                    '\'' | '"'
+                        | '\\'
+                        | '$'
+                        | '`'
+                        | '!'
+                        | '*'
+                        | '?'
+                        | '['
+                        | ']'
+                        | '('
+                        | ')'
+                        | '{'
+                        | '}'
+                        | '<'
+                        | '>'
+                        | '|'
+                        | '&'
+                        | ';'
+                        | '#'
+                        | '~'
                 )
         })
 }
@@ -254,7 +272,14 @@ mod tests {
         let v = split(r#"yt-dlp -f 'bv*+ba' --add-headers "Referer: https://x/" url"#).unwrap();
         assert_eq!(
             v,
-            vec!["yt-dlp", "-f", "bv*+ba", "--add-headers", "Referer: https://x/", "url"]
+            vec![
+                "yt-dlp",
+                "-f",
+                "bv*+ba",
+                "--add-headers",
+                "Referer: https://x/",
+                "url"
+            ]
         );
     }
 

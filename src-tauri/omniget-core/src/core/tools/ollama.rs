@@ -7,7 +7,11 @@ use serde::{Deserialize, Serialize};
 pub const DEFAULT_HOST: &str = "http://127.0.0.1:11434";
 
 fn base(host: &str) -> String {
-    let h = if host.trim().is_empty() { DEFAULT_HOST } else { host.trim() };
+    let h = if host.trim().is_empty() {
+        DEFAULT_HOST
+    } else {
+        host.trim()
+    };
     h.trim_end_matches('/').to_string()
 }
 
@@ -53,12 +57,36 @@ pub struct Recommended {
 
 pub fn recommended() -> Vec<Recommended> {
     vec![
-        Recommended { name: "qwen3:8b".into(), size_gb: 5.2, use_case: "tradução e resumo, boa em português".into() },
-        Recommended { name: "gemma3:12b".into(), size_gb: 8.1, use_case: "qualidade alta, precisa de 12 GB+ de RAM".into() },
-        Recommended { name: "llama3.2:3b".into(), size_gb: 2.0, use_case: "máquinas fracas, rápido".into() },
-        Recommended { name: "gemma3:4b".into(), size_gb: 3.3, use_case: "equilíbrio, aceita imagens".into() },
-        Recommended { name: "qwen2.5-coder:7b".into(), size_gb: 4.7, use_case: "código".into() },
-        Recommended { name: "nomic-embed-text".into(), size_gb: 0.3, use_case: "busca semântica (embeddings)".into() },
+        Recommended {
+            name: "qwen3:8b".into(),
+            size_gb: 5.2,
+            use_case: "tradução e resumo, boa em português".into(),
+        },
+        Recommended {
+            name: "gemma3:12b".into(),
+            size_gb: 8.1,
+            use_case: "qualidade alta, precisa de 12 GB+ de RAM".into(),
+        },
+        Recommended {
+            name: "llama3.2:3b".into(),
+            size_gb: 2.0,
+            use_case: "máquinas fracas, rápido".into(),
+        },
+        Recommended {
+            name: "gemma3:4b".into(),
+            size_gb: 3.3,
+            use_case: "equilíbrio, aceita imagens".into(),
+        },
+        Recommended {
+            name: "qwen2.5-coder:7b".into(),
+            size_gb: 4.7,
+            use_case: "código".into(),
+        },
+        Recommended {
+            name: "nomic-embed-text".into(),
+            size_gb: 0.3,
+            use_case: "busca semântica (embeddings)".into(),
+        },
     ]
 }
 
@@ -74,11 +102,19 @@ pub async fn status(host: &str) -> OllamaStatus {
         download_url: "https://ollama.com/download".into(),
     };
     let Some(client) = client else { return st };
-    let short = client.get(format!("{}/api/version", b)).timeout(std::time::Duration::from_secs(3)).send().await;
+    let short = client
+        .get(format!("{}/api/version", b))
+        .timeout(std::time::Duration::from_secs(3))
+        .send()
+        .await;
     if let Ok(r) = short {
         if r.status().is_success() {
             st.running = true;
-            st.version = r.json::<serde_json::Value>().await.ok().and_then(|v| v["version"].as_str().map(|s| s.to_string()));
+            st.version = r
+                .json::<serde_json::Value>()
+                .await
+                .ok()
+                .and_then(|v| v["version"].as_str().map(|s| s.to_string()));
         }
     }
     if !st.running {
@@ -87,14 +123,20 @@ pub async fn status(host: &str) -> OllamaStatus {
     if let Ok(r) = client.get(format!("{}/api/tags", b)).send().await {
         if let Ok(v) = r.json::<serde_json::Value>().await {
             if let Some(arr) = v["models"].as_array() {
-                st.models = arr.iter().filter_map(|m| serde_json::from_value(m.clone()).ok()).collect();
+                st.models = arr
+                    .iter()
+                    .filter_map(|m| serde_json::from_value(m.clone()).ok())
+                    .collect();
             }
         }
     }
     if let Ok(r) = client.get(format!("{}/api/ps", b)).send().await {
         if let Ok(v) = r.json::<serde_json::Value>().await {
             if let Some(arr) = v["models"].as_array() {
-                st.loaded = arr.iter().filter_map(|m| m["name"].as_str().map(|s| s.to_string())).collect();
+                st.loaded = arr
+                    .iter()
+                    .filter_map(|m| m["name"].as_str().map(|s| s.to_string()))
+                    .collect();
             }
         }
     }
@@ -135,7 +177,11 @@ pub async fn pull(host: &str, name: &str, progress: super::ProgressFn) -> anyhow
             let status = v["status"].as_str().unwrap_or("").to_string();
             let done = v["completed"].as_u64().unwrap_or(0);
             let total = v["total"].as_u64();
-            let stage = if status == "success" { "done" } else { "progress" };
+            let stage = if status == "success" {
+                "done"
+            } else {
+                "progress"
+            };
             super::report(&progress, &id, stage, done, total, Some(status));
         }
     }

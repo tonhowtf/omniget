@@ -23,9 +23,13 @@ pub struct Votes {
 }
 
 pub async fn votes(input: &str) -> anyhow::Result<Votes> {
-    let id = super::sponsorblock::video_id(input).ok_or_else(|| anyhow!("nao reconheci um video do YouTube em: {}", input))?;
+    let id = super::sponsorblock::video_id(input)
+        .ok_or_else(|| anyhow!("nao reconheci um video do YouTube em: {}", input))?;
     let client = super::client()?;
-    let resp = client.get(format!("{}/votes?videoId={}", API, id)).send().await?;
+    let resp = client
+        .get(format!("{}/votes?videoId={}", API, id))
+        .send()
+        .await?;
     if !resp.status().is_success() {
         return Err(anyhow!("Return YouTube Dislike: HTTP {}", resp.status()));
     }

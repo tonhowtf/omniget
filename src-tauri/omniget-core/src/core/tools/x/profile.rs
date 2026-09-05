@@ -50,8 +50,13 @@ pub struct ProfileReport {
     pub utc_offset_minutes: i32,
 }
 
-pub async fn analyze(input: &str, limit: usize, with_replies: bool) -> anyhow::Result<ProfileReport> {
-    let handle = super::handle_from(input).ok_or_else(|| anyhow!("nao reconheci um perfil do X em: {}", input))?;
+pub async fn analyze(
+    input: &str,
+    limit: usize,
+    with_replies: bool,
+) -> anyhow::Result<ProfileReport> {
+    let handle = super::handle_from(input)
+        .ok_or_else(|| anyhow!("nao reconheci um perfil do X em: {}", input))?;
     let user = super::fx::profile(&handle).await?;
     let mut posts: Vec<XPost> = Vec::new();
     let mut cursor: Option<String> = None;
@@ -87,7 +92,8 @@ pub fn report(user: XUser, posts: Vec<XPost>) -> ProfileReport {
     let median_likes = if likes_sorted.is_empty() {
         0.0
     } else if likes_sorted.len().is_multiple_of(2) {
-        (likes_sorted[likes_sorted.len() / 2 - 1] + likes_sorted[likes_sorted.len() / 2]) as f64 / 2.0
+        (likes_sorted[likes_sorted.len() / 2 - 1] + likes_sorted[likes_sorted.len() / 2]) as f64
+            / 2.0
     } else {
         likes_sorted[likes_sorted.len() / 2] as f64
     };
@@ -111,14 +117,32 @@ pub fn report(user: XUser, posts: Vec<XPost>) -> ProfileReport {
         }
     }
     let slots = |v: &[(u64, f64)]| -> Vec<Slot> {
-        v.iter().enumerate().map(|(i, (c, l))| Slot { key: i as u32, posts: *c, avg_likes: if *c > 0 { l / *c as f64 } else { 0.0 } }).collect()
+        v.iter()
+            .enumerate()
+            .map(|(i, (c, l))| Slot {
+                key: i as u32,
+                posts: *c,
+                avg_likes: if *c > 0 { l / *c as f64 } else { 0.0 },
+            })
+            .collect()
     };
     let best = |v: &[Slot]| -> Option<u32> {
-        v.iter().filter(|s| s.posts >= 2).max_by(|a, b| a.avg_likes.partial_cmp(&b.avg_likes).unwrap_or(std::cmp::Ordering::Equal)).map(|s| s.key)
+        v.iter()
+            .filter(|s| s.posts >= 2)
+            .max_by(|a, b| {
+                a.avg_likes
+                    .partial_cmp(&b.avg_likes)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|s| s.key)
     };
     let by_hour = slots(&by_hour);
     let by_weekday = slots(&by_wd);
-    let days = if min_ts < max_ts { (max_ts - min_ts) as f64 / 86400.0 } else { 0.0 };
+    let days = if min_ts < max_ts {
+        (max_ts - min_ts) as f64 / 86400.0
+    } else {
+        0.0
+    };
     let mut tags: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
     let mut ats: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
     for p in &own {
@@ -132,7 +156,10 @@ pub fn report(user: XUser, posts: Vec<XPost>) -> ProfileReport {
         }
     }
     let top = |m: std::collections::HashMap<String, u64>| -> Vec<TagCount> {
-        let mut v: Vec<TagCount> = m.into_iter().map(|(tag, count)| TagCount { tag, count }).collect();
+        let mut v: Vec<TagCount> = m
+            .into_iter()
+            .map(|(tag, count)| TagCount { tag, count })
+            .collect();
         v.sort_by(|a, b| b.count.cmp(&a.count).then(a.tag.cmp(&b.tag)));
         v.truncate(10);
         v
@@ -143,18 +170,36 @@ pub fn report(user: XUser, posts: Vec<XPost>) -> ProfileReport {
     let share = |f: &dyn Fn(&XPost) -> bool| own.iter().filter(|p| f(p)).count() as f64 / n * 100.0;
     ProfileReport {
         sampled: own.len(),
-        since: if min_ts < i64::MAX { super::iso_from_timestamp(min_ts) } else { String::new() },
-        until: if max_ts > i64::MIN { super::iso_from_timestamp(max_ts) } else { String::new() },
+        since: if min_ts < i64::MAX {
+            super::iso_from_timestamp(min_ts)
+        } else {
+            String::new()
+        },
+        until: if max_ts > i64::MIN {
+            super::iso_from_timestamp(max_ts)
+        } else {
+            String::new()
+        },
         days_spanned: days,
-        posts_per_day: if days > 0.0 { own.len() as f64 / days } else { 0.0 },
+        posts_per_day: if days > 0.0 {
+            own.len() as f64 / days
+        } else {
+            0.0
+        },
         avg_likes,
         median_likes,
         avg_reposts,
         avg_replies,
         avg_views,
-        engagement_rate: if user.followers > 0 { (avg_likes + avg_reposts + avg_replies) / user.followers as f64 * 100.0 } else { 0.0 },
+        engagement_rate: if user.followers > 0 {
+            (avg_likes + avg_reposts + avg_replies) / user.followers as f64 * 100.0
+        } else {
+            0.0
+        },
         reply_share: share(&|p| p.is_reply()),
-        repost_share: posts.iter().filter(|p| p.reposted_by.is_some()).count() as f64 / posts.len().max(1) as f64 * 100.0,
+        repost_share: posts.iter().filter(|p| p.reposted_by.is_some()).count() as f64
+            / posts.len().max(1) as f64
+            * 100.0,
         media_share: share(&|p| !p.media.is_empty()),
         link_share: share(&|p| !p.links.is_empty()),
         best_hour: best(&by_hour),

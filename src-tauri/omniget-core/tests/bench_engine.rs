@@ -91,7 +91,10 @@ async fn bench_engine() {
     println!("|---|---|---|---|");
 
     if mode == "small" {
-        let n: u64 = std::env::var("BENCH_SMALL_N").ok().and_then(|v| v.parse().ok()).unwrap_or(40);
+        let n: u64 = std::env::var("BENCH_SMALL_N")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(40);
         // sequencial
         let t = Instant::now();
         let mut total = 0u64;
@@ -128,14 +131,19 @@ async fn bench_engine() {
 
     if mode == "stress" {
         for par in env_list("BENCH_PARALLEL", "2,4,8") {
-            let segs: usize = std::env::var("BENCH_STRESS_SEGMENTS").ok().and_then(|v| v.parse().ok()).unwrap_or(8);
+            let segs: usize = std::env::var("BENCH_STRESS_SEGMENTS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(8);
             let t = Instant::now();
             let mut handles = Vec::new();
             for i in 0..par {
                 let c = client.clone();
                 let u = url.clone();
                 let o = dir.join(format!("stress{i}.bin"));
-                handles.push(tokio::spawn(async move { run_fetcher(&c, &u, o, segs, 4).await.0 }));
+                handles.push(tokio::spawn(async move {
+                    run_fetcher(&c, &u, o, segs, 4).await.0
+                }));
             }
             let mut total = 0u64;
             for h in handles {
@@ -179,7 +187,15 @@ async fn bench_engine() {
             let secs = t.elapsed().as_secs_f64();
             match r {
                 Ok(res) => {
-                    println!("| yt-dlp generic (http) | http-chunk-size {} | {secs:.2}s | {:.1} |", if chunk == "0" { "padrão do app (10M)" } else { chunk }, mib_s(res.file_size_bytes, secs));
+                    println!(
+                        "| yt-dlp generic (http) | http-chunk-size {} | {secs:.2}s | {:.1} |",
+                        if chunk == "0" {
+                            "padrão do app (10M)"
+                        } else {
+                            chunk
+                        },
+                        mib_s(res.file_size_bytes, secs)
+                    );
                     let _ = std::fs::remove_file(res.file_path);
                 }
                 Err(e) => println!("| yt-dlp generic | chunk {chunk} | erro | {e} |"),
@@ -196,7 +212,10 @@ async fn bench_engine() {
     for &mb in &sizes {
         for &s in &segments {
             let (bytes, secs) = run_fetcher(&client, &url, dir.join("b.bin"), s as usize, mb).await;
-            println!("| HttpFetcher | {s} segmentos · {mb} MiB/segmento | {secs:.2}s | {:.1} |", mib_s(bytes, secs));
+            println!(
+                "| HttpFetcher | {s} segmentos · {mb} MiB/segmento | {secs:.2}s | {:.1} |",
+                mib_s(bytes, secs)
+            );
         }
     }
     // baseline: reqwest stream único sem o fetcher
@@ -208,11 +227,16 @@ async fn bench_engine() {
         let mut n = 0u64;
         while let Some(c) = stream.next().await {
             let c = c.unwrap();
-            tokio::io::AsyncWriteExt::write_all(&mut f, &c).await.unwrap();
+            tokio::io::AsyncWriteExt::write_all(&mut f, &c)
+                .await
+                .unwrap();
             n += c.len() as u64;
         }
         let secs = t.elapsed().as_secs_f64();
-        println!("| reqwest cru (1 conexão, sem fetcher) | baseline | {secs:.2}s | {:.1} |", mib_s(n, secs));
+        println!(
+            "| reqwest cru (1 conexão, sem fetcher) | baseline | {secs:.2}s | {:.1} |",
+            mib_s(n, secs)
+        );
     }
     let _ = std::fs::remove_dir_all(&dir);
 }

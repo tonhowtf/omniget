@@ -3,8 +3,8 @@
 //! payloads mirror what league_profile_tool and league-tools send (both MIT).
 
 use super::{ensure_enabled, get_client, lcu_get_raw, lcu_send, LcuClient};
-use serde_json::{json, Value};
 use rand::RngExt;
+use serde_json::{json, Value};
 
 const QUEUES: [&str; 3] = ["RANKED_SOLO_5x5", "RANKED_FLEX_SR", "RANKED_TFT"];
 const TIERS: [&str; 11] = [
@@ -65,7 +65,11 @@ pub fn summary_preferences(summary: &Value) -> (Vec<i64>, String, String) {
         .unwrap_or_default();
     let banner = summary
         .get("bannerAccent")
-        .and_then(|b| b.as_str().map(str::to_string).or_else(|| b.as_i64().map(|n| n.to_string())))
+        .and_then(|b| {
+            b.as_str()
+                .map(str::to_string)
+                .or_else(|| b.as_i64().map(|n| n.to_string()))
+        })
         .filter(|b| b != "-1" && !b.is_empty())
         .unwrap_or_else(|| "1".to_string());
     (tokens, title, banner)
@@ -77,13 +81,19 @@ pub async fn league_profile_state() -> Result<Value, String> {
     ensure_enabled()?;
     let client = get_client().await?;
     let me = chat_me(&client).await?;
-    let summary = lcu_get_raw(&client, "/lol-challenges/v1/summary-player-data/local-player")
-        .await
-        .unwrap_or(Value::Null);
+    let summary = lcu_get_raw(
+        &client,
+        "/lol-challenges/v1/summary-player-data/local-player",
+    )
+    .await
+    .unwrap_or(Value::Null);
     let (tokens, title, banner) = summary_preferences(&summary);
-    let profile = lcu_get_raw(&client, "/lol-summoner/v1/current-summoner/summoner-profile")
-        .await
-        .unwrap_or(Value::Null);
+    let profile = lcu_get_raw(
+        &client,
+        "/lol-summoner/v1/current-summoner/summoner-profile",
+    )
+    .await
+    .unwrap_or(Value::Null);
     let regalia = lcu_get_raw(&client, "/lol-regalia/v2/current-summoner/regalia")
         .await
         .unwrap_or(Value::Null);
@@ -132,7 +142,11 @@ pub async fn league_profile_state() -> Result<Value, String> {
 /// Rank shown on the chat hovercard and social cards. Only the `lol` block is
 /// patched, so presence data the client keeps there survives.
 #[tauri::command]
-pub async fn league_set_chat_rank(queue: String, tier: String, division: String) -> Result<Value, String> {
+pub async fn league_set_chat_rank(
+    queue: String,
+    tier: String,
+    division: String,
+) -> Result<Value, String> {
     ensure_enabled()?;
     if !QUEUES.contains(&queue.as_str()) {
         return Err("invalid queue".to_string());
@@ -145,7 +159,11 @@ pub async fn league_set_chat_rank(queue: String, tier: String, division: String)
         return Err("invalid division".to_string());
     }
     let client = get_client().await?;
-    let tier_value = if tier == "UNRANKED" { "" } else { tier.as_str() };
+    let tier_value = if tier == "UNRANKED" {
+        ""
+    } else {
+        tier.as_str()
+    };
     lcu_send(
         &client,
         reqwest::Method::PUT,
@@ -246,7 +264,10 @@ pub async fn league_challenges() -> Result<Value, String> {
         .iter()
         .filter_map(|c| {
             let id = c.get("id").and_then(Value::as_i64)?;
-            let level = c.get("currentLevel").and_then(Value::as_str).unwrap_or("NONE");
+            let level = c
+                .get("currentLevel")
+                .and_then(Value::as_str)
+                .unwrap_or("NONE");
             if id <= 0 || level == "NONE" {
                 return None;
             }
@@ -305,9 +326,12 @@ pub async fn league_set_challenge_prefs(
 ) -> Result<Value, String> {
     ensure_enabled()?;
     let client = get_client().await?;
-    let summary = lcu_get_raw(&client, "/lol-challenges/v1/summary-player-data/local-player")
-        .await
-        .unwrap_or(Value::Null);
+    let summary = lcu_get_raw(
+        &client,
+        "/lol-challenges/v1/summary-player-data/local-player",
+    )
+    .await
+    .unwrap_or(Value::Null);
     let (current_tokens, current_title, current_banner) = summary_preferences(&summary);
     let ids = challenge_ids.unwrap_or(current_tokens);
     if ids.len() > 3 || ids.iter().any(|id| *id < 0) {
@@ -479,7 +503,10 @@ pub async fn league_random_champion(class: Option<String>) -> Result<Value, Stri
 
 /// Hovers (or locks) a champion in the local player's open pick action.
 #[tauri::command]
-pub async fn league_declare_champion(champion_id: i64, lock: Option<bool>) -> Result<Value, String> {
+pub async fn league_declare_champion(
+    champion_id: i64,
+    lock: Option<bool>,
+) -> Result<Value, String> {
     ensure_enabled()?;
     if champion_id <= 0 {
         return Err("invalid champion".to_string());
@@ -522,9 +549,18 @@ mod tests {
             "title": { "itemId": 77 },
             "bannerAccent": "5"
         });
-        assert_eq!(summary_preferences(&summary), (vec![1, 2, 3], "77".to_string(), "5".to_string()));
+        assert_eq!(
+            summary_preferences(&summary),
+            (vec![1, 2, 3], "77".to_string(), "5".to_string())
+        );
         let empty = json!({ "title": { "itemId": -1 }, "bannerAccent": "-1" });
-        assert_eq!(summary_preferences(&empty), (vec![], String::new(), "1".to_string()));
-        assert_eq!(summary_preferences(&Value::Null), (vec![], String::new(), "1".to_string()));
+        assert_eq!(
+            summary_preferences(&empty),
+            (vec![], String::new(), "1".to_string())
+        );
+        assert_eq!(
+            summary_preferences(&Value::Null),
+            (vec![], String::new(), "1".to_string())
+        );
     }
 }

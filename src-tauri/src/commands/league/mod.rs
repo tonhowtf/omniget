@@ -1743,7 +1743,11 @@ pub async fn league_player_history(
     let local_games = local
         .as_ref()
         .ok()
-        .and_then(|h| h.get("games").and_then(|g| g.get("games")).and_then(Value::as_array))
+        .and_then(|h| {
+            h.get("games")
+                .and_then(|g| g.get("games"))
+                .and_then(Value::as_array)
+        })
         .map(|a| a.len())
         .unwrap_or(0);
     if local_games > 0 {
@@ -1752,7 +1756,9 @@ pub async fn league_player_history(
     // Nothing locally: the backend may still have it.
     let count = (end - beg + 1).clamp(1, 50) as u32;
     match sgp::match_history_local(&client, &puuid, beg as u32, count).await {
-        Ok(games) if !games.is_empty() => Ok(json!({ "games": { "games": games }, "source": "sgp" })),
+        Ok(games) if !games.is_empty() => {
+            Ok(json!({ "games": { "games": games }, "source": "sgp" }))
+        }
         _ => local,
     }
 }

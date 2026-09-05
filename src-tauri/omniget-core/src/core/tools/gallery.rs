@@ -17,7 +17,11 @@ pub async fn status() -> GalleryStatus {
         Some(p) => crate::core::dependencies::check_version_at_path(p, "gallery-dl").await,
         None => None,
     };
-    GalleryStatus { installed: path.is_some(), path: path.map(|p| p.to_string_lossy().to_string()), version }
+    GalleryStatus {
+        installed: path.is_some(),
+        path: path.map(|p| p.to_string_lossy().to_string()),
+        version,
+    }
 }
 
 pub async fn install() -> anyhow::Result<String> {
@@ -34,7 +38,12 @@ pub struct GalleryResult {
     pub log_tail: String,
 }
 
-pub async fn download(url: &str, dest: &str, cookies_file: Option<&str>, progress: super::ProgressFn) -> anyhow::Result<GalleryResult> {
+pub async fn download(
+    url: &str,
+    dest: &str,
+    cookies_file: Option<&str>,
+    progress: super::ProgressFn,
+) -> anyhow::Result<GalleryResult> {
     use tokio::io::{AsyncBufReadExt, BufReader};
     let bin = crate::core::dependencies::ensure_gallerydl()
         .await
@@ -49,7 +58,9 @@ pub async fn download(url: &str, dest: &str, cookies_file: Option<&str>, progres
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
-    let mut child = cmd.spawn().map_err(|e| anyhow!("nao foi possivel iniciar o gallery-dl: {}", e))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| anyhow!("nao foi possivel iniciar o gallery-dl: {}", e))?;
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
     let id = format!("gallery:{}", url);
@@ -85,6 +96,17 @@ pub async fn download(url: &str, dest: &str, cookies_file: Option<&str>, progres
     if !status.success() && files.is_empty() {
         return Err(anyhow!("gallery-dl falhou: {}", tail));
     }
-    super::report(&progress, &id, "done", files.len() as u64, Some(files.len() as u64), None);
-    Ok(GalleryResult { files, dest: dest.to_string(), log_tail: tail })
+    super::report(
+        &progress,
+        &id,
+        "done",
+        files.len() as u64,
+        Some(files.len() as u64),
+        None,
+    );
+    Ok(GalleryResult {
+        files,
+        dest: dest.to_string(),
+        log_tail: tail,
+    })
 }

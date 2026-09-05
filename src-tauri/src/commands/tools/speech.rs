@@ -10,13 +10,25 @@ pub async fn tool_whisper_status() -> whisper::WhisperStatus {
 }
 
 #[tauri::command]
-pub async fn tool_whisper_install(app: tauri::AppHandle, variant: String) -> Result<String, String> {
-    whisper::install(&variant, progress(&app)).await.map(|p| p.to_string_lossy().to_string()).map_err(err)
+pub async fn tool_whisper_install(
+    app: tauri::AppHandle,
+    variant: String,
+) -> Result<String, String> {
+    whisper::install(&variant, progress(&app))
+        .await
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(err)
 }
 
 #[tauri::command]
-pub async fn tool_whisper_model_download(app: tauri::AppHandle, id: String) -> Result<String, String> {
-    whisper::download_model(&id, progress(&app)).await.map(|p| p.to_string_lossy().to_string()).map_err(err)
+pub async fn tool_whisper_model_download(
+    app: tauri::AppHandle,
+    id: String,
+) -> Result<String, String> {
+    whisper::download_model(&id, progress(&app))
+        .await
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(err)
 }
 
 #[tauri::command]
@@ -25,7 +37,10 @@ pub async fn tool_whisper_model_remove(id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn tool_whisper_transcribe(app: tauri::AppHandle, opts: whisper::TranscribeOptions) -> Result<whisper::TranscribeResult, String> {
+pub async fn tool_whisper_transcribe(
+    app: tauri::AppHandle,
+    opts: whisper::TranscribeOptions,
+) -> Result<whisper::TranscribeResult, String> {
     whisper::transcribe(opts, progress(&app)).await.map_err(err)
 }
 
@@ -35,8 +50,14 @@ pub async fn tool_tts_voices() -> Result<Vec<edge_tts::Voice>, String> {
 }
 
 #[tauri::command]
-pub async fn tool_tts_speak(app: tauri::AppHandle, opts: edge_tts::TtsOptions, output_path: String) -> Result<edge_tts::TtsResult, String> {
-    edge_tts::synthesize(opts, std::path::Path::new(&output_path), progress(&app)).await.map_err(err)
+pub async fn tool_tts_speak(
+    app: tauri::AppHandle,
+    opts: edge_tts::TtsOptions,
+    output_path: String,
+) -> Result<edge_tts::TtsResult, String> {
+    edge_tts::synthesize(opts, std::path::Path::new(&output_path), progress(&app))
+        .await
+        .map_err(err)
 }
 
 #[derive(Serialize)]
@@ -61,7 +82,9 @@ pub async fn tool_srt_translate(
         return Err("a legenda esta vazia ou num formato desconhecido".into());
     }
     let target = opts.target_lang.clone();
-    let result = srt_translate::translate_cues(&cues, &opts, progress(&app)).await.map_err(err)?;
+    let result = srt_translate::translate_cues(&cues, &opts, progress(&app))
+        .await
+        .map_err(err)?;
     let mut out = result.cues;
     if bilingual {
         for (i, c) in out.iter_mut().enumerate() {
@@ -70,16 +93,32 @@ pub async fn tool_srt_translate(
             }
         }
     }
-    let out_path = output_path.filter(|p| !p.trim().is_empty()).unwrap_or_else(|| {
-        let p = std::path::Path::new(&srt_path);
-        let stem = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "legenda".into());
-        p.with_file_name(format!("{}.{}.srt", stem, target)).to_string_lossy().to_string()
-    });
-    tokio::fs::write(&out_path, cues_to_srt(&out)).await.map_err(err)?;
-    Ok(SrtTranslateOut { output_path: out_path, cues: out.len(), failed: result.failed.len() })
+    let out_path = output_path
+        .filter(|p| !p.trim().is_empty())
+        .unwrap_or_else(|| {
+            let p = std::path::Path::new(&srt_path);
+            let stem = p
+                .file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| "legenda".into());
+            p.with_file_name(format!("{}.{}.srt", stem, target))
+                .to_string_lossy()
+                .to_string()
+        });
+    tokio::fs::write(&out_path, cues_to_srt(&out))
+        .await
+        .map_err(err)?;
+    Ok(SrtTranslateOut {
+        output_path: out_path,
+        cues: out.len(),
+        failed: result.failed.len(),
+    })
 }
 
 #[tauri::command]
-pub async fn tool_dub(app: tauri::AppHandle, opts: dub::DubOptions) -> Result<dub::DubResult, String> {
+pub async fn tool_dub(
+    app: tauri::AppHandle,
+    opts: dub::DubOptions,
+) -> Result<dub::DubResult, String> {
     dub::dub(opts, progress(&app)).await.map_err(err)
 }

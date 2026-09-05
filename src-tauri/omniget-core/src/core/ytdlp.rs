@@ -369,7 +369,11 @@ pub(crate) const PROGRESS_TEMPLATE: &str = "download:%(progress._percent_str)s|e
 /// instrumentação que a tela precisa (`--newline`, `--progress`, template,
 /// `--print after_move:…`, `--no-quiet`), um `-o` quando falta e a URL no
 /// fim. Nada mais é alterado: o usuário pediu para rodar *aquele* comando.
-pub(crate) fn prepare_override_args(argv: Vec<String>, url: &str, output_dir: &Path) -> Vec<String> {
+pub(crate) fn prepare_override_args(
+    argv: Vec<String>,
+    url: &str,
+    output_dir: &Path,
+) -> Vec<String> {
     let mut args = argv;
     if let Some(first) = args.first() {
         let name = Path::new(first)
@@ -1226,7 +1230,10 @@ pub async fn acquire_ytdlp_slot(what: &str) -> tokio::sync::OwnedSemaphorePermit
     let dl_id = log_hook::current_download_id();
     tracing::info!("[yt-dlp] waiting for a slot ({})", what);
     if let Some(id) = dl_id {
-        log_hook::emit_log(id, &format!("[omniget] waiting for a yt-dlp slot ({})", what));
+        log_hook::emit_log(
+            id,
+            &format!("[omniget] waiting for a yt-dlp slot ({})", what),
+        );
     }
     let permit = sem
         .acquire_owned()
@@ -1237,7 +1244,10 @@ pub async fn acquire_ytdlp_slot(what: &str) -> tokio::sync::OwnedSemaphorePermit
     if let Some(id) = dl_id {
         log_hook::emit_log(
             id,
-            &format!("[omniget] yt-dlp slot acquired after {:.1}s", waited.as_secs_f64()),
+            &format!(
+                "[omniget] yt-dlp slot acquired after {:.1}s",
+                waited.as_secs_f64()
+            ),
         );
     }
     permit
@@ -1545,7 +1555,10 @@ fn probe_python(candidate: &Path) -> Option<PathBuf> {
         return None;
     }
     let exe = lines.next().map(str::trim).filter(|s| !s.is_empty());
-    Some(exe.map(PathBuf::from).unwrap_or_else(|| candidate.to_path_buf()))
+    Some(
+        exe.map(PathBuf::from)
+            .unwrap_or_else(|| candidate.to_path_buf()),
+    )
 }
 
 /// Um Python ≥ 3.10 da máquina, se houver, para rodar o zipapp do yt-dlp.
@@ -1572,9 +1585,9 @@ fn python_cached() -> Option<PathBuf> {
             let found = python_candidates().iter().find_map(|c| probe_python(c));
             match &found {
                 Some(p) => tracing::info!("[yt-dlp] python for zipapp: {}", p.display()),
-                None => tracing::info!(
-                    "[yt-dlp] no python >= 3.10 found; using the onefile binary"
-                ),
+                None => {
+                    tracing::info!("[yt-dlp] no python >= 3.10 found; using the onefile binary")
+                }
             }
             found
         })
@@ -1819,8 +1832,8 @@ async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
 const YTDLP_ZIPAPP_ASSET: &str = "yt-dlp";
 
 async fn download_ytdlp_zipapp() -> anyhow::Result<PathBuf> {
-    let target = managed_ytdlp_zipapp_path()
-        .ok_or_else(|| anyhow!("Could not determine data directory"))?;
+    let target =
+        managed_ytdlp_zipapp_path().ok_or_else(|| anyhow!("Could not determine data directory"))?;
     download_ytdlp_asset(YTDLP_ZIPAPP_ASSET, target).await
 }
 
@@ -3856,7 +3869,6 @@ pub async fn download_video(
     Err(translate_ytdlp_error(&last_error))
 }
 
-
 /// Lê o stdout do yt-dlp e converte em `ProgressUpdate`. Extraído do laço de
 /// tentativas para o caminho "comando editado pelo usuário" usar o mesmo
 /// parser — a tela não pode se comportar diferente só porque o comando veio
@@ -3872,178 +3884,177 @@ fn spawn_stdout_reader(
     boot_slot: Option<BootSlot>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-            let mut boot_slot = boot_slot;
-            let mut phase = 0u32;
-            let mut last_raw_percent: Option<f64> = None;
-            let mut max_reported = 0.0f64;
-            let mut first_line_logged = false;
-            let mut first_progress_logged = false;
-            let mut authoritative_capture = false;
-            let mut last_send = std::time::Instant::now();
-            let throttle = std::time::Duration::from_millis(250);
-            let mut last_stream_id: Option<String> = None;
-            // Bytes reais: o `dl:` do template é do stream atual; somando os
-            // streams já terminados a tela mostra "123 MB" de verdade em vez
-            // de zero até o merge (o total continua desconhecido em bv+ba
-            // porque o tamanho do áudio só aparece quando ele começa).
-            let mut prev_streams_bytes: u64 = 0;
-            let mut current_stream_bytes: u64 = 0;
-            let mut planned_count: usize = 0;
-            while let Ok(Some(line)) = lines.next_line().await {
-                // Primeira linha: o Python já está de pé, o bootstrap acabou.
-                if let Some(slot) = boot_slot.take() {
-                    release_boot_slot(&slot);
+        let mut boot_slot = boot_slot;
+        let mut phase = 0u32;
+        let mut last_raw_percent: Option<f64> = None;
+        let mut max_reported = 0.0f64;
+        let mut first_line_logged = false;
+        let mut first_progress_logged = false;
+        let mut authoritative_capture = false;
+        let mut last_send = std::time::Instant::now();
+        let throttle = std::time::Duration::from_millis(250);
+        let mut last_stream_id: Option<String> = None;
+        // Bytes reais: o `dl:` do template é do stream atual; somando os
+        // streams já terminados a tela mostra "123 MB" de verdade em vez
+        // de zero até o merge (o total continua desconhecido em bv+ba
+        // porque o tamanho do áudio só aparece quando ele começa).
+        let mut prev_streams_bytes: u64 = 0;
+        let mut current_stream_bytes: u64 = 0;
+        let mut planned_count: usize = 0;
+        while let Ok(Some(line)) = lines.next_line().await {
+            // Primeira linha: o Python já está de pé, o bootstrap acabou.
+            if let Some(slot) = boot_slot.take() {
+                release_boot_slot(&slot);
+            }
+            if let Some(id) = log_id {
+                log_hook::emit_log(id, &line);
+            }
+            if let Some(plan) = parse_planned_formats(&line) {
+                planned_count = plan.len();
+                let _ = progress_tx
+                    .send(ProgressUpdate {
+                        percent: max_reported,
+                        planned_formats: Some(plan),
+                        ..Default::default()
+                    })
+                    .await;
+                continue;
+            }
+            if let Some(pp) = postprocess_phase(&line) {
+                let p = max_reported.clamp(98.0, 99.0);
+                let _ = progress_tx.send(ProgressUpdate::phase(pp, p)).await;
+                max_reported = max_reported.max(p);
+                last_send = std::time::Instant::now();
+                continue;
+            }
+            if !first_line_logged {
+                first_line_logged = true;
+                tracing::debug!(
+                    "[perf] download_video first_byte_time: {:?}",
+                    _timer_start.elapsed()
+                );
+            }
+            if let Some(rest) = line.strip_prefix("OMNIGET_FILEPATH:") {
+                let final_path = rest.trim();
+                if !final_path.is_empty() && final_path != "NA" {
+                    authoritative_capture = true;
+                    let mut guard = captured_path_writer.lock().unwrap();
+                    *guard = Some(PathBuf::from(final_path));
                 }
-                if let Some(id) = log_id {
-                    log_hook::emit_log(id, &line);
+                continue;
+            }
+            if let Some(dest) = parse_destination_line(&line) {
+                let dest_path = PathBuf::from(&dest);
+                let ext = dest_path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+                let is_subtitle =
+                    matches!(ext.as_str(), "vtt" | "srt" | "ass" | "ssa" | "sub" | "lrc");
+                if !is_subtitle && !authoritative_capture {
+                    phase += 1;
+                    let mut guard = captured_path_writer.lock().unwrap();
+                    *guard = Some(dest_path);
                 }
-                if let Some(plan) = parse_planned_formats(&line) {
-                    planned_count = plan.len();
-                    let _ = progress_tx
-                        .send(ProgressUpdate {
-                            percent: max_reported,
-                            planned_formats: Some(plan),
-                            ..Default::default()
-                        })
-                        .await;
-                    continue;
-                }
-                if let Some(pp) = postprocess_phase(&line) {
-                    let p = max_reported.clamp(98.0, 99.0);
-                    let _ = progress_tx.send(ProgressUpdate::phase(pp, p)).await;
-                    max_reported = max_reported.max(p);
-                    last_send = std::time::Instant::now();
-                    continue;
-                }
-                if !first_line_logged {
-                    first_line_logged = true;
+            }
+            if line.contains("[Merger]")
+                || line.contains("[FixupM3u8]")
+                || line.contains("[VideoConvertor]")
+                || (line.contains("[ffmpeg]") && line.to_lowercase().contains("merg"))
+            {
+                let merging_progress = max_reported.clamp(95.0, 98.0).max(max_reported);
+                let _ = progress_tx
+                    .send(ProgressUpdate::phase("merging", merging_progress))
+                    .await;
+                max_reported = max_reported.max(merging_progress);
+                last_send = std::time::Instant::now();
+                continue;
+            }
+            if let Some(pct) = parse_progress_line(&line) {
+                if !first_progress_logged && pct > 0.0 {
+                    first_progress_logged = true;
                     tracing::debug!(
-                        "[perf] download_video first_byte_time: {:?}",
+                        "[perf] download_video: first_progress > 0% at {:?}",
                         _timer_start.elapsed()
                     );
                 }
-                if let Some(rest) = line.strip_prefix("OMNIGET_FILEPATH:") {
-                    let final_path = rest.trim();
-                    if !final_path.is_empty() && final_path != "NA" {
-                        authoritative_capture = true;
-                        let mut guard = captured_path_writer.lock().unwrap();
-                        *guard = Some(PathBuf::from(final_path));
-                    }
-                    continue;
+                let eta = parse_eta_line(&line);
+                let speed = parse_speed_line(&line);
+                if let (Some(id), Some(e)) = (log_id, eta) {
+                    record_eta(id, e);
                 }
-                if let Some(dest) = parse_destination_line(&line) {
-                    let dest_path = PathBuf::from(&dest);
-                    let ext = dest_path
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .unwrap_or("")
-                        .to_lowercase();
-                    let is_subtitle =
-                        matches!(ext.as_str(), "vtt" | "srt" | "ass" | "ssa" | "sub" | "lrc");
-                    if !is_subtitle && !authoritative_capture {
-                        phase += 1;
-                        let mut guard = captured_path_writer.lock().unwrap();
-                        *guard = Some(dest_path);
-                    }
+                let stream = parse_stream_info(&line);
+                let fragment = parse_fragment_progress(&line);
+                let stream_id = stream.as_ref().map(|s| s.format_id.clone());
+                let stream_changed = stream_id.is_some() && stream_id != last_stream_id;
+                if stream_changed {
+                    last_stream_id = stream_id;
+                    prev_streams_bytes += current_stream_bytes;
+                    current_stream_bytes = 0;
                 }
-                if line.contains("[Merger]")
-                    || line.contains("[FixupM3u8]")
-                    || line.contains("[VideoConvertor]")
-                    || (line.contains("[ffmpeg]") && line.to_lowercase().contains("merg"))
-                {
-                    let merging_progress = max_reported.clamp(95.0, 98.0).max(max_reported);
-                    let _ = progress_tx
-                        .send(ProgressUpdate::phase("merging", merging_progress))
-                        .await;
-                    max_reported = max_reported.max(merging_progress);
-                    last_send = std::time::Instant::now();
-                    continue;
+                if let Some(dl) = parse_downloaded_bytes_line(&line) {
+                    current_stream_bytes = current_stream_bytes.max(dl);
                 }
-                if let Some(pct) = parse_progress_line(&line) {
-                    if !first_progress_logged && pct > 0.0 {
-                        first_progress_logged = true;
-                        tracing::debug!(
-                            "[perf] download_video: first_progress > 0% at {:?}",
-                            _timer_start.elapsed()
-                        );
-                    }
-                    let eta = parse_eta_line(&line);
-                    let speed = parse_speed_line(&line);
-                    if let (Some(id), Some(e)) = (log_id, eta) {
-                        record_eta(id, e);
-                    }
-                    let stream = parse_stream_info(&line);
-                    let fragment = parse_fragment_progress(&line);
-                    let stream_id = stream.as_ref().map(|s| s.format_id.clone());
-                    let stream_changed = stream_id.is_some() && stream_id != last_stream_id;
-                    if stream_changed {
-                        last_stream_id = stream_id;
-                        prev_streams_bytes += current_stream_bytes;
-                        current_stream_bytes = 0;
-                    }
-                    if let Some(dl) = parse_downloaded_bytes_line(&line) {
-                        current_stream_bytes = current_stream_bytes.max(dl);
-                    }
-                    let overall_bytes = Some(prev_streams_bytes + current_stream_bytes);
-                    let single_total = if planned_count <= 1 {
-                        parse_total_bytes_line(&line)
-                    } else {
-                        None
-                    };
-                    let attach = |mut u: ProgressUpdate| {
-                        u.stream = stream.clone();
-                        u.fragment_index = fragment.map(|f| f.0);
-                        u.fragment_count = fragment.map(|f| f.1);
-                        u
-                    };
-                    if is_audio_only {
-                        if stream_changed || pct >= 99.0 || last_send.elapsed() >= throttle {
-                            let dl = parse_downloaded_bytes_line(&line);
-                            let tot = parse_total_bytes_line(&line);
-                            let _ = progress_tx
-                                .send(attach(ProgressUpdate::rich(pct, dl, tot, speed, eta)))
-                                .await;
-                            last_send = std::time::Instant::now();
-                        }
-                    } else {
-                        let adjusted = adjusted_multi_stream_progress(
-                            &mut phase,
-                            &mut last_raw_percent,
-                            max_reported,
-                            pct,
-                        );
-                        if stream_changed
-                            || (adjusted > max_reported
-                                && (adjusted >= 99.0 || last_send.elapsed() >= throttle))
-                        {
-                            max_reported = max_reported.max(adjusted);
-                            let _ = progress_tx
-                                .send(attach(ProgressUpdate::rich(
-                                    max_reported,
-                                    overall_bytes,
-                                    single_total,
-                                    speed,
-                                    eta,
-                                )))
-                                .await;
-                            last_send = std::time::Instant::now();
-                        }
-                    }
-                } else if line.trim_start().starts_with("download:") || line.contains("[download]")
-                {
-                    let dl = parse_downloaded_bytes_line(&line)
-                        .or_else(|| parse_default_download_line(&line).map(|(d, _)| d as u64));
-                    let speed = parse_speed_line(&line)
-                        .or_else(|| parse_default_download_line(&line).map(|(_, s)| s));
-                    if (dl.is_some() || speed.is_some()) && last_send.elapsed() >= throttle {
+                let overall_bytes = Some(prev_streams_bytes + current_stream_bytes);
+                let single_total = if planned_count <= 1 {
+                    parse_total_bytes_line(&line)
+                } else {
+                    None
+                };
+                let attach = |mut u: ProgressUpdate| {
+                    u.stream = stream.clone();
+                    u.fragment_index = fragment.map(|f| f.0);
+                    u.fragment_count = fragment.map(|f| f.1);
+                    u
+                };
+                if is_audio_only {
+                    if stream_changed || pct >= 99.0 || last_send.elapsed() >= throttle {
+                        let dl = parse_downloaded_bytes_line(&line);
+                        let tot = parse_total_bytes_line(&line);
                         let _ = progress_tx
-                            .send(ProgressUpdate::rich(0.0, dl, None, speed, None))
+                            .send(attach(ProgressUpdate::rich(pct, dl, tot, speed, eta)))
+                            .await;
+                        last_send = std::time::Instant::now();
+                    }
+                } else {
+                    let adjusted = adjusted_multi_stream_progress(
+                        &mut phase,
+                        &mut last_raw_percent,
+                        max_reported,
+                        pct,
+                    );
+                    if stream_changed
+                        || (adjusted > max_reported
+                            && (adjusted >= 99.0 || last_send.elapsed() >= throttle))
+                    {
+                        max_reported = max_reported.max(adjusted);
+                        let _ = progress_tx
+                            .send(attach(ProgressUpdate::rich(
+                                max_reported,
+                                overall_bytes,
+                                single_total,
+                                speed,
+                                eta,
+                            )))
                             .await;
                         last_send = std::time::Instant::now();
                     }
                 }
+            } else if line.trim_start().starts_with("download:") || line.contains("[download]") {
+                let dl = parse_downloaded_bytes_line(&line)
+                    .or_else(|| parse_default_download_line(&line).map(|(d, _)| d as u64));
+                let speed = parse_speed_line(&line)
+                    .or_else(|| parse_default_download_line(&line).map(|(_, s)| s));
+                if (dl.is_some() || speed.is_some()) && last_send.elapsed() >= throttle {
+                    let _ = progress_tx
+                        .send(ProgressUpdate::rich(0.0, dl, None, speed, None))
+                        .await;
+                    last_send = std::time::Instant::now();
+                }
             }
-            })
+        }
+    })
 }
 
 /// Roda o comando editado pelo usuário como está. Uma tentativa só: quem edita
@@ -4944,13 +4955,21 @@ mod tests {
         assert!(is_terminal_ytdlp_error(
             "error: fragment 1 not found, unable to continue"
         ));
-        assert!(is_terminal_ytdlp_error("error: the downloaded file is empty"));
-        assert!(is_terminal_ytdlp_error("error: [youtube] abc: video unavailable"));
+        assert!(is_terminal_ytdlp_error(
+            "error: the downloaded file is empty"
+        ));
+        assert!(is_terminal_ytdlp_error(
+            "error: [youtube] abc: video unavailable"
+        ));
         assert!(is_terminal_ytdlp_error(
             "error: unable to download webpage: http error 404: not found"
         ));
-        assert!(!is_terminal_ytdlp_error("error: http error 429: too many requests"));
-        assert!(!is_terminal_ytdlp_error("error: requested format is not available"));
+        assert!(!is_terminal_ytdlp_error(
+            "error: http error 429: too many requests"
+        ));
+        assert!(!is_terminal_ytdlp_error(
+            "error: requested format is not available"
+        ));
         assert!(!is_terminal_ytdlp_error("error: connection reset by peer"));
     }
 
@@ -5021,7 +5040,9 @@ mod tests {
         assert_eq!(super::parse_progress_line(line), Some(42.0));
         assert_eq!(super::parse_speed_line(line), Some(4_500_000.0));
         // O template real precisa conter cada chave que o parser procura.
-        for key in ["fi:", "fc:", "fid:", "h:", "vc:", "ac:", "ext:", "fsz:", "note:"] {
+        for key in [
+            "fi:", "fc:", "fid:", "h:", "vc:", "ac:", "ext:", "fsz:", "note:",
+        ] {
             assert!(PROGRESS_TEMPLATE.contains(&format!("|{key}")), "{key}");
         }
     }
@@ -5049,7 +5070,10 @@ mod tests {
 
     #[test]
     fn linha_sem_formato_nao_vira_stream() {
-        assert!(parse_stream_info("download:  1.0%|eta:NA|spd:NA|dl:0|tot:NA|est:NA|fi:NA|fc:NA").is_none());
+        assert!(
+            parse_stream_info("download:  1.0%|eta:NA|spd:NA|dl:0|tot:NA|est:NA|fi:NA|fc:NA")
+                .is_none()
+        );
         assert_eq!(parse_fragment_progress("download: 1%|fi:NA|fc:NA"), None);
         assert_eq!(parse_fragment_progress("download: 1%|fi:0|fc:0"), None);
     }
@@ -5065,10 +5089,22 @@ mod tests {
             Some(vec!["18".to_string()])
         );
         assert_eq!(parse_planned_formats("[download] Destination: x.mp4"), None);
-        assert_eq!(postprocess_phase("[Metadata] Adding metadata to \"x.mp4\""), Some("postprocessing"));
-        assert_eq!(postprocess_phase("[ExtractAudio] Destination: x.m4a"), Some("extracting_audio"));
-        assert_eq!(postprocess_phase("[EmbedSubtitle] Embedding subtitles"), Some("embedding_subtitles"));
-        assert_eq!(postprocess_phase("[Merger] Merging formats into \"x.mp4\""), None);
+        assert_eq!(
+            postprocess_phase("[Metadata] Adding metadata to \"x.mp4\""),
+            Some("postprocessing")
+        );
+        assert_eq!(
+            postprocess_phase("[ExtractAudio] Destination: x.m4a"),
+            Some("extracting_audio")
+        );
+        assert_eq!(
+            postprocess_phase("[EmbedSubtitle] Embedding subtitles"),
+            Some("embedding_subtitles")
+        );
+        assert_eq!(
+            postprocess_phase("[Merger] Merging formats into \"x.mp4\""),
+            None
+        );
         assert_eq!(postprocess_phase("[download]  10%"), None);
     }
 
@@ -5086,9 +5122,15 @@ mod tests {
         assert!(args.contains(&"--progress".to_string()));
         assert!(args.contains(&"--no-quiet".to_string()));
         assert!(args.contains(&PROGRESS_TEMPLATE.to_string()));
-        assert!(args.iter().any(|a| a.starts_with("after_move:OMNIGET_FILEPATH")));
+        assert!(args
+            .iter()
+            .any(|a| a.starts_with("after_move:OMNIGET_FILEPATH")));
         assert!(args.contains(&"-o".to_string()), "sem -o, recebe o padrão");
-        assert_eq!(args.iter().filter(|a| *a == url).count(), 1, "URL fica uma vez, no lugar do usuário");
+        assert_eq!(
+            args.iter().filter(|a| *a == url).count(),
+            1,
+            "URL fica uma vez, no lugar do usuário"
+        );
         // Com -P próprio, não recebe -o.
         let argv2: Vec<String> = ["-P", "/x", "--output=%(id)s.%(ext)s"]
             .iter()
@@ -5096,7 +5138,11 @@ mod tests {
             .collect();
         let args2 = prepare_override_args(argv2, url, out);
         assert!(!args2.contains(&"-o".to_string()));
-        assert_eq!(args2.last().map(String::as_str), Some(url), "URL entra no fim quando falta");
+        assert_eq!(
+            args2.last().map(String::as_str),
+            Some(url),
+            "URL entra no fim quando falta"
+        );
     }
 
     #[test]
@@ -5104,19 +5150,31 @@ mod tests {
         use super::newer_release_available as newer;
         // nightly local mais novo que o stable publicado: nunca rebaixar
         assert!(!newer(Some((2026, 8, 30)), Some((2026, 8, 19))));
-        assert!(!newer(Some((2026, 8, 19)), Some((2026, 8, 19))), "mesma versão não re-baixa");
+        assert!(
+            !newer(Some((2026, 8, 19)), Some((2026, 8, 19))),
+            "mesma versão não re-baixa"
+        );
         assert!(newer(Some((2026, 8, 19)), Some((2026, 9, 2))));
         // sem informação, não mexe
         assert!(!newer(None, Some((2026, 9, 2))));
         assert!(!newer(Some((2026, 8, 19)), None));
-        assert_eq!(super::parse_ytdlp_version("2026.09.04.232832"), Some((2026, 9, 4)));
+        assert_eq!(
+            super::parse_ytdlp_version("2026.09.04.232832"),
+            Some((2026, 9, 4))
+        );
     }
 
     #[test]
     fn host_do_tuner_junta_as_variantes_do_youtube() {
-        assert_eq!(tuner_host_key("https://www.youtube.com/watch?v=x"), "youtube");
+        assert_eq!(
+            tuner_host_key("https://www.youtube.com/watch?v=x"),
+            "youtube"
+        );
         assert_eq!(tuner_host_key("https://youtu.be/x"), "youtube");
-        assert_eq!(tuner_host_key("https://rr1---sn-x.googlevideo.com/videoplayback"), "youtube");
+        assert_eq!(
+            tuner_host_key("https://rr1---sn-x.googlevideo.com/videoplayback"),
+            "youtube"
+        );
         assert_eq!(tuner_host_key("https://www.vimeo.com/1"), "vimeo.com");
         assert_eq!(tuner_host_key("nope"), "unknown");
     }
@@ -5814,7 +5872,10 @@ mod e2e {
         );
         assert!(cmd.display.contains("formats=dashy"), "{}", cmd.display);
         assert!(cmd.display.contains("--ignore-config"));
-        let planned: Vec<_> = updates.iter().filter_map(|u| u.planned_formats.clone()).collect();
+        let planned: Vec<_> = updates
+            .iter()
+            .filter_map(|u| u.planned_formats.clone())
+            .collect();
         let streams: Vec<_> = updates
             .iter()
             .filter_map(|u| u.stream.clone())
@@ -5826,13 +5887,24 @@ mod e2e {
         println!("--- streams seen (dedup): {:?}", uniq);
         println!(
             "--- phases: {:?}",
-            updates.iter().filter_map(|u| u.phase.clone()).collect::<Vec<_>>()
+            updates
+                .iter()
+                .filter_map(|u| u.phase.clone())
+                .collect::<Vec<_>>()
         );
-        println!("--- fragments max: {:?}", updates.iter().filter_map(|u| u.fragment_count).max());
-        println!("--- bytes max: {:?}", updates.iter().filter_map(|u| u.downloaded_bytes).max());
+        println!(
+            "--- fragments max: {:?}",
+            updates.iter().filter_map(|u| u.fragment_count).max()
+        );
+        println!(
+            "--- bytes max: {:?}",
+            updates.iter().filter_map(|u| u.downloaded_bytes).max()
+        );
         println!(
             "--- result: {:?}",
-            result.as_ref().map(|r| (r.file_path.clone(), r.file_size_bytes))
+            result
+                .as_ref()
+                .map(|r| (r.file_path.clone(), r.file_size_bytes))
         );
         assert!(result.is_ok(), "{:?}", result.err());
         assert!(!planned.is_empty(), "planned formats parsed");

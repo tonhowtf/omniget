@@ -37,13 +37,19 @@ pub fn parse_reg_output(text: &str) -> Vec<RegKey> {
         if !raw.starts_with(' ') && (line.starts_with("HKEY_") || line.starts_with("HK")) {
             // Subchave da chave anterior ou chave nova?
             if let Some(last) = keys.last_mut() {
-                if line.starts_with(&last.path) && line.len() > last.path.len() && line[last.path.len()..].starts_with('\\') {
+                if line.starts_with(&last.path)
+                    && line.len() > last.path.len()
+                    && line[last.path.len()..].starts_with('\\')
+                {
                     last.subkeys.push(line.to_string());
                     // A própria subchave também pode listar valores a seguir
                     // quando o /s foi usado; abre como chave.
                 }
             }
-            keys.push(RegKey { path: line.to_string(), ..Default::default() });
+            keys.push(RegKey {
+                path: line.to_string(),
+                ..Default::default()
+            });
             continue;
         }
         let Some(key) = keys.last_mut() else { continue };
@@ -53,10 +59,21 @@ pub fn parse_reg_output(text: &str) -> Vec<RegKey> {
             let name = t[..idx].trim().to_string();
             let rest = t[idx + 4..].trim_start();
             let (kind, data) = match rest.find("    ") {
-                Some(i) => (rest[..i].trim().to_string(), rest[i + 4..].trim().to_string()),
+                Some(i) => (
+                    rest[..i].trim().to_string(),
+                    rest[i + 4..].trim().to_string(),
+                ),
                 None => (rest.trim().to_string(), String::new()),
             };
-            key.values.push(RegValue { name: if name == "(Default)" || name == "(Padrão)" { String::new() } else { name }, kind, data });
+            key.values.push(RegValue {
+                name: if name == "(Default)" || name == "(Padrão)" {
+                    String::new()
+                } else {
+                    name
+                },
+                kind,
+                data,
+            });
         }
     }
     keys
@@ -92,7 +109,10 @@ pub async fn reg_delete(key: &str, value: Option<&str>) -> anyhow::Result<()> {
     cmd.arg("/f");
     let o = cmd.output().await?;
     if !o.status.success() {
-        return Err(anyhow!("reg delete falhou: {}", String::from_utf8_lossy(&o.stderr).trim()));
+        return Err(anyhow!(
+            "reg delete falhou: {}",
+            String::from_utf8_lossy(&o.stderr).trim()
+        ));
     }
     Ok(())
 }
@@ -108,7 +128,10 @@ pub async fn reg_add(key: &str, value: &str, kind: &str, data: &str) -> anyhow::
     cmd.arg("/t").arg(kind).arg("/d").arg(data).arg("/f");
     let o = cmd.output().await?;
     if !o.status.success() {
-        return Err(anyhow!("reg add falhou: {}", String::from_utf8_lossy(&o.stderr).trim()));
+        return Err(anyhow!(
+            "reg add falhou: {}",
+            String::from_utf8_lossy(&o.stderr).trim()
+        ));
     }
     Ok(())
 }
@@ -121,11 +144,27 @@ pub fn backups_dir() -> Option<PathBuf> {
 pub async fn reg_backup(key: &str) -> anyhow::Result<PathBuf> {
     let dir = backups_dir().ok_or_else(|| anyhow!("sem pasta de dados"))?;
     std::fs::create_dir_all(&dir)?;
-    let safe: String = key.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect();
-    let file = dir.join(format!("{}-{}.reg", chrono::Local::now().format("%Y%m%d-%H%M%S"), safe.chars().take(80).collect::<String>()));
-    let o = crate::core::process::command("reg").arg("export").arg(key).arg(&file).arg("/y").output().await?;
+    let safe: String = key
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect();
+    let file = dir.join(format!(
+        "{}-{}.reg",
+        chrono::Local::now().format("%Y%m%d-%H%M%S"),
+        safe.chars().take(80).collect::<String>()
+    ));
+    let o = crate::core::process::command("reg")
+        .arg("export")
+        .arg(key)
+        .arg(&file)
+        .arg("/y")
+        .output()
+        .await?;
     if !o.status.success() {
-        return Err(anyhow!("reg export falhou: {}", String::from_utf8_lossy(&o.stderr).trim()));
+        return Err(anyhow!(
+            "reg export falhou: {}",
+            String::from_utf8_lossy(&o.stderr).trim()
+        ));
     }
     Ok(file)
 }
@@ -227,7 +266,10 @@ const RUN_KEYS: &[&str] = &[
 ];
 
 fn value_of<'a>(key: &'a RegKey, name: &str) -> Option<&'a str> {
-    key.values.iter().find(|v| v.name.eq_ignore_ascii_case(name)).map(|v| v.data.as_str())
+    key.values
+        .iter()
+        .find(|v| v.name.eq_ignore_ascii_case(name))
+        .map(|v| v.data.as_str())
 }
 
 pub async fn scan(progress: &super::ProgressFn) -> Vec<Orphan> {
@@ -242,30 +284,55 @@ pub async fn scan(progress: &super::ProgressFn) -> Vec<Orphan> {
     };
 
     // 1) Programas desinstalados que deixaram a entrada
-    super::report(progress, "winreg", "progress", 0, Some(5), Some("Uninstall".into()));
+    super::report(
+        progress,
+        "winreg",
+        "progress",
+        0,
+        Some(5),
+        Some("Uninstall".into()),
+    );
     for root in UNINSTALL_KEYS {
         for key in reg_query(root, true).await {
             if key.path.eq_ignore_ascii_case(root) {
                 continue;
             }
-            let Some(name) = value_of(&key, "DisplayName") else { continue };
+            let Some(name) = value_of(&key, "DisplayName") else {
+                continue;
+            };
             if value_of(&key, "SystemComponent") == Some("0x1") {
                 continue;
             }
-            let loc = value_of(&key, "InstallLocation").map(expand_env).unwrap_or_default();
+            let loc = value_of(&key, "InstallLocation")
+                .map(expand_env)
+                .unwrap_or_default();
             let unins = value_of(&key, "UninstallString").and_then(command_exe);
             let icon = value_of(&key, "DisplayIcon").and_then(command_exe);
-            let loc_missing = !loc.trim().is_empty() && !Path::new(loc.trim().trim_matches('"')).exists();
-            let unins_missing = unins.as_ref().map(|p| exe_missing(p) && !p.to_string_lossy().to_ascii_lowercase().contains("msiexec")).unwrap_or(false);
+            let loc_missing =
+                !loc.trim().is_empty() && !Path::new(loc.trim().trim_matches('"')).exists();
+            let unins_missing = unins
+                .as_ref()
+                .map(|p| {
+                    exe_missing(p) && !p.to_string_lossy().to_ascii_lowercase().contains("msiexec")
+                })
+                .unwrap_or(false);
             let icon_missing = icon.as_ref().map(|p| exe_missing(p)).unwrap_or(false);
-            if (loc_missing && (unins_missing || icon_missing || unins.is_none())) || (unins_missing && loc.trim().is_empty()) {
+            if (loc_missing && (unins_missing || icon_missing || unins.is_none()))
+                || (unins_missing && loc.trim().is_empty())
+            {
                 push(Orphan {
                     id: format!("u:{}", key.path),
                     category: "uninstall".into(),
                     key: key.path.clone(),
                     value: None,
                     name: name.to_string(),
-                    data: if loc.is_empty() { unins.map(|p| p.to_string_lossy().to_string()).unwrap_or_default() } else { loc },
+                    data: if loc.is_empty() {
+                        unins
+                            .map(|p| p.to_string_lossy().to_string())
+                            .unwrap_or_default()
+                    } else {
+                        loc
+                    },
                     reason: "pasta e desinstalador nao existem mais".into(),
                 });
             }
@@ -273,13 +340,22 @@ pub async fn scan(progress: &super::ProgressFn) -> Vec<Orphan> {
     }
 
     // 2) App Paths apontando para exe inexistente
-    super::report(progress, "winreg", "progress", 1, Some(5), Some("App Paths".into()));
+    super::report(
+        progress,
+        "winreg",
+        "progress",
+        1,
+        Some(5),
+        Some("App Paths".into()),
+    );
     for root in APP_PATH_KEYS {
         for key in reg_query(root, true).await {
             if key.path.eq_ignore_ascii_case(root) {
                 continue;
             }
-            let Some(target) = value_of(&key, "") else { continue };
+            let Some(target) = value_of(&key, "") else {
+                continue;
+            };
             if let Some(p) = command_exe(target) {
                 if exe_missing(&p) {
                     push(Orphan {
@@ -297,11 +373,25 @@ pub async fn scan(progress: &super::ProgressFn) -> Vec<Orphan> {
     }
 
     // 3) MuiCache
-    super::report(progress, "winreg", "progress", 2, Some(5), Some("MuiCache".into()));
+    super::report(
+        progress,
+        "winreg",
+        "progress",
+        2,
+        Some(5),
+        Some("MuiCache".into()),
+    );
     let mui = r"HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\MuiCache";
     for key in reg_query(mui, false).await {
         for v in &key.values {
-            let file = v.name.split(".FriendlyAppName").next().unwrap_or("").split(".ApplicationCompany").next().unwrap_or("");
+            let file = v
+                .name
+                .split(".FriendlyAppName")
+                .next()
+                .unwrap_or("")
+                .split(".ApplicationCompany")
+                .next()
+                .unwrap_or("");
             if file.is_empty() {
                 continue;
             }
@@ -321,7 +411,14 @@ pub async fn scan(progress: &super::ProgressFn) -> Vec<Orphan> {
     }
 
     // 4) SharedDLLs
-    super::report(progress, "winreg", "progress", 3, Some(5), Some("SharedDLLs".into()));
+    super::report(
+        progress,
+        "winreg",
+        "progress",
+        3,
+        Some(5),
+        Some("SharedDLLs".into()),
+    );
     let shared = r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\SharedDLLs";
     for key in reg_query(shared, false).await {
         for v in &key.values {
@@ -332,7 +429,10 @@ pub async fn scan(progress: &super::ProgressFn) -> Vec<Orphan> {
                     category: "shared-dlls".into(),
                     key: shared.to_string(),
                     value: Some(v.name.clone()),
-                    name: p.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
+                    name: p
+                        .file_name()
+                        .map(|s| s.to_string_lossy().to_string())
+                        .unwrap_or_default(),
                     data: p.to_string_lossy().to_string(),
                     reason: "arquivo nao existe".into(),
                 });
@@ -341,7 +441,14 @@ pub async fn scan(progress: &super::ProgressFn) -> Vec<Orphan> {
     }
 
     // 5) Run com executável sumido
-    super::report(progress, "winreg", "progress", 4, Some(5), Some("Run".into()));
+    super::report(
+        progress,
+        "winreg",
+        "progress",
+        4,
+        Some(5),
+        Some("Run".into()),
+    );
     for root in RUN_KEYS {
         for key in reg_query(root, false).await {
             for v in &key.values {
@@ -385,7 +492,8 @@ pub async fn fix(items: &[Orphan]) -> FixResult {
                     backed.insert(item.key.clone());
                 }
                 Err(e) => {
-                    r.failed.push(format!("{}: backup falhou ({})", item.name, e));
+                    r.failed
+                        .push(format!("{}: backup falhou ({})", item.name, e));
                     continue;
                 }
             }
@@ -418,9 +526,18 @@ mod tests {
 
     #[test]
     fn exe() {
-        assert_eq!(command_exe("\"C:\\a b\\x.exe\" /q").unwrap(), PathBuf::from("C:\\a b\\x.exe"));
-        assert_eq!(command_exe("C:\\a b\\x.exe /q").unwrap(), PathBuf::from("C:\\a b\\x.exe"));
-        assert_eq!(command_exe("rundll32 foo").unwrap(), PathBuf::from("rundll32"));
+        assert_eq!(
+            command_exe("\"C:\\a b\\x.exe\" /q").unwrap(),
+            PathBuf::from("C:\\a b\\x.exe")
+        );
+        assert_eq!(
+            command_exe("C:\\a b\\x.exe /q").unwrap(),
+            PathBuf::from("C:\\a b\\x.exe")
+        );
+        assert_eq!(
+            command_exe("rundll32 foo").unwrap(),
+            PathBuf::from("rundll32")
+        );
         assert!(command_exe("").is_none());
         assert!(exe_missing(Path::new("C:\\nao\\existe\\x.exe")));
         assert!(!exe_missing(Path::new("notepad.exe")));

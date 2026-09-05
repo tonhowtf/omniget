@@ -21,9 +21,16 @@ pub async fn locate() -> Option<PathBuf> {
         return Some(p);
     }
     let candidates: &[&str] = if cfg!(target_os = "windows") {
-        &[r"C:\Program Files\Tesseract-OCR\tesseract.exe", r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"]
+        &[
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+        ]
     } else {
-        &["/opt/homebrew/bin/tesseract", "/usr/local/bin/tesseract", "/usr/bin/tesseract"]
+        &[
+            "/opt/homebrew/bin/tesseract",
+            "/usr/local/bin/tesseract",
+            "/usr/bin/tesseract",
+        ]
     };
     candidates.iter().map(PathBuf::from).find(|p| p.exists())
 }
@@ -38,14 +45,25 @@ pub async fn status() -> OcrStatus {
     }
     .to_string();
     let Some(bin) = locate().await else {
-        return OcrStatus { installed: false, path: None, version: None, languages: vec![], install_hint: hint };
+        return OcrStatus {
+            installed: false,
+            path: None,
+            version: None,
+            languages: vec![],
+            install_hint: hint,
+        };
     };
     let version = crate::core::process::command(&bin)
         .arg("--version")
         .output()
         .await
         .ok()
-        .and_then(|o| String::from_utf8_lossy(&o.stdout).lines().next().map(|l| l.trim().to_string()));
+        .and_then(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .next()
+                .map(|l| l.trim().to_string())
+        });
     let languages = crate::core::process::command(&bin)
         .arg("--list-langs")
         .output()
@@ -58,7 +76,13 @@ pub async fn status() -> OcrStatus {
                 .collect()
         })
         .unwrap_or_default();
-    OcrStatus { installed: true, path: Some(bin.to_string_lossy().to_string()), version, languages, install_hint: hint }
+    OcrStatus {
+        installed: true,
+        path: Some(bin.to_string_lossy().to_string()),
+        version,
+        languages,
+        install_hint: hint,
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -67,22 +91,46 @@ pub struct OcrResult {
     pub text: String,
 }
 
-pub async fn run(inputs: &[String], langs: &str, progress: super::ProgressFn) -> anyhow::Result<Vec<OcrResult>> {
-    let bin = locate().await.ok_or_else(|| anyhow!("tesseract nao esta instalado"))?;
-    let langs = if langs.trim().is_empty() { "eng" } else { langs.trim() };
+pub async fn run(
+    inputs: &[String],
+    langs: &str,
+    progress: super::ProgressFn,
+) -> anyhow::Result<Vec<OcrResult>> {
+    let bin = locate()
+        .await
+        .ok_or_else(|| anyhow!("tesseract nao esta instalado"))?;
+    let langs = if langs.trim().is_empty() {
+        "eng"
+    } else {
+        langs.trim()
+    };
     let mut out = Vec::new();
     let total = inputs.len() as u64;
     for (i, input) in inputs.iter().enumerate() {
-        super::report(&progress, "ocr", "progress", i as u64, Some(total), Some(input.clone()));
+        super::report(
+            &progress,
+            "ocr",
+            "progress",
+            i as u64,
+            Some(total),
+            Some(input.clone()),
+        );
         let o = crate::core::process::command(&bin)
             .arg(input)
             .args(["stdout", "-l", langs, "--psm", "3"])
             .output()
             .await?;
         if !o.status.success() {
-            return Err(anyhow!("tesseract falhou em {}: {}", input, String::from_utf8_lossy(&o.stderr).trim()));
+            return Err(anyhow!(
+                "tesseract falhou em {}: {}",
+                input,
+                String::from_utf8_lossy(&o.stderr).trim()
+            ));
         }
-        out.push(OcrResult { path: input.clone(), text: String::from_utf8_lossy(&o.stdout).trim().to_string() });
+        out.push(OcrResult {
+            path: input.clone(),
+            text: String::from_utf8_lossy(&o.stdout).trim().to_string(),
+        });
     }
     super::report(&progress, "ocr", "done", total, Some(total), None);
     Ok(out)

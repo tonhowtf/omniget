@@ -116,7 +116,12 @@ impl Session {
             .into_iter()
             .filter(|c| c.domain.ends_with("instagram.com"))
             .collect();
-        let get = |n: &str| cookies.iter().find(|c| c.name == n).map(|c| c.value.clone());
+        let get = |n: &str| {
+            cookies
+                .iter()
+                .find(|c| c.name == n)
+                .map(|c| c.value.clone())
+        };
         let session_id = get("sessionid").filter(|v| !v.is_empty());
         let user_id = get("ds_user_id").filter(|v| !v.is_empty());
         match (session_id, user_id) {
@@ -130,7 +135,11 @@ impl Session {
     }
 
     pub fn info(&self) -> SessionInfo {
-        SessionInfo { user_id: self.user_id.clone(), has_session: true, cookie_count: self.cookies.len() }
+        SessionInfo {
+            user_id: self.user_id.clone(),
+            has_session: true,
+            cookie_count: self.cookies.len(),
+        }
     }
 }
 
@@ -150,12 +159,30 @@ impl IgClient {
         let jar = reqwest::cookie::Jar::default();
         for c in &session.cookies {
             let scheme = if c.secure { "https" } else { "http" };
-            let url: reqwest::Url = format!("{}://{}{}", scheme, c.domain, if c.path.is_empty() { "/" } else { &c.path }).parse()?;
-            jar.add_cookie_str(&format!("{}={}; Domain={}; Path={}", c.name, c.value, c.domain, if c.path.is_empty() { "/" } else { &c.path }), &url);
+            let url: reqwest::Url = format!(
+                "{}://{}{}",
+                scheme,
+                c.domain,
+                if c.path.is_empty() { "/" } else { &c.path }
+            )
+            .parse()?;
+            jar.add_cookie_str(
+                &format!(
+                    "{}={}; Domain={}; Path={}",
+                    c.name,
+                    c.value,
+                    c.domain,
+                    if c.path.is_empty() { "/" } else { &c.path }
+                ),
+                &url,
+            );
         }
         let mut headers = HeaderMap::new();
         headers.insert(reqwest::header::USER_AGENT, HeaderValue::from_static(UA));
-        headers.insert(reqwest::header::ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9,pt-BR;q=0.8"));
+        headers.insert(
+            reqwest::header::ACCEPT_LANGUAGE,
+            HeaderValue::from_static("en-US,en;q=0.9,pt-BR;q=0.8"),
+        );
         let http = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
             .default_headers(headers)
             .cookie_provider(Arc::new(jar))
@@ -163,17 +190,33 @@ impl IgClient {
             .timeout(Duration::from_secs(120))
             .build()?;
         let csrf = session.csrf.clone();
-        Ok(Arc::new(Self { http, session, www_claim: Mutex::new("0".into()), csrf: Mutex::new(csrf), page_delay_ms: (1200, 2600) }))
+        Ok(Arc::new(Self {
+            http,
+            session,
+            www_claim: Mutex::new("0".into()),
+            csrf: Mutex::new(csrf),
+            page_delay_ms: (1200, 2600),
+        }))
     }
 
     fn api_headers(&self) -> HeaderMap {
         let mut h = HeaderMap::new();
         h.insert("X-IG-App-ID", HeaderValue::from_static(APP_ID));
         h.insert("X-ASBD-ID", HeaderValue::from_static(ASBD_ID));
-        h.insert("X-IG-WWW-Claim", HeaderValue::from_str(&self.www_claim.lock().unwrap()).unwrap_or(HeaderValue::from_static("0")));
-        h.insert("X-Requested-With", HeaderValue::from_static("XMLHttpRequest"));
+        h.insert(
+            "X-IG-WWW-Claim",
+            HeaderValue::from_str(&self.www_claim.lock().unwrap())
+                .unwrap_or(HeaderValue::from_static("0")),
+        );
+        h.insert(
+            "X-Requested-With",
+            HeaderValue::from_static("XMLHttpRequest"),
+        );
         h.insert("Accept", HeaderValue::from_static("*/*"));
-        h.insert("Referer", HeaderValue::from_static("https://www.instagram.com/"));
+        h.insert(
+            "Referer",
+            HeaderValue::from_static("https://www.instagram.com/"),
+        );
         h.insert("Sec-Fetch-Dest", HeaderValue::from_static("empty"));
         h.insert("Sec-Fetch-Mode", HeaderValue::from_static("cors"));
         h.insert("Sec-Fetch-Site", HeaderValue::from_static("same-origin"));
@@ -187,8 +230,14 @@ impl IgClient {
         let mut h = HeaderMap::new();
         h.insert("X-IG-App-ID", HeaderValue::from_static(APP_ID));
         h.insert("Accept", HeaderValue::from_static("*/*"));
-        h.insert("Origin", HeaderValue::from_static("https://www.instagram.com"));
-        h.insert("Referer", HeaderValue::from_static("https://www.instagram.com/"));
+        h.insert(
+            "Origin",
+            HeaderValue::from_static("https://www.instagram.com"),
+        );
+        h.insert(
+            "Referer",
+            HeaderValue::from_static("https://www.instagram.com/"),
+        );
         if let Ok(v) = HeaderValue::from_str(&self.csrf.lock().unwrap()) {
             h.insert("X-CSRFToken", v);
         }
@@ -196,7 +245,11 @@ impl IgClient {
     }
 
     fn absorb(&self, resp: &reqwest::Response) {
-        if let Some(c) = resp.headers().get("x-ig-set-www-claim").and_then(|v| v.to_str().ok()) {
+        if let Some(c) = resp
+            .headers()
+            .get("x-ig-set-www-claim")
+            .and_then(|v| v.to_str().ok())
+        {
             *self.www_claim.lock().unwrap() = c.to_string();
         }
         for sc in resp.headers().get_all(reqwest::header::SET_COOKIE) {
@@ -215,13 +268,27 @@ impl IgClient {
         self.absorb(&resp);
         let status = resp.status();
         if status.is_redirection() {
-            let loc = resp.headers().get(reqwest::header::LOCATION).and_then(|v| v.to_str().ok()).unwrap_or("");
+            let loc = resp
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("");
             if loc.contains("/accounts/login") || loc.contains("/challenge") {
-                return Err(if loc.contains("/challenge") { IgError::Checkpoint } else { IgError::LoginRequired });
+                return Err(if loc.contains("/challenge") {
+                    IgError::Checkpoint
+                } else {
+                    IgError::LoginRequired
+                });
             }
-            return Err(IgError::Other(format!("{}: redirecionado para {}", what, loc)));
+            return Err(IgError::Other(format!(
+                "{}: redirecionado para {}",
+                what, loc
+            )));
         }
-        let text = resp.text().await.map_err(|e| IgError::Other(e.to_string()))?;
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| IgError::Other(e.to_string()))?;
         if status.as_u16() == 429 {
             return Err(IgError::RateLimited);
         }
@@ -234,25 +301,46 @@ impl IgClient {
                     }
                     return Err(IgError::Other(format!("{}: o Instagram respondeu HTML em vez de JSON (endpoint mudou ou sessao invalida, HTTP {})", what, status.as_u16())));
                 }
-                return Err(IgError::Other(format!("{}: resposta invalida (HTTP {})", what, status.as_u16())));
+                return Err(IgError::Other(format!(
+                    "{}: resposta invalida (HTTP {})",
+                    what,
+                    status.as_u16()
+                )));
             }
         };
-        let message = json.get("message").and_then(|m| m.as_str()).unwrap_or("").to_string();
-        let error_type = json.get("error_type").and_then(|m| m.as_str()).unwrap_or("");
+        let message = json
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("")
+            .to_string();
+        let error_type = json
+            .get("error_type")
+            .and_then(|m| m.as_str())
+            .unwrap_or("");
         if message == "login_required" || error_type == "login_required" {
             return Err(IgError::LoginRequired);
         }
-        if message == "checkpoint_required" || message == "challenge_required" || json.get("checkpoint_url").is_some() {
+        if message == "checkpoint_required"
+            || message == "challenge_required"
+            || json.get("checkpoint_url").is_some()
+        {
             return Err(IgError::Checkpoint);
         }
         if message == "feedback_required" || json.get("feedback_title").is_some() {
             return Err(IgError::ActionBlocked);
         }
-        if status.as_u16() == 404 || message.contains("not found") || message == "Media not found or unavailable" {
+        if status.as_u16() == 404
+            || message.contains("not found")
+            || message == "Media not found or unavailable"
+        {
             return Err(IgError::NotFound(what.to_string()));
         }
         if !status.is_success() {
-            let m = if message.is_empty() { format!("HTTP {}", status.as_u16()) } else { message };
+            let m = if message.is_empty() {
+                format!("HTTP {}", status.as_u16())
+            } else {
+                message
+            };
             return Err(IgError::Other(format!("{}: {}", what, m)));
         }
         Ok(json)
@@ -260,7 +348,11 @@ impl IgClient {
 
     /// GET `/api/v1/...` (ou URL absoluta) com os cabeçalhos da web.
     pub async fn get_json(&self, path: &str, query: &[(&str, String)]) -> Result<Value, IgError> {
-        let url = if path.starts_with("http") { path.to_string() } else { format!("{}{}", BASE, path) };
+        let url = if path.starts_with("http") {
+            path.to_string()
+        } else {
+            format!("{}{}", BASE, path)
+        };
         let resp = self
             .http
             .get(&url)
@@ -274,7 +366,11 @@ impl IgClient {
 
     /// POST de formulário para `/api/v1/...`.
     pub async fn post_form(&self, path: &str, form: &[(&str, String)]) -> Result<Value, IgError> {
-        let url = if path.starts_with("http") { path.to_string() } else { format!("{}{}", BASE, path) };
+        let url = if path.starts_with("http") {
+            path.to_string()
+        } else {
+            format!("{}{}", BASE, path)
+        };
         let resp = self
             .http
             .post(&url)
@@ -287,7 +383,12 @@ impl IgClient {
     }
 
     /// POST cru (upload) com cabeçalhos extras.
-    pub async fn post_raw(&self, url: &str, extra: HeaderMap, body: Vec<u8>) -> Result<Value, IgError> {
+    pub async fn post_raw(
+        &self,
+        url: &str,
+        extra: HeaderMap,
+        body: Vec<u8>,
+    ) -> Result<Value, IgError> {
         let mut h = self.post_headers();
         h.extend(extra);
         let resp = self
@@ -323,7 +424,12 @@ impl IgClient {
     pub async fn download(&self, url: &str, dest: &std::path::Path) -> anyhow::Result<u64> {
         use futures::StreamExt;
         use tokio::io::AsyncWriteExt;
-        let resp = self.http.get(url).header("Referer", "https://www.instagram.com/").send().await?;
+        let resp = self
+            .http
+            .get(url)
+            .header("Referer", "https://www.instagram.com/")
+            .send()
+            .await?;
         if !resp.status().is_success() {
             bail!("download falhou: HTTP {}", resp.status());
         }
@@ -348,16 +454,27 @@ impl IgClient {
     /// GraphQL por `doc_id` (POST `/graphql/query`), com as variáveis
     /// "provider" que a query exige; sem elas o servidor devolve
     /// "execution error".
-    pub async fn graphql(&self, friendly_name: &str, mut variables: Value) -> Result<Value, IgError> {
+    pub async fn graphql(
+        &self,
+        friendly_name: &str,
+        mut variables: Value,
+    ) -> Result<Value, IgError> {
         let ids = doc_ids(self).await;
-        let doc_id = ids
-            .ids
-            .get(friendly_name)
-            .cloned()
-            .ok_or_else(|| IgError::Other(format!("nao achei o doc_id de {} nos bundles do Instagram", friendly_name)))?;
+        let doc_id = ids.ids.get(friendly_name).cloned().ok_or_else(|| {
+            IgError::Other(format!(
+                "nao achei o doc_id de {} nos bundles do Instagram",
+                friendly_name
+            ))
+        })?;
         if let Some(obj) = variables.as_object_mut() {
-            for p in ids.providers.get(friendly_name).cloned().unwrap_or_default() {
-                obj.entry(format!("__relay_internal__pv__{}", p.replace('.', ""))).or_insert(Value::Bool(false));
+            for p in ids
+                .providers
+                .get(friendly_name)
+                .cloned()
+                .unwrap_or_default()
+            {
+                obj.entry(format!("__relay_internal__pv__{}", p.replace('.', "")))
+                    .or_insert(Value::Bool(false));
             }
         }
         let form = vec![
@@ -368,12 +485,22 @@ impl IgClient {
             ("doc_id", doc_id),
         ];
         let json = self.post_form("/graphql/query", &form).await?;
-        if let Some(err) = json.get("errors").and_then(|e| e.as_array()).and_then(|a| a.first()) {
-            let msg = err.get("message").and_then(|m| m.as_str()).unwrap_or("erro");
+        if let Some(err) = json
+            .get("errors")
+            .and_then(|e| e.as_array())
+            .and_then(|a| a.first())
+        {
+            let msg = err
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("erro");
             if msg.contains("execution error") {
                 invalidate_doc_ids();
             }
-            return Err(IgError::Other(format!("GraphQL {}: {}", friendly_name, msg)));
+            return Err(IgError::Other(format!(
+                "GraphQL {}: {}",
+                friendly_name, msg
+            )));
         }
         Ok(json)
     }
@@ -407,9 +534,18 @@ fn doc_ids_path() -> Option<std::path::PathBuf> {
 /// bundles não acha o módulo (ele pode estar num chunk carregado depois).
 fn default_doc_ids() -> DocIds {
     let mut ids = HashMap::new();
-    ids.insert("PolarisProfilePostsQuery".into(), "38154989454116081".into());
-    ids.insert("PolarisProfilePostsTabContentQuery_connection".into(), "39535953862670189".into());
-    ids.insert("PolarisPostActionLoadPostQueryQuery".into(), "8845758582119845".into());
+    ids.insert(
+        "PolarisProfilePostsQuery".into(),
+        "38154989454116081".into(),
+    );
+    ids.insert(
+        "PolarisProfilePostsTabContentQuery_connection".into(),
+        "39535953862670189".into(),
+    );
+    ids.insert(
+        "PolarisPostActionLoadPostQueryQuery".into(),
+        "8845758582119845".into(),
+    );
     let provs = vec![
         "PolarisMultiCaptionCarouselEnabled.relayprovider".to_string(),
         "PolarisShortDramaEnabled.relayprovider".to_string(),
@@ -417,8 +553,15 @@ fn default_doc_ids() -> DocIds {
     ];
     let mut providers = HashMap::new();
     providers.insert("PolarisProfilePostsQuery".into(), provs.clone());
-    providers.insert("PolarisProfilePostsTabContentQuery_connection".into(), provs);
-    DocIds { fetched_at: 0, ids, providers }
+    providers.insert(
+        "PolarisProfilePostsTabContentQuery_connection".into(),
+        provs,
+    );
+    DocIds {
+        fetched_at: 0,
+        ids,
+        providers,
+    }
 }
 
 static DOC_IDS: OnceLock<Mutex<Option<DocIds>>> = OnceLock::new();
@@ -452,14 +595,25 @@ pub async fn doc_ids(client: &IgClient) -> DocIds {
     let mut found = default_doc_ids();
     found.fetched_at = now;
     if let Ok(html) = client.get_text(&format!("{}/instagram/", BASE)).await {
-        let script_re = regex::Regex::new(r#"https://static\.cdninstagram\.com/rsrc\.php/[A-Za-z0-9_/.\-]+\.js"#).unwrap();
-        let mut urls: Vec<String> = script_re.find_iter(&html).map(|m| m.as_str().to_string()).collect();
+        let script_re = regex::Regex::new(
+            r#"https://static\.cdninstagram\.com/rsrc\.php/[A-Za-z0-9_/.\-]+\.js"#,
+        )
+        .unwrap();
+        let mut urls: Vec<String> = script_re
+            .find_iter(&html)
+            .map(|m| m.as_str().to_string())
+            .collect();
         urls.dedup();
         let id_re = regex::Regex::new(r#"__d\("([A-Za-z0-9_]*Query[A-Za-z0-9_]*)_instagramRelayOperation"\s*,\s*\[\]\s*,\s*\(function\([^)]*\)\{[^}]{0,80}?exports\s*=\s*"?(\d{10,20})"?"#).unwrap();
-        let dep_re = regex::Regex::new(r#"__d\("([A-Za-z0-9_]*Query[A-Za-z0-9_]*)\.graphql"\s*,\s*\[([^\]]*)\]"#).unwrap();
+        let dep_re = regex::Regex::new(
+            r#"__d\("([A-Za-z0-9_]*Query[A-Za-z0-9_]*)\.graphql"\s*,\s*\[([^\]]*)\]"#,
+        )
+        .unwrap();
         let mut hits = 0;
         for u in urls.into_iter().take(40) {
-            let Ok(text) = client.get_text(&u).await else { continue };
+            let Ok(text) = client.get_text(&u).await else {
+                continue;
+            };
             for c in id_re.captures_iter(&text) {
                 if c[1].starts_with("Polaris") {
                     found.ids.insert(c[1].to_string(), c[2].to_string());
@@ -483,7 +637,10 @@ pub async fn doc_ids(client: &IgClient) -> DocIds {
                 }
             }
         }
-        tracing::debug!("[instagram] doc_ids: {} operacoes encontradas nos bundles", hits);
+        tracing::debug!(
+            "[instagram] doc_ids: {} operacoes encontradas nos bundles",
+            hits
+        );
     }
     if let Some(p) = doc_ids_path() {
         if let Some(parent) = p.parent() {
@@ -498,7 +655,11 @@ pub async fn doc_ids(client: &IgClient) -> DocIds {
 // ── Shortcode ↔ id ───────────────────────────────────────────────────────
 
 pub fn shortcode_to_pk(code: &str) -> Option<u64> {
-    let code = if code.len() > 28 { &code[..code.len() - 28] } else { code };
+    let code = if code.len() > 28 {
+        &code[..code.len() - 28]
+    } else {
+        code
+    };
     let mut n: u128 = 0;
     for b in code.bytes() {
         let i = ALPHABET.iter().position(|&a| a == b)? as u128;
@@ -526,15 +687,27 @@ pub fn pk_to_shortcode(mut pk: u64) -> String {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum IgTarget {
     /// `/p/<code>`, `/reel/<code>`, `/tv/<code>`, `/<user>/p/<code>`
-    Post { shortcode: String },
+    Post {
+        shortcode: String,
+    },
     /// `/stories/<user>/<id?>`
-    Story { username: String, media_id: Option<String> },
+    Story {
+        username: String,
+        media_id: Option<String>,
+    },
     /// `/stories/highlights/<id>` ou `/s/<base64>`
-    Highlight { id: String },
+    Highlight {
+        id: String,
+    },
     /// `/<user>/`, `/<user>/reels/`, `/<user>/tagged/`
-    Profile { username: String, tab: String },
+    Profile {
+        username: String,
+        tab: String,
+    },
     /// `/explore/tags/<tag>`
-    Tag { name: String },
+    Tag {
+        name: String,
+    },
     Unknown,
 }
 
@@ -542,36 +715,78 @@ pub fn parse_target(input: &str) -> IgTarget {
     let s = input.trim();
     let s = s.strip_prefix('@').unwrap_or(s);
     if let Some(tag) = s.strip_prefix('#') {
-        return IgTarget::Tag { name: tag.to_string() };
+        return IgTarget::Tag {
+            name: tag.to_string(),
+        };
     }
-    let candidate: String = if s.contains("://") { s.to_string() } else if s.contains("instagram.com") { format!("https://{}", s) } else { s.to_string() };
+    let candidate: String = if s.contains("://") {
+        s.to_string()
+    } else if s.contains("instagram.com") {
+        format!("https://{}", s)
+    } else {
+        s.to_string()
+    };
     let Ok(url) = url::Url::parse(&candidate) else {
         // Só um nome de usuário ou um shortcode?
-        if s.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_') && !s.is_empty() {
-            return IgTarget::Profile { username: s.to_lowercase(), tab: "posts".into() };
+        if s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_')
+            && !s.is_empty()
+        {
+            return IgTarget::Profile {
+                username: s.to_lowercase(),
+                tab: "posts".into(),
+            };
         }
         return IgTarget::Unknown;
     };
-    if !url.host_str().map(|h| h.ends_with("instagram.com")).unwrap_or(false) {
+    if !url
+        .host_str()
+        .map(|h| h.ends_with("instagram.com"))
+        .unwrap_or(false)
+    {
         return IgTarget::Unknown;
     }
-    let segs: Vec<&str> = url.path_segments().map(|p| p.filter(|s| !s.is_empty()).collect()).unwrap_or_default();
+    let segs: Vec<&str> = url
+        .path_segments()
+        .map(|p| p.filter(|s| !s.is_empty()).collect())
+        .unwrap_or_default();
     match segs.as_slice() {
-        ["p" | "reel" | "reels" | "tv", code, ..] => IgTarget::Post { shortcode: code.to_string() },
-        [_, "p" | "reel" | "reels" | "tv", code, ..] => IgTarget::Post { shortcode: code.to_string() },
+        ["p" | "reel" | "reels" | "tv", code, ..] => IgTarget::Post {
+            shortcode: code.to_string(),
+        },
+        [_, "p" | "reel" | "reels" | "tv", code, ..] => IgTarget::Post {
+            shortcode: code.to_string(),
+        },
         ["stories", "highlights", id, ..] => IgTarget::Highlight { id: id.to_string() },
         ["s", b64, ..] => {
             use base64::Engine;
-            let decoded = base64::engine::general_purpose::STANDARD.decode(b64).ok().and_then(|b| String::from_utf8(b).ok()).unwrap_or_default();
+            let decoded = base64::engine::general_purpose::STANDARD
+                .decode(b64)
+                .ok()
+                .and_then(|b| String::from_utf8(b).ok())
+                .unwrap_or_default();
             match decoded.strip_prefix("highlight:") {
                 Some(id) => IgTarget::Highlight { id: id.to_string() },
                 None => IgTarget::Unknown,
             }
         }
-        ["stories", user, rest @ ..] => IgTarget::Story { username: user.to_lowercase(), media_id: rest.first().map(|s| s.to_string()) },
-        ["explore", "tags", tag, ..] => IgTarget::Tag { name: tag.to_string() },
-        [user] => IgTarget::Profile { username: user.to_lowercase(), tab: "posts".into() },
-        [user, tab @ ("reels" | "tagged" | "saved" | "highlights" | "followers" | "following"), ..] => IgTarget::Profile { username: user.to_lowercase(), tab: tab.to_string() },
+        ["stories", user, rest @ ..] => IgTarget::Story {
+            username: user.to_lowercase(),
+            media_id: rest.first().map(|s| s.to_string()),
+        },
+        ["explore", "tags", tag, ..] => IgTarget::Tag {
+            name: tag.to_string(),
+        },
+        [user] => IgTarget::Profile {
+            username: user.to_lowercase(),
+            tab: "posts".into(),
+        },
+        [user, tab @ ("reels" | "tagged" | "saved" | "highlights" | "followers" | "following"), ..] => {
+            IgTarget::Profile {
+                username: user.to_lowercase(),
+                tab: tab.to_string(),
+            }
+        }
         _ => IgTarget::Unknown,
     }
 }
@@ -582,7 +797,10 @@ static JOBS: OnceLock<Mutex<HashMap<String, Arc<AtomicBool>>>> = OnceLock::new()
 
 pub fn job_start(id: &str) -> Arc<AtomicBool> {
     let flag = Arc::new(AtomicBool::new(false));
-    JOBS.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap().insert(id.to_string(), flag.clone());
+    JOBS.get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap()
+        .insert(id.to_string(), flag.clone());
     flag
 }
 
@@ -609,13 +827,18 @@ pub fn cancelled(flag: &AtomicBool) -> bool {
 // ── Pasta de dados ───────────────────────────────────────────────────────
 
 pub fn data_dir() -> std::path::PathBuf {
-    let d = super::tools_dir().unwrap_or_else(std::env::temp_dir).join("instagram");
+    let d = super::tools_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("instagram");
     let _ = std::fs::create_dir_all(&d);
     d
 }
 
 pub fn read_json<T: serde::de::DeserializeOwned + Default>(path: &std::path::Path) -> T {
-    std::fs::read_to_string(path).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
 }
 
 pub fn write_json<T: Serialize>(path: &std::path::Path, value: &T) -> anyhow::Result<()> {
@@ -667,14 +890,57 @@ mod tests {
 
     #[test]
     fn parses_targets() {
-        assert_eq!(parse_target("https://www.instagram.com/p/B89prebFBcw/?igsh=abc"), IgTarget::Post { shortcode: "B89prebFBcw".into() });
-        assert_eq!(parse_target("https://www.instagram.com/reel/Dc30nJeRKKz/"), IgTarget::Post { shortcode: "Dc30nJeRKKz".into() });
-        assert_eq!(parse_target("https://www.instagram.com/instagram/reel/Dc30nJeRKKz/"), IgTarget::Post { shortcode: "Dc30nJeRKKz".into() });
-        assert_eq!(parse_target("https://www.instagram.com/stories/highlights/18142207969557132/"), IgTarget::Highlight { id: "18142207969557132".into() });
-        assert_eq!(parse_target("https://www.instagram.com/stories/instagram/3811480328699137079/"), IgTarget::Story { username: "instagram".into(), media_id: Some("3811480328699137079".into()) });
-        assert_eq!(parse_target("instagram.com/instagram/reels/"), IgTarget::Profile { username: "instagram".into(), tab: "reels".into() });
-        assert_eq!(parse_target("@Instagram"), IgTarget::Profile { username: "instagram".into(), tab: "posts".into() });
-        assert_eq!(parse_target("#sunset"), IgTarget::Tag { name: "sunset".into() });
+        assert_eq!(
+            parse_target("https://www.instagram.com/p/B89prebFBcw/?igsh=abc"),
+            IgTarget::Post {
+                shortcode: "B89prebFBcw".into()
+            }
+        );
+        assert_eq!(
+            parse_target("https://www.instagram.com/reel/Dc30nJeRKKz/"),
+            IgTarget::Post {
+                shortcode: "Dc30nJeRKKz".into()
+            }
+        );
+        assert_eq!(
+            parse_target("https://www.instagram.com/instagram/reel/Dc30nJeRKKz/"),
+            IgTarget::Post {
+                shortcode: "Dc30nJeRKKz".into()
+            }
+        );
+        assert_eq!(
+            parse_target("https://www.instagram.com/stories/highlights/18142207969557132/"),
+            IgTarget::Highlight {
+                id: "18142207969557132".into()
+            }
+        );
+        assert_eq!(
+            parse_target("https://www.instagram.com/stories/instagram/3811480328699137079/"),
+            IgTarget::Story {
+                username: "instagram".into(),
+                media_id: Some("3811480328699137079".into())
+            }
+        );
+        assert_eq!(
+            parse_target("instagram.com/instagram/reels/"),
+            IgTarget::Profile {
+                username: "instagram".into(),
+                tab: "reels".into()
+            }
+        );
+        assert_eq!(
+            parse_target("@Instagram"),
+            IgTarget::Profile {
+                username: "instagram".into(),
+                tab: "posts".into()
+            }
+        );
+        assert_eq!(
+            parse_target("#sunset"),
+            IgTarget::Tag {
+                name: "sunset".into()
+            }
+        );
         assert_eq!(parse_target("https://youtube.com/x"), IgTarget::Unknown);
     }
 

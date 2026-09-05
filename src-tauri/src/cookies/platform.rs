@@ -78,13 +78,11 @@ impl PlatformKind {
 /// long (`app.rocketseat.com.br` -> `rocketseat.com.br`). Without this the
 /// Cookie Manager filed every Brazilian site under one `com.br` bucket.
 const TWO_LABEL_PUBLIC_SUFFIXES: &[&str] = &[
-    "com.br", "net.br", "org.br", "edu.br", "gov.br", "art.br", "eng.br",
-    "co.uk", "org.uk", "ac.uk", "gov.uk", "me.uk",
-    "com.au", "net.au", "org.au", "edu.au",
-    "co.jp", "ne.jp", "or.jp", "ac.jp",
-    "com.mx", "org.mx", "com.ar", "com.co", "com.pe", "com.cl", "com.ve", "com.uy",
-    "co.za", "co.nz", "co.in", "co.kr", "co.id", "com.sg", "com.hk", "com.tw", "com.my",
-    "com.tr", "com.pt", "com.es", "com.pl", "com.ua", "com.ru", "com.cn", "com.ph",
+    "com.br", "net.br", "org.br", "edu.br", "gov.br", "art.br", "eng.br", "co.uk", "org.uk",
+    "ac.uk", "gov.uk", "me.uk", "com.au", "net.au", "org.au", "edu.au", "co.jp", "ne.jp", "or.jp",
+    "ac.jp", "com.mx", "org.mx", "com.ar", "com.co", "com.pe", "com.cl", "com.ve", "com.uy",
+    "co.za", "co.nz", "co.in", "co.kr", "co.id", "com.sg", "com.hk", "com.tw", "com.my", "com.tr",
+    "com.pt", "com.es", "com.pl", "com.ua", "com.ru", "com.cn", "com.ph",
 ];
 
 pub fn root_domain_of(host: &str) -> String {

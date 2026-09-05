@@ -162,9 +162,22 @@ pub fn handle_from(input: &str) -> Option<String> {
     if re.is_match(s) {
         return Some(s.to_string());
     }
-    let re_url = regex::Regex::new(r"(?:x\.com|twitter\.com)/(?:#!/)?@?([A-Za-z0-9_]{1,15})(?:[/?#]|$)").ok()?;
+    let re_url =
+        regex::Regex::new(r"(?:x\.com|twitter\.com)/(?:#!/)?@?([A-Za-z0-9_]{1,15})(?:[/?#]|$)")
+            .ok()?;
     let h = re_url.captures(s).map(|c| c[1].to_string())?;
-    let reserved = ["i", "home", "explore", "search", "settings", "messages", "notifications", "hashtag", "intent", "compose"];
+    let reserved = [
+        "i",
+        "home",
+        "explore",
+        "search",
+        "settings",
+        "messages",
+        "notifications",
+        "hashtag",
+        "intent",
+        "compose",
+    ];
     if reserved.contains(&h.to_ascii_lowercase().as_str()) {
         return None;
     }
@@ -173,7 +186,9 @@ pub fn handle_from(input: &str) -> Option<String> {
 
 /// Pasta de dados da categoria: `<app_data>/tools/x`.
 pub fn x_dir() -> std::path::PathBuf {
-    let d = super::tools_dir().unwrap_or_else(std::env::temp_dir).join("x");
+    let d = super::tools_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("x");
     let _ = std::fs::create_dir_all(&d);
     d
 }
@@ -225,7 +240,10 @@ pub fn photo_orig_url(url: &str) -> String {
 
 pub fn dedup_posts(posts: Vec<XPost>) -> Vec<XPost> {
     let mut seen = HashSet::new();
-    posts.into_iter().filter(|p| seen.insert(p.id.clone())).collect()
+    posts
+        .into_iter()
+        .filter(|p| seen.insert(p.id.clone()))
+        .collect()
 }
 
 #[cfg(test)]
@@ -234,18 +252,33 @@ mod tests {
 
     #[test]
     fn parses_ids_and_handles() {
-        assert_eq!(post_id_from("https://x.com/jack/status/20").as_deref(), Some("20"));
-        assert_eq!(post_id_from("https://twitter.com/i/web/status/123456?s=20").as_deref(), Some("123456"));
+        assert_eq!(
+            post_id_from("https://x.com/jack/status/20").as_deref(),
+            Some("20")
+        );
+        assert_eq!(
+            post_id_from("https://twitter.com/i/web/status/123456?s=20").as_deref(),
+            Some("123456")
+        );
         assert_eq!(post_id_from("20").as_deref(), Some("20"));
         assert_eq!(handle_from("@NASA").as_deref(), Some("NASA"));
-        assert_eq!(handle_from("https://x.com/nasa/media").as_deref(), Some("nasa"));
+        assert_eq!(
+            handle_from("https://x.com/nasa/media").as_deref(),
+            Some("nasa")
+        );
         assert_eq!(handle_from("https://x.com/i/bookmarks"), None);
     }
 
     #[test]
     fn orig_photo_url() {
-        assert_eq!(photo_orig_url("https://pbs.twimg.com/media/abc.jpg"), "https://pbs.twimg.com/media/abc?format=jpg&name=orig");
-        assert_eq!(photo_orig_url("https://pbs.twimg.com/media/abc.jpg?name=orig"), "https://pbs.twimg.com/media/abc.jpg?name=orig");
+        assert_eq!(
+            photo_orig_url("https://pbs.twimg.com/media/abc.jpg"),
+            "https://pbs.twimg.com/media/abc?format=jpg&name=orig"
+        );
+        assert_eq!(
+            photo_orig_url("https://pbs.twimg.com/media/abc.jpg?name=orig"),
+            "https://pbs.twimg.com/media/abc.jpg?name=orig"
+        );
     }
 
     #[test]

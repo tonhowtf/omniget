@@ -14,13 +14,21 @@ pub fn tool_ollama_recommended() -> Vec<ollama::Recommended> {
 }
 
 #[tauri::command]
-pub async fn tool_ollama_pull(app: tauri::AppHandle, host: Option<String>, name: String) -> Result<(), String> {
-    ollama::pull(host.as_deref().unwrap_or(""), &name, progress(&app)).await.map_err(err)
+pub async fn tool_ollama_pull(
+    app: tauri::AppHandle,
+    host: Option<String>,
+    name: String,
+) -> Result<(), String> {
+    ollama::pull(host.as_deref().unwrap_or(""), &name, progress(&app))
+        .await
+        .map_err(err)
 }
 
 #[tauri::command]
 pub async fn tool_ollama_delete(host: Option<String>, name: String) -> Result<(), String> {
-    ollama::delete(host.as_deref().unwrap_or(""), &name).await.map_err(err)
+    ollama::delete(host.as_deref().unwrap_or(""), &name)
+        .await
+        .map_err(err)
 }
 
 #[tauri::command]
@@ -29,8 +37,14 @@ pub async fn tool_pricing_info(force: Option<bool>) -> Result<pricing::PricingIn
 }
 
 #[tauri::command]
-pub async fn tool_pricing_search(query: String, mode: Option<String>, limit: Option<usize>) -> Result<Vec<pricing::ModelPrice>, String> {
-    pricing::search(&query, mode.as_deref().unwrap_or(""), limit.unwrap_or(60)).await.map_err(err)
+pub async fn tool_pricing_search(
+    query: String,
+    mode: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<pricing::ModelPrice>, String> {
+    pricing::search(&query, mode.as_deref().unwrap_or(""), limit.unwrap_or(60))
+        .await
+        .map_err(err)
 }
 
 #[tauri::command]
@@ -83,7 +97,11 @@ pub async fn tool_keys_balance(id: String) -> Result<ai_keys::KeyView, String> {
 #[tauri::command]
 pub async fn tool_keys_models(entry: ai_keys::KeyEntry) -> Result<Vec<String>, String> {
     // Chave salva: a UI manda `key` vazia e o id; buscamos o segredo aqui.
-    let e = if entry.key.is_empty() && !entry.id.is_empty() { ai_keys::entry_with_secret(&entry.id).map_err(err)? } else { entry };
+    let e = if entry.key.is_empty() && !entry.id.is_empty() {
+        ai_keys::entry_with_secret(&entry.id).map_err(err)?
+    } else {
+        entry
+    };
     ai_keys::models(&e).await.map_err(err)
 }
 
@@ -113,7 +131,11 @@ pub struct McpStatus {
 #[tauri::command]
 pub fn tool_mcp_status(app: tauri::AppHandle) -> McpStatus {
     let settings = crate::storage::config::load_settings(&app);
-    let url = if settings.bridge.port == 0 { String::new() } else { format!("http://127.0.0.1:{}/mcp", settings.bridge.port) };
+    let url = if settings.bridge.port == 0 {
+        String::new()
+    } else {
+        format!("http://127.0.0.1:{}/mcp", settings.bridge.port)
+    };
     McpStatus {
         enabled: crate::mcp::enabled(),
         bridge_enabled: settings.bridge.enabled,
@@ -140,12 +162,41 @@ pub async fn tool_mcp_selftest(app: tauri::AppHandle) -> Result<String, String> 
         return Err("bridge sem porta".into());
     }
     let url = format!("http://127.0.0.1:{}/mcp", settings.bridge.port);
-    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(10)).build().map_err(err)?;
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(err)?;
     let init = serde_json::json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": { "protocolVersion": crate::mcp::PROTOCOL, "capabilities": {}, "clientInfo": { "name": "omniget-selftest", "version": "1" } } });
-    let r: serde_json::Value = client.post(&url).bearer_auth(&settings.bridge.token).json(&init).send().await.map_err(err)?.error_for_status().map_err(err)?.json().await.map_err(err)?;
-    let version = r["result"]["protocolVersion"].as_str().unwrap_or("?").to_string();
+    let r: serde_json::Value = client
+        .post(&url)
+        .bearer_auth(&settings.bridge.token)
+        .json(&init)
+        .send()
+        .await
+        .map_err(err)?
+        .error_for_status()
+        .map_err(err)?
+        .json()
+        .await
+        .map_err(err)?;
+    let version = r["result"]["protocolVersion"]
+        .as_str()
+        .unwrap_or("?")
+        .to_string();
     let list = serde_json::json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" });
-    let r: serde_json::Value = client.post(&url).bearer_auth(&settings.bridge.token).json(&list).send().await.map_err(err)?.json().await.map_err(err)?;
-    let n = r["result"]["tools"].as_array().map(|a| a.len()).unwrap_or(0);
+    let r: serde_json::Value = client
+        .post(&url)
+        .bearer_auth(&settings.bridge.token)
+        .json(&list)
+        .send()
+        .await
+        .map_err(err)?
+        .json()
+        .await
+        .map_err(err)?;
+    let n = r["result"]["tools"]
+        .as_array()
+        .map(|a| a.len())
+        .unwrap_or(0);
     Ok(format!("{} · {} tools · {}", version, n, url))
 }

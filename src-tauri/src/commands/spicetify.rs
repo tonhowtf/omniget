@@ -55,11 +55,18 @@ pub async fn spicetify_set_theme(theme: String, scheme: String) -> Result<CmdOut
     if theme.contains(['/', '\\', '|']) || scheme.contains(['/', '\\', '|']) {
         return Err("nome de tema invalido".into());
     }
-    spicetify::run_ok(&bin, &["config", "current_theme", theme, "color_scheme", scheme])
-        .await
-        .map_err(err)?;
+    spicetify::run_ok(
+        &bin,
+        &["config", "current_theme", theme, "color_scheme", scheme],
+    )
+    .await
+    .map_err(err)?;
     let status = spicetify::status().await;
-    let args: &[&str] = if status.applied { &["apply"] } else { &["backup", "apply"] };
+    let args: &[&str] = if status.applied {
+        &["apply"]
+    } else {
+        &["backup", "apply"]
+    };
     spicetify::run_ok(&bin, args).await.map_err(err)
 }
 

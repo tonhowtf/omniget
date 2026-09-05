@@ -30,11 +30,18 @@ fn whitelist_path() -> std::path::PathBuf {
 }
 
 pub fn whitelist() -> Vec<String> {
-    std::fs::read_to_string(whitelist_path()).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
+    std::fs::read_to_string(whitelist_path())
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
 }
 
 pub fn set_whitelist(handles: &[String]) -> anyhow::Result<Vec<String>> {
-    let mut clean: Vec<String> = handles.iter().map(|h| h.trim().trim_start_matches('@').to_ascii_lowercase()).filter(|h| !h.is_empty()).collect();
+    let mut clean: Vec<String> = handles
+        .iter()
+        .map(|h| h.trim().trim_start_matches('@').to_ascii_lowercase())
+        .filter(|h| !h.is_empty())
+        .collect();
     clean.sort();
     clean.dedup();
     std::fs::write(whitelist_path(), serde_json::to_string_pretty(&clean)?)?;
@@ -50,18 +57,26 @@ fn today() -> String {
 }
 
 pub fn unfollowed_today() -> usize {
-    let log: std::collections::HashMap<String, usize> = std::fs::read_to_string(log_path()).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+    let log: std::collections::HashMap<String, usize> = std::fs::read_to_string(log_path())
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
     log.get(&today()).copied().unwrap_or(0)
 }
 
 fn bump_today() {
-    let mut log: std::collections::HashMap<String, usize> = std::fs::read_to_string(log_path()).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+    let mut log: std::collections::HashMap<String, usize> = std::fs::read_to_string(log_path())
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
     *log.entry(today()).or_default() += 1;
     let _ = std::fs::write(log_path(), serde_json::to_string(&log).unwrap_or_default());
 }
 
 pub async fn me(client: &XClient) -> anyhow::Result<XUser> {
-    let uid = client.user_id().ok_or_else(|| anyhow!("cookie twid ausente: entre de novo no X"))?;
+    let uid = client
+        .user_id()
+        .ok_or_else(|| anyhow!("cookie twid ausente: entre de novo no X"))?;
     let v = client
         .gql_get(
             "UserByRestId",
@@ -70,24 +85,47 @@ pub async fn me(client: &XClient) -> anyhow::Result<XUser> {
             None,
         )
         .await?;
-    v.pointer("/data/user/result").and_then(super::parse::parse_user).ok_or_else(|| anyhow!("nao consegui ler o perfil da sessao"))
+    v.pointer("/data/user/result")
+        .and_then(super::parse::parse_user)
+        .ok_or_else(|| anyhow!("nao consegui ler o perfil da sessao"))
 }
 
-async fn list(client: &XClient, op: &str, uid: &str, limit: usize, progress: &ProgressFn, stage: &str) -> anyhow::Result<Vec<XUser>> {
+async fn list(
+    client: &XClient,
+    op: &str,
+    uid: &str,
+    limit: usize,
+    progress: &ProgressFn,
+    stage: &str,
+) -> anyhow::Result<Vec<XUser>> {
     let mut users: Vec<XUser> = Vec::new();
-    let extra = if op == "Followers" { json!({ "responsive_web_twitter_article_notes_tab_enabled": false }) } else { json!({}) };
+    let extra = if op == "Followers" {
+        json!({ "responsive_web_twitter_article_notes_tab_enabled": false })
+    } else {
+        json!({})
+    };
     let p2 = progress.clone();
     client
-        .paginate(op, json!({ "userId": uid, "count": 100, "includePromotedContent": false }), extra, limit, JOB, |page| {
-            let got = super::parse::users_from(page);
-            let n = got.len();
-            users.extend(got);
-            super::report(&p2, JOB, stage, users.len() as u64, None, None);
-            n
-        })
+        .paginate(
+            op,
+            json!({ "userId": uid, "count": 100, "includePromotedContent": false }),
+            extra,
+            limit,
+            JOB,
+            |page| {
+                let got = super::parse::users_from(page);
+                let n = got.len();
+                users.extend(got);
+                super::report(&p2, JOB, stage, users.len() as u64, None, None);
+                n
+            },
+        )
         .await?;
     let mut seen = std::collections::HashSet::new();
-    Ok(users.into_iter().filter(|u| seen.insert(u.id.clone())).collect())
+    Ok(users
+        .into_iter()
+        .filter(|u| seen.insert(u.id.clone()))
+        .collect())
 }
 
 pub async fn audit(limit: usize, progress: ProgressFn) -> anyhow::Result<Audit> {
@@ -97,9 +135,15 @@ pub async fn audit(limit: usize, progress: ProgressFn) -> anyhow::Result<Audit> 
     let me = me(&client).await?;
     let limit = if limit == 0 { 10_000 } else { limit };
     let following = list(&client, "Following", &me.id, limit, &progress, "following").await?;
-    let followers = if super::cancelled(JOB) { Vec::new() } else { list(&client, "Followers", &me.id, limit, &progress, "followers").await? };
-    let follower_ids: std::collections::HashSet<&str> = followers.iter().map(|u| u.id.as_str()).collect();
-    let following_ids: std::collections::HashSet<&str> = following.iter().map(|u| u.id.as_str()).collect();
+    let followers = if super::cancelled(JOB) {
+        Vec::new()
+    } else {
+        list(&client, "Followers", &me.id, limit, &progress, "followers").await?
+    };
+    let follower_ids: std::collections::HashSet<&str> =
+        followers.iter().map(|u| u.id.as_str()).collect();
+    let following_ids: std::collections::HashSet<&str> =
+        following.iter().map(|u| u.id.as_str()).collect();
     let wl = whitelist();
     let not_following_back: Vec<XUser> = following
         .iter()
@@ -107,9 +151,23 @@ pub async fn audit(limit: usize, progress: ProgressFn) -> anyhow::Result<Audit> 
         .filter(|u| !wl.contains(&u.handle.to_ascii_lowercase()))
         .cloned()
         .collect();
-    let fans: Vec<XUser> = followers.iter().filter(|u| !following_ids.contains(u.id.as_str()) && u.followed_by_me != Some(true)).cloned().collect();
-    let mutuals = following.iter().filter(|u| follower_ids.contains(u.id.as_str()) || u.follows_me == Some(true)).count();
-    super::report(&progress, JOB, "done", following.len() as u64, Some(following.len() as u64), None);
+    let fans: Vec<XUser> = followers
+        .iter()
+        .filter(|u| !following_ids.contains(u.id.as_str()) && u.followed_by_me != Some(true))
+        .cloned()
+        .collect();
+    let mutuals = following
+        .iter()
+        .filter(|u| follower_ids.contains(u.id.as_str()) || u.follows_me == Some(true))
+        .count();
+    super::report(
+        &progress,
+        JOB,
+        "done",
+        following.len() as u64,
+        Some(following.len() as u64),
+        None,
+    );
     Ok(Audit {
         me,
         following: following.len(),
@@ -131,7 +189,13 @@ pub struct UnfollowResult {
     pub reason: String,
 }
 
-pub async fn unfollow(ids: &[String], min_delay: u64, max_delay: u64, daily_cap: usize, progress: ProgressFn) -> anyhow::Result<UnfollowResult> {
+pub async fn unfollow(
+    ids: &[String],
+    min_delay: u64,
+    max_delay: u64,
+    daily_cap: usize,
+    progress: ProgressFn,
+) -> anyhow::Result<UnfollowResult> {
     let client = XClient::new()?;
     client.require_login()?;
     super::clear_cancel(UNFOLLOW_JOB);
@@ -149,7 +213,14 @@ pub async fn unfollow(ids: &[String], min_delay: u64, max_delay: u64, daily_cap:
             r.reason = "daily_cap".into();
             break;
         }
-        super::report(&progress, UNFOLLOW_JOB, "unfollow", i as u64, Some(total), Some(id.clone()));
+        super::report(
+            &progress,
+            UNFOLLOW_JOB,
+            "unfollow",
+            i as u64,
+            Some(total),
+            Some(id.clone()),
+        );
         let form = [
             ("include_profile_interstitial_type", "1"),
             ("include_blocking", "1"),
@@ -165,7 +236,10 @@ pub async fn unfollow(ids: &[String], min_delay: u64, max_delay: u64, daily_cap:
             ("skip_status", "1"),
             ("user_id", id.as_str()),
         ];
-        match client.rest_post_form("friendships/destroy.json", &form).await {
+        match client
+            .rest_post_form("friendships/destroy.json", &form)
+            .await
+        {
             Ok(_) => {
                 r.done.push(id.clone());
                 bump_today();
@@ -186,11 +260,25 @@ pub async fn unfollow(ids: &[String], min_delay: u64, max_delay: u64, daily_cap:
                 if super::cancelled(UNFOLLOW_JOB) {
                     break;
                 }
-                super::report(&progress, UNFOLLOW_JOB, "waiting", (i + 1) as u64, Some(total), Some((wait - s).to_string()));
+                super::report(
+                    &progress,
+                    UNFOLLOW_JOB,
+                    "waiting",
+                    (i + 1) as u64,
+                    Some(total),
+                    Some((wait - s).to_string()),
+                );
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
         }
     }
-    super::report(&progress, UNFOLLOW_JOB, "done", r.done.len() as u64, Some(total), None);
+    super::report(
+        &progress,
+        UNFOLLOW_JOB,
+        "done",
+        r.done.len() as u64,
+        Some(total),
+        None,
+    );
     Ok(r)
 }

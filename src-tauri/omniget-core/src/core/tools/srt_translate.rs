@@ -42,7 +42,14 @@ pub struct TranslateResult {
     pub failed: Vec<usize>,
 }
 
-fn llm_prompt(lines: &[&str], src: &str, tgt: &str, context: &str, prev: &str, next: &str) -> (String, String) {
+fn llm_prompt(
+    lines: &[&str],
+    src: &str,
+    tgt: &str,
+    context: &str,
+    prev: &str,
+    next: &str,
+) -> (String, String) {
     let system = format!(
         "You are a professional subtitle translator from {src} to {tgt}. Translate each numbered line faithfully, keeping meaning, tone and terminology. Keep each line a subtitle: short, no explanations, no empty lines. Reply ONLY with a JSON object mapping the line number (as string) to the translated text."
     );
@@ -83,8 +90,20 @@ fn parse_llm_json(text: &str, n: usize) -> Option<Vec<Option<String>>> {
     Some(out)
 }
 
-async fn translate_batch_llm(lines: &[&str], opts: &TranslateOptions, prev: &str, next: &str) -> anyhow::Result<Vec<Option<String>>> {
-    let (system, user) = llm_prompt(lines, &opts.source_lang, &opts.target_lang, &opts.context, prev, next);
+async fn translate_batch_llm(
+    lines: &[&str],
+    opts: &TranslateOptions,
+    prev: &str,
+    next: &str,
+) -> anyhow::Result<Vec<Option<String>>> {
+    let (system, user) = llm_prompt(
+        lines,
+        &opts.source_lang,
+        &opts.target_lang,
+        &opts.context,
+        prev,
+        next,
+    );
     let mut last_err = String::new();
     for _ in 0..2 {
         match crate::core::ai::chat(&system, &user).await {
@@ -100,7 +119,12 @@ async fn translate_batch_llm(lines: &[&str], opts: &TranslateOptions, prev: &str
     Err(anyhow!("tradução por IA falhou: {}", last_err))
 }
 
-async fn translate_batch_libre(lines: &[&str], base_url: &str, api_key: &str, opts: &TranslateOptions) -> anyhow::Result<Vec<Option<String>>> {
+async fn translate_batch_libre(
+    lines: &[&str],
+    base_url: &str,
+    api_key: &str,
+    opts: &TranslateOptions,
+) -> anyhow::Result<Vec<Option<String>>> {
     let client = super::client()?;
     let url = format!("{}/translate", base_url.trim_end_matches('/'));
     let mut body = serde_json::json!({
@@ -114,7 +138,10 @@ async fn translate_batch_libre(lines: &[&str], base_url: &str, api_key: &str, op
     }
     let resp = client.post(&url).json(&body).send().await?;
     let status = resp.status();
-    let v: serde_json::Value = resp.json().await.map_err(|e| anyhow!("LibreTranslate: resposta invalida ({})", e))?;
+    let v: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| anyhow!("LibreTranslate: resposta invalida ({})", e))?;
     if !status.is_success() {
         return Err(anyhow!(
             "LibreTranslate: HTTP {} {}",
@@ -123,14 +150,21 @@ async fn translate_batch_libre(lines: &[&str], base_url: &str, api_key: &str, op
         ));
     }
     let out = match &v["translatedText"] {
-        serde_json::Value::Array(a) => a.iter().map(|x| x.as_str().map(|s| s.to_string())).collect(),
+        serde_json::Value::Array(a) => a
+            .iter()
+            .map(|x| x.as_str().map(|s| s.to_string()))
+            .collect(),
         serde_json::Value::String(s) => vec![Some(s.clone())],
         _ => vec![None; lines.len()],
     };
     Ok(out)
 }
 
-pub async fn translate_cues(cues: &[Cue], opts: &TranslateOptions, progress: super::ProgressFn) -> anyhow::Result<TranslateResult> {
+pub async fn translate_cues(
+    cues: &[Cue],
+    opts: &TranslateOptions,
+    progress: super::ProgressFn,
+) -> anyhow::Result<TranslateResult> {
     let id = "translate";
     let batch = opts.batch_size.clamp(1, 100);
     let mut out = cues.to_vec();
@@ -140,12 +174,22 @@ pub async fn translate_cues(cues: &[Cue], opts: &TranslateOptions, progress: sup
     for (bi, chunk) in cues.chunks(batch).enumerate() {
         let lines: Vec<&str> = chunk.iter().map(|c| c.text.as_str()).collect();
         let start = bi * batch;
-        let prev = cues[start.saturating_sub(3)..start].iter().map(|c| c.text.as_str()).collect::<Vec<_>>().join(" ");
+        let prev = cues[start.saturating_sub(3)..start]
+            .iter()
+            .map(|c| c.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
         let end = (start + chunk.len()).min(cues.len());
-        let next = cues[end..(end + 3).min(cues.len())].iter().map(|c| c.text.as_str()).collect::<Vec<_>>().join(" ");
+        let next = cues[end..(end + 3).min(cues.len())]
+            .iter()
+            .map(|c| c.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
         let translated = match &opts.translator {
             Translator::Llm => translate_batch_llm(&lines, opts, &prev, &next).await?,
-            Translator::LibreTranslate { base_url, api_key } => translate_batch_libre(&lines, base_url, api_key, opts).await?,
+            Translator::LibreTranslate { base_url, api_key } => {
+                translate_batch_libre(&lines, base_url, api_key, opts).await?
+            }
         };
         for (i, t) in translated.into_iter().enumerate() {
             match t {

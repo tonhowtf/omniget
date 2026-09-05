@@ -20,7 +20,10 @@ async fn es_path() -> Option<PathBuf> {
     if let Some(p) = crate::core::dependencies::find_tool("es").await {
         return Some(p);
     }
-    for base in ["C:\\Program Files\\Everything", "C:\\Program Files (x86)\\Everything"] {
+    for base in [
+        "C:\\Program Files\\Everything",
+        "C:\\Program Files (x86)\\Everything",
+    ] {
         let p = PathBuf::from(base).join("es.exe");
         if p.exists() {
             return Some(p);
@@ -42,13 +45,24 @@ pub async fn backend() -> SearchBackend {
     }
     #[cfg(target_os = "macos")]
     {
-        SearchBackend { name: "Spotlight".into(), available: true, path: Some("/usr/bin/mdfind".into()), install_hint: String::new() }
+        SearchBackend {
+            name: "Spotlight".into(),
+            available: true,
+            path: Some("/usr/bin/mdfind".into()),
+            install_hint: String::new(),
+        }
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
-        let fd = crate::core::dependencies::find_tool("fd").await.or(crate::core::dependencies::find_tool("fdfind").await);
+        let fd = crate::core::dependencies::find_tool("fd")
+            .await
+            .or(crate::core::dependencies::find_tool("fdfind").await);
         SearchBackend {
-            name: if fd.is_some() { "fd".into() } else { "find".into() },
+            name: if fd.is_some() {
+                "fd".into()
+            } else {
+                "find".into()
+            },
             available: true,
             path: fd.map(|p| p.to_string_lossy().to_string()),
             install_hint: "sudo apt install fd-find (opcional, mais rapido)".into(),
@@ -72,7 +86,9 @@ pub async fn search(query: &str, folder: &str, limit: usize) -> anyhow::Result<V
     let output;
     #[cfg(target_os = "windows")]
     {
-        let es = es_path().await.ok_or_else(|| anyhow!("Everything (es.exe) nao encontrado"))?;
+        let es = es_path()
+            .await
+            .ok_or_else(|| anyhow!("Everything (es.exe) nao encontrado"))?;
         let mut cmd = crate::core::process::command(&es);
         cmd.args(["-n", &limit.to_string()]);
         if !folder.trim().is_empty() {
@@ -93,18 +109,35 @@ pub async fn search(query: &str, folder: &str, limit: usize) -> anyhow::Result<V
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         let root = if folder.trim().is_empty() {
-            dirs::home_dir().map(|h| h.to_string_lossy().to_string()).unwrap_or_else(|| "/".into())
+            dirs::home_dir()
+                .map(|h| h.to_string_lossy().to_string())
+                .unwrap_or_else(|| "/".into())
         } else {
             folder.trim().to_string()
         };
-        let fd = crate::core::dependencies::find_tool("fd").await.or(crate::core::dependencies::find_tool("fdfind").await);
+        let fd = crate::core::dependencies::find_tool("fd")
+            .await
+            .or(crate::core::dependencies::find_tool("fdfind").await);
         output = match fd {
-            Some(fd) => crate::core::process::command(&fd).args(["-i", "--max-results", &limit.to_string(), q, &root]).output().await?,
-            None => crate::core::process::command("find").args([&root, "-iname", &format!("*{}*", q)]).output().await?,
+            Some(fd) => {
+                crate::core::process::command(&fd)
+                    .args(["-i", "--max-results", &limit.to_string(), q, &root])
+                    .output()
+                    .await?
+            }
+            None => {
+                crate::core::process::command("find")
+                    .args([&root, "-iname", &format!("*{}*", q)])
+                    .output()
+                    .await?
+            }
         };
     }
     if !output.status.success() && output.stdout.is_empty() {
-        return Err(anyhow!("busca falhou: {}", String::from_utf8_lossy(&output.stderr).trim()));
+        return Err(anyhow!(
+            "busca falhou: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
     }
     let text = String::from_utf8_lossy(&output.stdout);
     let hits = text

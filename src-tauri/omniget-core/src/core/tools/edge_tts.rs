@@ -77,16 +77,29 @@ pub async fn list_voices() -> anyhow::Result<Vec<Voice>> {
     let resp = client
         .get(&url)
         .header("Authority", "speech.platform.bing.com")
-        .header("Sec-CH-UA", format!("\" Not;A Brand\";v=\"99\", \"Microsoft Edge\";v=\"{0}\", \"Chromium\";v=\"{0}\"", chromium_major()))
+        .header(
+            "Sec-CH-UA",
+            format!(
+                "\" Not;A Brand\";v=\"99\", \"Microsoft Edge\";v=\"{0}\", \"Chromium\";v=\"{0}\"",
+                chromium_major()
+            ),
+        )
         .header("Sec-CH-UA-Mobile", "?0")
         .header("Accept", "*/*")
         .send()
         .await?;
     if !resp.status().is_success() {
-        return Err(anyhow!("lista de vozes do Edge indisponivel: HTTP {}", resp.status()));
+        return Err(anyhow!(
+            "lista de vozes do Edge indisponivel: HTTP {}",
+            resp.status()
+        ));
     }
     let mut voices: Vec<Voice> = resp.json().await?;
-    voices.sort_by(|a, b| a.locale.cmp(&b.locale).then(a.short_name.cmp(&b.short_name)));
+    voices.sort_by(|a, b| {
+        a.locale
+            .cmp(&b.locale)
+            .then(a.short_name.cmp(&b.short_name))
+    });
     if let Ok(mut g) = VOICES.lock() {
         *g = Some((std::time::Instant::now(), voices.clone()));
     }
@@ -129,7 +142,9 @@ pub struct TtsResult {
 }
 
 fn escape_xml(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 fn mkssml(text: &str, voice: &str, rate: &str, pitch: &str, volume: &str) -> String {
@@ -140,7 +155,9 @@ fn mkssml(text: &str, voice: &str, rate: &str, pitch: &str, volume: &str) -> Str
 }
 
 fn date_string() -> String {
-    chrono::Utc::now().format("%a %b %d %Y %H:%M:%S GMT+0000 (Coordinated Universal Time)").to_string()
+    chrono::Utc::now()
+        .format("%a %b %d %Y %H:%M:%S GMT+0000 (Coordinated Universal Time)")
+        .to_string()
 }
 
 /// Divide por frases sem passar de `CHUNK_BYTES`, sem cortar UTF-8.
@@ -167,7 +184,11 @@ pub fn split_text(text: &str) -> Vec<String> {
     if !current.trim().is_empty() {
         chunks.push(current);
     }
-    chunks.into_iter().map(|c| c.trim().to_string()).filter(|c| !c.is_empty()).collect()
+    chunks
+        .into_iter()
+        .map(|c| c.trim().to_string())
+        .filter(|c| !c.is_empty())
+        .collect()
 }
 
 struct ChunkOut {
@@ -177,7 +198,9 @@ struct ChunkOut {
 
 fn parse_metadata(json: &str) -> Vec<WordBoundary> {
     let mut out = Vec::new();
-    let Ok(v) = serde_json::from_str::<serde_json::Value>(json) else { return out };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(json) else {
+        return out;
+    };
     if let Some(items) = v["Metadata"].as_array() {
         for it in items {
             if it["Type"].as_str() != Some("WordBoundary") {
@@ -187,7 +210,11 @@ fn parse_metadata(json: &str) -> Vec<WordBoundary> {
             let offset = d["Offset"].as_u64().unwrap_or(0);
             let dur = d["Duration"].as_u64().unwrap_or(0);
             let text = d["text"]["Text"].as_str().unwrap_or("").to_string();
-            out.push(WordBoundary { text, start_ms: offset / 10_000, duration_ms: dur / 10_000 });
+            out.push(WordBoundary {
+                text,
+                start_ms: offset / 10_000,
+                duration_ms: dur / 10_000,
+            });
         }
     }
     out
@@ -208,7 +235,10 @@ async fn synth_chunk(text: &str, opts: &TtsOptions, skew: i64) -> anyhow::Result
     let h = req.headers_mut();
     h.insert("Pragma", "no-cache".parse()?);
     h.insert("Cache-Control", "no-cache".parse()?);
-    h.insert("Origin", "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold".parse()?);
+    h.insert(
+        "Origin",
+        "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold".parse()?,
+    );
     h.insert("Accept-Encoding", "gzip, deflate, br".parse()?);
     h.insert("Accept-Language", "en-US,en;q=0.9".parse()?);
     h.insert(
@@ -229,7 +259,13 @@ async fn synth_chunk(text: &str, opts: &TtsOptions, skew: i64) -> anyhow::Result
         date_string()
     );
     ws.send(Message::Text(cfg.into())).await?;
-    let ssml = mkssml(&escape_xml(text), &opts.voice, &opts.rate, &opts.pitch, &opts.volume);
+    let ssml = mkssml(
+        &escape_xml(text),
+        &opts.voice,
+        &opts.rate,
+        &opts.pitch,
+        &opts.volume,
+    );
     let req_id = connect_id();
     let msg = format!(
         "X-RequestId:{}\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:{}Z\r\nPath:ssml\r\n\r\n{}",
@@ -294,8 +330,16 @@ pub fn words_to_cues(words: &[WordBoundary]) -> Vec<Cue> {
         let start = buf[0].start_ms;
         let last = buf[buf.len() - 1];
         let end = last.start_ms + last.duration_ms.max(200);
-        let text = buf.iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ");
-        cues.push(Cue { start_ms: start, end_ms: end.max(start + 1), text });
+        let text = buf
+            .iter()
+            .map(|w| w.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        cues.push(Cue {
+            start_ms: start,
+            end_ms: end.max(start + 1),
+            text,
+        });
         buf.clear();
     };
     for w in words {
@@ -312,7 +356,11 @@ pub fn words_to_cues(words: &[WordBoundary]) -> Vec<Cue> {
 }
 
 /// Sintetiza `opts.text` inteiro em `audio_path` (MP3) e escreve o SRT ao lado.
-pub async fn synthesize(opts: TtsOptions, audio_path: &std::path::Path, progress: super::ProgressFn) -> anyhow::Result<TtsResult> {
+pub async fn synthesize(
+    opts: TtsOptions,
+    audio_path: &std::path::Path,
+    progress: super::ProgressFn,
+) -> anyhow::Result<TtsResult> {
     let chunks = split_text(&opts.text);
     if chunks.is_empty() {
         return Err(anyhow!("texto vazio"));
@@ -323,7 +371,14 @@ pub async fn synthesize(opts: TtsOptions, audio_path: &std::path::Path, progress
     let mut offset_ms: u64 = 0;
     let mut skew: i64 = 0;
     for (i, chunk) in chunks.iter().enumerate() {
-        super::report(&progress, &id, "synthesize", i as u64, Some(chunks.len() as u64), None);
+        super::report(
+            &progress,
+            &id,
+            "synthesize",
+            i as u64,
+            Some(chunks.len() as u64),
+            None,
+        );
         let out = match synth_chunk(chunk, &opts, skew).await {
             Ok(o) => o,
             Err(e) => {
@@ -338,7 +393,12 @@ pub async fn synthesize(opts: TtsOptions, audio_path: &std::path::Path, progress
                 }
             }
         };
-        let last_end = out.words.iter().map(|w| w.start_ms + w.duration_ms).max().unwrap_or(0);
+        let last_end = out
+            .words
+            .iter()
+            .map(|w| w.start_ms + w.duration_ms)
+            .max()
+            .unwrap_or(0);
         for mut w in out.words {
             w.start_ms += offset_ms;
             words.push(w);
@@ -354,8 +414,19 @@ pub async fn synthesize(opts: TtsOptions, audio_path: &std::path::Path, progress
     let cues = words_to_cues(&words);
     let srt_path = audio_path.with_extension("srt");
     tokio::fs::write(&srt_path, cues_to_srt(&cues)).await?;
-    let duration_ms = words.iter().map(|w| w.start_ms + w.duration_ms).max().unwrap_or(0);
-    super::report(&progress, &id, "done", chunks.len() as u64, Some(chunks.len() as u64), None);
+    let duration_ms = words
+        .iter()
+        .map(|w| w.start_ms + w.duration_ms)
+        .max()
+        .unwrap_or(0);
+    super::report(
+        &progress,
+        &id,
+        "done",
+        chunks.len() as u64,
+        Some(chunks.len() as u64),
+        None,
+    );
     Ok(TtsResult {
         audio_path: audio_path.to_string_lossy().to_string(),
         srt_path: srt_path.to_string_lossy().to_string(),
@@ -372,7 +443,9 @@ mod tests {
     fn gec_is_64_hex_upper() {
         let g = sec_ms_gec(0);
         assert_eq!(g.len(), 64);
-        assert!(g.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_lowercase()));
+        assert!(g
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_lowercase()));
     }
 
     #[test]
@@ -386,7 +459,11 @@ mod tests {
     #[test]
     fn groups_words_into_cues() {
         let words: Vec<WordBoundary> = (0..20)
-            .map(|i| WordBoundary { text: format!("w{}", i), start_ms: i * 300, duration_ms: 250 })
+            .map(|i| WordBoundary {
+                text: format!("w{}", i),
+                start_ms: i * 300,
+                duration_ms: 250,
+            })
             .collect();
         let cues = words_to_cues(&words);
         assert_eq!(cues.len(), 3);

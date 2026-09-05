@@ -503,7 +503,12 @@ fn select_best_variant(master: &MasterPlaylist, max_height: Option<u32>) -> Opti
     sorted
         .iter()
         .rev()
-        .find(|v| v.resolution.as_ref().map(|r| r.height <= max_h).unwrap_or(true))
+        .find(|v| {
+            v.resolution
+                .as_ref()
+                .map(|r| r.height <= max_h)
+                .unwrap_or(true)
+        })
         .copied()
         .or_else(|| sorted.first().copied())
 }

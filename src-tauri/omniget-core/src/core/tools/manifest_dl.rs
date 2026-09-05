@@ -31,7 +31,10 @@ pub fn headers_arg(opts: &ManifestOptions) -> Option<String> {
     let mut h = Vec::new();
     if !opts.referer.trim().is_empty() {
         h.push(format!("Referer: {}", opts.referer.trim()));
-        h.push(format!("Origin: {}", opts.referer.trim().trim_end_matches('/')));
+        h.push(format!(
+            "Origin: {}",
+            opts.referer.trim().trim_end_matches('/')
+        ));
     }
     if !opts.cookie.trim().is_empty() {
         h.push(format!("Cookie: {}", opts.cookie.trim()));
@@ -48,7 +51,10 @@ pub fn headers_arg(opts: &ManifestOptions) -> Option<String> {
     }
 }
 
-pub async fn download(opts: ManifestOptions, progress: super::ProgressFn) -> anyhow::Result<ManifestResult> {
+pub async fn download(
+    opts: ManifestOptions,
+    progress: super::ProgressFn,
+) -> anyhow::Result<ManifestResult> {
     use tokio::io::{AsyncBufReadExt, BufReader};
     let ffmpeg = crate::core::dependencies::ensure_ffmpeg().await?;
     let url = opts.url.trim().to_string();
@@ -62,16 +68,41 @@ pub async fn download(opts: ManifestOptions, progress: super::ProgressFn) -> any
     }
     let out = PathBuf::from(&opts.dest_dir).join(name);
     let mut cmd = crate::core::process::command(&ffmpeg);
-    cmd.args(["-y", "-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1"]);
+    cmd.args([
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-nostats",
+        "-progress",
+        "pipe:1",
+    ]);
     if !opts.user_agent.trim().is_empty() {
         cmd.args(["-user_agent", opts.user_agent.trim()]);
     }
     if let Some(h) = headers_arg(&opts) {
         cmd.args(["-headers", &h]);
     }
-    cmd.args(["-protocol_whitelist", "file,http,https,tcp,tls,crypto,data", "-allowed_extensions", "ALL", "-i", &url]);
-    cmd.args(["-c", "copy", "-bsf:a", "aac_adtstoasc", "-movflags", "+faststart"]).arg(&out);
-    cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+    cmd.args([
+        "-protocol_whitelist",
+        "file,http,https,tcp,tls,crypto,data",
+        "-allowed_extensions",
+        "ALL",
+        "-i",
+        &url,
+    ]);
+    cmd.args([
+        "-c",
+        "copy",
+        "-bsf:a",
+        "aac_adtstoasc",
+        "-movflags",
+        "+faststart",
+    ])
+    .arg(&out);
+    cmd.stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
     let mut child = cmd.spawn()?;
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
@@ -83,9 +114,19 @@ pub async fn download(opts: ManifestOptions, progress: super::ProgressFn) -> any
         if let Some(o) = stdout {
             let mut lines = BufReader::new(o).lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                if let Some(us) = line.strip_prefix("out_time_us=").and_then(|v| v.trim().parse::<u64>().ok()) {
+                if let Some(us) = line
+                    .strip_prefix("out_time_us=")
+                    .and_then(|v| v.trim().parse::<u64>().ok())
+                {
                     secs = us as f64 / 1_000_000.0;
-                    super::report(&p2, &id2, "progress", us / 1_000_000, None, Some(format!("{:.0}s", secs)));
+                    super::report(
+                        &p2,
+                        &id2,
+                        "progress",
+                        us / 1_000_000,
+                        None,
+                        Some(format!("{:.0}s", secs)),
+                    );
                 }
             }
         }
@@ -117,7 +158,10 @@ pub async fn download(opts: ManifestOptions, progress: super::ProgressFn) -> any
         return Err(anyhow!("ffmpeg falhou: {}{}", tail, hint));
     }
     super::report(&progress, &id, "done", secs as u64, Some(secs as u64), None);
-    Ok(ManifestResult { path: out.to_string_lossy().to_string(), seconds: secs })
+    Ok(ManifestResult {
+        path: out.to_string_lossy().to_string(),
+        seconds: secs,
+    })
 }
 
 #[cfg(test)]
@@ -126,7 +170,18 @@ mod tests {
 
     #[test]
     fn builds_headers() {
-        let o = ManifestOptions { url: "".into(), dest_dir: "".into(), file_name: "".into(), referer: "https://x.com/".into(), user_agent: "".into(), cookie: "a=1".into(), extra_headers: vec!["X-Y: z".into()] };
-        assert_eq!(headers_arg(&o).unwrap(), "Referer: https://x.com/\r\nOrigin: https://x.com\r\nCookie: a=1\r\nX-Y: z\r\n");
+        let o = ManifestOptions {
+            url: "".into(),
+            dest_dir: "".into(),
+            file_name: "".into(),
+            referer: "https://x.com/".into(),
+            user_agent: "".into(),
+            cookie: "a=1".into(),
+            extra_headers: vec!["X-Y: z".into()],
+        };
+        assert_eq!(
+            headers_arg(&o).unwrap(),
+            "Referer: https://x.com/\r\nOrigin: https://x.com\r\nCookie: a=1\r\nX-Y: z\r\n"
+        );
     }
 }
