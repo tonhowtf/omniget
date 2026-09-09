@@ -647,436 +647,436 @@
     },
     "catalog": {
       "yt-download": {
-        "name": "Download video",
-        "desc": "Paste a link and pick quality, format and subtitles."
+        "name": "Скачать видео",
+        "desc": "Вставьте ссылку и выберите качество, формат и субтитры."
       },
       "yt-metadata": {
-        "name": "Metadata",
-        "desc": "Save the video's info, description and thumbnail without downloading the video itself."
+        "name": "Метаданные",
+        "desc": "Сохраните информацию, описание и обложку видео без его скачивания."
       },
       "yt-thumbnails": {
-        "name": "Thumbnails",
-        "desc": "Browse every available cover image and save it at any resolution."
+        "name": "Обложки",
+        "desc": "Просмотрите все доступные изображения обложек и сохраните в любом разрешении."
       },
       "yt-subtitles": {
-        "name": "Subtitles",
-        "desc": "Download subtitles, or merge two languages into one bilingual file."
+        "name": "Субтитры",
+        "desc": "Скачайте субтитры или объедините два языка в один двуязычный файл."
       },
       "yt-comments": {
-        "name": "Comments & chapters",
-        "desc": "Fetch a video's comments or chapter markers, filter them, and export as JSON or CSV."
+        "name": "Комментарии и главы",
+        "desc": "Получите комментарии или маркеры глав видео, отфильтруйте и экспортируйте в JSON или CSV."
       },
       "yt-livechat": {
-        "name": "Live chat",
-        "desc": "Save the chat replay of a live stream as JSON or CSV."
+        "name": "Чат в прямом эфире",
+        "desc": "Сохраните воспроизведение чата прямой трансляции в JSON или CSV."
       },
       "yt-workshop": {
-        "name": "Subtitle workshop",
-        "desc": "Edit, translate and re-time subtitle files."
+        "name": "Редактор субтитров",
+        "desc": "Редактируйте, переводите и синхронизируйте файлы субтитров."
       },
       "video-clip": {
-        "name": "Cut a clip",
-        "desc": "Pick a video on disk and cut out a section. The result lands in your downloads queue."
+        "name": "Вырезать клип",
+        "desc": "Выберите видео на диске и вырежьте фрагмент. Результат попадёт в очередь загрузок."
       },
       "video-convert": {
-        "name": "Convert",
-        "desc": "Change container, codec, resolution or compress a file."
+        "name": "Конвертировать",
+        "desc": "Измените контейнер, кодек, разрешение или сожмите файл."
       },
       "video-record": {
-        "name": "Record screen",
-        "desc": "Record your screen with system audio. A replay buffer clips what just happened."
+        "name": "Запись экрана",
+        "desc": "Запишите экран со звуком системы. Буфер воспроизведения сохраняет то, что только что произошло."
       },
       "video-editor": {
-        "name": "Timeline editor",
-        "desc": "Multi-track timeline with cuts, transitions and titles. A free CapCut replacement."
+        "name": "Редактор таймлайна",
+        "desc": "Многодорожечный таймлайн с монтажом, переходами и титрами. Бесплатная замена CapCut."
       },
       "video-captions": {
-        "name": "Auto captions",
-        "desc": "Transcribe speech locally and burn or export subtitles."
+        "name": "Автосубтитры",
+        "desc": "Распознайте речь локально и встройте или экспортируйте субтитры."
       },
       "video-tts": {
-        "name": "Text to speech",
-        "desc": "Turn a script into narration with local voices."
+        "name": "Текст в речь",
+        "desc": "Превратите сценарий в озвучку с локальными голосами."
       },
       "ig-unfollowers": {
-        "name": "Who doesn't follow back",
-        "desc": "Compare followers and following, protect accounts with a whitelist and unfollow at a safe pace."
+        "name": "Кто не подписан в ответ",
+        "desc": "Сравните подписчиков и подписки, защитите аккаунты через белый список и отписывайтесь безопасно."
       },
       "ig-download": {
-        "name": "Download post",
-        "desc": "Photo, video, reel, IGTV or carousel from a link, in the best quality."
+        "name": "Скачать пост",
+        "desc": "Фото, видео, рилс, IGTV или карусель по ссылке в лучшем качестве."
       },
       "spotify-spicetify": {
-        "name": "Themes & colors",
-        "desc": "Customize the Spotify client with Spicetify themes. Updates through Spicetify itself."
+        "name": "Темы и цвета",
+        "desc": "Настройте клиент Spotify с помощью тем Spicetify. Обновление через Spicetify."
       },
       "spotify-extensions": {
-        "name": "Extensions",
-        "desc": "Install Spicetify extensions and custom apps from the Marketplace."
+        "name": "Расширения",
+        "desc": "Устанавливайте расширения Spicetify и пользовательские приложения из маркетплейса."
       },
       "pdf-merge": {
-        "name": "Merge",
-        "desc": "Join several PDFs into one, in the order you choose."
+        "name": "Объединить",
+        "desc": "Слейте несколько PDF-файлов в один в нужном порядке."
       },
       "pdf-split": {
-        "name": "Split",
-        "desc": "Extract pages or break a PDF into parts."
+        "name": "Разделить",
+        "desc": "Извлеките страницы или разбейте PDF на части."
       },
       "pdf-compress": {
-        "name": "Compress",
-        "desc": "Shrink a PDF's size while keeping it readable."
+        "name": "Сжать",
+        "desc": "Уменьшите размер PDF, сохранив читаемость."
       },
       "pdf-convert": {
-        "name": "Convert",
-        "desc": "PDF to images or Word, and back."
+        "name": "Конвертировать",
+        "desc": "PDF в изображения или Word и обратно."
       },
       "pdf-ocr": {
         "name": "OCR",
-        "desc": "Make scanned PDFs searchable by recognizing their text."
+        "desc": "Сделайте отсканированные PDF-файлы полноценно текстовыми."
       },
       "sys-clean": {
-        "name": "Clean caches",
-        "desc": "Remove temp files, logs and browser or app caches. Review before deleting."
+        "name": "Очистка кэшей",
+        "desc": "Удалите временные файлы, логи и кэши браузеров и приложений. Проверьте перед удалением."
       },
       "sys-disk": {
-        "name": "Disk analyzer",
-        "desc": "See what takes space with an interactive treemap."
+        "name": "Анализ диска",
+        "desc": "Посмотрите, что занимает место, с интерактивной картой."
       },
       "sys-startup": {
-        "name": "Startup manager",
-        "desc": "Choose what launches with the system."
+        "name": "Автозагрузка",
+        "desc": "Выберите, что запускается при старте системы."
       },
       "sys-uninstall": {
-        "name": "Uninstaller",
-        "desc": "Remove apps and the leftovers they leave behind."
+        "name": "Деинсталлятор",
+        "desc": "Удаляйте приложения и остатки, которые они оставляют."
       },
       "sys-debloat": {
-        "name": "Debloat Windows",
-        "desc": "Remove preinstalled Windows apps you never use."
+        "name": "Очистка Windows",
+        "desc": "Удалите предустановленные приложения Windows, которыми не пользуетесь."
       },
       "sys-registry": {
-        "name": "Registry cleaner",
-        "desc": "Find and remove broken or orphaned registry entries."
+        "name": "Очистка реестра",
+        "desc": "Найдите и удалите повреждённые или осиротевшие записи реестра."
       },
       "sys-privacy": {
-        "name": "Privacy shield",
-        "desc": "Control Windows telemetry, ad ID and tracking settings."
+        "name": "Щит конфиденциальности",
+        "desc": "Управляйте телеметрией Windows, рекламным идентификатором и настройками отслеживания."
       },
       "sys-updater": {
-        "name": "Software updater",
-        "desc": "Update programs in bulk through winget, Chocolatey and Scoop."
+        "name": "Обновление ПО",
+        "desc": "Обновите программы пакетно через winget, Chocolatey и Scoop."
       },
       "auto-clicker": {
-        "name": "Auto clicker",
-        "desc": "Click at the exact speed you set, with hotkeys, limits and random ranges."
+        "name": "Авто-кликер",
+        "desc": "Кликайте с точной скоростью, с горячими клавишами, лимитами и случайным диапазоном."
       },
       "ai-keys": {
-        "name": "API keys",
-        "desc": "Keep API keys and accounts together, check balance and usage, export to your clients."
+        "name": "API-ключи",
+        "desc": "Храните API-ключи и аккаунты вместе, проверяйте баланс и использование, экспортируйте в клиенты."
       },
       "ai-prices": {
-        "name": "Compare prices",
-        "desc": "Compare the cost of the same model across providers."
+        "name": "Сравнение цен",
+        "desc": "Сравните стоимость одной модели у разных провайдеров."
       },
       "speech-transcribe": {
-        "name": "Transcribe",
-        "desc": "Audio or video to subtitles with whisper.cpp, offline. Models download on demand."
+        "name": "Распознать речь",
+        "desc": "Аудио или видео в субтитры с whisper.cpp, оффлайн. Модели скачиваются по запросу."
       },
       "speech-tts": {
-        "name": "Text to speech",
-        "desc": "Natural voices from Microsoft Edge, free, with a synced subtitle file."
+        "name": "Текст в речь",
+        "desc": "Естественные голоса из Microsoft Edge, бесплатно, с синхронизированным файлом субтитров."
       },
       "speech-translate": {
-        "name": "Translate subtitles",
-        "desc": "Translate an SRT with your AI provider or a LibreTranslate server, keeping the timing."
+        "name": "Перевести субтитры",
+        "desc": "Переведите SRT с помощью вашего ИИ-провайдера или сервера LibreTranslate, сохранив тайминг."
       },
       "speech-dub": {
-        "name": "Dub from subtitles",
-        "desc": "Turn an SRT into a voice track that fits each line, and optionally replace the video's audio."
+        "name": "Озвучка по субтитрам",
+        "desc": "Превратите SRT в голосовой трек под каждую строку и при необходимости замените аудио видео."
       },
       "ai-ollama": {
-        "name": "Local models (Ollama)",
-        "desc": "See, download and remove local models; use them as a free provider."
+        "name": "Локальные модели (Ollama)",
+        "desc": "Просматривайте, скачивайте и удаляйте локальные модели; используйте как бесплатный провайдер."
       },
       "ai-usage": {
-        "name": "AI spending",
-        "desc": "How much OmniGet spent on AI, by day, model and task."
+        "name": "Расходы на ИИ",
+        "desc": "Сколько OmniGet потратил на ИИ — по дням, моделям и задачам."
       },
       "ai-mcp": {
-        "name": "MCP server",
-        "desc": "Let Claude, Goose or Cursor drive OmniGet's tools."
+        "name": "MCP-сервер",
+        "desc": "Позвольте Claude, Goose или Cursor управлять инструментами OmniGet."
       },
       "yt-sponsorblock": {
         "name": "SponsorBlock",
-        "desc": "See sponsor, intro and outro segments and get the yt-dlp flags to download without them."
+        "desc": "Просмотрите сегменты спонсоров, вступлений и финалов и получите флаги yt-dlp для скачивания без них."
       },
       "yt-dislikes": {
-        "name": "Dislikes",
-        "desc": "Likes, dislikes and rating from Return YouTube Dislike."
+        "name": "Дизлайки",
+        "desc": "Лайки, дизлайки и рейтинг из Return YouTube Dislike."
       },
       "yt-frames": {
-        "name": "Real thumbnail",
-        "desc": "Frames the CDN already has (25/50/75%) instead of the clickbait cover."
+        "name": "Настоящая обложка",
+        "desc": "Кадры, которые уже есть на CDN (25/50/75%) вместо кликбейтной обложки."
       },
       "yt-codec": {
-        "name": "Force H.264",
-        "desc": "Browser extension toggle to avoid VP9/AV1 on weak machines."
+        "name": "Принудительно H.264",
+        "desc": "Переключатель расширения браузера для обхода VP9/AV1 на слабых машинах."
       },
       "pdf-sanitize": {
-        "name": "Safe PDF",
-        "desc": "Rebuild a PDF from pixels to strip scripts and forms."
+        "name": "Безопасный PDF",
+        "desc": "Пересоберите PDF из пикселей, удалив скрипты и формы."
       },
       "doc-slideshare": {
-        "name": "SlideShare to PDF",
-        "desc": "Every slide at the largest size, assembled into one PDF."
+        "name": "SlideShare в PDF",
+        "desc": "Каждый слайд в максимальном размере, собранный в один PDF."
       },
       "doc-google": {
-        "name": "Google Docs export",
-        "desc": "Public Docs, Slides and Sheets as PDF, DOCX, PPTX or XLSX."
+        "name": "Экспорт Google Docs",
+        "desc": "Публичные Docs, Slides и Sheets в формате PDF, DOCX, PPTX или XLSX."
       },
       "doc-calameo": {
-        "name": "Calameo pages",
-        "desc": "Save the pages of a Calameo publication (SVG or JPG)."
+        "name": "Страницы Calameo",
+        "desc": "Сохраните страницы публикации Calameo (SVG или JPG)."
       },
       "doc-gallery": {
-        "name": "Image galleries",
-        "desc": "Whole galleries and profiles from 250+ sites with gallery-dl."
+        "name": "Галереи изображений",
+        "desc": "Целые галереи и профили с 250+ сайтов с помощью gallery-dl."
       },
       "doc-scribd": {
         "name": "Scribd",
-        "desc": "Save readable books as PDF using your own session."
+        "desc": "Сохраните читаемые книги как PDF с вашей сессией."
       },
       "img-upscale": {
-        "name": "Upscale",
-        "desc": "Real-ESRGAN on any Vulkan GPU: 2×, 3× or 4× with AI."
+        "name": "Увеличение",
+        "desc": "Real-ESRGAN на любом GPU с Vulkan: 2×, 3× или 4× с ИИ."
       },
       "img-resize": {
-        "name": "Resize images",
-        "desc": "Batch resize by width, height, fit or percent, converting the format if you want."
+        "name": "Изменение размера",
+        "desc": "Пакетное изменение по ширине, высоте, вписыванию или процентам с конвертацией формата при желании."
       },
       "img-ocr": {
         "name": "OCR",
-        "desc": "Copy the text out of images and slides."
+        "desc": "Извлеките текст из изображений и слайдов."
       },
       "files-dupes": {
-        "name": "Duplicates",
-        "desc": "Find identical files by hash and free space safely."
+        "name": "Дубликаты",
+        "desc": "Найдите одинаковые файлы по хешу и безопасно освободите место."
       },
       "files-rename": {
-        "name": "Bulk rename",
-        "desc": "Regex, counters and case changes with a preview before applying."
+        "name": "Массовое переименование",
+        "desc": "Регулярные выражения, счётчики и смена регистра с предпросмотром перед применением."
       },
       "files-search": {
-        "name": "Find files",
-        "desc": "Instant search with Everything, Spotlight or fd."
+        "name": "Поиск файлов",
+        "desc": "Мгновенный поиск через Everything, Spotlight или fd."
       },
       "files-awake": {
-        "name": "Keep awake",
-        "desc": "Stop the computer from sleeping during long jobs."
+        "name": "Предотвращение сна",
+        "desc": "Не даёт компьютеру уснуть во время длительных задач."
       },
       "dl-aria2": {
-        "name": "Accelerated download",
-        "desc": "Big files with 16 connections, resume and checksum via aria2."
+        "name": "Ускоренная загрузка",
+        "desc": "Большие файлы через 16 соединений, докачка и контрольная сумма через aria2."
       },
       "dl-manifest": {
-        "name": "HLS / DASH manifest",
-        "desc": "Paste a .m3u8 or .mpd with Referer and cookie; FFmpeg saves an MP4."
+        "name": "Манифест HLS / DASH",
+        "desc": "Вставьте .m3u8 или .mpd с Referer и cookie; FFmpeg сохранит MP4."
       },
       "phone-send": {
-        "name": "Send to phone",
-        "desc": "Files, links and text to a paired KDE Connect device."
+        "name": "Отправить на телефон",
+        "desc": "Файлы, ссылки и текст на сопряжённое устройство KDE Connect."
       },
       "sys-harden": {
-        "name": "Harden Windows",
-        "desc": "Macros, AutoRun, script host, UAC and Defender settings from hardentools, reversible."
+        "name": "Усиление защиты Windows",
+        "desc": "Макросы, AutoRun, хост скриптов, UAC и настройки Defender из hardentools, обратимо."
       },
       "speech-clone": {
-        "name": "Clone a voice",
-        "desc": "Turn a 3 to 15 second sample into a voice that can say anything, fully offline."
+        "name": "Клонирование голоса",
+        "desc": "Превращает сэмпл 3–15 секунд в голос, способный произнести что угодно, полностью офлайн."
       },
       "speech-design": {
-        "name": "Design a voice",
-        "desc": "Describe age, accent, tone and delivery and get a new voice."
+        "name": "Проектирование голоса",
+        "desc": "Опишите возраст, акцент, тон и манеру — получите новый голос."
       },
       "speech-isolate": {
-        "name": "Isolate vocals",
-        "desc": "Separate voice from music and background noise."
+        "name": "Выделение вокала",
+        "desc": "Отделяет голос от музыки и фонового шума."
       },
       "speech-dictation": {
-        "name": "Dictation",
-        "desc": "Speak with a global shortcut and get text typed where the cursor is."
+        "name": "Диктовка",
+        "desc": "Говорите по глобальной горячей клавише — текст вводится в позицию курсора."
       },
       "ai-humanize": {
-        "name": "Humanize text",
-        "desc": "Rewrite AI-sounding text so it reads like a person wrote it, without changing what it says. Runs on the configured AI."
+        "name": "Сделать текст живым",
+        "desc": "Переписывает ИИ-подобный текст так, будто его написал человек, не меняя смысл. Работает через настроенный ИИ."
       },
       "pin-download": {
-        "name": "Download pin",
-        "desc": "Image in original quality, video as MP4, GIF, carousel or story pages."
+        "name": "Скачать пин",
+        "desc": "Изображение в оригинальном качестве, видео как MP4, GIF, карусель или страницы историй."
       },
       "pin-board": {
-        "name": "Board backup",
-        "desc": "Every pin of a board or section with originals, videos, CSV/JSON and incremental sync."
+        "name": "Резервная копия доски",
+        "desc": "Все пины доски или раздела с оригиналами, видео, CSV/JSON и инкрементальной синхронизацией."
       },
       "pin-profile": {
-        "name": "Profile backup",
-        "desc": "All public boards of a profile, one folder per board, plus created pins."
+        "name": "Резервная копия профиля",
+        "desc": "Все публичные доски профиля, по папке на доску, плюс созданные пины."
       },
       "pin-search": {
-        "name": "Search without AI or ads",
-        "desc": "Search Pinterest with filters that hide AI images, promoted pins and videos, then download."
+        "name": "Поиск без ИИ и рекламы",
+        "desc": "Поиск Pinterest с фильтрами от ИИ-изображений, продвижения и видео, затем скачивание."
       },
       "pin-related": {
-        "name": "Similar pins",
-        "desc": "The \"More like this\" of any pin, filterable and downloadable."
+        "name": "Похожие пины",
+        "desc": "«Ещё больше похожего» для любого пина — с фильтрацией и скачиванием."
       },
       "pin-source": {
-        "name": "Find the source",
-        "desc": "Destination link, creator, dead-link check, Wayback Machine and reverse image search."
+        "name": "Найти источник",
+        "desc": "Целевая ссылка, автор, проверка битых ссылок, Wayback Machine и поиск по изображению."
       },
       "pin-dupes": {
-        "name": "Duplicates in a board",
-        "desc": "Identical and near-identical pins in a board, with optional unsave."
+        "name": "Дубли на доске",
+        "desc": "Идентичные и почти идентичные пины на доске с возможностью отмены сохранения."
       },
       "pin-palette": {
-        "name": "Color palette",
-        "desc": "Palette of a board or pin as hex, CSS or JSON."
+        "name": "Цветовая палитра",
+        "desc": "Палитра доски или пина в формате hex, CSS или JSON."
       },
       "pin-export": {
-        "name": "Offline gallery, PDF, CSV",
-        "desc": "A board as a searchable HTML gallery, a PDF moodboard or a spreadsheet."
+        "name": "Офлайн-галерея, PDF, CSV",
+        "desc": "Доска как удобная HTML-галерея, PDF-мудборд или таблица."
       },
       "pin-keywords": {
-        "name": "Keyword ideas",
-        "desc": "Search suggestions, refinements and the words that top pins use."
+        "name": "Идеи ключевых слов",
+        "desc": "Подсказки поиска, уточнения и слова из лучших пинов."
       },
       "x-download": {
-        "name": "Download post",
-        "desc": "Videos, images and GIFs from any post, at the best quality."
+        "name": "Скачать пост",
+        "desc": "Видео, изображения и GIF из любого поста в лучшем качестве."
       },
       "x-thread": {
-        "name": "Unroll thread",
-        "desc": "The whole thread on one page, exported as Markdown, HTML or text."
+        "name": "Развернуть тред",
+        "desc": "Весь тред на одной странице, экспорт в Markdown, HTML или текст."
       },
       "x-card": {
-        "name": "Post to image",
-        "desc": "Turn a post into a clean PNG card for sharing anywhere."
+        "name": "Пост в изображение",
+        "desc": "Превращает пост в аккуратную PNG-карточку для публикации где угодно."
       },
       "x-profile": {
-        "name": "Profile X-ray",
-        "desc": "Engagement, best time to post, top posts and hashtags of any account."
+        "name": "Анализ профиля",
+        "desc": "Вовлечённость, лучшее время публикации, топ-посты и хэштеги любого аккаунта."
       },
       "x-media": {
-        "name": "Profile media",
-        "desc": "Every photo and video from a profile, original quality, in one go."
+        "name": "Медиа профиля",
+        "desc": "Все фото и видео профиля в оригинальном качестве за один раз."
       },
       "x-search": {
-        "name": "Advanced search",
-        "desc": "Build queries with X operators, see trends, export results."
+        "name": "Расширенный поиск",
+        "desc": "Собирайте запросы с операторами X, смотрите тренды, экспортируйте результаты."
       },
       "x-bookmarks": {
-        "name": "Export bookmarks",
-        "desc": "All your bookmarks with folders, to JSON, CSV, Markdown or HTML."
+        "name": "Экспорт закладок",
+        "desc": "Все ваши закладки с папками — в JSON, CSV, Markdown или HTML."
       },
       "x-unfollow": {
-        "name": "Who doesn't follow back",
-        "desc": "Audit following vs. followers and unfollow safely, with a whitelist."
+        "name": "Кто не подписан в ответ",
+        "desc": "Проверка подписок и подписчиков, безопасная отписка со списком исключений."
       },
       "x-archive": {
-        "name": "Your X archive",
-        "desc": "Open the data zip offline: stats, top posts, likes and follow lists."
+        "name": "Ваш архив X",
+        "desc": "Откройте ZIP-архив данных офлайн: статистика, топ-посты, лайки и списки подписок."
       },
       "x-grok": {
         "name": "Grok",
-        "desc": "Ask Grok with live X search, or summarize a thread, via xAI API or your X session."
+        "desc": "Задайте вопрос Grok с поиском по X в реальном времени или получите резюме треда через xAI API или вашу сессию X."
       },
       "ig-bulk": {
-        "name": "Download many links",
-        "desc": "Paste a list of links or a .txt and get everything in one go."
+        "name": "Скачать много ссылок",
+        "desc": "Вставьте список ссылок или .txt — получите всё за один раз."
       },
       "ig-audio": {
-        "name": "Reel audio",
-        "desc": "Keep only the sound of a reel or video, as M4A or MP3."
+        "name": "Звук из рилса",
+        "desc": "Оставляет только звук рилса или видео в формате M4A или MP3."
       },
       "ig-stories": {
-        "name": "Stories",
-        "desc": "Download stories, including close friends, without marking them as seen."
+        "name": "Истории",
+        "desc": "Скачивание историй, включая близких друзей, без пометки о просмотра."
       },
       "ig-highlights": {
-        "name": "Highlights",
-        "desc": "Download one highlight or all of a profile's highlights."
+        "name": "Избранное",
+        "desc": "Скачать одно или все «Избранное» профиля."
       },
       "ig-story-viewers": {
-        "name": "Who viewed my story",
-        "desc": "List and export who watched each of your active stories."
+        "name": "Кто смотрел историю",
+        "desc": "Список и экспорт тех, кто просмотрел каждую из ваших активных историй."
       },
       "ig-viewer": {
-        "name": "Profile viewer",
-        "desc": "Bio, counts, HD photo and whether the account follows you."
+        "name": "Просмотр профиля",
+        "desc": "Био, подписчики, фото в HD и информация о подписке на вас."
       },
       "ig-avatar": {
-        "name": "Profile picture in HD",
-        "desc": "Save any account's profile picture at full size."
+        "name": "Фото профиля в HD",
+        "desc": "Сохраняет фото профиля любого аккаунта в полном размере."
       },
       "ig-profile-media": {
-        "name": "Download a profile",
-        "desc": "All posts, reels, tagged or saved posts, with a limit you choose."
+        "name": "Скачать профиль",
+        "desc": "Все посты, рилсы, отмеченные или сохранённые, с настраиваемым лимитом."
       },
       "ig-fans": {
-        "name": "Fans",
-        "desc": "Accounts that follow you but you don't follow back, with the option to remove followers."
+        "name": "Фанаты",
+        "desc": "Аккаунты, которые подписаны на вас, но не в ответ, с возможностью удаления подписчиков."
       },
       "ig-mutuals": {
-        "name": "Mutuals",
-        "desc": "Accounts you follow that follow you back."
+        "name": "Взаимные подписки",
+        "desc": "Аккаунты, на которые вы подписаны и которые подписаны в ответ."
       },
       "ig-unfollowed": {
-        "name": "Who unfollowed me",
-        "desc": "Snapshots of your lists over time show who left and who arrived."
+        "name": "Кто отписался",
+        "desc": "Снимки ваших списков показывают, кто ушёл и кто пришёл."
       },
       "ig-ghosts": {
-        "name": "Ghost followers",
-        "desc": "Followers who never like or comment, and the ones who engage the most."
+        "name": "Призрачные подписчики",
+        "desc": "Подписчики, которые никогда не лайкают и не комментируют, а также самые активные."
       },
       "ig-whitelist": {
-        "name": "Whitelist",
-        "desc": "Accounts that are never suggested for unfollowing."
+        "name": "Белый список",
+        "desc": "Аккаунты, которые никогда не предлагаются для отписки."
       },
       "ig-export": {
-        "name": "Data export",
-        "desc": "Read Meta's \"Download your information\" offline: pending requests, close friends, blocked and more."
+        "name": "Экспорт данных",
+        "desc": "Офлайн-чтение данных Meta («Скачать информацию»): заявки в ожидании, близкие друзья, заблокированные и другое."
       },
       "ig-analytics": {
-        "name": "Profile analytics",
-        "desc": "Engagement rate, cadence, best days and hours, hashtags and top posts of any public profile."
+        "name": "Аналитика профиля",
+        "desc": "Вовлечённость, частота публикаций, лучшие дни и часы, хэштеги и топ-посты любого публичного профиля."
       },
       "ig-benchmark": {
-        "name": "Compare profiles",
-        "desc": "Metrics of up to six profiles side by side."
+        "name": "Сравнение профилей",
+        "desc": "Метрики до шести профилей бок о бок."
       },
       "ig-hashtag": {
-        "name": "Hashtag explorer",
-        "desc": "Post count, recent and top posts, related hashtags, download."
+        "name": "Исследование хэштегов",
+        "desc": "Количество постов, последние и топ-посты, похожие хэштеги, скачивание."
       },
       "ig-comments": {
-        "name": "Export comments",
-        "desc": "All comments of a post as CSV, with filter."
+        "name": "Экспорт комментариев",
+        "desc": "Все комментарии к посту в CSV с фильтрацией."
       },
       "ig-likers": {
-        "name": "Who liked",
-        "desc": "List and export the accounts that liked a post."
+        "name": "Кто лайкнул",
+        "desc": "Список и экспорт аккаунтов, поставивших лайк посту."
       },
       "ig-giveaway": {
-        "name": "Giveaway picker",
-        "desc": "Draw winners among the comments with rules for mentions, keyword and one entry per person."
+        "name": "Розыгрыш",
+        "desc": "Случайный выбор победителей среди комментариев с правилами по упоминаниям, ключевому слову и одной записью на человека."
       },
       "ig-publish": {
-        "name": "Publish",
-        "desc": "Photo, carousel, reel, video or story through your session or the official API."
+        "name": "Публикация",
+        "desc": "Фото, карусель, рилс, видео или история через вашу сессию или официальное API."
       },
       "ig-schedule": {
-        "name": "Schedule posts",
-        "desc": "Queue posts for a date and time; OmniGet publishes them while open."
+        "name": "Планирование постов",
+        "desc": "Поставьте посты в очередь на дату и время — OmniGet опубликует их, пока открыт."
       }
     },
     "spicetify": {
@@ -1316,21 +1316,21 @@
       "run": "Изменить размер"
     },
     "dupes": {
-      "folders": "Folders",
-      "folders_hint": "Add the folders to compare",
-      "min_size": "Minimum size",
-      "extensions": "Extensions",
-      "walking": "Listing files…",
-      "scan": "Scan",
-      "groups": "groups",
-      "wasted": "wasted",
-      "scanned": "files scanned",
-      "selected": "selected",
-      "auto_select": "Keep oldest, select the rest",
-      "delete": "Delete selected",
-      "delete_confirm": "Permanently delete the selected files?",
-      "deleted": "deleted",
-      "none": "No duplicates found."
+      "folders": "Папки",
+      "folders_hint": "Добавьте папки для сравнения",
+      "min_size": "Минимальный размер",
+      "extensions": "Расширения файлов",
+      "walking": "Собираем список файлов…",
+      "scan": "Сканировать",
+      "groups": "групп",
+      "wasted": "занято зря",
+      "scanned": "файлов проверено",
+      "selected": "выбрано",
+      "auto_select": "Оставить старейший, выбрать остальное",
+      "delete": "Удалить выбранное",
+      "delete_confirm": "Удалить выбранные файлы безвозвратно?",
+      "deleted": "удалено",
+      "none": "Дубликаты не найдены."
     },
     "rename": {
       "find": "Найти",
@@ -1445,608 +1445,608 @@
       "credit": "Паттерны из «Signs of AI writing» (Wikipedia), собраны blader/humanizer (MIT). Ничего не выдумано: имена, числа и цитаты остаются как есть."
     },
     "pinterest": {
-      "url_placeholder": "Pin, board, section, profile or pin.it link",
-      "pin_placeholder": "Pin link or pin.it",
-      "board_placeholder": "Board, section, profile, search or pin.it link",
-      "profile_placeholder": "Profile link or username",
-      "query_placeholder": "Search Pinterest…",
-      "term_placeholder": "Keyword, e.g. mid century living room",
+      "url_placeholder": "Пин, доска, секция, профиль или ссылка pin.it",
+      "pin_placeholder": "Ссылка на пин или pin.it",
+      "board_placeholder": "Доска, секция, профиль, поиск или ссылка pin.it",
+      "profile_placeholder": "Ссылка на профиль или имя пользователя",
+      "query_placeholder": "Поиск на Pinterest…",
+      "term_placeholder": "Ключевое слово, напр. mid century living room",
       "cookies": "Cookies",
-      "cookies_hint": "cookies.txt file or a cookie string; needed for secret boards and unsave",
-      "cookies_placeholder": "cookies.txt path or csrftoken=…; _pinterest_sess=…",
-      "inspect": "Inspect",
-      "download": "Download",
-      "backup": "Back up",
-      "search": "Search",
-      "scan": "Scan",
-      "export": "Export",
-      "load": "Load",
-      "limit": "Limit",
-      "limit_hint": "0 = everything",
-      "filters": "Filters",
-      "hide_promoted": "Hide ads",
-      "hide_ai": "Hide AI",
-      "ai_off": "off",
-      "ai_labeled": "labeled + explicit",
-      "ai_tools": "+ tools mentioned",
-      "ai_any": "+ any \"ai\" mention",
-      "only": "Only",
-      "only_all": "everything",
-      "only_image": "images",
-      "only_video": "videos",
-      "only_gif": "GIFs",
-      "min_width": "Min. width",
-      "scope": "Scope",
-      "scope_pins": "pins",
-      "scope_videos": "videos",
-      "scope_boards": "boards",
-      "results": "results",
-      "hidden": "hidden by filters",
-      "guides": "Related searches",
-      "select_all": "Select all",
-      "clear": "Clear",
-      "selected": "selected",
-      "download_selected": "Download selected",
-      "download_all": "Download all",
-      "options": "Download options",
-      "images": "Images",
-      "videos": "Videos",
-      "convert_webp": "Convert WebP to PNG",
-      "naming": "File names",
-      "naming_id": "pin id",
-      "naming_title": "title",
-      "naming_title_id": "title + id",
-      "sidecar": "JSON with metadata next to each file",
-      "skip_downloaded": "Skip already downloaded (sync)",
-      "section_folders": "One folder per section",
-      "metadata": "Write pins.csv and pins.json",
-      "gallery": "Write offline gallery (index.html)",
-      "include_created": "Also the created pins",
-      "saves": "saves",
-      "comments": "comments",
-      "reactions": "reactions",
-      "repins": "repins",
-      "followers": "followers",
-      "pins": "pins",
-      "boards": "boards",
-      "sections": "sections",
-      "following": "following",
-      "kind_image": "image",
+      "cookies_hint": "Файл cookies.txt или строка cookie; нужно для закрытых досок и отмены сохранения",
+      "cookies_placeholder": "Путь к cookies.txt или csrftoken=…; _pinterest_sess=…",
+      "inspect": "Просмотр",
+      "download": "Скачать",
+      "backup": "Резервная копия",
+      "search": "Поиск",
+      "scan": "Сканирование",
+      "export": "Экспорт",
+      "load": "Загрузка",
+      "limit": "Лимит",
+      "limit_hint": "0 = всё",
+      "filters": "Фильтры",
+      "hide_promoted": "Скрыть рекламу",
+      "hide_ai": "Скрыть AI",
+      "ai_off": "выкл.",
+      "ai_labeled": "помеченные + явные",
+      "ai_tools": "+ инструменты упомянуты",
+      "ai_any": "+ любое упоминание «ai»",
+      "only": "Только",
+      "only_all": "всё",
+      "only_image": "изображения",
+      "only_video": "видео",
+      "only_gif": "GIF",
+      "min_width": "Мин. ширина",
+      "scope": "Область",
+      "scope_pins": "пины",
+      "scope_videos": "видео",
+      "scope_boards": "доски",
+      "results": "результатов",
+      "hidden": "скрыто фильтрами",
+      "guides": "Связанные запросы",
+      "select_all": "Выбрать все",
+      "clear": "Очистить",
+      "selected": "выбрано",
+      "download_selected": "Скачать выбранные",
+      "download_all": "Скачать все",
+      "options": "Параметры загрузки",
+      "images": "Изображения",
+      "videos": "Видео",
+      "convert_webp": "Конвертировать WebP в PNG",
+      "naming": "Имена файлов",
+      "naming_id": "id пина",
+      "naming_title": "название",
+      "naming_title_id": "название + id",
+      "sidecar": "JSON с метаданными рядом с каждым файлом",
+      "skip_downloaded": "Пропустить уже скачанные (синхр.)",
+      "section_folders": "Отдельная папка для каждой секции",
+      "metadata": "Сохранять pins.csv и pins.json",
+      "gallery": "Создать офлайн-галерею (index.html)",
+      "include_created": "Также созданные пины",
+      "saves": "сохранений",
+      "comments": "комментариев",
+      "reactions": "реакций",
+      "repins": "репинов",
+      "followers": "подписчиков",
+      "pins": "пинов",
+      "boards": "досок",
+      "sections": "секций",
+      "following": "подписок",
+      "kind_image": "изображение",
       "kind_gif": "GIF",
-      "kind_video": "video",
-      "kind_carousel": "carousel",
-      "kind_story": "story",
-      "promoted": "ad",
+      "kind_video": "видео",
+      "kind_carousel": "карусель",
+      "kind_story": "история",
+      "promoted": "реклама",
       "ai": "AI",
-      "ai_labeled_by_pinterest": "labeled by Pinterest",
-      "ai_keyword": "keyword",
-      "open_pinterest": "Open on Pinterest",
-      "open_link": "Open link",
-      "copy_url": "Copy image URL",
-      "board": "Board",
-      "section": "Section",
-      "profile": "Profile",
-      "secret": "secret",
-      "collaborative": "collaborative",
-      "pinner": "Saved by",
-      "creator": "Created by",
-      "created": "Created",
-      "domain": "Domain",
-      "uploaded": "uploaded by the user (no link)",
-      "link": "Destination link",
-      "link_alive": "link is alive",
-      "link_dead": "link is dead or blocked",
-      "link_status": "HTTP status",
-      "final_url": "final URL",
-      "wayback": "Wayback Machine copy",
-      "no_wayback": "no copy in the Wayback Machine",
-      "reverse": "Reverse image search",
-      "attribution": "Attribution",
-      "rich": "Page metadata",
-      "expanded": "Expanded link",
-      "threshold": "Similarity",
-      "threshold_hint": "0 = identical only · 6 = near · 12 = loose",
-      "exact": "identical",
-      "near": "similar",
-      "distance": "distance",
-      "groups": "groups",
-      "scanned": "pins scanned",
-      "no_dupes": "No duplicates found.",
-      "unsave": "Unsave selected",
-      "keep_first": "Select all but the first in each group",
-      "unsave_confirm": "Unsave these pins from your account? This cannot be undone.",
-      "unsave_needs_cookies": "Unsave needs your session cookies.",
-      "unsaved": "unsaved",
-      "colors": "Colors",
-      "swatches": "From the images",
-      "dominant": "From Pinterest's dominant colors",
-      "skip_extremes": "Ignore near-white and near-black",
-      "copy_css": "Copy CSS",
-      "copy_json": "Copy JSON",
-      "copy_hex": "Copy hex list",
-      "pins_used": "pins sampled",
-      "format": "Format",
-      "fmt_html": "HTML gallery",
-      "fmt_pdf": "PDF (one pin per page)",
+      "ai_labeled_by_pinterest": "помечено Pinterest",
+      "ai_keyword": "ключевое слово",
+      "open_pinterest": "Открыть в Pinterest",
+      "open_link": "Открыть ссылку",
+      "copy_url": "Копировать URL изображения",
+      "board": "Доска",
+      "section": "Раздел доски",
+      "profile": "Профиль",
+      "secret": "закрытая",
+      "collaborative": "совместная",
+      "pinner": "Сохранил(а)",
+      "creator": "Создал(а)",
+      "created": "Создано",
+      "domain": "Домен",
+      "uploaded": "загружено пользователем (без ссылки)",
+      "link": "Целевая ссылка",
+      "link_alive": "ссылка работает",
+      "link_dead": "ссылка недоступна или заблокирована",
+      "link_status": "Статус HTTP",
+      "final_url": "итоговый URL",
+      "wayback": "Копия в Wayback Machine",
+      "no_wayback": "нет копии в Wayback Machine",
+      "reverse": "Обратный поиск изображения",
+      "attribution": "Авторство",
+      "rich": "Метаданные страницы",
+      "expanded": "Развёрнутая ссылка",
+      "threshold": "Сходство",
+      "threshold_hint": "0 = только идентичные · 6 = близкие · 12 = далёкие",
+      "exact": "идентичные",
+      "near": "похожие",
+      "distance": "расстояние",
+      "groups": "группы",
+      "scanned": "пинов проверено",
+      "no_dupes": "Дубликаты не найдены.",
+      "unsave": "Убрать выбранные",
+      "keep_first": "Выбрать все кроме первого в каждой группе",
+      "unsave_confirm": "Убрать эти пины из вашего аккаунта? Это действие необратимо.",
+      "unsave_needs_cookies": "Для удаления нужны ваши куки сессии.",
+      "unsaved": "убрано",
+      "colors": "Цвета",
+      "swatches": "С изображений",
+      "dominant": "Основные цвета Pinterest",
+      "skip_extremes": "Игнорировать почти белые и почти чёрные",
+      "copy_css": "Копировать CSS",
+      "copy_json": "Копировать JSON",
+      "copy_hex": "Копировать список hex",
+      "pins_used": "пинов проанализировано",
+      "format": "Формат",
+      "fmt_html": "HTML-галерея",
+      "fmt_pdf": "PDF (один пин на страницу)",
       "fmt_csv": "CSV",
       "fmt_json": "JSON",
-      "offline": "Download the images into the folder (works offline)",
-      "suggestions": "Suggestions",
-      "common": "Common words in top pins",
-      "sample": "pins sampled",
-      "use": "Use",
-      "total": "pins",
-      "downloaded": "downloaded",
-      "skipped": "skipped",
-      "failed": "failed",
-      "files": "files",
-      "boards_done": "boards",
-      "stage_list": "Listing pins…",
-      "stage_download": "Downloading…",
-      "stage_hash": "Comparing images…",
-      "stage_sample": "Sampling colors…",
-      "stage_board": "Board",
+      "offline": "Скачать изображения в папку (работает офлайн)",
+      "suggestions": "Предложения",
+      "common": "Частые слова в популярных пинах",
+      "sample": "пинов проанализировано",
+      "use": "Использовать",
+      "total": "пинов",
+      "downloaded": "скачано",
+      "skipped": "пропущено",
+      "failed": "ошибки",
+      "files": "файлов",
+      "boards_done": "досок",
+      "stage_list": "Получение списка пинов…",
+      "stage_download": "Загрузка…",
+      "stage_hash": "Сравнение изображений…",
+      "stage_sample": "Анализ цветов…",
+      "stage_board": "Доска",
       "csv": "CSV",
       "json": "JSON",
-      "html": "Gallery",
-      "open_gallery": "Open gallery",
-      "no_results": "Nothing found.",
-      "need_pin": "Paste the link of a pin.",
-      "more": "Load more",
-      "session_on": "session cookies loaded",
-      "session_off": "no cookies: public content only"
+      "html": "Галерея",
+      "open_gallery": "Открыть галерею",
+      "no_results": "Ничего не найдено.",
+      "need_pin": "Вставьте ссылку на пин.",
+      "more": "Загрузить ещё",
+      "session_on": "куки сессии загружены",
+      "session_off": "без кук: только публичный контент"
     },
     "x": {
-      "err_login": "Sign in to X first (button above).",
-      "err_rate": "X rate limit reached. Try again in about {mins} min.",
-      "login": "Sign in to X",
-      "relogin": "Sign in again",
-      "login_ok": "Signed in. Cookies saved in the x.com bucket.",
-      "login_fail": "The login window closed without a session.",
-      "logged_in": "Signed in to X",
-      "logged_out": "Not signed in to X",
-      "session_hint_in": "Public tools work without login; bookmarks, follows and Grok on X use this session.",
-      "session_hint_out": "Optional here: this tool uses X's public data.",
-      "session_hint_required": "This tool needs your X session. Cookies stay on this computer.",
-      "query_ids": "GraphQL query IDs cached",
-      "refresh_ids": "Refresh IDs",
-      "refresh_ids_hint": "X rotates its GraphQL query IDs every few weeks. Refresh if a tool says \"Query not found\".",
-      "post_placeholder": "Post link (x.com/user/status/…)",
-      "handle_placeholder": "@handle or profile link",
-      "posts": "posts",
-      "words": "words",
-      "source": "source",
-      "truncated": "thread truncated by X",
-      "unroll": "Unroll",
-      "thread_intro": "Reads the whole thread by the author in one page and exports it as Markdown, HTML, text or JSON. Works without login.",
-      "copy_md": "Copy Markdown",
-      "open_on_x": "Open on X",
-      "replying_to": "Replying to",
-      "load_post": "Load post",
-      "card_theme": "Theme",
-      "theme_light": "Light",
-      "theme_dim": "Dim",
-      "theme_dark": "Dark",
-      "card_bg": "Background",
-      "card_scale": "Resolution",
-      "card_metrics": "Metrics",
-      "card_media": "Media",
-      "card_hint": "Paste a post link to render it as an image.",
-      "copy_image": "Copy image",
-      "copy_image_fail": "Could not copy the image; save it as PNG instead.",
-      "save_png": "Save PNG",
-      "analyze": "Analyze",
-      "sample": "Sample size",
-      "sample_hint": "How many recent posts to read. More posts, slower.",
-      "with_replies": "include replies",
-      "followers": "followers",
-      "following": "following",
-      "joined": "joined",
-      "engagement": "Engagement",
-      "days": "days",
-      "avg_likes": "avg likes",
-      "median_likes": "median likes",
-      "avg_reposts": "avg reposts",
-      "avg_replies": "avg replies",
-      "avg_views": "avg views",
-      "engagement_rate": "engagement rate",
-      "posts_per_day": "posts / day",
-      "media_share": "with media",
-      "reply_share": "replies",
-      "link_share": "with links",
-      "best_time": "Best time to post (local time, by average likes)",
-      "by_hour": "By hour",
-      "by_weekday": "By weekday",
-      "top_posts": "Top posts",
-      "media_limit": "Posts to scan",
-      "media_limit_hint": "Newest first, from the profile's Media tab.",
-      "all": "all",
-      "media_kinds": "Download",
-      "photos": "photos",
-      "videos": "videos",
-      "listing": "Listing",
-      "stop": "Stop",
-      "skipped": "already existed",
-      "cancelled": "stopped",
-      "search_builder": "Advanced search",
-      "search_intro": "Builds the query with X's search operators and runs it without login. Latest = chronological.",
-      "raw_query": "raw query",
-      "q_words": "All these words",
-      "q_phrase": "Exact phrase",
-      "q_any": "Any of these words",
-      "q_none": "None of these words",
-      "q_from": "From account",
-      "q_to": "Replying to",
-      "q_mention": "Mentioning",
-      "q_lang": "Language",
-      "q_since": "Since",
-      "q_until": "Until",
-      "q_min_faves": "Min. likes",
-      "q_min_reposts": "Min. reposts",
-      "q_any_media": "Any content",
-      "q_with_media": "With media",
-      "q_images": "With images",
-      "q_videos": "With videos",
-      "q_links": "With links",
-      "q_no_replies": "hide replies",
-      "q_no_reposts": "hide reposts",
-      "q_verified": "verified only",
-      "feed_latest": "Latest",
-      "feed_top": "Top",
-      "search": "Search",
-      "trends": "Trending now",
-      "no_results": "No posts found for this query.",
-      "load_more": "Load more",
-      "bookmarks": "bookmarks",
-      "folders": "folders",
-      "formats": "Formats",
-      "bm_media": "Download media too",
-      "bm_media_hint": "Photos and videos at original quality into a media/ subfolder.",
-      "bm_max": "Limit",
-      "bm_intro": "Reads folders first, then every bookmark, without the 800 limit of the official API.",
-      "bm_stage_folders": "Reading folders…",
-      "bm_stage_folder": "Folder",
-      "export": "Export",
-      "preview": "Preview",
-      "audit": "Audit",
-      "audit_hint": "Reads who you follow and who follows you, then lists the ones that don't follow back.",
-      "run_audit": "Check now",
-      "whitelist": "Never unfollow",
-      "whitelist_hint": "One @handle per line. They are hidden from the list.",
-      "mutuals": "mutuals",
-      "not_following_back": "don't follow back",
-      "fans": "fans (you don't follow)",
-      "unfollowed_today": "unfollowed today",
-      "filter": "Filter…",
-      "select_all": "All",
-      "select_none": "None",
-      "empty_list": "Nobody here.",
-      "unfollow_safety": "Safety",
-      "unfollow_safety_hint": "Random pause between each unfollow and a daily cap, so X doesn't flag the account.",
-      "delay": "Pause",
-      "daily_cap": "Daily cap",
-      "selected": "selected",
-      "unfollow_selected": "Unfollow selected",
-      "unfollow_confirm": "Unfollow {n} accounts? This runs slowly on purpose and can be stopped at any time.",
-      "unfollowed": "unfollowed",
-      "unfollowing": "Unfollowing",
-      "waiting": "Waiting",
-      "stopped": "stopped",
-      "archive_file": "Archive",
-      "archive_hint": "Choose the .zip you downloaded from X, or the extracted folder.",
-      "archive_zip": "Open .zip",
-      "archive_folder": "Open folder",
-      "archive_intro": "Everything is read offline. Request your data at",
-      "replies": "replies",
-      "reposts": "reposts",
-      "likes_given": "likes given",
-      "likes_received": "likes received",
-      "blocked": "blocked",
-      "muted": "muted",
-      "by_year": "Posts per year",
-      "exp_tweets": "Posts",
-      "exp_likes": "Likes",
-      "exp_followers": "Followers",
-      "exp_following": "Following",
-      "exp_not_following_back": "Don't follow back",
-      "exp_fans": "Fans",
-      "exp_blocked": "Blocked",
-      "exp_muted": "Muted",
-      "export_for_all": "export to get the full list",
-      "grok_backend": "How to reach Grok",
-      "grok_backend_xai": "xAI API with your key: live X search, web search and citations. Billed per token to your xAI account.",
-      "grok_backend_x": "Grok inside X through your session. Free with your X account; no key needed.",
-      "grok_auto": "Auto",
-      "grok_settings": "Settings",
-      "grok_key_set": "Key saved on this computer.",
-      "grok_key_hint": "Create a key at",
-      "grok_models": "Models",
-      "grok_models_hint": "xAI model name for the API and Grok model option id for X.",
-      "grok_no_key": "Add an xAI API key in Settings, or switch to the X backend.",
-      "grok_x_search": "search X",
-      "grok_web_search": "search the web",
-      "grok_handles": "only these @handles (optional)",
-      "grok_context": "Attach a post or thread",
-      "grok_context_hint": "The whole thread is added to the prompt, so Grok can summarize or answer about it.",
-      "grok_summarize_prompt": "Summarize this thread in 5 bullet points and list the main claims.",
-      "grok_prompt": "Ask Grok… (⌘↩ to send)",
-      "grok_ask": "Ask Grok"
+      "err_login": "Сначала войдите в X (кнопка выше).",
+      "err_rate": "Достигнут лимит запросов X. Повторите примерно через {mins} мин.",
+      "login": "Войти в X",
+      "relogin": "Войти снова",
+      "login_ok": "Вход выполнен. Cookies сохранены в хранилище x.com.",
+      "login_fail": "Окно входа закрылось без создания сессии.",
+      "logged_in": "Вход в X выполнен",
+      "logged_out": "Не выполнен вход в X",
+      "session_hint_in": "Публичные инструменты работают без входа; закладки, подписки и Grok в X используют эту сессию.",
+      "session_hint_out": "Необязательно: этот инструмент использует публичные данные X.",
+      "session_hint_required": "Этот инструмент требует вашу сессию X. Cookies остаются на этом компьютере.",
+      "query_ids": "ID GraphQL-запросов закешированы",
+      "refresh_ids": "Обновить ID",
+      "refresh_ids_hint": "X обновляет ID GraphQL-запросов каждые несколько недель. Обновите, если инструмент сообщает «Запрос не найден».",
+      "post_placeholder": "Ссылка на твит (x.com/user/status/…)",
+      "handle_placeholder": "@ник или ссылка на профиль",
+      "posts": "твиты",
+      "words": "слова",
+      "source": "источник",
+      "truncated": "тред обрезан X",
+      "unroll": "Развернуть",
+      "thread_intro": "Читает весь тред автора на одной странице и экспортирует в Markdown, HTML, текст или JSON. Работает без входа.",
+      "copy_md": "Копировать Markdown",
+      "open_on_x": "Открыть в X",
+      "replying_to": "Ответ на",
+      "load_post": "Загрузить твит",
+      "card_theme": "Тема",
+      "theme_light": "Светлая",
+      "theme_dim": "Приглушённая",
+      "theme_dark": "Тёмная",
+      "card_bg": "Фон",
+      "card_scale": "Разрешение",
+      "card_metrics": "Метрики",
+      "card_media": "Медиа",
+      "card_hint": "Вставьте ссылку на твит, чтобы отобразить его как изображение.",
+      "copy_image": "Копировать изображение",
+      "copy_image_fail": "Не удалось скопировать изображение; сохраните его как PNG.",
+      "save_png": "Сохранить PNG",
+      "analyze": "Анализ",
+      "sample": "Размер выборки",
+      "sample_hint": "Сколько последних твитов загрузить. Больше твитов — медленнее.",
+      "with_replies": "включая ответы",
+      "followers": "подписчики",
+      "following": "подписки",
+      "joined": "регистрация",
+      "engagement": "Вовлечённость",
+      "days": "дней",
+      "avg_likes": "средн. лайков",
+      "median_likes": "медиана лайков",
+      "avg_reposts": "средн. репостов",
+      "avg_replies": "средн. ответов",
+      "avg_views": "средн. просмотров",
+      "engagement_rate": "процент вовлечённости",
+      "posts_per_day": "твитов / день",
+      "media_share": "с медиа",
+      "reply_share": "ответы",
+      "link_share": "со ссылками",
+      "best_time": "Лучшее время для твита (локальное время, по среднему числу лайков)",
+      "by_hour": "По часам",
+      "by_weekday": "По дням недели",
+      "top_posts": "Лучшие твиты",
+      "media_limit": "Твитов для сканирования",
+      "media_limit_hint": "Новые первыми, из вкладки «Медиа» профиля.",
+      "all": "все",
+      "media_kinds": "Скачать",
+      "photos": "фото",
+      "videos": "видео",
+      "listing": "Загрузка",
+      "stop": "Стоп",
+      "skipped": "уже существует",
+      "cancelled": "остановлено",
+      "search_builder": "Расширенный поиск",
+      "search_intro": "Собирает запрос с операторами поиска X и выполняет его без входа. «Последние» = в хронологическом порядке.",
+      "raw_query": "сырой запрос",
+      "q_words": "Все эти слова",
+      "q_phrase": "Точная фраза",
+      "q_any": "Любое из этих слов",
+      "q_none": "Ни одно из этих слов",
+      "q_from": "От аккаунта",
+      "q_to": "Ответ на",
+      "q_mention": "Упоминая",
+      "q_lang": "Язык",
+      "q_since": "С",
+      "q_until": "По",
+      "q_min_faves": "Мин. лайков",
+      "q_min_reposts": "Мин. репостов",
+      "q_any_media": "Любой контент",
+      "q_with_media": "С медиа",
+      "q_images": "С изображениями",
+      "q_videos": "С видео",
+      "q_links": "С ссылками",
+      "q_no_replies": "скрыть ответы",
+      "q_no_reposts": "скрыть репосты",
+      "q_verified": "только верифицированные",
+      "feed_latest": "Последние",
+      "feed_top": "Популярные",
+      "search": "Поиск",
+      "trends": "Сейчас в тренде",
+      "no_results": "По запросу ничего не найдено.",
+      "load_more": "Загрузить ещё",
+      "bookmarks": "закладки",
+      "folders": "папки",
+      "formats": "Форматы",
+      "bm_media": "Скачать и медиа",
+      "bm_media_hint": "Фото и видео в исходном качестве в подпапку media/.",
+      "bm_max": "Лимит",
+      "bm_intro": "Сначала читает папки, потом каждую закладку — без лимита в 800 из официального API.",
+      "bm_stage_folders": "Чтение папок…",
+      "bm_stage_folder": "Папка",
+      "export": "Экспорт",
+      "preview": "Предпросмотр",
+      "audit": "Аудит",
+      "audit_hint": "Читает, на кого вы подписаны и кто подписан на вас, затем показывает тех, кто не подписан в ответ.",
+      "run_audit": "Проверить сейчас",
+      "whitelist": "Никогда не отписываться",
+      "whitelist_hint": "Один @ник в строке. Они скрыты из списка.",
+      "mutuals": "взаимные подписки",
+      "not_following_back": "не подписаны в ответ",
+      "fans": "подписчики (вы не подписаны)",
+      "unfollowed_today": "отписались сегодня",
+      "filter": "Фильтр…",
+      "select_all": "Все",
+      "select_none": "Нет",
+      "empty_list": "Здесь никого нет.",
+      "unfollow_safety": "Безопасность",
+      "unfollow_safety_hint": "Случайная пауза между каждой отпиской и дневной лимит, чтобы X не заблокировал аккаунт.",
+      "delay": "Пауза",
+      "daily_cap": "Дневной лимит",
+      "selected": "выбрано",
+      "unfollow_selected": "Отписаться от выбранных",
+      "unfollow_confirm": "Отписаться от {n} аккаунтов? Это работает медленно специально и может быть остановлено в любой момент.",
+      "unfollowed": "отписано",
+      "unfollowing": "Отписка",
+      "waiting": "Ожидание",
+      "stopped": "остановлено",
+      "archive_file": "Архив",
+      "archive_hint": "Выберите .zip, скачанный из X, или распакованную папку.",
+      "archive_zip": "Открыть .zip",
+      "archive_folder": "Открыть папку",
+      "archive_intro": "Всё читается офлайн. Запросите ваши данные на",
+      "replies": "ответы",
+      "reposts": "репосты",
+      "likes_given": "лайков поставлено",
+      "likes_received": "лайков получено",
+      "blocked": "заблокированные",
+      "muted": "замьюченные",
+      "by_year": "Твиты по годам",
+      "exp_tweets": "Твиты",
+      "exp_likes": "Лайки",
+      "exp_followers": "Подписчики",
+      "exp_following": "Подписки",
+      "exp_not_following_back": "Не подписаны в ответ",
+      "exp_fans": "Подписчики",
+      "exp_blocked": "Заблокированные",
+      "exp_muted": "Замьюченные",
+      "export_for_all": "экспортировать для полного списка",
+      "grok_backend": "Как связаться с Grok",
+      "grok_backend_xai": "xAI API с вашим ключом: поиск X в реальном времени, веб-поиск и цитаты. Оплата по токенам на ваш аккаунт xAI.",
+      "grok_backend_x": "Grok внутри X через вашу сессию. Бесплатно с вашим аккаунтом X; ключ не нужен.",
+      "grok_auto": "Авто",
+      "grok_settings": "Настройки",
+      "grok_key_set": "Ключ сохранён на этом компьютере.",
+      "grok_key_hint": "Создайте ключ на",
+      "grok_models": "Модели",
+      "grok_models_hint": "Название модели xAI для API и ID модели Grok для X.",
+      "grok_no_key": "Добавьте ключ xAI API в настройках или переключитесь на бэкенд X.",
+      "grok_x_search": "поиск X",
+      "grok_web_search": "поиск в интернете",
+      "grok_handles": "только эти @ники (необязательно)",
+      "grok_context": "Прикрепить твит или тред",
+      "grok_context_hint": "Весь тред добавляется в промпт, чтобы Grok мог резюмировать или отвечать по нему.",
+      "grok_summarize_prompt": "Резюмируйте этот тред в 5 тезисов и перечислите основные утверждения.",
+      "grok_prompt": "Спросите Grok… (⌘↩ для отправки)",
+      "grok_ask": "Спросить Grok"
     },
     "ig": {
       "common": {
-        "cancel": "Cancel",
-        "followers": "followers",
-        "following": "following",
-        "posts": "posts",
-        "user_placeholder": "@username or profile link"
+        "cancel": "Отмена",
+        "followers": "подписчики",
+        "following": "подписки",
+        "posts": "посты",
+        "user_placeholder": "@имя пользователя или ссылка на профиль"
       },
       "account": {
-        "label": "Instagram account",
-        "checking": "Checking session…",
-        "none_title": "No Instagram session",
-        "none_desc": "Open instagram.com logged in, in a browser with the OmniGet extension: the cookies are captured automatically. You can also paste a cookies.txt in Settings → Cookies.",
-        "open_site": "Open instagram.com",
+        "label": "Аккаунт Instagram",
+        "checking": "Проверка сессии…",
+        "none_title": "Нет сессии Instagram",
+        "none_desc": "Откройте instagram.com с авторизацией в браузере с расширением OmniGet — куки захватываются автоматически. Также можно вставить cookies.txt в Настройки → Cookies.",
+        "open_site": "Открыть instagram.com",
         "cookies": "Cookies"
       },
       "grid": {
-        "items": "items",
-        "select_all": "All",
-        "select_none": "None",
-        "copy_caption": "Copy caption",
-        "audio": "Audio only",
-        "audio_hint": "Keep just the sound of videos and reels",
-        "audio_no": "No, full video",
-        "caption_txt": "Caption as .txt",
-        "metadata_json": "Metadata as .json",
-        "per_user": "Folder per account",
-        "skip_existing": "Skip existing",
-        "skipped": "skipped"
+        "items": "элементов",
+        "select_all": "Все",
+        "select_none": "Ничего",
+        "copy_caption": "Копировать подпись",
+        "audio": "Только звук",
+        "audio_hint": "Оставить только звук из видео и рилсов",
+        "audio_no": "Нет, полное видео",
+        "caption_txt": "Подпись в .txt",
+        "metadata_json": "Метаданные в .json",
+        "per_user": "Папка по аккаунту",
+        "skip_existing": "Пропускать существующие",
+        "skipped": "пропущено"
       },
       "list": {
-        "filter": "Filter…",
-        "empty": "Nothing here.",
-        "private": "private",
-        "more": "Show more",
-        "selected": "selected"
+        "filter": "Фильтр…",
+        "empty": "Ничего нет.",
+        "private": "приватный",
+        "more": "Показать ещё",
+        "selected": "выбрано"
       },
       "download": {
-        "placeholder": "Post, reel, IGTV, story or highlight link",
-        "fetch": "Fetch",
-        "paste": "Paste",
-        "from_file": "From file…",
-        "hint": "Photos, videos, reels, IGTV and carousels in the best quality. Stories and highlights need your session. Profile links list the latest posts.",
-        "audio_hint": "Paste a reel or video link; the download keeps only the audio track (M4A without re-encoding, or MP3).",
-        "nothing": "No media found for this link.",
-        "bulk_label": "Links, one per line",
+        "placeholder": "Ссылка на пост, рилс, IGTV, сторис или Актуальное",
+        "fetch": "Получить",
+        "paste": "Вставить",
+        "from_file": "Из файла…",
+        "hint": "Фото, видео, рилсы, IGTV и карусели в лучшем качестве. Сторис и Актуальное требуют сессию. Ссылки на профиль покажут последние посты.",
+        "audio_hint": "Вставьте ссылку на рилс или видео; скачивается только аудиодорожка (M4A без перекодирования или MP3).",
+        "nothing": "Медиа не найдено по этой ссылке.",
+        "bulk_label": "Ссылки, по одной на строку",
         "bulk_placeholder": "https://www.instagram.com/p/…\nhttps://www.instagram.com/reel/…\nhttps://www.instagram.com/stories/user/…",
-        "bulk_hint": "Files go into one folder per account. There is a pause between links so the session is not flagged."
+        "bulk_hint": "Файлы попадают в отдельную папку по аккаунту. Между ссылками есть пауза, чтобы сессия не была заблокирована."
       },
       "stories": {
-        "fetch": "Fetch",
-        "hint": "Stories are fetched through the API, so they are not marked as seen. Close-friends stories show up when the account shares them with you.",
-        "hl_hint": "Pick one highlight or download all of them.",
-        "none": "This account has no active story right now.",
-        "no_highlights": "No highlights on this profile.",
-        "tray": "Who has stories now",
-        "close_friends": "close friends",
-        "not_seen": "Fetched without marking as seen",
-        "all_highlights": "All highlights",
-        "mine": "Your stories",
-        "mine_none": "You have no active story.",
-        "expires": "expires",
-        "viewers": "Viewers",
-        "cf_note": "Close-friends stories only appear if the other account added you to their list."
+        "fetch": "Получить",
+        "hint": "Сторис загружаются через API, поэтому не отмечаются как просмотренные. Сторис из близких друзей появляются, если аккаунт поделился ими с вами.",
+        "hl_hint": "Выберите одно Актуальное или скачайте все.",
+        "none": "У этого аккаунта сейчас нет активной сторис.",
+        "no_highlights": "На этом профиле нет Актуального.",
+        "tray": "У кого сейчас есть сторис",
+        "close_friends": "ближайшие друзья",
+        "not_seen": "Загружено без отметки о просмотре",
+        "all_highlights": "Все Актуальные",
+        "mine": "Ваши сторис",
+        "mine_none": "У вас нет активной сторис.",
+        "expires": "истекает",
+        "viewers": "Просмотрели",
+        "cf_note": "Сторис из близких друзей видны, только если аккаунт добавил вас в свой список."
       },
       "profile": {
-        "lookup": "Look up",
-        "what": "What to list",
-        "tab_posts": "Posts",
-        "tab_reels": "Reels",
-        "tab_tagged": "Tagged",
-        "tab_saved": "Saved (mine)",
-        "tab_stories": "Stories",
-        "tab_highlights": "Highlights",
-        "all": "All",
-        "list": "List",
-        "media_hint": "Lists first, then you choose what to download. Large profiles take a while: there is a pause between pages.",
-        "you": "This is you",
-        "you_follow": "You follow",
-        "you_dont_follow": "You don't follow",
-        "follows_you": "follows you",
-        "doesnt_follow_you": "does not follow you",
-        "save_avatar": "Save HD photo",
-        "go_stories": "Stories",
-        "go_highlights": "Highlights",
-        "go_media": "Download posts",
-        "go_analytics": "Analytics"
+        "lookup": "Найти",
+        "what": "Что вывести",
+        "tab_posts": "Посты",
+        "tab_reels": "Рилсы",
+        "tab_tagged": "Отметки",
+        "tab_saved": "Сохранённые (мои)",
+        "tab_stories": "Сторис",
+        "tab_highlights": "Актуальное",
+        "all": "Все",
+        "list": "Список",
+        "media_hint": "Сначала формируется список, затем вы выбираете, что скачивать. На крупных профильных страницах это занимает время: между страницами есть пауза.",
+        "you": "Это вы",
+        "you_follow": "Вы подписаны",
+        "you_dont_follow": "Вы не подписаны",
+        "follows_you": "подписан на вас",
+        "doesnt_follow_you": "не подписан на вас",
+        "save_avatar": "Сохранить фото в HD",
+        "go_stories": "Сторис",
+        "go_highlights": "Актуальное",
+        "go_media": "Скачать посты",
+        "go_analytics": "Аналитика"
       },
       "follow": {
-        "target_placeholder": "Leave empty for your own account, or @user to inspect a public profile",
-        "scan": "Scan",
-        "scan_hint": "Reads the followers and following lists through your session. Actions are only available on your own account.",
-        "not_back": "Don't follow back",
-        "fans": "Fans",
-        "mutuals": "Mutuals",
-        "whitelisted": "whitelisted",
-        "whitelist": "Whitelist",
-        "whitelist_hint": "Accounts here are never listed for unfollowing (brands, friends, family).",
-        "whitelist_toggle": "Whitelist",
-        "add_whitelist": "Whitelist",
-        "unfollow": "Unfollow",
-        "remove_follower": "Remove follower",
-        "pacing": "Pacing",
-        "pacing_hint": "{{today}} of {{cap}} actions today. Small batches and random pauses keep the account safe.",
-        "delay": "Seconds between actions",
-        "pause": "Long pause every N actions",
-        "daily_cap": "Daily cap",
-        "confirm_unfollow": "Unfollow {{count}} accounts?",
-        "confirm_remove_follower": "Remove {{count}} followers?",
-        "confirm_hint": "About {{minutes}} min at the current pacing. {{today}} of {{cap}} actions used today.",
-        "go": "Start",
-        "report": "Report",
-        "remaining": "remaining",
-        "today": "{{today}} actions today",
-        "safety": "Instagram limits mass actions; keep under ~100 per day and stop at the first warning.",
-        "last_scan": "Last scan",
-        "stop_finished": "finished",
-        "stop_cancelled": "cancelled",
-        "stop_daily_cap": "daily cap reached",
-        "stop_blocked": "Instagram blocked the action for now",
-        "stop_rate_limited": "rate limited (429)",
-        "stop_login": "session expired",
-        "stop_checkpoint": "verification required",
-        "stage_unfollow": "Unfollowing",
-        "stage_remove_follower": "Removing",
-        "stage_pause": "Long pause",
-        "stage_waiting": "Waiting for Instagram"
+        "target_placeholder": "Оставьте пустым для своего аккаунта или введите @user для публичного профиля",
+        "scan": "Сканировать",
+        "scan_hint": "Читает списки подписчиков и подписок через вашу сессию. Действия доступны только для вашего аккаунта.",
+        "not_back": "Не взаимные",
+        "fans": "Фанаты",
+        "mutuals": "Взаимные",
+        "whitelisted": "в вайтлисте",
+        "whitelist": "Вайтлист",
+        "whitelist_hint": "Аккаунты в вайтлисте никогда не попадают в список на отписку (бренды, друзья, родственники).",
+        "whitelist_toggle": "Вайтлист",
+        "add_whitelist": "В вайтлист",
+        "unfollow": "Отписаться",
+        "remove_follower": "Удалить подписчика",
+        "pacing": "Скорость",
+        "pacing_hint": "{{today}} из {{cap}} действий сегодня. Маленькие порции и случайные паузы сохраняют аккаунт в безопасности.",
+        "delay": "Секунд между действиями",
+        "pause": "Длинная пауза каждые N действий",
+        "daily_cap": "Дневной лимит",
+        "confirm_unfollow": "Отписаться от {{count}} аккаунтов?",
+        "confirm_remove_follower": "Удалить {{count}} подписчиков?",
+        "confirm_hint": "Примерно {{minutes}} мин при текущей скорости. {{today}} из {{cap}} действий использовано сегодня.",
+        "go": "Запустить",
+        "report": "Отчёт",
+        "remaining": "осталось",
+        "today": "{{today}} действий сегодня",
+        "safety": "Instagram ограничивает массовые действия; держите меньше ~100 в день и останавливайтесь при первом предупреждении.",
+        "last_scan": "Последнее сканирование",
+        "stop_finished": "завершено",
+        "stop_cancelled": "отменено",
+        "stop_daily_cap": "дневной лимит достигнут",
+        "stop_blocked": "Instagram временно заблокировал действие",
+        "stop_rate_limited": "ограничение частоты (429)",
+        "stop_login": "сессия истекла",
+        "stop_checkpoint": "требуется проверка",
+        "stage_unfollow": "Отписка",
+        "stage_remove_follower": "Удаление",
+        "stage_pause": "Длинная пауза",
+        "stage_waiting": "Ожидание Instagram"
       },
       "snap": {
-        "title": "Snapshots",
-        "hint": "Save your followers and following now; the next snapshot shows who left and who arrived. Compare any two with A and B.",
-        "take": "Take snapshot",
-        "saved": "Snapshot saved",
-        "lost": "Unfollowed you",
-        "new": "New followers",
-        "lost_following": "You unfollowed",
-        "new_following": "You started following"
+        "title": "Снимки",
+        "hint": "Сохраните списки подписчиков и подписок сейчас — следующий снимок покажет, кто ушёл и кто пришёл. Сравните любые два снимка через A и B.",
+        "take": "Сделать снимок",
+        "saved": "Снимок сохранён",
+        "lost": "Отписался от вас",
+        "new": "Новые подписчики",
+        "lost_following": "Вы отписались",
+        "new_following": "Вы подписались"
       },
       "ghosts": {
-        "posts": "Posts to check",
-        "hint": "A ghost follower never liked or commented on these posts. Checking comments takes longer.",
-        "likes_only": "likes only",
-        "comments_some": "+ first comments",
-        "comments_more": "+ more comments",
-        "run": "Find ghosts",
-        "engaged": "engaged",
-        "ghosts": "Ghost followers",
-        "top_fans": "Most engaged followers"
+        "posts": "Посты для проверки",
+        "hint": "Призрачный подписчик никогда не ставил лайки и не комментировал эти посты. Проверка комментариев занимает больше времени.",
+        "likes_only": "только лайки",
+        "comments_some": "+ первые комментарии",
+        "comments_more": "+ ещё комментарии",
+        "run": "Найти призраков",
+        "engaged": "активные",
+        "ghosts": "Призрачные подписчики",
+        "top_fans": "Самые активные подписчики"
       },
       "export": {
-        "title": "Instagram data export",
-        "hint": "Works offline with the JSON export from Meta (\"Download your information\"). Nothing is sent anywhere.",
-        "request": "Request export",
-        "folder": "Open folder…",
-        "zip": "Open .zip…",
-        "pending_sent": "pending requests",
-        "growth": "Followers by month",
-        "none_resolved": "Could not resolve any of these accounts.",
-        "resolve_hint": "Usernames are resolved through your session first.",
-        "tab_not_following_back": "Don't follow back",
-        "tab_fans": "Fans",
-        "tab_pending_sent": "Pending requests",
-        "tab_close_friends": "Close friends",
-        "tab_recently_unfollowed": "Recently unfollowed",
-        "tab_received_requests": "Requests received",
-        "tab_blocked": "Blocked",
-        "tab_restricted": "Restricted",
-        "tab_hide_story_from": "Story hidden from",
-        "tab_followers": "Followers",
-        "tab_following": "Following"
+        "title": "Экспорт данных Instagram",
+        "hint": "Работает оффлайн с JSON-экспортом от Meta («Скачать информацию»). Ничего не отправляется.",
+        "request": "Запросить экспорт",
+        "folder": "Открыть папку…",
+        "zip": "Открыть .zip…",
+        "pending_sent": "ожидающие запросы",
+        "growth": "Подписчики по месяцам",
+        "none_resolved": "Не удалось определить ни один из этих аккаунтов.",
+        "resolve_hint": "Имена пользователей сначала разрешаются через вашу сессию.",
+        "tab_not_following_back": "Не подписываются в ответ",
+        "tab_fans": "Фанаты",
+        "tab_pending_sent": "Ожидающие запросы",
+        "tab_close_friends": "Близкие друзья",
+        "tab_recently_unfollowed": "Недавно отписавшиеся",
+        "tab_received_requests": "Полученные заявки",
+        "tab_blocked": "Заблокированные",
+        "tab_restricted": "Ограниченные",
+        "tab_hide_story_from": "Сторис скрыта от",
+        "tab_followers": "Подписчики",
+        "tab_following": "Подписки"
       },
       "analytics": {
-        "run": "Analyze",
-        "hint": "Public metrics computed from the latest posts: engagement, cadence, best days and hours, hashtags.",
-        "compare_placeholder": "@brand @competitor1 @competitor2 (up to 6)",
-        "metrics": "Metrics",
-        "when": "when they post",
-        "weekday": "Engagement by weekday",
-        "hour": "Posts by hour",
-        "m_followers": "Followers",
-        "m_following": "Following",
-        "m_posts": "Posts",
-        "m_follow_ratio": "Followers / following",
-        "m_engagement": "Engagement rate",
-        "m_avg_likes": "Avg. likes",
-        "m_avg_comments": "Avg. comments",
-        "m_avg_plays": "Avg. plays (videos)",
-        "m_comment_ratio": "Comments per 100 likes",
-        "m_posts_per_week": "Posts per week",
-        "m_share_video": "Videos / reels",
-        "m_share_carousel": "Carousels",
-        "m_avg_hashtags": "Hashtags per post",
-        "m_avg_caption": "Caption length",
-        "m_best_day": "Best weekday",
-        "m_best_hour": "Most common hour",
-        "m_paid": "Paid partnerships",
-        "day_sun": "Sunday",
-        "day_mon": "Monday",
-        "day_tue": "Tuesday",
-        "day_wed": "Wednesday",
-        "day_thu": "Thursday",
-        "day_fri": "Friday",
-        "day_sat": "Saturday"
+        "run": "Анализировать",
+        "hint": "Публичные метрики на основе последних постов: вовлечённость, частота, лучшие дни и часы, хештеги.",
+        "compare_placeholder": "@brand @competitor1 @competitor2 (до 6)",
+        "metrics": "Метрики",
+        "when": "когда публикуют",
+        "weekday": "Вовлечённость по дням недели",
+        "hour": "Посты по часам",
+        "m_followers": "Подписчики",
+        "m_following": "Подписки",
+        "m_posts": "Посты",
+        "m_follow_ratio": "Подписчики / подписки",
+        "m_engagement": "Вовлечённость",
+        "m_avg_likes": "Ср. лайки",
+        "m_avg_comments": "Ср. комментарии",
+        "m_avg_plays": "Ср. просмотры (видео)",
+        "m_comment_ratio": "Комментарии на 100 лайков",
+        "m_posts_per_week": "Постов в неделю",
+        "m_share_video": "Видео / рилсы",
+        "m_share_carousel": "Карусели",
+        "m_avg_hashtags": "Хештегов на пост",
+        "m_avg_caption": "Длина подписи",
+        "m_best_day": "Лучший день недели",
+        "m_best_hour": "Самый частый час",
+        "m_paid": "Платные партнёрства",
+        "day_sun": "Воскресенье",
+        "day_mon": "Понедельник",
+        "day_tue": "Вторник",
+        "day_wed": "Среда",
+        "day_thu": "Четверг",
+        "day_fri": "Пятница",
+        "day_sat": "Суббота"
       },
       "hashtag": {
-        "run": "Explore",
-        "recent": "Recent",
-        "top": "Top",
-        "avg": "Average",
-        "videos": "videos",
-        "related": "Related hashtags"
+        "run": "Просмотреть",
+        "recent": "Недавние",
+        "top": "Топ",
+        "avg": "Средние",
+        "videos": "видео",
+        "related": "Похожие хештеги"
       },
       "comments": {
-        "fetch": "Fetch",
-        "comments": "comments",
-        "people": "people",
-        "likers": "Likes"
+        "fetch": "Загрузить",
+        "comments": "комментарии",
+        "people": "люди",
+        "likers": "Лайки"
       },
       "giveaway": {
-        "rules": "Rules",
-        "winners": "Winners",
-        "min_mentions": "Minimum mentions",
-        "min_mentions_hint": "e.g. 2 = must tag two friends",
-        "keyword": "Required word",
-        "exclude": "Exclude accounts",
-        "unique": "One entry per person",
-        "draw": "Draw",
-        "result": "{{eligible}} eligible entries"
+        "rules": "Правила",
+        "winners": "Победители",
+        "min_mentions": "Минимум упоминаний",
+        "min_mentions_hint": "напр. 2 = нужно отметить двоих друзей",
+        "keyword": "Обязательное слово",
+        "exclude": "Исключить аккаунты",
+        "unique": "Одно участие на человека",
+        "draw": "Розыгрыш",
+        "result": "{{eligible}} допустимых участий"
       },
       "publish": {
-        "how": "How",
-        "via": "Publish through",
-        "via_web": "Web session",
-        "via_graph": "Official API",
-        "via_web_hint": "Uses your captured session, like the browser does. Beta: Instagram changes this without notice.",
-        "via_graph_hint": "Meta Graph API: professional account, an app and a token; files must be public URLs.",
-        "token": "Access token",
-        "token_hint": "Long-lived user token with instagram_content_publish.",
-        "ig_user": "Instagram account ID",
-        "docs": "Docs",
-        "what": "What",
-        "kind": "Type",
-        "kind_photo": "Photo",
-        "kind_carousel": "Carousel",
-        "kind_reel": "Reel",
-        "kind_video": "Video",
-        "kind_story": "Story",
-        "urls": "Public URLs (one per line)",
-        "caption": "Caption",
-        "caption_placeholder": "Write the caption… #hashtags @mentions",
-        "share_feed": "Also show in feed",
-        "no_comments": "Turn off comments",
-        "hide_likes": "Hide like count",
-        "alt": "Alt text",
-        "no_files": "Pick a file first",
-        "publish": "Publish now",
-        "published": "Published",
-        "schedule": "Schedule",
-        "scheduled": "Scheduled",
-        "bad_time": "Pick a time in the future",
-        "beta": "Beta. Test with a photo first. Videos are transcoded by Instagram after upload; the app waits for confirmation.",
-        "queue": "Queue",
-        "queue_empty": "Nothing scheduled.",
-        "queue_hint": "The queue runs only while OmniGet is open.",
-        "status_pending": "pending",
-        "status_running": "publishing",
-        "status_done": "published",
-        "status_failed": "failed",
-        "stage_upload": "Uploading",
-        "stage_cover": "Cover",
-        "stage_configure": "Configuring",
-        "stage_done": "Done",
-        "stage_container": "Creating container",
-        "stage_processing": "Processing",
-        "stage_publish": "Publishing"
+        "how": "Как",
+        "via": "Публикация через",
+        "via_web": "Веб-сессия",
+        "via_graph": "Официальное API",
+        "via_web_hint": "Использует вашу захваченную сессию, как браузер. Бета: Instagram меняет это без предупреждения.",
+        "via_graph_hint": "Meta Graph API: профессиональный аккаунт, приложение и токен; файлы должны быть публичными URL.",
+        "token": "Токен доступа",
+        "token_hint": "Долгоживущий токен пользователя с instagram_content_publish.",
+        "ig_user": "ID аккаунта Instagram",
+        "docs": "Документация",
+        "what": "Что",
+        "kind": "Тип",
+        "kind_photo": "Фото",
+        "kind_carousel": "Карусель",
+        "kind_reel": "Рилс",
+        "kind_video": "Видео",
+        "kind_story": "Сторис",
+        "urls": "Публичные URL (по одному на строку)",
+        "caption": "Подпись",
+        "caption_placeholder": "Напишите подпись… #хештеги @упоминания",
+        "share_feed": "Также показать в ленте",
+        "no_comments": "Отключить комментарии",
+        "hide_likes": "Скрыть количество лайков",
+        "alt": "Альтернативный текст",
+        "no_files": "Сначала выберите файл",
+        "publish": "Опубликовать сейчас",
+        "published": "Опубликовано",
+        "schedule": "Запланировать",
+        "scheduled": "Запланировано",
+        "bad_time": "Выберите время в будущем",
+        "beta": "Бета. Сначала протестируйте на фото. Видео транскодируются Instagram после загрузки; приложение ждёт подтверждения.",
+        "queue": "Очередь",
+        "queue_empty": "Ничего не запланировано.",
+        "queue_hint": "Очередь работает только при открытом OmniGet.",
+        "status_pending": "ожидание",
+        "status_running": "публикация",
+        "status_done": "опубликовано",
+        "status_failed": "ошибка",
+        "stage_upload": "Загрузка",
+        "stage_cover": "Обложка",
+        "stage_configure": "Настройка",
+        "stage_done": "Готово",
+        "stage_container": "Создание контейнера",
+        "stage_processing": "Обработка",
+        "stage_publish": "Публикация"
       }
     },
     "pdf": {
@@ -2164,19 +2164,19 @@
       "none": "Рекомендованных пакетов не установлено."
     },
     "winreg": {
-      "title": "Registry cleaner",
-      "hint": "Entries pointing to programs and files that no longer exist. Every key is exported to a .reg file before deletion.",
-      "found": "orphan entries",
-      "run": "Remove",
-      "removed": "removed",
-      "backups": "Backups",
-      "backups_made": "backup files written",
-      "clean": "No orphan entries.",
-      "cat_uninstall": "Uninstalled programs",
+      "title": "Очистка реестра",
+      "hint": "Записи, указывающие на удалённые программы и файлы. Перед удалением каждый ключ экспортируется в .reg-файл.",
+      "found": "битых записей",
+      "run": "Удалить",
+      "removed": "удалено",
+      "backups": "Резервные копии",
+      "backups_made": "файлов резервных копий создано",
+      "clean": "Битых записей нет.",
+      "cat_uninstall": "Удалённые программы",
       "cat_app_paths": "App Paths",
-      "cat_run": "Startup",
+      "cat_run": "Автозагрузка",
       "cat_mui_cache": "MuiCache",
-      "cat_shared_dlls": "Shared DLLs"
+      "cat_shared_dlls": "Общие DLL"
     },
     "updater": {
       "available": "доступно обновлений",
@@ -2209,19 +2209,19 @@
       "generate": "Сгенерировать"
     },
     "mcp": {
-      "server": "MCP server",
-      "on": "On. Agents connected to this address can run the tools below.",
-      "off": "Off. Requests to /mcp are refused until you turn it on.",
-      "bridge_off": "the local bridge is disabled in Settings → Browser extension; the MCP endpoint needs it",
-      "endpoint": "Endpoint",
-      "test": "Test",
-      "token": "Bearer token",
-      "token_hint": "Same token the browser extension uses. Rotate it in Settings → Browser extension.",
-      "show": "Show",
-      "hide": "Hide",
-      "connect": "Connect a client",
-      "connect_hint": "Copy the snippet for your agent. Claude Code: run the command. Others: paste in the config file.",
-      "tools": "tools exposed"
+      "server": "MCP-сервер",
+      "on": "Вкл. Агенты, подключённые к этому адресу, могут запускать инструменты ниже.",
+      "off": "Выкл. Запросы к /mcp отклоняются, пока не включите.",
+      "bridge_off": "локальный мост отключён в «Настройки → Расширение браузера»; эндпоинту MCP он нужен",
+      "endpoint": "Эндпоинт",
+      "test": "Проверить",
+      "token": "Токен Bearer",
+      "token_hint": "Тот же токен, что использует расширение браузера. Обновить — в «Настройки → Расширение браузера».",
+      "show": "Показать",
+      "hide": "Скрыть",
+      "connect": "Подключить клиент",
+      "connect_hint": "Скопируйте фрагмент для своего агента. Claude Code: выполните команду. Другие: вставьте в файл конфигурации.",
+      "tools": "инструментов доступно"
     },
     "autoclick": {
       "running": "Кликаем…",
