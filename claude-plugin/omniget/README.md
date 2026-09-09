@@ -8,14 +8,60 @@ desktop app's own resolver: `omniget-cli` on `PATH` → the binaries OmniGet
 manages in its app-data folder → the system `PATH`. Nothing here requires the
 desktop app; with `yt-dlp` and `ffmpeg` on `PATH` it works on its own.
 
-## Install
+## Setup
+
+Three steps. The first is the only one that's always required.
+
+**1. Install the plugin** (in a Claude Code session):
 
 ```
 /plugin marketplace add /path/to/omniget/claude-plugin
 /plugin install omniget
 ```
 
-Then run `/omniget:doctor` to see what is available and what to add.
+**2. Install the tools** — one step, on any OS:
+
+```
+/omniget:setup
+```
+
+It checks for `yt-dlp` and `ffmpeg`, and installs whatever is missing after a single
+confirmation (Mac via Homebrew, Windows via winget/scoop). Add `--local` to also set up
+an on-device Whisper engine and model. You can also run it straight from a terminal:
+`bash claude-plugin/omniget/scripts/setup.sh` (add `--yes` to skip the prompt).
+
+If the OmniGet desktop app is installed, `yt-dlp` and `ffmpeg` are already managed by it,
+so this step finds them and installs nothing.
+
+**3. Add a transcription key (optional).** Captions and local Whisper need no key. For
+cloud transcription (more accurate, no model download), add an OpenAI or Gemini key **in
+your own terminal** — the input is hidden and the key never passes through Claude:
+
+```bash
+bash claude-plugin/omniget/scripts/keys.sh set
+```
+
+Then confirm what works:
+
+```bash
+bash claude-plugin/omniget/scripts/keys.sh check
+```
+
+> Only OpenAI and Gemini are supported for transcription. OpenRouter has no
+> speech-to-text endpoint, so it is not offered here.
+
+### Per-OS notes
+
+- **macOS** — needs [Homebrew](https://brew.sh). `/omniget:setup` then installs
+  `yt-dlp`, `ffmpeg`, and (with `--local`) `whisper-cpp` automatically.
+- **Windows** — needs winget (App Installer, from the Microsoft Store) or scoop.
+  `/omniget:setup` installs `yt-dlp` and `ffmpeg`. For local transcription, prefer a
+  cloud key or install whisper.cpp manually; captions and cloud both work out of the box.
+- **Linux** — `/omniget:setup` detects `apt`/`dnf`/`pacman`/`zypper` and runs it (with
+  `sudo`, so it needs a terminal), or prints the exact commands if it can't. Distro
+  `yt-dlp` is often outdated — `pipx install yt-dlp` (what setup uses on apt) stays current.
+  For local Whisper, install `whisper.cpp` from your distro or the upstream release and
+  fetch a model with `scripts/get-model.sh`.
 
 ## Commands
 
@@ -24,6 +70,7 @@ Then run `/omniget:doctor` to see what is available and what to add.
 | `/omniget:fetch <url> [--audio] [--quality N]` | Download the media to `~/Downloads/omniget` |
 | `/omniget:transcribe <url\|file> [--backend B] [--lang xx] [--summarize]` | Transcribe and optionally summarize |
 | `/omniget:research <url> [--backend B]` | Caption + transcript distilled into a Markdown note with `[mm:ss]` references |
+| `/omniget:setup` | Install missing tools for your OS (confirm once) and check your API keys |
 | `/omniget:doctor` | Report available tools, models, and keys, plus how to add the missing ones |
 
 The two skills (`omniget-fetch`, `omniget-transcribe`) trigger on their own when a
@@ -42,15 +89,6 @@ media URL is pasted with a request, so the slash commands are optional.
 Force one with `--backend local|mlx|gemini|openai|captions`. API keys are read from
 the environment or `~/.config/ai-keys.env` and never printed.
 
-## Getting the pieces
-
-Nothing is installed for you; `/omniget:doctor` prints the commands and you decide.
-
-- **yt-dlp + ffmpeg**: `brew install yt-dlp ffmpeg` (macOS), `winget install yt-dlp.yt-dlp Gyan.FFmpeg` (Windows), your distro's packages (Linux).
-- **local Whisper**: `brew install whisper-cpp`, or the release bundle from `ggml-org/whisper.cpp`. On Apple Silicon `uv tool install mlx-whisper` is faster.
-- **a model**: `scripts/get-model.sh large-v3-turbo-q5_0` (547 MB, SHA-256 verified from `ggerganov/whisper.cpp`). Smaller: `base` (141 MB), `small` (465 MB).
-- **cloud keys**: `export GEMINI_API_KEY=...` / `export OPENAI_API_KEY=...`, or put them in `~/.config/ai-keys.env`.
-
 ## Environment variables
 
 | Variable | Meaning |
@@ -65,10 +103,11 @@ Nothing is installed for you; `/omniget:doctor` prints the commands and you deci
 ## Scripts
 
 The skills call `scripts/`; each prints one JSON line on success, progress on stderr:
-`doctor.sh`, `resolve-tools.sh` (shared lookup, sourced by the rest), `fetch.sh`,
-`research.sh`, `transcribe.sh`, `get-model.sh`, plus `srt_tools.py`,
-`gemini_transcribe.py`, `openai_transcribe.sh`. Run the tests with
-`python3 -m unittest discover -s tests`.
+`setup.sh` (cross-OS installer), `keys.sh` (add/test keys), `doctor.sh`,
+`resolve-tools.sh` (shared lookup, sourced by the rest), `fetch.sh`, `research.sh`,
+`transcribe.sh`, `get-model.sh`, plus `srt_tools.py`, `gemini_transcribe.py`,
+`openai_transcribe.sh`. Run the tests with `python3 -m unittest discover -s tests`
+and `bash tests/test_keys.sh`.
 
 ## Scope
 

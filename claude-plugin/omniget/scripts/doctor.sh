@@ -7,7 +7,13 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$here/resolve-tools.sh"
 
 json=false
-[ "${1:-}" = "--json" ] && json=true
+check_keys=false
+for arg in "$@"; do
+  case "$arg" in
+    --json) json=true ;;
+    --check-keys) check_keys=true ;;
+  esac
+done
 
 rows=""
 add_row() { rows="$rows$1	$2	$3
@@ -76,3 +82,8 @@ case "$(og_os)" in
 esac
 echo "  whisper model:   $here/get-model.sh large-v3-turbo-q5_0    (547 MB, from ggerganov/whisper.cpp on Hugging Face)"
 echo "  cloud keys:      export GEMINI_API_KEY=... or OPENAI_API_KEY=..., or put them in ~/.config/ai-keys.env"
+
+if $check_keys && ! $json; then
+  echo
+  bash "$here/keys.sh" check
+fi

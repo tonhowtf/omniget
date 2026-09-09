@@ -28,11 +28,23 @@ Scripts live in `${CLAUDE_PLUGIN_ROOT}/scripts/`.
 3. If the user only wants to know what the media says, use the `omniget-transcribe` skill
    instead of downloading video.
 
+## First run / missing tools
+
+If `fetch.sh` reports `yt-dlp not found` (or a fresh machine has nothing set up),
+do not hand the user raw install commands. Offer one step:
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh"
+```
+It detects the OS, lists what is missing, and installs it after a single confirmation
+(Mac via brew, Windows via winget/scoop; Linux runs the distro manager when it can, else
+prints the commands). Pass `--yes` to skip the prompt. If OmniGet (the desktop app) is
+installed, `yt-dlp` and `ffmpeg` are already managed and nothing needs installing.
+
 ## When something fails
 
 Run the doctor first, then act on what it reports:
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.sh"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.sh" --check-keys
 ```
 
 | Symptom in stderr | Meaning | Action |
