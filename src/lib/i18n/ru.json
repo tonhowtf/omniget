@@ -1162,158 +1162,158 @@
       "yt_url": "Ссылка на YouTube или ID видео"
     },
     "whisper": {
-      "engine": "Engine",
-      "models": "Models",
-      "transcribe": "Transcribe",
-      "file_hint": "Pick an audio or video file",
-      "model": "Model",
-      "language": "Language",
-      "max_len": "Max characters per line",
-      "max_len_hint": "0 lets the model decide; 42 is good for subtitles",
-      "prompt": "Vocabulary",
-      "prompt_hint": "Names and terms that should be spelled right",
-      "translate": "Translate to English",
-      "converting": "Converting audio…",
-      "working": "Transcribing",
-      "run": "Transcribe",
-      "cues": "lines",
-      "open_workshop": "Open in Subtitle Workshop"
+      "engine": "Движок",
+      "models": "Модели",
+      "transcribe": "Распознать",
+      "file_hint": "Выберите аудио- или видеофайл",
+      "model": "Модель",
+      "language": "Язык",
+      "max_len": "Макс. символов на строку",
+      "max_len_hint": "0 — решает модель; 42 хорошо подходит для субтитров",
+      "prompt": "Словарь",
+      "prompt_hint": "Имена и термины, которые нужно написать правильно",
+      "translate": "Перевести на английский",
+      "converting": "Конвертация аудио…",
+      "working": "Распознавание",
+      "run": "Распознать",
+      "cues": "строк",
+      "open_workshop": "Открыть в Subtitle Workshop"
     },
     "tts": {
-      "voice": "Voice",
-      "language": "Language",
-      "rate": "Speed",
-      "pitch": "Pitch",
-      "text": "Text",
-      "placeholder": "Type or paste the text to narrate…",
-      "chars": "characters",
-      "free_note": "Free Microsoft Edge service, needs internet",
-      "run": "Generate audio",
-      "words": "words"
+      "voice": "Голос",
+      "language": "Язык",
+      "rate": "Скорость",
+      "pitch": "Высота тона",
+      "text": "Текст",
+      "placeholder": "Введите или вставьте текст для озвучки…",
+      "chars": "символов",
+      "free_note": "Бесплатный сервис Microsoft Edge, требует интернет",
+      "run": "Сгенерировать аудио",
+      "words": "слов"
     },
     "srtt": {
-      "input": "Subtitle",
-      "file": "SRT file",
-      "file_hint": "Pick a .srt, .vtt or .ass",
-      "from_to": "From → to",
-      "bilingual": "Bilingual",
-      "bilingual_hint": "Keep the original text under the translation",
-      "engine": "Engine",
-      "provider": "Provider",
-      "llm": "Configured AI",
-      "context": "Context",
-      "context_hint": "Topic and terms help the model keep the terminology",
-      "context_placeholder": "React course; keep 'hook' and 'state' in English",
-      "llm_note": "Uses the provider set in Settings → AI.",
-      "open_settings": "Open settings",
-      "server": "Server",
-      "run": "Translate",
-      "failed_lines": "lines not translated"
+      "input": "Субтитры",
+      "file": "Файл SRT",
+      "file_hint": "Выберите файл .srt, .vtt или .ass",
+      "from_to": "Из → в",
+      "bilingual": "Двуязычные",
+      "bilingual_hint": "Оставить оригинал под переводом",
+      "engine": "Движок",
+      "provider": "Провайдер",
+      "llm": "Настроенный ИИ",
+      "context": "Контекст",
+      "context_hint": "Тема и термины помогают модели соблюдать терминологию",
+      "context_placeholder": "Курс по React; оставьте 'hook' и 'state' на английском",
+      "llm_note": "Использует провайдер из Настройки → ИИ.",
+      "open_settings": "Открыть настройки",
+      "server": "Сервер",
+      "run": "Перевести",
+      "failed_lines": "строк не переведено"
     },
     "dub": {
-      "intro": "Each subtitle line is spoken with Edge TTS, sped up to fit its slot and mixed into one track. Best with lines that don't overlap.",
-      "srt": "Subtitle",
-      "srt_hint": "Pick the .srt to voice",
-      "video": "Video",
-      "max_speed": "Max speed-up",
-      "max_speed_hint": "Above this the voice would sound rushed; the line just runs longer",
-      "keep_original": "Original audio volume",
-      "synth": "Synthesizing",
-      "mix": "Mixing…",
-      "mux": "Replacing audio…",
-      "run": "Dub",
-      "sped_up": "sped up"
+      "intro": "Каждая строка субтитров озвучивается через Edge TTS, ускоряется для вписания в отведённое время и микшируется в один трек. Лучше всего работает с непересекающимися строками.",
+      "srt": "Субтитры",
+      "srt_hint": "Выберите .srt для озвучки",
+      "video": "Видео",
+      "max_speed": "Макс. ускорение",
+      "max_speed_hint": "При большем ускорении голос звучит сдавленно; строка просто займёт больше времени",
+      "keep_original": "Громкость оригинала",
+      "synth": "Синтез",
+      "mix": "Микширование…",
+      "mux": "Замена аудио…",
+      "run": "Озвучить",
+      "sped_up": "ускорено"
     },
     "ollama": {
-      "daemon": "Service",
-      "running": "running",
-      "stopped": "not running",
-      "stopped_hint": "Install Ollama and open it; OmniGet talks to it on port 11434.",
-      "get": "Get Ollama",
-      "use_hint": "In Settings → AI pick the local provider with base URL",
-      "installed": "Installed models",
-      "none": "No models yet. Download one below.",
-      "loaded": "in memory",
-      "recommended": "Recommended",
-      "custom_placeholder": "Any model from ollama.com (ex.: mistral:7b)"
+      "daemon": "Служба",
+      "running": "запущена",
+      "stopped": "не запущена",
+      "stopped_hint": "Установите Ollama и откройте его; OmniGet подключается к нему через порт 11434.",
+      "get": "Получить Ollama",
+      "use_hint": "В Настройки → ИИ выберите локальный провайдер с базовым URL",
+      "installed": "Установленные модели",
+      "none": "Моделей пока нет. Скачайте одну ниже.",
+      "loaded": "в памяти",
+      "recommended": "Рекомендуемые",
+      "custom_placeholder": "Любая модель с ollama.com (напр. mistral:7b)"
     },
     "pricing": {
-      "search": "Search model or provider…",
-      "all": "all modes",
-      "estimate_for": "Estimate for",
-      "models": "models",
-      "source": "prices from LiteLLM, per 1M tokens",
-      "model": "Model",
-      "provider": "Provider",
-      "caps": "Caps",
-      "estimate": "Estimate"
+      "search": "Поиск модели или провайдера…",
+      "all": "все режимы",
+      "estimate_for": "Расчёт для",
+      "models": "моделей",
+      "source": "цены из LiteLLM, за 1M токенов",
+      "model": "Модель",
+      "provider": "Провайдер",
+      "caps": "Возможности",
+      "estimate": "Расчёт"
     },
     "usage": {
-      "calls": "calls",
-      "intro": "Every AI call OmniGet makes is logged locally; cost uses the current price table.",
-      "unknown_price": "without a known price",
-      "by_day": "By day",
-      "by_model": "By model",
-      "by_task": "By task",
-      "empty": "Nothing yet. Use any AI tool and it shows up here.",
-      "clear": "Clear log",
-      "clear_confirm": "Delete the whole AI usage log?"
+      "calls": "вызовов",
+      "intro": "Каждый вызов ИИ от OmniGet логируется локально; стоимость рассчитывается по текущей таблице цен.",
+      "unknown_price": "без известной цены",
+      "by_day": "По дням",
+      "by_model": "По моделям",
+      "by_task": "По задачам",
+      "empty": "Пока ничего. Используйте любой инструмент ИИ, и результат появится здесь.",
+      "clear": "Очистить журнал",
+      "clear_confirm": "Удалить весь журнал использования ИИ?"
     },
     "sb": {
-      "lookup": "Look up",
-      "segments": "segments",
-      "skippable": "skippable",
-      "votes": "votes",
-      "none": "No segments submitted for this video.",
-      "download_without": "Download without these parts",
-      "args_hint": "Add to the yt-dlp arguments in Settings → Advanced, or copy the chapters:",
-      "copy_chapters": "Copy chapters"
+      "lookup": "Найти",
+      "segments": "сегментов",
+      "skippable": "пропускаемых",
+      "votes": "голосов",
+      "none": "Для этого видео не отправлено ни одного сегмента.",
+      "download_without": "Скачать без этих частей",
+      "args_hint": "Добавьте в аргументы yt-dlp в Настройки → Дополнительно или скопируйте главы:",
+      "copy_chapters": "Скопировать главы"
     },
     "ryd": {
-      "lookup": "Look up",
-      "positive": "positive",
-      "note": "estimated by Return YouTube Dislike from extension users",
-      "deleted": "video deleted"
+      "lookup": "Найти",
+      "positive": "положительных",
+      "note": "на основе данных Return YouTube Dislike от пользователей расширения",
+      "deleted": "видео удалено"
     },
     "frames": {
-      "show": "Show",
-      "intro": "YouTube's CDN keeps three automatic frames of every video (hq1, hq2, hq3). They are what the video really looks like.",
-      "bad_url": "That doesn't look like a YouTube video."
+      "show": "Показать",
+      "intro": "CDN YouTube хранит три автоматических кадра каждого видео (hq1, hq2, hq3). Это реальный вид видео.",
+      "bad_url": "Это не похоже на видео YouTube."
     },
     "slideshare": {
-      "run": "Save as PDF",
-      "pages": "pages"
+      "run": "Сохранить как PDF",
+      "pages": "страниц"
     },
     "gdocs": {
-      "check": "Check",
-      "bad_url": "Paste a docs.google.com link (Docs, Slides or Sheets).",
-      "note": "Works for public files or anyone-with-the-link. Private ones need File → Download in the browser."
+      "check": "Проверить",
+      "bad_url": "Вставьте ссылку docs.google.com (Docs, Slides или Sheets).",
+      "note": "Работает с публичными файлами или файлами по ссылке. Приватные файлы нужно скачивать через Файл → Скачать в браузере."
     },
     "calameo": {
-      "intro": "Pages are saved one by one into a folder. When the publication serves JPEG pages, a PDF is assembled too.",
-      "page": "Page"
+      "intro": "Страницы сохраняются по одной в папку. Если публикация отдаёт страницы в JPEG, также собирается PDF.",
+      "page": "Страница"
     },
     "gallery": {
-      "engine": "Engine",
-      "placeholder": "Gallery, album or profile URL (Pinterest, Instagram, ArtStation, Reddit…)",
-      "cookies": "Cookies file",
-      "files": "files"
+      "engine": "Движок",
+      "placeholder": "URL галереи, альбома или профиля (Pinterest, Instagram, ArtStation, Reddit…)",
+      "cookies": "Файл cookies",
+      "files": "файлов"
     },
     "upscale": {
-      "engine": "Engine",
-      "gpu_note": "needs a GPU with Vulkan (integrated works)",
-      "model": "Model",
-      "run": "Upscale"
+      "engine": "Движок",
+      "gpu_note": "Требуется GPU с Vulkan (интегрированные подходят)",
+      "model": "Модель",
+      "run": "Увеличить"
     },
     "resize": {
-      "mode": "Size",
-      "width": "width",
-      "height": "height",
-      "fit": "fit in",
-      "format": "Format",
-      "quality": "quality",
-      "keep": "keep",
-      "run": "Resize"
+      "mode": "Размер",
+      "width": "ширина",
+      "height": "высота",
+      "fit": "вписать в",
+      "format": "Формат",
+      "quality": "качество",
+      "keep": "сохранить",
+      "run": "Изменить размер"
     },
     "dupes": {
       "folders": "Folders",
@@ -1333,39 +1333,39 @@
       "none": "No duplicates found."
     },
     "rename": {
-      "find": "Find",
-      "find_hint": "Regular expression; empty means the whole name",
-      "replace": "Replace with",
-      "replace_hint": "$1 for groups; {n}, {n:3}, {name}, {ext}, {date}",
-      "options": "Options",
-      "case_keep": "keep case",
-      "will_change": "will change",
-      "conflicts": "conflicts",
-      "apply": "Rename",
-      "renamed": "renamed"
+      "find": "Найти",
+      "find_hint": "Регулярное выражение; пустое значение — всё имя",
+      "replace": "Заменить на",
+      "replace_hint": "$1 для групп; {n}, {n:3}, {name}, {ext}, {date}",
+      "options": "Параметры",
+      "case_keep": "сохранять регистр",
+      "will_change": "будет изменено",
+      "conflicts": "конфликты",
+      "apply": "Переименовать",
+      "renamed": "переименовано"
     },
     "fsearch": {
-      "placeholder": "File name…",
-      "everywhere": "Everywhere",
-      "results": "results"
+      "placeholder": "Имя файла…",
+      "everywhere": "Везде",
+      "results": "результатов"
     },
     "awake": {
-      "on": "Keeping the computer awake",
-      "off": "Not active",
-      "intro": "Blocks sleep and the screen saver until you stop it or close OmniGet.",
-      "start": "Keep awake",
-      "stop": "Stop",
-      "note": "Downloads already keep the computer awake when the option is on in Settings."
+      "on": "Компьютер не засыпает",
+      "off": "Не активно",
+      "intro": "Блокирует переход в спящий режим и заставку, пока вы не остановите или не закроете OmniGet.",
+      "start": "Не давать заснуть",
+      "stop": "Остановить",
+      "note": "Загрузки уже не дают компьютеру уснуть, когда опция включена в Настройках."
     },
     "aria2": {
-      "install_hint": "on Linux/macOS install aria2 with your package manager",
-      "options": "Options",
-      "file_name": "file name",
-      "connections": "connections"
+      "install_hint": "в Linux/macOS установите aria2 через пакетный менеджер",
+      "options": "Параметры",
+      "file_name": "имя файла",
+      "connections": "соединений"
     },
     "manifest": {
-      "intro": "For players that expose a .m3u8 or .mpd (most course platforms). DRM streams are not supported.",
-      "referer_hint": "The page you watched the video on; most servers refuse without it"
+      "intro": "Для плееров, использующих .m3u8 или .mpd (большинство образовательных платформ). Потоки с DRM не поддерживаются.",
+      "referer_hint": "Страница, на которой вы смотрели видео; большинство серверов отклоняют запрос без неё"
     },
     "wintweaks": {
       "only_windows": "Эти настройки бывают только в Windows. Список показан, чтобы было понятно, что делает инструмент.",
@@ -1417,32 +1417,32 @@
     },
     "kde": {
       "daemon": "kdeconnect-cli",
-      "device": "Device",
-      "no_devices": "No paired devices. Pair from the KDE Connect app first.",
-      "send": "Send",
-      "text": "Text",
-      "pick_file": "Pick a file",
-      "sent": "Sent"
+      "device": "Устройство",
+      "no_devices": "Нет сопряжённых устройств. Сначала сопряжите через приложение KDE Connect.",
+      "send": "Отправить",
+      "text": "Текст",
+      "pick_file": "Выбрать файл",
+      "sent": "Отправлено"
     },
     "ocr": {
-      "engine": "Engine",
-      "languages": "Languages",
-      "languages_hint": "Tesseract codes separated by +, e.g. por+eng",
-      "run": "Extract text",
-      "copy_all": "Copy all"
+      "engine": "Движок",
+      "languages": "Языки",
+      "languages_hint": "Коды Tesseract через +, например por+eng",
+      "run": "Извлечь текст",
+      "copy_all": "Скопировать всё"
     },
     "humanize": {
-      "input": "Text",
-      "placeholder": "Paste the text that sounds like a chatbot wrote it…",
-      "run": "Humanize",
-      "again": "Humanize again",
-      "sample_show": "Add a writing sample",
-      "sample_hide": "Hide writing sample",
-      "sample_hint": "Paste something you wrote yourself. The rewrite will copy your sentence length, word choice and punctuation.",
-      "sample_placeholder": "A paragraph or two in your own voice…",
-      "not_configured": "Configure an AI provider first (OpenAI, Anthropic or a local endpoint).",
-      "open_settings": "Open Settings",
-      "credit": "Patterns from Wikipedia's \"Signs of AI writing\", packaged by blader/humanizer (MIT). Nothing is invented: names, numbers and quotes stay as they are."
+      "input": "Текст",
+      "placeholder": "Вставьте текст, который звучит как написанный чат-ботом…",
+      "run": "Очеловечить",
+      "again": "Очеловечить снова",
+      "sample_show": "Добавить образец текста",
+      "sample_hide": "Скрыть образец текста",
+      "sample_hint": "Вставьте что-то написанное вами. Результат скопирует вашу длину предложений, выбор слов и пунктуацию.",
+      "sample_placeholder": "Абзац или два в вашем стиле…",
+      "not_configured": "Сначала настройте AI-провайдер (OpenAI, Anthropic или локальный эндпоинт).",
+      "open_settings": "Открыть Настройки",
+      "credit": "Паттерны из «Signs of AI writing» (Wikipedia), собраны blader/humanizer (MIT). Ничего не выдумано: имена, числа и цитаты остаются как есть."
     },
     "pinterest": {
       "url_placeholder": "Pin, board, section, profile or pin.it link",
@@ -2109,17 +2109,17 @@
       "group_gaming": "Игры"
     },
     "disk": {
-      "used": "used",
-      "free": "free",
-      "analyze": "Analyze",
-      "folder": "Any folder",
-      "folder_hint": "Scan a specific folder instead of a whole volume.",
-      "scanned": "entries",
-      "skipped": "unreadable",
-      "map": "Map",
-      "largest": "Largest files",
-      "trash": "Trash",
-      "trashed": "Moved to Trash."
+      "used": "занято",
+      "free": "свободно",
+      "analyze": "Анализировать",
+      "folder": "Любая папка",
+      "folder_hint": "Просканировать конкретную папку вместо всего раздела.",
+      "scanned": "записей",
+      "skipped": "не прочитано",
+      "map": "Карта",
+      "largest": "Самые большие файлы",
+      "trash": "Корзина",
+      "trashed": "Перемещено в Корзину."
     },
     "startup": {
       "enabled_of": "включено из",
@@ -2179,12 +2179,12 @@
       "cat_shared_dlls": "Shared DLLs"
     },
     "updater": {
-      "available": "updates available",
-      "managers": "Managers",
-      "no_manager": "No package manager found. winget ships with Windows 10/11; Chocolatey and Scoop are optional.",
-      "run": "Update selected",
-      "upgraded": "updated",
-      "up_to_date": "Everything is up to date."
+      "available": "доступно обновлений",
+      "managers": "Менеджеры",
+      "no_manager": "Пакетный менеджер не найден. winget поставляется с Windows 10/11; Chocolatey и Scoop — дополнительные.",
+      "run": "Обновить выбранные",
+      "upgraded": "обновлено",
+      "up_to_date": "Всё обновлено."
     },
     "keys": {
       "accounts": "аккаунта",
@@ -2336,17 +2336,17 @@
       "stage_done": "готово"
     },
     "codec": {
-      "what": "What it does",
-      "what_hint": "Makes YouTube serve H.264 instead of VP9/AV1. Old or weak machines decode H.264 in hardware, so playback stops stuttering and the fan quiets down. Quality above 1080p may become unavailable.",
-      "how": "How to turn it on",
-      "step1": "Install the OmniGet browser extension and pair it in Settings.",
-      "step2": "Open the extension popup on any tab and turn on the H.264 toggle (third switch in the header).",
-      "step3": "Reload YouTube. The setting persists until you turn it off.",
-      "extension": "Browser extension",
-      "extension_hint": "The option lives in the extension because only it can run before YouTube's player loads.",
-      "open_settings": "Pair extension",
-      "userscript": "Without the extension",
-      "userscript_hint": "Same trick as a userscript for Tampermonkey / Violentmonkey."
+      "what": "Что делает",
+      "what_hint": "Заставляет YouTube отдавать H.264 вместо VP9/AV1. Старые или слабые машины декодируют H.264 аппаратно, поэтому воспроизведение перестаёт заикаться, а вентилятор затихает. Качество выше 1080p может стать недоступным.",
+      "how": "Как включить",
+      "step1": "Установите расширение OmniGet для браузера и сопряжите его в Настройках.",
+      "step2": "Откройте всплывающее окно расширения на любой вкладке и включите переключатель H.264 (третий в заголовке).",
+      "step3": "Перезагрузите YouTube. Настройка сохраняется до её отключения.",
+      "extension": "Расширение браузера",
+      "extension_hint": "Опция находится в расширении, потому что только оно может работать до загрузки плеера YouTube.",
+      "open_settings": "Сопрячь расширение",
+      "userscript": "Без расширения",
+      "userscript_hint": "Тот же трюк через userscript для Tampermonkey / Violentmonkey."
     }
   },
   "downloads": {
