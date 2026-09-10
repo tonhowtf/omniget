@@ -260,6 +260,10 @@ remake/shots/
 
 # Local
 *.md
+# Excecao: o plugin de agente do OmniGet e codigo entregue, nao anotacao. As
+# skills e os comandos do Claude Code *sao* arquivos .md por formato, entao a
+# regra acima os apagaria da arvore (PR #316).
+!claude-plugin/**/*.md
 /docs/
 /remake/
 /mobbin/

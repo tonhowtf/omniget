@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "omniget",
+  "description": "Claude Code plugin for OmniGet: fetch media, captions and transcripts from a pasted URL",
+  "owner": {
+    "name": "Theodore Imonigie"
+  },
+  "plugins": [
+    {
+      "name": "omniget",
+      "description": "Paste a video or post URL: download it, pull the caption, transcribe the audio locally or in the cloud, and research it. Reuses OmniGet's managed yt-dlp, ffmpeg, cookies and models when the app is installed.",
+      "source": "./omniget",
+      "category": "productivity",
+      "keywords": ["omniget", "yt-dlp", "video", "transcript", "whisper", "download"]
+    }
+  ]
+}
