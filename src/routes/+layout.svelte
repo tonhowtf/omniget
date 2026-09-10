@@ -68,6 +68,22 @@
   let chatBadgeCount = $derived(getChatMentionCount() || getChatUnreadCount());
   let settings = $derived(getSettings());
 
+  // The tray menu is native, so the frontend owns the translations and pushes
+  // them whenever the locale changes (see sync_tray_strings in channels.rs).
+  $effect(() => {
+    const payload = {
+      quit: $t("tray.quit"),
+      downloadsNone: $t("tray.downloads_none"),
+      downloadsActive: $t("tray.downloads_active"),
+      channels: $t("tray.channels"),
+      tooltipActive: $t("tray.tooltip_active"),
+      tooltipSpeed: $t("tray.tooltip_speed"),
+    };
+    invoke("sync_tray_strings", payload).catch(() => {
+      // tray sync is best-effort (no backend in browser/dev)
+    });
+  });
+
   let isStudyRoute = $derived(page.url.pathname.startsWith("/study"));
   let isStreamPopout = $derived(page.url.pathname === "/omnidisc/stream");
   let hideAppSidebar = $derived(page.url.pathname.startsWith("/omnidisc") && isImmersive());
