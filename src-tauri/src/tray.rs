@@ -23,6 +23,36 @@ static LAST_SPEED_BUCKET: AtomicU64 = AtomicU64::new(u64::MAX);
 
 const SPEED_TOOLTIP_MIN_INTERVAL_MS: u64 = 2000;
 static BADGE_CACHE: OnceLock<Mutex<BadgeCache>> = OnceLock::new();
+static UI_LANG: OnceLock<String> = OnceLock::new();
+
+/// Tray menus are native — `$t` is unreachable here. Resolve the UI language
+/// once from settings.json (same store the settings manager persists) so the
+/// tray can speak the user's language without frontend round-trips.
+fn ui_lang(app: &AppHandle) -> &'static str {
+    UI_LANG
+        .get_or_init(|| {
+            crate::core::paths::app_data_dir()
+                .and_then(|dir| std::fs::read_to_string(dir.join("settings.json")).ok())
+                .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+                .and_then(|v| {
+                    v.get("app_settings")?
+                        .get("appearance")?
+                        .get("language")?
+                        .as_str()
+                        .map(|s| s.to_string())
+                })
+                .unwrap_or_default()
+        })
+        .as_str()
+}
+
+fn tr<'a>(lang: &str, en: &'a str, ru: &'a str) -> &'a str {
+    if lang == "ru" {
+        ru
+    } else {
+        en
+    }
+}
 
 struct BadgeCache {
     cache: HashMap<(u32, u32, u32), Vec<u8>>,
@@ -59,16 +89,17 @@ impl BadgeCache {
 }
 
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
+    let lang = ui_lang(app);
     let open_item = MenuItemBuilder::with_id("open", "OmniGet").build(app)?;
-    let downloads_item = MenuItemBuilder::with_id("downloads", active_label(0))
+    let downloads_item = MenuItemBuilder::with_id("downloads", active_label(lang, 0))
         .enabled(false)
         .build(app)?;
     DOWNLOADS_ITEM.set(downloads_item.clone()).ok();
-    let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
+    let quit_item = MenuItemBuilder::with_id("quit", tr(lang, "Quit", "Выход")).build(app)?;
 
     // Empty, hidden until the frontend pushes localized channel labels via
     // sync_channels_tray (the tray menu is native — $t is not reachable here).
-    let channels_submenu = SubmenuBuilder::new(app, "Channels").build()?;
+    let channels_submenu = SubmenuBuilder::new(app, tr(lang, "Channels", "Каналы")).build()?;
     channels_submenu.set_enabled(false).ok();
     CHANNELS_SUBMENU.set(channels_submenu.clone()).ok();
 
@@ -150,7 +181,7 @@ pub fn rebuild_menu(
 
 pub fn update_active_count(app: &AppHandle, count: u32) {
     if let Some(item) = DOWNLOADS_ITEM.get() {
-        let _ = item.set_text(active_label(count));
+        let _ = item.set_text(active_label(ui_lang(app), count));
     }
 
     let prev = ICON_COUNT.swap(count, Ordering::Relaxed);
@@ -162,8 +193,13 @@ pub fn update_active_count(app: &AppHandle, count: u32) {
     }
 
     if let Some(tray) = app.tray_by_id("main-tray") {
+        let lang = ui_lang(app);
         let tooltip = if count > 0 {
-            format!("OmniGet — {} active", count)
+            if lang == "ru" {
+                format!("OmniGet — активных: {}", count)
+            } else {
+                format!("OmniGet — {} active", count)
+            }
         } else {
             "OmniGet".into()
         };
@@ -223,12 +259,23 @@ pub fn update_speed_tooltip(app: &AppHandle, count: u32, total_speed_bps: f64) {
     LAST_TOOLTIP_MS.store(now, Ordering::Relaxed);
 
     if let Some(tray) = app.tray_by_id("main-tray") {
+        let lang = ui_lang(app);
         let tooltip = if total_speed_bps > 0.0 {
-            format!(
-                "OmniGet — {} active · {}",
-                count,
-                format_speed(total_speed_bps)
-            )
+            if lang == "ru" {
+                format!(
+                    "OmniGet — активных: {} · {}",
+                    count,
+                    format_speed(total_speed_bps)
+                )
+            } else {
+                format!(
+                    "OmniGet — {} active · {}",
+                    count,
+                    format_speed(total_speed_bps)
+                )
+            }
+        } else if lang == "ru" {
+            format!("OmniGet — активных: {}", count)
         } else {
             format!("OmniGet — {} active", count)
         };
@@ -257,9 +304,11 @@ pub fn compute_total_active(app: &AppHandle) -> u32 {
     total
 }
 
-fn active_label(count: u32) -> String {
+fn active_label(lang: &str, count: u32) -> String {
     if count == 0 {
-        "No active downloads".into()
+        tr(lang, "No active downloads", "Нет активных загрузок").into()
+    } else if lang == "ru" {
+        format!("Активных загрузок: {}", count)
     } else {
         format!("Downloads: {} active", count)
     }
