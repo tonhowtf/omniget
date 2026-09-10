@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
+const FIREFOX_STORE_URL: &str = "https://addons.mozilla.org/firefox/addon/omniget/";
+
 #[derive(Debug, Clone, Serialize)]
 pub struct BrowserExtensionStatus {
     pub browser: String,
@@ -31,7 +33,10 @@ fn extension_export_dir(app: &AppHandle, browser: &str) -> Option<PathBuf> {
 
 fn copy_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
     if !src.exists() {
-        return Ok(());
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("{} not found", src.display()),
+        ));
     }
     if src.is_file() {
         if let Some(parent) = dst.parent() {
@@ -54,24 +59,30 @@ fn copy_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
 pub async fn browser_extension_status(
     app: AppHandle,
 ) -> Result<Vec<BrowserExtensionStatus>, String> {
+    // `installable` used to be a hardcoded `true`. The Windows portable build
+    // is the bare `omniget.exe` with no `resources/` folder beside it, so the
+    // export copied nothing and still reported a path — the user opened an
+    // empty folder and had no idea why (issue #310). Ask the bundle whether the
+    // extension is actually there; when it is not, the UI falls back to the
+    // store link.
     let chrome_v = read_bundled_manifest_version(&app, "chrome");
     let firefox_v = read_bundled_manifest_version(&app, "firefox");
     Ok(vec![
         BrowserExtensionStatus {
             browser: "chrome".into(),
             supported: true,
+            installable: chrome_v.is_some(),
             bundled_version: chrome_v,
-            installable: true,
             install_hint_key: "chrome".into(),
             store_url: None,
         },
         BrowserExtensionStatus {
             browser: "firefox".into(),
             supported: true,
+            installable: firefox_v.is_some(),
             bundled_version: firefox_v,
-            installable: true,
             install_hint_key: "firefox".into(),
-            store_url: None,
+            store_url: Some(FIREFOX_STORE_URL.into()),
         },
         BrowserExtensionStatus {
             browser: "safari".into(),
@@ -104,6 +115,12 @@ pub async fn browser_extension_export(
         .path()
         .resolve(resource, tauri::path::BaseDirectory::Resource)
         .map_err(|e| format!("resolve resource: {}", e))?;
+    if !src.exists() {
+        return Err(format!(
+            "This build does not ship the {} extension files (the Windows portable .exe carries no resources folder). Install it from the store instead.",
+            browser
+        ));
+    }
     let dst = extension_export_dir(&app, &browser)
         .ok_or_else(|| "could not derive extension dir".to_string())?;
     if dst.exists() {
