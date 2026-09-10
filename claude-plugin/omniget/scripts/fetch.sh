@@ -60,10 +60,9 @@ elif [ -n "$quality" ]; then
 else
   args+=(-f "bv*+ba/b" --merge-output-format mp4)
 fi
-while IFS= read -r line; do args+=("$line"); done < <(og_cookie_args "$url")
-
+# og_run_ytdlp adds cookies and does one browser-login retry if the site blocks us.
 err="$(mktemp "${TMPDIR:-/tmp}/omniget-fetch.XXXXXX")"
-if ! output="$("$ytdlp" "${args[@]}" "$url" 2>"$err")"; then
+if ! output="$(og_run_ytdlp "$url" "$err" "${args[@]}")"; then
   cat "$err" >&2
   hint="$(og_explain_error "$(cat "$err" 2>/dev/null)")"
   [ -n "$hint" ] && echo "-> $hint" >&2

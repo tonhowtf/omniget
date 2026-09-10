@@ -59,6 +59,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.sh" --check-keys
 
 On failure the scripts print a plain-language `-> hint` line classifying the cause (rate-limit / login / DRM). If a site that used to work now fails for everyone, the fix is usually stale tools: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh" --update`.
 
+**Automatic login retry.** When a fetch is blocked by a login wall or rate-limit, the scripts retry once on their own using the browser you're logged into (auto-detected: Chrome/Brave/Edge/Firefox/Safari). No flag needed. Two things to know: on macOS the first browser-cookie read raises a one-time Keychain prompt (allow it, or choose Always Allow); and if your browser has several profiles and the default one isn't logged in, pin the right one — `OMNIGET_COOKIES_FROM_BROWSER=chrome:"Profile 3"`. If it's still blocked after the retry, it's a hard rate-limit — wait a few minutes.
+
 ## Rules
 
 - Downloads happen only when the user asked for the media. A bare URL with a question

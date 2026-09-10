@@ -96,10 +96,11 @@ behind login, and even OmniGet depends on a signed-in session for much of it. If
 returns *"empty media response"* or *HTTP 400/429*:
 
 - It's usually a **temporary rate-limit** — wait a few minutes and retry.
-- If the post is **private or login-gated**, provide a session: log into the site in the
-  OmniGet app (its cookies are reused automatically), or set
-  `OMNIGET_COOKIES_FROM_BROWSER=chrome` (or `firefox`/`safari`/`edge`) and retry. If your
-  browser has multiple profiles, point at the right one, e.g. `chrome:Default`.
+- If the post is **private or login-gated**, the skill **retries automatically** using the
+  browser you're logged into (auto-detected). On macOS the first such read raises a one-time
+  Keychain prompt — allow it. If your browser has several profiles and the default isn't the
+  logged-in one, pin it: `OMNIGET_COOKIES_FROM_BROWSER=chrome:"Profile 3"`. Logging into the
+  site in the OmniGet app also works — those cookies are reused first, before any browser.
 
 Public content on YouTube, TikTok, Reddit, Vimeo, Twitch, and the ~1,800 yt-dlp sites is
 reliable and needs none of this.

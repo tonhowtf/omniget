@@ -1,6 +1,6 @@
 {
   "name": "omniget",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Fetch media, captions and transcripts from a pasted URL with OmniGet's tooling: yt-dlp, ffmpeg, whisper.cpp or cloud speech APIs.",
   "author": {
     "name": "Theodore Imonigie"

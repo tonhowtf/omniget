@@ -44,9 +44,9 @@ if og_is_url "$input"; then
   sub_langs="en.*,en,.*-orig"
   [ -n "$lang" ] && sub_langs="$lang.*,$lang,$sub_langs"
   caperr="$tmp/yt.err"
-  meta="$("$ytdlp" --no-warnings --no-playlist --write-subs --write-auto-subs \
+  meta="$(og_run_ytdlp "$input" "$caperr" --no-warnings --no-playlist --write-subs --write-auto-subs \
       --sub-langs "$sub_langs" --convert-subs srt -o "$tmp/cap.%(ext)s" \
-      --print "%(id)s ||| %(duration)s ||| %(title)s" ${cookie_args[@]+"${cookie_args[@]}"} "$input" 2>"$caperr" | head -n 1)"
+      --print "%(id)s ||| %(duration)s ||| %(title)s" | head -n 1)"
   if [ -z "$meta" ] && grep -qiE "ERROR|empty media|HTTP Error" "$caperr" 2>/dev/null; then
     cat "$caperr" >&2
     hint="$(og_explain_error "$(cat "$caperr")")"; [ -n "$hint" ] && log "-> $hint"
@@ -62,7 +62,7 @@ if og_is_url "$input"; then
     caption="$(ls -S "$tmp"/cap.*.srt "$tmp"/cap.*.vtt 2>/dev/null | head -n 1 || true)"
     if [ -z "$caption" ]; then
       "$ytdlp" --no-warnings --no-playlist --skip-download --write-subs --sub-langs all \
-        --convert-subs srt -o "$tmp/cap.%(ext)s" ${cookie_args[@]+${cookie_args[@]+"${cookie_args[@]}"}} "$input" >/dev/null 2>&1 || true
+        --convert-subs srt -o "$tmp/cap.%(ext)s" ${cookie_args[@]+"${cookie_args[@]}"} "$input" >/dev/null 2>&1 || true
       caption="$(ls -S "$tmp"/cap.*.srt "$tmp"/cap.*.vtt 2>/dev/null | head -n 1 || true)"
     fi
   fi
@@ -71,8 +71,15 @@ if og_is_url "$input"; then
   else
     [ "$backend" = captions ] && { log "no usable captions for $input"; exit 3; }
     log "no captions; downloading audio"
-    audio="$("$ytdlp" --no-warnings --no-playlist --no-simulate --quiet -f "bestaudio/best" \
-        -o "$tmp/audio.%(ext)s" --print "after_move:filepath" ${cookie_args[@]+${cookie_args[@]+"${cookie_args[@]}"}} "$input" | tail -n 1)"
+    auderr="$tmp/audio.err"
+    audio="$(og_run_ytdlp "$input" "$auderr" --no-warnings --no-playlist --no-simulate --quiet -f "bestaudio/best" \
+        -o "$tmp/audio.%(ext)s" --print "after_move:filepath" | tail -n 1)"
+    if [ -z "$audio" ]; then
+      cat "$auderr" >&2 2>/dev/null || true
+      hint="$(og_explain_error "$(cat "$auderr" 2>/dev/null)")"; [ -n "$hint" ] && log "-> $hint"
+      log "could not download audio for $input"
+      exit 1
+    fi
   fi
 else
   [ -f "$input" ] || { log "no such file: $input"; exit 1; }

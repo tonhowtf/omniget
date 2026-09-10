@@ -238,6 +238,64 @@ og_explain_error() {
   esac
 }
 
+# og_detect_browser -> a browser name yt-dlp's --cookies-from-browser accepts, chosen from
+# what's installed (chrome, brave, edge, firefox, safari, chromium). Empty if none found.
+# Order favours the most commonly logged-in browser.
+og_detect_browser() {
+  case "$(og_os)" in
+    mac)
+      [ -d "/Applications/Google Chrome.app" ] && { echo chrome; return; }
+      [ -d "/Applications/Brave Browser.app" ] && { echo brave; return; }
+      [ -d "/Applications/Microsoft Edge.app" ] && { echo edge; return; }
+      [ -d "/Applications/Firefox.app" ] && { echo firefox; return; }
+      [ -d "/Applications/Safari.app" ] && { echo safari; return; }
+      ;;
+    linux)
+      for c in google-chrome google-chrome-stable brave-browser microsoft-edge firefox chromium chromium-browser; do
+        if command -v "$c" >/dev/null 2>&1; then
+          case "$c" in google-chrome*) echo chrome ;; brave*) echo brave ;; microsoft-edge) echo edge ;; firefox) echo firefox ;; chromium*) echo chromium ;; esac
+          return
+        fi
+      done
+      ;;
+    windows) echo chrome; return ;;
+  esac
+  return 1
+}
+
+# og_should_retry_with_cookies <stderr text> -> true when the failure is the login /
+# rate-limit class, i.e. a logged-in session is worth trying. Reuses og_explain_error's
+# categories without duplicating the patterns.
+og_should_retry_with_cookies() {
+  case "$(og_explain_error "$1")" in
+    "This platform is rate-limiting"*|"This content needs a logged-in session"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# og_run_ytdlp URL ERRFILE ARG... -> run yt-dlp ARG... URL, with ONE automatic cookie
+# retry if the first attempt is blocked and no cookies were used yet. Prints yt-dlp's
+# stdout on success; returns its exit code; stderr is captured to ERRFILE. When the retry
+# runs it prints a one-line notice to fd 2 (a browser-cookie read can raise a one-time
+# macOS Keychain prompt).
+og_run_ytdlp() {
+  local url="$1" errfile="$2"; shift 2
+  local ytdlp; ytdlp="$(og_tool_path yt-dlp)" || { echo "yt-dlp not found; run setup.sh" >"$errfile"; return 127; }
+  local cookie=() line had=false out br
+  while IFS= read -r line; do cookie+=("$line"); done < <(og_cookie_args "$url")
+  [ ${#cookie[@]} -gt 0 ] && had=true
+  if out="$("$ytdlp" "$@" ${cookie[@]+"${cookie[@]}"} "$url" 2>"$errfile")"; then
+    printf '%s' "$out"; return 0
+  fi
+  if ! $had && og_should_retry_with_cookies "$(cat "$errfile" 2>/dev/null)" && br="$(og_detect_browser)"; then
+    echo "omniget: request blocked — retrying with your $br login (a one-time Keychain prompt may appear)…" >&2
+    if out="$("$ytdlp" "$@" --cookies-from-browser "$br" "$url" 2>"$errfile")"; then
+      printf '%s' "$out"; return 0
+    fi
+  fi
+  return 1
+}
+
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   tools="$*"
   [ -n "$tools" ] || tools="omniget-cli yt-dlp ffmpeg ffprobe whisper-cli mlx_whisper"

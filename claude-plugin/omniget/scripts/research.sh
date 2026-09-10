@@ -11,9 +11,16 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 url="${1:?usage: research.sh <url>}"
 ytdlp="$(og_tool_path yt-dlp)" || { echo "research: yt-dlp not found; run doctor.sh" >&2; exit 1; }
 args=(-J --no-warnings --no-playlist)
-while IFS= read -r line; do args+=("$line"); done < <(og_cookie_args "$url")
 
-"$ytdlp" "${args[@]}" "$url" | python3 -c '
+err="$(mktemp "${TMPDIR:-/tmp}/omniget-research.XXXXXX")"
+if ! json="$(og_run_ytdlp "$url" "$err" "${args[@]}")"; then
+  cat "$err" >&2
+  hint="$(og_explain_error "$(cat "$err" 2>/dev/null)")"; [ -n "$hint" ] && echo "-> $hint" >&2
+  rm -f "$err"; exit 1
+fi
+rm -f "$err"
+
+printf '%s' "$json" | python3 -c '
 import json, sys
 info = json.load(sys.stdin)
 if info.get("_type") == "playlist":
