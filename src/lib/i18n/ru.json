@@ -6970,5 +6970,13 @@
       "tracking_title": "Parcel tracking",
       "tracking_desc": "Follow packages from 8 Brazilian carriers in one place, refreshed automatically."
     }
+  },
+  "tray": {
+    "quit": "Выход",
+    "downloads_none": "Нет активных загрузок",
+    "downloads_active": "Активных загрузок: {{count}}",
+    "channels": "Каналы",
+    "tooltip_active": "OmniGet — активных: {{count}}",
+    "tooltip_speed": "OmniGet — активных: {{count}} · {{speed}}"
   }
 }
