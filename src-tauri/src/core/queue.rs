@@ -285,6 +285,13 @@ pub struct DownloadQueue {
     pub max_concurrent: u32,
     pub stagger_delay_ms: u64,
     pub default_max_retries: u32,
+    /// Ultimo id entregue por `next_available_id`. Sem ele, dois `download_from_url`
+    /// simultaneos (um lote colado na omnibox dispara todos de uma vez) pegam o
+    /// mesmo timestamp em ms, soltam o lock para resolver o downloader e so depois
+    /// enfileiram — os dois entram com o mesmo id. Como todo o resto da fila acha
+    /// o item por `find(|i| i.id == id)`, o segundo item some: baixa o primeiro
+    /// duas vezes e o resto do lote nunca sai.
+    last_issued_id: u64,
 }
 
 fn can_finish_active_item(status: &QueueStatus) -> bool {
@@ -298,6 +305,7 @@ impl DownloadQueue {
             max_concurrent,
             stagger_delay_ms: 150,
             default_max_retries: 3,
+            last_issued_id: 0,
         }
     }
 
@@ -496,11 +504,15 @@ impl DownloadQueue {
             .collect()
     }
 
-    pub fn next_available_id(&self, preferred: u64) -> u64 {
-        let mut id = preferred;
+    /// Reserva um id livre. E `&mut self` de proposito: a reserva precisa
+    /// acontecer dentro do mesmo lock da consulta, senao chamadas concorrentes
+    /// recebem o mesmo numero.
+    pub fn next_available_id(&mut self, preferred: u64) -> u64 {
+        let mut id = preferred.max(self.last_issued_id.saturating_add(1));
         while self.items.iter().any(|i| i.id == id) {
             id = id.saturating_add(1);
         }
+        self.last_issued_id = id;
         id
     }
 
@@ -2366,5 +2378,33 @@ mod kind_tests {
     fn case_insensitive() {
         assert_eq!(kind_from_platform("YouTube"), QueueKind::Video);
         assert_eq!(kind_from_platform("TELEGRAM"), QueueKind::TelegramMedia);
+    }
+}
+
+#[cfg(test)]
+mod id_tests {
+    use super::DownloadQueue;
+
+    // Regressao do lote: duas chamadas seguidas dentro do mesmo milissegundo
+    // pediam o mesmo `preferred` e recebiam o mesmo id, porque a fila ainda
+    // estava vazia nas duas consultas. O id precisa avancar mesmo assim.
+    #[test]
+    fn ids_never_repeat_for_the_same_preferred_value() {
+        let mut q = DownloadQueue::new(3);
+        let a = q.next_available_id(1_700_000_000_000);
+        let b = q.next_available_id(1_700_000_000_000);
+        let c = q.next_available_id(1_700_000_000_000);
+        assert_eq!(a, 1_700_000_000_000);
+        assert_eq!(b, a + 1);
+        assert_eq!(c, b + 1);
+    }
+
+    #[test]
+    fn a_later_timestamp_still_wins() {
+        let mut q = DownloadQueue::new(3);
+        let a = q.next_available_id(1_700_000_000_000);
+        let b = q.next_available_id(1_700_000_005_000);
+        assert_eq!(a, 1_700_000_000_000);
+        assert_eq!(b, 1_700_000_005_000);
     }
 }
