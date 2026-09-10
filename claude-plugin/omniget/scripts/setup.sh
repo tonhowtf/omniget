@@ -16,12 +16,14 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=resolve-tools.sh
 . "$here/resolve-tools.sh"
 
-ASSUME_YES=false; WANT_LOCAL=false; CHECK_ONLY=false
+ASSUME_YES=false; WANT_LOCAL=false; CHECK_ONLY=false; WANT_CLI=true; DO_UPDATE=false
 for arg in "$@"; do
   case "$arg" in
     --yes|-y) ASSUME_YES=true ;;
     --local) WANT_LOCAL=true ;;
     --check-only) CHECK_ONLY=true ;;
+    --no-cli) WANT_CLI=false ;;
+    --update) DO_UPDATE=true; ASSUME_YES=true ;;
     *) echo "setup: unknown flag $arg" >&2; exit 2 ;;
   esac
 done
@@ -36,6 +38,28 @@ detect_pm() {
   esac
 }
 detect_pm
+
+if $DO_UPDATE; then
+  echo "Updating tools on $OS${PM:+ (via $PM)}"
+  echo
+  case "$PM" in
+    brew) echo ">>> brew upgrade yt-dlp ffmpeg"; brew upgrade yt-dlp ffmpeg 2>/dev/null || true ;;
+    winget) echo ">>> winget upgrade yt-dlp.yt-dlp Gyan.FFmpeg"; winget upgrade --silent yt-dlp.yt-dlp 2>/dev/null; winget upgrade --silent Gyan.FFmpeg 2>/dev/null || true ;;
+    scoop) echo ">>> scoop update yt-dlp ffmpeg"; scoop update yt-dlp ffmpeg 2>/dev/null || true ;;
+    apt-get) command -v pipx >/dev/null 2>&1 && { echo ">>> pipx upgrade yt-dlp"; pipx upgrade yt-dlp 2>/dev/null || true; } ;;
+    dnf|pacman|zypper) echo "Update yt-dlp/ffmpeg with your package manager; then re-run without --update." ;;
+    *) echo "No package manager detected; update yt-dlp/ffmpeg yourself." ;;
+  esac
+  echo
+  echo "== omniget-cli =="
+  install_omniget_cli
+  echo
+  echo "== Transcription API keys =="
+  bash "$here/keys.sh" check
+  echo
+  echo "Update complete."
+  exit 0
+fi
 
 # install_cmd TOOL -> echoes the shell command to install TOOL with the detected PM,
 # or empty if we don't have a recipe for this OS/PM.
@@ -101,6 +125,55 @@ else
 fi
 echo
 
+OMNIGET_REPO="${OMNIGET_REPO:-tonhowtf/omniget}"
+
+# Prebuilt omniget-cli asset triple for this machine, or empty if unsupported.
+cli_triple() {
+  case "$OS:$(og_arch)" in
+    mac:aarch64) echo "aarch64-apple-darwin:tar.gz" ;;
+    mac:x86_64) echo "x86_64-apple-darwin:tar.gz" ;;
+    windows:x86_64) echo "x86_64-pc-windows-msvc:zip" ;;
+    linux:x86_64) echo "x86_64-unknown-linux-gnu:tar.gz" ;;
+    *) echo "" ;;
+  esac
+}
+
+# Download the prebuilt omniget-cli for this OS/arch into the skill bin dir.
+# omniget-cli carries OmniGet's native Instagram/X/Bilibili/Threads extractors, which
+# are more reliable than plain yt-dlp for those sites.
+install_omniget_cli() {
+  local triple ext tag ver asset url dest bindir tmp
+  triple="$(cli_triple)"
+  if [ -z "$triple" ]; then
+    echo "  omniget-cli: no prebuilt binary for $OS/$(og_arch) — the skill will use yt-dlp for every site."
+    return 1
+  fi
+  ext="${triple#*:}"; triple="${triple%%:*}"
+  tag="$(curl -fsSL -m 30 "https://api.github.com/repos/$OMNIGET_REPO/releases/latest"         | python3 -c 'import json,sys; print(json.load(sys.stdin).get("tag_name",""))' 2>/dev/null)"
+  [ -n "$tag" ] || { echo "  omniget-cli: couldn't resolve the latest release (offline?). Skipping."; return 1; }
+  ver="${tag#v}"
+  asset="omniget-cli-$ver-$triple.$ext"
+  url="https://github.com/$OMNIGET_REPO/releases/download/$tag/$asset"
+  bindir="$(og_skill_bin_dir)"; mkdir -p "$bindir"
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/omniget-cli.XXXXXX")"
+  echo "  omniget-cli: downloading $asset ..."
+  if ! curl -fSL --progress-bar -o "$tmp/pkg" "$url"; then
+    echo "  omniget-cli: download failed ($url)"; rm -rf "$tmp"; return 1
+  fi
+  ( cd "$tmp" && case "$ext" in tar.gz) tar xzf pkg ;; zip) unzip -oq pkg ;; esac )
+  local found; found="$(find "$tmp" -type f \( -name omniget-cli -o -name omniget-cli.exe \) | head -1)"
+  if [ -z "$found" ]; then echo "  omniget-cli: binary not found in archive"; rm -rf "$tmp"; return 1; fi
+  dest="$bindir/$(basename "$found")"
+  mv "$found" "$dest"; chmod +x "$dest"
+  [ "$OS" = mac ] && xattr -d com.apple.quarantine "$dest" 2>/dev/null
+  rm -rf "$tmp"
+  if "$dest" --version >/dev/null 2>&1; then
+    echo "  omniget-cli: installed ($tag) -> $dest"
+  else
+    echo "  omniget-cli: installed but did not run cleanly; the skill will fall back to yt-dlp"
+  fi
+}
+
 run_installs() {
   [ ${#missing[@]} -eq 0 ] && return 0
   [ -z "$PM" ] && { echo "Can't auto-install without a package manager (see above)."; return 1; }
@@ -135,6 +208,12 @@ if [ ${#missing[@]} -gt 0 ] && [ "$CHECK_ONLY" != true ]; then
     echo "Re-run with --yes to install, or run the commands above yourself."
   fi
   $do_install && run_installs
+  echo
+fi
+
+if $WANT_CLI && [ "$CHECK_ONLY" != true ] && ! og_find_tool omniget-cli >/dev/null 2>&1; then
+  echo "== omniget-cli (native Instagram / X / Bilibili / Threads extractors) =="
+  install_omniget_cli
   echo
 fi
 

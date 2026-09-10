@@ -62,7 +62,15 @@ else
 fi
 while IFS= read -r line; do args+=("$line"); done < <(og_cookie_args "$url")
 
-output="$("$ytdlp" "${args[@]}" "$url")"
+err="$(mktemp "${TMPDIR:-/tmp}/omniget-fetch.XXXXXX")"
+if ! output="$("$ytdlp" "${args[@]}" "$url" 2>"$err")"; then
+  cat "$err" >&2
+  hint="$(og_explain_error "$(cat "$err" 2>/dev/null)")"
+  [ -n "$hint" ] && echo "-> $hint" >&2
+  rm -f "$err"
+  exit 1
+fi
+rm -f "$err"
 meta="$(printf '%s\n' "$output" | head -n 1)"
 path="$(printf '%s\n' "$output" | tail -n 1)"
 [ -f "$path" ] || { echo "fetch: download finished but file not found: $path" >&2; exit 1; }

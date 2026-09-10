@@ -53,7 +53,7 @@ Keys are read from the environment or `~/.config/ai-keys.env`. Never print them.
 |---|---|---|
 | 3 | `--backend captions` and the platform has none | rerun with `--backend auto` |
 | 4 | no local engine and no key | offer `setup.sh` (installs tools, confirm once) and tell the user to add a key with `keys.sh set` in their own terminal; `get-model.sh large-v3-turbo-q5_0` fetches a local model (547 MB) |
-| 1 | tool missing or download failed | run `doctor.sh`; for login errors see the `omniget-fetch` skill's error table |
+| 1 | tool missing or download failed | read the `-> hint` the script printed (rate-limit / login / DRM); run `doctor.sh`, or `setup.sh --update` if a site broke; for login errors see the `omniget-fetch` error table |
 
 ## Rules
 

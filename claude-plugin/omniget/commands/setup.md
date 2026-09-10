@@ -10,9 +10,10 @@ Set up everything the skill needs, using the `omniget-fetch` / `omniget-transcri
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh" $ARGUMENTS
    ```
-   - It checks for `yt-dlp` and `ffmpeg`, lists anything missing, and (on Mac/Windows)
-     installs it after one confirmation. `--yes` skips the prompt; `--local` also sets up
-     a local Whisper engine + model.
+   - It checks for `yt-dlp` and `ffmpeg`, lists anything missing, installs it after one
+     confirmation (Mac/Windows), and downloads `omniget-cli` (native Instagram/X/Bilibili
+     extractors). `--yes` skips the prompt; `--local` adds a local Whisper engine + model;
+     `--no-cli` skips omniget-cli; `--update` refreshes yt-dlp and omniget-cli.
    - It cannot type the user's API keys, and neither can you. It reports which keys work
      and prints the exact command for the user to run in their own terminal to add one.
 2. Read the output and tell the user, in plain words: what is now installed, which

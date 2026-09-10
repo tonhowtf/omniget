@@ -39,6 +39,11 @@ og_skill_cache_dir() {
   echo "${OMNIGET_SKILL_CACHE:-$HOME/.cache/omniget-skill}"
 }
 
+# Where the skill installs its own binaries (e.g. a downloaded omniget-cli).
+og_skill_bin_dir() {
+  echo "$(og_skill_cache_dir)/bin"
+}
+
 # Output directory for media and transcripts.
 og_output_dir() {
   echo "${OMNIGET_DIR:-$HOME/Downloads/omniget}"
@@ -60,6 +65,11 @@ og_find_tool() {
   path="$(og_data_dir)/bin/$(og_exe "$name")"
   if [ -x "$path" ]; then
     printf '%s\tomniget\n' "$path"
+    return 0
+  fi
+  path="$(og_skill_bin_dir)/$(og_exe "$name")"
+  if [ -x "$path" ]; then
+    printf '%s\tskill\n' "$path"
     return 0
   fi
   if path="$(command -v "$name" 2>/dev/null)"; then
@@ -197,6 +207,34 @@ og_prefers_cli() {
   case "$(og_url_host "$1")" in
     instagram.com|threads.net|threads.com|twitter.com|x.com|bilibili.com|b23.tv) return 0 ;;
     *) return 1 ;;
+  esac
+}
+
+# og_arch -> normalized CPU arch: aarch64 or x86_64 (matches release asset triples).
+og_arch() {
+  case "$(uname -m)" in
+    arm64|aarch64) echo aarch64 ;;
+    x86_64|amd64) echo x86_64 ;;
+    *) uname -m ;;
+  esac
+}
+
+# og_explain_error <text> -> print one plain-language hint for a known download failure,
+# or nothing. Turns raw yt-dlp/omniget-cli stderr into advice the user can act on.
+og_explain_error() {
+  local t="$1"
+  case "$t" in
+    *"empty media response"*|*"HTTP Error 400"*|*"HTTP Error 429"*|*"Too Many Requests"*|*"rate-limit"*|*"rate limit"*)
+      echo "This platform is rate-limiting or temporarily blocking this request (common on Instagram/X). Wait a few minutes and retry; if it's private, sign in (see cookies below)." ;;
+    *"Sign in to confirm"*|*"login required"*|*"Requested content is not available"*|*"Private video"*|*"This video is private"*|*"HTTP Error 401"*|*"HTTP Error 403"*|*"login_required"*|*"require_login"*)
+      echo "This content needs a logged-in session. Use OmniGet's cookies for the site, or set OMNIGET_COOKIES_FROM_BROWSER=chrome (or firefox/safari/edge), then retry." ;;
+    *"DRM"*|*"SAMPLE-AES"*|*"FairPlay"*|*"Widevine"*)
+      echo "This stream is DRM-protected and cannot be downloaded. OmniGet does not bypass DRM." ;;
+    *"Unsupported URL"*|*"no suitable extractor"*|*"extractor is broken"*)
+      echo "No working extractor for this URL right now. Try updating the tools (setup.sh --update); some sites break until yt-dlp/omniget-cli is refreshed." ;;
+    *"Requested format is not available"*|*"requested format not available"*)
+      echo "The requested quality wasn't available. Retry without --quality." ;;
+    *) : ;;
   esac
 }
 

@@ -52,9 +52,12 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.sh" --check-keys
 | `yt-dlp not found` | no engine available | show the doctor's install lines and ask before installing anything |
 | `Sign in to confirm`, `login required`, `Private video`, HTTP 401/403 | platform wants a session | use OmniGet's cookies (automatic when the app has an account for that site) or set `OMNIGET_COOKIES_FROM_BROWSER=chrome` and retry |
 | HTTP 429, `rate-limit` | too many requests | wait 30 s and retry once; then stop and tell the user |
+| `empty media response`, `HTTP 400` (Instagram/X) | rate-limited or login-gated | wait a few minutes and retry; if private, provide cookies (see below). `omniget-cli` (installed by setup) handles these sites better than raw yt-dlp |
 | `DRM`, `SAMPLE-AES`, `Widevine` | protected stream | stop; explain that OmniGet does not bypass DRM |
 | `Unsupported URL` | no extractor | say so; suggest the page's direct media link if the user has one |
 | `Requested format is not available` | quality cap too strict | retry without `--quality` |
+
+On failure the scripts print a plain-language `-> hint` line classifying the cause (rate-limit / login / DRM). If a site that used to work now fails for everyone, the fix is usually stale tools: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh" --update`.
 
 ## Rules
 

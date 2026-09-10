@@ -8,6 +8,8 @@ desktop app's own resolver: `omniget-cli` on `PATH` → the binaries OmniGet
 manages in its app-data folder → the system `PATH`. Nothing here requires the
 desktop app; with `yt-dlp` and `ffmpeg` on `PATH` it works on its own.
 
+> Full install guide, per-OS notes, updating, and private-content handling: **[INSTALL.md](INSTALL.md)**.
+
 ## Setup
 
 Three steps. The first is the only one that's always required.
@@ -25,9 +27,12 @@ Three steps. The first is the only one that's always required.
 /omniget:setup
 ```
 
-It checks for `yt-dlp` and `ffmpeg`, and installs whatever is missing after a single
-confirmation (Mac via Homebrew, Windows via winget/scoop). Add `--local` to also set up
-an on-device Whisper engine and model. You can also run it straight from a terminal:
+It checks for `yt-dlp` and `ffmpeg`, installs whatever is missing after a single
+confirmation (Mac via Homebrew, Windows via winget/scoop), and downloads the prebuilt
+`omniget-cli` for your OS/arch — OmniGet's native extractors for Instagram/X/Bilibili/Threads,
+which are more reliable than raw yt-dlp for those sites. Add `--local` to also set up an
+on-device Whisper engine and model, `--no-cli` to skip omniget-cli, or `--update` to refresh
+`yt-dlp` and `omniget-cli` when a site breaks. You can also run it from a terminal:
 `bash claude-plugin/omniget/scripts/setup.sh` (add `--yes` to skip the prompt).
 
 If the OmniGet desktop app is installed, `yt-dlp` and `ffmpeg` are already managed by it,
@@ -70,7 +75,7 @@ bash claude-plugin/omniget/scripts/keys.sh check
 | `/omniget:fetch <url> [--audio] [--quality N]` | Download the media to `~/Downloads/omniget` |
 | `/omniget:transcribe <url\|file> [--backend B] [--lang xx] [--summarize]` | Transcribe and optionally summarize |
 | `/omniget:research <url> [--backend B]` | Caption + transcript distilled into a Markdown note with `[mm:ss]` references |
-| `/omniget:setup` | Install missing tools for your OS (confirm once) and check your API keys |
+| `/omniget:setup` | Install missing tools + `omniget-cli` (confirm once), check API keys; `--update` refreshes them |
 | `/omniget:doctor` | Report available tools, models, and keys, plus how to add the missing ones |
 
 The two skills (`omniget-fetch`, `omniget-transcribe`) trigger on their own when a

@@ -43,9 +43,15 @@ if og_is_url "$input"; then
   # One yt-dlp call fetches metadata and any captions. --print implies --skip-download.
   sub_langs="en.*,en,.*-orig"
   [ -n "$lang" ] && sub_langs="$lang.*,$lang,$sub_langs"
+  caperr="$tmp/yt.err"
   meta="$("$ytdlp" --no-warnings --no-playlist --write-subs --write-auto-subs \
       --sub-langs "$sub_langs" --convert-subs srt -o "$tmp/cap.%(ext)s" \
-      --print "%(id)s ||| %(duration)s ||| %(title)s" ${cookie_args[@]+${cookie_args[@]+"${cookie_args[@]}"}} "$input" | head -n 1)"
+      --print "%(id)s ||| %(duration)s ||| %(title)s" ${cookie_args[@]+"${cookie_args[@]}"} "$input" 2>"$caperr" | head -n 1)"
+  if [ -z "$meta" ] && grep -qiE "ERROR|empty media|HTTP Error" "$caperr" 2>/dev/null; then
+    cat "$caperr" >&2
+    hint="$(og_explain_error "$(cat "$caperr")")"; [ -n "$hint" ] && log "-> $hint"
+    exit 1
+  fi
   id="$(printf '%s' "$meta" | awk -F' \\|\\|\\| ' '{print $1}')"
   duration="$(printf '%s' "$meta" | awk -F' \\|\\|\\| ' '{print $2}')"
   [ -n "$title" ] || title="$(printf '%s' "$meta" | awk -F' \\|\\|\\| ' '{print $3}')"
