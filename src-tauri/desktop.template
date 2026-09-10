@@ -1,0 +1,20 @@
+[Desktop Entry]
+# Categories, GenericName and Keywords are hardcoded rather than derived from
+# `bundle.category`: settings.app_category() maps through a fixed AppCategory
+# table that cannot express a multi-value list like Network;FileTransfer;.
+# Keep these three lines in sync with flatpak/wtf.tonho.omniget.desktop.
+Categories=Network;FileTransfer;Utility;
+GenericName=Download Manager
+Keywords=omniget;download;downloader;video;media;udemy;hotmart;youtube;telegram;
+{{#if comment}}
+Comment={{comment}}
+{{/if}}
+Exec={{exec}}
+StartupWMClass={{exec}}
+Icon={{icon}}
+Name={{name}}
+Terminal=false
+Type=Application
+{{#if mime_type}}
+MimeType={{mime_type}}
+{{/if}}

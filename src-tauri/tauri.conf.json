@@ -77,7 +77,11 @@
       "deb": {
         "depends": [
           "libasound2"
-        ]
+        ],
+        "desktopTemplate": "./desktop.template"
+      },
+      "rpm": {
+        "desktopTemplate": "./desktop.template"
       }
     }
   }

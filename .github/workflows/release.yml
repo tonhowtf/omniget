@@ -73,6 +73,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           LDAI_UPDATE_INFORMATION: ${{ contains(matrix.platform, 'ubuntu') && 'gh-releases-zsync|tonhowtf|omniget|latest|*AppImage.zsync' || '' }}
+          # linuxdeploy bundles an old `strip` that fails on modern .relr.dyn
+          # relocations; disable stripping so AppImage bundling succeeds.
+          NO_STRIP: ${{ contains(matrix.platform, 'ubuntu') && '1' || '' }}
           NODE_OPTIONS: --max-old-space-size=6144
         with:
           tagName: v__VERSION__
