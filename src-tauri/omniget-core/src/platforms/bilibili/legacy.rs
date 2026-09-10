@@ -24,8 +24,37 @@ pub fn is_playlist_or_series(url: &str) -> bool {
         {
             return true;
         }
+        // The current 合集 / 系列 link. Bilibili moved collections from
+        // `/channel/collectiondetail?sid=` to `/lists/<sid>`, and only the old
+        // form was listed here — so a collection was fetched as if it were one
+        // video, yt-dlp got the listing page and answered "Unable to download
+        // webpage" (issue #311). yt-dlp's collection and series extractors both
+        // accept the new form.
+        if is_space_list_path(path) {
+            return true;
+        }
+        // bilibili.com/list/<id> — the standalone playlist page.
+        if path.starts_with("/list/") {
+            return true;
+        }
     }
     false
+}
+
+/// `/<mid>/lists/<sid>` on space.bilibili.com. The sid has to be there: bare
+/// `/<mid>/lists` is the index of every collection an uploader has, which no
+/// extractor resolves to a video list.
+fn is_space_list_path(path: &str) -> bool {
+    let mut parts = path.trim_matches('/').split('/');
+    let mid = parts.next().unwrap_or("");
+    if mid.is_empty() || !mid.chars().all(|c| c.is_ascii_digit()) {
+        return false;
+    }
+    if parts.next() != Some("lists") {
+        return false;
+    }
+    let sid = parts.next().unwrap_or("");
+    !sid.is_empty() && sid.chars().all(|c| c.is_ascii_digit())
 }
 
 pub fn bilibili_extra_flags() -> Vec<String> {
@@ -343,5 +372,49 @@ mod tests {
         assert!(!is_playlist_or_series(
             "https://www.bilibili.com/video/BV1xx411c7mu"
         ));
+    }
+
+    // Issue #311: the collection page listed its videos in the omnibox but the
+    // download went down the single-video path and failed on the listing page.
+    #[test]
+    fn modern_collection_link_is_playlist() {
+        assert!(is_playlist_or_series(
+            "https://space.bilibili.com/2142762/lists/3662502?type=season"
+        ));
+        assert!(is_playlist_or_series(
+            "https://space.bilibili.com/2142762/lists/3662502"
+        ));
+    }
+
+    #[test]
+    fn modern_series_link_is_playlist() {
+        assert!(is_playlist_or_series(
+            "https://space.bilibili.com/1958703906/lists/547718?type=series"
+        ));
+    }
+
+    #[test]
+    fn old_collection_link_still_is_playlist() {
+        assert!(is_playlist_or_series(
+            "https://space.bilibili.com/2142762/channel/collectiondetail?sid=57445"
+        ));
+    }
+
+    #[test]
+    fn the_lists_index_is_not_a_playlist() {
+        // No sid — nothing for an extractor to expand.
+        assert!(!is_playlist_or_series(
+            "https://space.bilibili.com/2142762/lists"
+        ));
+    }
+
+    #[test]
+    fn standalone_playlist_page_is_playlist() {
+        assert!(is_playlist_or_series("https://www.bilibili.com/list/ml123"));
+    }
+
+    #[test]
+    fn a_space_home_is_not_a_playlist() {
+        assert!(!is_playlist_or_series("https://space.bilibili.com/2142762"));
     }
 }
