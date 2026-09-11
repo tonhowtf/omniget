@@ -2,8 +2,8 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
-use std::sync::Mutex;
 use std::sync::OnceLock;
+use std::sync::{Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use tauri::{
@@ -23,6 +23,50 @@ static LAST_SPEED_BUCKET: AtomicU64 = AtomicU64::new(u64::MAX);
 
 const SPEED_TOOLTIP_MIN_INTERVAL_MS: u64 = 2000;
 static BADGE_CACHE: OnceLock<Mutex<BadgeCache>> = OnceLock::new();
+static QUIT_ITEM: OnceLock<MenuItem<Wry>> = OnceLock::new();
+
+/// Tray menus are native — `$t` is unreachable here. The frontend resolves the
+/// labels with `$t` and pushes them via `sync_tray_strings`; the compiled-in
+/// English default is only the fallback until the first sync lands.
+static TRAY_STRINGS: OnceLock<RwLock<TrayStrings>> = OnceLock::new();
+
+#[derive(Clone)]
+pub struct TrayStrings {
+    pub quit: String,
+    pub channels: String,
+    pub downloads_none: String,
+    /// Format with a `{{count}}` placeholder.
+    pub downloads_active: String,
+    /// Format with a `{{count}}` placeholder.
+    pub tooltip_active: String,
+    /// Format with `{{count}}` and `{{speed}}` placeholders.
+    pub tooltip_speed: String,
+}
+
+impl Default for TrayStrings {
+    fn default() -> Self {
+        Self {
+            quit: "Quit".into(),
+            channels: "Channels".into(),
+            downloads_none: "No active downloads".into(),
+            downloads_active: "Downloads: {{count}} active".into(),
+            tooltip_active: "OmniGet — {{count}} active".into(),
+            tooltip_speed: "OmniGet — {{count}} active · {{speed}}".into(),
+        }
+    }
+}
+
+fn tray_strings() -> &'static RwLock<TrayStrings> {
+    TRAY_STRINGS.get_or_init(|| RwLock::new(TrayStrings::default()))
+}
+
+fn fill(template: &str, values: &[(&str, String)]) -> String {
+    let mut out = template.to_string();
+    for (key, value) in values {
+        out = out.replace(&format!("{{{{{}}}}}", key), value);
+    }
+    out
+}
 
 struct BadgeCache {
     cache: HashMap<(u32, u32, u32), Vec<u8>>,
@@ -59,16 +103,21 @@ impl BadgeCache {
 }
 
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
+    let strings = tray_strings()
+        .read()
+        .expect("tray strings poisoned")
+        .clone();
     let open_item = MenuItemBuilder::with_id("open", "OmniGet").build(app)?;
     let downloads_item = MenuItemBuilder::with_id("downloads", active_label(0))
         .enabled(false)
         .build(app)?;
     DOWNLOADS_ITEM.set(downloads_item.clone()).ok();
-    let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
+    let quit_item = MenuItemBuilder::with_id("quit", strings.quit.clone()).build(app)?;
+    QUIT_ITEM.set(quit_item.clone()).ok();
 
     // Empty, hidden until the frontend pushes localized channel labels via
     // sync_channels_tray (the tray menu is native — $t is not reachable here).
-    let channels_submenu = SubmenuBuilder::new(app, "Channels").build()?;
+    let channels_submenu = SubmenuBuilder::new(app, strings.channels.clone()).build()?;
     channels_submenu.set_enabled(false).ok();
     CHANNELS_SUBMENU.set(channels_submenu.clone()).ok();
 
@@ -163,7 +212,8 @@ pub fn update_active_count(app: &AppHandle, count: u32) {
 
     if let Some(tray) = app.tray_by_id("main-tray") {
         let tooltip = if count > 0 {
-            format!("OmniGet — {} active", count)
+            let strings = tray_strings().read().expect("tray strings poisoned");
+            fill(&strings.tooltip_active, &[("count", count.to_string())])
         } else {
             "OmniGet".into()
         };
@@ -223,14 +273,17 @@ pub fn update_speed_tooltip(app: &AppHandle, count: u32, total_speed_bps: f64) {
     LAST_TOOLTIP_MS.store(now, Ordering::Relaxed);
 
     if let Some(tray) = app.tray_by_id("main-tray") {
+        let strings = tray_strings().read().expect("tray strings poisoned");
         let tooltip = if total_speed_bps > 0.0 {
-            format!(
-                "OmniGet — {} active · {}",
-                count,
-                format_speed(total_speed_bps)
+            fill(
+                &strings.tooltip_speed,
+                &[
+                    ("count", count.to_string()),
+                    ("speed", format_speed(total_speed_bps)),
+                ],
             )
         } else {
-            format!("OmniGet — {} active", count)
+            fill(&strings.tooltip_active, &[("count", count.to_string())])
         };
         let _ = tray.set_tooltip(Some(&tooltip));
     }
@@ -258,11 +311,30 @@ pub fn compute_total_active(app: &AppHandle) -> u32 {
 }
 
 fn active_label(count: u32) -> String {
+    let strings = tray_strings().read().expect("tray strings poisoned");
     if count == 0 {
-        "No active downloads".into()
+        strings.downloads_none.clone()
     } else {
-        format!("Downloads: {} active", count)
+        fill(&strings.downloads_active, &[("count", count.to_string())])
     }
+}
+
+/// Replaces the compiled-in English defaults with the localized strings the
+/// frontend resolved via `$t`, and refreshes the live items right away so a
+/// language switch updates the tray without a restart.
+pub fn apply_strings(strings: TrayStrings) -> tauri::Result<()> {
+    let (quit, channels) = (strings.quit.clone(), strings.channels.clone());
+    *tray_strings().write().expect("tray strings poisoned") = strings;
+    if let Some(item) = QUIT_ITEM.get() {
+        item.set_text(quit)?;
+    }
+    if let Some(submenu) = CHANNELS_SUBMENU.get() {
+        submenu.set_text(channels)?;
+    }
+    if let Some(item) = DOWNLOADS_ITEM.get() {
+        item.set_text(active_label(LAST_ACTIVE.load(Ordering::Relaxed)))?;
+    }
+    Ok(())
 }
 
 pub fn show_window(app: &AppHandle) {
