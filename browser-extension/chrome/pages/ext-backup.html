@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>OmniGet Extension — Back up your extension list</title>
+    <link rel="stylesheet" href="options.css" />
+    <link rel="stylesheet" href="ext-backup.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <div class="card wide" id="card">
+        <p class="eyebrow">OmniGet Extension</p>
+
+        <header>
+          <h1>Back up your extension list</h1>
+          <p class="body">
+            Chrome is turning off Manifest V2 extensions. Export what you have
+            installed now — names, versions, permissions and store links — so
+            you can reinstall or replace them later. Everything is read on this
+            machine and saved to a file you choose; nothing is uploaded.
+          </p>
+        </header>
+
+        <div id="permission-status" class="discovery" role="status" aria-live="polite">
+          <span id="permission-message">Checking access to the extension list…</span>
+        </div>
+
+        <div class="actions">
+          <button id="grant" type="button" class="button primary" hidden>
+            Allow access and scan
+          </button>
+          <button id="rescan" type="button" class="button" hidden>Scan again</button>
+          <button id="export-json" type="button" class="button" disabled>Export JSON</button>
+          <button id="export-html" type="button" class="button" disabled>Export HTML</button>
+          <button id="export-md" type="button" class="button" disabled>Export Markdown</button>
+          <button id="revoke" type="button" class="button" hidden>Revoke access</button>
+        </div>
+
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+
+        <ul id="summary" class="summary" hidden></ul>
+
+        <section id="results" class="results" hidden>
+          <h2 id="results-title">Manifest V2 — at risk</h2>
+          <p class="hint" id="results-hint">
+            Store links are not checked over the network, so an extension that
+            was already removed from the store still shows a link here.
+          </p>
+          <div id="mv2-list" class="ext-list"></div>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="ext-backup.js"></script>
+  </body>
+</html>

@@ -255,5 +255,36 @@
   },
   "popup_h264_label": {
     "message": "在 YouTube 上强制使用 H.264"
+  },
+  "popup_kind_av": {
+    "message": "视频 + 音频"
+  },
+  "popup_pair_files": {
+    "message": "$count$ 个文件",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_size_approx": {
+    "message": "约 $size$",
+    "placeholders": {
+      "size": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_deep_search_label": {
+    "message": "深度搜索（找出隐藏的播放列表）"
+  },
+  "popup_deep_search_denied": {
+    "message": "深度搜索需要所有网站的权限"
+  },
+  "popup_deep_search_badge": {
+    "message": "在页面中找到"
+  },
+  "popup_manifest_gone": {
+    "message": "该播放列表来自已重新加载的页面，请重新打开"
   }
 }

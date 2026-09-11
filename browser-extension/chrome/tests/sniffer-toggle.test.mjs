@@ -114,3 +114,43 @@ test("loadSnifferState honours a previously-disabled flag", async () => {
 
   assert.equal(enabled, false);
 });
+
+test("loadSnifferState answers the same promise to every caller", async () => {
+  let reads = 0;
+  globalThis.chrome = makeChromeStub({ storage: { omniget_sniffer_enabled: false } });
+  const realGet = globalThis.chrome.storage.local.get;
+  globalThis.chrome.storage.local.get = async (key) => {
+    reads += 1;
+    return realGet(key);
+  };
+  const mod = await loadModuleFresh();
+
+  // The sniffer listeners consult this on every captured request; it must not
+  // hit storage each time.
+  const [a, b, c] = await Promise.all([
+    mod.loadSnifferState(),
+    mod.loadSnifferState(),
+    mod.loadSnifferState(),
+  ]);
+
+  assert.equal(reads, 1);
+  assert.deepEqual([a, b, c], [false, false, false]);
+});
+
+test("loadSnifferState reflects a toggle made after the first read", async () => {
+  globalThis.chrome = makeChromeStub({ grant: true, storage: {} });
+  const mod = await loadModuleFresh();
+
+  assert.equal(await mod.loadSnifferState(), true);
+  await mod.setSnifferEnabled(false);
+  assert.equal(await mod.loadSnifferState(), false);
+  await mod.setSnifferEnabled(true);
+  assert.equal(await mod.loadSnifferState(), true);
+});
+
+test("loadSnifferState keeps the default when storage throws", async () => {
+  globalThis.chrome = { storage: { local: { get: async () => { throw new Error("no storage"); } } } };
+  const mod = await loadModuleFresh();
+
+  assert.equal(await mod.loadSnifferState(), true);
+});

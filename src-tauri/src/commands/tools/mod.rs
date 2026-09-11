@@ -4,18 +4,32 @@
 //! pelo evento `tool-progress` com o payload `ToolProgress`.
 
 pub mod ai;
+pub mod audio;
+pub mod bilibili;
+pub mod blogs;
+pub mod ctf;
 pub mod desktop;
 pub mod documents;
 pub mod downloads;
 pub mod files;
+pub mod games;
 pub mod images;
 pub mod instagram;
+pub mod linkedin;
+pub mod lists;
+pub mod music;
 pub mod pdf;
 pub mod phone;
 pub mod pinterest;
+pub mod reddit;
 pub mod speech;
 pub mod system;
 pub mod text;
+pub mod tiktok;
+pub mod tumblr;
+pub mod twitch;
+pub mod video;
+pub mod vimeo;
 pub mod x;
 pub mod youtube;
 

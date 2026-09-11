@@ -1,0 +1,109 @@
+/* Complementa options.css: só o que a listagem de extensões precisa a mais. */
+
+.card.wide {
+  width: min(100%, 720px);
+}
+
+.actions {
+  flex-wrap: wrap;
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.summary li {
+  min-width: 92px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: #95a0b7;
+}
+
+.summary li b {
+  display: block;
+  font-size: 18px;
+  color: #f5f7fb;
+  font-weight: 600;
+}
+
+.summary li.risk {
+  border-color: rgba(255, 125, 56, 0.45);
+}
+
+.summary li.risk b {
+  color: #ff9a66;
+}
+
+.results {
+  margin-top: 22px;
+}
+
+.results h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  color: #ff9a66;
+}
+
+.results .hint {
+  margin: 0 0 12px;
+}
+
+.ext-list {
+  display: grid;
+  gap: 10px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.ext-row {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 125, 56, 0.35);
+}
+
+.ext-row img {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 7px;
+}
+
+.ext-row .ext-body {
+  min-width: 0;
+}
+
+.ext-row .ext-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ext-row .ext-meta,
+.ext-row .ext-perms {
+  font-size: 12px;
+  color: #95a0b7;
+  overflow-wrap: anywhere;
+}
+
+.ext-row .ext-perms {
+  margin-top: 4px;
+}
+
+.ext-row a {
+  color: #ff9a66;
+}
+
+.empty {
+  font-size: 13px;
+  color: #95a0b7;
+}

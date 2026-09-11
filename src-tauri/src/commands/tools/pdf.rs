@@ -2,7 +2,7 @@
 //! em `omniget_core::core::tools::pdf`; aqui só se despacha para uma thread
 //! de bloqueio porque o PDFium é síncrono e não é thread-safe.
 
-use omniget_core::core::tools::pdf;
+use omniget_core::core::tools::{pdf, pdf_markdown, pdf_repair, pdf_write};
 
 use super::{err, progress};
 
@@ -156,4 +156,146 @@ pub async fn tool_pdf_office(
     )
     .await
     .map_err(err)
+}
+
+#[tauri::command]
+pub async fn tool_pdf_repair(
+    app: tauri::AppHandle,
+    opts: pdf_repair::RepairOptions,
+) -> Result<pdf_repair::RepairResult, String> {
+    pdf_repair::run(opts, progress(&app)).await.map_err(err)
+}
+
+#[tauri::command]
+pub async fn tool_pdf_redaction_check(
+    input: String,
+    dpi: Option<u32>,
+    pages: Option<String>,
+) -> Result<pdf::RedactionReport, String> {
+    tokio::task::spawn_blocking(move || {
+        pdf::redaction_check(&input, dpi.unwrap_or(110), pages.as_deref().unwrap_or(""))
+    })
+    .await
+    .map_err(err)?
+    .map_err(err)
+}
+
+// ── Escrita de estrutura (lopdf): senha, marca, corte, sumário ─────────
+
+#[tauri::command]
+pub async fn tool_pdf_password(
+    app: tauri::AppHandle,
+    opts: pdf_write::PasswordOptions,
+) -> Result<pdf_write::WriteResult, String> {
+    let p = progress(&app);
+    tokio::task::spawn_blocking(move || pdf_write::password(&opts, &p))
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn tool_pdf_watermark(
+    app: tauri::AppHandle,
+    opts: pdf_write::WatermarkOptions,
+) -> Result<pdf_write::WriteResult, String> {
+    let p = progress(&app);
+    tokio::task::spawn_blocking(move || pdf_write::watermark(&opts, &p))
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn tool_pdf_crop(
+    app: tauri::AppHandle,
+    opts: pdf_write::CropOptions,
+) -> Result<pdf_write::WriteResult, String> {
+    let p = progress(&app);
+    tokio::task::spawn_blocking(move || pdf_write::crop(&opts, &p))
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn tool_pdf_outline_read(input: String) -> Result<Vec<pdf_write::OutlineEntry>, String> {
+    tokio::task::spawn_blocking(move || pdf_write::read_outline(&input))
+        .await
+        .map_err(err)?
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn tool_pdf_outline_write(
+    opts: pdf_write::OutlineOptions,
+) -> Result<pdf_write::WriteItem, String> {
+    tokio::task::spawn_blocking(move || pdf_write::write_outline(&opts))
+        .await
+        .map_err(err)?
+        .map_err(err)
+}
+
+// ── PDF → Markdown ─────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn tool_pdf_markdown(
+    app: tauri::AppHandle,
+    opts: pdf_markdown::Options,
+) -> Result<pdf_markdown::MdResult, String> {
+    let p = progress(&app);
+    tokio::task::spawn_blocking(move || pdf_markdown::run(&opts, &p))
+        .await
+        .map_err(err)?
+        .map_err(err)
+}
+
+// ── Tarja, tabela e formulário ─────────────────────────────────────────
+
+use omniget_core::core::tools::{pdf_form, pdf_redact, pdf_table};
+
+#[tauri::command]
+pub async fn tool_pdf_redact(
+    app: tauri::AppHandle,
+    opts: pdf_redact::Options,
+) -> Result<pdf_redact::RedactResult, String> {
+    let p = progress(&app);
+    tokio::task::spawn_blocking(move || pdf_redact::run(&opts, &p))
+        .await
+        .map_err(err)?
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn tool_pdf_tables(
+    app: tauri::AppHandle,
+    opts: pdf_table::Options,
+) -> Result<pdf_table::TableResult, String> {
+    let p = progress(&app);
+    tokio::task::spawn_blocking(move || pdf_table::run(&opts, &p))
+        .await
+        .map_err(err)?
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn tool_pdf_form_fields(
+    input: String,
+    password: Option<String>,
+) -> Result<Vec<pdf_form::Field>, String> {
+    tokio::task::spawn_blocking(move || {
+        pdf_form::read_fields(&input, password.as_deref().unwrap_or(""))
+    })
+    .await
+    .map_err(err)?
+    .map_err(err)
+}
+
+#[tauri::command]
+pub async fn tool_pdf_form_fill(
+    app: tauri::AppHandle,
+    opts: pdf_form::Options,
+) -> Result<pdf_form::FillResult, String> {
+    let p = progress(&app);
+    tokio::task::spawn_blocking(move || pdf_form::fill(&opts, &p))
+        .await
+        .map_err(err)?
+        .map_err(err)
 }

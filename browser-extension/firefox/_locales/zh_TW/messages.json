@@ -255,5 +255,36 @@
   },
   "popup_h264_label": {
     "message": "在 YouTube 上強制使用 H.264"
+  },
+  "popup_kind_av": {
+    "message": "影片 + 音訊"
+  },
+  "popup_pair_files": {
+    "message": "$count$ 個檔案",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_size_approx": {
+    "message": "約 $size$",
+    "placeholders": {
+      "size": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_deep_search_label": {
+    "message": "深度搜尋（找出隱藏的播放清單）"
+  },
+  "popup_deep_search_denied": {
+    "message": "深度搜尋需要所有網站的權限"
+  },
+  "popup_deep_search_badge": {
+    "message": "在頁面中找到"
+  },
+  "popup_manifest_gone": {
+    "message": "該播放清單來自已重新載入的頁面，請重新開啟"
   }
 }

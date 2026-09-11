@@ -40,11 +40,14 @@ sha2 = "0.10"
 hmac = "0.12"
 murmur3 = "0.5"
 md-5 = "0.10"
+sha1 = "0.10"
 hex = "0.4"
 once_cell = "1"
 thiserror = "1"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 filetime = "0.2.27"
+# Tools: leitura de EXIF/GPS em img-exif (Rust puro, sem C).
+kamadak-exif = "0.6"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 tar = "0.4"
 flate2 = "1"
@@ -53,9 +56,22 @@ open = "5"
 # Pinterest (core/tools/pinterest): dHash de duplicados, paleta e WebP -> PNG.
 # Tools: PDF (libloading carrega o PDFium gerido), Sistema (walkdir + trash),
 # Autoclicker e ditado (enigo), espaco em disco (fs4).
+# PDF: o PDFium só lê e renderiza; escrever estrutura (senha, marca d'água,
+# CropBox, sumário) é o lopdf, MIT e Rust puro.
+lopdf = { version = "0.45", default-features = false, features = ["chrono"] }
 libloading = "0.8"
 walkdir = "2"
 trash = "5"
 enigo = { version = "0.6", default-features = false, features = ["x11rb"] }
 fs4 = "1"
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "ico"] }
+# Tags de audio (ID3/Vorbis/MP4) em Rust puro, sem binario externo.
+lofty = "0.25"
+# HTML -> Markdown para exportar posts (Substack/Medium), mesmo padrao do pdf-to-markdown.
+htmd = "0.5"
+# Planilha .xlsx para a extracao de tabelas de PDF (o CSV nao depende disso).
+rust_xlsxwriter = "0.99"
+# ONNX Runtime: "load-dynamic" NAO linka nada no build; a lib nativa e um
+# binario gerido, baixado sob demanda igual ao PDFium e ao Real-ESRGAN.
+ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-27"] }
+ndarray = "0.16"

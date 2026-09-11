@@ -1,7 +1,10 @@
+use serde::Deserialize;
+
 use super::super::proto::DanmakuElem;
 use super::lanes::{ScrollLaneSet, StaticLaneSet};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
 pub struct AssRenderOptions {
     pub resolution_x: u32,
     pub resolution_y: u32,
@@ -14,6 +17,10 @@ pub struct AssRenderOptions {
     pub outline: f32,
     pub shadow: f32,
     pub avg_char_width_px: f32,
+    /// Trilhas de rolagem; 0 calcula pela altura e pelo tamanho da fonte.
+    pub scroll_lanes: u32,
+    /// Trilhas fixas, de cada lado; 0 acompanha o número das rolantes.
+    pub static_lanes: u32,
 }
 
 impl Default for AssRenderOptions {
@@ -30,16 +37,28 @@ impl Default for AssRenderOptions {
             outline: 1.0,
             shadow: 0.0,
             avg_char_width_px: 25.0,
+            scroll_lanes: 0,
+            static_lanes: 0,
         }
     }
 }
 
 pub fn render_ass(elems: &[DanmakuElem], opts: &AssRenderOptions) -> String {
-    let scroll_lane_count = ((opts.resolution_y as f32) / (opts.font_size as f32 * 1.2)) as usize;
-    let static_lane_count = scroll_lane_count;
-    let mut scroll = ScrollLaneSet::new(scroll_lane_count.max(8));
-    let mut top = StaticLaneSet::new(static_lane_count.max(8));
-    let mut bottom = StaticLaneSet::new(static_lane_count.max(8));
+    let auto =
+        (((opts.resolution_y as f32) / (opts.font_size.max(1) as f32 * 1.2)) as usize).max(8);
+    let scroll_lane_count = if opts.scroll_lanes > 0 {
+        opts.scroll_lanes as usize
+    } else {
+        auto
+    };
+    let static_lane_count = if opts.static_lanes > 0 {
+        opts.static_lanes as usize
+    } else {
+        scroll_lane_count
+    };
+    let mut scroll = ScrollLaneSet::new(scroll_lane_count.max(1));
+    let mut top = StaticLaneSet::new(static_lane_count.max(1));
+    let mut bottom = StaticLaneSet::new(static_lane_count.max(1));
 
     let mut sorted: Vec<&DanmakuElem> = elems.iter().collect();
     sorted.sort_by_key(|e| e.progress_ms);
@@ -154,7 +173,7 @@ fn build_static_event(
     )
 }
 
-fn ass_time(seconds: f64) -> String {
+pub fn ass_time(seconds: f64) -> String {
     let total_cs = (seconds * 100.0).round() as i64;
     let hours = total_cs / 360_000;
     let rem = total_cs % 360_000;
@@ -249,6 +268,52 @@ mod tests {
                 assert!(!line.contains("\\c&H"));
             }
         }
+    }
+
+    /// Com poucas trilhas os comentários se empilham nas mesmas alturas e
+    /// voltam ao topo; é o que faz o `\move` repetir o mesmo Y.
+    #[test]
+    fn explicit_lane_count_limits_the_rows() {
+        let elems: Vec<DanmakuElem> = (0..6).map(|i| elem(i * 100, 1, "linha")).collect();
+        let opts = AssRenderOptions {
+            scroll_lanes: 2,
+            ..AssRenderOptions::default()
+        };
+        let ass = render_ass(&elems, &opts);
+        let mut ys: Vec<String> = Vec::new();
+        for line in ass.lines().filter(|l| l.starts_with("Dialogue:")) {
+            let inner = line.split("\\move(").nth(1).unwrap_or("");
+            let y = inner.split(',').nth(1).unwrap_or("").to_string();
+            if !ys.contains(&y) {
+                ys.push(y);
+            }
+        }
+        assert_eq!(ys.len(), 2, "trilhas usadas: {:?}", ys);
+    }
+
+    #[test]
+    fn lane_count_defaults_to_the_screen_height() {
+        let elems: Vec<DanmakuElem> = (0..30).map(|i| elem(i * 10, 1, "linha")).collect();
+        let ass = render_ass(&elems, &AssRenderOptions::default());
+        let ys: std::collections::BTreeSet<String> = ass
+            .lines()
+            .filter(|l| l.starts_with("Dialogue:"))
+            .filter_map(|l| l.split("\\move(").nth(1))
+            .filter_map(|inner| inner.split(',').nth(1).map(|s| s.to_string()))
+            .collect();
+        // 1080 / (42 * 1.2) = 21 trilhas.
+        assert_eq!(ys.len(), 21, "trilhas usadas: {}", ys.len());
+    }
+
+    #[test]
+    fn options_come_from_json_with_holes() {
+        let opts: AssRenderOptions =
+            serde_json::from_str(r#"{"font_size": 60, "scroll_lanes": 4}"#).unwrap();
+        assert_eq!(opts.font_size, 60);
+        assert_eq!(opts.scroll_lanes, 4);
+        // O que o front não mandou continua no padrão.
+        assert_eq!(opts.resolution_x, 1920);
+        assert_eq!(opts.alpha, 0x40);
     }
 
     #[test]

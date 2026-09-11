@@ -342,9 +342,25 @@ impl PlatformDownloader for GenericYtdlpDownloader {
             }
 
             let client = builder.build().unwrap_or_default();
-            let downloader = HlsDownloader::with_client(client)
+            let mut downloader = HlsDownloader::with_client(client)
                 .with_user_agent_override(opts.user_agent.clone())
                 .with_progress(progress.clone());
+
+            // Deep search in the browser extension can capture a playlist that
+            // the page only ever exposed as a `blob:` URL, which is
+            // unreachable from this process. When one was captured for this
+            // exact URL, hand the text straight to the downloader.
+            if let Some(text) =
+                crate::core::extension_manifest::load_manifest_for_url(&selected.url)
+            {
+                tracing::info!(
+                    "[hls] playlist for {} came from the browser extension ({} bytes)",
+                    selected.url,
+                    text.len()
+                );
+                downloader = downloader.with_prefetched_playlist(selected.url.clone(), text);
+            }
+
             let _ = progress.send(ProgressUpdate::percent(0.0)).await;
 
             let result = downloader

@@ -1,6 +1,6 @@
 use std::sync::{Mutex, OnceLock};
 
-use omniget_core::core::tools::{dupes, file_search, rename};
+use omniget_core::core::tools::{dupes, file_search, rename, shred};
 use serde::Serialize;
 
 use super::{err, progress};
@@ -96,4 +96,17 @@ pub fn tool_awake_get() -> bool {
         .and_then(|c| c.lock().ok())
         .map(|h| h.is_some())
         .unwrap_or(false)
+}
+
+// ── Apagar com sobrescrita (sys-shred) ─────────────────────────────────
+
+#[tauri::command]
+pub async fn tool_shred(
+    app: tauri::AppHandle,
+    opts: shred::ShredOptions,
+) -> Result<shred::ShredResult, String> {
+    let p = progress(&app);
+    tokio::task::spawn_blocking(move || shred::run(&opts, &p))
+        .await
+        .map_err(err)
 }

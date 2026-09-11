@@ -223,3 +223,135 @@ input:focus {
 }
 .advanced[open] summary::before { content: "▾ "; }
 .advanced .field { margin-top: 10px; }
+
+/* --- Capture rules -------------------------------------------------------- */
+/* The three rule tables need more room than the pairing form, so the card
+   grows only while the section is open. */
+.card:has(#capture-rules[open]) {
+  width: min(100%, 760px);
+}
+
+#capture-rules h2 {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #d9deea;
+}
+
+.rules-block {
+  margin-top: 16px;
+}
+
+.rules-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.rules-scroll {
+  overflow-x: auto;
+}
+
+.rules-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.rules-table th {
+  text-align: left;
+  font-weight: 500;
+  color: #6b7691;
+  padding: 4px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+}
+
+.rules-table td {
+  padding: 4px 6px;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.rules-table .col-on { width: 34px; }
+.rules-table .col-flags { width: 56px; }
+.rules-table .col-action { width: 88px; }
+.rules-table .col-ext { width: 72px; }
+.rules-table .col-remove { width: 78px; }
+
+.rule-stack {
+  display: grid;
+  gap: 2px;
+}
+
+.rule-stack .hint {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.rules-table input[type="text"],
+.rules-table select {
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #f5f7fb;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font: inherit;
+  font-size: 12px;
+}
+
+.rules-table input.invalid {
+  border-color: rgba(255, 125, 125, 0.55);
+  background: rgba(255, 125, 125, 0.06);
+}
+
+.rule-toggle {
+  margin: 6px 0 0;
+  accent-color: #ff7d38;
+}
+
+.rules-test {
+  margin-top: 12px;
+}
+
+.hint.error { color: #ff7d7d; }
+.hint.ok { color: #59d8a0; }
+
+.button.small {
+  min-height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.button.ghost {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #95a0b7;
+}
+
+.button.ghost:hover {
+  color: #f5f7fb;
+  border-color: rgba(255, 125, 125, 0.4);
+}
+
+.button.danger {
+  background: rgba(255, 125, 125, 0.16);
+  color: #ffb1b1;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

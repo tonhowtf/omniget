@@ -255,5 +255,36 @@
   },
   "popup_h264_label": {
     "message": "Forzar H.264 en YouTube"
+  },
+  "popup_kind_av": {
+    "message": "Vídeo + audio"
+  },
+  "popup_pair_files": {
+    "message": "$count$ archivos",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_size_approx": {
+    "message": "~$size$",
+    "placeholders": {
+      "size": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_deep_search_label": {
+    "message": "Búsqueda profunda (encuentra listas ocultas)"
+  },
+  "popup_deep_search_denied": {
+    "message": "La búsqueda profunda necesita permiso para todos los sitios"
+  },
+  "popup_deep_search_badge": {
+    "message": "Encontrado en la página"
+  },
+  "popup_manifest_gone": {
+    "message": "Esa lista se encontró en una página que ya se recargó: ábrela de nuevo"
   }
 }

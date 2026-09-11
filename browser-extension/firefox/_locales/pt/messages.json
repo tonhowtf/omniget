@@ -255,5 +255,36 @@
   },
   "popup_h264_label": {
     "message": "Forçar H.264 no YouTube (mais leve em máquinas fracas)"
+  },
+  "popup_kind_av": {
+    "message": "Vídeo + áudio"
+  },
+  "popup_pair_files": {
+    "message": "$count$ arquivos",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_size_approx": {
+    "message": "~$size$",
+    "placeholders": {
+      "size": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_deep_search_label": {
+    "message": "Busca profunda (acha playlists escondidas)"
+  },
+  "popup_deep_search_denied": {
+    "message": "A busca profunda precisa de permissão para todos os sites"
+  },
+  "popup_deep_search_badge": {
+    "message": "Achado na página"
+  },
+  "popup_manifest_gone": {
+    "message": "Essa playlist foi achada numa página que já recarregou — abra de novo"
   }
 }

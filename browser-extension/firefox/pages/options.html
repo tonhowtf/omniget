@@ -76,6 +76,105 @@
           <p id="status" class="status" role="status" aria-live="polite"></p>
         </form>
 
+        <details id="capture-rules" class="install-help">
+          <summary>Advanced: capture rules</summary>
+          <p>
+            Three tables decide what the sniffer picks up: file extensions,
+            response content types, and regular expressions over the URL.
+            Changes save on their own a moment after you stop typing, and
+            empty rows are dropped.
+          </p>
+
+          <section class="rules-block">
+            <div class="rules-head">
+              <h2>Extensions</h2>
+              <button id="ext-add" type="button" class="button small">Add extension</button>
+            </div>
+            <div class="rules-scroll">
+              <table class="rules-table">
+                <thead>
+                  <tr>
+                    <th class="col-on" scope="col">On</th>
+                    <th scope="col">Extension</th>
+                    <th scope="col">Size rule</th>
+                    <th class="col-remove" scope="col"><span class="sr-only">Remove</span></th>
+                  </tr>
+                </thead>
+                <tbody id="ext-rows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="rules-block">
+            <div class="rules-head">
+              <h2>Content types</h2>
+              <button id="type-add" type="button" class="button small">Add content type</button>
+            </div>
+            <div class="rules-scroll">
+              <table class="rules-table">
+                <thead>
+                  <tr>
+                    <th class="col-on" scope="col">On</th>
+                    <th scope="col">Content type</th>
+                    <th scope="col">Size rule</th>
+                    <th class="col-remove" scope="col"><span class="sr-only">Remove</span></th>
+                  </tr>
+                </thead>
+                <tbody id="type-rows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="rules-block">
+            <div class="rules-head">
+              <h2>Regex rules</h2>
+              <button id="regex-add" type="button" class="button small">Add rule</button>
+            </div>
+            <div class="rules-scroll">
+              <table class="rules-table">
+                <thead>
+                  <tr>
+                    <th class="col-on" scope="col">On</th>
+                    <th scope="col">Pattern</th>
+                    <th class="col-flags" scope="col">Flags</th>
+                    <th class="col-action" scope="col">Action</th>
+                    <th class="col-ext" scope="col">Save as</th>
+                    <th class="col-remove" scope="col"><span class="sr-only">Remove</span></th>
+                  </tr>
+                </thead>
+                <tbody id="regex-rows"></tbody>
+              </table>
+            </div>
+            <label class="field rules-test">
+              <span class="label">Try a URL against these rules</span>
+              <input
+                id="regex-test"
+                type="text"
+                placeholder="https://scontent.cdninstagram.com/v/clip.mp4?_nc_cat=1&amp;bytestart=0"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <span class="hint" id="regex-test-result" role="status" aria-live="polite"></span>
+            </label>
+          </section>
+
+          <div class="actions">
+            <button id="rules-reset" type="button" class="button">Restore defaults</button>
+          </div>
+          <p id="rules-status" class="status" role="status" aria-live="polite"></p>
+        </details>
+
+        <details id="extension-backup" class="install-help">
+          <summary>Back up your list of installed extensions</summary>
+          <p>
+            Chrome is turning off Manifest V2 extensions. Export what you have
+            installed — with permissions and store links — on the
+            <a href="ext-backup.html" target="_blank" rel="noreferrer">extension backup page</a>.
+            It asks for access to that list only when you click, and nothing
+            leaves this computer.
+          </p>
+        </details>
+
         <details id="install-help" class="install-help">
           <summary>Don't have OmniGet installed yet?</summary>
           <p>

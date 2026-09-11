@@ -2,6 +2,11 @@ import { loadOpenAppState, isOpenAppEnabled, setOpenAppEnabled } from "../src/op
 import { getHlsGroupKey } from "../src/hls-grouping.js";
 import { normalizePageKey } from "../src/sniffer-storage.js";
 import { formatCookieSummary } from "../src/cookie-summary.js";
+import { extractSendableHeaders } from "../src/header-allowlist.js";
+import { pairTracks } from "../src/track-pairing.js";
+import { estimateHlsSize } from "../src/hls-size.js";
+import { formatBytes } from "../src/format-size.js";
+import { isListableMedia } from "../src/media-list.js";
 import { captureCookiesForTab } from "../src/cookie-capture.js";
 
 const APP_URL = "https://github.com/tonhowtf/omniget/releases/latest";
@@ -35,6 +40,10 @@ function localizeStatic() {
   const snifWrap = document.getElementById("sniffer-toggle")?.closest(".toggle-group");
   if (snifWrap) snifWrap.title = sniffer;
   document.getElementById("sniffer-toggle")?.setAttribute("aria-label", sniffer);
+  const deep = tr("popup_deep_search_label");
+  const deepWrap = document.getElementById("deep-search-group");
+  if (deepWrap && deep) deepWrap.title = deep;
+  if (deep) document.getElementById("deep-search-toggle")?.setAttribute("aria-label", deep);
   const ckLabel = document.getElementById("cookie-capture-label");
   if (ckLabel) ckLabel.textContent = tr("popup_ck_btn");
   const ckHint = document.getElementById("cookie-capture-hint");
@@ -68,6 +77,8 @@ async function init() {
     setOpenAppEnabled(openAppToggle.checked);
   });
 
+  initDeepSearchToggle();
+
   chrome.runtime.sendMessage({ type: "getDetectedMedia" }, (response) => {
     if (!response) return;
     currentData = response;
@@ -99,6 +110,32 @@ async function init() {
       if (!response) return;
       currentData = response;
       render();
+    });
+  });
+}
+
+// Deep search hooks the page itself, so it stays opt-in and only appears where
+// the browser can register a MAIN-world content script — Chrome 111+ and
+// Firefox 128+. Older Firefox simply never sees the control.
+function initDeepSearchToggle() {
+  const group = document.getElementById("deep-search-group");
+  const toggle = document.getElementById("deep-search-toggle");
+  if (!group || !toggle) return;
+
+  chrome.runtime.sendMessage({ type: "getDeepSearch" }, (response) => {
+    if (!response?.supported) return;
+    group.hidden = false;
+    toggle.checked = Boolean(response.enabled);
+  });
+
+  toggle.addEventListener("change", () => {
+    const requested = toggle.checked;
+    chrome.runtime.sendMessage({ type: "toggleDeepSearch", enabled: requested }, (response) => {
+      const effective = response?.enabled ?? requested;
+      if (toggle.checked !== effective) toggle.checked = effective;
+      if (response?.reason === "permission_denied") {
+        group.title = tr("popup_deep_search_denied");
+      }
     });
   });
 }
@@ -145,9 +182,9 @@ function renderMediaDetected(container) {
 
   const hlsGroups = groupHlsManifests(media);
   const groups = [...hlsGroups.values()].filter(g => g.master);
-  const nonHls = media.filter(m => m.mediaType !== "hls");
-  const directVideo = nonHls.filter(m => m.contentLength > 500 * 1024);
-  const totalVideos = groups.length + directVideo.filter(m => m.mediaType === "video").length;
+  const nonHls = media.filter(m => m.mediaType !== "hls").filter(isListableMedia);
+  const totalVideos = groups.length
+    + nonHls.filter(m => m.mediaType === "video" || m.mediaType === "dash").length;
 
   const domain = getDomainFromUrl(currentData.tabUrl || best.url);
   const title = pageTitle ? truncate(pageTitle, 40) : domain;
@@ -203,8 +240,8 @@ function appendPrimaryButton(container, label, meta, onClick) {
 function appendMediaControls(container, media) {
   const hlsGroups = groupHlsManifests(media);
   const groups = [...hlsGroups.values()].filter(g => g.master);
-  const nonHls = (media || []).filter(m => m.mediaType !== "hls");
-  const directMedia = deduplicateMedia(nonHls.filter(m => m.contentLength > 500 * 1024)).slice(0, 10);
+  const nonHls = (media || []).filter(m => m.mediaType !== "hls").filter(isListableMedia);
+  const directMedia = deduplicateMedia(nonHls).slice(0, 10);
   const totalItems = groups.length + directMedia.length;
 
   if (groups.length >= 2) {
@@ -249,15 +286,33 @@ function appendMediaList(container, hlsGroups, directMedia, totalItems) {
 
   let idx = 1;
   for (const group of hlsGroups) {
-    const domain = getDomainFromUrl(group.master.url);
-    list.appendChild(createMediaItem(
+    // A deep-search hit may carry a synthetic URL that exists nowhere but in
+    // the tab, so the row says where it came from instead of showing a host
+    // the user could never open.
+    const domain = group.master.source === "deep-search"
+      ? tr("popup_deep_search_badge")
+      : getDomainFromUrl(group.master.url);
+    const item = createMediaItem(
       tr("popup_video_n", idx), domain,
       () => sendToApp(group.master.url, "generic", group.master)
-    ));
+    );
+    list.appendChild(item);
+    attachHlsSizeEstimate(item, group.master, domain);
     idx++;
   }
 
-  for (const entry of directMedia) {
+  // Adaptive players fetch the video track and its audio track back to back, so
+  // showing them as two unrelated files is how someone ends up with a silent
+  // video. Pair them into one row that sends both.
+  const { pairs, singles } = pairTracks(directMedia);
+
+  for (const pair of pairs) {
+    const name = getFilenameFromUrl(pair.video.url);
+    const meta = tr("popup_kind_av") + " \u00b7 " + tr("popup_pair_files", 2);
+    list.appendChild(createMediaItem(name, meta, () => sendPair(pair)));
+  }
+
+  for (const entry of singles) {
     const name = getFilenameFromUrl(entry.url);
     const size = entry.sizeText || "";
     const meta = (entry.mediaType === "audio" ? tr("popup_kind_audio") : tr("popup_kind_video")) + (size ? " \u00b7 " + size : "");
@@ -327,7 +382,7 @@ async function handleDownload(btn, url, platform, mediaEntry) {
     if (metaEl) metaEl.textContent = summaryText;
     setTimeout(() => window.close(), summaryText ? 1600 : 1000);
   } else {
-    showError(btn.closest(".primary-action"));
+    showError(btn.closest(".primary-action"), result.reason);
   }
 }
 
@@ -355,12 +410,18 @@ async function handleBatchDownload(btn, groups) {
   }
 }
 
-function showError(container) {
+function showError(container, reason) {
+  // "OmniGet is not running" is the usual cause, but not the only one, and
+  // showing it for a playlist whose page went away sends the user off to debug
+  // the wrong thing.
+  const message = reason === "manifest_gone"
+    ? tr("popup_manifest_gone")
+    : tr("popup_not_running");
   container.innerHTML = `
     <div class="error-box">
       <div class="error-header">
         <span class="error-icon">${SVG.warning}</span>
-        <span class="error-message">${escapeHtml(tr("popup_not_running"))}</span>
+        <span class="error-message">${escapeHtml(message)}</span>
       </div>
       <div class="error-actions">
         <button class="error-btn error-btn-primary" data-action="retry">${escapeHtml(tr("popup_try_again"))}</button>
@@ -384,26 +445,52 @@ function sendToApp(url, platform, mediaEntry) {
     if (currentData?.tabUrl) msg.referer = currentData.tabUrl;
     if (mediaEntry?.mediaType) msg.mediaType = mediaEntry.mediaType;
     if (mediaEntry?.contentType) msg.contentType = mediaEntry.contentType;
+    // Tells the background to go and fetch the captured playlist text from the
+    // page before enqueuing: a blob-backed manifest has no URL the app can use.
+    if (mediaEntry?.hasManifest) {
+      msg.hasManifest = true;
+      msg.tabId = mediaEntry.tabId;
+      msg.frameId = mediaEntry.frameId;
+    }
     msg.openApp = isOpenAppEnabled();
 
-    if (mediaEntry?.requestHeaders) {
-      const skip = ["host", "connection", "accept-encoding", "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform", "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site", "upgrade-insecure-requests"];
-      const extracted = {};
-      for (const h of mediaEntry.requestHeaders) {
-        const name = h.name.toLowerCase();
-        if (skip.includes(name)) continue;
-        if (name.startsWith("sec-")) continue;
-        extracted[h.name] = h.value;
-      }
-      if (Object.keys(extracted).length > 0) {
-        msg.headers = extracted;
-      }
-    }
+    const headers = extractSendableHeaders(mediaEntry?.requestHeaders);
+    if (headers) msg.headers = headers;
 
     chrome.runtime.sendMessage(msg, (response) => {
-      resolve({ ok: response?.ok ?? false, cookieSummary: response?.cookieSummary ?? null });
+      resolve({
+        ok: response?.ok ?? false,
+        reason: response?.reason ?? null,
+        cookieSummary: response?.cookieSummary ?? null,
+      });
     });
   });
+}
+
+// The bridge queues one URL per call, so a pair becomes two downloads. The row
+// says so ("2 files") rather than pretending the app merges them.
+async function sendPair(pair) {
+  const video = await sendToApp(pair.video.url, "generic", pair.video);
+  const audio = await sendToApp(pair.audio.url, "generic", pair.audio);
+  return { ok: video.ok && audio.ok, cookieSummary: video.cookieSummary ?? audio.cookieSummary };
+}
+
+// An m3u8 has no size worth showing — the manifest is a few KB while the media
+// behind it is hundreds of MB — so the row starts without one and fills in once
+// a few segments have been sampled. Failure is silent: the row simply keeps the
+// domain it already shows.
+function attachHlsSizeEstimate(item, master, fallbackMeta) {
+  if (master.sizeText) return;
+  const metaEl = item.querySelector(".media-meta");
+  if (!metaEl) return;
+
+  estimateHlsSize(master.url, { referer: currentData?.tabUrl || "" })
+    .then((bytes) => {
+      const size = formatBytes(bytes);
+      if (!size || !metaEl.isConnected) return;
+      metaEl.textContent = `${fallbackMeta} \u00b7 ${tr("popup_size_approx", size)}`;
+    })
+    .catch(() => {});
 }
 
 async function sendBatch(groups) {
@@ -417,6 +504,11 @@ async function sendBatch(groups) {
     if (currentData?.tabUrl) msg.referer = currentData.tabUrl;
     if (group.master.mediaType) msg.mediaType = group.master.mediaType;
     if (group.master.contentType) msg.contentType = group.master.contentType;
+    if (group.master.hasManifest) {
+      msg.hasManifest = true;
+      msg.tabId = group.master.tabId;
+      msg.frameId = group.master.frameId;
+    }
     msg.openApp = isOpenAppEnabled();
 
     try {
@@ -478,9 +570,17 @@ function pickBestMedia(media) {
     if (bestGroup?.master) return bestGroup.master;
   }
 
-  const videoItems = media.filter(m => m.mediaType === "video" && m.contentLength > 500 * 1024);
+  const videoItems = media.filter(m => m.mediaType === "video" && isListableMedia(m));
   if (videoItems.length > 0) {
     return videoItems.reduce((best, m) => m.contentLength > best.contentLength ? m : best, videoItems[0]);
+  }
+
+  // A DASH manifest carries no useful size, so it can only be picked by recency
+  // — and without this a page whose only media is an mpd renders as "listening"
+  // while the item sits in the list underneath.
+  const dashItems = media.filter(m => m.mediaType === "dash");
+  if (dashItems.length > 0) {
+    return dashItems.reduce((best, m) => (m.detectedAt > best.detectedAt ? m : best), dashItems[0]);
   }
 
   return null;

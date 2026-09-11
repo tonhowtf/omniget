@@ -5,7 +5,7 @@
 //! remontagem a partir dos pixels; Ghostscript e LibreOffice são opcionais e
 //! só entram quando já estão na máquina.
 
-use std::ffi::{c_char, c_int, c_ulong, c_void, CString};
+use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void, CString};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -17,6 +17,7 @@ use super::jpeg_pdf;
 
 type Doc = *mut c_void;
 type Page = *mut c_void;
+type Object = *mut c_void;
 type Bitmap = *mut c_void;
 type TextPage = *mut c_void;
 
@@ -67,10 +68,33 @@ struct Api {
     text_count: unsafe extern "C" fn(TextPage) -> c_int,
     text_get: unsafe extern "C" fn(TextPage, c_int, c_int, *mut u16) -> c_int,
     text_close: unsafe extern "C" fn(TextPage),
+    text_charbox:
+        unsafe extern "C" fn(TextPage, c_int, *mut f64, *mut f64, *mut f64, *mut f64) -> c_int,
+    text_unicode: unsafe extern "C" fn(TextPage, c_int) -> c_uint,
     new_doc: unsafe extern "C" fn() -> Doc,
     import_pages: unsafe extern "C" fn(Doc, Doc, *const c_char, c_int) -> c_int,
     save_copy: unsafe extern "C" fn(Doc, *mut FileWrite, c_ulong) -> c_int,
     meta_text: unsafe extern "C" fn(Doc, *const c_char, *mut c_void, c_ulong) -> c_ulong,
+    // Opcionais: builds antigos do PDFium podem não exportar. Quem precisa
+    // (o PDF → Markdown) checa e devolve erro claro em vez de derrubar o
+    // carregamento inteiro da biblioteca.
+    text_fontsize: Option<unsafe extern "C" fn(TextPage, c_int) -> f64>,
+    text_fontinfo:
+        Option<unsafe extern "C" fn(TextPage, c_int, *mut c_void, c_ulong, *mut c_int) -> c_ulong>,
+    text_fontweight: Option<unsafe extern "C" fn(TextPage, c_int) -> c_int>,
+    /// Diz se o caractere foi inventado pelo PDFium (espaço de vão, quebra de
+    /// linha) em vez de existir no fluxo do PDF. A tarja precisa disso para
+    /// casar caractere com byte do content stream.
+    text_generated: Option<unsafe extern "C" fn(TextPage, c_int) -> c_int>,
+    obj_count: Option<unsafe extern "C" fn(Page) -> c_int>,
+    obj_get: Option<unsafe extern "C" fn(Page, c_int) -> Object>,
+    obj_type: Option<unsafe extern "C" fn(Object) -> c_int>,
+    obj_bounds:
+        Option<unsafe extern "C" fn(Object, *mut f32, *mut f32, *mut f32, *mut f32) -> c_int>,
+    img_bitmap: Option<unsafe extern "C" fn(Object) -> Bitmap>,
+    bmp_format: Option<unsafe extern "C" fn(Bitmap) -> c_int>,
+    bmp_w: Option<unsafe extern "C" fn(Bitmap) -> c_int>,
+    bmp_h: Option<unsafe extern "C" fn(Bitmap) -> c_int>,
 }
 
 unsafe impl Send for Api {}
@@ -84,6 +108,11 @@ unsafe fn sym<T: Copy>(lib: &libloading::Library, name: &[u8]) -> anyhow::Result
     Ok(*lib
         .get::<T>(name)
         .map_err(|e| anyhow!("PDFium sem {}: {}", String::from_utf8_lossy(name), e))?)
+}
+
+/// Igual ao `sym`, mas o símbolo pode faltar: devolve `None` em vez de erro.
+unsafe fn opt_sym<T: Copy>(lib: &libloading::Library, name: &[u8]) -> Option<T> {
+    lib.get::<T>(name).ok().map(|s| *s)
 }
 
 fn api() -> anyhow::Result<&'static Api> {
@@ -117,10 +146,24 @@ fn api() -> anyhow::Result<&'static Api> {
             text_count: sym(&lib, b"FPDFText_CountChars\0")?,
             text_get: sym(&lib, b"FPDFText_GetText\0")?,
             text_close: sym(&lib, b"FPDFText_ClosePage\0")?,
+            text_charbox: sym(&lib, b"FPDFText_GetCharBox\0")?,
+            text_unicode: sym(&lib, b"FPDFText_GetUnicode\0")?,
             new_doc: sym(&lib, b"FPDF_CreateNewDocument\0")?,
             import_pages: sym(&lib, b"FPDF_ImportPages\0")?,
             save_copy: sym(&lib, b"FPDF_SaveAsCopy\0")?,
             meta_text: sym(&lib, b"FPDF_GetMetaText\0")?,
+            text_fontsize: opt_sym(&lib, b"FPDFText_GetFontSize\0"),
+            text_fontinfo: opt_sym(&lib, b"FPDFText_GetFontInfo\0"),
+            text_fontweight: opt_sym(&lib, b"FPDFText_GetFontWeight\0"),
+            text_generated: opt_sym(&lib, b"FPDFText_IsGenerated\0"),
+            obj_count: opt_sym(&lib, b"FPDFPage_CountObjects\0"),
+            obj_get: opt_sym(&lib, b"FPDFPage_GetObject\0"),
+            obj_type: opt_sym(&lib, b"FPDFPageObj_GetType\0"),
+            obj_bounds: opt_sym(&lib, b"FPDFPageObj_GetBounds\0"),
+            img_bitmap: opt_sym(&lib, b"FPDFImageObj_GetBitmap\0"),
+            bmp_format: opt_sym(&lib, b"FPDFBitmap_GetFormat\0"),
+            bmp_w: opt_sym(&lib, b"FPDFBitmap_GetWidth\0"),
+            bmp_h: opt_sym(&lib, b"FPDFBitmap_GetHeight\0"),
             _lib: lib,
         }
     };
@@ -460,7 +503,7 @@ pub struct PdfStatus {
     pub tesseract_langs: Vec<String>,
 }
 
-async fn find_gs() -> Option<PathBuf> {
+pub async fn find_gs() -> Option<PathBuf> {
     for name in ["gs", "gswin64c", "gswin32c"] {
         if let Some(p) = crate::core::dependencies::find_tool(name).await {
             return Some(p);
@@ -517,6 +560,199 @@ pub async fn status() -> PdfStatus {
         tesseract: ocr.installed,
         tesseract_langs: ocr.languages,
     }
+}
+
+/// Retângulo do que está desenhado em cada página, em pontos e com origem no
+/// canto inferior esquerdo — a "caixa de tinta". `None` quer dizer página em
+/// branco. Usado para cortar margem sem chutar valor.
+pub fn ink_boxes(path: &str, dpi: u32, threshold: u8) -> anyhow::Result<Vec<Option<[f32; 4]>>> {
+    let api = api()?;
+    let _g = OPS.lock().unwrap_or_else(|p| p.into_inner());
+    let doc = Document::open(api, Path::new(path), None)?;
+    let dpi = dpi.clamp(36, 200);
+    let scale = dpi as f32 / 72.0;
+    let mut out = Vec::with_capacity(doc.pages());
+    for i in 0..doc.pages() {
+        let page = doc.page(i)?;
+        let (_, h_pt) = page.size_pt();
+        let img = page.render(dpi)?;
+        let (mut x0, mut y0, mut x1, mut y1) = (u32::MAX, u32::MAX, 0u32, 0u32);
+        for (x, y, px) in img.enumerate_pixels() {
+            let p = px.0;
+            // Qualquer canal escuro o bastante conta como tinta.
+            if p[0] < threshold || p[1] < threshold || p[2] < threshold {
+                x0 = x0.min(x);
+                y0 = y0.min(y);
+                x1 = x1.max(x);
+                y1 = y1.max(y);
+            }
+        }
+        out.push(if x0 == u32::MAX {
+            None
+        } else {
+            // Pixel → ponto, virando o eixo Y (a imagem cresce para baixo).
+            Some([
+                x0 as f32 / scale,
+                h_pt - (y1 + 1) as f32 / scale,
+                (x1 + 1) as f32 / scale,
+                h_pt - y0 as f32 / scale,
+            ])
+        });
+    }
+    Ok(out)
+}
+
+// ── Tarja mal feita ────────────────────────────────────────────────────
+
+/// Uma sequência de caracteres que continua no PDF embaixo de uma área de cor
+/// chapada — o texto que a "tarja" só escondeu do olho.
+#[derive(Debug, Clone, Serialize)]
+pub struct HiddenRun {
+    pub page: usize,
+    pub text: String,
+    /// Cor média por baixo, em hex, para a UI dizer "barra preta" ou "caixa branca".
+    pub cover: String,
+    /// Retângulo em pontos do PDF (x, y, largura, altura), origem em baixo.
+    pub rect: (f32, f32, f32, f32),
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RedactionReport {
+    pub path: String,
+    pub pages: usize,
+    pub pages_checked: usize,
+    pub chars_total: usize,
+    pub chars_hidden: usize,
+    pub runs: Vec<HiddenRun>,
+}
+
+/// Um caractere está escondido quando a área dele, na página renderizada, é de
+/// cor chapada: o glifo existe no texto mas não aparece no pixel.
+fn covered(img: &image::RgbImage, x0: f64, y0: f64, x1: f64, y1: f64) -> Option<[u8; 3]> {
+    // Encolhe a caixa: a borda pega antialias do que está em volta.
+    let (dx, dy) = ((x1 - x0) * 0.2, (y1 - y0) * 0.2);
+    let (a, b) = ((x0 + dx).floor().max(0.0), (y0 + dy).floor().max(0.0));
+    let (c, d) = (
+        (x1 - dx).ceil().min(img.width() as f64 - 1.0),
+        (y1 - dy).ceil().min(img.height() as f64 - 1.0),
+    );
+    if c - a < 1.0 || d - b < 1.0 {
+        return None;
+    }
+    let (mut lo, mut hi) = (255i32, 0i32);
+    let (mut sr, mut sg, mut sb, mut n) = (0u64, 0u64, 0u64, 0u64);
+    for y in (b as u32)..=(d as u32) {
+        for x in (a as u32)..=(c as u32) {
+            let p = img.get_pixel(x, y).0;
+            let luma = (p[0] as i32 * 299 + p[1] as i32 * 587 + p[2] as i32 * 114) / 1000;
+            lo = lo.min(luma);
+            hi = hi.max(luma);
+            sr += p[0] as u64;
+            sg += p[1] as u64;
+            sb += p[2] as u64;
+            n += 1;
+        }
+    }
+    // Faixa de luminância quase nula = nada foi desenhado ali por cima do fundo.
+    if n >= 4 && hi - lo <= 8 {
+        return Some([(sr / n) as u8, (sg / n) as u8, (sb / n) as u8]);
+    }
+    None
+}
+
+pub fn redaction_check(path: &str, dpi: u32, pages_spec: &str) -> anyhow::Result<RedactionReport> {
+    let api = api()?;
+    let _g = OPS.lock().unwrap_or_else(|p| p.into_inner());
+    let doc = Document::open(api, Path::new(path), None)?;
+    let total = doc.pages();
+    let wanted = parse_ranges(pages_spec, total)?;
+    let dpi = dpi.clamp(48, 300);
+    let scale = dpi as f64 / 72.0;
+
+    let mut report = RedactionReport {
+        path: path.to_string(),
+        pages: total,
+        pages_checked: wanted.len(),
+        chars_total: 0,
+        chars_hidden: 0,
+        runs: Vec::new(),
+    };
+
+    for page_no in wanted {
+        let page = doc.page(page_no - 1)?;
+        let (_, h_pt) = page.size_pt();
+        let img = page.render(dpi)?;
+        unsafe {
+            let tp = (api.text_load)(page.page);
+            if tp.is_null() {
+                continue;
+            }
+            let count = (api.text_count)(tp).max(0);
+            report.chars_total += count as usize;
+            let mut run = String::new();
+            let mut cover: Option<[u8; 3]> = None;
+            let mut bounds: Option<(f64, f64, f64, f64)> = None;
+            for i in 0..count {
+                let ch = char::from_u32((api.text_unicode)(tp, i)).unwrap_or('\0');
+                let (mut l, mut r, mut b, mut t) = (0f64, 0f64, 0f64, 0f64);
+                let got = (api.text_charbox)(tp, i, &mut l, &mut r, &mut b, &mut t) != 0;
+                let hidden = if got && !ch.is_whitespace() && ch != '\0' {
+                    covered(
+                        &img,
+                        l * scale,
+                        (h_pt as f64 - t) * scale,
+                        r * scale,
+                        (h_pt as f64 - b) * scale,
+                    )
+                } else {
+                    None
+                };
+                match hidden {
+                    Some(c) => {
+                        report.chars_hidden += 1;
+                        cover = Some(c);
+                        run.push(ch);
+                        bounds = Some(match bounds {
+                            Some((x0, y0, x1, y1)) => (x0.min(l), y0.min(b), x1.max(r), y1.max(t)),
+                            None => (l, b, r, t),
+                        });
+                    }
+                    None => {
+                        // Espaço entre dois trechos escondidos continua o mesmo trecho.
+                        if !run.is_empty() && ch.is_whitespace() {
+                            run.push(' ');
+                        } else if !run.trim().is_empty() {
+                            let c = cover.unwrap_or([0, 0, 0]);
+                            let (x0, y0, x1, y1) = bounds.unwrap_or((0.0, 0.0, 0.0, 0.0));
+                            report.runs.push(HiddenRun {
+                                page: page_no,
+                                text: run.trim().to_string(),
+                                cover: format!("#{:02X}{:02X}{:02X}", c[0], c[1], c[2]),
+                                rect: (x0 as f32, y0 as f32, (x1 - x0) as f32, (y1 - y0) as f32),
+                            });
+                            run.clear();
+                            bounds = None;
+                        } else {
+                            run.clear();
+                            bounds = None;
+                        }
+                    }
+                }
+            }
+            if !run.trim().is_empty() {
+                let c = cover.unwrap_or([0, 0, 0]);
+                let (x0, y0, x1, y1) = bounds.unwrap_or((0.0, 0.0, 0.0, 0.0));
+                report.runs.push(HiddenRun {
+                    page: page_no,
+                    text: run.trim().to_string(),
+                    cover: format!("#{:02X}{:02X}{:02X}", c[0], c[1], c[2]),
+                    rect: (x0 as f32, y0 as f32, (x1 - x0) as f32, (y1 - y0) as f32),
+                });
+            }
+            (api.text_close)(tp);
+        }
+    }
+    Ok(report)
 }
 
 // ── Info ───────────────────────────────────────────────────────────────
@@ -1137,6 +1373,399 @@ pub async fn office_convert(
     Ok(outputs)
 }
 
+// ── Leitura posicionada (base do PDF → Markdown) ───────────────────────
+
+/// Um caractere com a caixa dele em pontos do PDF (origem embaixo à
+/// esquerda, `y` crescendo para cima), o corpo da fonte e duas marcas de
+/// estilo que o Markdown usa: monoespaçada vira bloco de código, negrito
+/// ajuda a achar título.
+#[derive(Debug, Clone)]
+pub struct TextChar {
+    pub ch: char,
+    pub x0: f32,
+    pub x1: f32,
+    pub y0: f32,
+    pub y1: f32,
+    pub size: f32,
+    pub mono: bool,
+    pub bold: bool,
+    /// Veio um espaço (ou quebra de linha) antes deste caractere no fluxo do
+    /// PDF. É o sinal mais confiável de separação de palavra: a caixa do
+    /// glifo é justa demais para servir de régua sozinha.
+    pub space_before: bool,
+}
+
+/// Imagem embutida na página, já em PNG, com a caixa em pontos.
+#[derive(Debug, Clone)]
+pub struct PageImage {
+    pub x0: f32,
+    pub y0: f32,
+    pub x1: f32,
+    pub y1: f32,
+    pub png: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PageText {
+    /// Número 1-based da página no documento original.
+    pub number: usize,
+    pub width: f32,
+    pub height: f32,
+    pub chars: Vec<TextChar>,
+    pub images: Vec<PageImage>,
+}
+
+const FPDF_PAGEOBJ_IMAGE: c_int = 3;
+
+/// Estilo da fonte do caractere: `(monoespaçada, negrito)`. Usa os flags do
+/// descritor de fonte (bit 1 = passo fixo, bit 19 = negrito forçado) e cai no
+/// nome da fonte quando os flags vêm zerados, que é comum.
+unsafe fn font_traits(api: &Api, tp: TextPage, idx: c_int) -> (bool, bool) {
+    let mut mono = false;
+    let mut bold = false;
+    if let Some(info) = api.text_fontinfo {
+        let mut flags: c_int = 0;
+        let mut buf = [0u8; 96];
+        let n = info(
+            tp,
+            idx,
+            buf.as_mut_ptr() as *mut c_void,
+            buf.len() as c_ulong,
+            &mut flags,
+        ) as usize;
+        let n = n.min(buf.len()).saturating_sub(1);
+        let name = String::from_utf8_lossy(&buf[..n]).to_ascii_lowercase();
+        mono = flags & 1 != 0
+            || ["mono", "courier", "consol", "menlo", "monaco"]
+                .iter()
+                .any(|k| name.contains(k));
+        bold = flags & (1 << 18) != 0
+            || ["bold", "black", "heavy", "semib"]
+                .iter()
+                .any(|k| name.contains(k));
+    }
+    if let Some(weight) = api.text_fontweight {
+        if weight(tp, idx) >= 600 {
+            bold = true;
+        }
+    }
+    (mono, bold)
+}
+
+/// Imagens desenhadas na página, convertidas para PNG. Ignora as minúsculas
+/// (fio, marca d'água de 1 px) e devolve vazio se o PDFium instalado não
+/// expõe a API de objetos.
+fn page_images(api: &'static Api, page: &PageRef<'_>, min_pt: f32) -> Vec<PageImage> {
+    let (count, get, kind, bounds, bitmap_of, fmt, bw, bh) = match (
+        api.obj_count,
+        api.obj_get,
+        api.obj_type,
+        api.obj_bounds,
+        api.img_bitmap,
+        api.bmp_format,
+        api.bmp_w,
+        api.bmp_h,
+    ) {
+        (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f), Some(g), Some(h)) => {
+            (a, b, c, d, e, f, g, h)
+        }
+        _ => return Vec::new(),
+    };
+    let mut out = Vec::new();
+    unsafe {
+        let n = count(page.page).max(0);
+        for i in 0..n {
+            let obj = get(page.page, i);
+            if obj.is_null() || kind(obj) != FPDF_PAGEOBJ_IMAGE {
+                continue;
+            }
+            let (mut l, mut b, mut r, mut t) = (0f32, 0f32, 0f32, 0f32);
+            if bounds(obj, &mut l, &mut b, &mut r, &mut t) == 0 {
+                continue;
+            }
+            if (r - l) < min_pt || (t - b) < min_pt {
+                continue;
+            }
+            let bmp = bitmap_of(obj);
+            if bmp.is_null() {
+                continue;
+            }
+            let (w, h) = (bw(bmp).max(0), bh(bmp).max(0));
+            let stride = (api.bmp_stride)(bmp).max(0) as usize;
+            let buf = (api.bmp_buffer)(bmp) as *const u8;
+            if w == 0 || h == 0 || stride == 0 || buf.is_null() {
+                (api.bmp_destroy)(bmp);
+                continue;
+            }
+            let channels = match fmt(bmp) {
+                1 => 1usize, // cinza
+                2 => 3,      // BGR
+                3 | 4 => 4,  // BGRx / BGRA
+                _ => {
+                    (api.bmp_destroy)(bmp);
+                    continue;
+                }
+            };
+            let src = std::slice::from_raw_parts(buf, stride * h as usize);
+            let mut img = image::RgbaImage::new(w as u32, h as u32);
+            for y in 0..h as usize {
+                let row = &src[y * stride..y * stride + (w as usize) * channels];
+                for x in 0..w as usize {
+                    let p = &row[x * channels..x * channels + channels];
+                    let px = match channels {
+                        1 => image::Rgba([p[0], p[0], p[0], 255]),
+                        3 => image::Rgba([p[2], p[1], p[0], 255]),
+                        _ => {
+                            image::Rgba([p[2], p[1], p[0], if fmt(bmp) == 4 { p[3] } else { 255 }])
+                        }
+                    };
+                    img.put_pixel(x as u32, y as u32, px);
+                }
+            }
+            (api.bmp_destroy)(bmp);
+            let mut png = Vec::new();
+            if image::DynamicImage::ImageRgba8(img)
+                .write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
+                .is_ok()
+            {
+                out.push(PageImage {
+                    x0: l,
+                    y0: b,
+                    x1: r,
+                    y1: t,
+                    png,
+                });
+            }
+        }
+    }
+    out
+}
+
+/// Lê as páginas pedidas com posição, corpo de fonte e estilo de cada
+/// caractere — a matéria-prima do PDF → Markdown. `on_page` recebe
+/// `(feitas, total)` antes de cada página, para o progresso.
+pub fn read_pages(
+    input: &str,
+    password: Option<&str>,
+    pages_spec: &str,
+    want_images: bool,
+    mut on_page: impl FnMut(usize, usize),
+) -> anyhow::Result<Vec<PageText>> {
+    let api = api()?;
+    let font_size = api.text_fontsize.ok_or_else(|| {
+        anyhow!("este PDFium nao expoe FPDFText_GetFontSize; atualize em Ajustes → Dependencias")
+    })?;
+    let _g = OPS.lock().unwrap_or_else(|p| p.into_inner());
+    let path = Path::new(input.trim());
+    let doc = Document::open(api, path, password)?;
+    let wanted = parse_ranges(pages_spec, doc.pages())?;
+    let total = wanted.len();
+    let mut out = Vec::with_capacity(total);
+    for (done, no) in wanted.iter().enumerate() {
+        on_page(done, total);
+        let page = doc.page(no - 1)?;
+        let (width, height) = page.size_pt();
+        let mut chars = Vec::new();
+        unsafe {
+            let tp = (api.text_load)(page.page);
+            if !tp.is_null() {
+                let count = (api.text_count)(tp).max(0);
+                chars.reserve(count as usize);
+                // Alguns glifos (hífen de fim de linha, por exemplo) voltam sem
+                // caixa; em vez de sumir com o caractere, ele cola no fim do
+                // anterior — é onde ele foi desenhado.
+                let mut last: Option<(f32, f32, f32)> = None;
+                let mut space = false;
+                for idx in 0..count {
+                    // O PDFium devolve 0x02 no lugar do hífen que quebra a
+                    // palavra no fim da linha: é hífen mesmo, não controle.
+                    let ch = match (api.text_unicode)(tp, idx) {
+                        2 => '-',
+                        u => match char::from_u32(u) {
+                            Some(c) if c != '\0' && !c.is_control() && !c.is_whitespace() => c,
+                            _ => {
+                                space = true;
+                                continue;
+                            }
+                        },
+                    };
+                    let (mut l, mut r, mut b, mut t) = (0f64, 0f64, 0f64, 0f64);
+                    let boxed = (api.text_charbox)(tp, idx, &mut l, &mut r, &mut b, &mut t) != 0
+                        && (r - l).abs() + (t - b).abs() > 0.0;
+                    if !boxed {
+                        match last {
+                            Some((x, y0, y1)) => {
+                                l = x as f64;
+                                r = x as f64;
+                                b = y0 as f64;
+                                t = y1 as f64;
+                            }
+                            None => continue,
+                        }
+                    }
+                    let size = font_size(tp, idx) as f32;
+                    let size = if size.is_finite() && size.abs() > 0.01 {
+                        size.abs()
+                    } else {
+                        (t - b) as f32
+                    };
+                    let (mono, bold) = font_traits(api, tp, idx);
+                    last = Some((r as f32, b as f32, t as f32));
+                    let space_before = std::mem::take(&mut space);
+                    chars.push(TextChar {
+                        ch,
+                        x0: l as f32,
+                        x1: r as f32,
+                        y0: b as f32,
+                        y1: t as f32,
+                        size,
+                        mono,
+                        bold,
+                        space_before,
+                    });
+                }
+                (api.text_close)(tp);
+            }
+        }
+        let images = if want_images {
+            page_images(api, &page, 24.0)
+        } else {
+            Vec::new()
+        };
+        out.push(PageText {
+            number: *no,
+            width,
+            height,
+            chars,
+            images,
+        });
+    }
+    on_page(total, total);
+    Ok(out)
+}
+
+// ── Leitura crua de caracteres (base da tarja) ─────────────────────────
+
+/// Caractere como o PDFium o vê, sem filtro nenhum: espaço em branco entra,
+/// caractere inventado entra marcado. A tarja precisa da lista inteira e na
+/// ordem original para casar cada glifo com o byte dele no content stream.
+#[derive(Debug, Clone)]
+pub struct RawChar {
+    pub ch: char,
+    pub x0: f32,
+    pub x1: f32,
+    pub y0: f32,
+    pub y1: f32,
+    /// `true` quando o PDFium inventou o caractere (espaço de vão, quebra de
+    /// linha): ele não tem byte correspondente no fluxo do PDF.
+    pub generated: bool,
+}
+
+impl RawChar {
+    /// Centro da caixa, que é o ponto usado para decidir se o caractere cai
+    /// dentro da região a tarjar.
+    pub fn center(&self) -> (f32, f32) {
+        ((self.x0 + self.x1) / 2.0, (self.y0 + self.y1) / 2.0)
+    }
+
+    pub fn empty_box(&self) -> bool {
+        (self.x1 - self.x0).abs() < 0.01 && (self.y1 - self.y0).abs() < 0.01
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RawPage {
+    /// Número 1-based da página no documento.
+    pub number: usize,
+    pub width: f32,
+    pub height: f32,
+    pub chars: Vec<RawChar>,
+    /// `false` quando o PDFium instalado não expõe `FPDFText_IsGenerated` —
+    /// aí não dá para confiar no casamento glifo↔byte.
+    pub generated_known: bool,
+}
+
+/// Lê todos os caracteres das páginas pedidas, na ordem do documento.
+pub fn read_raw_chars(
+    input: &str,
+    password: Option<&str>,
+    pages_spec: &str,
+) -> anyhow::Result<Vec<RawPage>> {
+    let api = api()?;
+    let _g = OPS.lock().unwrap_or_else(|p| p.into_inner());
+    let doc = Document::open(api, Path::new(input.trim()), password)?;
+    let wanted = parse_ranges(pages_spec, doc.pages())?;
+    let mut out = Vec::with_capacity(wanted.len());
+    for no in wanted {
+        let page = doc.page(no - 1)?;
+        let (width, height) = page.size_pt();
+        let mut chars = Vec::new();
+        unsafe {
+            let tp = (api.text_load)(page.page);
+            if !tp.is_null() {
+                let count = (api.text_count)(tp).max(0);
+                chars.reserve(count as usize);
+                for idx in 0..count {
+                    let ch = match (api.text_unicode)(tp, idx) {
+                        // O PDFium devolve 0x02 no lugar do hífen de quebra.
+                        2 => '-',
+                        u => char::from_u32(u).unwrap_or('\u{fffd}'),
+                    };
+                    let (mut l, mut r, mut b, mut t) = (0f64, 0f64, 0f64, 0f64);
+                    if (api.text_charbox)(tp, idx, &mut l, &mut r, &mut b, &mut t) == 0 {
+                        l = 0.0;
+                        r = 0.0;
+                        b = 0.0;
+                        t = 0.0;
+                    }
+                    let generated = match api.text_generated {
+                        Some(f) => f(tp, idx) != 0,
+                        None => false,
+                    };
+                    chars.push(RawChar {
+                        ch,
+                        x0: l as f32,
+                        x1: r as f32,
+                        y0: b as f32,
+                        y1: t as f32,
+                        generated,
+                    });
+                }
+                (api.text_close)(tp);
+            }
+        }
+        out.push(RawPage {
+            number: no,
+            width,
+            height,
+            chars,
+            generated_known: api.text_generated.is_some(),
+        });
+    }
+    Ok(out)
+}
+
+/// Renderiza uma página avulsa em JPEG, para quem precisa trocar o conteúdo
+/// da página por pixel (a tarja usa isso quando não dá para editar o texto).
+pub fn page_jpeg(
+    input: &str,
+    password: Option<&str>,
+    page: usize,
+    dpi: u32,
+    quality: u8,
+) -> anyhow::Result<(Vec<u8>, f32, f32)> {
+    let api = api()?;
+    let _g = OPS.lock().unwrap_or_else(|p| p.into_inner());
+    let doc = Document::open(api, Path::new(input.trim()), password)?;
+    if page == 0 || page > doc.pages() {
+        return Err(anyhow!("pagina {} fora do documento", page));
+    }
+    let p = doc.page(page - 1)?;
+    let (w, h) = p.size_pt();
+    let img = p.render(dpi.clamp(48, 400))?;
+    Ok((encode(&img, "jpg", quality)?, w, h))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1250,6 +1879,65 @@ mod tests {
             "ok: {} {} {:?} {}",
             merged.output, sp.outputs[0], imgs, c.output
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// PDF montado à mão: uma linha visível e outra coberta por um retângulo
+    /// preto desenhado por cima — a "tarja" que não apaga nada.
+    /// `cargo test -p omniget-core --lib -- --ignored live_redaction`
+    #[test]
+    #[ignore]
+    fn live_redaction_check_finds_text_under_the_bar() {
+        let content = b"BT /F1 24 Tf 40 150 Td (VISIVEL) Tj ET\nBT /F1 24 Tf 40 100 Td (SEGREDO) Tj ET\n0 0 0 rg 34 94 140 34 re f\n";
+        let mut body = String::from("%PDF-1.4\n");
+        body.push_str("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+        body.push_str("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+        body.push_str(
+            "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
+        );
+        body.push_str("4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n");
+        body.push_str(&format!(
+            "5 0 obj\n<< /Length {} >>\nstream\n{}endstream\nendobj\n",
+            content.len(),
+            String::from_utf8_lossy(content)
+        ));
+        // A xref sai da própria tool de reparo — de quebra, valida ela também.
+        let (bytes, _) = super::super::pdf_repair::rebuild_xref(body.as_bytes()).unwrap();
+
+        let dir = std::env::temp_dir().join("omniget-redaction-live");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("tarja.pdf");
+        std::fs::write(&path, &bytes).unwrap();
+        let p = path.to_string_lossy().to_string();
+
+        let info = info(&p, None).expect("o PDF montado tem que abrir");
+        assert_eq!(info.pages, 1);
+
+        let report = redaction_check(&p, 110, "").unwrap();
+        assert!(
+            report.chars_total >= 14,
+            "leu {} caracteres",
+            report.chars_total
+        );
+        let found: Vec<&str> = report.runs.iter().map(|r| r.text.as_str()).collect();
+        assert!(
+            found.iter().any(|t| t.contains("SEGREDO")),
+            "não achou o texto sob a tarja: {:?}",
+            found
+        );
+        assert!(
+            !found.iter().any(|t| t.contains("VISIVEL")),
+            "acusou texto que está à vista: {:?}",
+            found
+        );
+        let bar = report
+            .runs
+            .iter()
+            .find(|r| r.text.contains("SEGREDO"))
+            .unwrap();
+        assert_eq!(bar.cover, "#000000", "a cobertura era preta");
+        assert_eq!(bar.page, 1);
+        eprintln!("{} caracteres escondidos: {:?}", report.chars_hidden, found);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -1,41 +1,3 @@
-const MEDIA_CONTENT_TYPES = [
-  "video/mp4",
-  "video/webm",
-  "video/x-flv",
-  "video/ogg",
-  "video/x-matroska",
-  "video/3gpp",
-  "video/mpeg",
-  "video/x-msvideo",
-  "video/x-ms-wmv",
-  "video/quicktime",
-  "audio/mpeg",
-  "audio/ogg",
-  "audio/mp4",
-  "audio/webm",
-  "audio/aac",
-  "audio/wav",
-  "audio/x-wav",
-  "audio/flac",
-  "audio/x-flac",
-  "audio/x-m4a",
-  "audio/x-ms-wma",
-  "audio/opus",
-  "application/vnd.apple.mpegurl",
-  "application/x-mpegurl",
-  "application/dash+xml",
-  "application/f4m+xml",
-];
-
-const MEDIA_EXTENSIONS = [
-  ".mp4", ".webm", ".m3u8", ".mpd",
-  ".flv", ".ogg", ".mp3", ".m4a", ".m4v",
-  ".mkv", ".avi", ".mov", ".wmv",
-  ".wav", ".flac", ".aac", ".opus",
-  ".3gp", ".mpg", ".mpeg", ".divx",
-  ".f4m", ".f4v", ".ts",
-];
-
 const PLATFORM_CDN_HOSTS = [
   "cdninstagram.com",
   "fbcdn.net",
@@ -57,7 +19,11 @@ const BLOCKED_PATH_PATTERNS = [
   /\/transparent\.gif$/i,
 ];
 
-import { shouldDropBySize } from "./sniffer-filters.js";
+import { formatBytes } from "./format-size.js";
+import { isDashManifest, isHlsManifest } from "./sniffer-filters.js";
+import { isSnifferEnabled, loadSnifferState } from "./sniffer-toggle.js";
+import { applyRegexRules, evaluateCapture } from "./capture-rules.js";
+import { getCaptureRules, getCompiledRegexRules } from "./capture-store.js";
 import {
   classifyStoredPages,
   normalizePageKey,
@@ -105,6 +71,23 @@ if (typeof chrome !== "undefined" && chrome?.storage?.local) {
 const detectedMedia = new Map();
 const pendingRequests = new Map();
 const tabPageKeys = new Map();
+
+// Entries are normally removed in onHeadersReceived / onErrorOccurred, but a
+// redirected or cancelled request can leave one behind forever. Cap the map and
+// drop the oldest half when it fills up — insertion order is chronological.
+export const MAX_PENDING_REQUESTS = 4096;
+
+export function trimPendingRequests(pending, max = MAX_PENDING_REQUESTS) {
+  if (pending.size <= max) return 0;
+  const dropCount = Math.floor(pending.size / 2);
+  let dropped = 0;
+  for (const key of pending.keys()) {
+    if (dropped >= dropCount) break;
+    pending.delete(key);
+    dropped++;
+  }
+  return dropped;
+}
 
 export function getDetectedMedia(tabId) {
   const pageKey = tabPageKeys.get(tabId);
@@ -154,19 +137,6 @@ function isBlockedPath(url) {
   } catch { return false; }
 }
 
-function isMediaByExtension(url) {
-  try {
-    const path = new URL(url).pathname.toLowerCase();
-    return MEDIA_EXTENSIONS.some(ext => path.includes(ext));
-  } catch { return false; }
-}
-
-function isMediaByContentType(contentType) {
-  if (!contentType) return false;
-  const lower = contentType.toLowerCase();
-  return MEDIA_CONTENT_TYPES.some(mt => lower.includes(mt));
-}
-
 function getContentLength(headers) {
   const header = headers?.find(h => h.name.toLowerCase() === "content-length");
   return header ? parseInt(header.value, 10) : 0;
@@ -179,18 +149,11 @@ function getContentType(headers) {
 
 function getMediaType(contentType, url) {
   const ct = contentType.toLowerCase();
-  if (ct.includes("mpegurl") || url.includes(".m3u8")) return "hls";
-  if (ct.includes("dash") || url.includes(".mpd")) return "dash";
+  if (isHlsManifest(url, contentType)) return "hls";
+  if (isDashManifest(url, contentType)) return "dash";
   if (ct.includes("video/")) return "video";
   if (ct.includes("audio/")) return "audio";
   return "media";
-}
-
-function formatSize(bytes) {
-  if (!bytes || bytes <= 0) return "";
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 function isHlsSegment(url, contentType) {
@@ -246,13 +209,33 @@ async function resolveTabPageKey(tabId) {
   }
 }
 
+// Folds a stored page back into whatever is already in memory. Restoring by
+// replacing the page's Map would lose live detections: the listeners are
+// registered synchronously and start recording the moment a request wakes the
+// service worker, while this reads every storage key and lands much later. A
+// live entry is also the fresher one, so it wins on conflict.
+export function mergeStoredMedia(target, pageKey, storedEntries) {
+  let existing = target.get(pageKey);
+  if (!existing) {
+    existing = new Map();
+    target.set(pageKey, existing);
+  }
+  let added = 0;
+  for (const [url, entry] of storedEntries) {
+    if (existing.has(url)) continue;
+    existing.set(url, entry);
+    added++;
+  }
+  return added;
+}
+
 export async function restoreMedia() {
   try {
     const data = await chrome.storage.local.get(null);
     const { valid, stale } = classifyStoredPages(data, Date.now());
     for (const entry of valid) {
       try {
-        detectedMedia.set(entry.pageKey, new Map(entry.media));
+        mergeStoredMedia(detectedMedia, entry.pageKey, entry.media);
       } catch {
         stale.push(entry.storageKey);
       }
@@ -263,9 +246,30 @@ export async function restoreMedia() {
   } catch {}
 }
 
+// Must be called synchronously while the service worker module is evaluated.
+// In MV3 an event only wakes a terminated worker back up if its listener was
+// registered during that first synchronous pass, so registration can never wait
+// on a promise — the enable check lives inside each handler instead.
+// Files the entry under the tab's page key and persists the page. Shared by the
+// webRequest sniffer and by deep search, which finds media the network layer
+// never sees. Resolves to false when the tab has no usable page key (an
+// internal page, or a tab that closed while we were looking it up).
+export async function recordDetectedMedia(tabId, entry) {
+  if (!entry?.url) return false;
+  const pageKey = await resolveTabPageKey(tabId);
+  if (!pageKey) return false;
+  if (!detectedMedia.has(pageKey)) {
+    detectedMedia.set(pageKey, new Map());
+  }
+  detectedMedia.get(pageKey).set(entry.url, entry);
+  persistPage(pageKey);
+  return true;
+}
+
 export function registerSnifferListeners(onMediaDetected) {
   chrome.webRequest.onSendHeaders.addListener(
     (details) => {
+      if (!isSnifferEnabled()) return;
       if (details.tabId < 0) return;
       if (details.method !== "GET") {
         try {
@@ -278,6 +282,7 @@ export function registerSnifferListeners(onMediaDetected) {
         requestHeaders: details.requestHeaders || [],
         tabId: details.tabId,
       });
+      trimPendingRequests(pendingRequests);
     },
     { urls: ["http://*/*", "https://*/*"] },
     ["requestHeaders", "extraHeaders"]
@@ -285,6 +290,7 @@ export function registerSnifferListeners(onMediaDetected) {
 
   chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
+      if (!isSnifferEnabled()) return;
       if (details.tabId < 0) return;
       if (details.statusCode < 200 || details.statusCode >= 300) return;
 
@@ -297,54 +303,70 @@ export function registerSnifferListeners(onMediaDetected) {
       const contentType = getContentType(details.responseHeaders);
       const contentLength = getContentLength(details.responseHeaders);
 
-      if (isPlatformCdnFragment(url, contentType, contentLength)) {
-        pendingRequests.delete(details.requestId);
-        return;
-      }
-      const isOctetStream = contentType.toLowerCase().includes("application/octet-stream");
-      const isMedia = isMediaByContentType(contentType) || isMediaByExtension(url);
-
-      if (!isMedia && !(isOctetStream && isMediaByExtension(url))) {
-        pendingRequests.delete(details.requestId);
-        return;
-      }
-
-      if (isHlsSegment(url, contentType)) {
+      // The user's regex table gets the first and last word. A block rule kills
+      // the request outright; an accept rule bypasses every heuristic below,
+      // because its whole purpose is to catch what the heuristics miss — an
+      // Instagram byte-range fragment, say, which isPlatformCdnFragment drops
+      // and which the accept rule rewrites into the URL of the whole file.
+      const regexResult = applyRegexRules(url, getCompiledRegexRules());
+      if (regexResult?.action === "block") {
         pendingRequests.delete(details.requestId);
         return;
       }
 
-      if (shouldDropBySize(url, contentType, contentLength)) {
-        pendingRequests.delete(details.requestId);
-        return;
+      const captureUrl = regexResult?.action === "accept" ? regexResult.url : url;
+
+      if (!regexResult) {
+        if (isPlatformCdnFragment(url, contentType, contentLength)) {
+          pendingRequests.delete(details.requestId);
+          return;
+        }
+
+        const tables = getCaptureRules();
+        const verdict = evaluateCapture({
+          url,
+          contentType,
+          contentLength,
+          extensions: tables.extensions,
+          contentTypes: tables.contentTypes,
+        });
+        if (!verdict.capture) {
+          pendingRequests.delete(details.requestId);
+          return;
+        }
+
+        if (isHlsSegment(url, contentType)) {
+          pendingRequests.delete(details.requestId);
+          return;
+        }
       }
 
       const reqData = pendingRequests.get(details.requestId);
       pendingRequests.delete(details.requestId);
 
-      const mediaType = getMediaType(contentType, url);
+      const mediaType = getMediaType(contentType, captureUrl);
 
       const entry = {
-        url,
+        url: captureUrl,
         contentType,
         contentLength,
         mediaType,
-        sizeText: formatSize(contentLength),
+        sizeText: formatBytes(contentLength),
         detectedAt: Date.now(),
         tabId: details.tabId,
         requestHeaders: reqData?.requestHeaders || [],
         responseHeaders: details.responseHeaders || [],
       };
 
-      resolveTabPageKey(details.tabId).then((pageKey) => {
-        if (!pageKey) return;
-        if (!detectedMedia.has(pageKey)) {
-          detectedMedia.set(pageKey, new Map());
-        }
-        detectedMedia.get(pageKey).set(url, entry);
-        persistPage(pageKey);
-        onMediaDetected(details.tabId, entry);
-      });
+      // isSnifferEnabled() above is the optimistic fast path; this is the
+      // authoritative one. Nothing is filed until the stored flag is known,
+      // so a boot-window request cannot be kept against the user's setting.
+      loadSnifferState().then((allowed) => {
+        if (!allowed) return null;
+        return recordDetectedMedia(details.tabId, entry).then((recorded) => {
+          if (recorded) onMediaDetected(details.tabId, entry);
+        });
+      }).catch(() => {});
     },
     { urls: ["http://*/*", "https://*/*"] },
     ["responseHeaders"]

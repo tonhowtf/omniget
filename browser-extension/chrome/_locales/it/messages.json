@@ -255,5 +255,36 @@
   },
   "popup_h264_label": {
     "message": "Forza H.264 su YouTube"
+  },
+  "popup_kind_av": {
+    "message": "Video + audio"
+  },
+  "popup_pair_files": {
+    "message": "$count$ file",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_size_approx": {
+    "message": "~$size$",
+    "placeholders": {
+      "size": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_deep_search_label": {
+    "message": "Ricerca approfondita (trova playlist nascoste)"
+  },
+  "popup_deep_search_denied": {
+    "message": "La ricerca approfondita richiede il permesso per tutti i siti"
+  },
+  "popup_deep_search_badge": {
+    "message": "Trovato nella pagina"
+  },
+  "popup_manifest_gone": {
+    "message": "Quella playlist veniva da una pagina poi ricaricata — riaprila"
   }
 }

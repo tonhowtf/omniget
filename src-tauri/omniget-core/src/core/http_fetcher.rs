@@ -712,7 +712,7 @@ pub async fn probe_remote(
 
     let mut req = client.get(url).header(reqwest::header::RANGE, "bytes=0-0");
     if let Some(h) = headers {
-        req = req.headers(h.clone());
+        req = req.headers(headers_without_range(h));
     }
     let resp = match tokio::time::timeout(timeout, req.send()).await {
         Ok(Ok(r)) => r,
@@ -952,7 +952,7 @@ async fn download_segment(
 
     let mut req = client.get(url);
     if let Some(h) = headers {
-        req = req.headers(h.clone());
+        req = req.headers(headers_without_range(h));
     }
     req = req.header(
         reqwest::header::RANGE,
@@ -969,6 +969,20 @@ async fn download_segment(
             return Err(anyhow!("server did not honor Range (HTTP 200)"));
         }
         return Err(anyhow!("HTTP {}", status));
+    }
+
+    // A 206 alone is not proof the server gave us the slice we asked for. If it
+    // answers a different offset and we write the body at ours anyway, the file
+    // still ends up the right size and is silently corrupt — the one failure
+    // mode a segmented download cannot detect later.
+    if let Some(start) = content_range_start(resp.headers()) {
+        if start != range_start {
+            return Err(anyhow!(
+                "server answered range at byte {} but {} was requested",
+                start,
+                range_start
+            ));
+        }
     }
 
     if let Some(ct) = resp.headers().get(reqwest::header::CONTENT_TYPE) {
@@ -1595,5 +1609,87 @@ mod tests {
         assert_eq!(loaded.segments.len(), 2);
         assert_eq!(loaded.segments[0].downloaded, 100);
         let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+}
+
+/// The caller's headers with any `Range` taken out.
+///
+/// Requests that set their own `Range` must never inherit one: `RequestBuilder`
+/// appends rather than replaces, so keeping it puts two `Range` lines on the
+/// wire and lets the server choose. The 403 recovery ladder in
+/// `direct_downloader.rs` adds `Range: bytes=0-` to every later attempt, and
+/// that is exactly how a segmented download can write the head of the file into
+/// every segment's offset, finish at the expected size, and be corrupt.
+fn headers_without_range(headers: &reqwest::header::HeaderMap) -> reqwest::header::HeaderMap {
+    let mut out = headers.clone();
+    out.remove(reqwest::header::RANGE);
+    out
+}
+
+/// First byte offset out of a `Content-Range: bytes <start>-<end>/<total>`.
+fn content_range_start(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    let value = headers.get(reqwest::header::CONTENT_RANGE)?.to_str().ok()?;
+    let spec = value.trim().strip_prefix("bytes")?.trim_start();
+    let start = spec.split('-').next()?.trim();
+    start.parse::<u64>().ok()
+}
+
+#[cfg(test)]
+mod range_header_tests {
+    use super::*;
+    use reqwest::header::{HeaderMap, HeaderValue, CONTENT_RANGE, RANGE, REFERER};
+
+    #[test]
+    fn range_is_stripped_but_everything_else_survives() {
+        let mut headers = HeaderMap::new();
+        headers.insert(RANGE, HeaderValue::from_static("bytes=0-"));
+        headers.insert(
+            REFERER,
+            HeaderValue::from_static("https://example.com/watch"),
+        );
+
+        let cleaned = headers_without_range(&headers);
+
+        assert!(cleaned.get(RANGE).is_none());
+        assert_eq!(
+            cleaned.get(REFERER).unwrap(),
+            "https://example.com/watch",
+            "stripping Range must not disturb the auth headers the download needs"
+        );
+        // The caller's map is untouched.
+        assert!(headers.get(RANGE).is_some());
+    }
+
+    #[test]
+    fn headers_without_range_is_a_no_op_when_there_is_none() {
+        let mut headers = HeaderMap::new();
+        headers.insert(REFERER, HeaderValue::from_static("https://example.com/"));
+        assert_eq!(headers_without_range(&headers).len(), 1);
+        assert_eq!(headers_without_range(&HeaderMap::new()).len(), 0);
+    }
+
+    #[test]
+    fn content_range_start_reads_the_first_byte_offset() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            CONTENT_RANGE,
+            HeaderValue::from_static("bytes 1048576-2097151/8388608"),
+        );
+        assert_eq!(content_range_start(&headers), Some(1_048_576));
+
+        headers.insert(CONTENT_RANGE, HeaderValue::from_static("bytes 0-0/8388608"));
+        assert_eq!(content_range_start(&headers), Some(0));
+    }
+
+    #[test]
+    fn content_range_start_gives_up_quietly_on_anything_odd() {
+        let mut headers = HeaderMap::new();
+        assert_eq!(content_range_start(&headers), None);
+
+        headers.insert(CONTENT_RANGE, HeaderValue::from_static("bytes */8388608"));
+        assert_eq!(content_range_start(&headers), None);
+
+        headers.insert(CONTENT_RANGE, HeaderValue::from_static("items 0-1/2"));
+        assert_eq!(content_range_start(&headers), None);
     }
 }

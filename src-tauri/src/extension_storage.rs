@@ -62,6 +62,12 @@ pub struct ExtensionPayload {
     pub page_url: Option<String>,
     #[serde(default, rename = "userAgent")]
     pub user_agent: Option<String>,
+    /// Raw text of an HLS playlist the extension's deep search recovered from
+    /// the page. Set when the manifest never travels the network as a
+    /// fetchable document (the player gets it through a `blob:` URL), so the
+    /// native downloader has no address it could fetch itself.
+    #[serde(default, rename = "manifestText")]
+    pub manifest_text: Option<String>,
 }
 
 pub fn cookie_limit() -> usize {

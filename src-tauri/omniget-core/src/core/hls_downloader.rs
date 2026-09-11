@@ -27,6 +27,11 @@ pub struct HlsDownloader {
     /// Optional rich progress channel; receives percent (completed/total
     /// segments) plus accumulated downloaded bytes as segments finish.
     progress_tx: Option<mpsc::Sender<ProgressUpdate>>,
+    /// A playlist whose text we already hold, as `(url, text)`. Set when the
+    /// browser extension captured a manifest the native side could never
+    /// fetch on its own (the page only ever handed it to the player through a
+    /// `blob:` URL).
+    prefetched_playlist: Option<(String, String)>,
 }
 
 impl Default for HlsDownloader {
@@ -59,6 +64,7 @@ impl HlsDownloader {
             client,
             user_agent_override: None,
             progress_tx: None,
+            prefetched_playlist: None,
         }
     }
 
@@ -72,6 +78,25 @@ impl HlsDownloader {
     pub fn with_progress(mut self, tx: mpsc::Sender<ProgressUpdate>) -> Self {
         self.progress_tx = Some(tx);
         self
+    }
+
+    /// Hand the downloader a playlist we already have the text of, so it is
+    /// never fetched over the network. Used for manifests the page built in
+    /// JavaScript and exposed only as a `blob:` URL, which does not resolve
+    /// outside the tab that minted it.
+    pub fn with_prefetched_playlist(mut self, url: String, text: String) -> Self {
+        self.prefetched_playlist = Some((url, text));
+        self
+    }
+
+    /// The prefetched text, but only when it belongs to `url`. A master
+    /// playlist can be prefetched while its variants still have to be fetched
+    /// normally, so the URL has to match exactly.
+    fn prefetched_for(&self, url: &str) -> Option<&str> {
+        match &self.prefetched_playlist {
+            Some((stored_url, text)) if stored_url == url => Some(text.as_str()),
+            _ => None,
+        }
     }
 
     fn effective_user_agent(&self) -> &str {
@@ -176,6 +201,14 @@ impl HlsDownloader {
         referer: &str,
         max_retries: u32,
     ) -> anyhow::Result<String> {
+        if let Some(text) = self.prefetched_for(url) {
+            tracing::info!(
+                "[hls] using prefetched playlist text ({} bytes)",
+                text.len()
+            );
+            return Ok(text.to_string());
+        }
+
         let mut last_err = None;
         for attempt in 0..max_retries {
             let req = apply_referer_headers(self.client.get(url), referer)
@@ -216,16 +249,30 @@ impl HlsDownloader {
         max_concurrent: u32,
         max_retries: u32,
     ) -> anyhow::Result<HlsDownloadResult> {
-        let resp = apply_referer_headers(self.client.get(m3u8_url), referer)
-            .header("User-Agent", self.effective_user_agent())
-            .send()
-            .await?;
+        // The media playlist is fetched a second time here, independently of
+        // `fetch_m3u8_with_retry`. Skipping this branch would throw the
+        // prefetched text away and hit the network anyway.
+        let text = match self.prefetched_for(m3u8_url) {
+            Some(text) => {
+                tracing::info!(
+                    "[hls] using prefetched media playlist text ({} bytes)",
+                    text.len()
+                );
+                text.to_string()
+            }
+            None => {
+                let resp = apply_referer_headers(self.client.get(m3u8_url), referer)
+                    .header("User-Agent", self.effective_user_agent())
+                    .send()
+                    .await?;
 
-        if !resp.status().is_success() {
-            anyhow::bail!("HTTP {} fetching playlist", resp.status());
-        }
+                if !resp.status().is_success() {
+                    anyhow::bail!("HTTP {} fetching playlist", resp.status());
+                }
 
-        let text = resp.text().await?;
+                resp.text().await?
+            }
+        };
 
         let (_, playlist) = parse_media_playlist(text.as_bytes())
             .map_err(|e| anyhow::anyhow!("Parse media playlist: {:?}", e))?;
@@ -613,12 +660,19 @@ async fn write_segments_ordered(
         pending.insert(idx, data);
 
         while let Some(segment_data) = pending.remove(&next_expected) {
+            // The image wrapper, when present, sits outside the encryption:
+            // it has to come off before the AES-128 block decryption runs.
+            let payload_start = image_wrapper_offset(&segment_data);
+
             if let Some(enc) = encryption {
                 use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
                 type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
                 let iv = compute_iv(enc, next_expected, media_sequence);
                 let mut buf = segment_data;
+                if payload_start > 0 {
+                    buf.drain(..payload_start);
+                }
                 let decryptor = Aes128CbcDec::new_from_slices(&enc.key_bytes, &iv)
                     .map_err(|e| anyhow::anyhow!("AES init: {:?}", e))?;
                 let decrypted = decryptor
@@ -626,7 +680,7 @@ async fn write_segments_ordered(
                     .map_err(|e| anyhow::anyhow!("AES decrypt: {:?}", e))?;
                 file.write_all(decrypted)?;
             } else {
-                file.write_all(&segment_data)?;
+                file.write_all(&segment_data[payload_start..])?;
             }
             next_expected += 1;
         }
@@ -702,6 +756,109 @@ async fn download_segment_with_retry(
     Err(last_err.unwrap_or_else(|| {
         anyhow::anyhow!("Segment download failed after {} attempts", max_retries)
     }))
+}
+
+const PNG_SIGNATURE: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+const JPEG_SIGNATURE: [u8; 3] = [0xFF, 0xD8, 0xFF];
+
+/// Number of leading bytes to drop from a segment that arrived disguised as an
+/// image.
+///
+/// A handful of CDNs wrap each transport-stream segment in a real PNG or JPEG
+/// file so that naive traffic inspection sees an image download. The media
+/// payload is simply appended after the image ends, so the fix is to find the
+/// image's end-of-file marker and start reading right after it:
+///
+/// * PNG ends with the `IEND` chunk — 4 bytes of type plus a 4-byte CRC32,
+///   hence 8 bytes past the marker;
+/// * JPEG ends with the `FF D9` EOI marker, 2 bytes long.
+///
+/// Anything that is not one of those two, or that carries the signature but
+/// never the closing marker, returns 0 — the buffer is passed through
+/// untouched. Returning a wrong offset would silently corrupt the output, so
+/// every uncertain case errs towards leaving the bytes alone.
+/// Where a PNG ends, found by walking its chunk table rather than by searching
+/// for the bytes `IEND`.
+///
+/// The literal search is the obvious implementation and it is wrong: `IEND` is
+/// four ordinary bytes that can occur inside the compressed data of an `IDAT`
+/// chunk. Cutting there lands in the middle of the PNG, and the segment is
+/// corrupt with nothing to report it. Every PNG chunk announces its own length,
+/// so the real end is reachable exactly.
+fn png_payload_offset(data: &[u8]) -> Option<usize> {
+    let mut at = PNG_SIGNATURE.len();
+    loop {
+        // Each chunk is: 4-byte length, 4-byte type, payload, 4-byte CRC.
+        let header_end = at.checked_add(8)?;
+        if header_end > data.len() {
+            return None;
+        }
+        let length = u32::from_be_bytes([data[at], data[at + 1], data[at + 2], data[at + 3]]);
+        let kind = &data[at + 4..at + 8];
+        let next = header_end.checked_add(length as usize)?.checked_add(4)?;
+        if next > data.len() {
+            return None;
+        }
+        if kind == b"IEND" {
+            return Some(next);
+        }
+        at = next;
+    }
+}
+
+/// Where a JPEG ends: the first `FF D9` that is not inside the two-byte
+/// signature. Unlike PNG this stays a scan — JPEG entropy-coded data escapes
+/// its own `FF` bytes, so a literal `FF D9` in the stream really is the end of
+/// image. The stricter marker check on the way in is what keeps random bytes
+/// from ever reaching here.
+fn jpeg_payload_offset(data: &[u8]) -> Option<usize> {
+    find_subslice(&data[JPEG_SIGNATURE.len()..], &[0xFF, 0xD9])
+        .map(|pos| JPEG_SIGNATURE.len() + pos + 2)
+}
+
+/// Whether the buffer opens like a real JPEG and not like three unlucky bytes.
+///
+/// This matters because the strip runs before decryption: the head of an
+/// AES-128 segment is ciphertext, and `FF D8 FF` turns up in random bytes about
+/// once every 16 million segments. Requiring a valid marker after the signature
+/// takes that from "will happen to someone" to negligible.
+fn looks_like_jpeg(data: &[u8]) -> bool {
+    if !data.starts_with(&JPEG_SIGNATURE) || data.len() < 4 {
+        return false;
+    }
+    // The byte after `FF D8 FF` is a marker code: APPn, DQT, DHT, SOF, COM…
+    // Never 0x00 (a stuffed byte), never 0xFF (padding), never 0xD8 again.
+    matches!(data[3], 0xC0..=0xCF | 0xDB | 0xDD | 0xE0..=0xEF | 0xFE)
+}
+
+fn image_wrapper_offset(data: &[u8]) -> usize {
+    let start = if data.starts_with(&PNG_SIGNATURE) {
+        match png_payload_offset(data) {
+            Some(end) => end,
+            None => return 0,
+        }
+    } else if looks_like_jpeg(data) {
+        match jpeg_payload_offset(data) {
+            Some(end) => end,
+            None => return 0,
+        }
+    } else {
+        return 0;
+    };
+
+    // A wrapper with nothing behind it is not a segment we can salvage;
+    // handing back an empty buffer would corrupt the concatenated output.
+    if start >= data.len() {
+        return 0;
+    }
+    start
+}
+
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || haystack.len() < needle.len() {
+        return None;
+    }
+    haystack.windows(needle.len()).position(|w| w == needle)
 }
 
 fn compute_iv(encryption: &EncryptionInfo, segment_index: usize, media_sequence: u64) -> [u8; 16] {
@@ -1092,5 +1249,164 @@ mod tests {
         };
         let result = compute_iv(&enc, 0, 0);
         assert_eq!(result, [0u8; 16]);
+    }
+
+    fn stripped(data: &[u8]) -> &[u8] {
+        &data[image_wrapper_offset(data)..]
+    }
+
+    /// A minimal but structurally honest PNG: signature, one IHDR-ish chunk,
+    /// then the IEND chunk with its 4-byte CRC.
+    fn png_wrapped(payload: &[u8]) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(&PNG_SIGNATURE);
+        out.extend_from_slice(&[0, 0, 0, 4]); // chunk length
+        out.extend_from_slice(b"IHDR");
+        out.extend_from_slice(&[1, 2, 3, 4]); // chunk data
+        out.extend_from_slice(&[0xAA, 0xBB, 0xCC, 0xDD]); // chunk CRC
+        out.extend_from_slice(&[0, 0, 0, 0]); // IEND length
+        out.extend_from_slice(b"IEND");
+        out.extend_from_slice(&[0xAE, 0x42, 0x60, 0x82]); // IEND CRC
+        out.extend_from_slice(payload);
+        out
+    }
+
+    fn jpeg_wrapped(payload: &[u8]) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(&JPEG_SIGNATURE);
+        out.extend_from_slice(&[0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46]); // JFIF-ish
+        out.extend_from_slice(&[0xFF, 0xD9]); // EOI
+        out.extend_from_slice(payload);
+        out
+    }
+
+    #[test]
+    fn image_wrapper_offset_strips_png_prefix() {
+        let payload = b"\x47\x40\x11\x10 transport stream";
+        let wrapped = png_wrapped(payload);
+        assert_eq!(stripped(&wrapped), payload);
+    }
+
+    #[test]
+    fn image_wrapper_offset_strips_jpeg_prefix() {
+        let payload = b"\x47\x40\x11\x10 transport stream";
+        let wrapped = jpeg_wrapped(payload);
+        assert_eq!(stripped(&wrapped), payload);
+    }
+
+    /// A PNG whose IDAT payload happens to contain the bytes `IEND`.
+    fn png_with_iend_bytes_inside_idat(payload: &[u8]) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(&PNG_SIGNATURE);
+        let idat = b"....IEND....decoy";
+        out.extend_from_slice(&(idat.len() as u32).to_be_bytes());
+        out.extend_from_slice(b"IDAT");
+        out.extend_from_slice(idat);
+        out.extend_from_slice(&[0xAA, 0xBB, 0xCC, 0xDD]); // chunk CRC
+        out.extend_from_slice(&[0, 0, 0, 0]); // IEND length
+        out.extend_from_slice(b"IEND");
+        out.extend_from_slice(&[0xAE, 0x42, 0x60, 0x82]); // IEND CRC
+        out.extend_from_slice(payload);
+        out
+    }
+
+    #[test]
+    fn iend_bytes_inside_the_image_do_not_cut_the_segment_short() {
+        // `IEND` is four ordinary bytes and can occur inside compressed image
+        // data. Searching for the pattern instead of walking the chunk table
+        // cuts here, and the segment is corrupt with nothing to report it.
+        let payload = b"\x47\x40\x11\x10 transport stream";
+        let wrapped = png_with_iend_bytes_inside_idat(payload);
+        assert_eq!(stripped(&wrapped), payload);
+    }
+
+    #[test]
+    fn three_unlucky_bytes_are_not_a_jpeg() {
+        // The strip runs before decryption, so the head of an AES-128 segment
+        // is ciphertext: `FF D8 FF` shows up in random bytes roughly once every
+        // 16 million segments. What follows a real signature is a marker code.
+        let mut ciphertext = vec![0xFF, 0xD8, 0xFF, 0x1A];
+        ciphertext.extend_from_slice(b"encrypted segment bytes\xFF\xD9 and more");
+        assert_eq!(image_wrapper_offset(&ciphertext), 0);
+        assert_eq!(stripped(&ciphertext), &ciphertext[..]);
+
+        // A real JPEG still strips: APP0 follows the signature.
+        let payload = b"\x47\x40\x11\x10 transport stream";
+        assert_eq!(stripped(&jpeg_wrapped(payload)), payload);
+    }
+
+    #[test]
+    fn image_wrapper_offset_is_zero_without_a_wrapper() {
+        let raw = b"\x47\x40\x11\x10 plain segment bytes";
+        assert_eq!(image_wrapper_offset(raw), 0);
+        assert_eq!(stripped(raw), raw);
+    }
+
+    #[test]
+    fn png_without_iend_is_left_intact() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&PNG_SIGNATURE);
+        data.extend_from_slice(b"truncated png with no end chunk");
+        assert_eq!(image_wrapper_offset(&data), 0);
+        assert_eq!(stripped(&data), &data[..]);
+    }
+
+    #[test]
+    fn jpeg_without_eoi_is_left_intact() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&JPEG_SIGNATURE);
+        data.extend_from_slice(b"truncated jpeg with no end marker");
+        assert_eq!(image_wrapper_offset(&data), 0);
+        assert_eq!(stripped(&data), &data[..]);
+    }
+
+    #[test]
+    fn wrapper_with_no_payload_behind_it_is_left_intact() {
+        let png = png_wrapped(b"");
+        assert_eq!(image_wrapper_offset(&png), 0);
+        let jpeg = jpeg_wrapped(b"");
+        assert_eq!(image_wrapper_offset(&jpeg), 0);
+    }
+
+    #[test]
+    fn short_and_empty_buffers_are_left_intact() {
+        assert_eq!(image_wrapper_offset(&[]), 0);
+        assert_eq!(image_wrapper_offset(&[0x89, 0x50]), 0);
+        assert_eq!(image_wrapper_offset(&[0xFF, 0xD8]), 0);
+    }
+
+    #[test]
+    fn find_subslice_basics() {
+        assert_eq!(find_subslice(b"abcdef", b"cd"), Some(2));
+        assert_eq!(find_subslice(b"abcdef", b"xy"), None);
+        assert_eq!(find_subslice(b"ab", b"abc"), None);
+        assert_eq!(find_subslice(b"abc", b""), None);
+    }
+
+    #[test]
+    fn prefetched_for_matches_only_the_stored_url() {
+        let url = "https://cdn.example.com/live/master.m3u8";
+        let downloader = HlsDownloader::with_client(Client::new())
+            .with_prefetched_playlist(url.to_string(), "#EXTM3U\n".to_string());
+
+        assert_eq!(downloader.prefetched_for(url), Some("#EXTM3U\n"));
+        assert_eq!(
+            downloader.prefetched_for("https://cdn.example.com/live/1080.m3u8"),
+            None
+        );
+        // Query strings are part of the identity: CDNs key tokens on them.
+        assert_eq!(
+            downloader.prefetched_for("https://cdn.example.com/live/master.m3u8?t=1"),
+            None
+        );
+    }
+
+    #[test]
+    fn prefetched_for_is_none_without_a_prefetched_playlist() {
+        let downloader = HlsDownloader::with_client(Client::new());
+        assert_eq!(
+            downloader.prefetched_for("https://cdn.example.com/live/master.m3u8"),
+            None
+        );
     }
 }

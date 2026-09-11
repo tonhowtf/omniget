@@ -200,3 +200,55 @@ pub async fn tool_mcp_selftest(app: tauri::AppHandle) -> Result<String, String> 
         .unwrap_or(0);
     Ok(format!("{} · {} tools · {}", version, n, url))
 }
+
+// ── Contagem de tokens e custo por modelo (estende ai-prices) ──
+
+use omniget_core::core::tools::{ai_tokens, arxiv};
+
+/// As famílias de tokenizador que a heurística conhece, com o fator de cada uma.
+#[tauri::command]
+pub fn tool_tokens_families() -> Vec<ai_tokens::Family> {
+    ai_tokens::FAMILIES.to_vec()
+}
+
+/// Modelos comparados quando a UI não escolhe nenhum.
+#[tauri::command]
+pub fn tool_tokens_default_models() -> Vec<String> {
+    ai_tokens::DEFAULT_MODELS
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+}
+
+/// Só a contagem (sem tabela de preços e sem rede).
+#[tauri::command]
+pub async fn tool_tokens_count(
+    app: tauri::AppHandle,
+    opts: ai_tokens::Options,
+) -> Result<ai_tokens::Report, String> {
+    let p = progress(&app);
+    tokio::task::spawn_blocking(move || ai_tokens::count(&opts, &p))
+        .await
+        .map_err(err)?
+        .map_err(err)
+}
+
+/// Contagem estimada + custo por modelo. O número é sempre estimativa:
+/// `margin_pct` e `estimated` vêm no resultado para a UI dizer isso.
+#[tauri::command]
+pub async fn tool_tokens_cost(
+    app: tauri::AppHandle,
+    opts: ai_tokens::Options,
+) -> Result<ai_tokens::Report, String> {
+    ai_tokens::run(opts, progress(&app)).await.map_err(err)
+}
+
+// ── arXiv → Markdown ──
+
+#[tauri::command]
+pub async fn tool_arxiv_md(
+    app: tauri::AppHandle,
+    opts: arxiv::Options,
+) -> Result<arxiv::ArxivDoc, String> {
+    arxiv::fetch(opts, progress(&app)).await.map_err(err)
+}

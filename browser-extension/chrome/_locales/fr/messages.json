@@ -255,5 +255,36 @@
   },
   "popup_h264_label": {
     "message": "Forcer H.264 sur YouTube"
+  },
+  "popup_kind_av": {
+    "message": "Vidéo + audio"
+  },
+  "popup_pair_files": {
+    "message": "$count$ fichiers",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_size_approx": {
+    "message": "~$size$",
+    "placeholders": {
+      "size": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_deep_search_label": {
+    "message": "Recherche approfondie (trouve les playlists cachées)"
+  },
+  "popup_deep_search_denied": {
+    "message": "La recherche approfondie requiert l'autorisation pour tous les sites"
+  },
+  "popup_deep_search_badge": {
+    "message": "Trouvé dans la page"
+  },
+  "popup_manifest_gone": {
+    "message": "Cette playlist venait d'une page depuis rechargée — rouvrez-la"
   }
 }

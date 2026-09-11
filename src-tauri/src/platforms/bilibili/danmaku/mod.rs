@@ -4,10 +4,14 @@ use super::api::{ApiClient, BilibiliError, Result};
 use super::wbi;
 
 pub mod ass;
+pub mod burn;
+pub mod export;
+pub mod filter;
 pub mod json;
 pub mod proto;
 pub mod xml;
 
+pub use filter::DanmakuFilter;
 pub use proto::DanmakuElem;
 
 const SEG_URL: &str = "https://api.bilibili.com/x/v2/dm/wbi/web/seg.so";
@@ -22,6 +26,16 @@ pub enum DanmakuFormat {
 }
 
 impl DanmakuFormat {
+    /// Nome vindo do front (ou de uma configuração), sem diferenciar caixa.
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name.trim().to_lowercase().as_str() {
+            "xml" => Some(DanmakuFormat::Xml),
+            "ass" => Some(DanmakuFormat::Ass),
+            "json" => Some(DanmakuFormat::Json),
+            _ => None,
+        }
+    }
+
     pub fn extension(self) -> &'static str {
         match self {
             DanmakuFormat::Xml => "xml",
@@ -74,5 +88,21 @@ pub fn render(elems: &[DanmakuElem], format: DanmakuFormat) -> String {
         DanmakuFormat::Xml => xml::render(elems),
         DanmakuFormat::Json => json::render(elems),
         DanmakuFormat::Ass => ass::render(elems, &ass::AssRenderOptions::default()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_names_are_case_insensitive() {
+        assert_eq!(DanmakuFormat::from_name("ASS"), Some(DanmakuFormat::Ass));
+        assert_eq!(
+            DanmakuFormat::from_name(" json "),
+            Some(DanmakuFormat::Json)
+        );
+        assert_eq!(DanmakuFormat::from_name("srt"), None);
+        assert_eq!(DanmakuFormat::Xml.extension(), "xml");
     }
 }

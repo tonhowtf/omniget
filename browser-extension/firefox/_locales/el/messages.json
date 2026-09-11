@@ -255,5 +255,36 @@
   },
   "popup_h264_label": {
     "message": "Επιβολή H.264 στο YouTube"
+  },
+  "popup_kind_av": {
+    "message": "Βίντεο + ήχος"
+  },
+  "popup_pair_files": {
+    "message": "$count$ αρχεία",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_size_approx": {
+    "message": "~$size$",
+    "placeholders": {
+      "size": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_deep_search_label": {
+    "message": "Βαθιά αναζήτηση (βρίσκει κρυφές λίστες)"
+  },
+  "popup_deep_search_denied": {
+    "message": "Η βαθιά αναζήτηση χρειάζεται άδεια για όλους τους ιστότοπους"
+  },
+  "popup_deep_search_badge": {
+    "message": "Βρέθηκε στη σελίδα"
+  },
+  "popup_manifest_gone": {
+    "message": "Η λίστα βρέθηκε σε σελίδα που έχει φορτώσει ξανά — ανοίξτε την πάλι"
   }
 }

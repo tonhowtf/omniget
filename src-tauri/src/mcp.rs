@@ -64,6 +64,12 @@ pub fn tools() -> Vec<ToolDef> {
         t("startup_items", "Programs that start with the system.", obj(json!({}), &[])),
         t("installed_apps", "Installed applications with version and size.", obj(json!({}), &[])),
         t("ai_keys", "Saved AI API accounts (names, providers, balances). Keys are never returned.", obj(json!({}), &[])),
+        t("download_enqueue", "Queue a URL in the Downloads panel using the app defaults, and return the queue item. mode audio downloads audio only.", obj(json!({ "url": { "type": "string" }, "mode": { "type": "string", "enum": ["video", "audio"] } }), &["url"])),
+        t("downloads_queue", "List the Downloads queue with per-item status, progress, speed, ETA and output path.", obj(json!({ "status": { "type": "string", "enum": ["queued", "active", "paused", "seeding", "complete", "error"] }, "limit": { "type": "integer" } }), &[])),
+        t("download_status", "One download by id: status, percent, speed, ETA, file path and the last yt-dlp command.", obj(json!({ "download_id": { "type": "integer" } }), &["download_id"])),
+        t("download_cancel", "Cancel a download by id (queued, active, paused or seeding).", obj(json!({ "download_id": { "type": "integer" } }), &["download_id"])),
+        t("download_pause", "Pause an active download by id.", obj(json!({ "download_id": { "type": "integer" } }), &["download_id"])),
+        t("download_resume", "Resume a paused download by id.", obj(json!({ "download_id": { "type": "integer" } }), &["download_id"])),
     ]
 }
 
@@ -83,11 +89,125 @@ fn list(v: &Value, k: &str) -> Vec<String> {
 fn num(v: &Value, k: &str) -> Option<u64> {
     v.get(k).and_then(|x| x.as_u64())
 }
+
+/// Argumento de texto obrigatorio, com erro legivel quando falta.
+fn need_str(v: &Value, k: &str) -> Result<String, String> {
+    let value = s(v, k);
+    if value.trim().is_empty() {
+        return Err(format!("argument \"{}\" is required (string)", k));
+    }
+    Ok(value)
+}
+
+/// Id de download: aceita numero ou string numerica.
+fn need_id(v: &Value, k: &str) -> Result<u64, String> {
+    v.get(k)
+        .and_then(|x| {
+            x.as_u64()
+                .or_else(|| x.as_str().and_then(|t| t.trim().parse().ok()))
+        })
+        .ok_or_else(|| format!("argument \"{}\" is required (download id, integer)", k))
+}
 fn to_json<T: Serialize>(v: T) -> Result<Value, String> {
     serde_json::to_value(v).map_err(|e| e.to_string())
 }
 fn err<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
+}
+
+// ── Downloads: o engine que ja existe, exposto como tools ──────────────
+//
+// Nada de capacidade nova aqui: cada arm abaixo chama exatamente o que os
+// comandos Tauri de `commands/downloads.rs` chamam.
+
+fn status_key(status: &crate::core::queue::QueueStatus) -> &'static str {
+    use crate::core::queue::QueueStatus as S;
+    match status {
+        S::Queued => "queued",
+        S::Active => "active",
+        S::Paused => "paused",
+        S::Seeding => "seeding",
+        S::Complete { .. } => "complete",
+        S::Error { .. } => "error",
+    }
+}
+
+pub(crate) const QUEUE_STATUS_KEYS: &[&str] =
+    &["queued", "active", "paused", "seeding", "complete", "error"];
+
+async fn queue_snapshot(app: &AppHandle) -> Vec<crate::core::queue::QueueItemInfo> {
+    use tauri::Manager;
+    let state = app.state::<crate::AppState>();
+    let q = state.download_queue.lock().await;
+    q.get_state()
+}
+
+async fn queue_item(app: &AppHandle, id: u64) -> Result<crate::core::queue::QueueItemInfo, String> {
+    queue_snapshot(app)
+        .await
+        .into_iter()
+        .find(|i| i.id == id)
+        .ok_or_else(|| format!("no download with id {}", id))
+}
+
+/// Fecha a sessao do torrent quando o item cancelado era um magnet.
+async fn drop_torrent(app: &AppHandle, torrent_id: Option<usize>, pause_only: bool) {
+    use tauri::Manager;
+    let Some(tid) = torrent_id else { return };
+    let state = app.state::<crate::AppState>();
+    let session = state.torrent_session.lock().await;
+    let Some(session) = session.as_ref() else {
+        return;
+    };
+    let handle = librqbit::api::TorrentIdOrHash::Id(tid);
+    if pause_only {
+        if let Some(h) = session.get(handle) {
+            let _ = session.pause(&h).await;
+        }
+    } else {
+        let _ = session.delete(handle, false).await;
+    }
+}
+
+/// Cancelar / pausar / retomar: a mesma sequencia dos comandos Tauri
+/// (mexe na fila, emite o estado novo e tenta comecar o proximo).
+async fn queue_control(app: &AppHandle, id: u64, action: &str) -> Result<Value, String> {
+    use tauri::Manager;
+    let state = app.state::<crate::AppState>();
+    let (changed, torrent_id) = {
+        let mut q = state.download_queue.lock().await;
+        match action {
+            "cancel" => q.cancel(id),
+            "pause" => {
+                let ok = q.pause(id);
+                let tid = q
+                    .items
+                    .iter()
+                    .find(|i| i.id == id)
+                    .and_then(|i| i.torrent_id);
+                (ok, if ok { tid } else { None })
+            }
+            _ => (q.resume(id), None),
+        }
+    };
+    if !changed {
+        let current = queue_item(app, id)
+            .await
+            .map(|i| status_key(&i.status).to_string())
+            .unwrap_or_else(|e| e);
+        return Err(format!("cannot {} download {} ({})", action, id, current));
+    }
+    if action != "resume" {
+        drop_torrent(app, torrent_id, action == "pause").await;
+    }
+    let snapshot = {
+        let q = state.download_queue.lock().await;
+        q.get_state()
+    };
+    crate::core::queue::emit_queue_state_from_state(app, snapshot);
+    crate::core::queue::try_start_next(app.clone(), state.download_queue.clone()).await;
+    let item = queue_item(app, id).await.ok();
+    Ok(json!({ "download_id": id, "action": action, "item": item }))
 }
 
 pub async fn call(app: &AppHandle, name: &str, a: Value) -> Result<Value, String> {
@@ -324,6 +444,69 @@ pub async fn call(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
         "startup_items" => to_json(startup::list().await),
         "installed_apps" => to_json(uninstall::list(p).await),
         "ai_keys" => to_json(ai_keys::list()),
+        "download_enqueue" => {
+            let url = need_str(&a, "url")?;
+            let mode = match s(&a, "mode").as_str() {
+                "" | "video" => None,
+                "audio" => Some("audio".to_string()),
+                other => {
+                    return Err(format!(
+                        "argument \"mode\" must be \"video\" or \"audio\", got \"{}\"",
+                        other
+                    ))
+                }
+            };
+            let before: std::collections::HashSet<u64> =
+                queue_snapshot(app).await.iter().map(|i| i.id).collect();
+            let outcome =
+                crate::external_url::queue_url_with_defaults(app, url.clone(), false, mode).await?;
+            let after = queue_snapshot(app).await;
+            let item = after
+                .iter()
+                .find(|i| !before.contains(&i.id) && i.url == url)
+                .or_else(|| after.iter().find(|i| i.url == url));
+            let outcome = match outcome {
+                crate::external_url::QueueUrlOutcome::Queued => "queued",
+                crate::external_url::QueueUrlOutcome::AlreadyQueued => "already-queued",
+            };
+            Ok(json!({ "url": url, "outcome": outcome, "item": item }))
+        }
+        "downloads_queue" => {
+            let want = s(&a, "status").trim().to_lowercase();
+            if !want.is_empty() && !QUEUE_STATUS_KEYS.contains(&want.as_str()) {
+                return Err(format!(
+                    "argument \"status\" must be one of {}, got \"{}\"",
+                    QUEUE_STATUS_KEYS.join(", "),
+                    want
+                ));
+            }
+            let limit = num(&a, "limit").unwrap_or(50).max(1) as usize;
+            let items = queue_snapshot(app).await;
+            let mut by_status: std::collections::BTreeMap<&str, u64> = Default::default();
+            for i in &items {
+                *by_status.entry(status_key(&i.status)).or_insert(0) += 1;
+            }
+            let total = items.len();
+            let matched: Vec<_> = items
+                .into_iter()
+                .filter(|i| want.is_empty() || status_key(&i.status) == want)
+                .collect();
+            let shown = matched.len().min(limit);
+            Ok(
+                json!({ "total": total, "matched": matched.len(), "shown": shown, "by_status": by_status, "items": matched.into_iter().take(limit).collect::<Vec<_>>() }),
+            )
+        }
+        "download_status" => {
+            let id = need_id(&a, "download_id")?;
+            let item = queue_item(app, id).await?;
+            let command = omniget_core::core::ytdlp::get_command(id);
+            let log = crate::core::download_log::get(id);
+            let log: Vec<String> = log.into_iter().rev().take(20).rev().collect();
+            to_json(json!({ "item": item, "command": command, "log": log }))
+        }
+        "download_cancel" => queue_control(app, need_id(&a, "download_id")?, "cancel").await,
+        "download_pause" => queue_control(app, need_id(&a, "download_id")?, "pause").await,
+        "download_resume" => queue_control(app, need_id(&a, "download_id")?, "resume").await,
         _ => Err(format!("unknown tool: {}", name)),
     }
 }
@@ -480,9 +663,115 @@ mod tests {
         for t in &list {
             assert_eq!(t.input_schema["type"], "object", "{}", t.name);
             assert!(!t.description.is_empty());
+            // Todo campo obrigatorio precisa existir em `properties`.
+            let props = t.input_schema["properties"]
+                .as_object()
+                .unwrap_or_else(|| panic!("{} sem properties", t.name));
+            let required = t.input_schema["required"]
+                .as_array()
+                .unwrap_or_else(|| panic!("{} sem required", t.name));
+            for r in required {
+                let key = r.as_str().unwrap_or_default();
+                assert!(props.contains_key(key), "{}: required {:?}", t.name, key);
+            }
         }
         let names: std::collections::HashSet<_> = list.iter().map(|t| t.name).collect();
         assert_eq!(names.len(), list.len(), "nomes repetidos");
+
+        // Controle da fila de downloads (mcp-downloads-control).
+        for name in [
+            "download_enqueue",
+            "downloads_queue",
+            "download_status",
+            "download_cancel",
+            "download_pause",
+            "download_resume",
+        ] {
+            assert!(names.contains(name), "faltou a tool {}", name);
+        }
+        let by_name = |n: &str| {
+            list.iter()
+                .find(|t| t.name == n)
+                .unwrap_or_else(|| panic!("sem {}", n))
+        };
+        assert_eq!(
+            by_name("download_enqueue").input_schema["required"],
+            json!(["url"])
+        );
+        assert_eq!(
+            by_name("download_enqueue").input_schema["properties"]["mode"]["enum"],
+            json!(["video", "audio"])
+        );
+        // Listar a fila nao exige argumento nenhum.
+        assert_eq!(
+            by_name("downloads_queue").input_schema["required"],
+            json!([])
+        );
+        for n in [
+            "download_status",
+            "download_cancel",
+            "download_pause",
+            "download_resume",
+        ] {
+            assert_eq!(
+                by_name(n).input_schema["required"],
+                json!(["download_id"]),
+                "{}",
+                n
+            );
+            assert_eq!(
+                by_name(n).input_schema["properties"]["download_id"]["type"],
+                "integer",
+                "{}",
+                n
+            );
+        }
+        // O filtro de status da lista tem que casar com o que `status_key` devolve.
+        let allowed = by_name("downloads_queue").input_schema["properties"]["status"]["enum"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let allowed: Vec<String> = allowed
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect();
+        assert_eq!(allowed, QUEUE_STATUS_KEYS.to_vec());
+    }
+
+    #[test]
+    fn argumento_errado_da_erro_legivel() {
+        let a = json!({ "download_id": "42", "url": "  " });
+        assert_eq!(need_id(&a, "download_id"), Ok(42));
+        let Err(e) = need_id(&json!({}), "download_id") else {
+            panic!("id faltando deveria falhar");
+        };
+        assert!(e.contains("download_id") && e.contains("integer"), "{}", e);
+        let Err(e) = need_str(&a, "url") else {
+            panic!("url em branco deveria falhar");
+        };
+        assert!(e.contains("url") && e.contains("required"), "{}", e);
+        let Err(e) = need_str(&json!({}), "query") else {
+            panic!("query faltando deveria falhar");
+        };
+        assert!(e.contains("query"), "{}", e);
+    }
+
+    #[test]
+    fn status_da_fila_vira_chave_estavel() {
+        use crate::core::queue::QueueStatus as S;
+        assert_eq!(status_key(&S::Queued), "queued");
+        assert_eq!(status_key(&S::Active), "active");
+        assert_eq!(status_key(&S::Paused), "paused");
+        assert_eq!(status_key(&S::Seeding), "seeding");
+        assert_eq!(status_key(&S::Complete { success: true }), "complete");
+        assert_eq!(status_key(&S::Complete { success: false }), "complete");
+        assert_eq!(
+            status_key(&S::Error {
+                message: "Cancelled".into(),
+                retryable: false
+            }),
+            "error"
+        );
     }
 
     #[test]

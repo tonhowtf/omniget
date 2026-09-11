@@ -255,5 +255,36 @@
   },
   "popup_h264_label": {
     "message": "Force H.264 on YouTube (lighter on weak machines)"
+  },
+  "popup_kind_av": {
+    "message": "Video + audio"
+  },
+  "popup_pair_files": {
+    "message": "$count$ files",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_size_approx": {
+    "message": "~$size$",
+    "placeholders": {
+      "size": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_deep_search_label": {
+    "message": "Deep search (finds hidden playlists)"
+  },
+  "popup_deep_search_denied": {
+    "message": "Deep search needs permission for all sites"
+  },
+  "popup_deep_search_badge": {
+    "message": "Found in page"
+  },
+  "popup_manifest_gone": {
+    "message": "That playlist was found in a page that has since reloaded — open it again"
   }
 }

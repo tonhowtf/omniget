@@ -255,5 +255,36 @@
   },
   "popup_h264_label": {
     "message": "Принудительно H.264 на YouTube"
+  },
+  "popup_kind_av": {
+    "message": "Видео + аудио"
+  },
+  "popup_pair_files": {
+    "message": "Файлов: $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_size_approx": {
+    "message": "~$size$",
+    "placeholders": {
+      "size": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_deep_search_label": {
+    "message": "Глубокий поиск (находит скрытые плейлисты)"
+  },
+  "popup_deep_search_denied": {
+    "message": "Для глубокого поиска нужен доступ ко всем сайтам"
+  },
+  "popup_deep_search_badge": {
+    "message": "Найдено на странице"
+  },
+  "popup_manifest_gone": {
+    "message": "Плейлист был найден на странице, которая перезагрузилась — откройте её снова"
   }
 }

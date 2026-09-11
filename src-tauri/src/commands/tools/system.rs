@@ -1,9 +1,10 @@
 //! Sistema: ajustes do Windows, limpeza de caches, analisador de disco,
-//! inicialização, desinstalador e (só Windows) debloat, registro e
-//! atualizador. A lógica mora em `omniget_core::core::tools`.
+//! inicialização, desinstalador, bloqueio por `hosts` e (só Windows) debloat,
+//! registro e atualizador. A lógica mora em `omniget_core::core::tools`.
 
 use omniget_core::core::tools::{
-    disk, startup, sysclean, uninstall, win_apps, win_registry, win_tweaks, win_updater,
+    disk, hosts_block, startup, sysclean, uninstall, win_apps, win_registry, win_tweaks,
+    win_updater,
 };
 use serde::Serialize;
 
@@ -160,4 +161,36 @@ pub async fn tool_updater_upgrade(
     items: Vec<win_updater::Outdated>,
 ) -> win_updater::UpgradeResult {
     win_updater::upgrade(&items, &progress(&app)).await
+}
+
+// ── Bloqueio de anúncio e telemetria pelo `hosts` ──
+
+#[tauri::command]
+pub async fn tool_hosts_read(
+    opts: hosts_block::ReadOptions,
+) -> Result<hosts_block::HostsState, String> {
+    tokio::task::spawn_blocking(move || hosts_block::read_state(&opts))
+        .await
+        .map_err(err)?
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn tool_hosts_apply(
+    app: tauri::AppHandle,
+    opts: hosts_block::ApplyOptions,
+) -> Result<hosts_block::ApplyResult, String> {
+    hosts_block::apply(&opts, &progress(&app))
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn tool_hosts_restore(
+    opts: hosts_block::RestoreOptions,
+) -> Result<hosts_block::RestoreResult, String> {
+    tokio::task::spawn_blocking(move || hosts_block::restore(&opts))
+        .await
+        .map_err(err)?
+        .map_err(err)
 }

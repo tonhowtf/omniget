@@ -14,12 +14,19 @@
   import UsageTool from "$components/tools/ai/UsageTool.svelte";
   import HumanizeTool from "$components/tools/ai/HumanizeTool.svelte";
   import KeysTool from "$components/tools/ai/KeysTool.svelte";
+  import CtfTool from "$components/tools/ctf/CtfTool.svelte";
   import McpTool from "$components/tools/ai/McpTool.svelte";
   import SponsorBlockTool from "$components/tools/youtube/SponsorBlockTool.svelte";
   import DislikesTool from "$components/tools/youtube/DislikesTool.svelte";
   import FramesTool from "$components/tools/youtube/FramesTool.svelte";
   import CodecTool from "$components/tools/youtube/CodecTool.svelte";
   import RecordTool from "$components/tools/video/RecordTool.svelte";
+  import CompressTool from "$components/tools/video/CompressTool.svelte";
+  import GifTool from "$components/tools/video/GifTool.svelte";
+  import RestoreTool from "$components/tools/video/RestoreTool.svelte";
+  import SilenceTool from "$components/tools/video/SilenceTool.svelte";
+  import SubtitleTool from "$components/tools/video/SubtitleTool.svelte";
+  import AudioCleanTool from "$components/tools/audio/AudioCleanTool.svelte";
   import VoiceStudioTool from "$components/tools/speech/VoiceStudioTool.svelte";
   import DictationTool from "$components/tools/speech/DictationTool.svelte";
   import AutoclickTool from "$components/tools/automation/AutoclickTool.svelte";
@@ -28,11 +35,19 @@
   import CalameoTool from "$components/tools/documents/CalameoTool.svelte";
   import GalleryTool from "$components/tools/documents/GalleryTool.svelte";
   import PdfTool from "$components/tools/documents/PdfTool.svelte";
+  import RepairTool from "$components/tools/documents/RepairTool.svelte";
+  import RedactionTool from "$components/tools/documents/RedactionTool.svelte";
+  import PdfWriteTool from "$components/tools/documents/PdfWriteTool.svelte";
   import UpscaleTool from "$components/tools/images/UpscaleTool.svelte";
   import ResizeTool from "$components/tools/images/ResizeTool.svelte";
   import OcrTool from "$components/tools/images/OcrTool.svelte";
+  import ExifTool from "$components/tools/images/ExifTool.svelte";
+  import ImgDupesTool from "$components/tools/images/ImgDupesTool.svelte";
+  import ImgCompressTool from "$components/tools/images/ImgCompressTool.svelte";
+  import IconTool from "$components/tools/images/IconTool.svelte";
   import DupesTool from "$components/tools/files/DupesTool.svelte";
   import RenameTool from "$components/tools/files/RenameTool.svelte";
+  import ShredTool from "$components/tools/files/ShredTool.svelte";
   import FileSearchTool from "$components/tools/files/FileSearchTool.svelte";
   import AwakeTool from "$components/tools/files/AwakeTool.svelte";
   import Aria2Tool from "$components/tools/downloads/Aria2Tool.svelte";
@@ -74,6 +89,27 @@
   import PinPaletteTool from "$components/tools/pinterest/PinPaletteTool.svelte";
   import PinExportTool from "$components/tools/pinterest/PinExportTool.svelte";
   import PinKeywordsTool from "$components/tools/pinterest/PinKeywordsTool.svelte";
+  import TwEmotesTool from "$components/tools/twitch/EmotesTool.svelte";
+  import TwChatReplayTool from "$components/tools/twitch/ChatReplayTool.svelte";
+  import MusicPlaylistTool from "$components/tools/music/PlaylistTool.svelte";
+  import LyricsTool from "$components/tools/music/LyricsTool.svelte";
+  import MusicHistoryTool from "$components/tools/music/HistoryTool.svelte";
+  import RdDownloadTool from "$components/tools/reddit/RdDownloadTool.svelte";
+  import RdThreadTool from "$components/tools/reddit/RdThreadTool.svelte";
+  import RdGdprTool from "$components/tools/reddit/RdGdprTool.svelte";
+  import StitchTool from "$components/tools/images/StitchTool.svelte";
+  import SpriteTool from "$components/tools/images/SpriteTool.svelte";
+  import DanmakuTool from "$components/tools/bilibili/DanmakuTool.svelte";
+  import SwitchAlbumTool from "$components/tools/games/SwitchAlbumTool.svelte";
+  import ClipOrganizerTool from "$components/tools/games/ClipOrganizerTool.svelte";
+  import ProtonDbTool from "$components/tools/games/ProtonDbTool.svelte";
+  import HostsTool from "$components/tools/system/HostsTool.svelte";
+  import StickerTool from "$components/tools/video/StickerTool.svelte";
+  import PdfMarkdownTool from "$components/tools/documents/PdfMarkdownTool.svelte";
+  import LiOverviewTool from "$components/tools/linkedin/OverviewTool.svelte";
+  import LiConnectionsTool from "$components/tools/linkedin/ConnectionsTool.svelte";
+  import LiMessagesTool from "$components/tools/linkedin/MessagesTool.svelte";
+  import LiChecklistTool from "$components/tools/linkedin/ChecklistTool.svelte";
   import type { Component } from "svelte";
 
   // Runners que rodam dentro do Tools (chave do catálogo → componente).
@@ -88,12 +124,19 @@
     usage: UsageTool,
     humanize: HumanizeTool,
     keys: KeysTool,
+    ctf: CtfTool,
     mcp: McpTool,
     sponsorblock: SponsorBlockTool,
     ryd: DislikesTool,
     "yt-frames": FramesTool,
     codec: CodecTool,
     record: RecordTool,
+    "video-compress": CompressTool,
+    "video-gif": GifTool,
+    "video-restore": RestoreTool,
+    "video-silence": SilenceTool,
+    subtitle: SubtitleTool,
+    "audio-clean": AudioCleanTool,
     voicestudio: VoiceStudioTool,
     dictation: DictationTool,
     autoclick: AutoclickTool,
@@ -102,11 +145,19 @@
     calameo: CalameoTool,
     gallery: GalleryTool,
     pdf: PdfTool,
+    "pdf-repair": RepairTool,
+    "pdf-redaction": RedactionTool,
+    "pdf-write": PdfWriteTool,
     upscale: UpscaleTool,
     resize: ResizeTool,
     ocr: OcrTool,
+    "img-exif": ExifTool,
+    "img-dupes": ImgDupesTool,
+    "img-compress": ImgCompressTool,
+    "img-icon": IconTool,
     dupes: DupesTool,
     rename: RenameTool,
+    shred: ShredTool,
     "file-search": FileSearchTool,
     awake: AwakeTool,
     aria2: Aria2Tool,
@@ -164,12 +215,50 @@
     "pin-palette": PinPaletteTool,
     "pin-export": PinExportTool,
     "pin-keywords": PinKeywordsTool,
+    "tw-emotes": TwEmotesTool,
+    "tw-chat": TwChatReplayTool,
+    "music-playlist": MusicPlaylistTool,
+    "music-lyrics": LyricsTool,
+    "music-history": MusicHistoryTool,
+    "rd-download": RdDownloadTool,
+    "rd-thread": RdThreadTool,
+    "rd-gdpr": RdGdprTool,
+    "img-stitch": StitchTool,
+    "img-sprite": SpriteTool,
+    "bili-danmaku": DanmakuTool,
+    "bili-danmaku-burn": DanmakuTool,
+    "switch-album": SwitchAlbumTool,
+    "clip-organizer": ClipOrganizerTool,
+    "protondb": ProtonDbTool,
+    "sys-hosts": HostsTool,
+    "wa-sticker": StickerTool,
+    "pdf-markdown": PdfMarkdownTool,
+    "li-overview": LiOverviewTool,
+    "li-connections": LiConnectionsTool,
+    "li-messages": LiMessagesTool,
+    "li-checklist": LiChecklistTool,
   };
 
-  // Props extras por runner (o mesmo componente serve várias tools).
+  // Props extras por tool (o mesmo componente serve várias). A chave é o id
+  // da tool; `win-harden` e `win-tweaks` são nomes de runner, daí o fallback.
   const RUNNER_PROPS: Record<string, Record<string, unknown>> = {
     "win-harden": { group: "harden" },
     "pdf-merge": { mode: "merge" },
+    "video-subconvert": { mode: "convert" },
+    "video-stabilize": { mode: "stabilize" },
+    "pdf-password": { mode: "password" },
+    "pdf-watermark": { mode: "watermark" },
+    "pdf-crop": { mode: "crop" },
+    "pdf-outline": { mode: "outline" },
+    "ctf-hash": { mode: "hash" },
+    "ctf-magic": { mode: "magic" },
+    "ctf-cipher": { mode: "cipher" },
+    "ctf-xor": { mode: "xor" },
+    "ctf-encode": { mode: "encode" },
+    "ctf-freq": { mode: "freq" },
+    "video-subresync": { mode: "resync" },
+    "audio-loudness": { mode: "loudness" },
+    "audio-denoise": { mode: "denoise" },
     "speech-clone": { mode: "clone" },
     "speech-design": { mode: "design" },
     "speech-isolate": { mode: "isolate" },
@@ -203,6 +292,8 @@
     "ig-giveaway": { mode: "giveaway" },
     "ig-publish": { mode: "publish" },
     "ig-schedule": { mode: "schedule" },
+    "bili-danmaku": { mode: "export" },
+    "bili-danmaku-burn": { mode: "burn" },
   };
   import { categoryById, isCrossPlatform, toolById, type OsName } from "$lib/tools/catalog";
 
@@ -273,7 +364,7 @@
     {#if section}
       <ToolsPanel only={[section]} />
     {:else if Runner}
-      <Runner {...(RUNNER_PROPS[tool.runner ?? ""] ?? {})} />
+      <Runner {...(RUNNER_PROPS[tool.id] ?? RUNNER_PROPS[tool.runner ?? ""] ?? {})} />
     {:else if tool.status === "soon"}
       <div class="tools-empty tool-soon">
         <img class="empty-state-art" src="/emoji/hourglass_not_done.png" alt="" width="96" height="96" />

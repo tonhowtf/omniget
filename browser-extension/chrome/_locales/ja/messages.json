@@ -255,5 +255,36 @@
   },
   "popup_h264_label": {
     "message": "YouTube で H.264 を強制"
+  },
+  "popup_kind_av": {
+    "message": "動画＋音声"
+  },
+  "popup_pair_files": {
+    "message": "$count$ ファイル",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_size_approx": {
+    "message": "約 $size$",
+    "placeholders": {
+      "size": {
+        "content": "$1"
+      }
+    }
+  },
+  "popup_deep_search_label": {
+    "message": "ディープ検索（隠れたプレイリストを検出）"
+  },
+  "popup_deep_search_denied": {
+    "message": "ディープ検索にはすべてのサイトへの許可が必要です"
+  },
+  "popup_deep_search_badge": {
+    "message": "ページ内で検出"
+  },
+  "popup_manifest_gone": {
+    "message": "そのプレイリストは再読み込みされたページで見つかりました。ページを開き直してください"
   }
 }

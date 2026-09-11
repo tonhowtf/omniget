@@ -23,6 +23,7 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 
 use axum::{
+    extract::DefaultBodyLimit,
     extract::State,
     http::{HeaderMap, Method, StatusCode},
     response::{IntoResponse, Response},
@@ -94,6 +95,10 @@ struct CookiesRequest {
 }
 
 const HOST_MAX_PROTOCOL_VERSION: u32 = 1;
+
+/// Body cap for `/v1/enqueue`, kept a little above the extension's own 4 MiB
+/// ceiling on the manifest text so the payload's metadata and cookies fit too.
+const ENQUEUE_BODY_LIMIT: usize = 8 * 1024 * 1024;
 
 /// Generate a random bearer token (32 bytes, URL-safe base64, no padding).
 pub fn generate_token() -> String {
@@ -209,7 +214,15 @@ pub async fn spawn(app: AppHandle) {
     let router = Router::new()
         .route("/v1/health", get(health))
         .route("/v1/pair", get(pair))
-        .route("/v1/enqueue", post(enqueue))
+        .route(
+            "/v1/enqueue",
+            // The extension may attach the full text of a captured HLS playlist
+            // (`manifestText`), which it caps at 4 MiB. Axum's default cap is
+            // 2 MiB, and hitting it fails the whole enqueue with a 413 — the
+            // download would not merely lose its manifest, it would never be
+            // queued at all.
+            post(enqueue).layer(DefaultBodyLimit::max(ENQUEUE_BODY_LIMIT)),
+        )
         .route("/v1/queue", get(queue_state))
         .route("/v1/log/{id}", get(download_log))
         .route("/v1/cookies", post(cookies_export))
@@ -429,6 +442,26 @@ async fn enqueue(
     {
         if let Err(error) = write_extension_metadata(&payload) {
             tracing::warn!("failed to write extension metadata: {error}");
+        }
+    }
+
+    // Deep search can recover an HLS playlist that only ever existed as a
+    // `blob:` URL inside the tab, so the extension ships its text instead of
+    // an address. Park it on disk keyed by URL; the HLS downloader picks it
+    // up when the item finally leaves the queue. A failure here only costs us
+    // the shortcut, never the enqueue.
+    if let Some(text) = payload.manifest_text.as_deref() {
+        if !text.trim().is_empty() {
+            match omniget_core::core::extension_manifest::store_manifest(&payload.url, text) {
+                Ok(()) => tracing::info!(
+                    "stored extension-captured playlist ({} bytes) for {}",
+                    text.len(),
+                    payload.url
+                ),
+                Err(error) => {
+                    tracing::warn!("failed to store extension playlist text: {error}")
+                }
+            }
         }
     }
 
