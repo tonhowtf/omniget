@@ -756,7 +756,8 @@ mod tests {
         assert!(joined.contains("bv*+ba/b"));
         assert!(joined.contains("--ffmpeg-location /opt/ffmpeg"));
         assert!(joined.contains("after_move:OMNIGET_FILEPATH:%(filepath)s"));
-        assert!(args.contains(&"/tmp/saida/Titulo [aa1].%(ext)s".to_string()));
+        let template = dest.join("Titulo [aa1].%(ext)s");
+        assert!(args.contains(&template.to_string_lossy().to_string()));
         assert_eq!(
             args.last().map(|s| s.as_str()),
             Some("https://www.reddit.com/r/x/comments/aa1/t/")
