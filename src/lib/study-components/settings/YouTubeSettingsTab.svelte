@@ -1,6 +1,7 @@
 <script lang="ts">
   import SettingsField from "./SettingsField.svelte";
   import { pluginInvoke } from "$lib/plugin-invoke";
+  import { t } from "$lib/i18n";
 
   type PotokenVisitor = {
     has_token: boolean;
@@ -183,7 +184,7 @@
 </script>
 
 <section class="tab">
-  <SettingsField label="Cliente YouTube" description="Estado do plugin study para reprodução de áudio do YouTube/Music.">
+  <SettingsField label={$t("study.settings.youtube.client")} description={$t("study.settings.youtube.client_desc")}>
     {#if loading && !clientStatus}
       <span class="muted">Carregando…</span>
     {:else if clientStatus}
@@ -210,10 +211,10 @@
     </div>
   </SettingsField>
 
-  <SettingsField label="PoToken" description="Token de autenticação assinado pela YouTube. Gerado automaticamente via bgutils-js no boa_engine.">
+  <SettingsField label={$t("study.settings.youtube.potoken")} description={$t("study.settings.youtube.potoken_desc")}>
     {#if potokenStatus}
       <dl class="status-grid">
-        <dt>Mint disponível</dt><dd><code>{potokenStatus.minting_available ? "sim" : "não"}</code></dd>
+        <dt>{$t("study.settings.youtube.mint_available")}</dt><dd><code>{potokenStatus.minting_available ? $t("study.common.confirm") : $t("study.common.cancel")}</code></dd>
         <dt>Visitor token</dt><dd>{formatTokenStatus(potokenStatus.visitor)}</dd>
         <dt>Content tokens em cache</dt><dd><code>{potokenStatus.content_cached_count}</code></dd>
       </dl>
@@ -249,7 +250,7 @@
     {/if}
   </SettingsField>
 
-  <SettingsField label="Testar vídeo" description="Tenta cada cliente do cascade e mostra qual conseguiu cifra/stream. Útil pra debug.">
+  <SettingsField label={$t("study.settings.youtube.test_video")} description={$t("study.settings.youtube.test_video_desc")}>
     <div class="test-row">
       <input
         type="text"

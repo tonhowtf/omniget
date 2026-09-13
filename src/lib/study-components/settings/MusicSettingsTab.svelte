@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
   import SettingsField from "./SettingsField.svelte";
   import SettingsToggle from "./SettingsToggle.svelte";
   import type { StudySettings } from "$lib/study-bridge";
@@ -12,13 +13,13 @@
 
   const ALL_CATEGORIES = [
     { key: "sponsor", label: "Patrocinado" },
-    { key: "selfpromo", label: "Auto-promoção" },
+    { key: "selfpromo", label: $t("study.settings.music.selfpromo") },
     { key: "intro", label: "Intro" },
     { key: "outro", label: "Encerramento" },
-    { key: "interaction", label: "Pedido de interação" },
-    { key: "preview", label: "Prévia" },
-    { key: "music_offtopic", label: "Trecho não-musical" },
-    { key: "filler", label: "Enrolação" },
+    { key: "interaction", label: $t("study.settings.music.interaction") },
+    { key: "preview", label: $t("study.settings.music.preview") },
+    { key: "music_offtopic", label: $t("study.settings.music.music_offtopic") },
+    { key: "filler", label: $t("study.settings.music.filler") },
   ];
 
   const music = $derived(((settings as unknown as { music?: Record<string, unknown> }).music ?? {}) as Record<string, unknown>);
@@ -58,7 +59,7 @@
   {#if enabled}
     <SettingsField
       label="Pular automaticamente"
-      description="Quando ativo, segmentos são pulados sem pedir confirmação. Recomendado: deixar desligado para respeitar criadores."
+      description={$t("study.settings.music.autoskip_desc")}
     >
       <SettingsToggle
         value={autoSkip}
@@ -69,7 +70,7 @@
 
     <SettingsField
       label="Categorias monitoradas"
-      description="Tipos de segmento que mostram o botão de pular"
+      description={$t("study.settings.music.segment_types_desc")}
     >
       <div class="categories">
         {#each ALL_CATEGORIES as cat (cat.key)}

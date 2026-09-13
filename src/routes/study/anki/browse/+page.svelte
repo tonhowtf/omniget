@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t } from "$lib/i18n";
   import { pluginInvoke } from "$lib/plugin-invoke";
   import PageHero from "$lib/study-components/PageHero.svelte";
   import ConfirmDialog from "$lib/study-components/ConfirmDialog.svelte";
@@ -113,14 +114,14 @@
 
   let searchTimer: number | null = null;
 
-  const presetQueries = [
-    { label: "Pendentes", q: "is:due" },
-    { label: "Novos", q: "is:new" },
-    { label: "Aprendendo", q: "is:learning" },
-    { label: "Suspensos", q: "is:suspended" },
-    { label: "Marcados (qualquer)", q: "-flag:0" },
-    { label: "Lapsos hoje", q: "rated:1:1" },
-  ];
+  const presetQueries = $derived([
+    { label: $t("study.anki.browse.p_due"), q: "is:due" },
+    { label: $t("study.anki.browse.p_new"), q: "is:new" },
+    { label: $t("study.anki.browse.p_learning"), q: "is:learning" },
+    { label: $t("study.anki.browse.p_suspended"), q: "is:suspended" },
+    { label: $t("study.anki.browse.p_flagged"), q: "-flag:0" },
+    { label: $t("study.anki.browse.p_lapsed_today"), q: "rated:1:1" },
+  ]);
 
   function fmtDate(ms: number | null): string {
     if (!ms) return "—";
@@ -173,15 +174,15 @@
   function queueLabel(q: string): string {
     switch (q) {
       case "new":
-        return "Novo";
+        return $t("study.anki.browse.state_new");
       case "learning":
-        return "Aprend.";
+        return $t("study.anki.browse.state_learning");
       case "review":
-        return "Revisão";
+        return $t("study.anki.browse.state_review");
       case "day_learn_relearn":
         return "Relearn";
       case "suspended":
-        return "Suspenso";
+        return $t("study.anki.browse.state_suspended");
       case "user_buried":
         return "Buried";
       case "sched_buried":
@@ -549,17 +550,17 @@
 </script>
 
 <section class="study-page">
-  <PageHero title="Buscar" />
+  <PageHero title={$t("study.anki.sidebar.browse")} />
 
   <div class="search-row">
     <input
       type="search"
       class="search-input"
       bind:value={query}
-      placeholder="deck:Inglês is:due tag:vocab"
+      placeholder={$t("study.anki.browse.search_placeholder")}
       aria-label="Search query"
     />
-    <span class="total">{total} {total === 1 ? "card" : "cards"}</span>
+    <span class="total">{$t("study.anki.browse.cards_total", { n: total })}</span>
   </div>
 
   <div class="presets">
@@ -571,26 +572,26 @@
   </div>
 
   {#if selected.size > 0}
-    <div class="bulk-bar" role="toolbar" aria-label="Ações em massa">
-      <span class="bulk-count">{selected.size} selecionados</span>
+    <div class="bulk-bar" role="toolbar" aria-label={$t("study.anki.browse.bulk_aria")}>
+      <span class="bulk-count">{$t("study.anki.browse.n_selected", { n: selected.size })}</span>
       <button type="button" class="bulk-btn" onclick={bulkSuspend} disabled={busy}>
-        Suspender
+        {$t("study.anki.browse.suspend")}
       </button>
       <button type="button" class="bulk-btn" onclick={bulkUnsuspend} disabled={busy}>
-        Reativar
+        {$t("study.anki.browse.unsuspend")}
       </button>
       <button type="button" class="bulk-btn" onclick={bulkBury} disabled={busy}>
-        Adiar
+        {$t("study.anki.browse.bury")}
       </button>
       <details class="flag-menu">
-        <summary class="bulk-btn">Marcar</summary>
+        <summary class="bulk-btn">{$t("study.anki.browse.flag")}</summary>
         <div class="flag-grid">
           {#each [
-            ["Sem marca", 0, "transparent"],
-            ["Vermelha", 1, "var(--error)"],
-            ["Laranja", 2, "var(--warning, var(--accent))"],
-            ["Verde", 3, "var(--success, var(--accent))"],
-            ["Azul", 4, "var(--accent)"],
+            [$t("study.anki.browse.flag_none"), 0, "transparent"],
+            [$t("study.anki.browse.flag_red"), 1, "var(--error)"],
+            [$t("study.anki.browse.flag_orange"), 2, "var(--warning, var(--accent))"],
+            [$t("study.anki.browse.flag_green"), 3, "var(--success, var(--accent))"],
+            [$t("study.anki.browse.flag_blue"), 4, "var(--accent)"],
           ] as [label, n, color] (n)}
             <button
               type="button"
@@ -610,7 +611,7 @@
         onclick={() => (bulkDeckPickerOpen = true)}
         disabled={busy}
       >
-        Mover deck
+        {$t("study.anki.decks.move")}
       </button>
       <button
         type="button"
@@ -618,7 +619,7 @@
         onclick={() => { bulkTagMode = "add"; bulkTagOpen = true; }}
         disabled={busy}
       >
-        Adicionar tag
+        {$t("study.anki.browse.add_tag")}
       </button>
       <button
         type="button"
@@ -626,7 +627,7 @@
         onclick={() => { bulkTagMode = "remove"; bulkTagOpen = true; }}
         disabled={busy}
       >
-        Remover tag
+        {$t("study.anki.browse.remove_tag")}
       </button>
       <button
         type="button"
@@ -634,10 +635,10 @@
         onclick={askDelete}
         disabled={busy}
       >
-        Excluir
+        {$t("study.common.delete")}
       </button>
       <button type="button" class="bulk-btn ghost" onclick={clearSelection}>
-        Limpar
+        {$t("study.common.clear")}
       </button>
     </div>
   {/if}
@@ -648,18 +649,18 @@
       class="util-btn"
       onclick={() => { unburyDeckTarget = null; unburyDeckPickerOpen = true; }}
       disabled={busy}
-      title="Reativa cards enterrados de um deck inteiro"
+      title={$t("study.anki.browse.unbury_deck_hint")}
     >
-      Reativar enterrados…
+      {$t("study.anki.browse.unbury_deck")}
     </button>
   </div>
 
   {#if loading}
-    <p class="muted">Buscando…</p>
+    <p class="muted">{$t("study.anki.revlog.searching")}</p>
   {:else if error}
     <p class="error">{error}</p>
   {:else if items.length === 0}
-    <p class="muted center">Nenhum card encontrado.</p>
+    <p class="muted center">{$t("study.anki.browse.no_cards")}</p>
   {:else}
     <div class="table-wrap">
       <table class="card-table">
@@ -668,7 +669,7 @@
             <th class="cb-col">
               <input
                 type="checkbox"
-                aria-label="Selecionar todos visíveis"
+                aria-label={$t("study.anki.media.select_visible")}
                 checked={items.every((c) => selected.has(c.id))}
                 onchange={(e) => {
                   if ((e.target as HTMLInputElement).checked) selectAllVisible();
@@ -677,13 +678,13 @@
               />
             </th>
             <th class="flag-col"></th>
-            <th>Front</th>
-            <th class="deck-col">Deck</th>
-            <th class="state-col">Estado</th>
+            <th>{$t("study.anki.browse.th_front")}</th>
+            <th class="deck-col">{$t("study.anki.sidebar.decks")}</th>
+            <th class="state-col">{$t("study.anki.browse.th_state")}</th>
             <th class="num">Ivl</th>
             <th class="num">Reps</th>
-            <th class="num">Lapsos</th>
-            <th class="date-col">Modificado</th>
+            <th class="num">{$t("study.anki.settings.leech_hint").split(" ")[0] === "lapsos" ? "Lapsos" : "Lapses"}</th>
+            <th class="date-col">{$t("study.anki.browse.th_modified")}</th>
           </tr>
         </thead>
         <tbody>
@@ -747,9 +748,9 @@
 
 <ConfirmDialog
   bind:open={confirmOpen}
-  title="Excluir cards"
-  message="{selected.size} cards serão excluídos permanentemente. Esta ação não pode ser desfeita."
-  confirmLabel="Excluir"
+  title={$t("study.anki.browse.delete_cards_title")}
+  message={$t("study.anki.browse.delete_cards_confirm", { n: selected.size })}
+  confirmLabel={$t("study.common.delete")}
   variant="danger"
   onConfirm={confirmAndDo}
 />
@@ -765,7 +766,7 @@
     <div class="modal" role="dialog" aria-modal="true">
       <h3>Mover {selected.size} cards</h3>
       <label>
-        <span>Novo deck</span>
+        <span>{$t("study.anki.decks.new_deck")}</span>
         <select bind:value={bulkDeckTarget}>
           {#each allDecks.filter((d) => !d.filtered) as d (d.id)}
             <option value={d.id}>{d.name}</option>
@@ -801,12 +802,12 @@
   >
     <div class="modal" role="dialog" aria-modal="true">
       <h3>
-        {bulkTagMode === "add" ? "Adicionar tag" : "Remover tag"}
+        {bulkTagMode === "add" ? $t("study.anki.browse.add_tag") : $t("study.anki.browse.remove_tag")}
         em {selectedNoteIds().length}
-        {selectedNoteIds().length === 1 ? "nota" : "notas"}
+        {$t("study.anki.browse.notes_count", { n: selectedNoteIds().length })}
       </h3>
       <label>
-        <span>Tags (separadas por espaço; use <code>::</code> para hierarquia)</span>
+        <span>{$t("study.anki.browse.tags_input_hint")}</span>
         <input
           type="text"
           bind:value={bulkTagInput}
@@ -913,7 +914,7 @@
           onclick={saveEditedNote}
           disabled={editNoteBusy}
         >
-          {editNoteBusy ? "Salvando…" : "Salvar"}
+          {editNoteBusy ? $t("study.common.saving") : $t("study.common.save")}
         </button>
       </div>
     </div>
@@ -922,9 +923,9 @@
 
 <ConfirmDialog
   bind:open={confirmDeleteNoteOpen}
-  title="Excluir nota"
-  message="A nota e todos os cards associados serão removidos. Não pode ser desfeito."
-  confirmLabel="Excluir nota"
+  title={$t("study.anki.browse.delete_note_title")}
+  message={$t("study.anki.browse.delete_note_confirm")}
+  confirmLabel={$t("study.anki.browse.delete_note_confirm_label")}
   variant="danger"
   onConfirm={confirmDeleteNote}
 />

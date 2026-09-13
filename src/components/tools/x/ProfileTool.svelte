@@ -48,7 +48,7 @@
     }
   }
 
-  const WD = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+  const WD = $derived([$t("tools.x.profile.wd_dom"), $t("tools.x.profile.wd_seg"), $t("tools.x.profile.wd_ter"), $t("tools.x.profile.wd_qua"), $t("tools.x.profile.wd_qui"), $t("tools.x.profile.wd_sex"), $t("tools.x.profile.wd_sab")]);
   let maxHour = $derived(Math.max(1, ...(report?.by_hour.map((s) => s.avg_likes) ?? [1])));
   let maxWd = $derived(Math.max(1, ...(report?.by_weekday.map((s) => s.avg_likes) ?? [1])));
   const f1 = (n: number) => (n >= 100 ? Math.round(n).toLocaleString() : n.toFixed(1));

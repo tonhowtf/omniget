@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
   import SettingsField from "./SettingsField.svelte";
   import SettingsSlider from "./SettingsSlider.svelte";
   import SettingsToggle from "./SettingsToggle.svelte";
@@ -27,7 +28,7 @@
     { value: "pt", label: "Português" },
     { value: "en", label: "English" },
     { value: "es", label: "Español" },
-    { value: "default", label: "Padrão (auto)" },
+    { value: "default", label: $t("study.settings.subtitle.default_auto") },
   ];
   const fontOptions = [
     { value: "system", label: "Sistema" },
@@ -49,7 +50,7 @@
     />
   </div>
 
-  <SettingsField label="Idioma padrão" description="Track auto-selecionada quando há match no nome do arquivo">
+  <SettingsField label={$t("study.settings.subtitle.default_lang")} description={$t("study.settings.subtitle.default_lang_desc")}>
     <SettingsSelect
       value={player.subtitles_default_lang ?? "pt-BR"}
       options={langOptions}
@@ -57,7 +58,7 @@
     />
   </SettingsField>
 
-  <SettingsField label="Idioma secundário" description="Fallback quando o idioma padrão não está disponível na aula">
+  <SettingsField label={$t("study.settings.subtitle.secondary_lang")} description={$t("study.settings.subtitle.secondary_lang_desc")}>
     <SettingsSelect
       value={player.subtitles_secondary_lang ?? "en"}
       options={langOptions}
@@ -134,7 +135,7 @@
 
   <SettingsField
     label="Respeitar estilo do .ass"
-    description="Quando ativo, arquivos .ass mantêm cores, posições e fontes próprios em vez de aplicar configurações globais"
+    description={$t("study.settings.subtitle.ass_desc")}
   >
     <SettingsToggle
       value={player.ass_subtitles_styling ?? true}

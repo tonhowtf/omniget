@@ -33,7 +33,7 @@
       <h3>{$t("study.library.notes_new_page")}</h3>
       <input
         type="text"
-        placeholder="Nome da página"
+        placeholder={$t("study.notes.nb.page_name_placeholder")}
         bind:value
         onkeydown={(e) => {
           if (e.key === "Enter") submit();

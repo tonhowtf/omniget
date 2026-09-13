@@ -315,7 +315,7 @@
   let activeTabIndex = $state(0);
 
   function tabLabel(path: string): string {
-    if (!path) return "Raízes";
+    if (!path) return $t("study.library.roots");
     const norm = path.replace(/\\/g, "/").replace(/\/+$/, "");
     const seg = norm.split("/").pop();
     return seg && seg.length > 0 ? seg : path;
@@ -2006,7 +2006,7 @@
               type="button"
               class="tab"
               onclick={() => switchTab(i)}
-              title={tab.path || "Raízes"}
+              title={tab.path || $t("study.library.roots")}
             >
               <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true">
                 <path d="M3 7v13h18V9h-9l-2-2H3z" opacity="0.85"/>

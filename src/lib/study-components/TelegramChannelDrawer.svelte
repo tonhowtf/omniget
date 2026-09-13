@@ -1,5 +1,6 @@
 <script lang="ts">
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import { t } from "$lib/i18n";
   import {
     telegramFullChannelInfo,
     telegramSetMute,
@@ -149,7 +150,7 @@
       muted = next;
       showToast("info", next ? "Silenciado" : "Reativado");
     } catch (e: any) {
-      showToast("error", typeof e === "string" ? e : (e?.message ?? "Erro"));
+      showToast("error", typeof e === "string" ? e : (e?.message ?? $t("study.common.error")));
     }
   }
 
@@ -196,20 +197,20 @@
     try {
       if (confirm.kind === "leave") {
         await telegramLeaveChannel({ chatId: id, chatType });
-        showToast("info", "Você saiu do canal");
+        showToast("info", $t("study.telegram.drawer.left_channel"));
         confirm.kind = null;
         open = false;
         onChatRemoved?.(id);
       } else if (confirm.kind === "delete-channel") {
         await telegramDeleteChannel(id);
-        showToast("info", "Canal deletado");
+        showToast("info", $t("study.telegram.drawer.channel_deleted"));
         confirm.kind = null;
         open = false;
         onChatRemoved?.(id);
       } else if (confirm.kind === "clear-history") {
         if (clearMode === "leave") {
           await telegramLeaveChannel({ chatId: id, chatType });
-          showToast("info", "Você saiu do chat");
+          showToast("info", $t("study.telegram.drawer.left_chat"));
           onChatRemoved?.(id);
           open = false;
         } else {
@@ -219,7 +220,7 @@
             justClear: true,
             revoke: clearMode === "delete-all",
           });
-          showToast("info", clearMode === "delete-all" ? "Histórico apagado pra todos" : "Histórico limpo");
+          showToast("info", clearMode === "delete-all" ? $t("study.telegram.drawer.history_deleted_all") : $t("study.telegram.drawer.history_cleared"));
         }
         confirm.kind = null;
       } else if (confirm.kind === "report") {
@@ -230,7 +231,7 @@
           option: [0],
           message: reportMessage.trim(),
         });
-        showToast("info", "Denúncia enviada");
+        showToast("info", $t("study.telegram.drawer.report_sent"));
         reportMessage = "";
         confirm.kind = null;
       }
@@ -249,12 +250,12 @@
 
   function roleLabel(role: string): string {
     switch (role) {
-      case "creator": return "Criador";
-      case "admin": return "Admin";
-      case "member": return "Membro";
-      case "banned": return "Banido";
-      case "left": return "Saiu";
-      case "self": return "Você";
+      case "creator": return $t("study.telegram.drawer.role_creator");
+      case "admin": return $t("study.telegram.drawer.role_admin");
+      case "member": return $t("study.telegram.drawer.role_member");
+      case "banned": return $t("study.telegram.drawer.role_banned");
+      case "left": return $t("study.telegram.drawer.role_left");
+      case "self": return $t("study.telegram.drawer.role_self");
       default: return role;
     }
   }
@@ -263,7 +264,7 @@
     const name = `${u.first_name} ${u.last_name}`.trim();
     if (name) return name;
     if (u.username) return `@${u.username}`;
-    return `Usuário ${u.user_id}`;
+    return $t("study.telegram.drawer.user_fallback", { id: u.user_id });
   }
 </script>
 
@@ -344,7 +345,7 @@
             <section class="actions-grid">
               <button type="button" class="action-row" onclick={toggleMute}>
                 <span class="action-icon">{muted ? "🔔" : "🔕"}</span>
-                <span class="action-label">{muted ? "Reativar notificações" : "Silenciar"}</span>
+                <span class="action-label">{muted ? $t("study.telegram.drawer.unmute") : $t("study.telegram.drawer.mute")}</span>
               </button>
               <button type="button" class="action-row" onclick={togglePin}>
                 <span class="action-icon">{pinned ? "📌" : "📍"}</span>
@@ -387,7 +388,7 @@
                   onclick={() => { confirm.kind = "leave"; }}
                 >
                   <span class="action-icon">🚪</span>
-                  <span class="action-label">Sair {isChannel ? "do canal" : "do grupo"}</span>
+                  <span class="action-label">{$t(isChannel ? "study.telegram.drawer.leave_channel" : "study.telegram.drawer.leave_group")}</span>
                 </button>
                 <button
                   type="button"
@@ -469,12 +470,12 @@
 {#if confirm.kind === "leave"}
   <div class="dialog-overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget && !confirm.busy) confirm.kind = null; }} onkeydown={() => {}}>
     <div class="dialog" role="dialog" aria-modal="true">
-      <h3>Sair {isChannel ? "do canal" : "do grupo"}?</h3>
-      <p>Você não receberá mais mensagens de <strong>{chat?.title}</strong>.</p>
+      <h3>{$t(isChannel ? "study.telegram.drawer.leave_channel_confirm" : "study.telegram.drawer.leave_group_confirm")}</h3>
+      <p>{$t("study.telegram.drawer.leave_no_more", { title: chat?.title })}</p>
       <div class="dialog-actions">
-        <button type="button" class="button" onclick={() => (confirm.kind = null)} disabled={confirm.busy}>Cancelar</button>
+        <button type="button" class="button" onclick={() => (confirm.kind = null)} disabled={confirm.busy}>{$t("study.common.cancel")}</button>
         <button type="button" class="button danger-btn" onclick={commitConfirm} disabled={confirm.busy}>
-          {confirm.busy ? "Saindo..." : "Sair"}
+          {confirm.busy ? $t("study.telegram.drawer.leaving") : $t("study.telegram.drawer.leave")}
         </button>
       </div>
     </div>
@@ -501,12 +502,12 @@
   <div class="dialog-overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget && !confirm.busy) confirm.kind = null; }} onkeydown={() => {}}>
     <div class="dialog" role="dialog" aria-modal="true">
       <h3>Limpar conversa</h3>
-      <p>Como você quer limpar <strong>{chat?.title}</strong>?</p>
+      <p>{$t("study.telegram.drawer.clear_how", { title: chat?.title })}</p>
       <div class="radio-group">
         <label class="radio-row">
           <input type="radio" bind:group={clearMode} value="clear-me" />
           <div>
-            <span class="radio-title">Limpar pra mim</span>
+            <span class="radio-title">{$t("study.telegram.drawer.clear_for_me")}</span>
             <span class="radio-desc">Some do seu lado. Outros continuam vendo.</span>
           </div>
         </label>
@@ -514,7 +515,7 @@
           <label class="radio-row">
             <input type="radio" bind:group={clearMode} value="delete-all" />
             <div>
-              <span class="radio-title">Apagar pra todos</span>
+              <span class="radio-title">{$t("study.telegram.drawer.delete_for_all")}</span>
               <span class="radio-desc">Remove a conversa de todos os participantes.</span>
             </div>
           </label>
@@ -523,7 +524,7 @@
           <label class="radio-row">
             <input type="radio" bind:group={clearMode} value="leave" />
             <div>
-              <span class="radio-title">Sair {isChannel ? "do canal" : "do grupo"}</span>
+              <span class="radio-title">{$t(isChannel ? "study.telegram.drawer.leave_channel" : "study.telegram.drawer.leave_group")}</span>
               <span class="radio-desc">Deixa o {isChannel ? "canal" : "grupo"} e remove da lista.</span>
             </div>
           </label>
@@ -543,7 +544,7 @@
   <div class="dialog-overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget && !confirm.busy) confirm.kind = null; }} onkeydown={() => {}}>
     <div class="dialog" role="dialog" aria-modal="true">
       <h3>Denunciar {chat?.title}</h3>
-      <p>Telegram revisará a denúncia.</p>
+      <p>{$t("study.telegram.drawer.report_review")}</p>
       <textarea
         class="input textarea"
         placeholder="Detalhes (opcional)"
@@ -553,7 +554,7 @@
       <div class="dialog-actions">
         <button type="button" class="button" onclick={() => (confirm.kind = null)} disabled={confirm.busy}>Cancelar</button>
         <button type="button" class="button danger-btn" onclick={commitConfirm} disabled={confirm.busy}>
-          {confirm.busy ? "Enviando..." : "Enviar denúncia"}
+          {confirm.busy ? $t("study.telegram.drawer.sending") : $t("study.telegram.drawer.send_report")}
         </button>
       </div>
     </div>

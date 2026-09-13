@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tabsStore } from "$lib/study-notes/tabs-store.svelte";
+import { t } from "$lib/i18n";
   import {
     notesPagesList,
     notesPagesEnsure,
@@ -263,13 +264,13 @@
     }}
     role="presentation"
   >
-    <div class="picker" role="dialog" aria-label="Abrir página em nova tab">
+    <div class="picker" role="dialog" aria-label={$t("study.notes.nb.open_new_tab")}>
       <input
         bind:this={pickerInputEl}
         bind:value={pickerQuery}
         onkeydown={onPickerKey}
         type="text"
-        placeholder="Buscar ou criar página…"
+        placeholder={$t("study.notes.nb.search_or_create")}
         class="picker-input"
       />
       <div class="picker-list">

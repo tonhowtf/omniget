@@ -149,7 +149,7 @@
     const labels: Record<string, string> = {
       "pomodoro-25": "Pomodoro 25",
       "deep-50": "Deep Work 50",
-      "stopwatch": "Cronômetro",
+      "stopwatch": $t("study.misc.stopwatch"),
     };
     return labels[presetId] ?? presetId;
   }
@@ -309,7 +309,7 @@
   }
 
   async function actionCreatePage() {
-    const name = window.prompt("Nome da nova página:");
+    const name = window.prompt($t("study.notes.new_page_prompt"));
     if (!name || !name.trim()) return;
     try {
       const r = await (

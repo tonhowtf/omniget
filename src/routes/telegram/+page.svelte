@@ -163,7 +163,7 @@
     saveHistoryToStorage(transferHistory);
   }
 
-  let activeTransfers = $derived<TransferRecord[]>(
+  let activeTransfers = $derived(
     [...downloadingIds].map((mid) => {
       const item = mediaItems.find((m) => m.message_id === mid);
       return {
@@ -1175,8 +1175,8 @@
         <button
           class="button transfers-btn"
           onclick={() => (transferPanelOpen = true)}
-          aria-label="Transferências"
-          title="Transferências"
+          aria-label={$t("study.telegram.page.transfers")}
+          title={$t("study.telegram.page.transfers")}
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 5v14M19 12l-7 7-7-7" />
@@ -1578,8 +1578,8 @@
     onkeydown={(e) => { if (e.key === "Escape" && !createFolderBusy) createFolderOpen = false; }}
   >
     <div class="create-folder-dialog" role="dialog" aria-modal="true">
-      <h3>Nova pasta Drive</h3>
-      <p class="dialog-hint">Cria um canal Telegram com sufixo <code>[og]</code> para você usar como pasta privada de mídias.</p>
+      <h3>{$t("study.telegram.page.new_drive_folder")}</h3>
+      <p class="dialog-hint">{$t("study.telegram.page.new_drive_folder_a")} <code>[og]</code> {$t("study.telegram.page.new_drive_folder_b")}</p>
       <form onsubmit={(e) => { e.preventDefault(); commitCreateFolder(); }}>
         <input
           type="text"
@@ -1594,7 +1594,7 @@
           <p class="dialog-error">{createFolderError}</p>
         {/if}
         <div class="dialog-actions">
-          <button type="button" class="button" onclick={() => (createFolderOpen = false)} disabled={createFolderBusy}>Cancelar</button>
+          <button type="button" class="button" onclick={() => (createFolderOpen = false)} disabled={createFolderBusy}>{$t("study.common.cancel")}</button>
           <button type="submit" class="button primary" disabled={createFolderBusy || !createFolderName.trim()}>
             {createFolderBusy ? "Criando..." : "Criar"}
           </button>

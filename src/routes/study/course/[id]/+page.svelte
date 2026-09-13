@@ -223,14 +223,14 @@
         showToast(
           "ok",
           r.probed === 1
-            ? "1 duração detectada"
+            ? $t("study.course.dur_one", { n: 1 })
             : `${r.probed} durações detectadas`,
         );
         await load();
       } else if (r.failed > 0 && r.probed === 0) {
-        showToast("err", "ffprobe falhou — verifique se está instalado");
+        showToast("err", $t("study.course.ffprobe_failed"));
       } else {
-        showToast("ok", "Tudo já tinha duração");
+        showToast("ok", $t("study.course.durations_all_set"));
       }
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));
@@ -489,7 +489,7 @@
             class="subj-edit"
             onclick={() => (subjectsModalOpen = true)}
           >
-            {courseSubjects.length === 0 ? "+ Atribuir matérias" : "Editar"}
+            {courseSubjects.length === 0 ? $t("study.course.assign_subjects") : $t("study.common.edit")}
           </button>
         </div>
       </section>
@@ -505,7 +505,7 @@
           >
             <span aria-hidden="true">⏱</span>
             <span>
-              {probing ? "Detectando…" : "Detectar durações (ffprobe)"}
+              {probing ? $t("study.course.detecting") : $t("study.course.detect_durations")}
             </span>
             {#if totalDurationMs > 0}
               <span class="action-meta">total: {fmtDuration(totalDurationMs)}</span>
@@ -681,7 +681,7 @@
     onClose={() => (subjectsModalOpen = false)}
     onSaved={() => {
       void loadCourseSubjects();
-      showToast("ok", "Matérias atualizadas");
+      showToast("ok", $t("study.course.subjects_updated"));
     }}
   />
 
@@ -692,7 +692,7 @@
   {/if}
 
   {#if selectedLessons.size > 0}
-    <div class="selection-bar" role="toolbar" aria-label="Ações em massa">
+    <div class="selection-bar" role="toolbar" aria-label={$t("study.anki.browse.bulk_aria")}>
       <span class="sel-count">
         <strong>{selectedLessons.size}</strong>
         {selectedLessons.size === 1 ? "selecionada" : "selecionadas"}

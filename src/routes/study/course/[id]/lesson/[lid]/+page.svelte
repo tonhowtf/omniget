@@ -816,7 +816,7 @@
   async function captureScreenshot() {
     if (!videoRef || !lesson) return;
     if (!videoRef.videoWidth || !videoRef.videoHeight) {
-      screenshotToast = "Vídeo ainda não carregou";
+      screenshotToast = $t("study.course.lesson.video_not_loaded");
       setTimeout(() => (screenshotToast = ""), 2400);
       return;
     }
@@ -1228,7 +1228,7 @@
         </div>
       </div>
 
-      <nav class="panel-tabs" aria-label="painéis da aula">
+      <nav class="panel-tabs" aria-label={$t("study.course.lesson.panels_aria")}>
         <SegmentedControl
           bind:value={activePanel}
           options={panelOptions}

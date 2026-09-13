@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
   import {
     studyLibraryVacuum,
     studyLibraryExportState,
@@ -176,7 +177,7 @@
         disabled={exporting}
         onclick={exportData}
       >
-        {exporting ? "Exportando…" : "Exportar agora"}
+        {exporting ? $t("study.settings.exporting") : $t("study.settings.export_now")}
       </button>
     </div>
   </article>
@@ -232,7 +233,7 @@
 {/if}
 
 {#if importPreview}
-  <div class="modal-bg" role="dialog" aria-modal="true" aria-label="Confirmar importação">
+  <div class="modal-bg" role="dialog" aria-modal="true" aria-label={$t("study.notes.maintenance.import_aria")}>
     <button type="button" class="bg-btn" aria-label="Fechar" onclick={cancelImport}></button>
     <div class="modal" role="document">
       <h3>Importar {importPreview.courses.length} {importPreview.courses.length === 1 ? "curso" : "cursos"}?</h3>

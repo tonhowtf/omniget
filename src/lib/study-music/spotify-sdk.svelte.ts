@@ -1,3 +1,5 @@
+import { get } from "svelte/store";
+import { t } from "$lib/i18n";
 import { pluginInvoke } from "$lib/plugin-invoke";
 
 declare global {
@@ -121,7 +123,7 @@ class SpotifySdkController {
         const widevine = await this.checkWidevine();
         if (!widevine) {
           this.unavailableReason =
-            "Widevine DRM não está disponível neste sistema. Spotify playback nativo não vai funcionar — use a Fase 1 (transfer pra outro device).";
+            get(t)("study.music.sdk.widevine_unavailable");
           this.loading = false;
           reject(new Error(this.unavailableReason));
           return;
@@ -129,7 +131,7 @@ class SpotifySdkController {
 
         const onSdkReady = () => {
           if (!window.Spotify) {
-            this.unavailableReason = "SDK do Spotify carregou mas Spotify global não foi exposto";
+            this.unavailableReason = get(t)("study.music.sdk.sdk_no_global");
             this.loading = false;
             reject(new Error(this.unavailableReason));
             return;

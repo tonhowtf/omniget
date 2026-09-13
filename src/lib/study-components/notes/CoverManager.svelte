@@ -3,6 +3,7 @@
     notesCoverSetExternal,
     notesCoverRemove,
   } from "$lib/notes-bridge";
+import { t } from "$lib/i18n";
 
   type Props = {
     open: boolean;
@@ -30,7 +31,7 @@
     const url = urlDraft.trim();
     if (!url) return;
     if (!/^https?:\/\//i.test(url)) {
-      error = "URL precisa começar com http:// ou https://";
+      error = $t("study.notes.nb.cover_url_error");
       return;
     }
     busy = true;

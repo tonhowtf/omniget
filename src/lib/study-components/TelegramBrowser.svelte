@@ -1463,7 +1463,7 @@
         } else if (diag.search_errors.length > 0) {
           mediaError = `Telegram retornou erros nos filtros: ${diag.search_errors.join("; ")}. Possivelmente este channel é protegido (saving disabled) ou access_hash expirou. Tente sair e entrar novamente no chat pelo Telegram oficial.`;
         } else if (diag.get_history_count === 0 && diag.search_photo_count === 0 && diag.search_video_count === 0 && diag.search_document_count === 0) {
-          mediaError = "Channel parece não ter mídia acessível via API (broadcast protegido ou content sem media). Verifique no Telegram oficial se vê os videos.";
+          mediaError = $t("study.telegram.browser.media_error");
         } else if (diag.get_history_with_media === 0) {
           mediaError = `Channel tem ${diag.get_history_count} mensagens mas nenhuma com mídia detectável. Verifique se as mensagens têm videos anexados (não apenas links).`;
         }

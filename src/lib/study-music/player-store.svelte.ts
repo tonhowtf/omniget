@@ -1,3 +1,5 @@
+import { get } from "svelte/store";
+import { t } from "$lib/i18n";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { pluginInvoke } from "$lib/plugin-invoke";
 import { dominantColorFromPath, palettePathOrUrl, type RGB } from "./dominant-color";
@@ -401,15 +403,15 @@ class MusicPlayerStore {
     });
     audio.addEventListener("error", () => {
       const err = audio.error;
-      let msg = "Erro ao carregar áudio";
+      let msg = get(t)("study.music.store.load_failed");
       let code: number | undefined;
       if (err) {
         code = err.code;
         const codeMap: Record<number, string> = {
-          1: "abortado",
-          2: "rede falhou",
-          3: "decodificação falhou",
-          4: "formato não suportado",
+          1: get(t)("study.music.store.aborted"),
+          2: get(t)("study.music.store.network_failed"),
+          3: get(t)("study.music.store.decode_failed"),
+          4: get(t)("study.music.store.format_unsupported"),
         };
         const reason = codeMap[err.code] ?? `code ${err.code}`;
         msg = `${reason}${err.message ? ` (${err.message})` : ""}`;
@@ -889,7 +891,7 @@ class MusicPlayerStore {
     const track = this.currentTrack;
     if (!track) return null;
     const source: TrackSource = track.source ?? "local";
-    const title = (track.title ?? "").trim() || "Música";
+    const title = (track.title ?? "").trim() || get(t)("study.music.store.untitled");
     const artist = (track.artist ?? "").trim();
     const album = (track.album ?? "").trim();
     const duration = Math.max(
@@ -1469,7 +1471,7 @@ class MusicPlayerStore {
       .then((mod) =>
         mod.studyMusicHistoryAdd({
           source: source as "local" | "spotify" | "youtube" | "soundcloud",
-          title: track.title ?? "Música",
+          title: track.title ?? get(t)("study.music.store.untitled"),
           externalId: externalId ?? undefined,
           trackId: track.id,
           artist: track.artist ?? undefined,
@@ -1517,7 +1519,7 @@ class MusicPlayerStore {
     if (!this.soundcloudResolver) {
       this.setError(
         classifyPlayerError(
-          "soundcloud resolver não configurado",
+          get(t)("study.music.store.sc_resolver_unconfigured"),
           "soundcloud",
           track.id,
         ),

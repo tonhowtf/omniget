@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t } from "$lib/i18n";
   import { pluginInvoke } from "$lib/plugin-invoke";
   import PageHero from "$lib/study-components/PageHero.svelte";
 
@@ -63,7 +64,7 @@
       let res: RevlogEntry[] = [];
       if (mode === "card") {
         if (cardId === "" || !Number.isFinite(Number(cardId))) {
-          error = "Informe um cardId numérico";
+          error = $t("study.anki.revlog.err_cardid");
           entries = [];
           return;
         }
@@ -88,7 +89,7 @@
         );
       } else if (mode === "tag") {
         if (!tag.trim()) {
-          error = "Informe uma tag";
+          error = $t("study.anki.revlog.err_tag");
           entries = [];
           return;
         }
@@ -127,7 +128,7 @@
   }
 
   function easeLabel(ease: number): string {
-    return ["?", "Errei", "Difícil", "Bom", "Fácil"][ease] ?? `?${ease}`;
+    return [$t("study.anki.revlog.ease_q"), $t("study.anki.revlog.ease_again"), $t("study.anki.revlog.ease_hard"), $t("study.anki.revlog.ease_good"), $t("study.anki.revlog.ease_easy")][ease] ?? `?${ease}`;
   }
 
   function easeClass(ease: number): string {
@@ -158,22 +159,22 @@
 <section class="study-page">
   <PageHero
     title="Revlog"
-    subtitle="Histórico bruto de respostas para análise"
+    subtitle={$t("study.anki.revlog.subtitle")}
   />
 
   <div class="toolbar">
-    <a href="/study/anki/stats" class="back-link">← Estatísticas</a>
+    <a href="/study/anki/stats" class="back-link">← {$t("study.anki.sidebar.stats")}</a>
   </div>
 
   <div class="filter-card">
-    <div class="mode-tabs" role="tablist" aria-label="Filtro">
+    <div class="mode-tabs" role="tablist" aria-label={$t("study.anki.stats.period_aria")}>
       <button
         type="button"
         class="mode-tab"
         class:active={mode === "range"}
         role="tab"
         onclick={() => (mode = "range")}
-      >Período</button>
+      >{$t("study.anki.stats.period_aria")}</button>
       <button
         type="button"
         class="mode-tab"
@@ -187,7 +188,7 @@
         class:active={mode === "notetype"}
         role="tab"
         onclick={() => (mode = "notetype")}
-      >Modelo</button>
+      >{$t("study.anki.notetypes.title")}</button>
       <button
         type="button"
         class="mode-tab"
@@ -201,13 +202,13 @@
         class:active={mode === "card"}
         role="tab"
         onclick={() => (mode = "card")}
-      >Card específico</button>
+      >{$t("study.anki.revlog.specific_card")}</button>
     </div>
 
     <div class="filter-body">
       {#if mode === "range"}
         <label class="field">
-          <span>Últimos N dias</span>
+          <span>{$t("study.anki.revlog.last_n_days")}</span>
           <input
             type="number"
             min="1"
@@ -226,7 +227,7 @@
         </label>
       {:else if mode === "notetype"}
         <label class="field">
-          <span>Modelo</span>
+          <span>{$t("study.anki.revlog.th_notetype")}</span>
           <select bind:value={notetypeId}>
             {#each notetypes as n (n.id)}
               <option value={n.id}>{n.name}</option>
@@ -272,7 +273,7 @@
         onclick={run}
         disabled={loading}
       >
-        {loading ? "Buscando…" : "Buscar"}
+        {loading ? $t("study.anki.revlog.searching") : $t("study.anki.sidebar.browse")}
       </button>
     </div>
   </div>
@@ -293,7 +294,7 @@
       </div>
       <div class="sum-stat ease-2">
         <span class="sum-num">{summary.counts[2]}</span>
-        <span class="sum-label">difícil</span>
+        <span class="sum-label">{$t("study.anki.revlog.ease_hard_l")}</span>
       </div>
       <div class="sum-stat ease-3">
         <span class="sum-num">{summary.counts[3]}</span>
@@ -301,19 +302,19 @@
       </div>
       <div class="sum-stat ease-4">
         <span class="sum-num">{summary.counts[4]}</span>
-        <span class="sum-label">fácil</span>
+        <span class="sum-label">{$t("study.anki.revlog.ease_easy_l")}</span>
       </div>
       <div class="sum-stat">
         <span class="sum-num">{summary.avgSec}s</span>
-        <span class="sum-label">médio</span>
+        <span class="sum-label">{$t("study.anki.revlog.ease_good_l")}</span>
       </div>
     </div>
   {/if}
 
   {#if loading}
-    <p class="muted">Carregando…</p>
+    <p class="muted">{$t("study.anki.settings.loading")}</p>
   {:else if entries.length === 0 && !error}
-    <p class="muted center">Nenhuma entrada nesse filtro.</p>
+    <p class="muted center">{$t("study.anki.revlog.no_entries")}</p>
   {:else if entries.length > 0}
     <div class="table-wrap">
       <table class="revlog-table">

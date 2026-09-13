@@ -6,6 +6,7 @@
     notesExportGraphJson,
     notesMarkdownImport,
   } from "$lib/notes-bridge";
+import { t } from "$lib/i18n";
   import OpLogViewer from "./OpLogViewer.svelte";
 
   type Props = {
@@ -144,7 +145,7 @@
       class="btn"
       onclick={rebuildRefs}
       disabled={busy !== null}
-      title="Recalcula a tabela de refs/backlinks varrendo todo o conteúdo."
+      title={$t("study.notes.maintenance.recalc_hint")}
     >
       {busy === "refs" ? "Calculando…" : "Reconstruir backlinks"}
     </button>
@@ -153,7 +154,7 @@
       class="btn"
       onclick={clearQueryCache}
       disabled={busy !== null}
-      title="Limpa cache de queries. Inofensivo; queries serão recalculadas."
+      title={$t("study.notes.maintenance.cache_hint")}
     >
       {busy === "qcache" ? "Limpando…" : "Limpar cache de queries"}
     </button>
@@ -162,7 +163,7 @@
       class="btn"
       onclick={exportGraph}
       disabled={busy !== null}
-      title="Baixa o grafo de notes (nodes + edges) como JSON pra inspeção/backup."
+      title={$t("study.notes.maintenance.graph_hint")}
     >
       {busy === "graph" ? "Exportando…" : "Exportar grafo (JSON)"}
     </button>
@@ -171,7 +172,7 @@
       class="btn"
       onclick={pickImport}
       disabled={busy !== null || importing}
-      title="Lê um .md do disco e cria uma página com o conteúdo."
+      title={$t("study.notes.maintenance.import_hint")}
     >
       Importar markdown
     </button>
@@ -195,7 +196,7 @@
       if (e.target === e.currentTarget) cancelImport();
     }}
   >
-    <div class="modal" role="dialog" aria-label="Confirmar importação" aria-modal="true">
+    <div class="modal" role="dialog" aria-label={$t("study.notes.maintenance.import_aria")} aria-modal="true">
       <h3>Importar markdown?</h3>
       <p class="meta">
         <strong>{importPreview.name}</strong>

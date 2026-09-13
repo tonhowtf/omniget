@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t } from "$lib/i18n";
   import { pluginInvoke } from "$lib/plugin-invoke";
   import PageHero from "$lib/study-components/PageHero.svelte";
   import SegmentedControl from "$lib/study-components/SegmentedControl.svelte";
@@ -31,13 +32,13 @@
   let xpState = $state<GamificationState | null>(null);
   let period = $state("30");
 
-  const periodOptions = [
+  const periodOptions = $derived([
     { value: "7", label: "7d" },
     { value: "30", label: "30d" },
     { value: "90", label: "90d" },
-    { value: "365", label: "1a" },
-    { value: "all", label: "Todos" },
-  ];
+    { value: "365", label: $t("study.achv.charts.p_1y") },
+    { value: "all", label: $t("study.anki.stats.p_all") },
+  ]);
 
   function periodCutoff(p: string): number | null {
     if (p === "all") return null;
@@ -256,18 +257,18 @@
 
 <section class="charts-page">
   <PageHero
-    title="Charts de progressão"
-    subtitle="XP, levels, streak, unlocks ao longo do tempo"
+    title={$t("study.achv.charts.title")}
+    subtitle={$t("study.achv.charts.subtitle")}
   />
 
   <div class="period-bar">
     <SegmentedControl
       options={periodOptions}
       bind:value={period}
-      ariaLabel="Período"
+      ariaLabel={$t("study.anki.stats.period_aria")}
     />
     <button class="back-btn" onclick={() => history.back()}>
-      ← Voltar
+      {$t("study.common.go_home")}
     </button>
   </div>
 

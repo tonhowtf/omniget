@@ -142,7 +142,7 @@
   let liveEvents = $state<any>(null);
 
   // The registry needs to know where it runs to explain platform limits.
-  let platform = $derived<Platform>(
+  let platform = $derived(
     navigator.userAgent.includes("Windows")
       ? "windows"
       : navigator.userAgent.includes("Mac")

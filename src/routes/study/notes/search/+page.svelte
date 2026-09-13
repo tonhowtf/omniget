@@ -2,6 +2,7 @@
   import { onMount, tick } from "svelte";
   import { goto } from "$app/navigation";
   import { page as routePage } from "$app/stores";
+  import { t } from "$lib/i18n";
   import { pluginInvoke } from "$lib/plugin-invoke";
 
   type SearchHit = {
@@ -84,7 +85,7 @@
         "study",
         "study:notes:search:rebuild",
       );
-      showToast("ok", `Index reconstruída — ${r.indexed} blocos`);
+      showToast("ok", $t("study.notes.index_rebuilt", { n: r.indexed }));
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));
     }
@@ -132,7 +133,7 @@
     {:else if query}
       <button class="btn ghost sm" onclick={() => (query = "")}>×</button>
     {/if}
-    <button class="btn ghost sm" onclick={rebuildIndex} title="Reconstruir índice FTS">
+    <button class="btn ghost sm" onclick={rebuildIndex} title={$t("study.notes.rebuild_fts")}>
       ⟳
     </button>
   </div>

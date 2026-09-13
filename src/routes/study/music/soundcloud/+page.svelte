@@ -87,7 +87,7 @@
       if (soundcloudStore.isLoggedIn) {
         void loadRecommended();
       } else {
-        loginError = "Não consegui completar o login. Tenta de novo.";
+        loginError = $t("study.music.sc.login_failed");
       }
     } catch (e) {
       loginError = e instanceof Error ? e.message : String(e);

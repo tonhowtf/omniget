@@ -55,7 +55,7 @@
     }
   }
 
-  const WD = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+  const WD = $derived([$t("tools.x.archive.wd_dom"), $t("tools.x.archive.wd_seg"), $t("tools.x.archive.wd_ter"), $t("tools.x.archive.wd_qua"), $t("tools.x.archive.wd_qui"), $t("tools.x.archive.wd_sex"), $t("tools.x.archive.wd_sab")]);
   let maxYear = $derived(Math.max(1, ...(s?.by_year.map((y) => y.tweets) ?? [1])));
   let maxWd = $derived(Math.max(1, ...(s?.by_weekday ?? [1])));
 </script>

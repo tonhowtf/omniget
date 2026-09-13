@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
+  import { t } from "$lib/i18n";
   import { pluginInvoke } from "$lib/plugin-invoke";
   import ConfirmDialog from "$lib/study-components/ConfirmDialog.svelte";
 
@@ -37,33 +38,33 @@
 
   type BlockNode = Block & { children: BlockNode[] };
 
-  const builtins: { kind: string; label: string; description: string }[] = [
+  const builtins = $derived([
     {
       kind: "daily-journal",
       label: "Daily journal",
-      description: "Foco do dia, tarefas, notas, reflexão (com placeholders).",
+      description: $t("study.notes.templates.builtin_daily"),
     },
     {
       kind: "lesson-notes",
       label: "Lesson notes",
-      description: "Estrutura para anotações de aula com objetivos e dúvidas.",
+      description: $t("study.notes.templates.builtin_lesson"),
     },
     {
       kind: "book-highlights",
       label: "Book highlights",
-      description: "Frontmatter com title/author + seções de highlights.",
+      description: $t("study.notes.templates.builtin_book"),
     },
     {
       kind: "weekly-review",
       label: "Weekly review",
-      description: "Conquistas, bloqueios, aprendizados, foco da próxima semana + query de tasks pendentes.",
+      description: $t("study.notes.templates.builtin_weekly"),
     },
     {
       kind: "concept-page",
       label: "Concept page",
-      description: "Definição, por que importa, exemplos, links relacionados, fonte.",
+      description: $t("study.notes.templates.builtin_concept"),
     },
-  ];
+  ]);
 
   let templates = $state<TemplateSummary[]>([]);
   let allPages = $state<PageSummary[]>([]);
@@ -186,7 +187,7 @@
 
   async function applyNow() {
     if (!applyTargetPageId) {
-      showToast("err", "Escolha a página alvo");
+      showToast("err", $t("study.notes.templates.choose_target"));
       return;
     }
     applying = true;
@@ -213,7 +214,7 @@
         args,
       );
       applyOpen = false;
-      showToast("ok", `${r.blocks_created} blocos adicionados`);
+      showToast("ok", $t("study.notes.templates.blocks_added", { n: r.blocks_created }));
       goto(`/study/notes?page=${encodeURIComponent(targetPageName())}`);
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));
@@ -247,7 +248,7 @@
       });
       markPageOpen = false;
       await loadAll();
-      showToast("ok", "Página marcada como template");
+      showToast("ok", $t("study.notes.templates.marked"));
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));
     }
@@ -264,7 +265,7 @@
       selected = null;
       selectedPreview = [];
       await loadAll();
-      showToast("ok", "Página desmarcada como template");
+      showToast("ok", $t("study.notes.templates.unmarked"));
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));
     }
@@ -291,7 +292,7 @@
 <div class="tpl-shell">
   <aside class="left">
     <header class="left-head">
-      <a href="/study/notes" class="back">← Notas</a>
+      <a href="/study/notes" class="back">← {$t("study.hub.notes")}</a>
       <h2 class="page-title">Templates</h2>
       <button
         class="btn ghost sm"
@@ -300,12 +301,12 @@
           markPageOpen = true;
         }}
       >
-        + Marcar página
+        + {$t("study.notes.templates.mark_page")}
       </button>
     </header>
 
     <section>
-      <h3>Built-in</h3>
+      <h3>{$t("study.notes.templates.built_in")}</h3>
       <ul class="t-list">
         {#each builtins as b (b.kind)}
           <li>
@@ -324,7 +325,7 @@
                 class="btn primary sm"
                 onclick={() => openApplyForBuiltin(b.kind)}
               >
-                Aplicar
+                {$t("study.notes.templates.apply")}
               </button>
             </article>
           </li>
@@ -333,34 +334,33 @@
     </section>
 
     <section>
-      <h3>Suas páginas marcadas</h3>
+      <h3>{$t("study.notes.templates.your_marked")}</h3>
       {#if templates.length === 0}
         <p class="empty">
-          Nenhuma página marcada como template. Marque uma página existente para
-          reusá-la em outras páginas.
+          {$t("study.notes.templates.no_marked")}
         </p>
       {:else}
         <ul class="t-list">
-          {#each templates as t (t.page_id)}
+          {#each templates as tpl (tpl.page_id)}
             <li>
               <button
                 class="t-card user"
-                class:selected={selected?.page_id === t.page_id}
-                onclick={() => selectTemplate(t)}
+                class:selected={selected?.page_id === tpl.page_id}
+                onclick={() => selectTemplate(tpl)}
               >
                 <header>
-                  <strong>{t.title ?? t.name}</strong>
-                  <span class="meta">{t.block_count} blocos</span>
+                  <strong>{tpl.title ?? tpl.name}</strong>
+                  <span class="meta">{$t("study.notes.templates.blocks_count", { n: tpl.block_count })}</span>
                 </header>
-                <p class="path">{t.name}</p>
-                {#if t.placeholders.length > 0}
+                <p class="path">{tpl.name}</p>
+                {#if tpl.placeholders.length > 0}
                   <div class="placeholders">
-                    {#each t.placeholders as ph (ph)}
+                    {#each tpl.placeholders as ph (ph)}
                       <span class="ph">&lt;%{ph}%&gt;</span>
                     {/each}
                   </div>
                 {/if}
-                <span class="updated">atualizada em {fmt(t.updated_at)}</span>
+                <span class="updated">{$t("study.notes.templates.updated_at", { when: fmt(tpl.updated_at) })}</span>
               </button>
             </li>
           {/each}
@@ -377,13 +377,12 @@
     {/if}
 
     {#if loading}
-      <div class="state">Carregando templates…</div>
+      <div class="state">{$t("study.notes.templates.loading")}</div>
     {:else if !selected}
       <div class="state">
-        <h3>Selecione um template à esquerda</h3>
+        <h3>{$t("study.notes.templates.select_left_title")}</h3>
         <p>
-          Clique em um template para ver o preview, ou aplique um built-in
-          direto.
+          {$t("study.notes.templates.select_left_desc")}
         </p>
       </div>
     {:else}
@@ -399,42 +398,42 @@
               if (selected) openApplyForUserTemplate(selected);
             }}
           >
-            Aplicar em uma página
+            {$t("study.notes.templates.apply_on_page")}
           </button>
           <a class="btn ghost" href={`/study/notes?page=${encodeURIComponent(selected.name)}`}>
-            Editar template
+            {$t("study.notes.templates.edit_template")}
           </a>
           <button
             class="btn ghost danger"
             onclick={() => (confirmUnmarkOpen = true)}
           >
-            Desmarcar
+            {$t("study.notes.templates.unmark")}
           </button>
         </div>
       </header>
 
       {#if selected.placeholders.length > 0}
         <section class="ph-detected">
-          <h3>Placeholders detectados</h3>
+          <h3>{$t("study.notes.templates.placeholders_detected")}</h3>
           <div class="placeholders inline">
             {#each selected.placeholders as ph (ph)}
               <span class="ph">&lt;%{ph}%&gt;</span>
             {/each}
           </div>
           <p class="hint">
-            Built-ins: <code>&lt;%today%&gt;</code>,
-            <code>&lt;%now%&gt;</code>, <code>&lt;%year%&gt;</code> resolvem
-            automaticamente.
+            {$t("study.notes.templates.builtins_hint_a")} <code>&lt;%today%&gt;</code>,
+            <code>&lt;%now%&gt;</code>, <code>&lt;%year%&gt;</code>
+            {$t("study.notes.templates.builtins_hint_b")}
           </p>
         </section>
       {/if}
 
       <section class="preview">
-        <h3>Preview</h3>
+        <h3>{$t("study.notes.templates.preview")}</h3>
         {#if previewLoading}
-          <p>Carregando preview…</p>
+          <p>{$t("study.notes.templates.loading_preview")}</p>
         {:else if flatPreview.length === 0}
-          <p class="empty">Template vazio.</p>
+          <p class="empty">{$t("study.notes.templates.empty_template")}</p>
         {:else}
           <div class="block-preview">
             {#each flatPreview as item (item.content + item.depth)}
@@ -459,13 +458,13 @@
     }}
   >
     <div class="modal wide">
-      <h3>Aplicar template</h3>
+      <h3>{$t("study.notes.templates.apply_title")}</h3>
 
       <label class="form-field">
-        <span>Página alvo</span>
+        <span>{$t("study.notes.templates.target_page")}</span>
         <input
           type="text"
-          placeholder="Buscar página…"
+          placeholder={$t("study.notes.templates.search_placeholder")}
           bind:value={applyTargetSearch}
         />
         <ul class="target-list">
@@ -481,14 +480,14 @@
               </button>
             </li>
           {:else}
-            <li class="empty">Nenhuma página encontrada.</li>
+            <li class="empty">{$t("study.notes.templates.no_pages_found")}</li>
           {/each}
         </ul>
       </label>
 
       {#if applyUserPlaceholders.length > 0}
         <section>
-          <h4>Variáveis</h4>
+          <h4>{$t("study.notes.templates.vars")}</h4>
           <div class="vars">
             {#each applyUserPlaceholders as ph (ph)}
               <label class="form-field inline-label">
@@ -502,10 +501,10 @@
 
       <footer>
         <button class="btn ghost" onclick={() => (applyOpen = false)}>
-          Cancelar
+          {$t("study.common.cancel")}
         </button>
         <button class="btn primary" onclick={applyNow} disabled={applying}>
-          {applying ? "Aplicando…" : "Aplicar"}
+          {applying ? $t("study.notes.templates.applying") : $t("study.notes.templates.apply")}
         </button>
       </footer>
     </div>
@@ -521,14 +520,14 @@
     }}
   >
     <div class="modal wide">
-      <h3>Marcar página como template</h3>
+      <h3>{$t("study.notes.templates.mark_title")}</h3>
       <p class="hint">
-        A página vira reusável. <code>&lt;%var%&gt;</code> no conteúdo viram
-        placeholders preenchidos no apply.
+        {$t("study.notes.templates.mark_hint_a")} <code>&lt;%var%&gt;</code>
+        {$t("study.notes.templates.mark_hint_b")}
       </p>
       <input
         type="text"
-        placeholder="Buscar página…"
+        placeholder={$t("study.notes.templates.search_placeholder")}
         bind:value={markPageSearch}
       />
       <ul class="target-list">
@@ -540,7 +539,7 @@
             </button>
           </li>
         {:else}
-          <li class="empty">Nenhuma página disponível.</li>
+          <li class="empty">{$t("study.notes.templates.no_pages_available")}</li>
         {/each}
       </ul>
       <footer>
@@ -554,9 +553,9 @@
 
 <ConfirmDialog
   bind:open={confirmUnmarkOpen}
-  title="Desmarcar template"
-  message="A página continua existindo, apenas perde a marcação como template."
-  confirmLabel="Desmarcar"
+  title={$t("study.notes.templates.unmark_title")}
+  message={$t("study.notes.templates.unmark_message")}
+  confirmLabel={$t("study.notes.templates.unmark_confirm")}
   variant="danger"
   onConfirm={unmarkAsTemplate}
 />

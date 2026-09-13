@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
+  import { t } from "$lib/i18n";
   import { pluginInvoke } from "$lib/plugin-invoke";
   import PageHero from "$lib/study-components/PageHero.svelte";
 
@@ -65,7 +66,7 @@
         "study",
         "study:read:search:rebuild",
       );
-      showToast("ok", "Índice reconstruído");
+      showToast("ok", $t("study.read.search.index_rebuilt"));
       if (query.trim()) await runSearch();
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));
@@ -101,8 +102,8 @@
 
 <section class="study-page">
   <PageHero
-    title="Buscar nas anotações"
-    subtitle="Encontre highlights, notas e marcações em todos os livros"
+    title={$t("study.read.search.title")}
+    subtitle={$t("study.read.search.subtitle")}
   />
 
   {#if toast}
@@ -124,7 +125,7 @@
       class="btn ghost"
       onclick={rebuildIndex}
       disabled={rebuilding}
-      title="Reconstruir índice se busca estiver retornando resultados desatualizados"
+      title={$t("study.read.search.rebuild_hint")}
     >
       {rebuilding ? "Reindexando…" : "Reindexar"}
     </button>
@@ -165,7 +166,7 @@
           >
             <div class="result-head">
               <span class="result-book">
-                {r.book_title ?? "(sem título)"}
+                {r.book_title ?? $t("study.read.untitled")}
               </span>
               {#if r.page_index != null}
                 <span class="result-page">p. {r.page_index + 1}</span>

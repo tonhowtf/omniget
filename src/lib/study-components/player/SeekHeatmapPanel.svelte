@@ -1,5 +1,6 @@
 <script lang="ts">
   import { studyPlayerSeekHeatmap, type SeekHeatmap } from "$lib/study-bridge";
+  import { t } from "$lib/i18n";
 
   type Props = {
     lessonId: number;
@@ -41,7 +42,7 @@
 </script>
 
 {#if !loading && !error && showPanel && heatmap}
-  <section class="heat" aria-label="Análise de seeks na aula">
+  <section class="heat" aria-label={$t("study.player.seek_analysis")}>
     <header class="head">
       <span class="eyebrow">Análise</span>
       <h3>Distribuição de retornos</h3>

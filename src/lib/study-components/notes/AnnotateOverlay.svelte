@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+import { t } from "$lib/i18n";
   import { notesLessonsLink } from "$lib/notes-bridge";
 
   type Props = {
@@ -83,7 +84,7 @@
   });
 </script>
 
-<div class="annotate-overlay" role="dialog" aria-label="Anotação de aula">
+<div class="annotate-overlay" role="dialog" aria-label={$t("study.notes.nb.annotate_aria")}>
   <header class="head">
     <div class="title-block">
       <strong>Anotar momento</strong>

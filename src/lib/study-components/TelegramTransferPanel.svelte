@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
   type TransferRecord = {
     id: number;
     fileName: string;
@@ -48,10 +49,10 @@
     onclick={(e) => { if (e.target === e.currentTarget) close(); }}
     onkeydown={(e) => { if (e.key === "Escape") close(); }}
   >
-    <aside class="drawer" role="dialog" aria-modal="true" aria-label="Transferências">
+    <aside class="drawer" role="dialog" aria-modal="true" aria-label={$t("study.telegram.transfer.aria")}>
       <header class="drawer-header">
         <div>
-          <h2>Transferências</h2>
+          <h2>{$t("study.telegram.transfer.title")}</h2>
           <p class="subtitle">{active.length} ativa{active.length === 1 ? "" : "s"} · {history.length} no histórico</p>
         </div>
         <button type="button" class="icon-btn" onclick={close} aria-label="Fechar">
@@ -64,9 +65,9 @@
 
       <div class="drawer-body">
         <section>
-          <span class="section-label">Em andamento</span>
+          <span class="section-label">{$t("study.telegram.transfer.in_progress")}</span>
           {#if active.length === 0}
-            <p class="empty-text">Nenhum download ativo.</p>
+            <p class="empty-text">{$t("study.telegram.transfer.no_active")}</p>
           {:else}
             <ul class="transfer-list">
               {#each active as t (t.id)}
@@ -86,26 +87,26 @@
 
         <section>
           <div class="section-row">
-            <span class="section-label">Histórico</span>
+            <span class="section-label">{$t("study.telegram.transfer.history")}</span>
             {#if history.length > 0 && onClearHistory}
-              <button type="button" class="ghost-btn" onclick={onClearHistory}>Limpar</button>
+              <button type="button" class="ghost-btn" onclick={onClearHistory}>{$t("study.common.clear")}</button>
             {/if}
           </div>
           {#if history.length === 0}
-            <p class="empty-text">Sem transferências recentes.</p>
+            <p class="empty-text">{$t("study.telegram.transfer.no_recent")}</p>
           {:else}
             <ul class="transfer-list">
-              {#each history as t (t.id)}
+              {#each history as tr (tr.id)}
                 <li class="transfer-item history-item">
-                  <span class="status-dot" class:status-error={t.status === "error"} class:status-done={t.status === "done"}></span>
+                  <span class="status-dot" class:status-error={tr.status === "error"} class:status-done={tr.status === "done"}></span>
                   <div class="transfer-info">
-                    <span class="transfer-name">{t.fileName}</span>
+                    <span class="transfer-name">{tr.fileName}</span>
                     <span class="transfer-meta">
-                      {t.status === "done" ? "Concluído" : "Erro"}
-                      · {fmtSize(t.sizeBytes)}
-                      {#if t.completedAt}· {fmtTime(t.completedAt)}{/if}
+                      {tr.status === "done" ? $t("study.telegram.transfer.done") : $t("study.telegram.transfer.error")}
+                      · {fmtSize(tr.sizeBytes)}
+                      {#if tr.completedAt}· {fmtTime(tr.completedAt)}{/if}
                     </span>
-                    {#if t.error}<span class="transfer-error">{t.error}</span>{/if}
+                    {#if tr.error}<span class="transfer-error">{tr.error}</span>{/if}
                   </div>
                 </li>
               {/each}

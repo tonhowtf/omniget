@@ -43,7 +43,7 @@
 
   type RowItem = YoutubeUserPlaylistItem & { id: string };
 
-  const rowItems = $derived<RowItem[]>(
+  const rowItems = $derived(
     (detail?.items ?? []).map((it) => ({ ...it, id: it.video_id })),
   );
 

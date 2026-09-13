@@ -1,5 +1,6 @@
 <script lang="ts">
   import { convertFileSrc } from "@tauri-apps/api/core";
+import { t } from "$lib/i18n";
   import { pluginInvoke } from "$lib/plugin-invoke";
   import NotificationBadge from "./NotificationBadge.svelte";
 
@@ -157,7 +158,7 @@
       </div>
     {/if}
     {#if watched}
-      <span class="watched" aria-label="Curso concluído">✓</span>
+      <span class="watched" aria-label={$t("study.course.completed_aria")}>✓</span>
     {/if}
     {#if showProgress}
       <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round((progressPct ?? 0) * 100)}>

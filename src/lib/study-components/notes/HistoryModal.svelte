@@ -6,6 +6,7 @@
     notesBlocksGet,
     type ContentSnapshot,
   } from "$lib/notes-bridge";
+import { t } from "$lib/i18n";
   import DiffView from "./DiffView.svelte";
 
   type Props = {
@@ -113,7 +114,7 @@
       if (e.target === e.currentTarget) onClose();
     }}
   >
-    <div class="modal" role="dialog" aria-label="Histórico do bloco" aria-modal="true">
+    <div class="modal" role="dialog" aria-label={$t("study.notes.history_modal.block_aria")} aria-modal="true">
       <header class="head">
         <h3>Histórico do bloco</h3>
         <button type="button" class="btn ghost sm" onclick={onClose}>×</button>
@@ -132,7 +133,7 @@
         </div>
       {:else}
         <div class="layout">
-          <ul class="list" role="listbox" aria-label="Versões">
+          <ul class="list" role="listbox" aria-label={$t("study.notes.history_modal.versions_aria")}>
             {#each snapshots as s, i (s.id)}
               <li>
                 <button
@@ -185,7 +186,7 @@
           onclick={restoreSelected}
           disabled={!selected || restoring || blockId === null}
         >
-          {restoring ? "Restaurando…" : "Restaurar esta versão"}
+          {restoring ? $t("study.notes.history_modal.restoring") : $t("study.notes.history_modal.restore_this")}
         </button>
       </footer>
     </div>
@@ -200,11 +201,11 @@
       if (e.target === e.currentTarget) confirmClearOpen = false;
     }}
   >
-    <div class="modal small" role="dialog" aria-label="Limpar histórico" aria-modal="true">
+    <div class="modal small" role="dialog" aria-label={$t("study.notes.history_modal.clear_aria")} aria-modal="true">
       <h3>Limpar histórico?</h3>
       <p class="warn">
         {snapshots.length === 1
-          ? "Isso apaga o snapshot deste bloco. Não dá pra desfazer."
+          ? $t("study.notes.history_modal.clear_warn")
           : `Isso apaga ${snapshots.length} snapshots deste bloco. Não dá pra desfazer.`}
       </p>
       <footer class="foot">

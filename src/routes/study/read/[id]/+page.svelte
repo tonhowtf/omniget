@@ -698,7 +698,7 @@
 
   async function createOrphanNote() {
     if (!textRects) return;
-    const note = window.prompt("Nota da página:", "");
+    const note = window.prompt($t("study.read.page_note_prompt"), "");
     if (note === null) return;
     const trimmed = note.trim();
     if (trimmed === "") return;
@@ -1425,10 +1425,10 @@
       format === "json" ? "json" : format === "pdf_burn_in" ? "pdf" : "md";
     const suffix =
       format === "md_v2"
-        ? " — anotações.v2"
+        ? $t("study.read.annotations_v2")
         : format === "pdf_burn_in"
           ? " — anotado"
-          : " — anotações";
+          : $t("study.read.annotations");
     const filterName =
       format === "json"
         ? "JSON"
@@ -2431,7 +2431,7 @@
           type="text"
           bind:value={metadataDraft.title}
           disabled={savingMetadata}
-          placeholder="(sem título)"
+          placeholder={$t("study.read.untitled_placeholder")}
         />
       </label>
 

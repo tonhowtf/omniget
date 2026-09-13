@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
   import type { MentionItem } from "./mention-suggestions";
 
   type Props = {
@@ -11,7 +12,7 @@
 
   let { items, selectedIndex, kind, position, onPick }: Props = $props();
 
-  const headerLabel = $derived(kind === "tag" ? "Tags" : "Páginas");
+  const headerLabel = $derived(kind === "tag" ? $t("study.notes.nb.mention_tags") : $t("study.notes.nb.mention_pages"));
 </script>
 
 {#if items.length > 0}

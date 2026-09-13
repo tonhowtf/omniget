@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
+import { t } from "$lib/i18n";
 
   type Props = {
     source: string;
@@ -116,7 +117,7 @@
       CompressionStream?: new (format: string) => GenericTransformStream;
     };
     if (!G.CompressionStream) {
-      throw new Error("CompressionStream indisponível neste runtime");
+      throw new Error($t("study.notes.nb.compression_unavailable"));
     }
     const ds = new G.CompressionStream("deflate-raw");
     const stream = new Blob([text]).stream().pipeThrough(ds);

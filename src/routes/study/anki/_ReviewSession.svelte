@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
+  import { t } from "$lib/i18n";
   import { pluginInvoke } from "$lib/plugin-invoke";
   import { awardXp, bumpCounter } from "$lib/study-gamification";
   import PageHero from "$lib/study-components/PageHero.svelte";
@@ -260,27 +261,27 @@
     initialTotal === 0 ? 0 : Math.round((answered / initialTotal) * 100),
   );
 
-  const eyebrow = $derived(deckName ? `Deck · ${deckName}` : "Todos os decks");
+  const eyebrow = $derived(deckName ? $t("study.anki.review.eyebrow_deck", { name: deckName }) : $t("study.anki.review.eyebrow_all"));
 </script>
 
 <section class="study-page">
-  <PageHero title="Estudar" subtitle={eyebrow} />
+  <PageHero title={$t("study.anki.review.title")} subtitle={eyebrow} />
 
   {#if loading}
-    <p class="muted">Carregando sessão…</p>
+    <p class="muted">{$t("study.anki.review.loading_session")}</p>
   {:else if error}
     <p class="error">{error}</p>
   {:else if !card}
     <section class="card complete-card">
       <div class="complete-icon" aria-hidden="true">✓</div>
-      <h2>Sessão concluída</h2>
+      <h2>{$t("study.anki.review.session_complete")}</h2>
       {#if initialTotal === 0}
-        <p>Nenhum card pendente para esta sessão.</p>
+        <p>{$t("study.anki.review.no_pending")}</p>
       {:else}
         <p>Você respondeu {answered} cards. Bom trabalho!</p>
       {/if}
       <div class="complete-actions">
-        <a class="btn-primary" href="/study/anki">Voltar ao painel</a>
+        <a class="btn-primary" href="/study/anki">{$t("study.anki.sidebar.dashboard")}</a>
         {#if initialTotal > 0}
           <button type="button" class="btn-secondary" onclick={loadQueue}>
             Tentar mais cards
@@ -298,7 +299,7 @@
 
     <article class="card-stage">
       <iframe
-        title={showAnswer ? "Resposta" : "Pergunta"}
+        title={showAnswer ? $t("study.anki.review.answer") : $t("study.anki.review.question")}
         srcdoc={showAnswer ? backDoc : frontDoc}
         sandbox="allow-same-origin"
         class="card-frame"
@@ -308,9 +309,9 @@
     {#if !showAnswer}
       <div class="cta-row">
         <button type="button" class="btn-primary big" onclick={reveal}>
-          Mostrar resposta
+          {$t("study.anki.review.show_answer")}
         </button>
-        <span class="kbd-hint">Espaço</span>
+        <span class="kbd-hint">{$t("study.anki.review.space")}</span>
       </div>
     {:else}
       <div class="rating-row">
@@ -320,7 +321,7 @@
           onclick={() => answer(1)}
           disabled={busyAnswer}
         >
-          <span class="rate-label">De novo</span>
+          <span class="rate-label">{$t("study.anki.revlog.ease_again")}</span>
           <span class="rate-ivl">{preview ? fmtIvl(preview.again_ivl_days) : "—"}</span>
           <span class="rate-key">1</span>
         </button>
@@ -330,7 +331,7 @@
           onclick={() => answer(2)}
           disabled={busyAnswer}
         >
-          <span class="rate-label">Difícil</span>
+          <span class="rate-label">{$t("study.anki.revlog.ease_hard")}</span>
           <span class="rate-ivl">{preview ? fmtIvl(preview.hard_ivl_days) : "—"}</span>
           <span class="rate-key">2</span>
         </button>
@@ -350,7 +351,7 @@
           onclick={() => answer(4)}
           disabled={busyAnswer}
         >
-          <span class="rate-label">Fácil</span>
+          <span class="rate-label">{$t("study.anki.revlog.ease_easy")}</span>
           <span class="rate-ivl">{preview ? fmtIvl(preview.easy_ivl_days) : "—"}</span>
           <span class="rate-key">4</span>
         </button>

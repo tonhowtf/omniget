@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
+  import { t } from "$lib/i18n";
 
   type Props = {
     source: string;
@@ -146,7 +147,7 @@
       onblur={onSourceBlur}
       spellcheck="false"
       rows={Math.max(6, editingValue.split("\n").length)}
-      aria-label="Source da partitura (notação ABC)"
+      aria-label={$t("study.notes.nb.abc_source_aria")}
     ></textarea>
   {:else if renderState.kind === "idle"}
     <p class="abc-state">Sem source. Clique em ‹/› para editar.</p>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t } from "$lib/i18n";
   import { pluginInvoke } from "$lib/plugin-invoke";
   import PageHero from "$lib/study-components/PageHero.svelte";
   import ConfirmDialog from "$lib/study-components/ConfirmDialog.svelte";
@@ -39,25 +40,25 @@
   let deleteTarget = $state<DeckSummary | null>(null);
   let deleteBusy = $state(false);
 
-  const ORDER_OPTIONS = [
-    { value: "oldest_seen_first", label: "Mais antigo primeiro" },
-    { value: "random", label: "Aleatório" },
-    { value: "interval_descending", label: "Maior intervalo" },
-    { value: "interval_ascending", label: "Menor intervalo" },
-    { value: "lapses_descending", label: "Mais lapsos" },
-    { value: "added_descending", label: "Adicionados recentemente" },
-    { value: "added_ascending", label: "Adicionados há mais tempo" },
-    { value: "due_first", label: "Vencidos primeiro" },
-  ];
+  const ORDER_OPTIONS = $derived([
+    { value: "oldest_seen_first", label: $t("study.anki.filtered.ord_oldest_seen") },
+    { value: "random", label: $t("study.anki.filtered.ord_random") },
+    { value: "interval_descending", label: $t("study.anki.filtered.ord_interval_desc") },
+    { value: "interval_ascending", label: $t("study.anki.filtered.ord_interval_asc") },
+    { value: "lapses_descending", label: $t("study.anki.filtered.ord_lapses_desc") },
+    { value: "added_descending", label: $t("study.anki.filtered.ord_added_desc") },
+    { value: "added_ascending", label: $t("study.anki.filtered.ord_added_asc") },
+    { value: "due_first", label: $t("study.anki.filtered.ord_due_first") },
+  ]);
 
-  const PRESETS = [
-    { label: "Vencidos hoje", search: "is:due" },
-    { label: "Aprendendo", search: "is:learn" },
-    { label: "Suspensos", search: "is:suspended" },
-    { label: "Marcados (flag)", search: "flag:1 OR flag:2 OR flag:3 OR flag:4" },
-    { label: "Tagged 'difícil'", search: 'tag:difícil' },
-    { label: "Lapsos > 5", search: "prop:lapses>5" },
-  ];
+  const PRESETS = $derived([
+    { label: $t("study.anki.filtered.p_due_today"), search: "is:due" },
+    { label: $t("study.anki.browse.p_learning"), search: "is:learn" },
+    { label: $t("study.anki.browse.p_suspended"), search: "is:suspended" },
+    { label: $t("study.anki.browse.p_flagged"), search: "flag:1 OR flag:2 OR flag:3 OR flag:4" },
+    { label: $t("study.anki.filtered.p_tagged_hard"), search: "tag:difícil" },
+    { label: $t("study.anki.filtered.p_lapses_5"), search: "prop:lapses>5" },
+  ]);
 
   function showToast(kind: "ok" | "err", msg: string) {
     toast = { kind, msg };
@@ -146,10 +147,10 @@
       showToast(
         "ok",
         r.returned === 0
-          ? "Deck já estava vazio"
+          ? $t("study.anki.filtered.was_empty")
           : r.returned === 1
-            ? "1 card devolvido pro deck original"
-            : `${r.returned} cards devolvidos`,
+            ? $t("study.anki.filtered.returned_one")
+            : $t("study.anki.filtered.returned_many", { n: r.returned }),
       );
       await load();
     } catch (e) {
@@ -188,7 +189,7 @@
 <section class="study-page">
   <PageHero
     title="Decks filtrados"
-    subtitle="Cards selecionados por uma query — bom para revisão dirigida"
+    subtitle={$t("study.anki.filtered.subtitle")}
   />
 
   {#if toast}
@@ -198,34 +199,33 @@
   {/if}
 
   <div class="toolbar">
-    <a class="back-link" href="/study/anki/decks">← Voltar pra Decks</a>
+    <a class="back-link" href="/study/anki/decks">← {$t("study.anki.sidebar.decks")}</a>
     <button
       type="button"
       class="btn primary"
       onclick={() => (createOpen = true)}
     >
-      + Novo deck filtrado
+      + {$t("study.anki.filtered.new_filtered_deck")}
     </button>
   </div>
 
   {#if loading}
-    <div class="state">Carregando…</div>
+    <div class="state">{$t("study.anki.settings.loading")}</div>
   {:else if error}
     <div class="state err">{error}</div>
-    <button class="btn ghost" onclick={load}>Tentar de novo</button>
+    <button class="btn ghost" onclick={load}>{$t("study.anki.settings.try_again")}</button>
   {:else if decks.length === 0}
     <div class="empty">
-      <p>Nenhum deck filtrado ainda.</p>
+      <p>{$t("study.anki.filtered.none_yet")}</p>
       <p class="hint">
-        Decks filtrados puxam cards de outros decks via query (ex: <code>is:due</code>).
-        Quando você termina, os cards voltam pro deck original.
+        {$t("study.anki.filtered.explain_a")} <code>is:due</code>. {$t("study.anki.filtered.explain_b")}
       </p>
       <button
         type="button"
         class="btn primary"
         onclick={() => (createOpen = true)}
       >
-        Criar primeiro
+        {$t("study.anki.notetypes.create_first")}
       </button>
     </div>
   {:else}
@@ -236,9 +236,9 @@
           <div class="filtered-info">
             <h3>{deck.name}</h3>
             <p class="meta">
-              <span class="pill new">{deck.new_count} novos</span>
-              <span class="pill learn">{deck.learn_count} aprendendo</span>
-              <span class="pill review">{deck.review_count} revisão</span>
+              <span class="pill new">{$t("study.anki.filtered.n_new", { n: deck.new_count })}</span>
+              <span class="pill learn">{$t("study.anki.filtered.n_learning", { n: deck.learn_count })}</span>
+              <span class="pill review">{$t("study.anki.filtered.n_review", { n: deck.review_count })}</span>
             </p>
           </div>
           <div class="filtered-actions">
@@ -247,18 +247,18 @@
               class="btn ghost sm"
               onclick={() => rebuild(deck)}
               disabled={rebuilding === deck.id || emptying === deck.id}
-              title="Refaz a query e popula o deck"
+              title={$t("study.anki.filtered.rebuild_hint")}
             >
-              {rebuilding === deck.id ? "Reconstruindo…" : "Reconstruir"}
+              {rebuilding === deck.id ? $t("study.anki.filtered.rebuilding") : $t("study.anki.filtered.rebuild")}
             </button>
             <button
               type="button"
               class="btn ghost sm"
               onclick={() => emptyDeck(deck)}
               disabled={rebuilding === deck.id || emptying === deck.id || total === 0}
-              title="Devolve os cards ao deck original sem apagar o filtrado"
+              title={$t("study.anki.filtered.empty_hint")}
             >
-              {emptying === deck.id ? "Esvaziando…" : "Esvaziar"}
+              {emptying === deck.id ? $t("study.anki.media.emptying") : $t("study.anki.media.empty")}
             </button>
             <button
               type="button"
@@ -266,7 +266,7 @@
               onclick={() => askDelete(deck)}
               disabled={rebuilding === deck.id || emptying === deck.id}
             >
-              Apagar
+              {$t("study.common.delete")}
             </button>
           </div>
         </li>
@@ -282,18 +282,17 @@
     onclick={(e) => { if (e.target === e.currentTarget) createOpen = false; }}
   >
     <div class="modal" role="dialog" aria-modal="true">
-      <h3>Criar deck filtrado</h3>
+      <h3>{$t("study.anki.filtered.create_title")}</h3>
       <p class="modal-hint">
-        O deck puxa cards que casam com a query. Use sintaxe Anki:
-        <code>is:due</code>, <code>tag:foo</code>, <code>deck:Bar</code>.
+        {$t("study.anki.filtered.create_hint")} <code>is:due</code>, <code>tag:foo</code>, <code>deck:Bar</code>.
       </p>
 
       <label class="field">
-        <span>Nome</span>
+        <span>{$t("study.anki.notetypes.name_label")}</span>
         <input
           type="text"
           bind:value={newName}
-          placeholder="Ex: Revisão hoje"
+          placeholder={$t("study.anki.filtered.name_placeholder")}
         />
       </label>
 
@@ -307,7 +306,7 @@
       </label>
 
       <details class="presets">
-        <summary>Presets</summary>
+        <summary>{$t("study.anki.decks.presets")}</summary>
         <div class="preset-grid">
           {#each PRESETS as p (p.label)}
             <button
@@ -324,7 +323,7 @@
 
       <div class="row">
         <label class="field">
-          <span>Limite</span>
+          <span>{$t("study.anki.filtered.limit")}</span>
           <input
             type="number"
             min="1"
@@ -372,11 +371,11 @@
 
 <ConfirmDialog
   bind:open={confirmDeleteOpen}
-  title="Apagar deck filtrado"
+  title={$t("study.anki.filtered.delete_title")}
   message={deleteTarget
-    ? `O deck "${deleteTarget.name}" será removido. Os cards voltam pro deck original — nada é perdido.`
+    ? $t("study.anki.filtered.delete_confirm", { name: deleteTarget.name })
     : ""}
-  confirmLabel="Apagar"
+  confirmLabel={$t("study.common.delete")}
   variant="danger"
   onConfirm={confirmDelete}
 />

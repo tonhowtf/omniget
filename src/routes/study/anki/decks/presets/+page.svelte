@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t } from "$lib/i18n";
   import { pluginInvoke } from "$lib/plugin-invoke";
   import PageHero from "$lib/study-components/PageHero.svelte";
   import ConfirmDialog from "$lib/study-components/ConfirmDialog.svelte";
@@ -154,7 +155,7 @@
       await pluginInvoke("study", "study:anki:deckconfig:update", {
         config: updated,
       });
-      showToast("ok", "Preset atualizado");
+      showToast("ok", $t("study.anki.preset_updated"));
       editing = null;
       editForm = null;
       await load();
@@ -200,7 +201,7 @@
 <section class="study-page">
   <PageHero
     title="Presets de deck"
-    subtitle="Configurações reutilizáveis (limites, FSRS, learning steps)"
+    subtitle={$t("study.anki.presets.subtitle")}
   />
 
   {#if toast}
@@ -269,7 +270,7 @@
               onclick={() => askDelete(p)}
               disabled={p.id === DEFAULT_PRESET_ID || p.use_count > 0}
               title={p.id === DEFAULT_PRESET_ID
-                ? "Preset padrão não pode ser apagado"
+                ? $t("study.anki.presets.default_undeletable")
                 : p.use_count > 0
                   ? "Mover decks pra outro preset antes de apagar"
                   : ""}

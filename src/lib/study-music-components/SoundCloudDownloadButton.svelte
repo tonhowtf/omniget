@@ -1,5 +1,6 @@
 <script lang="ts">
   import { downloadStore } from "$lib/study-music/download-store.svelte";
+  import { t } from "$lib/i18n";
   import type { ScTrack } from "$lib/study-music/soundcloud-store.svelte";
 
   type Props = {
@@ -47,7 +48,7 @@
     class="btn"
     onclick={(e) => { e.stopPropagation(); onTrigger(track, e.shiftKey); }}
     aria-label="Baixar"
-    title={"Baixar (Shift = avançado)"}
+    title={$t("study.music.dock.download_title")}
   >
     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>

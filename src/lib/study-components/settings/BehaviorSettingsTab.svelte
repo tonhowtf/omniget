@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
   import SettingsField from "./SettingsField.svelte";
   import SettingsSlider from "./SettingsSlider.svelte";
   import SettingsToggle from "./SettingsToggle.svelte";
@@ -22,8 +23,8 @@
 
 <section class="tab">
   <SettingsField
-    label="Auto-play da próxima aula"
-    description="Quando você termina uma aula, a próxima começa automaticamente após countdown"
+    label={$t("study.settings.behavior.autoplay_next")}
+    description={$t("study.settings.behavior.autoplay_next_desc")}
   >
     <SettingsToggle
       value={player.binge_watching ?? true}
@@ -47,13 +48,13 @@
   </SettingsField>
 
   <SettingsField
-    label="Coletar histórico de seeks"
-    description="Registra onde você volta para gerar heatmap de dificuldade. Local apenas — nada sai da máquina"
+    label={$t("study.settings.behavior.collect_seeks")}
+    description={$t("study.settings.behavior.collect_seeks_desc")}
   >
     <SettingsToggle
       value={player.collect_seek_logs ?? true}
       onChange={(v) => setPlayer("collect_seek_logs", v)}
-      ariaLabel="Coletar histórico"
+      ariaLabel={$t("study.settings.behavior.collect_seeks_aria")}
     />
   </SettingsField>
 </section>

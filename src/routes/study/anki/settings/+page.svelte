@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t } from "$lib/i18n";
   import { pluginInvoke } from "$lib/plugin-invoke";
   import PageHero from "$lib/study-components/PageHero.svelte";
 
@@ -228,7 +229,7 @@
         setGlobal("estTimes", showIntervalsOnButtons),
         setGlobal("lrnLearnAhead", learnAheadSecs),
       ]);
-      showToast("ok", "Preferências de estudo salvas");
+      showToast("ok", $t("study.anki.settings.toast_prefs_saved"));
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));
     } finally {
@@ -263,7 +264,7 @@
         config: updated,
       });
       defaultDeckCfg = updated;
-      showToast("ok", "Padrões do deck atualizados");
+      showToast("ok", $t("study.anki.settings.toast_deck_saved"));
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));
     } finally {
@@ -311,7 +312,7 @@
         { sourcePath: path },
       );
       verifyCache = { ...verifyCache, [path]: report };
-      showToast(report.ok ? "ok" : "err", report.ok ? "Backup íntegro" : "Backup com problemas");
+      showToast(report.ok ? "ok" : "err", report.ok ? $t("study.anki.settings.toast_backup_ok") : $t("study.anki.settings.toast_backup_bad"));
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));
     } finally {
@@ -332,7 +333,7 @@
         "study:anki:backup:restore",
         { sourcePath: restoreTargetPath },
       );
-      showToast("ok", "Coleção restaurada");
+      showToast("ok", $t("study.anki.settings.toast_restored"));
       restoreTargetPath = null;
       await loadBackups();
     } catch (e) {
@@ -352,11 +353,11 @@
         { keep },
       );
       if (r.removed === 0) {
-        showToast("ok", "Nenhum backup antigo pra remover");
+        showToast("ok", $t("study.anki.settings.toast_no_old"));
       } else {
         showToast(
           "ok",
-          r.removed === 1 ? "1 backup removido" : `${r.removed} backups removidos`,
+          r.removed === 1 ? $t("study.anki.settings.toast_removed_one") : $t("study.anki.settings.toast_removed_many", { n: r.removed }),
         );
         await loadBackups();
       }
@@ -394,7 +395,7 @@
         "study:anki:config:get_global",
         { key },
       );
-      rawValue = v == null ? "(não encontrado)" : JSON.stringify(v, null, 2);
+      rawValue = v == null ? $t("study.anki.settings.not_found") : JSON.stringify(v, null, 2);
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));
       rawValue = null;
@@ -432,8 +433,8 @@
 
 <section class="study-page">
   <PageHero
-    title="Configurações"
-    subtitle="Comportamento padrão do cliente Anki"
+    title={$t("study.anki.settings.title")}
+    subtitle={$t("study.anki.settings.subtitle")}
   />
 
   {#if toast}
@@ -443,10 +444,10 @@
   {/if}
 
   {#if loading}
-    <div class="state">Carregando preferências…</div>
+    <div class="state">{$t("study.anki.settings.loading_prefs")}</div>
   {:else if error}
     <div class="state err">{error}</div>
-    <button class="btn ghost" onclick={load}>Tentar de novo</button>
+    <button class="btn ghost" onclick={load}>{$t("study.anki.settings.try_again")}</button>
   {:else}
     <div class="sections">
       <section class="card" class:open={openSection === "scheduler"}>
@@ -457,9 +458,9 @@
           aria-expanded={openSection === "scheduler"}
         >
           <div class="head-left">
-            <h3>Estudo</h3>
+            <h3>{$t("study.anki.settings.sec_study")}</h3>
             <span class="head-sub">
-              Versão do scheduler, contagens, atalhos
+              {$t("study.anki.settings.sec_study_sub")}
             </span>
           </div>
           <span class="chev" aria-hidden="true">›</span>
@@ -469,20 +470,20 @@
           <div class="card-body">
             <div class="field">
               <label for="schedver">
-                Versão do scheduler
-                <span class="hint">v3 é a recomendada (FSRS-5)</span>
+                {$t("study.anki.settings.schedver")}
+                <span class="hint">{$t("study.anki.settings.schedver_hint")}</span>
               </label>
               <select id="schedver" bind:value={schedulerVer}>
-                <option value="v1">v1 (legado)</option>
-                <option value="v2">v2 (legado)</option>
-                <option value="v3">v3 (atual)</option>
+                <option value="v1">{$t("study.anki.settings.sched_v1_legacy")}</option>
+                <option value="v2">{$t("study.anki.settings.sched_v2_legacy")}</option>
+                <option value="v3">{$t("study.anki.settings.sched_v3_current")}</option>
               </select>
             </div>
 
             <div class="row">
               <div class="field">
                 <label for="learnahead">
-                  Tempo até aprender adiantado <span class="hint">seg</span>
+                  {$t("study.anki.settings.learn_ahead")} <span class="hint">{$t("study.anki.settings.unit_secs")}</span>
                 </label>
                 <input
                   id="learnahead"
@@ -490,12 +491,12 @@
                   min="0"
                   bind:value={learnAheadSecs}
                 />
-                <span class="default">padrão: 1200</span>
+                <span class="default">{$t("study.anki.settings.default_val", { v: "1200" })}</span>
               </div>
 
               <div class="field">
                 <label for="collapse">
-                  Colapsar tempo de estudo <span class="hint">seg</span>
+                  {$t("study.anki.settings.collapse_time")} <span class="hint">{$t("study.anki.settings.unit_secs")}</span>
                 </label>
                 <input
                   id="collapse"
@@ -503,14 +504,14 @@
                   min="0"
                   bind:value={collapseTime}
                 />
-                <span class="default">padrão: 1200</span>
+                <span class="default">{$t("study.anki.settings.default_val", { v: "1200" })}</span>
               </div>
             </div>
 
             <div class="field">
-              <label for="timelim">
-                Limite de tempo por sessão <span class="hint">seg, 0 desliga</span>
-              </label>
+                <label for="timelim">
+                  {$t("study.anki.settings.time_limit")} <span class="hint">{$t("study.anki.settings.time_limit_hint")}</span>
+                </label>
               <input
                 id="timelim"
                 type="number"
@@ -521,11 +522,11 @@
 
             <label class="check">
               <input type="checkbox" bind:checked={showRemainingDueCounts} />
-              <span>Mostrar contagens de cards restantes</span>
+              <span>{$t("study.anki.settings.show_remaining")}</span>
             </label>
             <label class="check">
               <input type="checkbox" bind:checked={showIntervalsOnButtons} />
-              <span>Mostrar intervalos próximos nos botões de avaliação</span>
+              <span>{$t("study.anki.settings.show_intervals")}</span>
             </label>
 
             <div class="actions">
@@ -534,7 +535,7 @@
                 onclick={saveScheduler}
                 disabled={saving === "scheduler"}
               >
-                {saving === "scheduler" ? "Salvando…" : "Salvar"}
+                {saving === "scheduler" ? $t("study.common.saving") : $t("study.common.save")}
               </button>
             </div>
           </div>
@@ -549,9 +550,9 @@
           aria-expanded={openSection === "deck"}
         >
           <div class="head-left">
-            <h3>Padrões de deck</h3>
+            <h3>{$t("study.anki.settings.sec_deck")}</h3>
             <span class="head-sub">
-              Limites diários, FSRS, learning steps, leeches
+              {$t("study.anki.settings.sec_deck_sub")}
             </span>
           </div>
           <span class="chev" aria-hidden="true">›</span>
@@ -560,18 +561,17 @@
         {#if openSection === "deck" && defaultDeckCfg}
           <div class="card-body">
             <p class="lede">
-              Esses valores se aplicam ao deck "Default" e a qualquer deck que
-              compartilhe esta configuração.
+              {$t("study.anki.settings.deck_lede")}
               {#if deckConfigs.length > 1}
-                Para presets adicionais, abra cada deck em
-                <a href="/study/anki/decks" class="inline-link">Decks</a>.
+                {$t("study.anki.settings.deck_lede_presets")}
+                <a href="/study/anki/decks" class="inline-link">{$t("study.hub.anki")}</a>.
               {/if}
             </p>
 
             <div class="row">
               <div class="field">
                 <label for="newperday">
-                  Novos cards por dia
+                  {$t("study.anki.settings.new_per_day")}
                 </label>
                 <input
                   id="newperday"
@@ -579,12 +579,12 @@
                   min="0"
                   bind:value={dailyNewLimit}
                 />
-                <span class="default">padrão: 20</span>
+                <span class="default">{$t("study.anki.settings.default_val", { v: "20" })}</span>
               </div>
 
               <div class="field">
                 <label for="revperday">
-                  Revisões por dia
+                  {$t("study.anki.settings.rev_per_day")}
                 </label>
                 <input
                   id="revperday"
@@ -592,13 +592,13 @@
                   min="0"
                   bind:value={dailyReviewLimit}
                 />
-                <span class="default">padrão: 200</span>
+                <span class="default">{$t("study.anki.settings.default_val", { v: "200" })}</span>
               </div>
             </div>
 
             <div class="field">
               <label for="retention">
-                Retenção desejada (FSRS) <span class="hint">0.7 a 0.99</span>
+                {$t("study.anki.settings.retention")} <span class="hint">{$t("study.anki.settings.retention_hint")}</span>
               </label>
               <input
                 id="retention"
@@ -609,32 +609,32 @@
                 bind:value={desiredRetention}
               />
               <span class="default">
-                padrão: 0.90 — quanto maior, mais revisões
+                {$t("study.anki.settings.retention_default")}
               </span>
             </div>
 
             <div class="row">
               <div class="field">
                 <label for="learn">
-                  Learning steps <span class="hint">minutos</span>
+                  {$t("study.anki.settings.learn_steps")} <span class="hint">{$t("study.anki.settings.unit_minutes")}</span>
                 </label>
                 <input id="learn" type="text" bind:value={learnStepsRaw} />
-                <span class="default">padrão: 1 10</span>
+                <span class="default">{$t("study.anki.settings.default_val", { v: "1 10" })}</span>
               </div>
 
               <div class="field">
                 <label for="relearn">
-                  Relearning steps <span class="hint">minutos</span>
+                  {$t("study.anki.settings.relearn_steps")} <span class="hint">{$t("study.anki.settings.unit_minutes")}</span>
                 </label>
                 <input id="relearn" type="text" bind:value={relearnStepsRaw} />
-                <span class="default">padrão: 10</span>
+                <span class="default">{$t("study.anki.settings.default_val", { v: "10" })}</span>
               </div>
             </div>
 
             <div class="row">
               <div class="field">
                 <label for="leech">
-                  Limite de leech <span class="hint">lapsos antes de marcar</span>
+                  {$t("study.anki.settings.leech_threshold")} <span class="hint">{$t("study.anki.settings.leech_hint")}</span>
                 </label>
                 <input
                   id="leech"
@@ -642,42 +642,42 @@
                   min="1"
                   bind:value={leechThreshold}
                 />
-                <span class="default">padrão: 8</span>
+                <span class="default">{$t("study.anki.settings.default_val", { v: "8" })}</span>
               </div>
 
               <div class="field">
-                <label for="leechact">Ação ao marcar leech</label>
+                <label for="leechact">{$t("study.anki.settings.leech_action")}</label>
                 <select id="leechact" bind:value={leechAction}>
-                  <option value="tag_only">Apenas adicionar tag</option>
-                  <option value="suspend">Suspender card</option>
+                  <option value="tag_only">{$t("study.anki.settings.leech_tag_only")}</option>
+                  <option value="suspend">{$t("study.anki.settings.leech_suspend")}</option>
                 </select>
               </div>
             </div>
 
-            <h4 class="subhead">Comportamento da sessão</h4>
+            <h4 class="subhead">{$t("study.anki.settings.session_behavior")}</h4>
             <label class="check">
               <input type="checkbox" bind:checked={buryNew} />
-              <span>Enterrar novos cards relacionados até o próximo dia</span>
+              <span>{$t("study.anki.settings.bury_new")}</span>
             </label>
             <label class="check">
               <input type="checkbox" bind:checked={buryReviews} />
-              <span>Enterrar revisões relacionadas até o próximo dia</span>
+              <span>{$t("study.anki.settings.bury_reviews")}</span>
             </label>
             <label class="check">
               <input type="checkbox" bind:checked={buryInterday} />
-              <span>Enterrar learning interday relacionado</span>
+              <span>{$t("study.anki.settings.bury_interday")}</span>
             </label>
             <label class="check">
               <input type="checkbox" bind:checked={disableAutoplay} />
-              <span>Desativar autoplay de áudio/vídeo</span>
+              <span>{$t("study.anki.settings.disable_autoplay")}</span>
             </label>
             <label class="check">
               <input type="checkbox" bind:checked={showTimer} />
-              <span>Mostrar cronômetro durante o estudo</span>
+              <span>{$t("study.anki.settings.show_timer")}</span>
             </label>
             <label class="check">
               <input type="checkbox" bind:checked={stopTimerOnAnswer} />
-              <span>Parar cronômetro ao mostrar a resposta</span>
+              <span>{$t("study.anki.settings.stop_timer_answer")}</span>
             </label>
 
             <div class="actions">
@@ -686,7 +686,7 @@
                 onclick={saveDeckDefaults}
                 disabled={saving === "deck"}
               >
-                {saving === "deck" ? "Salvando…" : "Salvar padrões"}
+                {saving === "deck" ? $t("study.anki.settings.saving") : $t("study.anki.settings.save_deck")}
               </button>
             </div>
           </div>
@@ -701,13 +701,13 @@
           aria-expanded={openSection === "backup"}
         >
           <div class="head-left">
-            <h3>Backup</h3>
+            <h3>{$t("study.anki.settings.sec_backup")}</h3>
             <span class="head-sub">
               {backups.length === 0
-                ? "Snapshots manuais da coleção"
+                ? $t("study.anki.settings.backup_sub_none")
                 : backups.length === 1
-                  ? "1 backup salvo"
-                  : `${backups.length} backups salvos`}
+                  ? $t("study.anki.settings.backup_saved_one")
+                  : $t("study.anki.settings.backup_saved_many", { n: backups.length })}
             </span>
           </div>
           <span class="chev" aria-hidden="true">›</span>
@@ -717,25 +717,25 @@
           <div class="card-body">
             <div class="backup-head">
               <p class="lede">
-                Backups ficam em <code>plugin_data_dir/backups/</code>. Restaurar
-                substitui a coleção atual — uma cópia de segurança é feita antes.
+                {$t("study.anki.settings.backup_lede_a")} <code>plugin_data_dir/backups/</code>.
+                {$t("study.anki.settings.backup_lede_b")}
               </p>
               <button
                 class="btn primary"
                 onclick={runBackup}
                 disabled={saving === "backup"}
               >
-                {saving === "backup" ? "Criando…" : "Criar backup agora"}
+                {saving === "backup" ? $t("study.anki.settings.creating") : $t("study.anki.settings.create_backup_now")}
               </button>
             </div>
 
             {#if backupsLoading}
-              <p class="muted small">Carregando…</p>
+              <p class="muted small">{$t("study.anki.settings.loading")}</p>
             {:else if backups.length === 0}
               <div class="empty-backup">
-                <p>Nenhum backup ainda.</p>
+                <p>{$t("study.anki.settings.no_backups")}</p>
                 <p class="hint">
-                  Crie o primeiro antes de imports grandes ou mudanças de schema.
+                  {$t("study.anki.settings.no_backups_hint")}
                 </p>
               </div>
             {:else}
@@ -753,7 +753,7 @@
                             class:err={!v.ok}
                             title={v.message}
                           >
-                            {v.ok ? "íntegro" : "com problema"}
+                            {v.ok ? $t("study.anki.settings.verify_ok") : $t("study.anki.settings.verify_bad")}
                           </span>
                         {/if}
                       </div>
@@ -768,14 +768,14 @@
                         onclick={() => verifyBackup(b.path)}
                         disabled={verifyingPath === b.path}
                       >
-                        {verifyingPath === b.path ? "Verificando…" : "Verificar"}
+                        {verifyingPath === b.path ? $t("study.anki.settings.verifying") : $t("study.anki.settings.verify")}
                       </button>
                       <button
                         type="button"
                         class="btn ghost sm"
                         onclick={() => askRestore(b.path)}
                       >
-                        Restaurar
+                        {$t("study.anki.settings.restore")}
                       </button>
                     </div>
                   </li>
@@ -784,7 +784,7 @@
 
               <div class="cleanup-row">
                 <label class="cleanup-label">
-                  Manter os
+                  {$t("study.anki.settings.keep_latest_a")}
                   <input
                     type="number"
                     min="0"
@@ -792,14 +792,14 @@
                     class="cleanup-keep"
                     bind:value={cleanupKeep}
                   />
-                  mais recentes
+                  {$t("study.anki.settings.keep_latest_b")}
                 </label>
                 <button
                   class="btn ghost sm"
                   onclick={runCleanup}
                   disabled={cleanupBusy || backups.length <= cleanupKeep}
                 >
-                  {cleanupBusy ? "Limpando…" : "Limpar antigos"}
+                  {cleanupBusy ? $t("study.anki.settings.cleaning") : $t("study.anki.settings.clean_old")}
                 </button>
               </div>
             {/if}
@@ -815,8 +815,8 @@
           aria-expanded={openSection === "advanced"}
         >
           <div class="head-left">
-            <h3>Avançado</h3>
-            <span class="head-sub">Estado interno, debug</span>
+            <h3>{$t("study.anki.settings.sec_advanced")}</h3>
+            <span class="head-sub">{$t("study.anki.settings.sec_advanced_sub")}</span>
           </div>
           <span class="chev" aria-hidden="true">›</span>
         </button>
@@ -824,38 +824,38 @@
         {#if openSection === "advanced"}
           <div class="card-body">
             <dl class="kv">
-              <dt>Próxima posição de novo card</dt>
+              <dt>{$t("study.anki.settings.next_new_pos")}</dt>
               <dd>{nextNewCardPos}</dd>
-              <dt>Último unbury</dt>
+              <dt>{$t("study.anki.settings.last_unbury")}</dt>
               <dd>
                 {lastUnburied > 0
                   ? new Date(lastUnburied * 1000).toLocaleString()
                   : "—"}
               </dd>
-              <dt>Presets de deck</dt>
+              <dt>{$t("study.anki.settings.deck_presets")}</dt>
               <dd>
-                {deckConfigs.length} cadastrados ({deckConfigs.reduce(
-                  (s, c) => s + c.use_count,
-                  0,
-                )} decks usando)
+                {$t("study.anki.settings.presets_registered", {
+                  n: deckConfigs.length,
+                  decks: deckConfigs.reduce((s, c) => s + c.use_count, 0),
+                })}
               </dd>
             </dl>
 
             <details class="raw">
-              <summary>Configuração global bruta (col.conf)</summary>
+              <summary>{$t("study.anki.settings.raw_conf")}</summary>
               <pre>{JSON.stringify(globalConf, null, 2)}</pre>
             </details>
 
-            <h4 class="subhead">Inspecionar chave</h4>
+            <h4 class="subhead">{$t("study.anki.settings.inspect_key")}</h4>
             <p class="lede">
-              Lê ou apaga uma chave específica de <code>col.conf</code>. Use só
-              se souber o que está fazendo.
+              {$t("study.anki.settings.inspect_lede_a")} <code>col.conf</code>
+              {$t("study.anki.settings.inspect_lede_b")}
             </p>
             <div class="raw-row">
               <input
                 type="text"
                 class="raw-input"
-                placeholder="ex: schedVer"
+                placeholder={$t("study.anki.settings.raw_placeholder")}
                 bind:value={rawKey}
                 onkeydown={(e) => { if (e.key === "Enter") getRawKey(); }}
               />
@@ -865,7 +865,7 @@
                 onclick={getRawKey}
                 disabled={rawBusy || !rawKey.trim()}
               >
-                Ler
+                {$t("study.anki.settings.read")}
               </button>
               <button
                 type="button"
@@ -873,7 +873,7 @@
                 onclick={() => (confirmDeleteKeyOpen = true)}
                 disabled={rawBusy || !rawKey.trim()}
               >
-                Apagar
+                {$t("study.common.delete")}
               </button>
             </div>
             {#if rawValue !== null}
@@ -901,9 +901,10 @@
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => { if (e.key === "Escape") { e.stopPropagation(); confirmDeleteKeyOpen = false; } }}
     >
-      <h3>Apagar chave?</h3>
+      <h3>{$t("study.anki.settings.delete_key_title")}</h3>
       <p class="modal-body">
-        Vai apagar <code>{rawKey}</code> de <code>col.conf</code>. Não dá pra desfazer.
+        {$t("study.anki.settings.delete_key_body")} <code>{rawKey}</code>
+        {$t("study.anki.settings.delete_key_body_b")}
       </p>
       <footer class="modal-foot">
         <button
@@ -911,14 +912,14 @@
           class="btn ghost"
           onclick={() => (confirmDeleteKeyOpen = false)}
         >
-          Cancelar
+          {$t("study.common.cancel")}
         </button>
         <button
           type="button"
           class="btn primary danger"
           onclick={deleteRawKey}
         >
-          Apagar
+          {$t("study.common.delete")}
         </button>
       </footer>
     </div>
@@ -941,11 +942,11 @@
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => { if (e.key === "Escape") { e.stopPropagation(); restoreTargetPath = null; } }}
     >
-      <h3 id="restore-title">Restaurar este backup?</h3>
+      <h3 id="restore-title">{$t("study.anki.settings.restore_title")}</h3>
       <p class="modal-body">
-        A coleção atual vai ser substituída pelo conteúdo de
+        {$t("study.anki.settings.restore_body_a")}
         <code>{restoreTargetPath?.split(/[\\/]/).pop()}</code>.
-        Uma cópia de segurança é criada automaticamente antes.
+        {$t("study.anki.settings.restore_body_b")}
       </p>
       <footer class="modal-foot">
         <button
@@ -954,7 +955,7 @@
           onclick={() => (restoreTargetPath = null)}
           disabled={restoring}
         >
-          Cancelar
+          {$t("study.common.cancel")}
         </button>
         <button
           type="button"
@@ -962,7 +963,7 @@
           onclick={confirmRestore}
           disabled={restoring}
         >
-          {restoring ? "Restaurando…" : "Restaurar"}
+          {restoring ? $t("study.anki.settings.restoring") : $t("study.anki.settings.restore")}
         </button>
       </footer>
     </div>

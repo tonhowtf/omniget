@@ -4,56 +4,58 @@
     onClose: () => void;
   };
 
+  import { t } from "$lib/i18n";
+
   let { open, onClose }: Props = $props();
 
   type Shortcut = { keys: string[]; label: string };
   type Group = { title: string; items: Shortcut[] };
 
-  const groups: Group[] = [
+  const groups = $derived([
     {
-      title: "Reprodução",
+      title: $t("study.player.keys.g_playback"),
       items: [
-        { keys: ["Espaço"], label: "Play / Pausar" },
-        { keys: ["F"], label: "Tela cheia" },
-        { keys: ["M"], label: "Mutar / Desmutar" },
-        { keys: ["T"], label: "Modo cinema" },
-        { keys: ["Esc"], label: "Sair do fullscreen / Fechar" },
+        { keys: [$t("study.player.keys.key_space")], label: $t("study.player.keys.play_pause") },
+        { keys: ["F"], label: $t("study.player.keys.fullscreen") },
+        { keys: ["M"], label: $t("study.player.keys.mute_unmute") },
+        { keys: ["T"], label: $t("study.player.keys.cinema_mode") },
+        { keys: ["Esc"], label: $t("study.player.keys.exit_fullscreen") },
       ],
     },
     {
-      title: "Navegação",
+      title: $t("study.player.keys.g_navigation"),
       items: [
-        { keys: ["←", "J"], label: "Voltar 10s" },
-        { keys: ["→", "L", "K"], label: "Avançar 10s" },
-        { keys: ["Shift", "+", "J"], label: "Voltar 3s (fine seek)" },
-        { keys: ["Shift", "+", "L"], label: "Avançar 3s (fine seek)" },
-        { keys: [","], label: "Frame anterior (pausado)" },
-        { keys: ["."], label: "Próximo frame (pausado)" },
-        { keys: ["0", "—", "9"], label: "Pular pra 0%, 10%, … 90%" },
+        { keys: ["←", "J"], label: $t("study.player.keys.back_10") },
+        { keys: ["→", "L", "K"], label: $t("study.player.keys.fwd_10") },
+        { keys: ["Shift", "+", "J"], label: $t("study.player.keys.back_3") },
+        { keys: ["Shift", "+", "L"], label: $t("study.player.keys.fwd_3") },
+        { keys: [","], label: $t("study.player.keys.prev_frame") },
+        { keys: ["."], label: $t("study.player.keys.next_frame") },
+        { keys: ["0", "—", "9"], label: $t("study.player.keys.jump_pct") },
       ],
     },
     {
-      title: "Velocidade",
+      title: $t("study.player.keys.g_speed"),
       items: [
-        { keys: ["["], label: "Diminuir velocidade" },
-        { keys: ["]"], label: "Aumentar velocidade" },
+        { keys: ["["], label: $t("study.player.keys.speed_down") },
+        { keys: ["]"], label: $t("study.player.keys.speed_up") },
       ],
     },
     {
-      title: "Legendas / Notas",
+      title: $t("study.player.keys.g_subs_notes"),
       items: [
-        { keys: ["C"], label: "Próxima legenda (cycle)" },
-        { keys: ["N"], label: "Adicionar nota no timestamp" },
+        { keys: ["C"], label: $t("study.player.keys.next_subtitle") },
+        { keys: ["N"], label: $t("study.player.keys.add_note_ts") },
       ],
     },
     {
-      title: "Geral",
+      title: $t("study.player.keys.g_general"),
       items: [
-        { keys: ["?"], label: "Mostrar este painel" },
-        { keys: ["/"], label: "Buscar (em qualquer rota)" },
+        { keys: ["?"], label: $t("study.player.keys.show_panel") },
+        { keys: ["/"], label: $t("study.player.keys.search_anywhere") },
       ],
     },
-  ];
+  ]);
 
   function onBackdropKey(e: KeyboardEvent) {
     if (e.key === "Escape" || e.key === "?" || e.key === "/") {

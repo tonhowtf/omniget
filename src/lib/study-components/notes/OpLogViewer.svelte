@@ -1,5 +1,6 @@
 <script lang="ts">
   import { notesUndoListOps, notesUndoLastOp, type OpSummary } from "$lib/notes-bridge";
+import { t } from "$lib/i18n";
 
   type Props = {
     onToast: (kind: "ok" | "err", msg: string) => void;
@@ -85,7 +86,7 @@
               class="btn ghost sm"
               onclick={() => undoOp(op.op_id)}
               disabled={op.undone || busy === op.op_id}
-              title={op.undone ? "Já desfeito" : "Desfazer esta operação"}
+              title={op.undone ? $t("study.notes.nb.already_undone") : $t("study.notes.nb.undo_op")}
             >
               {busy === op.op_id ? "…" : "Desfazer"}
             </button>

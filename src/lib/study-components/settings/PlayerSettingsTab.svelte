@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
   import SettingsField from "./SettingsField.svelte";
   import SettingsSlider from "./SettingsSlider.svelte";
   import SettingsToggle from "./SettingsToggle.svelte";
@@ -23,8 +24,8 @@
 
 <section class="tab">
   <SettingsField
-    label="Limite de conclusão"
-    description="Porcentagem do vídeo a partir da qual a aula é marcada como completa"
+    label={$t("study.settings.player.completion_limit")}
+    description={$t("study.settings.player.completion_limit_desc")}
     valueDisplay={`${Math.round((player.completion_threshold ?? 0.95) * 100)}%`}
   >
     <SettingsSlider
@@ -37,7 +38,7 @@
   </SettingsField>
 
   <SettingsField
-    label="Avanço longo"
+    label={$t("study.settings.player.long_seek")}
     description="Tempo do salto com J/L (atalho)"
     valueDisplay={`${(player.seek_step_long_ms ?? 10000) / 1000}s`}
   >
@@ -51,7 +52,7 @@
   </SettingsField>
 
   <SettingsField
-    label="Avanço curto"
+    label={$t("study.settings.player.short_seek")}
     description="Tempo do salto com Shift+J/L"
     valueDisplay={`${(player.seek_step_short_ms ?? 3000) / 1000}s`}
   >
@@ -66,7 +67,7 @@
 
   <SettingsField
     label="Pausar ao minimizar"
-    description="Pausa o vídeo quando a janela perde foco"
+    description={$t("study.settings.player.pause_blur_desc")}
   >
     <SettingsToggle
       value={player.pause_on_minimize ?? false}
@@ -88,7 +89,7 @@
 
   <SettingsField
     label="Intensidade do blur do hero"
-    description="Desfoque atrás do título no hero da página de curso"
+    description={$t("study.settings.player.hero_blur_desc")}
     valueDisplay={`${player.hero_blur_intensity ?? 40}`}
   >
     <SettingsSlider

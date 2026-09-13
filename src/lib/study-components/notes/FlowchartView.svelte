@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
+import { t } from "$lib/i18n";
 
   type Props = {
     source: string;
@@ -61,7 +62,7 @@
       "line-width": 2,
       "font-size": 14,
       "yes-text": "sim",
-      "no-text": "não",
+      "no-text": $t("study.notes.nb.flow_no"),
     };
   }
 

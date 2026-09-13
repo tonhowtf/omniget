@@ -1,5 +1,6 @@
 <script lang="ts">
   import { pluginInvoke } from "$lib/plugin-invoke";
+import { t } from "$lib/i18n";
   import {
     studySubjectsListForCourse,
     studySubjectsSetForCourse,
@@ -88,7 +89,7 @@
     class="backdrop"
     role="dialog"
     aria-modal="true"
-    aria-label="Editar matérias"
+    aria-label={$t("study.course.subjects_edit_aria")}
     tabindex="-1"
     onkeydown={onBackdropKey}
   >
@@ -113,7 +114,7 @@
             Nenhuma matéria criada. Vá para a aba Foco e crie uma primeiro.
           </p>
         {:else}
-          <ul class="list" aria-label="Lista de matérias">
+          <ul class="list" aria-label={$t("study.course.subjects_list_aria")}>
             {#each allSubjects as s (s.id)}
               {@const isSelected = selected.has(s.id)}
               <li>

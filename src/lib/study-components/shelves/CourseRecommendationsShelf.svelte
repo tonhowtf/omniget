@@ -3,6 +3,7 @@
     studyLibraryRecommendations,
     type RecommendedCourseItem,
   } from "$lib/study-bridge";
+import { t } from "$lib/i18n";
   import Shelf from "./Shelf.svelte";
   import CourseCard from "./CourseCard.svelte";
 
@@ -34,9 +35,9 @@
 </script>
 
 {#if loading}
-  <Shelf title="Você pode gostar" eyebrow="Sugestões" isLoading={true} />
+  <Shelf title={$t("study.course.you_may_like")} eyebrow={$t("study.course.suggestions")} isLoading={true} />
 {:else if items.length > 0}
-  <Shelf title="Você pode gostar" eyebrow="Sugestões">
+  <Shelf title={$t("study.course.you_may_like")} eyebrow={$t("study.course.suggestions")}>
     {#each items as it (it.id)}
       <CourseCard
         courseId={it.id}

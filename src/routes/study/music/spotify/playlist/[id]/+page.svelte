@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+import { t } from "$lib/i18n";
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -41,7 +42,7 @@
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("403") || msg.toLowerCase().includes("forbidden")) {
         error =
-          "Esta playlist é restrita pelo Spotify para apps de terceiros (geralmente é uma playlist curada pelo Spotify, como Discover Weekly ou Daily Mix).";
+          $t("study.music.spotify.restricted_playlist");
       } else {
         error = msg;
       }

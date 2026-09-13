@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
   type DiffLine = { type: " " | "+" | "-"; line: string };
 
   type Props = {
@@ -71,7 +72,7 @@
   });
 </script>
 
-<div class="diff-view" role="region" aria-label="Comparação de versões">
+<div class="diff-view" role="region" aria-label={$t("study.notes.nb.diff_aria")}>
   <header class="diff-head">
     <span class="stat added">+{stats.added}</span>
     <span class="stat removed">−{stats.removed}</span>

@@ -1,3 +1,5 @@
+import { get } from "svelte/store";
+import { t } from "$lib/i18n";
 import { pluginInvoke } from "$lib/plugin-invoke";
 import { musicPlayer, type MusicTrack } from "./player-store.svelte";
 
@@ -250,7 +252,7 @@ class SoundCloudStore {
       },
     });
     if (!result?.cookies || result.cookies.length === 0) {
-      throw new Error("Não capturei seu login. Tenta de novo.");
+      throw new Error(get(t)("study.music.store.login_not_captured"));
     }
     const cookiesJson = JSON.stringify(result.cookies);
     await pluginInvoke("study", "study:soundcloud:auth:set_cookies", {

@@ -350,7 +350,7 @@
                 <span class="track-title-row">
                   <span class="track-title">{track.name}</span>
                   {#if spotifyStore.localMatches.has(track.id)}
-                    <span class="local-badge" title="Já está na sua biblioteca local">
+                    <span class="local-badge" title={$t("study.music.spotify.in_local_library")}>
                       ●
                     </span>
                   {/if}

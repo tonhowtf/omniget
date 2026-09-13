@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page as routePage } from "$app/stores";
+  import { t } from "$lib/i18n";
   import {
     notesPagesListByTag,
     notesPagesGetByName,
@@ -148,7 +149,7 @@
           onclick={createDescription}
           disabled={creatingDescription}
         >
-          {creatingDescription ? "Criando…" : `Criar página #${tagName}`}
+          {creatingDescription ? $t("study.notes.creating") : $t("study.notes.create_tagged_page", { tag: tagName })}
         </button>
       </section>
     {/if}

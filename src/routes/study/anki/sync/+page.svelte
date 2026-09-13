@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t } from "$lib/i18n";
   import {
     ankiOpen,
     ankiSyncProviderGet,
@@ -46,7 +47,7 @@
       pending = p;
       hydrateForm(i.provider);
     } catch (e: any) {
-      error = typeof e === "string" ? e : (e?.message ?? "Erro");
+      error = typeof e === "string" ? e : (e?.message ?? $t("study.common.error"));
     } finally {
       loading = false;
     }
@@ -108,7 +109,7 @@
     busy = true;
     try {
       await ankiSyncProviderTest(buildConfig());
-      showToast("info", "Conexão OK");
+      showToast("info", $t("study.anki.sync.connection_ok"));
     } catch (e: any) {
       showToast("error", typeof e === "string" ? e : (e?.message ?? "Falhou"));
     } finally {
@@ -126,14 +127,14 @@
       showToast(outcome.action === "no_provider" ? "error" : "info", outcome.message);
       await load();
     } catch (e: any) {
-      error = typeof e === "string" ? e : (e?.message ?? "Erro");
+      error = typeof e === "string" ? e : (e?.message ?? $t("study.common.error"));
     } finally {
       busy = false;
     }
   }
 
   function fmtDate(secs: number): string {
-    if (!secs) return "nunca";
+    if (!secs) return $t("study.tg_sync.never");
     return new Date(secs * 1000).toLocaleString();
   }
 
@@ -185,7 +186,7 @@
             disabled={busy || !info || info.kind === "none"}
             onclick={run}
           >
-            {busy ? "Sincronizando…" : "☁️ Sincronizar agora"}
+            {busy ? $t("study.anki.syncing") : `☁️ ${$t("study.anki.sync_now")}`}
           </AnkiButton>
         </div>
       </AnkiCard>

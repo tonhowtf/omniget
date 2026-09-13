@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+import { t } from "$lib/i18n";
   import {
     notesEmbedResolve,
     type EmbedTarget,
@@ -93,7 +94,7 @@
         <span>
           {data.target.kind === "page"
             ? `Página "${data.target.name}" não encontrada`
-            : "Bloco não encontrado"}
+            : $t("study.notes.nb.block_not_found")}
         </span>
       </div>
     {:else if data.kind === "cycle"}

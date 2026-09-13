@@ -136,7 +136,7 @@
       );
       okMsg =
         r.removed === 0
-          ? "Cache já estava vazio"
+          ? $t("study.read.annas.cache_was_empty")
           : r.removed === 1
             ? "1 entrada de cache removida"
             : `${r.removed} entradas de cache removidas`;

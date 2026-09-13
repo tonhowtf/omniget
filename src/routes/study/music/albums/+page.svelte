@@ -159,7 +159,7 @@
               type="button"
               class="album-card-play"
               onclick={(e) => { e.stopPropagation(); openAlbum(album); }}
-              aria-label="Abrir álbum"
+              aria-label={$t("study.music.album.open_aria")}
             >
               <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
             </button>

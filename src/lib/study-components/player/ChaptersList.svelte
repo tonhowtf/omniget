@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
   import type { YoutubeChapter } from "$lib/study-bridge";
 
   type Props = {
@@ -35,7 +36,7 @@
 </script>
 
 {#if chapters.length > 0}
-  <ol class="chapters" class:compact aria-label="Capítulos">
+  <ol class="chapters" class:compact aria-label={$t("study.player.shell.chapters")}>
     {#each chapters as chapter, i (chapter.start_ms + ":" + chapter.title)}
       <li>
         <button

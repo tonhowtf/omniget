@@ -166,7 +166,7 @@
     <section class="spotify-section">
       <header class="section-head">
         <h2>Playlists seguidas</h2>
-        <span class="badge-warn" title="Em apps em Development mode, o Spotify pode bloquear o acesso às tracks dessas playlists (403)">
+        <span class="badge-warn" title={$t("study.music.spotify.dev_mode_warn")}>
           algumas podem dar erro
         </span>
       </header>

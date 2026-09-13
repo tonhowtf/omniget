@@ -31,17 +31,17 @@
     | "notes"
     | "maintenance";
 
-  const TABS = $derived<{ key: TabKey; label: string }[]>([
+  const TABS = $derived([
     { key: "player", label: "Player" },
     { key: "subtitles", label: "Legendas" },
     { key: "audio", label: "Áudio" },
     { key: "behavior", label: "Comportamento" },
     { key: "library", label: "Biblioteca" },
-    { key: "music", label: "Música" },
+    { key: "music", label: $t("study.settings.tabs.music") },
     { key: "youtube", label: "YouTube" },
     { key: "diagnostic", label: $t("study.settings.tab_diagnostic") as string },
     { key: "notes", label: "Notas" },
-    { key: "maintenance", label: "Manutenção" },
+    { key: "maintenance", label: $t("study.settings.tabs.maintenance") },
   ]);
 
   let activeTab = $state<TabKey>("player");

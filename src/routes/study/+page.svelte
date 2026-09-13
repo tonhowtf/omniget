@@ -205,7 +205,7 @@
     | { kind: "review"; count: number }
     | { kind: "focus" };
 
-  const hero = $derived<Hero>(
+  const hero = $derived(
     resumeCourse
       ? { kind: "continue", course: resumeCourse }
       : dueToday > 0
@@ -368,8 +368,8 @@
       {#if recentCourses.length > 0}
         <section class="recents-widget">
           <header class="recents-head">
-            <h2>Continuar de onde parou</h2>
-            <a href="/study/library" class="see-all">Ver todos →</a>
+            <h2>{$t("study.hub.continue_section")}</h2>
+            <a href="/study/library" class="see-all">{$t("study.hub.see_all")} →</a>
           </header>
           <ul class="recents-list">
             {#each recentCourses.slice(0, 6) as r (r.course_id)}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import {
     downloadStore,
@@ -14,23 +15,23 @@
   const drawerOpen = $derived(downloadStore.drawerOpen);
 
   function stageLabel(job: DownloadJobState): string {
-    if (job.error) return "Falhou";
-    if (job.stage === "pending") return "Aguardando…";
-    if (job.stage === "starting") return "Preparando…";
+    if (job.error) return $t("study.music.dock.failed");
+    if (job.stage === "pending") return $t("study.music.dock.pending");
+    if (job.stage === "starting") return $t("study.music.dock.preparing");
     if (job.stage === "downloading") {
       if (job.kind === "bulk") {
-        return `Baixando ${job.currentCount ?? 0}/${job.totalCount ?? 0}`;
+        return $t("study.music.dock.downloading", { a: job.currentCount ?? 0, b: job.totalCount ?? 0 });
       }
-      return "Salvando faixa…";
+      return $t("study.music.dock.saving_track");
     }
-    if (job.stage === "skipped") return "Já tinha";
+    if (job.stage === "skipped") return $t("study.music.dock.already_had");
     if (job.stage === "done") {
       if (job.kind === "bulk") {
         const ok = job.successCount ?? 0;
         const fail = job.failedCount ?? 0;
-        return `Pronto · ${ok} ok${fail > 0 ? ` · ${fail} falhou` : ""}`;
+        return $t("study.music.dock.done_bulk", { ok, fail });
       }
-      return "Pronto";
+      return $t("study.music.dock.done");
     }
     return job.stage;
   }
@@ -44,7 +45,7 @@
     const codec = getLastCodec() ?? "mp3";
     const dir = getLastDownloadDir();
     if (!dir) {
-      showToast("error", "Escolhe a pasta de novo no botão de baixar.");
+      showToast("error", $t("study.music.dock.pick_folder_again"));
       downloadStore.removeJob(job.id);
       return;
     }
@@ -77,7 +78,7 @@
     const codec = job.codec ?? getLastCodec() ?? "mp3";
     const dir = job.outputDir ?? getLastDownloadDir();
     if (!dir) {
-      showToast("error", "Escolhe a pasta de novo no botão de baixar.");
+      showToast("error", $t("study.music.dock.pick_folder_again"));
       return;
     }
     downloadStore.removeFailedTrackFromBulk(job.id, failed.id);
@@ -101,7 +102,7 @@
     const codec = job.codec ?? getLastCodec() ?? "mp3";
     const dir = job.outputDir ?? getLastDownloadDir();
     if (!dir) {
-      showToast("error", "Escolhe a pasta de novo no botão de baixar.");
+      showToast("error", $t("study.music.dock.pick_folder_again"));
       return;
     }
     const failed = downloadStore.consumeFailedTracks(job.id);
@@ -227,7 +228,7 @@
                   aria-expanded={!!job.expanded}
                 >
                   <span class="chev" class:open={job.expanded}>▸</span>
-                  {failedList.length} {failedList.length === 1 ? "falhou" : "falharam"}
+                  {$t("study.music.dock.failed_count", { n: failedList.length })}
                 </button>
                 <button
                   type="button"

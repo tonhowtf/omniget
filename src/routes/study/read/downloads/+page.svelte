@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
+  import { t } from "$lib/i18n";
   import { pluginInvoke } from "$lib/plugin-invoke";
   import PageHero from "$lib/study-components/PageHero.svelte";
   import ConfirmDialog from "$lib/study-components/ConfirmDialog.svelte";
@@ -279,7 +280,7 @@
       onclick={() => (confirmClearOpen = true)}
       disabled={clearingFinished || (counts.finished === 0 && counts.errored === 0)}
     >
-      {clearingFinished ? "Limpando…" : "Limpar concluídos"}
+      {clearingFinished ? $t("study.read.downloads.clearing") : $t("study.read.downloads.clear_finished")}
     </button>
   </div>
 
@@ -351,7 +352,7 @@
               type="button"
               class="btn ghost sm"
               onclick={() => showTorrents(d)}
-              title="Listar mirrors torrent disponíveis"
+              title={$t("study.read.downloads.list_mirrors")}
             >
               Mirrors…
             </button>
@@ -414,8 +415,8 @@
 
 <ConfirmDialog
   bind:open={confirmClearOpen}
-  title="Limpar concluídos"
-  message="Vai remover entradas de downloads concluídos e cancelados. Os arquivos baixados continuam intactos."
+  title={$t("study.read.downloads.clear_finished_title")}
+  message={$t("study.read.downloads.clear_finished_body")}
   confirmLabel="Limpar"
   variant="danger"
   onConfirm={clearFinished}

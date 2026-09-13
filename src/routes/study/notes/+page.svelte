@@ -145,7 +145,7 @@
       notifyDocksDirty();
       await openPage(r.id);
       void awardXp("page_created", 15, { page_id: r.id, name });
-      showToast("ok", "Página criada");
+      showToast("ok", $t("study.notes.page_created"));
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));
     }
@@ -161,7 +161,7 @@
       notesShell.setCounts(0, 0);
       notesShell.setSaving(false);
       notifyDocksDirty();
-      showToast("ok", "Página removida");
+      showToast("ok", $t("study.notes.page_removed"));
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));
     }
@@ -181,10 +181,10 @@
       showToast(
         "ok",
         r.blocks_updated === 0
-          ? "Renomeada"
+          ? $t("study.notes.page_renamed")
           : r.blocks_updated === 1
-            ? "Renomeada e 1 bloco atualizado"
-            : `Renomeada e ${r.blocks_updated} blocos atualizados`,
+            ? $t("study.notes.page_renamed_block")
+            : $t("study.notes.page_renamed_blocks", { n: r.blocks_updated }),
       );
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));
@@ -361,22 +361,22 @@
           <button
             class="btn ghost sm"
             onclick={() => (coverManagerOpen = true)}
-            title="Definir capa da página"
+            title={$t("study.notes.set_cover")}
           >
-            {coverUrl ? "Capa ✓" : "+ Capa"}
+            {coverUrl ? $t("study.notes.cover_done") : $t("study.notes.add_cover")}
           </button>
           <button
             class="btn ghost sm"
             onclick={() => (historyOpen = true)}
             disabled={firstBlockId === null}
-            title="Ver histórico do bloco principal desta página"
+            title={$t("study.notes.view_root_history")}
           >
-            🕐 Histórico
+            🕐 {$t("study.notes.history")}
           </button>
           <button
             class="btn ghost sm"
             onclick={undoLastOp}
-            title="Desfazer última operação estrutural (Cmd+Alt+Z)"
+            title={$t("study.notes.undo_structural_hint")}
           >
             ↶
           </button>
@@ -469,7 +469,7 @@
   blockId={firstBlockId}
   onRestored={() => {
     void reloadTree();
-    showToast("ok", "Versão restaurada");
+    showToast("ok", $t("study.notes.version_restored"));
   }}
   onClose={() => (historyOpen = false)}
 />
@@ -489,11 +489,13 @@
 
 <ConfirmDialog
   bind:open={confirmDeletePageOpen}
-  title="Excluir página"
+  title={$t("study.notes.delete_page")}
   message={currentPage
-    ? `"${currentPage.title ?? currentPage.name}" e todos os seus blocos serão removidos. Esta ação não pode ser desfeita.`
+    ? $t("study.notes.delete_confirm", {
+        name: currentPage.title ?? currentPage.name,
+      })
     : ""}
-  confirmLabel="Excluir"
+  confirmLabel={$t("study.common.delete")}
   variant="danger"
   onConfirm={deletePage}
 />

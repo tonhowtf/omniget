@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t } from "$lib/i18n";
   import { pluginInvoke } from "$lib/plugin-invoke";
   import PageHero from "$lib/study-components/PageHero.svelte";
 
@@ -167,10 +168,10 @@
       showToast(
         "ok",
         r.removed === 0
-          ? "Nenhuma tag não usada"
+          ? $t("study.anki.tags.no_unused")
           : r.removed === 1
             ? "1 tag removida"
-            : `${r.removed} tags removidas`,
+            : $t("study.anki.tags.removed_many", { n: r.removed }),
       );
       if (r.removed > 0) await load();
     } catch (e) {
@@ -208,10 +209,10 @@
   <PageHero
     title="Tags"
     subtitle={totalTags === 0
-      ? "Gerencie as tags da coleção"
+      ? $t("study.anki.tags.subtitle")
       : totalTags === 1
-        ? "1 tag · " + (unusedCount === 1 ? "1 sem uso" : `${unusedCount} sem uso`)
-        : `${totalTags} tags · ${unusedCount === 1 ? "1 sem uso" : `${unusedCount} sem uso`}`}
+        ? $t("study.anki.tags.count_one_unused", { total: 1, unused: 1 })
+        : $t("study.anki.tags.count_many_unused", { total: totalTags, unused: unusedCount })}
   />
 
   {#if toast}
@@ -224,7 +225,7 @@
     <input
       class="filter"
       type="search"
-      placeholder="Filtrar tags…"
+      placeholder={$t("study.anki.tags.filter_placeholder")}
       bind:value={filter}
     />
     <button
@@ -232,23 +233,23 @@
       onclick={clearUnused}
       disabled={cleanupBusy || unusedCount === 0}
     >
-      {cleanupBusy ? "Limpando…" : "Limpar não usadas"}
+      {cleanupBusy ? $t("study.anki.tags.cleaning") : $t("study.anki.tags.clean_unused")}
     </button>
   </div>
 
   {#if loading}
-    <div class="state">Carregando tags…</div>
+    <div class="state">{$t("study.anki.tags.loading")}</div>
   {:else if error}
     <div class="state err">{error}</div>
     <button class="btn ghost" onclick={load}>Tentar de novo</button>
   {:else if tree.length === 0}
     <div class="empty">
-      <p>Nenhuma tag ainda.</p>
-      <p class="hint">Tags são criadas quando você adiciona uma a uma nota.</p>
+      <p>{$t("study.anki.tags.no_tags")}</p>
+      <p class="hint">{$t("study.anki.tags.no_tags_hint")}</p>
     </div>
   {:else if visibleTree.length === 0}
     <div class="empty">
-      <p>Nenhuma tag combina com "{filter}".</p>
+      <p>{$t("study.anki.tags.no_match", { filter })}</p>
     </div>
   {:else}
     <ul class="tree">
