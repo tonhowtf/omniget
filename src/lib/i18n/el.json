@@ -5051,6 +5051,27 @@
     "inline_dismiss_all": "Απόρριψη όλων"
   },
   "study": {
+    "tg_sync": {
+      "updated_channels": "{{n}} κανάλια ενημερώθηκαν",
+      "failed": "Αποτυχία συγχρονισμού",
+      "never": "ποτέ",
+      "just_now": "τώρα",
+      "min_ago": "{{n}} λεπ πριν",
+      "hours_ago": "{{n}} ώ πριν",
+      "days_ago": "{{n}} μ πριν",
+      "syncing": "Συγχρονισμός…",
+      "pending": "Σε αναμονή συγχρονισμού",
+      "off": "Συγχρονισμός ανενεργός",
+      "last": "Συγχρονισμός {{when}}",
+      "auto_hint": "Αυτόματος συγχρονισμός κάθε {{n}} λεπ — κλικ για συγχρονισμό τώρα",
+      "disabled_hint": "Αυτόματος συγχρονισμός ανενεργός — κλικ για συγχρονισμό τώρα",
+      "status_aria": "Κατάσταση συγχρονισμού"
+    },
+    "anki": {
+      "sync_now": "Συγχρονισμός τώρα",
+      "syncing": "Συγχρονισμός…",
+      "preset_updated": "Το preset ενημερώθηκε"
+    },
     "common": {
       "loading": "Φόρτωση...",
       "error": "Σφάλμα",
@@ -5096,6 +5117,8 @@
       "new": "new",
       "now": "Now",
       "continue_title": "Continue course",
+      "continue_section": "Συνέχεια από όπου σταθήκατε",
+      "see_all": "Προβολή όλων",
       "continue_cta": "Resume",
       "review_title": "Review cards",
       "review_count": "{{n}} cards due",
@@ -6391,6 +6414,9 @@
       "preview": "Preview",
       "convert": "Convert to flashcard",
       "export_md": "Export .md",
+      "page_renamed": "Η σελίδα μετονομάστηκε",
+      "page_renamed_block": "Η σελίδα μετονομάστηκε και ενημερώθηκε 1 μπλοκ",
+      "page_renamed_blocks": "Η σελίδα μετονομάστηκε και ενημερώθηκαν {{n}} μπλοκ",
       "export_pdf": "Export PDF",
       "to_flashcard": "→ Flashcard",
       "pick_deck": "Deck...",
@@ -6745,6 +6771,7 @@
       "export_desc": "Κατεβάστε ένα στιγμιότυπο JSON με μαθήματα, σημειώσεις, κάρτες, πρόοδο και ιστορικό συγκέντρωσης.",
       "export_button": "Εξαγωγή JSON",
       "exporting": "Εξαγωγή...",
+      "export_now": "Εξαγωγή τώρα",
       "import": "Εισαγωγή δεδομένων",
       "import_desc": "Επαναφορά από προηγουμένως εξαχθέν αρχείο JSON. Υπάρχουσες γραμμές με αντίστοιχα ID θα αντικατασταθούν.",
       "import_button": "Επιλογή αρχείου...",

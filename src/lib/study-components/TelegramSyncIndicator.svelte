@@ -1,6 +1,7 @@
 <script lang="ts">
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { onMount, onDestroy } from "svelte";
+  import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import {
     telegramSyncState,
@@ -45,34 +46,34 @@
     busy = true;
     try {
       const r = await telegramSyncNow();
-      showToast("info", `${r.updated} canais atualizados`);
+      showToast("info", $t("study.tg_sync.updated_channels", { n: r.updated }));
       await refresh();
     } catch (e: any) {
-      showToast("error", typeof e === "string" ? e : (e?.message ?? "Erro ao sincronizar"));
+      showToast("error", typeof e === "string" ? e : (e?.message ?? $t("study.tg_sync.failed")));
     } finally {
       busy = false;
     }
   }
 
   function ago(ts: number, current: number): string {
-    if (!ts) return "nunca";
+    if (!ts) return $t("study.tg_sync.never");
     const delta = Math.max(0, current - ts);
-    if (delta < 60) return "agora";
+    if (delta < 60) return $t("study.tg_sync.just_now");
     const min = Math.floor(delta / 60);
-    if (min < 60) return `há ${min} min`;
+    if (min < 60) return $t("study.tg_sync.min_ago", { n: min });
     const hr = Math.floor(min / 60);
-    if (hr < 24) return `há ${hr}h`;
-    return `há ${Math.floor(hr / 24)}d`;
+    if (hr < 24) return $t("study.tg_sync.hours_ago", { n: hr });
+    return $t("study.tg_sync.days_ago", { n: Math.floor(hr / 24) });
   }
 
   let label = $derived(
     syncSnap?.is_syncing
-      ? "Sincronizando…"
+      ? $t("study.tg_sync.syncing")
       : syncSnap?.last_success_at
-      ? `Sync ${ago(syncSnap.last_success_at, now)}`
+      ? $t("study.tg_sync.last", { when: ago(syncSnap.last_success_at, now) })
       : syncSnap?.enabled
-      ? "Sync pendente"
-      : "Sync off",
+      ? $t("study.tg_sync.pending")
+      : $t("study.tg_sync.off"),
   );
 
   let dotClass = $derived(
@@ -95,9 +96,9 @@
   onclick={syncNow}
   disabled={busy}
   title={syncSnap?.enabled
-    ? `Sincronização automática a cada ${syncSnap.interval_min ?? 30} min — clique para forçar agora`
-    : "Sincronização desativada — clique para forçar agora"}
-  aria-label="Status de sincronização"
+    ? $t("study.tg_sync.auto_hint", { n: syncSnap.interval_min ?? 30 })
+    : $t("study.tg_sync.disabled_hint")}
+  aria-label={$t("study.tg_sync.status_aria")}
 >
   <span class="status-dot {dotClass}"></span>
   <span class="sync-label">{label}</span>

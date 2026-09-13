@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t } from "$lib/i18n";
   import { pluginInvoke } from "$lib/plugin-invoke";
   import PageHero from "$lib/study-components/PageHero.svelte";
   import ConfirmDialog from "$lib/study-components/ConfirmDialog.svelte";
@@ -154,7 +155,7 @@
       await pluginInvoke("study", "study:anki:deckconfig:update", {
         config: updated,
       });
-      showToast("ok", "Preset atualizado");
+      showToast("ok", $t("study.anki.preset_updated"));
       editing = null;
       editForm = null;
       await load();

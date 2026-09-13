@@ -5051,6 +5051,27 @@
     "inline_dismiss_all": "Dispensar todas"
   },
   "study": {
+    "tg_sync": {
+      "updated_channels": "{{n}} canais atualizados",
+      "failed": "Erro ao sincronizar",
+      "never": "nunca",
+      "just_now": "agora",
+      "min_ago": "há {{n}} min",
+      "hours_ago": "há {{n}}h",
+      "days_ago": "há {{n}}d",
+      "syncing": "Sincronizando…",
+      "pending": "Sync pendente",
+      "off": "Sync off",
+      "last": "Sync {{when}}",
+      "auto_hint": "Sincronização automática a cada {{n}} min — clique para forçar agora",
+      "disabled_hint": "Sincronização desativada — clique para forçar agora",
+      "status_aria": "Status de sincronização"
+    },
+    "anki": {
+      "sync_now": "Sincronizar agora",
+      "syncing": "Sincronizando…",
+      "preset_updated": "Preset atualizado"
+    },
     "common": {
       "loading": "Carregando...",
       "error": "Erro",
@@ -5096,6 +5117,8 @@
       "new": "novo",
       "now": "Agora",
       "continue_title": "Continuar curso",
+      "continue_section": "Continuar de onde parou",
+      "see_all": "Ver todos",
       "continue_cta": "Retomar",
       "review_title": "Revisar cards",
       "review_count": "{{n}} cards due",
@@ -6391,6 +6414,9 @@
       "preview": "Pré-visualização",
       "convert": "Converter em flashcard",
       "export_md": "Exportar .md",
+      "page_renamed": "Página renomeada",
+      "page_renamed_block": "Página renomeada e 1 bloco atualizado",
+      "page_renamed_blocks": "Página renomeada e {{n}} blocos atualizados",
       "export_pdf": "Exportar PDF",
       "to_flashcard": "→ Flashcard",
       "pick_deck": "Deck...",
@@ -6745,6 +6771,7 @@
       "export_desc": "Baixe um JSON com cursos, notas, flashcards, progresso e histórico de foco.",
       "export_button": "Exportar JSON",
       "exporting": "Exportando...",
+      "export_now": "Exportar agora",
       "import": "Importar dados",
       "import_desc": "Restaure de um JSON exportado anteriormente. Linhas com IDs coincidentes são sobrescritas.",
       "import_button": "Escolher arquivo...",

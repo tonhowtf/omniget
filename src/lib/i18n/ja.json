@@ -5051,6 +5051,27 @@
     "inline_dismiss_all": "すべて削除"
   },
   "study": {
+    "tg_sync": {
+      "updated_channels": "{{n}} チャンネルを更新しました",
+      "failed": "同期に失敗しました",
+      "never": "未実行",
+      "just_now": "たった今",
+      "min_ago": "{{n}} 分前",
+      "hours_ago": "{{n}} 時間前",
+      "days_ago": "{{n}} 日前",
+      "syncing": "同期中…",
+      "pending": "同期待機中",
+      "off": "同期オフ",
+      "last": "同期 {{when}}",
+      "auto_hint": "{{n}} 分ごとに自動同期 — クリックで今すぐ同期",
+      "disabled_hint": "自動同期オフ — クリックで今すぐ同期",
+      "status_aria": "同期ステータス"
+    },
+    "anki": {
+      "sync_now": "今すぐ同期",
+      "syncing": "同期中…",
+      "preset_updated": "プリセットを更新しました"
+    },
     "common": {
       "loading": "読み込み中...",
       "error": "エラー",
@@ -5096,6 +5117,8 @@
       "new": "new",
       "now": "Now",
       "continue_title": "Continue course",
+      "continue_section": "続きから再開",
+      "see_all": "すべて表示",
       "continue_cta": "Resume",
       "review_title": "Review cards",
       "review_count": "{{n}} cards due",
@@ -6391,6 +6414,9 @@
       "preview": "Preview",
       "convert": "Convert to flashcard",
       "export_md": "Export .md",
+      "page_renamed": "ページ名を変更しました",
+      "page_renamed_block": "ページ名を変更し、1 ブロックを更新しました",
+      "page_renamed_blocks": "ページ名を変更し、{{n}} ブロックを更新しました",
       "export_pdf": "Export PDF",
       "to_flashcard": "→ Flashcard",
       "pick_deck": "Deck...",
@@ -6745,6 +6771,7 @@
       "export_desc": "コース、ノート、フラッシュカード、進捗、集中履歴を含む JSON スナップショットをダウンロードします。",
       "export_button": "JSON をエクスポート",
       "exporting": "エクスポート中...",
+      "export_now": "今すぐエクスポート",
       "import": "データをインポート",
       "import_desc": "以前にエクスポートした JSON ファイルから復元します。一致する ID の既存行は上書きされます。",
       "import_button": "ファイルを選択...",

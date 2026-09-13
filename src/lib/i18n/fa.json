@@ -5051,6 +5051,27 @@
     "inline_dismiss_all": "رد کردن همه"
   },
   "study": {
+    "tg_sync": {
+      "updated_channels": "{{n}} کانال به‌روزرسانی شد",
+      "failed": "خطا در همگام‌سازی",
+      "never": "هرگز",
+      "just_now": "همین حالا",
+      "min_ago": "{{n}} دقیقه پیش",
+      "hours_ago": "{{n}} ساعت پیش",
+      "days_ago": "{{n}} روز پیش",
+      "syncing": "در حال همگام‌سازی…",
+      "pending": "همگام‌سازی در انتظار",
+      "off": "همگام‌سازی خاموش",
+      "last": "همگام‌سازی {{when}}",
+      "auto_hint": "همگام‌سازی خودکار هر {{n}} دقیقه — برای همگام‌سازی کلیک کنید",
+      "disabled_hint": "همگام‌سازی خودکار خاموش — برای همگام‌سازی کلیک کنید",
+      "status_aria": "وضعیت همگام‌سازی"
+    },
+    "anki": {
+      "sync_now": "همگام‌سازی الان",
+      "syncing": "در حال همگام‌سازی…",
+      "preset_updated": "پریست به‌روزرسانی شد"
+    },
     "common": {
       "loading": "Loading...",
       "error": "Error",
@@ -5096,6 +5117,8 @@
       "new": "new",
       "now": "Now",
       "continue_title": "Continue course",
+      "continue_section": "ادامه از جایی که رها کردید",
+      "see_all": "مشاهده همه",
       "continue_cta": "Resume",
       "review_title": "Review cards",
       "review_count": "{{n}} cards due",
@@ -6391,6 +6414,9 @@
       "preview": "Preview",
       "convert": "Convert to flashcard",
       "export_md": "Export .md",
+      "page_renamed": "صفحه تغییر نام یافت",
+      "page_renamed_block": "صفحه تغییر نام یافت و 1 بلوک به‌روزرسانی شد",
+      "page_renamed_blocks": "صفحه تغییر نام یافت و {{n}} بلوک به‌روزرسانی شد",
       "export_pdf": "Export PDF",
       "to_flashcard": "→ Flashcard",
       "pick_deck": "Deck...",
@@ -6745,6 +6771,7 @@
       "export_desc": "Download a JSON snapshot with courses, notes, flashcards, progress and focus history.",
       "export_button": "Export JSON",
       "exporting": "Exporting...",
+      "export_now": "اکنون صادر کن",
       "import": "Import data",
       "import_desc": "Restore from a previously exported JSON file. Existing rows with matching IDs are overwritten.",
       "import_button": "Choose file...",

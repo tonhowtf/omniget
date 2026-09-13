@@ -181,10 +181,10 @@
       showToast(
         "ok",
         r.blocks_updated === 0
-          ? "Renomeada"
+          ? $t("study.notes.page_renamed")
           : r.blocks_updated === 1
-            ? "Renomeada e 1 bloco atualizado"
-            : `Renomeada e ${r.blocks_updated} blocos atualizados`,
+            ? $t("study.notes.page_renamed_block")
+            : $t("study.notes.page_renamed_blocks", { n: r.blocks_updated }),
       );
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));

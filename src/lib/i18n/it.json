@@ -5051,6 +5051,27 @@
     "inline_dismiss_all": "Ignora tutte"
   },
   "study": {
+    "tg_sync": {
+      "updated_channels": "{{n}} canali aggiornati",
+      "failed": "Sincronizzazione non riuscita",
+      "never": "mai",
+      "just_now": "adesso",
+      "min_ago": "{{n}} min fa",
+      "hours_ago": "{{n}} h fa",
+      "days_ago": "{{n}} g fa",
+      "syncing": "Sincronizzazione…",
+      "pending": "Sincronizzazione in sospeso",
+      "off": "Sync disattivato",
+      "last": "Sync {{when}}",
+      "auto_hint": "Sincronizzazione automatica ogni {{n}} min — clicca per sincronizzare ora",
+      "disabled_hint": "Sincronizzazione automatica disattivata — clicca per sincronizzare ora",
+      "status_aria": "Stato di sincronizzazione"
+    },
+    "anki": {
+      "sync_now": "Sincronizza ora",
+      "syncing": "Sincronizzazione…",
+      "preset_updated": "Preset aggiornato"
+    },
     "common": {
       "loading": "Caricamento...",
       "error": "Errore",
@@ -5096,6 +5117,8 @@
       "new": "new",
       "now": "Now",
       "continue_title": "Continue course",
+      "continue_section": "Continua da dove avevi lasciato",
+      "see_all": "Vedi tutti",
       "continue_cta": "Resume",
       "review_title": "Review cards",
       "review_count": "{{n}} cards due",
@@ -6391,6 +6414,9 @@
       "preview": "Preview",
       "convert": "Convert to flashcard",
       "export_md": "Export .md",
+      "page_renamed": "Pagina rinominata",
+      "page_renamed_block": "Pagina rinominata e 1 blocco aggiornato",
+      "page_renamed_blocks": "Pagina rinominata e {{n}} blocchi aggiornati",
       "export_pdf": "Export PDF",
       "to_flashcard": "→ Flashcard",
       "pick_deck": "Deck...",
@@ -6745,6 +6771,7 @@
       "export_desc": "Scarica uno snapshot JSON con corsi, note, flashcard, progressi e storico focus.",
       "export_button": "Esporta JSON",
       "exporting": "Esportazione...",
+      "export_now": "Esporta ora",
       "import": "Importa dati",
       "import_desc": "Ripristina da un file JSON precedentemente esportato. Le righe esistenti con ID corrispondenti vengono sovrascritte.",
       "import_button": "Scegli file...",

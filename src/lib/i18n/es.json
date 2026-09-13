@@ -5051,6 +5051,27 @@
     "inline_dismiss_all": "Descartar todas"
   },
   "study": {
+    "tg_sync": {
+      "updated_channels": "{{n}} canales actualizados",
+      "failed": "Error al sincronizar",
+      "never": "nunca",
+      "just_now": "ahora",
+      "min_ago": "hace {{n}} min",
+      "hours_ago": "hace {{n}} h",
+      "days_ago": "hace {{n}} d",
+      "syncing": "Sincronizando…",
+      "pending": "Sincronización pendiente",
+      "off": "Sincronización desactivada",
+      "last": "Sync {{when}}",
+      "auto_hint": "Sincronización automática cada {{n}} min — clic para sincronizar ahora",
+      "disabled_hint": "Sincronización automática desactivada — clic para sincronizar ahora",
+      "status_aria": "Estado de sincronización"
+    },
+    "anki": {
+      "sync_now": "Sincronizar ahora",
+      "syncing": "Sincronizando…",
+      "preset_updated": "Preset actualizado"
+    },
     "common": {
       "loading": "Cargando...",
       "error": "Error",
@@ -5096,6 +5117,8 @@
       "new": "nuevo",
       "now": "Ahora",
       "continue_title": "Continuar curso",
+      "continue_section": "Continuar donde lo dejaste",
+      "see_all": "Ver todos",
       "continue_cta": "Reanudar",
       "review_title": "Repasar tarjetas",
       "review_count": "{{n}} tarjetas pendientes",
@@ -6391,6 +6414,9 @@
       "preview": "Vista previa",
       "convert": "Convertir a tarjeta",
       "export_md": "Exportar .md",
+      "page_renamed": "Página renombrada",
+      "page_renamed_block": "Página renombrada y 1 bloque actualizado",
+      "page_renamed_blocks": "Página renombrada y {{n}} bloques actualizados",
       "export_pdf": "Exportar PDF",
       "to_flashcard": "→ Tarjeta",
       "pick_deck": "Mazo...",
@@ -6745,6 +6771,7 @@
       "export_desc": "Descarga un snapshot JSON con cursos, notas, tarjetas, progreso e historial de concentración.",
       "export_button": "Exportar JSON",
       "exporting": "Exportando...",
+      "export_now": "Exportar ahora",
       "import": "Importar datos",
       "import_desc": "Restaura desde un archivo JSON exportado previamente. Las filas existentes con IDs coincidentes se sobrescriben.",
       "import_button": "Elegir archivo...",

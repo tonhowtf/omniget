@@ -5051,6 +5051,27 @@
     "inline_dismiss_all": "Dismiss all"
   },
   "study": {
+    "tg_sync": {
+      "updated_channels": "{{n}} channels updated",
+      "failed": "Sync failed",
+      "never": "never",
+      "just_now": "now",
+      "min_ago": "{{n}} min ago",
+      "hours_ago": "{{n}}h ago",
+      "days_ago": "{{n}}d ago",
+      "syncing": "Syncing…",
+      "pending": "Sync pending",
+      "off": "Sync off",
+      "last": "Sync {{when}}",
+      "auto_hint": "Auto-sync every {{n}} min — click to sync now",
+      "disabled_hint": "Auto-sync off — click to sync now",
+      "status_aria": "Sync status"
+    },
+    "anki": {
+      "sync_now": "Sync now",
+      "syncing": "Syncing…",
+      "preset_updated": "Preset updated"
+    },
     "common": {
       "loading": "Loading...",
       "error": "Error",
@@ -5096,6 +5117,8 @@
       "new": "new",
       "now": "Now",
       "continue_title": "Continue course",
+      "continue_section": "Continue where you left off",
+      "see_all": "See all",
       "continue_cta": "Resume",
       "review_title": "Review cards",
       "review_count": "{{n}} cards due",
@@ -6391,6 +6414,9 @@
       "preview": "Preview",
       "convert": "Convert to flashcard",
       "export_md": "Export .md",
+      "page_renamed": "Page renamed",
+      "page_renamed_block": "Page renamed and 1 block updated",
+      "page_renamed_blocks": "Page renamed and {{n}} blocks updated",
       "export_pdf": "Export PDF",
       "to_flashcard": "→ Flashcard",
       "pick_deck": "Deck...",
@@ -6745,6 +6771,7 @@
       "export_desc": "Download a JSON snapshot with courses, notes, flashcards, progress and focus history.",
       "export_button": "Export JSON",
       "exporting": "Exporting...",
+      "export_now": "Export now",
       "import": "Import data",
       "import_desc": "Restore from a previously exported JSON file. Existing rows with matching IDs are overwritten.",
       "import_button": "Choose file...",

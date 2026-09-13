@@ -5051,6 +5051,27 @@
     "inline_dismiss_all": "Tout ignorer"
   },
   "study": {
+    "tg_sync": {
+      "updated_channels": "{{n}} chaînes mises à jour",
+      "failed": "Échec de la synchronisation",
+      "never": "jamais",
+      "just_now": "à l'instant",
+      "min_ago": "il y a {{n}} min",
+      "hours_ago": "il y a {{n}} h",
+      "days_ago": "il y a {{n}} j",
+      "syncing": "Synchronisation…",
+      "pending": "Synchro en attente",
+      "off": "Synchro désactivée",
+      "last": "Synchro {{when}}",
+      "auto_hint": "Synchro auto toutes les {{n}} min — cliquez pour synchroniser",
+      "disabled_hint": "Synchro auto désactivée — cliquez pour synchroniser",
+      "status_aria": "État de la synchronisation"
+    },
+    "anki": {
+      "sync_now": "Synchroniser maintenant",
+      "syncing": "Synchronisation…",
+      "preset_updated": "Préréglage mis à jour"
+    },
     "common": {
       "loading": "Chargement...",
       "error": "Erreur",
@@ -5096,6 +5117,8 @@
       "new": "new",
       "now": "Now",
       "continue_title": "Continue course",
+      "continue_section": "Reprendre où vous en étiez",
+      "see_all": "Tout afficher",
       "continue_cta": "Resume",
       "review_title": "Review cards",
       "review_count": "{{n}} cards due",
@@ -6391,6 +6414,9 @@
       "preview": "Preview",
       "convert": "Convert to flashcard",
       "export_md": "Export .md",
+      "page_renamed": "Page renommée",
+      "page_renamed_block": "Page renommée et 1 bloc mis à jour",
+      "page_renamed_blocks": "Page renommée et {{n}} blocs mis à jour",
       "export_pdf": "Export PDF",
       "to_flashcard": "→ Flashcard",
       "pick_deck": "Deck...",
@@ -6745,6 +6771,7 @@
       "export_desc": "Téléchargez un instantané JSON avec cours, notes, cartes mémoire, progression et historique de concentration.",
       "export_button": "Exporter en JSON",
       "exporting": "Exportation...",
+      "export_now": "Exporter maintenant",
       "import": "Importer les données",
       "import_desc": "Restaurer depuis un fichier JSON précédemment exporté. Les lignes existantes avec un identifiant correspondant sont écrasées.",
       "import_button": "Choisir un fichier...",

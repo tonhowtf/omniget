@@ -5051,6 +5051,27 @@
     "inline_dismiss_all": "忽略全部"
   },
   "study": {
+    "tg_sync": {
+      "updated_channels": "{{n}} 个频道已更新",
+      "failed": "同步失败",
+      "never": "从未",
+      "just_now": "刚刚",
+      "min_ago": "{{n}} 分钟前",
+      "hours_ago": "{{n}} 小时前",
+      "days_ago": "{{n}} 天前",
+      "syncing": "同步中…",
+      "pending": "等待同步",
+      "off": "同步已关闭",
+      "last": "同步于 {{when}}",
+      "auto_hint": "每 {{n}} 分钟自动同步 — 点击立即同步",
+      "disabled_hint": "自动同步已关闭 — 点击立即同步",
+      "status_aria": "同步状态"
+    },
+    "anki": {
+      "sync_now": "立即同步",
+      "syncing": "同步中…",
+      "preset_updated": "预设已更新"
+    },
     "common": {
       "loading": "加载中...",
       "error": "错误",
@@ -5096,6 +5117,8 @@
       "new": "new",
       "now": "Now",
       "continue_title": "Continue course",
+      "continue_section": "继续上次学习",
+      "see_all": "查看全部",
       "continue_cta": "Resume",
       "review_title": "Review cards",
       "review_count": "{{n}} cards due",
@@ -6391,6 +6414,9 @@
       "preview": "Preview",
       "convert": "Convert to flashcard",
       "export_md": "Export .md",
+      "page_renamed": "页面已重命名",
+      "page_renamed_block": "页面已重命名，并更新了 1 个块",
+      "page_renamed_blocks": "页面已重命名，并更新了 {{n}} 个块",
       "export_pdf": "Export PDF",
       "to_flashcard": "→ Flashcard",
       "pick_deck": "Deck...",
@@ -6745,6 +6771,7 @@
       "export_desc": "下载包含课程、笔记、闪卡、进度和专注历史的 JSON 快照。",
       "export_button": "导出 JSON",
       "exporting": "导出中...",
+      "export_now": "立即导出",
       "import": "导入数据",
       "import_desc": "从先前导出的 JSON 文件恢复。ID 匹配的现有行将被覆盖。",
       "import_button": "选择文件...",

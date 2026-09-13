@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
   import {
     studyLibraryVacuum,
     studyLibraryExportState,
@@ -176,7 +177,7 @@
         disabled={exporting}
         onclick={exportData}
       >
-        {exporting ? "Exportando…" : "Exportar agora"}
+        {exporting ? $t("study.settings.exporting") : $t("study.settings.export_now")}
       </button>
     </div>
   </article>
