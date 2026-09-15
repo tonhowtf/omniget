@@ -6495,6 +6495,7 @@ dependencies = [
  "base64 0.22.1",
  "cbc 0.1.2",
  "chrono",
+ "constant_time_eq",
  "dirs 6.0.0",
  "enigo",
  "filetime",

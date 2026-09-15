@@ -627,14 +627,14 @@ pub fn use_in_app(id: &str) -> anyhow::Result<()> {
     use crate::core::ai::{self, AiProvider};
     match e.kind.as_str() {
         "openai" => {
-            ai::set(AiProvider::Openai, e.model.clone(), String::new(), Some(e.key.clone()), None);
+            ai::set(AiProvider::Openai, e.model.clone(), String::new(), Some(e.key.clone()), None, None);
         }
         "anthropic" => {
-            ai::set(AiProvider::Anthropic, e.model.clone(), String::new(), None, Some(e.key.clone()));
+            ai::set(AiProvider::Anthropic, e.model.clone(), String::new(), None, Some(e.key.clone()), None);
         }
         "gemini" => return Err(anyhow!("o chat do OmniGet fala OpenAI/Anthropic; use a rota OpenAI-compatível do Gemini (…/v1beta/openai) como personalizado")),
         _ => {
-            ai::set(AiProvider::Local, e.model.clone(), e.base_url.clone(), Some(e.key.clone()), None);
+            ai::set(AiProvider::Local, e.model.clone(), e.base_url.clone(), Some(e.key.clone()), None, None);
         }
     }
     Ok(())

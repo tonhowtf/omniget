@@ -37,6 +37,8 @@ urlencoding = "2"
 rand = "0.10.0"
 base64 = "0.22.1"
 sha2 = "0.10"
+# Comparacao em tempo constante do `state` do PKCE (mesma crate ja usada em src-tauri).
+constant_time_eq = "0.4"
 hmac = "0.12"
 murmur3 = "0.5"
 md-5 = "0.10"

@@ -292,6 +292,7 @@ pub fn run() {
             }
         }))
         .manage(state)
+        .manage(commands::orcarouter::OrcarouterState::default())
         .manage(Arc::new(tokio::sync::RwLock::new(
             plugin_loader::PluginManager::new(
                 core::paths::app_data_dir()
@@ -1083,6 +1084,14 @@ pub fn run() {
             commands::ai::whisper_generate,
             commands::ai::ai_history_list,
             commands::ai::ai_history_clear,
+            commands::orcarouter::orcarouter_login_begin,
+            commands::orcarouter::orcarouter_login_finish,
+            commands::orcarouter::orcarouter_login_cancel,
+            commands::orcarouter::orcarouter_login_pagehide,
+            commands::orcarouter::orcarouter_set_api_key,
+            commands::orcarouter::orcarouter_sign_out,
+            commands::orcarouter::orcarouter_models,
+            commands::orcarouter::orcarouter_validate_model,
             commands::video_ops::video_op_silence_estimate,
             commands::video_ops::video_op_preset,
             commands::video_ops::video_op_propose,

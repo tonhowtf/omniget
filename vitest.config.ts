@@ -7,6 +7,22 @@ export default defineConfig({
     environment: "node",
     globals: false,
   },
+  // `npm test` has to work on a fresh checkout. The root tsconfig.json extends
+  // the generated .svelte-kit/tsconfig.json, which only exists after
+  // `svelte-kit sync` (what `pnpm check` runs before `pnpm test` in CI). When it
+  // is missing, vite's esbuild transform blows up while resolving `extends` and
+  // no test file is ever collected. Handing esbuild the same options that
+  // generated file contributes (target + verbatimModuleSyntax, see the
+  // compilerOptions below) keeps the transform identical and drops the
+  // dependency on the generated file.
+  esbuild: {
+    tsconfigRaw: JSON.stringify({
+      compilerOptions: {
+        target: "esnext",
+        verbatimModuleSyntax: true,
+      },
+    }),
+  },
   resolve: {
     alias: {
       $lib: path.resolve(__dirname, "src/lib"),

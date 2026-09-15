@@ -14,6 +14,7 @@ pub mod integration;
 pub mod league;
 pub mod media_history;
 pub mod omnidisc;
+pub mod orcarouter;
 pub mod p2p;
 pub mod plugins;
 pub mod reencode;

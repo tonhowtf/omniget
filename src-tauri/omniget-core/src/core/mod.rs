@@ -22,6 +22,8 @@ pub mod log_hook;
 pub mod media_processor;
 pub mod media_signature;
 pub mod onnxrt;
+pub mod orcarouter;
+pub mod orcarouter_login;
 pub mod paths;
 pub mod pdfium;
 pub mod pokemon_names;

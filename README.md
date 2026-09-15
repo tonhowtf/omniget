@@ -409,7 +409,22 @@ Works without login for anything public. Cookies are only needed for secret boar
 - **API keys.** A local vault for keys and accounts, with a connection test, balance for OpenRouter, DeepSeek, SiliconFlow and New API, and export to Claude Code, Codex, Cherry Studio, opencode or a `.env` file.
 - **MCP server.** OmniGet's tools exposed over the Model Context Protocol on the local bridge, 31 tools behind the same token the extension uses, with ready-made config snippets for Claude Code, Claude Desktop, Cursor, VS Code, Goose and Codex. *beta*
 
-Every tool that talks to an AI uses the provider you set in **Settings → AI**: OpenAI, Anthropic, or any OpenAI-compatible local endpoint such as Ollama or LM Studio. The key is stored locally and never logged. The auto clicker, dictation and the replay buffer can each get a global shortcut of their own.
+Every tool that talks to an AI uses the provider you set in **Settings → AI**: OpenAI, Anthropic, OrcaRouter, or any OpenAI-compatible local endpoint such as Ollama or LM Studio. The key is stored locally and never logged. The auto clicker, dictation and the replay buffer can each get a global shortcut of their own.
+
+#### OrcaRouter
+
+[OrcaRouter](https://www.orcarouter.ai) is an OpenAI-compatible AI gateway built for both models and agents, with adaptive routing, automatic failover, zero-markup inference, observability, guardrails, and agent-tool governance. It also runs gateway-level, zero-trust security for AI agents on the same endpoint — screening every prompt/response and governing every tool call on a default-deny basis, with no application code changes.
+
+Pick it in **Settings → AI** and connect in whichever of the two ways suits you:
+
+- **OrcaRouter - API key** — paste an `sk-orca-…` key from your [OrcaRouter console](https://www.orcarouter.ai/console). Nothing leaves this machine but the requests themselves.
+- **OrcaRouter - Sign in** — click **Connect with OrcaRouter** and approve in your browser. OmniGet uses OAuth 2.0 with PKCE (S256), so there is no client secret and no redirect URI to register; the browser hands back a normal OrcaRouter key that belongs to your account.
+
+Both entrances end up with the same kind of key and the same inference path, so you can switch between them at any time. The key is billed to your account, listed in your console, and revocable in one click at [Authorized apps](https://www.orcarouter.ai/console/authorized-apps) — revoking it makes OmniGet ask you to reconnect rather than fail silently.
+
+The model list is read live from your workspace (`GET https://api.orcarouter.ai/v1/models`) and filtered per entrance, so the dropdown only ever offers models that can actually serve the request you are making. If the catalog is unreachable, OmniGet falls back to a small verified list and says so instead of guessing.
+
+Inference goes to `https://api.orcarouter.ai/v1`; sign-in goes to `https://www.orcarouter.ai`. Self-hosted setups can point both at one origin with `ORCA_BASE_URL`, or override them separately with `ORCA_AUTH_BASE_URL` and `ORCA_API_BASE_URL`.
 
 ---
 
