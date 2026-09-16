@@ -54,3 +54,28 @@ pub fn sync_channels_tray(
 ) -> Result<(), String> {
     crate::tray::rebuild_menu(&app, header, channels).map_err(|e| e.to_string())
 }
+
+// Same push-based pattern for the static tray items and tooltip formats: the
+// frontend owns the translations, the backend only stores the strings and
+// applies them to the live menu right away. The app handle is needed so the
+// tooltip can be re-rendered in the new language on the spot.
+#[tauri::command]
+pub fn sync_tray_strings(
+    app: tauri::AppHandle,
+    quit: String,
+    downloads_none: String,
+    downloads_active: String,
+    channels: String,
+    tooltip_active: String,
+    tooltip_speed: String,
+) -> Result<(), String> {
+    let strings = crate::tray::TrayStrings {
+        quit,
+        downloads_none,
+        downloads_active,
+        channels,
+        tooltip_active,
+        tooltip_speed,
+    };
+    crate::tray::apply_strings(&app, strings).map_err(|e| e.to_string())
+}

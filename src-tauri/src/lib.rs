@@ -1076,6 +1076,7 @@ pub fn run() {
             commands::channels::channel_update,
             commands::channels::channel_check_now,
             commands::channels::sync_channels_tray,
+            commands::channels::sync_tray_strings,
             commands::ai::ai_get_config,
             commands::ai::ai_set_config,
             commands::ai::ai_test,
