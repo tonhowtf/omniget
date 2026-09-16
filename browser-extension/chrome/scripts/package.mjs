@@ -1,25 +1,26 @@
 #!/usr/bin/env node
 
 /**
- * Packages the Chrome extension into a .zip ready for Chrome Web Store upload.
+ * Packages a browser extension into a .zip ready for store upload or sideload.
  *
  * Usage:
- *   node browser-extension/chrome/scripts/package.mjs [--version X.Y.Z] [--output path/to/output.zip]
+ *   node browser-extension/chrome/scripts/package.mjs [--browser chrome|firefox] [--version X.Y.Z] [--output path/to/output.zip]
  *
  * What it does:
- *   1. Copies browser-extension/chrome/ into a temp directory
- *   2. Strips the "key" field from manifest.json (CWS assigns its own)
+ *   1. Copies browser-extension/<browser>/ into a temp directory
+ *   2. Strips the "key" field from manifest.json (Chrome Web Store assigns its own)
  *   3. If --version is given, overwrites manifest.json "version" field
  *   4. Removes dev-only files (tests/, scripts/, CHPR.md, README.md, package.json)
  *   5. Creates a .zip archive
  */
 
-import { cpSync, createWriteStream, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, createWriteStream, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import zlib from "node:zlib";
 
-const EXTENSION_DIR = resolve(import.meta.dirname, "..");
+const BROWSERS_ROOT = resolve(import.meta.dirname, "..", "..");
+const ALLOWED_BROWSERS = ["chrome", "firefox"];
 
 const DEV_ONLY = ["tests", "scripts", "CHPR.md", "README.md", "package.json"];
 
@@ -27,6 +28,7 @@ function parseArgs() {
   const args = process.argv.slice(2);
   let output = null;
   let version = null;
+  let browser = "chrome";
 
   const outputIndex = args.indexOf("--output");
   if (outputIndex !== -1 && args[outputIndex + 1]) {
@@ -38,12 +40,24 @@ function parseArgs() {
     version = args[versionIndex + 1];
   }
 
-  if (!output) {
-    const manifest = JSON.parse(readFileSync(join(EXTENSION_DIR, "manifest.json"), "utf8"));
-    output = resolve(`omniget-chrome-extension-v${version || manifest.version}.zip`);
+  const browserIndex = args.indexOf("--browser");
+  if (browserIndex !== -1 && args[browserIndex + 1]) {
+    browser = args[browserIndex + 1];
   }
 
-  return { output, version };
+  if (!ALLOWED_BROWSERS.includes(browser)) {
+    console.error(`Unknown browser: ${browser} (expected ${ALLOWED_BROWSERS.join(" or ")})`);
+    process.exit(1);
+  }
+
+  const extensionDir = resolve(BROWSERS_ROOT, browser);
+
+  if (!output) {
+    const manifest = JSON.parse(readFileSync(join(extensionDir, "manifest.json"), "utf8"));
+    output = resolve(`omniget-${browser}-extension-v${version || manifest.version}.zip`);
+  }
+
+  return { output, version, extensionDir, browser };
 }
 
 function patchManifest(dir, version) {
@@ -180,14 +194,14 @@ function crc32(buf) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-const { output, version } = parseArgs();
+const { output, version, extensionDir, browser } = parseArgs();
 
-const tempDir = mkdtempSync(join(tmpdir(), "omniget-chrome-ext-"));
-const stageDir = join(tempDir, "chrome");
+const tempDir = mkdtempSync(join(tmpdir(), `omniget-${browser}-ext-`));
+const stageDir = join(tempDir, browser);
 
 try {
   console.log("Copying extension files...");
-  cpSync(EXTENSION_DIR, stageDir, { recursive: true });
+  cpSync(extensionDir, stageDir, { recursive: true });
 
   console.log("Patching manifest...");
   patchManifest(stageDir, version);

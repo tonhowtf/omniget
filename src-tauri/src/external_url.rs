@@ -69,6 +69,24 @@ pub fn arrived_via_scheme(raw_url: &str, source: &str) -> bool {
     raw_url.trim_start().starts_with("omniget:") || source == "deep-link"
 }
 
+/// Silent wake used by the browser extension when the localhost bridge is
+/// down. The OS launches (or focuses) this process so `/v1/health` comes
+/// back, but nothing is queued and the main window stays hidden.
+pub fn is_backend_wake(raw: &str) -> bool {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let rest = trimmed
+        .strip_prefix("omniget://")
+        .or_else(|| trimmed.strip_prefix("omniget:"))
+        .or_else(|| trimmed.strip_prefix("https://"))
+        .or_else(|| trimmed.strip_prefix("http://"))
+        .unwrap_or(trimmed)
+        .trim_start_matches('/');
+    rest.eq_ignore_ascii_case("__wake")
+}
+
 pub fn normalize_external_url(value: &str) -> Option<String> {
     let trimmed = value.trim();
     let rest = trimmed
@@ -148,15 +166,18 @@ pub async fn queue_url_with_defaults(
         });
     }
 
-    let output_dir = settings
-        .download
-        .default_output_dir
+    let output_dir = resolve_output_dir(&settings.download.default_output_dir)
         .to_string_lossy()
         .to_string();
     let ext_referer = ext_meta.as_ref().and_then(|m| m.referer.clone());
     let ext_headers = ext_meta.as_ref().and_then(|m| m.headers.clone());
     let ext_page_url = ext_meta.as_ref().and_then(|m| m.page_url.clone());
     let ext_user_agent = ext_meta.as_ref().and_then(|m| m.user_agent.clone());
+    // Explicit resolution/format picked in the browser's in-page menu. When
+    // present these override the app's default quality so the download starts
+    // immediately at the chosen resolution (IDM-style).
+    let ext_quality = ext_meta.as_ref().and_then(|m| m.quality.clone());
+    let ext_format_id = ext_meta.as_ref().and_then(|m| m.format_id.clone());
 
     let ext_media_info = ext_meta.as_ref().and_then(|m| {
         let mt = m.media_type.as_deref()?;
@@ -248,8 +269,8 @@ pub async fn queue_url_with_defaults(
             queue_title,
             output_dir,
             download_mode,
-            None,
-            None,
+            ext_quality,
+            ext_format_id,
             ext_referer,
             ext_headers,
             ext_page_url,
@@ -314,22 +335,39 @@ pub async fn handle_external_url(
     url: String,
     source: &str,
 ) -> Result<ExternalUrlAction, String> {
-    let scheme_arrival = arrived_via_scheme(&url, source);
+    if is_backend_wake(&url) {
+        return Ok(ExternalUrlAction::Queued);
+    }
+
     let url = normalize_external_url(&url).unwrap_or(url);
+    if is_backend_wake(&url) {
+        return Ok(ExternalUrlAction::Queued);
+    }
     if !is_external_url(&url) {
         return Err("Invalid external URL".to_string());
     }
 
     let settings = config::load_settings(app);
-    let can_queue_directly = (!settings.download.always_ask_path
-        || settings.download.auto_download_on_paste)
-        && has_valid_output_dir(&settings.download.default_output_dir);
-
+    // An explicit quality selection from the browser's in-page menu is a
+    // direct "download now" intent — honour it even when the user's default is
+    // "always ask where to save", as long as we have somewhere to put the file.
+    let has_explicit_quality = crate::extension_storage::peek_extension_quality(&url).is_some();
     let open_app_flag = crate::extension_storage::peek_extension_open_app(&url);
+    let want_ui = open_app_flag == Some(true);
+    let output_ok = has_valid_output_dir(&settings.download.default_output_dir)
+        || dirs::download_dir().is_some();
+    // Bridge / in-page downloads are backend-only: queue silently unless the
+    // user explicitly asked to open the app. The GUI is optional.
+    let can_queue_directly = output_ok
+        && (source == "bridge"
+            || has_explicit_quality
+            || !settings.download.always_ask_path
+            || settings.download.auto_download_on_paste
+            || !want_ui);
 
     let action = if can_queue_directly {
         let outcome = queue_url_with_defaults(app, url.clone(), false, None).await?;
-        if open_app_flag == Some(true) || scheme_arrival {
+        if want_ui {
             crate::tray::show_window(app);
         }
         match outcome {
@@ -337,7 +375,9 @@ pub async fn handle_external_url(
             QueueUrlOutcome::AlreadyQueued => ExternalUrlAction::AlreadyQueued,
         }
     } else {
-        crate::tray::show_window(app);
+        if want_ui {
+            crate::tray::show_window(app);
+        }
         ExternalUrlAction::Prefill
     };
 
@@ -380,7 +420,7 @@ where
     // path, where the OS hands us the omniget:// URL as a plain CLI argument.
     args.into_iter()
         .map(|arg| arg.as_ref().trim().to_string())
-        .find(|arg| is_external_url(arg))
+        .find(|arg| is_backend_wake(arg) || is_external_url(arg))
 }
 
 async fn push_or_emit_event(app: &AppHandle, event: ExternalUrlEvent) {
@@ -400,6 +440,15 @@ async fn push_or_emit_event(app: &AppHandle, event: ExternalUrlEvent) {
 
 fn has_valid_output_dir(path: &PathBuf) -> bool {
     !path.as_os_str().is_empty() && path.is_dir()
+}
+
+fn resolve_output_dir(configured: &PathBuf) -> PathBuf {
+    if has_valid_output_dir(configured) {
+        return configured.clone();
+    }
+    dirs::download_dir()
+        .filter(|path| path.is_dir())
+        .unwrap_or_else(|| PathBuf::from("."))
 }
 
 #[cfg(test)]
@@ -489,5 +538,25 @@ mod tests {
     fn find_external_url_arg_skips_irrelevant_args() {
         let args = vec!["--start-hidden", "--config=/etc/foo"];
         assert_eq!(find_external_url_arg(args.iter().copied()), None);
+    }
+
+    #[test]
+    fn is_backend_wake_accepts_scheme_forms() {
+        assert!(is_backend_wake("omniget://__wake"));
+        assert!(is_backend_wake("omniget:__wake"));
+        assert!(is_backend_wake("  omniget://__wake  "));
+        assert!(is_backend_wake("https://__wake"));
+        assert!(!is_backend_wake("omniget://www.youtube.com/watch?v=abc"));
+        assert!(!is_backend_wake("https://example.com"));
+        assert!(!is_backend_wake(""));
+    }
+
+    #[test]
+    fn find_external_url_arg_finds_backend_wake() {
+        let args = vec!["--flag", "omniget://__wake"];
+        assert_eq!(
+            find_external_url_arg(args.iter().copied()),
+            Some("omniget://__wake".to_string())
+        );
     }
 }

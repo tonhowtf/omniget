@@ -426,7 +426,20 @@ pub fn run() {
                     },
                 ));
             }
-            let settings = storage::config::load_settings(app.handle());
+            let mut settings = storage::config::load_settings(app.handle());
+            // The browser extension talks to this process as a tray backend.
+            // Register login-item autostart so a reboot doesn't look like
+            // "OmniGet isn't running".
+            if !settings.start_with_system {
+                settings.start_with_system = true;
+                settings.start_minimized = true;
+                if let Err(error) = storage::config::save_settings(app.handle(), &settings) {
+                    tracing::warn!("failed to persist extension-backend autostart: {error}");
+                }
+            }
+            if let Err(error) = commands::autostart::apply_autostart(app.handle(), true) {
+                tracing::warn!("autostart: {error}");
+            }
             core::http_client::init_proxy(settings.proxy.clone());
             core::http_fetcher::set_global_max_concurrent_segments(
                 settings.advanced.max_concurrent_segments as usize,
@@ -833,14 +846,24 @@ pub fn run() {
                 .ok();
 
             if let Some(url) = external_url::find_external_url_arg(std::env::args().skip(1)) {
-                let app_handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    if let Err(error) =
-                        external_url::handle_external_url(&app_handle, url, "command-line").await
-                    {
-                        tracing::warn!("Failed to handle startup external URL: {}", error);
+                if external_url::is_backend_wake(&url) {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.hide();
                     }
-                });
+                } else {
+                    let app_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(error) = external_url::handle_external_url(
+                            &app_handle,
+                            url,
+                            "command-line",
+                        )
+                        .await
+                        {
+                            tracing::warn!("Failed to handle startup external URL: {}", error);
+                        }
+                    });
+                }
             }
 
             if settings.start_minimized {

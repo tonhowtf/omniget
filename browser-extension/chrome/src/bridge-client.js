@@ -79,8 +79,8 @@ export async function clearStoredToken({ storage = globalThis.chrome?.storage?.l
 }
 
 // 401/403 from the bridge means our token is stale (rotated or reset on the
-// desktop side). Clear it and re-arm the autopair alarm so the extension can
-// pick up a fresh token the next time the user opens a pairing window.
+// desktop side). Clear it and re-arm the autopair alarm so the next download
+// fetches a fresh token on its own.
 async function handleUnauthorized(storage) {
   try {
     await clearStoredToken({ storage });
@@ -123,15 +123,19 @@ function withTimeout(promise, ms, controller) {
 export async function discoverBridgeEndpoint({
   fetchImpl = typeof fetch !== "undefined" ? fetch : null,
   ports = DEFAULT_PORT_RANGE,
-  host = "127.0.0.1",
+  hosts = ["127.0.0.1", "localhost"],
+  host = null,
   timeoutMs = HEALTH_TIMEOUT_MS,
 } = {}) {
   if (!fetchImpl) return null;
-  const probes = ports.map(async (port) => {
-    const endpoint = `http://${host}:${port}`;
-    const result = await checkBridgeHealth(endpoint, { fetchImpl, timeoutMs });
-    return result.ok ? { endpoint, version: result.version ?? null } : null;
-  });
+  const probeHosts = host ? [host] : hosts;
+  const probes = probeHosts.flatMap((probeHost) =>
+    ports.map(async (port) => {
+      const endpoint = `http://${probeHost}:${port}`;
+      const result = await checkBridgeHealth(endpoint, { fetchImpl, timeoutMs });
+      return result.ok ? { endpoint, version: result.version ?? null } : null;
+    })
+  );
 
   const settled = await Promise.allSettled(probes);
   for (const result of settled) {
@@ -170,10 +174,56 @@ export async function checkBridgeHealth(
   }
 }
 
+function sleepMs(ms, sleep) {
+  if (typeof sleep === "function") return sleep(ms);
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// If the desktop app is sitting in the tray (or not started), poke it awake
+// through the omniget:// scheme and wait until `/v1/health` answers. The GUI
+// is not required — the localhost bridge is the download backend.
+export async function ensureBridgeReady({
+  fetchImpl = typeof fetch !== "undefined" ? fetch : null,
+  storage = globalThis.chrome?.storage?.local,
+  openScheme,
+  sleep,
+  attempts = 40,
+  intervalMs = 400,
+} = {}) {
+  const ping = async () => {
+    const discovered = await discoverBridgeEndpoint({ fetchImpl });
+    if (!discovered?.endpoint) return false;
+    const current = await loadBridgeConfig({ storage });
+    if (trimEndpoint(current.endpoint) !== discovered.endpoint) {
+      await saveBridgeConfig(
+        { endpoint: discovered.endpoint, token: current.token },
+        { storage }
+      );
+    }
+    return true;
+  };
+
+  if (await ping()) return { ok: true, woke: false };
+
+  if (typeof openScheme === "function") {
+    try {
+      await openScheme("omniget://__wake");
+    } catch {
+      // Scheme handler missing or tabs API unavailable — keep polling anyway
+      // in case the app is about to come up on its own.
+    }
+  }
+
+  for (let i = 0; i < attempts; i++) {
+    await sleepMs(intervalMs, sleep);
+    if (await ping()) return { ok: true, woke: true };
+  }
+  return { ok: false, reason: "app-not-running" };
+}
+
 // One-shot auto-pair. If we don't have a token yet, discover the bridge and
-// ask `GET /v1/pair`. That endpoint only returns the token while the user has
-// an active, single-use, ~120s pairing window open in the desktop app — so
-// this turns "find the token, copy, paste" into a single click in the app.
+// ask `GET /v1/pair`. The desktop app hands the token to this extension
+// automatically — users never copy-paste or open Settings.
 export async function autoPair({
   fetchImpl = typeof fetch !== "undefined" ? fetch : null,
   storage = globalThis.chrome?.storage?.local,
@@ -288,6 +338,94 @@ export async function sendViaBridge(
   return {
     ok: Boolean(parsed?.ok ?? false),
     code: parsed?.code ?? null,
+    message: parsed?.message ?? null,
+  };
+}
+
+// Probe a URL for its available resolutions/formats via the desktop app's
+// `/v1/formats` endpoint. Returns `{ ok, title, qualities, ... }` on success,
+// or `{ ok: false, reason, message }` mirroring `sendViaBridge`'s error shape
+// so the in-page picker can show a helpful message.
+export async function getFormatsViaBridge(
+  payload,
+  {
+    fetchImpl = typeof fetch !== "undefined" ? fetch : null,
+    storage = globalThis.chrome?.storage?.local,
+    timeoutMs = 20000,
+    config = null,
+  } = {}
+) {
+  if (!fetchImpl) {
+    return { ok: false, reason: "no-fetch" };
+  }
+
+  const resolved = config ?? (await loadBridgeConfig({ storage }));
+  const endpoint = trimEndpoint(resolved.endpoint);
+  const token = typeof resolved.token === "string" ? resolved.token.trim() : "";
+
+  if (!endpoint) return { ok: false, reason: "missing-endpoint" };
+  if (!token) return { ok: false, reason: "missing-token" };
+
+  const body = { ...payload, protocolVersion: PROTOCOL_VERSION };
+
+  const controller =
+    typeof AbortController !== "undefined" ? new AbortController() : null;
+  let response;
+  try {
+    response = await withTimeout(
+      fetchImpl(`${endpoint}/v1/formats`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller?.signal,
+      }),
+      timeoutMs,
+      controller
+    );
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "fetch-failed",
+      message: error?.message ?? String(error),
+    };
+  }
+
+  let parsed = null;
+  try {
+    parsed = await response.json();
+  } catch {
+    parsed = null;
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    await handleUnauthorized(storage);
+    return {
+      ok: false,
+      reason: "unauthorized",
+      status: response.status,
+      message: parsed?.message ?? "Bridge rejected the bearer token",
+    };
+  }
+  if (!response.ok) {
+    return {
+      ok: false,
+      reason: "http-error",
+      status: response.status,
+      code: parsed?.code ?? null,
+      message: parsed?.message ?? `HTTP ${response.status}`,
+    };
+  }
+
+  return {
+    ok: Boolean(parsed?.ok ?? false),
+    title: parsed?.title ?? null,
+    thumbnail: parsed?.thumbnail ?? null,
+    mediaType: parsed?.mediaType ?? null,
+    durationSeconds: parsed?.durationSeconds ?? null,
+    qualities: Array.isArray(parsed?.qualities) ? parsed.qualities : [],
     message: parsed?.message ?? null,
   };
 }

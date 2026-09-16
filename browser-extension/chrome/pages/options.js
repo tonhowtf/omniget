@@ -256,10 +256,8 @@ if (typeof document !== "undefined") {
   }
 
   // --- Auto-pairing -----------------------------------------------------------
-  // The desktop app opens a single-use ~120s pairing window when the user
-  // clicks "Pair extension" in Settings. While this page is visible we poll
-  // `GET /v1/pair` every 5 seconds so pairing completes within seconds of that
-  // click (the background service worker only retries once per minute).
+  // GET /v1/pair hands the token to this extension automatically. Poll while
+  // the page is visible so we connect within seconds of OmniGet starting.
   const AUTOPAIR_POLL_MS = 5000;
   let pairPollTimer = null;
 
@@ -315,8 +313,7 @@ if (typeof document !== "undefined") {
     const alreadyPaired = Boolean(token);
 
     // While unpaired, keep trying to grab the token automatically: once
-    // immediately (the user may already have a pairing window open in the
-    // app) and then every few seconds while this page stays visible.
+    // immediately and then every few seconds while this page stays visible.
     if (!alreadyPaired) {
       void tryAutoPair();
       if (!document.hidden) startPairPolling();
@@ -355,7 +352,7 @@ if (typeof document !== "undefined") {
       const versionSuffix = found.version ? ` (v${found.version})` : "";
       setDiscovery(
         "found",
-        `Found OmniGet${versionSuffix} on ${found.endpoint}. Paste the token from OmniGet → Settings → Network → Browser extension to finish.`
+        `Found OmniGet${versionSuffix} on ${found.endpoint}. Pairing automatically…`
       );
       endpointHint.textContent =
         "Auto-detected — change only if your OmniGet runs on a different host.";
@@ -383,7 +380,7 @@ if (typeof document !== "undefined") {
     const endpoint = resolvedEndpoint();
     const token = tokenInput.value.trim();
     if (!token) {
-      setStatus("Paste the pairing token first.", "error");
+      setStatus("No token yet. Start OmniGet — pairing is automatic.", "error");
       return;
     }
     await saveBridgeConfig({ endpoint, token });
@@ -396,7 +393,7 @@ if (typeof document !== "undefined") {
       const paired = await tryAutoPair();
       if (paired) return;
       setStatus(
-        "No open pairing window found. In OmniGet, go to Settings → Network → Browser extension and click \"Pair extension\", then try again (or just wait — this page keeps retrying).",
+        "Couldn't pair yet. Start OmniGet and try again — pairing happens automatically.",
         "error"
       );
       if (!document.hidden) startPairPolling();

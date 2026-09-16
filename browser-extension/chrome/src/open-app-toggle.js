@@ -1,10 +1,10 @@
 const STORAGE_KEY = "omniget_open_app_on_download";
 
-let openApp = true;
+let openApp = false;
 
 export async function loadOpenAppState() {
   const result = await chrome.storage.local.get(STORAGE_KEY);
-  openApp = result[STORAGE_KEY] !== false;
+  openApp = result[STORAGE_KEY] === true;
   return openApp;
 }
 

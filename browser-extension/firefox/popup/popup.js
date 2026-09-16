@@ -8,6 +8,7 @@ import { estimateHlsSize } from "../src/hls-size.js";
 import { formatBytes } from "../src/format-size.js";
 import { isListableMedia } from "../src/media-list.js";
 import { captureCookiesForTab } from "../src/cookie-capture.js";
+import { hasWildcardHostPermission, requestWildcardHostPermission } from "../src/sniffer-toggle.js";
 
 const APP_URL = "https://github.com/tonhowtf/omniget/releases/latest";
 
@@ -54,6 +55,15 @@ async function init() {
   localizeStatic();
   const toggle = document.getElementById("sniffer-toggle");
   const openAppToggle = document.getElementById("open-app-toggle");
+
+  try {
+    if (!(await hasWildcardHostPermission())) {
+      await requestWildcardHostPermission();
+    }
+    chrome.runtime.sendMessage({ type: "injectVideoDetectAll" }, () => {
+      void chrome.runtime.lastError;
+    });
+  } catch {}
 
   let activeTab = null;
   try {

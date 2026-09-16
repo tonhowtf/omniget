@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>OmniGet Extension — Pair with desktop app</title>
+    <title>OmniGet Extension</title>
     <link rel="stylesheet" href="options.css" />
   </head>
   <body>
@@ -14,18 +14,17 @@
         <header id="welcome-header" hidden>
           <h1>Welcome to OmniGet</h1>
           <p class="body">
-            Let's connect this browser to the desktop app. We're looking for it
-            now — almost done.
+            Start OmniGet once. This page connects on its own — no token to
+            copy, no Settings to open.
           </p>
         </header>
 
         <header id="settings-header" hidden>
-          <h1>Pair this browser</h1>
+          <h1>Connected to OmniGet</h1>
           <p class="body">
-            Open OmniGet, go to <strong>Settings → Network → Browser
-            extension</strong> and click <strong>Pair extension</strong> —
-            this page picks the token up automatically within a few seconds.
-            Or copy the <em>token</em> shown there into the field below.
+            This browser pairs itself as soon as OmniGet is running. You
+            don't need to copy a token. Advanced fields below are only for
+            troubleshooting.
           </p>
         </header>
 
@@ -41,7 +40,7 @@
               id="token"
               name="token"
               type="password"
-              placeholder="Paste the token from OmniGet → Settings → Network → Browser extension"
+              placeholder="Filled automatically when OmniGet is running"
               autocomplete="off"
               spellcheck="false"
               required

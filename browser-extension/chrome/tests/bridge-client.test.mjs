@@ -8,6 +8,8 @@ import {
   checkBridgeHealth,
   discoverBridgeEndpoint,
   sendViaBridge,
+  ensureBridgeReady,
+  autoPair,
   STORAGE_KEY_ENDPOINT,
   STORAGE_KEY_TOKEN,
   DEFAULT_PORT_RANGE,
@@ -187,8 +189,8 @@ test("discoverBridgeEndpoint returns the first port that answers /v1/health", as
     endpoint: "http://127.0.0.1:47722",
     version: "0.5.3",
   });
-  // All four ports were probed in parallel.
-  assert.equal(seen.length, 4);
+  // All four ports × two loopback hosts were probed in parallel.
+  assert.equal(seen.length, 8);
 });
 
 test("discoverBridgeEndpoint returns null when no port responds", async () => {
@@ -230,4 +232,90 @@ test("sendViaBridge bubbles up app-level error code on a 4xx response", async ()
   assert.equal(result.status, 400);
   assert.equal(result.code, "INVALID_URL");
   assert.equal(result.message, "bad URL");
+});
+
+test("ensureBridgeReady returns immediately when the bridge is already up", async () => {
+  const fetchImpl = async (url) => {
+    assert.match(String(url), /\/v1\/health$/);
+    return { ok: true, json: async () => ({ ok: true, version: "1" }) };
+  };
+  const result = await ensureBridgeReady({
+    fetchImpl,
+    storage: fakeStorage(),
+    openScheme: async () => {
+      throw new Error("should not wake a live backend");
+    },
+    attempts: 1,
+  });
+  assert.deepEqual(result, { ok: true, woke: false });
+});
+
+test("ensureBridgeReady wakes the desktop backend then waits for health", async () => {
+  let schemeCalls = 0;
+  const fetchImpl = async () => {
+    if (schemeCalls === 0) throw new Error("down");
+    return { ok: true, json: async () => ({ ok: true }) };
+  };
+  const result = await ensureBridgeReady({
+    fetchImpl,
+    storage: fakeStorage(),
+    openScheme: async (url) => {
+      schemeCalls += 1;
+      assert.equal(url, "omniget://__wake");
+      return { ok: true };
+    },
+    sleep: async () => {},
+    attempts: 3,
+    intervalMs: 0,
+  });
+  assert.deepEqual(result, { ok: true, woke: true });
+  assert.equal(schemeCalls, 1);
+});
+
+test("ensureBridgeReady reports app-not-running when wake never comes up", async () => {
+  const fetchImpl = async () => {
+    throw new Error("down");
+  };
+  const result = await ensureBridgeReady({
+    fetchImpl,
+    storage: fakeStorage(),
+    openScheme: async () => ({ ok: true }),
+    sleep: async () => {},
+    attempts: 2,
+    intervalMs: 0,
+  });
+  assert.deepEqual(result, { ok: false, reason: "app-not-running" });
+});
+
+test("autoPair stores the token from GET /v1/pair without a pairing window", async () => {
+  const storage = fakeStorage();
+  const fetchImpl = async (url) => {
+    if (String(url).endsWith("/v1/health")) {
+      return { ok: true, json: async () => ({ ok: true, version: "1" }) };
+    }
+    assert.equal(url, "http://127.0.0.1:47720/v1/pair");
+    return { ok: true, json: async () => ({ ok: true, token: "auto-token" }) };
+  };
+  const result = await autoPair({ fetchImpl, storage });
+  assert.deepEqual(result, {
+    ok: true,
+    reason: "paired",
+    endpoint: "http://127.0.0.1:47720",
+  });
+  assert.equal(storage.data[STORAGE_KEY_TOKEN], "auto-token");
+  assert.equal(storage.data[STORAGE_KEY_ENDPOINT], "http://127.0.0.1:47720");
+});
+
+test("autoPair skips the network when a token is already stored", async () => {
+  const storage = fakeStorage({
+    [STORAGE_KEY_TOKEN]: "existing",
+    [STORAGE_KEY_ENDPOINT]: "http://127.0.0.1:47720",
+  });
+  const result = await autoPair({
+    fetchImpl: async () => {
+      throw new Error("should not call");
+    },
+    storage,
+  });
+  assert.deepEqual(result, { ok: true, reason: "already-paired" });
 });

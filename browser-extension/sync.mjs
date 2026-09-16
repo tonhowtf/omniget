@@ -55,7 +55,7 @@ const SHARED = [
   "pages/options.js",
 ];
 
-const SHARED_DIRS = ["_locales", "icons"];
+const SHARED_DIRS = ["_locales", "icons", "content"];
 
 function copyFile(rel) {
   const from = path.join(CHROME, rel);

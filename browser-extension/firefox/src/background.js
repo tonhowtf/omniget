@@ -18,6 +18,8 @@ import { isSyntheticManifestUrl } from "./synthetic-manifest.js";
 import {
   sendViaBridge,
   sendCookiesViaBridge,
+  getFormatsViaBridge,
+  ensureBridgeReady,
   autoPair,
   loadBridgeConfig,
   AUTOPAIR_ALARM_NAME,
@@ -35,10 +37,9 @@ async function isPaired() {
   }
 }
 
-// Keep a low-frequency poll alive while unpaired so that, the moment the user
-// clicks "Pair extension" in the desktop app (which opens a ~120s single-use
-// window), the extension grabs the token on its own — no copy-paste, no
-// returning to the extension. The alarm clears itself once paired.
+// Keep a low-frequency poll alive while unpaired so the token is grabbed as
+// soon as OmniGet is running. Users never open Settings or paste anything.
+// The alarm clears itself once paired.
 async function runAutoPairTick() {
   if (await isPaired()) {
     try {
@@ -73,8 +74,8 @@ if (chrome.alarms?.onAlarm) {
 }
 
 // If the stored token is ever cleared (401 recovery in bridge-client.js, or
-// the user wiping it from the options page), go back to polling for a fresh
-// pairing window so the browser can re-pair without a reinstall.
+// the user wiping it from the options page), resume polling so the next
+// download re-pairs on its own.
 if (chrome.storage?.onChanged) {
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== "local") return;
@@ -126,31 +127,99 @@ loadDeepSearchState().catch(() => {});
 loadH264State().catch(() => {});
 restoreMedia().catch(() => {});
 
-chrome.runtime.onInstalled.addListener(async (details) => {
+const VIDEO_DETECT_FILE = "content/video-detect.js";
+
+// Reloading an unpacked extension kills the old isolated world and does NOT
+// re-inject manifest content scripts into already-open tabs. Push the in-page
+// button back in so a YouTube tab the user is staring at gets the FAB without
+// a manual page refresh.
+async function injectVideoDetect(tabId) {
+  if (!tabId || !chrome.scripting?.executeScript) return;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: [VIDEO_DETECT_FILE],
+    });
+  } catch {
+    // chrome://, Web Store, PDFs, and hosts we have no permission for throw.
+  }
+}
+
+async function injectVideoDetectIntoOpenTabs() {
+  if (!chrome.tabs?.query) return;
+  let tabs;
+  try {
+    tabs = await chrome.tabs.query({});
+  } catch {
+    return;
+  }
+  for (const tab of tabs) {
+    if (!tab?.id || tab.id === chrome.tabs.TAB_ID_NONE) continue;
+    const url = typeof tab.url === "string" ? tab.url : "";
+    if (!/^https?:/i.test(url)) continue;
+    void injectVideoDetect(tab.id);
+  }
+}
+
+if (chrome.permissions?.onAdded) {
+  chrome.permissions.onAdded.addListener(() => {
+    injectVideoDetectIntoOpenTabs().catch(() => {});
+  });
+}
+
+const BRIDGE_RETRY_REASONS = new Set([
+  "fetch-failed",
+  "missing-endpoint",
+  "no-endpoint",
+  "missing-token",
+  "unauthorized",
+  "window-closed",
+]);
+
+async function pairIfNeeded() {
+  if (await isPaired()) return true;
+  const result = await autoPair().catch(() => ({ ok: false }));
+  return Boolean(result?.ok);
+}
+
+async function withLiveBridge(run) {
+  const ready = await ensureBridgeReady({
+    openScheme: (url) => openOmnigetScheme(url),
+    attempts: 40,
+    intervalMs: 400,
+  });
+  if (!ready.ok) {
+    return {
+      ok: false,
+      reason: "app-not-running",
+      message: "OmniGet backend is not running.",
+    };
+  }
+  await pairIfNeeded();
+
+  let result = await run();
+  if (result?.ok) return result;
+  if (!BRIDGE_RETRY_REASONS.has(result?.reason)) return result;
+
+  await pairIfNeeded();
+  result = await run();
+  if (result?.ok) return result;
+  if (result?.reason === "missing-token" || result?.reason === "unauthorized") {
+    await autoPair().catch(() => ({ ok: false }));
+    result = await run();
+  }
+  return result;
+}
+
+chrome.runtime.onInstalled.addListener(async () => {
   registerContextMenu();
   refreshActiveTab().catch(() => {});
-  // Surface the pairing page on any install/update *if the user hasn't
-  // already paired this browser*. Reloading an unpacked extension fires
-  // `update`, not `install`, so gating only on `install` would silently
-  // skip the onboarding flow for dev builds and users coming from a
-  // pre-bridge OmniGet version.
-  if (typeof chrome.runtime.openOptionsPage !== "function") return;
-  try {
-    const stored = await chrome.storage.local.get("bridge_token");
-    const token = typeof stored?.bridge_token === "string" ? stored.bridge_token.trim() : "";
-    if (!token) {
-      const paired = await runAutoPairTick();
-      if (!paired) {
-        await ensureAutoPairAlarm();
-        chrome.runtime.openOptionsPage().catch(() => {});
-      }
-    }
-  } catch {
-    // storage unavailable — fall back to the previous behaviour and only
-    // open on a real install.
-    if (details?.reason === "install") {
-      chrome.runtime.openOptionsPage().catch(() => {});
-    }
+  injectVideoDetectIntoOpenTabs().catch(() => {});
+  // Pair silently. Never pop the options page — users should not have to
+  // visit Settings or paste a token.
+  if (!(await isPaired())) {
+    const paired = await runAutoPairTick();
+    if (!paired) await ensureAutoPairAlarm();
   }
 });
 
@@ -279,6 +348,39 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === "injectVideoDetectAll") {
+    injectVideoDetectIntoOpenTabs()
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  // In-page IDM-style picker: list available resolutions for the current page.
+  if (msg.type === "getFormats") {
+    handleGetFormats(msg).then(sendResponse).catch((error) =>
+      sendResponse({ ok: false, reason: "error", message: error?.message })
+    );
+    return true;
+  }
+
+  // In-page IDM-style picker: download the page at the chosen resolution.
+  if (msg.type === "downloadWithQuality") {
+    const detected = detectSupportedMediaUrl(msg.url);
+    handleSendToApp({
+      type: "sendToOmniGet",
+      url: msg.url,
+      platform: detected?.platform || "generic",
+      referer: msg.referer || msg.url,
+      quality: msg.quality,
+      formatId: msg.formatId,
+    })
+      .then(sendResponse)
+      .catch((error) =>
+        sendResponse({ ok: false, error: error?.message || "Download failed" })
+      );
+    return true;
+  }
+
   // Deep search runs in the page and finds playlists the network layer never
   // sees as media. The manifest text itself stays in the content script (it can
   // be hundreds of KB); we only fetch it at send time, from the tab that has it.
@@ -367,6 +469,61 @@ function updateBadge(tabId) {
   }).catch(() => {});
 }
 
+// Collect the cookies the desktop app needs to fetch a URL: prefer the
+// platform-specific set, otherwise fall back to whatever applies to the media
+// URL and its page. Shared by the send-to-app and formats-probe paths.
+async function gatherCookiesForRequest(url, referer, platform) {
+  try {
+    const platformCookies = await extractCookiesForPlatform(platform);
+    if (platformCookies && platformCookies.length > 0) {
+      return platformCookies;
+    }
+  } catch {}
+
+  try {
+    const cookieMap = new Map();
+    const cdnCookies = await chrome.cookies.getAll({ url });
+    for (const c of cdnCookies) {
+      cookieMap.set(`${c.domain}:${c.name}`, c);
+    }
+    if (referer) {
+      try {
+        const pageCookies = await chrome.cookies.getAll({ url: referer });
+        for (const c of pageCookies) {
+          cookieMap.set(`${c.domain}:${c.name}`, c);
+        }
+      } catch {}
+    }
+    if (cookieMap.size > 0) {
+      return [...cookieMap.values()].map((c) => ({
+        domain: c.domain,
+        httpOnly: c.httpOnly,
+        path: c.path,
+        secure: c.secure,
+        expires: c.expirationDate ? Math.floor(c.expirationDate) : 0,
+        name: c.name,
+        value: c.value,
+        hostOnly: c.hostOnly,
+        sameSite: c.sameSite,
+      }));
+    }
+  } catch {}
+
+  return null;
+}
+
+// Probe a page for its available resolutions on behalf of the in-page picker.
+async function handleGetFormats(msg) {
+  const url = msg.url;
+  if (!url) return { ok: false, reason: "missing-url" };
+  const detected = detectSupportedMediaUrl(url);
+  const platform = detected?.platform || "generic";
+  const cookies = await gatherCookiesForRequest(url, url, platform);
+  const payload = { url, referer: url };
+  if (cookies && cookies.length > 0) payload.cookies = cookies;
+  return withLiveBridge(() => getFormatsViaBridge(payload));
+}
+
 async function handleSendToApp(msg) {
   const url = msg.url;
   const platform = msg.platform || "generic";
@@ -379,43 +536,7 @@ async function handleSendToApp(msg) {
     pageThumbnail = tab?.favIconUrl || "";
   } catch {}
 
-  let cookies = null;
-  try {
-    const platformCookies = await extractCookiesForPlatform(platform);
-    if (platformCookies && platformCookies.length > 0) {
-      cookies = platformCookies;
-    } else {
-      const cookieMap = new Map();
-
-      const cdnCookies = await chrome.cookies.getAll({ url });
-      for (const c of cdnCookies) {
-        cookieMap.set(`${c.domain}:${c.name}`, c);
-      }
-
-      if (msg.referer) {
-        try {
-          const pageCookies = await chrome.cookies.getAll({ url: msg.referer });
-          for (const c of pageCookies) {
-            cookieMap.set(`${c.domain}:${c.name}`, c);
-          }
-        } catch {}
-      }
-
-      if (cookieMap.size > 0) {
-        cookies = [...cookieMap.values()].map(c => ({
-          domain: c.domain,
-          httpOnly: c.httpOnly,
-          path: c.path,
-          secure: c.secure,
-          expires: c.expirationDate ? Math.floor(c.expirationDate) : 0,
-          name: c.name,
-          value: c.value,
-          hostOnly: c.hostOnly,
-          sameSite: c.sameSite,
-        }));
-      }
-    }
-  } catch {}
+  const cookies = await gatherCookiesForRequest(url, msg.referer, platform);
 
   const message = { type: "enqueue", url, protocolVersion: PROTOCOL_VERSION };
   if (cookies) message.cookies = cookies;
@@ -425,6 +546,10 @@ async function handleSendToApp(msg) {
   if (msg.thumbnail) message.thumbnail = msg.thumbnail;
   else if (pageThumbnail) message.thumbnail = pageThumbnail;
   if (msg.mediaType) message.mediaType = msg.mediaType;
+  // Explicit resolution picked in the in-page menu (IDM-style). The desktop
+  // app downloads this quality directly instead of prompting.
+  if (msg.quality) message.quality = msg.quality;
+  if (msg.formatId) message.formatId = msg.formatId;
   if (msg.hasManifest) {
     let tabId = msg.tabId;
     if (typeof tabId !== "number") {
@@ -446,7 +571,9 @@ async function handleSendToApp(msg) {
   }
   if (msg.contentType) message.contentType = msg.contentType;
   if (msg.headers) message.headers = msg.headers;
-  if (typeof msg.openApp === "boolean") message.openApp = msg.openApp;
+  // In-page downloads run against the hidden backend. Only raise the GUI when
+  // the caller explicitly asks (toolbar popup toggle).
+  message.openApp = msg.openApp === true;
   message.pageUrl = msg.referer || "";
   message.userAgent = navigator.userAgent;
 
@@ -465,17 +592,17 @@ async function handleSendToApp(msg) {
 
   const cookieSummary = summarizeCookies(cookies);
 
-  // Primary path: localhost HTTP bridge (no extension-ID dependency, full
-  // cookie + metadata payload).
-  const bridgeResult = await sendViaBridge(message);
+  // Primary path: localhost HTTP bridge. If the desktop process is asleep,
+  // wake it as a backend (no window) and retry before falling back to the
+  // omniget:// scheme.
+  const bridgeResult = await withLiveBridge(() => sendViaBridge(message));
   if (bridgeResult?.ok) {
     return { ok: true, viaBridge: true, cookieSummary };
   }
 
   // Fallback: omniget:// scheme handler. The desktop app is launched (or
-  // brought to focus) and the URL is queued, but cookies aren't forwarded
-  // — the user can pair the bridge from the extension's options page to
-  // get the full experience.
+  // brought to focus) and the URL is queued, but cookies aren't forwarded.
+  // Pairing happens automatically on the next successful bridge handshake.
   const schemeResult = await openOmnigetScheme(url);
   if (schemeResult?.ok) {
     return { ok: true, viaScheme: true, cookieSummary, bridgeReason: bridgeResult?.reason };
@@ -645,7 +772,7 @@ async function capturePlatformCookies(platform, force = false) {
     return { ok: false, reason: "no_cookies" };
   }
 
-  const response = await sendCookiesViaBridge(cookies);
+  const response = await withLiveBridge(() => sendCookiesViaBridge(cookies));
   if (response.ok) {
     console.info("[OmniGet] cookies exported", platform, cookies.length, response);
     return { ok: true, count: cookies.length, response };

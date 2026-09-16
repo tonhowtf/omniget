@@ -1,4 +1,5 @@
 export const OMNIGET_SCHEME = "omniget://";
+export const BACKEND_WAKE_URL = "omniget://__wake";
 const SCHEME_TAB_LIFETIME_MS = 1500;
 
 export function buildOmnigetSchemeUrl(url) {

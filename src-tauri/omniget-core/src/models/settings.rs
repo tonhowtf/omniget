@@ -13,9 +13,9 @@ pub struct AppSettings {
     pub proxy: ProxySettings,
     #[serde(default)]
     pub onboarding_completed: bool,
-    #[serde(default, alias = "start_with_windows")]
+    #[serde(default = "default_true", alias = "start_with_windows")]
     pub start_with_system: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub start_minimized: bool,
     #[serde(default)]
     pub portable_mode: bool,
@@ -711,8 +711,8 @@ impl Default for AppSettings {
             telegram: TelegramSettings::default(),
             proxy: ProxySettings::default(),
             onboarding_completed: false,
-            start_with_system: false,
-            start_minimized: false,
+            start_with_system: true,
+            start_minimized: true,
             portable_mode: false,
             legal_acknowledged: false,
             last_download_options: LastDownloadOptions::default(),

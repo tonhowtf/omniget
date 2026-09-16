@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildOmnigetSchemeUrl, openOmnigetScheme } from "../src/send-via-scheme.js";
+import { buildOmnigetSchemeUrl, openOmnigetScheme, BACKEND_WAKE_URL } from "../src/send-via-scheme.js";
 
 test("buildOmnigetSchemeUrl strips http(s) prefix and prepends omniget://", () => {
   assert.equal(
@@ -153,4 +153,9 @@ test("openOmnigetScheme tolerates a sync remove() that throws", async () => {
 
   assert.equal(result.ok, true);
   assert.doesNotThrow(() => calls[0]());
+});
+
+test("BACKEND_WAKE_URL is a preserved omniget scheme URL", () => {
+  assert.equal(BACKEND_WAKE_URL, "omniget://__wake");
+  assert.equal(buildOmnigetSchemeUrl(BACKEND_WAKE_URL), BACKEND_WAKE_URL);
 });

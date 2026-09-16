@@ -133,9 +133,9 @@ pub struct BridgePairStatus {
     pub enabled: bool,
 }
 
-/// Opens a short, single-use, user-consented pairing window so an installed
-/// browser extension can fetch the bearer token from `GET /v1/pair` without
-/// the user copy-pasting it.
+/// Opens the optional pairing window used by the Settings UI countdown.
+/// Trusted local clients (the browser extension) already receive the token
+/// from `GET /v1/pair` without this window.
 #[tauri::command]
 pub fn bridge_open_pairing(app: tauri::AppHandle) -> Result<BridgePairStatus, String> {
     let settings = config::load_settings(&app);

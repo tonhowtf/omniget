@@ -72,7 +72,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          LDAI_UPDATE_INFORMATION: ${{ contains(matrix.platform, 'ubuntu') && 'gh-releases-zsync|tonhowtf|omniget|latest|*AppImage.zsync' || '' }}
+          LDAI_UPDATE_INFORMATION: ${{ contains(matrix.platform, 'ubuntu') && format('gh-releases-zsync|{0}|{1}|latest|*AppImage.zsync', github.repository_owner, github.event.repository.name) || '' }}
           # linuxdeploy bundles an old `strip` that fails on modern .relr.dyn
           # relocations; disable stripping so AppImage bundling succeeds.
           NO_STRIP: ${{ contains(matrix.platform, 'ubuntu') && '1' || '' }}
@@ -86,6 +86,10 @@ jobs:
             **Windows**: `.exe` installer or portable.
             **macOS**: `.dmg` (Apple Silicon `aarch64` or Intel `x86_64`).
             **Linux**: `.AppImage` (universal) or `.deb` (Debian/Ubuntu).
+
+            **Browser extensions** (separate downloads):
+            - Chrome / Edge / Brave: `omniget-chrome-extension-v__VERSION__.zip`
+            - Firefox: `omniget-firefox-extension-v__VERSION__.zip`
 
             ---
 
@@ -228,11 +232,15 @@ jobs:
           gh release upload $TAG $OUT --repo ${{ github.repository }} --clobber
         shell: pwsh
 
-  package-chrome-extension:
+  package-extensions:
     needs: publish-tauri
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chrome, firefox]
     steps:
       - uses: actions/checkout@v6
 
@@ -241,12 +249,13 @@ jobs:
         with:
           node-version: lts/*
 
-      - name: Package Chrome extension
+      - name: Package ${{ matrix.browser }} extension
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
-          OUTPUT="omniget-chrome-extension-v${VERSION}.zip"
-          node browser-extension/chrome/scripts/package.mjs --version "$VERSION" --output "$OUTPUT"
+          BROWSER="${{ matrix.browser }}"
+          OUTPUT="omniget-${BROWSER}-extension-v${VERSION}.zip"
+          node browser-extension/chrome/scripts/package.mjs --browser "$BROWSER" --version "$VERSION" --output "$OUTPUT"
           gh release upload "$TAG" "$OUTPUT" --repo "${{ github.repository }}" --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

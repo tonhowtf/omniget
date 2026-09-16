@@ -233,7 +233,7 @@
     "message": "No cookies for this site"
   },
   "popup_ckerr_missing_token": {
-    "message": "Pair OmniGet first"
+    "message": "Start OmniGet"
   },
   "popup_ckerr_missing_endpoint": {
     "message": "OmniGet not detected"
@@ -242,7 +242,7 @@
     "message": "OmniGet isn't running"
   },
   "popup_ckerr_unauthorized": {
-    "message": "Bad pairing token"
+    "message": "Start OmniGet and try again"
   },
   "popup_ckerr_default": {
     "message": "Couldn't save cookies"

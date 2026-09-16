@@ -62,6 +62,16 @@ pub struct ExtensionPayload {
     pub page_url: Option<String>,
     #[serde(default, rename = "userAgent")]
     pub user_agent: Option<String>,
+    /// Explicit quality picked by the user in the in-page download menu
+    /// (IDM-style). Format matches what the downloaders expect: `"1080p"`,
+    /// `"720p"`, … or `"best"`. When present, the enqueue path treats this as
+    /// an explicit "download now" intent and skips the app's quality picker.
+    #[serde(default)]
+    pub quality: Option<String>,
+    /// Explicit yt-dlp `format_id` picked in the in-page menu, when the user
+    /// chose a specific stream rather than a height bucket.
+    #[serde(default, rename = "formatId")]
+    pub format_id: Option<String>,
     /// Raw text of an HLS playlist the extension's deep search recovered from
     /// the page. Set when the manifest never travels the network as a
     /// fetchable document (the player gets it through a `blob:` URL), so the
@@ -263,6 +273,8 @@ pub fn write_extension_metadata(payload: &ExtensionPayload) -> anyhow::Result<()
         "openApp": payload.open_app,
         "pageUrl": payload.page_url,
         "userAgent": payload.user_agent,
+        "quality": payload.quality,
+        "formatId": payload.format_id,
         "timestamp": now,
     });
 
@@ -281,6 +293,8 @@ pub struct ExtensionMetadata {
     pub open_app: Option<bool>,
     pub page_url: Option<String>,
     pub user_agent: Option<String>,
+    pub quality: Option<String>,
+    pub format_id: Option<String>,
 }
 
 fn parse_metadata_entry(meta: &serde_json::Value) -> ExtensionMetadata {
@@ -322,6 +336,16 @@ fn parse_metadata_entry(meta: &serde_json::Value) -> ExtensionMetadata {
             .map(String::from),
         user_agent: meta
             .get("userAgent")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(String::from),
+        quality: meta
+            .get("quality")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(String::from),
+        format_id: meta
+            .get("formatId")
             .and_then(|v| v.as_str())
             .filter(|s| !s.is_empty())
             .map(String::from),
@@ -432,6 +456,28 @@ pub fn peek_extension_open_app(url: &str) -> Option<bool> {
     entry.get("openApp").and_then(|v| v.as_bool())
 }
 
+/// Non-destructive check for an explicit quality selection stored by the
+/// in-page download menu. Used by `handle_external_url` to force the direct
+/// download path (IDM-style "pick resolution → download now") even when the
+/// user's default is "always ask where to save".
+pub fn peek_extension_quality(url: &str) -> Option<String> {
+    let path = extension_metadata_path();
+    let now = current_unix_timestamp();
+    let mut map = load_metadata_map(&path);
+    prune_expired_metadata(&mut map, now);
+
+    let entry = map.get(url)?;
+    let timestamp = entry.get("timestamp").and_then(|v| v.as_u64())?;
+    if now.saturating_sub(timestamp) > METADATA_TTL_SECS {
+        return None;
+    }
+    entry
+        .get("quality")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -494,6 +540,38 @@ mod tests {
         );
 
         let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn parse_metadata_entry_reads_quality_and_format_id() {
+        let meta = serde_json::json!({
+            "quality": "1080p",
+            "formatId": "137",
+            "referer": "https://example.com",
+        });
+        let parsed = parse_metadata_entry(&meta);
+        assert_eq!(parsed.quality.as_deref(), Some("1080p"));
+        assert_eq!(parsed.format_id.as_deref(), Some("137"));
+    }
+
+    #[test]
+    fn parse_metadata_entry_treats_empty_quality_as_none() {
+        let meta = serde_json::json!({ "quality": "", "formatId": "" });
+        let parsed = parse_metadata_entry(&meta);
+        assert!(parsed.quality.is_none());
+        assert!(parsed.format_id.is_none());
+    }
+
+    #[test]
+    fn extension_payload_deserializes_quality_fields() {
+        let payload: ExtensionPayload = serde_json::from_value(serde_json::json!({
+            "url": "https://example.com/v",
+            "quality": "720p",
+            "formatId": "22",
+        }))
+        .expect("payload parses");
+        assert_eq!(payload.quality.as_deref(), Some("720p"));
+        assert_eq!(payload.format_id.as_deref(), Some("22"));
     }
 
     #[test]

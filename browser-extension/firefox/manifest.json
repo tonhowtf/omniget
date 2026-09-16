@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "OmniGet",
   "description": "Detect supported media pages and send them to OmniGet with one click.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "default_locale": "en",
   "browser_specific_settings": {
     "gecko": {
@@ -20,8 +20,29 @@
     "scripting"
   ],
   "host_permissions": [
+    "*://*/*",
     "http://127.0.0.1/*",
     "http://localhost/*",
+    "http://127.0.0.1:47720/*",
+    "http://127.0.0.1:47721/*",
+    "http://127.0.0.1:47722/*",
+    "http://127.0.0.1:47723/*",
+    "http://127.0.0.1:47724/*",
+    "http://127.0.0.1:47725/*",
+    "http://127.0.0.1:47726/*",
+    "http://127.0.0.1:47727/*",
+    "http://127.0.0.1:47728/*",
+    "http://127.0.0.1:47729/*",
+    "http://localhost:47720/*",
+    "http://localhost:47721/*",
+    "http://localhost:47722/*",
+    "http://localhost:47723/*",
+    "http://localhost:47724/*",
+    "http://localhost:47725/*",
+    "http://localhost:47726/*",
+    "http://localhost:47727/*",
+    "http://localhost:47728/*",
+    "http://localhost:47729/*",
     "*://*.hotmart.com/*",
     "*://*.youtube.com/*",
     "*://*.youtube-nocookie.com/*",
@@ -89,6 +110,14 @@
     ],
     "type": "module"
   },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content/video-detect.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "OmniGet",
