@@ -647,6 +647,7 @@
               onSkipGap={() => {}}
               onTheaterToggle={() => {}}
               onClose={back}
+              onError={onVideoError}
             />
           {/key}
         </div>
