@@ -341,6 +341,8 @@ pub struct AppearanceSettings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DownloadSettings {
     pub default_output_dir: PathBuf,
+    #[serde(default)]
+    pub saved_output_dirs: Vec<String>,
     pub always_ask_path: bool,
     pub video_quality: String,
     pub skip_existing: bool,
@@ -744,6 +746,7 @@ impl Default for AppSettings {
             },
             download: DownloadSettings {
                 default_output_dir: dirs::download_dir().unwrap_or_else(|| PathBuf::from(".")),
+                saved_output_dirs: Vec::new(),
                 always_ask_path: false,
                 video_quality: "720p".into(),
                 skip_existing: true,
@@ -939,5 +942,44 @@ mod backcompat_tests {
         let back: AppSettings = serde_json::from_value(round).expect("volta");
         assert!(back.accessibility.reduce_motion);
         assert!(back.accessibility.reduce_transparency);
+    }
+
+    #[test]
+    fn settings_json_sem_saved_output_dirs_ainda_abre() {
+        let atual = serde_json::to_value(AppSettings::default()).expect("serializa");
+        let mut anterior = atual.clone();
+        let download = anterior
+            .get_mut("download")
+            .and_then(|v| v.as_object_mut())
+            .expect("download");
+        let removida = download.remove("saved_output_dirs");
+        assert!(
+            removida.is_some(),
+            "o campo tem que existir hoje, senao o teste nao prova nada"
+        );
+
+        let parsed: AppSettings =
+            serde_json::from_value(anterior).expect("arquivo antigo tem que abrir");
+        assert!(parsed.download.saved_output_dirs.is_empty());
+        assert_eq!(
+            parsed.download.default_output_dir,
+            AppSettings::default().download.default_output_dir
+        );
+    }
+
+    #[test]
+    fn saved_output_dirs_sobrevive_ao_round_trip() {
+        let mut s = AppSettings::default();
+        s.download.saved_output_dirs = vec!["/tmp/custom".into(), "/tmp/other".into()];
+        let round = serde_json::to_value(&s).expect("serializa");
+        let back: AppSettings = serde_json::from_value(round).expect("volta");
+        assert_eq!(
+            back.download.saved_output_dirs,
+            vec!["/tmp/custom".to_string(), "/tmp/other".to_string()]
+        );
+        assert_eq!(
+            back.download.default_output_dir,
+            s.download.default_output_dir
+        );
     }
 }

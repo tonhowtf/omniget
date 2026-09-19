@@ -9,6 +9,7 @@
   import QualityPicker from "$components/omnibox/QualityPicker.svelte";
   import FormatSelector from "$components/omnibox/FormatSelector.svelte";
   import CookieAccountPicker from "$components/omnibox/CookieAccountPicker.svelte";
+  import OutputLocationPicker from "$components/omnibox/OutputLocationPicker.svelte";
   import OmniboxAdvanced from "$components/omnibox/OmniboxAdvanced.svelte";
   import MediaPreview from "$components/omnibox/MediaPreview.svelte";
   import BatchDownload from "$components/omnibox/BatchDownload.svelte";
@@ -87,6 +88,7 @@
   let formatError = $state<string | null>(null);
   let formatFetchGeneration = $state(0);
   let referer = $state("");
+  let selectedOutputDir = $state("");
 
   // Derived quality data from real yt-dlp format info.
   // These update after the user loads formats via FormatSelector.
@@ -403,6 +405,7 @@
     formatError = null;
     formatFetchGeneration++;
     referer = "";
+    selectedOutputDir = "";
 
     const trimmed = url.trim();
     if (!trimmed) {
@@ -696,7 +699,7 @@
     }
 
     const settings = getSettings();
-    let outputDir = settings?.download.default_output_dir ?? "";
+    let outputDir = selectedOutputDir || settings?.download.default_output_dir || "";
 
     if ((settings?.download.always_ask_path && !settings?.download.auto_download_on_paste) || !outputDir) {
       const selected = await open({
@@ -792,7 +795,7 @@
     const batchUrls = omniState.urls;
 
     const settings = getSettings();
-    let outputDir = settings?.download.default_output_dir ?? "";
+    let outputDir = selectedOutputDir || settings?.download.default_output_dir || "";
 
     if ((settings?.download.always_ask_path && !settings?.download.auto_download_on_paste) || !outputDir) {
       const selected = await open({
@@ -864,7 +867,8 @@
     p2pReceiveUrl = "";
 
     const settings = getSettings();
-    let outputDir = settings?.download.default_output_dir ?? "";
+    // P2P receive has no omnibox location picker; never inherit selectedOutputDir.
+    let outputDir = settings?.download.default_output_dir || "";
 
     if ((settings?.download.always_ask_path && !settings?.download.auto_download_on_paste) || !outputDir) {
       const selected = await open({
@@ -1205,6 +1209,7 @@
               <div class="options-content">
                 <DownloadModeSelector bind:downloadMode onChange={() => { selectedFormatId = null; }} />
                 <QualityPicker bind:selectedQuality selectedFormatId {availableHeights} {hasAudioOnly} />
+                <OutputLocationPicker bind:selectedOutputDir />
                 {#if cookieAccounts.length > 1}
                   <CookieAccountPicker accounts={cookieAccounts} bind:selectedSlug={selectedCookieSlug} />
                 {/if}

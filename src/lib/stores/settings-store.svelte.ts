@@ -8,6 +8,7 @@ export type AppSettings = {
   };
   download: {
     default_output_dir: string;
+    saved_output_dirs: string[];
     always_ask_path: boolean;
     video_quality: string;
     skip_existing: boolean;
