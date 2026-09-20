@@ -4267,6 +4267,7 @@
       "model": "Model",
       "model_desc": "The model identifier for the chosen provider.",
       "model_placeholder": "e.g. gpt-4o-mini, claude-3-5-sonnet-latest, llama3",
+      "api_key": "API key",
       "openai_key": "OpenAI API key",
       "anthropic_key": "Anthropic API key",
       "key_set": "A key is saved. Leave blank to keep it.",

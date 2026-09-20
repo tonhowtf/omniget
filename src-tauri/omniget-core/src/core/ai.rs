@@ -204,6 +204,39 @@ pub fn provider_for_kind(kind: &str) -> AiProvider {
     }
 }
 
+/// Configure the app's AI from a settings form rather than from a vault entry.
+///
+/// `set` cannot be used for this: it keeps the previous `kind`, so the `provider_id`
+/// a request is routed on falls back to the wire (`custom`) and the entry the user
+/// just picked is lost. Deriving the wire from the kind is the same rule
+/// [`provider_for_kind`] documents, and the base URL comes from the kind's default
+/// when the form leaves it out, which is what makes `deepseek`, `groq`, `xai`,
+/// `mistral` and the like reachable without retyping their endpoints.
+pub fn set_with_kind(kind: &str, model: String, base_url: String, key: Option<String>) -> AiConfig {
+    let provider = provider_for_kind(kind);
+    let mut guard = store().lock().unwrap();
+    guard.provider = provider;
+    guard.kind = kind.trim().to_string();
+    guard.key_id = String::new();
+    guard.model = model.trim().to_string();
+    guard.local_base_url = if !base_url.trim().is_empty() {
+        base_url.trim().trim_end_matches('/').to_string()
+    } else if provider == AiProvider::Local {
+        crate::core::tools::ai_keys::app_base_url(kind, "")
+    } else {
+        // The OpenAI and Anthropic wires have a fixed endpoint in `provider_from_config`.
+        String::new()
+    };
+    if let Some(k) = key {
+        match provider {
+            AiProvider::Anthropic => guard.anthropic_key = k.trim().to_string(),
+            _ => guard.openai_key = k.trim().to_string(),
+        }
+    }
+    write_to_disk(&guard);
+    guard.clone()
+}
+
 impl AiConfig {
     /// The `ProviderId` this config represents. Falls back to the wire when the
     /// kind is empty (a config from before the expansion) or stale (the user
@@ -620,5 +653,43 @@ mod tests {
         assert!(!cfg.is_configured());
         cfg.anthropic_key = "k".to_string();
         assert!(cfg.is_configured());
+    }
+
+    /// Choosing a provider by kind has to survive the round trip: the wire is
+    /// derived, the id the request is routed on is the kind, and a provider whose
+    /// endpoint is not `api.openai.com` gets its own base URL without the form
+    /// having to carry one.
+    #[test]
+    fn a_provider_chosen_by_kind_keeps_its_endpoint_and_its_id() {
+        let cfg = AiConfig {
+            provider: provider_for_kind("deepseek"),
+            kind: "deepseek".to_string(),
+            model: "deepseek-chat".to_string(),
+            local_base_url: crate::core::tools::ai_keys::app_base_url("deepseek", ""),
+            openai_key: "k".to_string(),
+            ..Default::default()
+        };
+
+        // deepseek speaks the openai dialect, so it routes as Local - and that is not a
+        // downgrade, it is what makes the base URL below reachable at all
+        assert_eq!(cfg.provider, AiProvider::Local);
+        assert_eq!(cfg.provider_id(), "deepseek");
+        assert_eq!(cfg.local_base_url, "https://api.deepseek.com");
+        assert!(cfg.is_configured());
+
+        // the same rule for a kind on the other wire, where the endpoint is fixed in
+        // provider_from_config and must stay empty so it is not mistaken for a local URL
+        assert_eq!(provider_for_kind("anthropic"), AiProvider::Anthropic);
+        assert_eq!(provider_for_kind("openai"), AiProvider::Openai);
+    }
+
+    /// GEMINI is the one non-OpenAI wire that still needs a URL, and it needs the
+    /// OpenAI-compatible route rather than the native one.
+    #[test]
+    fn gemini_by_kind_gets_its_openai_compatible_route() {
+        let url = crate::core::tools::ai_keys::app_base_url("gemini", "");
+
+        assert!(url.ends_with("/openai"), "{url}");
+        assert_eq!(provider_for_kind("gemini"), AiProvider::Local);
     }
 }

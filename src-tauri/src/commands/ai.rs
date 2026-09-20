@@ -11,11 +11,22 @@ pub fn ai_get_config() -> AiConfigView {
 #[tauri::command]
 pub fn ai_set_config(
     provider: AiProvider,
+    kind: Option<String>,
     model: String,
     local_base_url: String,
     openai_key: Option<String>,
     anthropic_key: Option<String>,
 ) -> AiConfigView {
+    // A kind means the settings form picked a provider out of the vault table, which is
+    // the only thing that can say which endpoint and which wire to use. Without one the
+    // older three-value form is in play and `provider` stays authoritative.
+    if let Some(kind) = kind.filter(|k| !k.trim().is_empty() && k != "none") {
+        let key = match ai::provider_for_kind(&kind) {
+            AiProvider::Anthropic => anthropic_key.or(openai_key),
+            _ => openai_key.or(anthropic_key),
+        };
+        return ai::set_with_kind(&kind, model, local_base_url, key).view();
+    }
     ai::set(provider, model, local_base_url, openai_key, anthropic_key).view()
 }
 

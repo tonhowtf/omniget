@@ -2777,6 +2777,7 @@ export type TranslationKeys =
   | 'settings.advanced.user_agent_desc'
   | 'settings.advanced.user_agent_placeholder'
   | 'settings.ai.anthropic_key'
+  | 'settings.ai.api_key'
   | 'settings.ai.history'
   | 'settings.ai.history_clear'
   | 'settings.ai.history_clear_confirm'

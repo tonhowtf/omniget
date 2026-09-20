@@ -4267,6 +4267,7 @@
       "model": "Модель",
       "model_desc": "Идентификатор модели для выбранного провайдера.",
       "model_placeholder": "например gpt-4o-mini, claude-3-5-sonnet-latest, llama3",
+      "api_key": "API key",
       "openai_key": "Ключ API OpenAI",
       "anthropic_key": "Ключ API Anthropic",
       "key_set": "Ключ сохранён. Оставьте пустым, чтобы не менять.",

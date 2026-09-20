@@ -4267,6 +4267,7 @@
       "model": "モデル",
       "model_desc": "選択したプロバイダーのモデル識別子。",
       "model_placeholder": "例: gpt-4o-mini, claude-3-5-sonnet-latest, llama3",
+      "api_key": "API key",
       "openai_key": "OpenAI API キー",
       "anthropic_key": "Anthropic API キー",
       "key_set": "キーは保存済みです。空欄のままにすると保持されます。",
