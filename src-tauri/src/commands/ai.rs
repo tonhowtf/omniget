@@ -1,4 +1,4 @@
-use omniget_core::core::ai::{self, AiConfigView, AiHistoryEntry, AiProvider};
+use omniget_core::core::ai::{self, AiConfigView, AiHistoryEntry, AiProvider, KeyAction};
 use serde::Serialize;
 
 const MAX_TRANSCRIPT_CHARS: usize = 12000;
@@ -8,26 +8,44 @@ pub fn ai_get_config() -> AiConfigView {
     ai::get().view()
 }
 
+/// `key_action` is `keep` | `set` | `clear`, with the new credential in `key` when it is
+/// `set`. A blank field is not the same request as a provider switch: the field means
+/// "keep what is stored" while switching providers means "do not carry the other
+/// provider's credential over" (`clear`), and collapsing both into `Option::None` is what
+/// sent one provider's key to another's endpoint.
 #[tauri::command]
 pub fn ai_set_config(
     provider: AiProvider,
     kind: Option<String>,
     model: String,
     local_base_url: String,
-    openai_key: Option<String>,
-    anthropic_key: Option<String>,
-) -> AiConfigView {
+    key_action: Option<String>,
+    key: Option<String>,
+) -> Result<AiConfigView, String> {
+    let action = match key_action.as_deref() {
+        None | Some("keep") => KeyAction::Keep,
+        Some("clear") => KeyAction::Clear,
+        Some("set") => match key.as_deref().map(str::trim) {
+            Some(k) if !k.is_empty() => KeyAction::Set(k),
+            _ => KeyAction::Clear,
+        },
+        Some(other) => return Err(format!("unknown key_action: {other}")),
+    };
+
+    // Turning AI off is its own transition: it has to drop the recorded kind too, or the
+    // next read of the config reports the provider that was configured before it was off.
+    if provider == AiProvider::None && kind.as_deref().map(str::trim).unwrap_or("none") == "none" {
+        return Ok(ai::clear().view());
+    }
+
     // A kind means the settings form picked a provider out of the vault table, which is
     // the only thing that can say which endpoint and which wire to use. Without one the
     // older three-value form is in play and `provider` stays authoritative.
     if let Some(kind) = kind.filter(|k| !k.trim().is_empty() && k != "none") {
-        let key = match ai::provider_for_kind(&kind) {
-            AiProvider::Anthropic => anthropic_key.or(openai_key),
-            _ => openai_key.or(anthropic_key),
-        };
-        return ai::set_with_kind(&kind, model, local_base_url, key).view();
+        return Ok(ai::set_with_kind(&kind, model, local_base_url, action).view());
     }
-    ai::set(provider, model, local_base_url, openai_key, anthropic_key).view()
+
+    Ok(ai::set(provider, model, local_base_url, None, None).view())
 }
 
 #[tauri::command]

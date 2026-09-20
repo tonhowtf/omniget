@@ -143,6 +143,28 @@ impl Kind {
         self.base_url
     }
 
+    /// Whether the key field applies to this provider at all. A local server answers
+    /// without one, so showing the field would invite the user to paste a key that is
+    /// then sent nowhere.
+    pub fn needs_key(&self) -> bool {
+        matches!(self.id, "openai" | "anthropic")
+            || (self.wire == "openai" && !matches!(self.id, "ollama" | "custom"))
+            || self.wire == "gemini"
+    }
+
+    /// Whether the base URL has to be typed rather than taken from the table.
+    ///
+    /// Derived from the table instead of kept as a second list: a URL that only has a
+    /// shape is a placeholder, and a provider behind one cannot be reached until the
+    /// user replaces it. Keeping the list next to the table means a row added later
+    /// cannot be forgotten by it.
+    pub fn base_url_editable(&self) -> bool {
+        matches!(self.id, "ollama" | "custom")
+            || url::Url::parse(self.base_url)
+                .map(|u| u.host_str() == Some("seu-site.com"))
+                .unwrap_or(false)
+    }
+
     /// The environment variable the ecosystem expects this key under, used by
     /// the `.env`/Codex exports. Empty when the provider needs no key.
     pub fn env_var(&self) -> &'static str {

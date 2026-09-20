@@ -8,7 +8,17 @@
   // reading it instead of repeating it here: the list was hardcoded to three entries
   // while twelve exist, which is what left deepseek and the other eight unreachable
   // from this panel even though every other surface could already use them.
-  type Kind = { id: string; name: string; base_url: string; balance: boolean; env: string };
+  // needs_key / base_url_editable come from the same rows, so a provider added later
+  // cannot be missing from a second list kept somewhere else.
+  type Kind = {
+    id: string;
+    name: string;
+    base_url: string;
+    balance: boolean;
+    env: string;
+    needs_key: boolean;
+    base_url_editable: boolean;
+  };
   // a model name is not available from the registry, so these are placeholders only -
   // the field stays free text and whatever the provider accepts is what works
   const MODEL_HINTS: Record<string, string> = {
@@ -24,11 +34,6 @@
     newapi: "gpt-4o-mini",
     ollama: "llama3.2"
   };
-  // only the two that have to be typed point at a URL of their own; the rest have an
-  // endpoint in the table or a fixed one in provider_from_config
-  const NEEDS_BASE_URL = new Set(["ollama", "custom"]);
-  // ollama and custom take no key; an empty key is a valid state for every other kind
-  const NEEDS_KEY = new Set(["openai", "anthropic", "openrouter", "deepseek", "gemini", "groq", "xai", "mistral", "siliconflow", "newapi"]);
 
   type Provider = "none" | "openai" | "anthropic" | "local";
   type ConfigView = {
@@ -52,6 +57,8 @@
   // "none" | a kind id. The kind is the selection; the legacy `provider` string is
   // derived from it server-side so a request still has a wire to speak.
   let kind = $state<string>("none");
+  // the kind the saved config already had, so a switch can be told from a re-save
+  let savedKind = $state<string>("none");
   let model = $state("");
   let localBaseUrl = $state("");
   let keyInput = $state("");
@@ -65,8 +72,8 @@
   let history = $state<HistoryEntry[]>([]);
 
   const selectedKind = $derived(kinds.find((k) => k.id === kind));
-  const needsBaseUrl = $derived(NEEDS_BASE_URL.has(kind));
-  const needsKey = $derived(kind !== "none" && NEEDS_KEY.has(kind));
+  const needsKey = $derived(!!selectedKind?.needs_key);
+  const needsBaseUrl = $derived(!!selectedKind?.base_url_editable);
 
   async function loadKinds() {
     try {
@@ -79,7 +86,11 @@
   async function loadConfig() {
     try {
       const c = await invoke<ConfigView>("ai_get_config");
-      kind = c.kind || c.provider;
+      // an older build stored no kind at all. `custom` is what the server falls back to
+      // for a bare local endpoint, so the picker shows that instead of a name it does
+      // not carry, and the endpoint stays editable
+      kind = c.kind || (c.provider === "local" ? "custom" : c.provider);
+      savedKind = kind;
       model = c.model;
       localBaseUrl = c.local_base_url;
       hasKey = c.provider === "anthropic" ? c.has_anthropic_key : c.has_openai_key;
@@ -104,26 +115,33 @@
   });
 
   // the endpoint belongs to the provider, so it follows the choice instead of being
-  // retyped. `custom` and `ollama` are the two that keep whatever the user typed.
+  // retyped. Providers whose table URL is real keep it; the ones whose URL only has a
+  // shape (ollama, custom, and a relay that is deployed per site) take what is typed.
   function onKindChange() {
     const k = selectedKind;
-    if (!k) return;
-    if (!needsBaseUrl) {
+    if (!k) {
       localBaseUrl = "";
-    } else if (!localBaseUrl.trim()) {
-      localBaseUrl = k.base_url;
+      return;
     }
+    localBaseUrl = k.base_url_editable ? (localBaseUrl.trim() ? localBaseUrl : k.base_url) : "";
   }
 
   async function save() {
     try {
+      // leaving the field blank keeps the stored credential, but only while the
+      // provider stays the same: switching providers has to clear it, or the previous
+      // provider's key is sent to the new endpoint as a bearer token
+      const switched = kind !== savedKind;
+      const entered = keyInput.trim();
+      const keyAction = entered ? "set" : switched ? "clear" : "keep";
+
       await invoke("ai_set_config", {
         provider: kind === "none" ? "none" : "local",
         kind: kind === "none" ? null : kind,
         model: model.trim(),
-        localBaseUrl: localBaseUrl.trim(),
-        openaiKey: keyInput.trim() !== "" ? keyInput.trim() : null,
-        anthropicKey: keyInput.trim() !== "" ? keyInput.trim() : null,
+        localBaseUrl: needsBaseUrl ? localBaseUrl.trim() : "",
+        keyAction,
+        key: entered ? entered : null,
       });
       await loadConfig();
       showToast("success", $t("settings.ai.saved") as string);
