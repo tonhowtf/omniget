@@ -23,7 +23,7 @@
   import WorldCanvas from "$components/world/WorldCanvas.svelte";
   import HousePanel from "$components/world/HousePanel.svelte";
   import CityCanvas from "$components/world/CityCanvas.svelte";
-  import CityPanel from "$components/world/CityPanel.svelte";
+  import CityPanel, { type EditorHandoff } from "$components/world/CityPanel.svelte";
   import ActivityPanel from "$components/world/ActivityPanel.svelte";
   import type { AgentRow } from "$lib/world/activity";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -43,8 +43,9 @@
   let cityMode = $state<{ city: string; server: string | null } | null>(null);
   let cityState = $state<{ region: string; ent: number; tick: number; interior: boolean } | null>(null);
   let cityRef = $state<{ say: (ent: number, text: string) => void; goTo: (tile: [number, number]) => Promise<void> } | null>(null);
-  let cityPanelRef = $state<{ refreshHome: () => void } | null>(null);
+  let cityPanelRef = $state<{ refreshHome: () => void; clearTool: () => void; selectionChanged: (id: string | null) => void; editorChanged: () => void } | null>(null);
   let cityCrop = $state("carrot");
+  let cityEdit = $state<EditorHandoff | null>(null);
   let canvasRef = $state<{ say: (ent: number, text: string) => void; focus: (ent: number) => void; frameHouse: () => void } | null>(null);
   let residents = $state<AgentRow[]>([]);
   let demoBusy = $state(false);
@@ -130,6 +131,13 @@
           city={cityMode.city}
           server={cityMode.server}
           crop={cityCrop}
+          editor={cityEdit?.editor ?? null}
+          tool={cityEdit?.tool ?? null}
+          published={cityEdit?.published ?? null}
+          plotRect={cityEdit?.plotRect ?? null}
+          onedit={() => cityPanelRef?.editorChanged()}
+          onselect={(id) => cityPanelRef?.selectionChanged(id)}
+          oncleartool={() => cityPanelRef?.clearTool()}
           onfarm={(r) => {
             if (r.ok) cityPanelRef?.refreshHome();
             else showToast("error", $t(`world.city.farm_${r.code.toLowerCase().replace(/^err_world_(farm_)?/, "")}`) as string);
@@ -149,10 +157,12 @@
       where={cityState}
       crop={cityCrop}
       oncrop={(c) => (cityCrop = c)}
+      oneditor={(s) => (cityEdit = s)}
       onenter={(c) => (cityMode = c)}
       onleave={() => {
         cityMode = null;
         cityState = null;
+        cityEdit = null;
       }}
       onsay={(ent, text) => cityRef?.say(ent, text)}
       ongoto={(tile) => void cityRef?.goTo(tile)}

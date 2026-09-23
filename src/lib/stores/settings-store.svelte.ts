@@ -99,6 +99,8 @@ export type AppSettings = {
     enabled?: boolean;
     tier_override?: number | null;
     tier_measured?: number | null;
+    /** Force a renderer backend (gl2, gl1, canvas2d); null picks by tier. */
+    backend_override?: "gl2" | "gl1" | "canvas2d" | null;
     measured_median_ms?: number | null;
     measured_app_version?: string | null;
     thinking?: boolean;
