@@ -1,0 +1,153 @@
+# Goose. Source: estudo 75/06 0A, 0B.3, 0C.1-0C.10, Part 4 "Goose" (a)-(k) and cross-tool tables, Part 6 §2.3/§2.4 (goose), §5.4, §6.1, §8, §9.
+id = "goose"
+name = "Goose"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://goose-docs.ai"
+notes = "Repo moved from block/goose to aaif-goose/goose (Linux Foundation AAIF). MCP servers are called extensions in config.yaml. Hooks load only from Open Plugins under .agents/plugins/<name>/hooks/hooks.json. SSE is not supported."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["goose"]
+home_dirs = ["{xdg_config}/goose"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".goosehints", ".goose"]
+global_dir = "{xdg_config}/goose"
+
+[formats]
+rule = "agents_md"
+agent = "claude"
+command = "goose_recipe"
+skill = "skill_dir"
+hook = "goose"
+setting = "goose"          # config.yaml GOOSE_MODE/provider + permission.yaml (convert/setting_tools.rs)
+
+[reads_claude]
+rules = false     # only when CONTEXT_FILE_NAMES is set to include CLAUDE.md
+agents = true
+commands = false
+hooks = false
+skills = true
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "{xdg_config}/goose/AGENTS.md"
+project_alt = [".goosehints"]
+global_alt = ["{xdg_config}/goose/.goosehints"]
+
+[paths.agents]
+project = ".agents/agents"
+global = "~/.agents/agents"
+project_alt = [".goose/agents", ".claude/agents"]
+global_alt = ["~/.goose/agents", "~/.claude/agents"]
+
+[paths.commands]
+project = ".goose/recipes"
+global = "{xdg_config}/goose/recipes"
+
+[paths.skills]
+project = ".agents/skills"
+global = "~/.agents/skills"
+project_alt = [".goose/skills", ".claude/skills"]
+global_alt = ["~/.claude/skills", "{xdg_config}/goose/skills"]
+
+# Hooks only exist inside a plugin; the plugin name "omniget" is ours (rulesync uses "rulesync").
+[paths.hooks]
+project = ".agents/plugins/omniget/hooks/hooks.json"
+global = "~/.agents/plugins/omniget/hooks/hooks.json"
+
+[paths.settings]
+global = "{xdg_config}/goose/config.yaml"
+global_windows = "{app_support}/Block/goose/config/config.yaml"
+
+[paths.permissions]
+global = "{xdg_config}/goose/permission.yaml"
+
+[paths.plugins]
+project = ".agents/plugins"
+global = "~/.agents/plugins"
+
+[[mcp]]
+surface = "cli"
+format = "yaml"
+global = "{xdg_config}/goose/config.yaml"
+global_windows = "{app_support}/Block/goose/config/config.yaml"
+key = ["extensions"]
+container = "map"
+stdio_shape = "goose"
+remote_shape = "goose"
+transports = ["stdio", "http"]
+default = true
+
+[hook_event_map]
+SessionStart = "SessionStart"
+SessionEnd = "SessionEnd"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"
+PostToolUse = "PostToolUse"
+PostToolUseFailure = "PostToolUseFailure"
+Stop = "Stop"
+
+# Matcher is a regex; a bare "*" is invalid and silently skipped.
+[hooks]
+shape = "goose"
+timeout_unit = "s"
+events_count = 12
+
+[tool_name_map]
+Bash = "shell"
+Edit = "edit"
+Write = "write"
+Glob = "tree"
+WebFetch = ""
+Agent = "delegate"
+TodoWrite = "todo__todo_write"
+AskUserQuestion = ""
+mcp = "{server}__{tool}"
+
+[placeholder_map]
+args = "{{ args }}"
+arg = ""
+shell = ""
+file = ""
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+# permission.yaml: keys user / smart_approve, each {always_allow, ask_before, never_allow} tool-name lists.
+[permissions]
+syntax = "goose"                       # permission.yaml user.{always_allow,ask_before,never_allow} (tool names) + GOOSE_MODE
+key = ["user"]
+lists = ["always_allow", "ask_before", "never_allow"]
+
+# Windows: %APPDATA%/Block/goose/data/sessions/sessions.db
+[transcripts]
+globs = ["{xdg_data}/goose/sessions/sessions.db"]
+parser = "goose_sqlite"
+format = "sqlite"
+
+[runner]
+cmd = "goose"
+headless = ["run", "-t"]
+json_flag = ["--output-format", "stream-json"]
+model_flag = "--model"
+
+[acp]
+native = true
+cmd = "goose"
+args = ["acp"]
+registry_id = "goose"

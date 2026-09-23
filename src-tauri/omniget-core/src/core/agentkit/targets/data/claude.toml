@@ -1,0 +1,213 @@
+# Claude Code. Source: estudo 75/06 Part 1 "Claude Code" (a)-(k), 0B.1, 0C.
+id = "claude"
+name = "Claude Code"
+tier = 1
+status = "active"
+beta = false
+homepage = "https://code.claude.com"
+notes = "Reference format. Every other adapter converts from this shape."
+reads_agents_dir = false
+reads_agents_md = "fallback"
+
+[detect]
+binaries = ["claude"]
+home_dirs = ["~/.claude"]
+vscode_extensions = ["anthropic.claude-code"]
+app_bundles = ["Claude.app"]
+version_args = ["--version"]
+
+[scopes]
+project = true
+global = true
+local = true
+managed = true
+project_markers = [".claude", "CLAUDE.md", ".mcp.json"]
+global_dir = "~/.claude"
+config_dir_env = "CLAUDE_CONFIG_DIR"
+
+[formats]
+rule = "claude"
+agent = "claude"
+command = "claude"
+skill = "skill_dir"
+hook = "claude"
+setting = "claude"
+statusline = "claude"
+plugin = "claude"
+loop = "claude"
+workflow = "claude"
+mod = "claude"
+
+[reads_claude]
+rules = true
+agents = true
+commands = true
+hooks = true
+skills = true
+plugins = true
+settings = true
+statusline = true
+
+
+[paths.rules]
+project = "CLAUDE.md"
+global = "~/.claude/CLAUDE.md"
+project_alt = [".claude/CLAUDE.md", "CLAUDE.local.md"]
+
+[paths.scoped_rules]
+project = ".claude/rules"
+global = "~/.claude/rules"
+
+[paths.agents]
+project = ".claude/agents"
+global = "~/.claude/agents"
+
+[paths.commands]
+project = ".claude/commands"
+global = "~/.claude/commands"
+
+[paths.skills]
+project = ".claude/skills"
+global = "~/.claude/skills"
+
+[paths.hooks]
+project = ".claude/settings.json"
+global = "~/.claude/settings.json"
+local = ".claude/settings.local.json"
+
+[paths.hook_scripts]
+project = ".claude/hooks"
+global = "~/.claude/hooks"
+
+[paths.settings]
+project = ".claude/settings.json"
+global = "~/.claude/settings.json"
+local = ".claude/settings.local.json"
+managed_macos = "/Library/Application Support/ClaudeCode/managed-settings.json"
+managed_linux = "/etc/claude-code/managed-settings.json"
+managed_windows = "C:/ProgramData/ClaudeCode/managed-settings.json"
+
+[paths.statusline]
+project = ".claude/settings.json"
+global = "~/.claude/settings.json"
+local = ".claude/settings.local.json"
+
+[paths.statusline_scripts]
+project = ".claude/scripts"
+global = "~/.claude/scripts"
+
+[paths.plugins]
+# plugins dropped in the skills folder auto-load as <name>@skills-dir (Claude Code >= 2.1.157)
+project = ".claude/skills"
+global = "~/.claude/skills"
+global_alt = ["~/.claude/plugins/cache"]
+
+[paths.mods]
+project = ".claude/skills"
+global = "~/.claude/skills"
+
+[paths.loops]
+project = ".claude/loops"
+global = "~/.claude/loops"
+
+[paths.workflows]
+project = ".claude/workflows"
+global = "~/.claude/workflows"
+
+[[mcp]]
+surface = "cli"
+format = "json"
+project = ".mcp.json"
+global = "~/.claude.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "typed"
+transports = ["stdio", "http", "sse"]
+secret_mode = "env_ref"
+env_ref = "${VAR}"
+prefer_cli = "claude mcp add-json --scope {scope} {name} '{json}'"
+default = true
+
+[hook_event_map]
+SessionStart = "SessionStart"
+SessionEnd = "SessionEnd"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"
+PostToolUse = "PostToolUse"
+PostToolUseFailure = "PostToolUseFailure"
+PermissionRequest = "PermissionRequest"
+Stop = "Stop"
+SubagentStart = "SubagentStart"
+SubagentStop = "SubagentStop"
+PreCompact = "PreCompact"
+Notification = "Notification"
+
+[hooks]
+shape = "claude"
+timeout_unit = "s"
+env_aliases = ["CLAUDE_PROJECT_DIR"]
+
+[tool_name_map]
+Bash = "Bash"
+Read = "Read"
+Edit = "Edit"
+MultiEdit = "MultiEdit"
+Write = "Write"
+Glob = "Glob"
+Grep = "Grep"
+WebFetch = "WebFetch"
+WebSearch = "WebSearch"
+Agent = "Agent"
+Task = "Task"
+TodoWrite = "TodoWrite"
+Skill = "Skill"
+AskUserQuestion = "AskUserQuestion"
+mcp = "mcp__{server}__{tool}"
+
+[placeholder_map]
+args = "$ARGUMENTS"
+arg = "${N}"
+shell = "!`{cmd}`"
+file = "@{path}"
+
+[model_map]
+sonnet = "sonnet"
+opus = "opus"
+haiku = "haiku"
+fable = "fable"
+inherit = "inherit"
+
+[statusline]
+key = ["statusLine"]
+shape = "claude"
+stdin_fields = ["model.display_name", "model.id", "workspace.current_dir", "workspace.project_dir", "cost.total_cost_usd", "session_id", "transcript_path", "version", "output_style.name"]
+
+[permissions]
+syntax = "claude"
+key = ["permissions"]
+lists = ["allow", "ask", "deny"]
+
+[transcripts]
+globs = ["~/.claude/projects/*/*.jsonl"]
+parser = "claude_jsonl"
+format = "jsonl"
+
+[runner]
+cmd = "claude"
+headless = ["-p"]
+json_flag = ["--output-format", "stream-json", "--verbose"]
+resume_flag = "--resume"
+system_prompt_flag = "--append-system-prompt"
+model_flag = "--model"
+permission_flags = { plan = ["--permission-mode", "plan"], accept_edits = ["--permission-mode", "acceptEdits"], bypass = ["--dangerously-skip-permissions"] }
+
+[acp]
+native = false
+cmd = "npx"
+args = ["-y", "@agentclientprotocol/claude-agent-acp"]
+registry_id = "claude-acp"
+
+[trust]
+requires_review = true
+how = "Claude asks to trust the workspace before loading project hooks, MCP servers and plugins."

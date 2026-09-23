@@ -87,7 +87,7 @@ spicetify, 下载管理器, tauri, rust, svelte.
 - **给 Claude Code、Codex 和 Gemini CLI 一个图形界面。** 在 **LLM → Accounts** 添加账号，额度显示在屏幕上。任何支持 Agent Client Protocol 的 CLI（Gemini CLI、goose、opencode）都能成为智能体。
 - **用 Ollama、LM Studio 或 llama-server 运行本地智能体**，离线，不需要密钥。`qwen3:8b` 大约 3 分钟修好演示里的 bug。
 - **Jobs、Loops 和触发器。** 关掉窗口任务照样运行。Loop 会一轮一轮重复，直到你的检查命令（`npm test`）通过。cron 和 webhook 可以启动任务。
-- **内置 MCP 服务器，49 个工具**，可接入 Claude Code、Cursor 和 VS Code。
+- **内置 MCP 服务器，67 个工具**，可接入 Claude Code、Cursor 和 VS Code。
 - **世界。** 一座等距视角的小屋，每个智能体走到自己的工作台，用气泡显示正在用的工具，需要你时向你招手。打开小屋，把代码发给朋友，对方就能进来做客。
 
 完整说明见[英文 README](README.md#agents-and-the-world)。

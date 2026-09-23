@@ -1,0 +1,164 @@
+# Grok Build (xAI). Source: estudo 75/06 Part 5 "Grok" (official Grok Build (a)-(k) + built-in tools, community grok-cli), 0A, 0B.3, 0C.4, 0C.6, 0C.8, 0C.10, Part 6 §2.3/§2.4 (grokcli), §5.2, §6.1, §8.1, §9.
+id = "grok"
+name = "Grok Build"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://docs.x.ai/build/overview"
+notes = "Official open-source xAI CLI (xai-org/grok-build, Rust); claims zero-config Claude Code compatibility (plugins, skills, agents, hooks, MCP, CLAUDE.md). The community superagent-ai/grok-cli also uses ~/.grok but with user-settings.json and grok.db; only config.toml marks the official one."
+reads_agents_dir = false      # reads ~/.agents/skills and ~/.agents/commands, not project .agents/
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["grok"]
+home_dirs = ["~/.grok"]       # shared with community grok-cli; ~/.grok/config.toml disambiguates
+
+[scopes]
+project = true
+global = true
+local = false
+managed = true
+project_markers = [".grok", "AGENTS.md"]
+global_dir = "~/.grok"
+config_dir_env = "GROK_HOME"
+
+[formats]
+rule = "claude"
+agent = "claude"
+command = "claude"
+skill = "skill_dir"
+hook = "claude"
+setting = "grok"
+statusline = "grok"
+plugin = "claude"
+
+[reads_claude]
+rules = true
+agents = true
+commands = true
+hooks = true
+skills = true
+plugins = true
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "~/.grok/AGENTS.md"
+project_alt = ["Agents.md", "AGENT.md", "CLAUDE.md", "Claude.md", "CLAUDE.local.md"]
+
+[paths.scoped_rules]
+project = ".grok/rules"
+global = "~/.grok/rules"
+project_alt = [".claude/rules", ".cursor/rules"]
+
+[paths.agents]
+project = ".grok/agents"
+global = "~/.grok/agents"
+project_alt = [".claude/agents"]
+
+[paths.commands]
+project = ".grok/commands"            # UNVERIFIED
+global = "~/.agents/commands"
+project_alt = [".claude/commands"]
+
+[paths.skills]
+project = ".grok/skills"
+global = "~/.grok/skills"
+project_alt = [".claude/skills"]
+global_alt = ["~/.agents/skills", "~/.claude/skills"]
+
+[paths.hooks]
+project = ".grok/hooks/omniget.json"  # every *.json in .grok/hooks is loaded; project hooks need /hooks-trust
+global = "~/.grok/hooks/omniget.json"
+project_alt = [".claude/settings.json", ".cursor/hooks.json"]
+
+[paths.settings]
+project = ".grok/config.toml"         # project scope holds MCP, plugins and permission rules only
+global = "~/.grok/config.toml"
+global_alt = ["~/.grok/managed_config.toml", "~/.grok/requirements.toml"]
+managed_macos = "/etc/grok/managed_config.toml"
+managed_linux = "/etc/grok/managed_config.toml"
+
+[paths.statusline]
+global = "~/.grok/config.toml"        # a cloned repo cannot set it
+
+[paths.plugins]
+project = ".grok/plugins"
+global = "~/.grok/plugins"
+
+[[mcp]]
+surface = "cli"
+format = "toml"
+project = ".grok/config.toml"
+global = "~/.grok/config.toml"
+key = ["mcp_servers"]
+container = "map"
+stdio_shape = "codex"
+remote_shape = "url"                  # {url, headers, tool_timeout_sec}
+transports = ["stdio", "http"]
+secret_mode = "env_ref"
+env_ref = "${VAR}"
+prefer_cli = "grok mcp add {name} -- {command}"
+default = true
+
+[hook_event_map]
+SessionStart = "SessionStart"
+SessionEnd = "SessionEnd"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"             # the only blocking event
+PostToolUse = "PostToolUse"
+PostToolUseFailure = "PostToolUseFailure"
+Stop = "Stop"
+SubagentStart = "SubagentStart"
+SubagentStop = "SubagentStop"
+PreCompact = "PreCompact"
+Notification = "Notification"
+
+[hooks]
+shape = "claude"                      # stdin is camelCase (hookEventName, sessionId, toolName, toolInput)
+timeout_unit = "s"
+events_count = 14
+
+[tool_name_map]
+Bash = "Bash"
+Read = "Read"
+Edit = "Edit"
+Grep = "Grep"
+WebFetch = "WebFetch"
+WebSearch = "WebSearch"
+mcp = "{server}__{tool}"              # hook/permission matcher for MCP tools is MCPTool
+
+[statusline]
+key = ["ui", "status_line"]
+shape = "grok"                        # type = builtin | command | disabled, refresh_interval
+stdin_fields = ["model.display_name", "context_window.used_percentage", "workspace.branch", "cwd"]
+
+[permissions]
+syntax = "grok"                       # [permission] rules = [{action, tool, pattern}]
+key = ["permission", "rules"]
+lists = ["allow", "deny"]
+
+[transcripts]
+globs = ["~/.grok/sessions/*/*/updates.jsonl"]   # `grok usage <session-id>` is the recommended source
+parser = "grok_jsonl"
+format = "jsonl"
+
+[runner]
+cmd = "grok"
+headless = ["-p"]
+json_flag = ["--output-format", "streaming-json"]
+resume_flag = "--resume"
+system_prompt_flag = "--rules"
+model_flag = "-m"
+permission_flags = { bypass = ["--always-approve"] }
+
+[acp]
+native = true
+cmd = "grok"
+args = ["agent", "stdio"]
+registry_id = "grok-build"
+
+[trust]
+requires_review = true
+how = "Project .grok/hooks need /hooks-trust or --trust; trust is stored in ~/.grok/trusted_folders.toml."

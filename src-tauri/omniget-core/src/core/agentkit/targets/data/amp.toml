@@ -1,0 +1,147 @@
+# Amp. Source: estudo 75/06 Part 2 "Amp" (a)-(k) + built-in tools + cross-tool cheat sheet, 0B.1, 0C.2, 0C.4, 0C.6, 0C.8, 0C.10, Part 6 §2.2-§2.4 (amp), §5.2, §8.1, §9.
+id = "amp"
+name = "Amp"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://ampcode.com"
+notes = "Sourcegraph spin-off (Amp Inc.); web + CLI product whose threads live server-side. No built-in permission prompts; custom agents, commands and hooks are TypeScript plugins, not files. ACP only through the community amp-acp adapter."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["amp"]
+home_dirs = ["{xdg_config}/amp", "{xdg_data}/amp"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = true
+project_markers = [".amp", "AGENTS.md"]
+global_dir = "{xdg_config}/amp"
+
+[formats]
+rule = "agents_md"
+agent = "simulated"       # custom agents/modes are plugin code (amp.createAgent)
+command = "skill"         # no Markdown slash commands; plugins use amp.registerCommand
+skill = "skill_dir"
+hook = "code_plugin"      # plugin amp.on(...) handlers
+setting = "amp"
+plugin = "code_plugin"
+
+[reads_claude]
+rules = true              # CLAUDE.md is used when a dir has no AGENTS.md
+agents = false
+commands = false
+hooks = false
+skills = true             # .claude/skills, ~/.claude/skills, ~/.claude/plugins/cache
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "{xdg_config}/amp/AGENTS.md"
+project_alt = ["AGENT.md", "CLAUDE.md"]
+global_alt = ["{xdg_config}/AGENTS.md"]
+managed_macos = "/Library/Application Support/ampcode/AGENTS.md"
+managed_linux = "/etc/ampcode/AGENTS.md"
+managed_windows = "C:/ProgramData/ampcode/AGENTS.md"
+
+[paths.skills]
+project = ".agents/skills"
+global = "{xdg_config}/agents/skills"
+project_alt = [".claude/skills"]
+global_alt = ["~/.agents/skills", "{xdg_config}/amp/skills", "~/.claude/skills", "~/.claude/plugins/cache"]
+
+[paths.hooks]
+project = ".amp/plugins"              # directory of TS plugins (no hooks.json)
+global = "{xdg_config}/amp/plugins"
+
+[paths.settings]
+project = ".amp/settings.json"
+global = "{xdg_config}/amp/settings.json"
+project_alt = [".amp/settings.jsonc"]
+global_alt = ["{xdg_config}/amp/settings.jsonc"]
+managed_macos = "/Library/Application Support/ampcode/managed-settings.json"
+managed_linux = "/etc/ampcode/managed-settings.json"
+managed_windows = "C:/ProgramData/ampcode/managed-settings.json"
+
+[paths.plugins]
+project = ".amp/plugins"
+global = "{xdg_config}/amp/plugins"
+
+[[mcp]]
+surface = "cli"
+format = "jsonc"
+project = ".amp/settings.json"
+global = "{xdg_config}/amp/settings.json"
+key = ["amp.mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "url"
+transports = ["stdio", "http", "sse"]  # transport inferred from the URL
+secret_mode = "env_ref"
+env_ref = "${VAR}"
+prefer_cli = "amp mcp add {name} -- {command}"
+default = true
+
+# Plugin events (session.start, agent.start, tool.call, tool.result, agent.end, changes.prompt) mapped by meaning.
+[hook_event_map]
+SessionStart = "session.start"
+PreToolUse = "tool.call"
+PostToolUse = "tool.result"
+Stop = "agent.end"
+
+[hooks]
+shape = "code_plugin"
+events_count = 6
+
+[tool_name_map]
+Bash = "Bash"
+Read = "Read"
+Edit = "edit_file"
+Write = "create_file"
+Glob = "glob"
+Grep = "Grep"
+WebFetch = "read_web_page"
+WebSearch = "web_search"
+Agent = "Task"
+TodoWrite = "todo_write"
+mcp = "mcp__{server}__{tool}"
+
+[placeholder_map]
+args = ""
+arg = ""
+shell = ""
+file = ""
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""              # model comes from the mode (The Dial), not a model key
+
+[permissions]
+syntax = "none"           # tools run without approval; policy only via a plugin or amp.mcpPermissions
+
+[transcripts]
+globs = ["{xdg_data}/amp/threads/T-*.json"]   # local copies; third-party sources, not in official docs
+parser = "amp_json"
+format = "json"
+
+[runner]
+cmd = "amp"
+headless = ["-x"]
+json_flag = ["--stream-json"]
+resume_flag = "threads continue"
+
+[acp]
+native = false
+registry_id = "amp-acp"
+
+[trust]
+requires_review = false
+how = "No workspace trust or approval prompts; only amp.mcpPermissions and amp.mcpTrustedServers gate MCP servers."

@@ -75,6 +75,8 @@ thiserror = "1"
 hmac = "0.12"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 open = "5"
+# Terminal embutido da Central (PTY multiplataforma do wezterm).
+portable-pty = "0.9"
 omniget-core = { path = "omniget-core", features = ["desktop"] }
 omniget-plugin-sdk = { path = "omniget-plugin-sdk" }
 omnidisc-proto = { path = "omnidisc-proto" }

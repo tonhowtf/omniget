@@ -1,0 +1,170 @@
+# Google Gemini CLI. Source: estudo 75/06 0B.1, 0C.1-0C.10, Part 1 "Google Gemini CLI" (a)-(k) + cross-tool maps, Part 6 §4, §5.4, §6.1, §8.1, §9.
+id = "gemini"
+name = "Gemini CLI"
+tier = 1
+status = "active"
+beta = true
+homepage = "https://geminicli.com"
+notes = "AGENTS.md is read only when listed in context.fileName. Hook timeouts are in milliseconds and MCP tool ids use single underscores (mcp_server_tool)."
+reads_agents_dir = true
+reads_agents_md = "opt-in"
+
+[detect]
+binaries = ["gemini"]
+home_dirs = ["~/.gemini"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = true              # system /etc/gemini-cli/settings.json and admin policies
+project_markers = [".gemini", "GEMINI.md"]
+global_dir = "~/.gemini"
+
+[formats]
+rule = "gemini_md"
+agent = "gemini_md"
+command = "gemini_toml"
+skill = "skill_dir"
+hook = "gemini"
+setting = "gemini"
+plugin = "gemini_extension"
+
+[reads_claude]
+rules = false
+agents = false
+commands = false
+hooks = false
+skills = false
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "GEMINI.md"
+global = "~/.gemini/GEMINI.md"
+
+[paths.agents]
+project = ".gemini/agents"
+global = "~/.gemini/agents"
+
+[paths.commands]
+project = ".gemini/commands"
+global = "~/.gemini/commands"
+
+[paths.skills]
+project = ".gemini/skills"
+global = "~/.gemini/skills"
+project_alt = [".agents/skills"]   # beats .gemini/skills in the same tier
+global_alt = ["~/.agents/skills"]
+
+[paths.hooks]
+project = ".gemini/settings.json"
+global = "~/.gemini/settings.json"
+managed_linux = "/etc/gemini-cli/settings.json"
+
+[paths.hook_scripts]
+project = ".gemini/hooks"
+global = "~/.gemini/hooks"      # OmniGet puts global hook scripts next to the settings
+
+[paths.settings]
+project = ".gemini/settings.json"
+global = "~/.gemini/settings.json"
+managed_linux = "/etc/gemini-cli/settings.json"
+
+# Policy Engine TOML files; workspace .gemini/policies is disabled.
+[paths.policies]
+global = "~/.gemini/policies"
+managed_linux = "/etc/gemini-cli/policies"
+managed_macos = "/Library/Application Support/GeminiCli/policies"
+managed_windows = "C:/ProgramData/gemini-cli/policies"
+
+[paths.plugins]
+global = "~/.gemini/extensions"
+
+[[mcp]]
+surface = "cli"
+format = "json"
+project = ".gemini/settings.json"
+global = "~/.gemini/settings.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "gemini"
+transports = ["stdio", "http", "sse"]
+secret_mode = "env_ref"
+env_ref = "${VAR}"
+prefer_cli = "gemini mcp add -s {scope} {name} {command}"
+default = true
+
+[hook_event_map]
+SessionStart = "SessionStart"
+SessionEnd = "SessionEnd"
+UserPromptSubmit = "BeforeAgent"
+PreToolUse = "BeforeTool"
+PostToolUse = "AfterTool"
+Stop = "AfterAgent"
+PreCompact = "PreCompress"
+Notification = "Notification"
+
+[hooks]
+shape = "gemini"
+timeout_unit = "ms"
+env_aliases = ["CLAUDE_PROJECT_DIR"]
+events_count = 11
+
+[tool_name_map]
+Bash = "run_shell_command"
+Read = "read_file"
+Edit = "replace"
+Write = "write_file"
+Glob = "glob"
+Grep = "grep_search"
+WebFetch = "web_fetch"
+WebSearch = "google_web_search"
+Agent = ""                  # each subagent is exposed as a tool named after the agent
+TodoWrite = "write_todos"
+Skill = "activate_skill"
+AskUserQuestion = "ask_user"
+mcp = "mcp_{server}_{tool}"
+
+[placeholder_map]
+args = "{{args}}"
+arg = ""
+shell = "!{{cmd}}"
+file = "@{{path}}"
+
+# Agent model defaults to inherit when omitted; no Claude alias mapping in the study.
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+[permissions]
+syntax = "gemini_policy"
+lists = ["allow", "deny", "ask_user"]
+
+[transcripts]
+globs = ["~/.gemini/tmp/*/chats/session-*.jsonl", "~/.gemini/tmp/*/chats/*/*.jsonl", "~/.gemini/tmp/*/chats/session-*.json"]
+parser = "gemini_jsonl"
+format = "jsonl"
+
+[runner]
+cmd = "gemini"
+headless = ["-p"]
+json_flag = ["--output-format", "stream-json"]
+resume_flag = "--resume"
+model_flag = "--model"
+permission_flags = { plan = ["--approval-mode", "plan"], accept_edits = ["--approval-mode", "auto_edit"], bypass = ["--approval-mode", "yolo"] }
+
+[acp]
+native = true
+cmd = "gemini"
+args = ["--acp"]
+registry_id = "gemini"
+
+[trust]
+requires_review = true
+how = "Gemini fingerprints project hooks and treats a changed hook as untrusted until it is re-enabled in /hooks."

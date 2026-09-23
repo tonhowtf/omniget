@@ -1,0 +1,155 @@
+# Augment Auggie CLI. Source: estudo 75/06 Part 4 "Augment Code / Auggie CLI" (a)-(k) + cross-tool quick tables, Part 5 "Newcomers: Augment Auggie CLI", 0A, 0B.3, 0C.1-0C.6, 0C.8, 0C.10, Part 6 §2.2-§2.4 (augmentcode), §5.2, §9.
+id = "auggie"
+name = "Augment Auggie"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://docs.augmentcode.com"
+notes = "Closed-source CLI (npm @augmentcode/auggie; repo augmentcode/auggie holds examples and changelog) sharing its rules system with the Augment VS Code and JetBrains extensions. Reads CLAUDE.md, .claude/commands, .claude/skills and Claude plugin marketplaces."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["auggie"]
+home_dirs = ["~/.augment"]
+
+[scopes]
+project = true
+global = true
+local = true
+managed = true
+project_markers = [".augment", "AGENTS.md"]
+global_dir = "~/.augment"
+
+[formats]
+rule = "augment_rules"
+agent = "augment_md"      # name, description, color, model, tools | disabled_tools
+command = "claude"
+skill = "skill_dir"
+hook = "claude"
+setting = "augment"
+plugin = "claude"         # .augment-plugin/ with .claude-plugin/ accepted
+
+[reads_claude]
+rules = true
+agents = false
+commands = true
+hooks = false
+skills = true
+plugins = true
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+project_alt = ["CLAUDE.md", ".augment-guidelines"]
+
+[paths.scoped_rules]
+project = ".augment/rules"
+global = "~/.augment/rules"           # user rules are always always_apply
+
+[paths.agents]
+project = ".augment/agents"
+global = "~/.augment/agents"
+
+[paths.commands]
+project = ".augment/commands"
+global = "~/.augment/commands"
+project_alt = [".claude/commands", ".agents/commands"]
+global_alt = ["~/.claude/commands", "~/.agents/commands"]
+
+[paths.skills]
+project = ".augment/skills"
+global = "~/.augment/skills"
+project_alt = [".claude/skills", ".agents/skills"]
+global_alt = ["~/.claude/skills", "~/.agents/skills"]
+
+[paths.hooks]
+project = ".augment/settings.json"
+global = "~/.augment/settings.json"
+local = ".augment/settings.local.json"
+managed_macos = "/etc/augment/settings.json"
+managed_linux = "/etc/augment/settings.json"
+managed_windows = "C:/ProgramData/Augment/settings.json"
+
+[paths.settings]
+project = ".augment/settings.json"
+global = "~/.augment/settings.json"
+local = ".augment/settings.local.json"
+managed_macos = "/etc/augment/settings.json"
+managed_linux = "/etc/augment/settings.json"
+managed_windows = "C:/ProgramData/Augment/settings.json"
+
+[[mcp]]
+surface = "cli"
+format = "jsonc"
+project = ".augment/settings.json"
+global = "~/.augment/settings.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "typed"
+transports = ["stdio", "http", "sse"]
+prefer_cli = "auggie mcp add-json {name} '{json}'"
+default = true
+
+[hook_event_map]
+SessionStart = "SessionStart"
+SessionEnd = "SessionEnd"
+UserPromptSubmit = "PromptSubmit"     # UNVERIFIED
+PreToolUse = "PreToolUse"
+PostToolUse = "PostToolUse"
+Stop = "Stop"
+Notification = "Notification"         # UNVERIFIED
+
+[hooks]
+shape = "claude"
+timeout_unit = "ms"
+events_count = 6
+
+[tool_name_map]
+Bash = "terminal"                     # legacy alias launch-process
+Read = "read"                         # legacy alias view
+Edit = "edit"                         # legacy alias str-replace-editor
+Write = "write"                       # legacy alias save-file
+Glob = ""
+Grep = "codebase-retrieval"
+WebFetch = "web-fetch"
+WebSearch = "web-search"
+Skill = ""
+AskUserQuestion = ""
+mcp = "{tool}-{server}"
+
+[placeholder_map]
+args = "$ARGUMENTS"                   # commands are Claude-compatible
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+[permissions]
+syntax = "augment"                    # toolPermissions [{toolName, shellInputRegex, permission:{type}}]
+key = ["toolPermissions"]
+lists = ["allow", "deny"]
+
+[transcripts]
+globs = ["~/.augment/sessions/*.json"]
+parser = "auggie_json"
+format = "json"
+
+[runner]
+cmd = "auggie"
+headless = ["--print"]
+json_flag = ["--output-format", "json"]
+resume_flag = "--resume"
+model_flag = "--model"
+permission_flags = { plan = ["--ask"] }
+
+[acp]
+native = true
+cmd = "auggie"
+args = ["--acp"]
+registry_id = "auggie"

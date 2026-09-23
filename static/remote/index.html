@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101014">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="referrer" content="no-referrer">
+  <title>OmniGet Remote</title>
+  <link rel="manifest" href="/remote/manifest.webmanifest">
+  <link rel="icon" href="/remote/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/remote/icon.svg">
+  <link rel="stylesheet" href="/remote/app.css">
+  <script src="/remote/app.js" defer></script>
+</head>
+<body>
+  <header class="bar">
+    <button class="icon-btn" id="back" hidden aria-label="Back">&#8249;</button>
+    <div class="bar-title">
+      <div id="title">OmniGet</div>
+      <div id="subtitle" class="muted small"></div>
+    </div>
+    <span id="conn" class="dot" title=""></span>
+  </header>
+  <div id="banner" class="banner" hidden></div>
+  <nav class="tabs" id="tabs" hidden>
+    <button data-tab="threads" class="tab active" id="tab-threads">Threads</button>
+    <button data-tab="sessions" class="tab" id="tab-sessions">Sessions</button>
+    <button data-tab="device" class="tab" id="tab-device">Device</button>
+  </nav>
+  <main id="view" class="view" aria-live="polite"></main>
+  <div id="drawer" class="drawer" hidden>
+    <div class="drawer-handle"></div>
+    <div id="drawer-body"></div>
+  </div>
+  <form id="composer" class="composer" hidden>
+    <textarea id="composer-text" rows="1" placeholder="Message"></textarea>
+    <button type="button" id="stop" class="btn danger" hidden>Stop</button>
+    <button type="submit" id="send" class="btn primary">Send</button>
+  </form>
+</body>
+</html>

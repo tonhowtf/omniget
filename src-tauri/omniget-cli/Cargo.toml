@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "OmniGet command line: download from YouTube, Instagram, X and 1,800+ sites, and run AI agent jobs and loops"
 
+[[bin]]
+name = "omniget-hook-shim"
+path = "src/bin/omniget-hook-shim.rs"
+
 [dependencies]
 omniget-core = { path = "../omniget-core" }
 tokio = { version = "1", features = ["full"] }

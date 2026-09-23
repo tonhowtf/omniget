@@ -13,7 +13,10 @@ As an agents app it is a gui for claude code, a codex gui and a gemini cli gui: 
 to run ai coding agents, multi-agent and parallel agents, an agent client protocol (acp) client, local llm
 agents with ollama and lm studio, run claude code in a loop until tests pass, scheduled and durable agent jobs,
 cron and webhook triggers, permissions with diff review, undo checkpoints, a built-in mcp server and mcp client,
-a claude code plugin, and an isometric world of generative agents. Built with tauri, rust and svelte.
+a claude code plugin, and an isometric world of generative agents. It is also a claude code templates
+catalog and installer for every coding agent (codex, gemini cli, cursor, github copilot, opencode, qwen code,
+kiro, goose, cline, windsurf), an agents.md and agent skills manager, an mcp server installer, a claude code
+usage and cost tracker (ccusage-style) for many tools, git worktrees per agent thread, and a multi-agent arena. Built with tauri, rust and svelte.
 
 GitHub allows 20 topics. The repository uses exactly these 20:
 downloader, download-manager, media-downloader, video-downloader, youtube-downloader, yt-dlp,
@@ -40,7 +43,7 @@ mcp-server, ollama, local-llm
 </p>
 
 <p align="center">
-  Download YouTube, Instagram, TikTok, X, Pinterest and 1,800+ other sites, then transcribe, convert, read and study what you saved.<br/>Run Claude Code, Codex, Gemini CLI and local Ollama models as agents with permissions, undo, jobs and loops, and watch them work in a house you can visit.
+  Download YouTube, Instagram, TikTok, X, Pinterest and 1,800+ other sites, then transcribe, convert, read and study what you saved.<br/>Run Claude Code, Codex, Gemini CLI and local Ollama models as agents with permissions, undo, jobs and loops, and watch them work in a house you can visit.<br/>Install agents, commands, skills, MCP servers and hooks into 34 coding tools from one catalog, and see what every one of them costs you.
 </p>
 
 <p align="center">
@@ -74,6 +77,7 @@ mcp-server, ollama, local-llm
 ## Contents
 
 - [**AI agents and the World**: Claude Code, Codex, Gemini CLI, Ollama, jobs, loops, MCP, the house and visits](#agents-and-the-world)
+  - [**The Central**: threads with worktrees and diffs, a 3,800-component catalog for 34 coding tools, usage for 23 tools, Arena and remote access](#the-central)
 - [Why OmniGet](#why-omniget)
 - [Download and install](#download-and-install)
 - [Your first download in one minute](#your-first-download-in-one-minute)
@@ -101,10 +105,12 @@ mcp-server, ollama, local-llm
   <img src="assets/readme/agents-hero.gif" alt="Loop, the OmniGet mascot, gives two thumbs up in the middle of a cozy isometric house while three small robot agents work at three separate workbenches: one types code on a laptop, one studies a book with a magnifying glass, one repairs a folder with a wrench. Each has a balloon showing the tool it is using" width="900" />
 </p>
 
-Claude Code, run through OmniGet, fixes a failing test in about 15 seconds from one command. It asks permission with the diff on screen, and one click takes the whole turn back. New in 0.10 and now the centre of the app, OmniGet is a desktop app for AI coding agents. It carries the whole system that goes around an agent: a coding harness with permissions and undo, a durable job queue with loops and triggers, a roster that takes your local models, your API keys and the agent CLIs you already pay for, a project memory, and a small world where those agents live and where you can watch them work. It runs on your machine. Nothing talks to the network until you add a key, start a local model or open your house.
+OmniGet 0.10 is a local desktop app for the coding agents you already use. Review the diff before allowing a file edit, restore changed files with Undo, and loop until your check passes. It carries the whole system that goes around an agent: a coding harness with permissions and undo, a durable job queue with loops and triggers, a roster that takes your local models, your API keys and the agent CLIs you already pay for, a project memory, and a small world where those agents live and where you can watch them work. It runs on your machine. Nothing talks to the network until you add a key, start a local model or open your house.
 
 | You want to | Open | What happens |
 | --- | --- | --- |
+| Drive Claude Code, Codex, Gemini CLI or Cursor with a worktree and a diff per turn | **LLM → Threads** | See [the Central](#the-central) |
+| Install agents, commands, skills, MCP servers and hooks into every coding tool | **LLM → Catalog** | See [the Catalog](#the-catalog-one-component-installed-into-every-tool-you-use) |
 | Have an agent change code in a folder | **LLM → Chat** | It reads, edits and runs commands inside that folder only, asks before it writes, and one click undoes the turn |
 | Leave work running | **LLM → Jobs**, **Loops** | The turn survives closing the window and a crash; a Loop repeats until your check command passes |
 | Start work on a schedule or from another program | **LLM → Jobs → Triggers** | A cron line or a webhook on the local bridge starts a job |
@@ -113,6 +119,97 @@ Claude Code, run through OmniGet, fixes a failing test in about 15 seconds from 
 | Several agents in parallel | **LLM → Jobs**, **World** | Two jobs run at once, agents delegate to each other, each at its own workbench |
 | See who is doing what | **World** | Each agent walks to its own workbench, shows the tool in a balloon and waves when it needs you |
 | Show a friend | **World → Open the house** | A code, a visit, a chat. Your app stays the authority |
+
+<a id="the-central"></a>
+
+### The Central: configure, pilot and see every coding agent you already pay for
+
+<p align="center">
+  <img src="assets/readme/central.gif" alt="Loop, the OmniGet mascot, sits at a curved mission-control desk with five monitors. On each monitor a different robot coding agent types in its own window with green and red diff lines and a blinking terminal, while Loop raises a glowing approval card and glowing cables run to a small house-shaped computer" width="900" />
+</p>
+
+New after 0.10.1. The **LLM** section now opens on the Central: one place to configure, drive and watch Claude Code, Codex, Gemini CLI, Cursor, GitHub Copilot, OpenCode, Qwen Code and about 30 other coding agents, without leaving the app you already have. Everything reads and writes on your machine. Nothing is sent anywhere, and there is no telemetry.
+
+| You want to | Open | What happens |
+| --- | --- | --- |
+| Drive Claude Code, Codex or any ACP agent in a real UI | **LLM → Threads** | A thread per task, on its own git worktree, with the diff of every turn, approvals that wait for you, a terminal and a PR button |
+| Install an agent, command, skill, MCP server or hook into all your tools | **LLM → Catalog** | 3,800+ components, converted to each tool's own format, with a diff before anything is written and a clean uninstall |
+| Install, update or log in to the agent CLIs | **LLM → Tools** | Detects 34 tools, shows installed vs latest version, and only updates what it can prove it installed |
+| See what every agent cost you | **LLM → Activity → Usage, Sessions, Retrospective** | Tokens and cost from the logs of 23 tools, a searchable history, and a yearly replay |
+| Race the same prompt across several agents | **LLM → Arena** | Each agent works in its own worktree; compare the diffs side by side and merge the winner |
+| Approve from your phone | **LLM → Configure → Remote access** | Pair with a QR code; the phone sees threads and answers approvals |
+
+#### Threads: every agent CLI in one window, each on its own worktree
+
+- **Drivers for the CLIs you have.** Claude Code runs as one long process per thread (stream-json both ways, permission prompts answered by OmniGet, resume and fork). Codex runs through `codex app-server`. [OpenCode](https://github.com/anomalyco/opencode) runs through `opencode serve`. Any [Agent Client Protocol](https://agentclientprotocol.com) agent runs through a full ACP client: Gemini CLI, Qwen Code, Cursor, GitHub Copilot, Cline, goose, Kimi Code, Grok, Factory Droid, Junie, Auggie, Mistral Vibe, Kiro and more, 24 in the table. OmniGet's own agents, local models included, use the same screen.
+- **A worktree per thread.** Tick *worktree* and the thread gets its own branch (`omniget/<hex>`, renamed from your first message) in its own folder. Two agents on the same repository never step on each other, and your checkout never moves.
+- **A checkpoint per turn.** Every turn is saved in hidden git refs, without touching your index or branches. See the diff of one turn or the whole thread, and **Edit from here** takes the files and the conversation back to any turn, or only the conversation.
+- **Approvals that wait.** A request to edit a file shows the full diff; a shell command shows the command and folder. Allow once, allow for the session, always, deny or cancel. In a thread the request waits for you instead of timing out, and the pet, the phone and the thread all answer the same request.
+- **The timeline.** A finished turn folds into "Worked for 2m 14s" with the answer on top and a one-line summary of what it ran, read and changed. Cost and tokens per turn, changed files per turn, a context ring, a turn minimap, a queue you can steer, `/` commands, `$` skills, `@` files and `#` PRs in the composer, and about 45 keyboard shortcuts with a ⌘K palette.
+- **The side panel.** Diff, Terminal (a real PTY that keeps running when you close the window, up to four splits, *add selection to chat*), Files, Plan, Tasks, PR (commit with a generated message, push, draft PR through `gh`) and a Browser that finds your dev server and lets the agent snapshot, click and read the console of the page.
+- **Sessions from outside.** A Claude Code or Codex session you ran in a terminal can be imported as a read-only thread and resumed in the right driver.
+- **The built-in MCP server comes along.** Each driver session gets its own short-lived token for OmniGet's MCP server, so the agent can use OmniGet's tools, search the catalog, and install a component after you approve.
+
+<p align="center">
+  <img src="assets/readme/illustration-catalog.png" alt="Loop runs a small shop with shelves of glowing cards, jars, plugs and hooks, and hands a glowing card to a queue of robots of different colours and shapes; each robot's card changes to fit the slot on its own chest, and a shield with a check floats over the counter" width="820" />
+</p>
+
+#### The Catalog: one component, installed into every tool you use
+
+A catalog of **3,802 components** that installs into **34 coding tools**, converting the format for each one.
+
+- **Where they come from.** [claude-code-templates](https://github.com/davila7/claude-code-templates) (agents, commands, hooks, MCP servers, settings, statuslines, skills, loops and mods), [anthropics/skills](https://github.com/anthropics/skills), [openai/skills](https://github.com/openai/skills), [google/skills](https://github.com/google/skills), [obra/superpowers](https://github.com/obra/superpowers), [K-Dense scientific skills](https://github.com/K-Dense-AI/scientific-agent-skills) and 36 Claude plugin marketplaces. Each source is pinned to a commit, every file is checked against its sha256 when it is downloaded, and each item keeps its license and author. Skills that are not open source are left out. The [Official MCP Registry](https://registry.modelcontextprotocol.io) is searchable live, and you can add your own repositories and folders.
+- **What is in it.** 1,457 plugins, 1,273 skills, 422 agents, 348 slash commands, 104 MCP servers, 62 hooks, 40 settings, 32 statuslines, 29 Claude mods, 18 loops and 14 project templates.
+- **Converted for each tool.** Many tools now read Claude Code's own files, so for them OmniGet writes the Claude file. For the rest it converts:
+  - **Agents** become Codex TOML agents, Gemini and Qwen agents, OpenCode and Kilo subagents with a permission map, Cursor, Copilot `.agent.md`, Devin, Kiro JSON, goose recipes and Vibe agents. A tool without subagents gets a *simulated* agent that `AGENTS.md` points to.
+  - **Commands** become Gemini TOML (`{{args}}`, `!{cmd}`, `@{file}`), Copilot prompt files, Cline and Devin workflows, goose recipes, Crush commands, or a skill.
+  - **Rules** go to `AGENTS.md` with bridges for `CLAUDE.md`, `GEMINI.md` and Copilot instructions, and scoped rules become Cursor `.mdc`, Copilot `applyTo`, Kiro steering, Devin triggers and the rest.
+  - **Skills** are stored once in `.agents/skills/` and linked into the tools that don't read it.
+  - **MCP servers** are written in about 25 dialects (JSON, JSONC with your comments kept, TOML, YAML), with secrets as variables, never pasted into the file.
+  - **Hooks** are converted across 13 event dialects. A small bundled shim translates each tool's hook input to Claude's, so a Claude hook script such as the dangerous-command blocker also blocks `rm -rf` in Cursor, Gemini, Kiro, Cline and OpenCode.
+  - **Settings** come as ready-made profiles (*read only*, *dev*, *no network*, *autonomous with guard*, *alternative provider*) applied to every tool at once. Statuslines work in Claude Code, Cursor CLI, Qwen, Qoder, Droid and Copilot.
+- **See it before it is written.** The plan shows the diff of every file, the exact command each hook and MCP server will run, and what a tool cannot express. Each install keeps a backup and an entry in `.omniget/agentkit.lock.json`. Uninstalling removes only what OmniGet wrote, byte for byte and in any order. **Installed** lists every install by tool, flags files you edited by hand, copies an install to another tool, and turns plugins on or off.
+- **Scanned before it is installed.** Every component goes through checks for prompt injection, credential reads and exfiltration, destructive commands, `curl | sh`, secrets in MCP configs and dangerous links, with [SkillSpector](https://github.com/NVIDIA/SkillSpector) as a second opinion when it is installed. A blocked item needs two clicks to install anyway. On claude-code-templates it also flags the 20 hooks that read environment variables Claude Code never sets.
+- **Collections** of components, saved locally and exported as an `.omnistack` file. **Project setup** detects your stack and installs only the pieces you tick, plus an `AGENTS.md`, into every tool the project uses.
+- **From a terminal:** `omniget agentkit search|show|install|uninstall|list|doctor|import|export|profiles`, with `--target`, `--scope`, `--dry-run` and a `--yes` that really does not ask.
+
+#### Tools: install, update and log in to the agent CLIs
+
+**LLM → Tools** detects 34 coding tools with their version, how they were installed and where their config and logs live. **Update** only runs when OmniGet can prove who installed the tool (the tool's own updater, npm, pnpm or bun with a matching prefix, or a Homebrew keg); otherwise it shows the command for you to copy. Agents from the [ACP registry](https://agentclientprotocol.com) install in one click, and binaries are checked against their sha256. **Login** opens the tool's own login for the right account, and OmniGet never reads a credential. A daily check, only while the window is open, flags new releases with their changelog. **Configuration** lists every rules, agent, command, skill, hook, MCP and settings file of that tool, with token estimates and a security scan.
+
+<p align="center">
+  <img src="assets/readme/illustration-usage.png" alt="Loop holds a big magnifying glass in front of a wall-sized dashboard with a stacked bar chart, a calendar heatmap of orange squares, a donut chart and a timeline of chat bubbles, while paper scrolls of logs flow in from small colourful robot houses on both sides" width="820" />
+</p>
+
+#### Usage, sessions and a yearly retrospective, for 23 tools
+
+OmniGet reads the session logs your tools already keep: Claude Code, Codex, Gemini CLI, Qwen Code, OpenCode, Kilo, Crush, goose, Cursor, GitHub Copilot, Cline and Roo, Zed, Factory Droid, Kimi Code, Pi, Amp, Aider, Junie, Auggie, Grok and Kiro. It reads them without changing them, and only reads new data after the first pass.
+
+- **Usage.** Tokens (input, output, cache read, cache write, reasoning) and cost per day, model, tool, account and project, a one-year heatmap with streaks, peak hours, and which subagents you call and in what order. Claude Code writes the usage of one reply on several lines. OmniGet counts each reply once; adding every line inflates the total by 1.3 to 3 times on real logs. The cost comes from the tool when it records one, otherwise from the LiteLLM price table, and the page says which.
+- **Sessions.** Every conversation of every tool, grouped by project, with a live *working / waiting for you* badge. A full-text search across all of them answers in a fraction of a second, and the viewer pairs each tool call with its result. **Resume** gives the right command for each tool. **Export** writes Markdown or JSON, and **convert** turns a session into context for another tool. **Analysis** shows the time spent waiting on the agent versus thinking, cache efficiency, cost, model mix and tips. **Team** draws Claude Code's Agent Teams and any tool's subagents as a graph.
+- **Retrospective.** Pick a period and watch it replay on a canvas: models, tools, projects, streaks and milestones.
+
+<p align="center">
+  <img src="assets/readme/illustration-arena.png" alt="Loop, as referee with a whistle, watches three robot agents race along three glowing lanes that branch like git branches, each pulling a cart of code; at the finish a podium with a green check flag and a screen comparing three diffs side by side" width="820" />
+</p>
+
+#### Arena, loops and the sandbox
+
+- **Arena.** Send one prompt to several agents at once (say Claude Code, Codex and a local model). Each one gets its own worktree from the same base. Watch them side by side with time, tokens, cost and an optional check command, compare the diffs, vote, and merge the winner into your branch. Your checkout is only touched if you allow it. A scoreboard remembers how each agent and model did. A plan approved in a thread can go straight to the Arena.
+- **Loops from the catalog.** A catalog loop, such as *build-test-fix*, becomes an OmniGet Loop with the runner you pick: one of your agents, a Claude Code or Codex account, an ACP agent, or a CLI run headless. It installs the components the loop refers to, repeats until your check passes, and can run on an interval or cron with a cost cap. In the demo project Claude Code fixed the bug and passed the check in one round.
+- **Playbooks.** A workflow of steps, each step with its own agent and tool, where each step gets the earlier steps' output as context.
+- **Catalog agents from the terminal.** `omniget agent run cct:agents/development-team/frontend-developer --tool claude "…"` runs a catalog agent as the system prompt of the tool you name.
+- **Docker sandbox.** Run a CLI inside a container on a copy of your project with normal permissions. The API key comes from OmniGet's key vault as a variable, never on the command line, and the result comes back as a per-file diff you apply selectively. E2B is an optional provider.
+
+<p align="center">
+  <img src="assets/readme/illustration-remote.png" alt="Loop relaxes in an armchair on a cozy porch holding a phone with a QR code and a green approve button, while through the window a desktop computer shows three robot agents working, joined to the phone by a dotted glowing line with a padlock" width="820" />
+</p>
+
+#### Remote access from your phone
+
+Off by default. Switch it on, choose where it listens (this computer only for `tailscale serve` or an SSH tunnel, your local network, or your Tailscale address) and scan the QR code. Each phone gets its own revocable token and a scope: *read* only looks, *drive* can send a message, interrupt a turn and answer approvals and questions. The phone app is a small web page served by OmniGet. It lists threads with their status, shows the timeline and diffs, and keeps the last view for offline use. It only reaches the `/remote/*` routes, never the local bridge. There is no cloud relay.
+
+<sub>Tested for real on this release: the Claude Code driver, hooks, loops and `agent run`; OpenCode through ACP and through `opencode serve`; Gemini CLI up to its login; the Codex app-server handshake; and the usage, sessions and retrospective screens on real Claude Code, Codex and Cursor logs. Converters were checked on disk for every tool. Tools that were not installed on the test machine are marked *beta* in the app.</sub>
 
 <a id="talk-and-code-llm-in-the-sidebar"></a>
 
@@ -177,7 +274,7 @@ omniget agent agents
 - **Multi-agent with `agent_delegate`.** One agent hands a task to another and gets the answer back as a tool result, in a child conversation you can open. A local coordinator that delegates the hard part to Claude Code costs exactly one run of the CLI.
 - **A memory the whole team shares.** `AGENTS.md` (or `CLAUDE.md`) plus markdown notes in `.omniget/kb/`, inside your project, in git if you want. The index goes into every prompt, and the agents search and write notes with `kb_search` and `kb_write`.
 - **Skills** install from a folder, a zip, or `owner/repo` and `owner/repo@skill` as in `npx skills add`, and pass through a scanner first.
-- **MCP both ways.** External MCP servers become tools, granted per agent as *auto*, *ask* or *deny*. And OmniGet serves its own 49 tools, the coding ones included, to Claude Code, Cursor, VS Code and the rest: see [OmniGet for AI agents](#omniget-for-ai-agents-mcp-server-and-claude-code-plugin).
+- **MCP both ways.** External MCP servers become tools, granted per agent as *auto*, *ask* or *deny*. And OmniGet serves its own 67 tools, the coding, catalog and browser preview ones included, to Claude Code, Cursor, VS Code and the rest: see [OmniGet for AI agents](#omniget-for-ai-agents-mcp-server-and-claude-code-plugin).
 - **Context pruning, off by default.** On long conversations a judge decides which old tool outputs no longer bear on the task and replaces them with a marker; the call and its id stay, so the agent can run the tool again. It works inside a long turn as well as between turns, and on Claude Code conversations too. The local judge (MiniLM, on your machine) only ever omits an output; the optional remote judge needs a key and says plainly that previews leave your computer. Every request leaves a receipt with measured numbers: outputs omitted, estimated tokens before and after, input tokens the provider billed. No invented percentages.
 - **Budgets.** Per agent: dollars per day, tokens per turn, tool calls per turn. A spent agent goes to sit down, literally.
 
@@ -198,8 +295,10 @@ A house is made on your first visit and the agents of your roster move in, CLI a
 - **Built here.** The simulation is a Rust crate, the renderer is WebGL2, and the app measures your machine once and picks a quality tier. With eight agents working at once it held a median of 64 frames per second on the test machine (debug build). Furniture goes in slots. A hand-crafted yard with four outdoor workbenches is one click away (**World → Quintal artesanal**). Agents only think through a model if you switch that on.
 
 <p align="center">
-  <img src="assets/readme/agents-world.gif" alt="The OmniGet World in the real app: three agents, Omni, Builder and Scout, walk to different workbenches in an isometric house, each with a balloon naming the tool it is running, next to an Activity panel listing who is doing what" width="900" />
+  <img src="assets/readme/agents-world-010.gif" alt="Real OmniGet release capture: Omni, Builder and Scout at three posts in the scripted World demo, with tool activity balloons" width="560" />
 </p>
+
+<p align="center"><sub>Real release capture · scripted demo · 10-second loop, without audio.</sub><br/><a href="https://github.com/tonhowtf/omniget/releases/latest">Run it on your machine — download OmniGet</a></p>
 
 ### Visits: open your house to a friend with a code
 
@@ -657,7 +756,7 @@ All four read the official data export LinkedIn lets you request, on your own ma
 - **Local models (Ollama).** See, download and remove local models and use them as a free provider.
 - **Humanize text.** Rewrite AI-sounding text so it reads like a person wrote it, without changing what it says. Runs on the AI provider you configured. *beta*
 - **API keys.** A local vault for keys and accounts, with a connection test, balance for OpenRouter, DeepSeek, SiliconFlow and New API, and export to Claude Code, Codex, Cherry Studio, opencode or a `.env` file.
-- **MCP server.** OmniGet's tools exposed over the Model Context Protocol on the local bridge, 49 tools behind the same token the extension uses, with ready-made config snippets for Claude Code, Claude Desktop, Cursor, VS Code, Goose and Codex. See [OmniGet for AI agents](#omniget-for-ai-agents-mcp-server-and-claude-code-plugin). *beta*
+- **MCP server.** OmniGet's tools exposed over the Model Context Protocol on the local bridge, 67 tools behind the same token the extension uses, with ready-made config snippets for Claude Code, Claude Desktop, Cursor, VS Code, Goose and Codex. See [OmniGet for AI agents](#omniget-for-ai-agents-mcp-server-and-claude-code-plugin). *beta*
 
 ### CTF and analysis (6)
 
@@ -684,7 +783,7 @@ Every tool that talks to an AI uses the provider you set in **Settings → AI**:
 
 Three doors, depending on where your agent lives.
 
-**Inside the app: the MCP server.** Turn it on in Tools → AI → MCP server and OmniGet exposes 49 of its tools over the Model Context Protocol on the same local bridge the browser extension uses, behind the same per-install token. An agent can queue a URL and watch, pause, resume or cancel it in the Downloads panel, merge, split, render, extract text from or sanitize PDFs, transcribe a file with whisper.cpp, run text to speech and OCR, resize images, find duplicates, search files, read X posts, threads, profiles, searches and trends, look up an Instagram profile through your session, compare LLM prices, humanize text, scan disks and caches, list startup items and installed apps, and pull large files or galleries with aria2 and gallery-dl. New in 0.10, the same server carries the coding tools of the built-in harness, confined to the folder you attached in the app (read, list, glob, grep, edit, write, apply a patch, run a sandboxed command, keep a plan), the project knowledge base (`kb_search`, `kb_write`) and `agent_delegate`, which hands a task to an agent of your roster. The page prints the config snippet for Claude Code, Claude Desktop, Cursor, VS Code, Goose and Codex, so it is a paste, not a setup.
+**Inside the app: the MCP server.** Turn it on in Tools → AI → MCP server and OmniGet exposes 67 of its tools over the Model Context Protocol on the same local bridge the browser extension uses, behind the same per-install token. An agent can queue a URL and watch, pause, resume or cancel it in the Downloads panel, merge, split, render, extract text from or sanitize PDFs, transcribe a file with whisper.cpp, run text to speech and OCR, resize images, find duplicates, search files, read X posts, threads, profiles, searches and trends, look up an Instagram profile through your session, compare LLM prices, humanize text, scan disks and caches, list startup items and installed apps, and pull large files or galleries with aria2 and gallery-dl. New in 0.10, the same server carries the coding tools of the built-in harness, confined to the folder you attached in the app (read, list, glob, grep, edit, write, apply a patch, run a sandboxed command, keep a plan), the project knowledge base (`kb_search`, `kb_write`) and `agent_delegate`, which hands a task to an agent of your roster. The catalog tools (`catalog_search`, `catalog_get`, `catalog_plan_install`, `catalog_install`, which always asks you first) let an agent find and install components, and the `preview_*` tools let it look at, click and read the console of the page open in a thread's Browser tab. Agents driven by the Central get their own short-lived token per session. The page prints the config snippet for Claude Code, Claude Desktop, Cursor, VS Code, Goose and Codex, so it is a paste, not a setup.
 
 **The other way round: MCP servers for your agents.** In **LLM → MCP** you plug external MCP servers into OmniGet, over stdio or streamable HTTP, and their tools show up next to the built-in ones as `mcp:<server>:<tool>`. Each agent gets them one by one, as *auto*, *ask* or *deny*, and a server can never shadow a built-in tool. Secrets in a server's environment or headers are stored as references and resolved only when the server starts. Nothing connects until you enable a server.
 
@@ -832,7 +931,7 @@ Your code goes to the model you chose and nowhere else. With a local model it ne
 
 ### Can I use OmniGet as an MCP server for Claude Code, Cursor or VS Code?
 
-Yes. Tools → AI → MCP server exposes 49 tools over the Model Context Protocol, and the page prints the config snippet for Claude Code, Claude Desktop, Cursor, VS Code, Goose and Codex. The `claude-plugin/` folder also ships a Claude Code plugin that fetches and transcribes media without the desktop app. See [MCP server](#omniget-for-ai-agents-mcp-server-and-claude-code-plugin).
+Yes. Tools → AI → MCP server exposes 67 tools over the Model Context Protocol, and the page prints the config snippet for Claude Code, Claude Desktop, Cursor, VS Code, Goose and Codex. The `claude-plugin/` folder also ships a Claude Code plugin that fetches and transcribes media without the desktop app. See [MCP server](#omniget-for-ai-agents-mcp-server-and-claude-code-plugin).
 
 ### Can several AI agents work together?
 
@@ -887,6 +986,13 @@ omniget import-cookies cookies.txt     # Netscape format
 omniget agent run "fix the failing test in src/cart.js"        # current folder is the workspace
 omniget agent loop "make the suite pass" --check "npm test" --minutes 30
 omniget agent jobs                     # recent jobs; `omniget agent jobs <id>` follows one
+omniget agent run cct:agents/development-team/frontend-developer --tool claude "review this component"
+
+# the catalog: install into every coding tool you use
+omniget agentkit search "code review"
+omniget agentkit install cct:agents/development-team/frontend-developer --target claude,codex,cursor --dry-run
+omniget agentkit profiles              # read-only, dev, no-network, ... for every tool at once
+omniget agentkit doctor
 ```
 
 ---
@@ -948,4 +1054,4 @@ Loop, the creature on the home screen, is OmniGet's mascot. Fan art is welcome. 
 
 ## Standing on open source
 
-OmniGet reads a lot of open source before it writes its own. Thank you to the projects whose ideas shaped the agents, the jobs and the World: [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), [codex-loop](https://github.com/compozy/codex-loop), [cc-loop](https://github.com/compozy/cc-loop), the [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [headroom](https://github.com/headroomlabs-ai/headroom), [yoshi](https://github.com/compozy/yoshi), [fast-jev-compaction](https://github.com/tamaratran/fast-jev-compaction), [ai-town](https://github.com/a16z-infra/ai-town), [smallville](https://github.com/nmatter1/smallville) and the [generative agents](https://github.com/joonspk-research/generative_agents) paper. And to [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org), [Tauri](https://tauri.app) and [Svelte](https://svelte.dev), which everything else stands on.
+OmniGet reads a lot of open source before it writes its own. Thank you to the projects whose ideas shaped the agents, the jobs and the World: [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), [codex-loop](https://github.com/compozy/codex-loop), [cc-loop](https://github.com/compozy/cc-loop), the [Agent Client Protocol](https://agentclientprotocol.com), [claude-code-templates](https://github.com/davila7/claude-code-templates) (the catalog, MIT), [T3 Code](https://github.com/pingdotgg/t3code) (the threads design), [rulesync](https://github.com/dyoshikawa/rulesync), [add-mcp](https://github.com/neon-solutions/add-mcp), [ccusage](https://github.com/ccusage/ccusage), [tokscale](https://github.com/junhoyeo/tokscale), the [Official MCP Registry](https://registry.modelcontextprotocol.io), [SkillSpector](https://github.com/NVIDIA/SkillSpector), [xterm.js](https://xtermjs.org), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [headroom](https://github.com/headroomlabs-ai/headroom), [yoshi](https://github.com/compozy/yoshi), [fast-jev-compaction](https://github.com/tamaratran/fast-jev-compaction), [ai-town](https://github.com/a16z-infra/ai-town), [smallville](https://github.com/nmatter1/smallville) and the [generative agents](https://github.com/joonspk-research/generative_agents) paper. And to [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org), [Tauri](https://tauri.app) and [Svelte](https://svelte.dev), which everything else stands on.

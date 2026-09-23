@@ -11,27 +11,35 @@ pub struct P2pSendHandle {
 }
 pub type ActiveP2pSends = Arc<tokio::sync::Mutex<HashMap<String, P2pSendHandle>>>;
 
+pub mod agentkit_boot;
 pub mod commands;
 pub mod cookies;
 pub mod core;
 pub mod extension_storage;
 pub mod external_url;
 pub mod hotkey;
+pub mod ipc_guard;
 pub mod jobs;
 pub mod limits_strip;
 pub mod llm_manager;
 pub mod local_bridge;
+pub mod local_bridge_agentkit;
 pub mod local_bridge_debug;
 pub mod local_bridge_jobs;
 pub mod local_bridge_llm;
+pub mod local_bridge_observe;
+pub mod local_bridge_remote;
 pub mod mcp;
 pub mod models;
 pub mod platforms;
 pub mod plugin_host;
 pub mod plugin_loader;
 pub mod profile;
+pub mod pty;
+pub mod preview;
 pub mod secrets;
 pub mod storage;
+pub mod threads_host;
 pub mod tray;
 pub mod world_bench;
 pub mod world_manager;
@@ -352,6 +360,9 @@ pub fn run() {
             None,
         ))
         .setup(|app| {
+            crate::agentkit_boot::spawn_ensure_shim();
+            // Acesso remoto (opt-in): segundo listener só com /remote/*; nada roda desligado.
+            tauri::async_runtime::spawn(crate::local_bridge_remote::boot(app.handle().clone()));
             // Provider keys (and anything else the core stores) go through the
             // app's store — keychain where the policy allows it — instead of
             // the core's file default. Must run before any secret is read.
@@ -945,7 +956,7 @@ pub fn run() {
             }
             _ => {}
         })
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler(ipc_guard::guard(tauri::generate_handler![
             commands::auth_webview::open_auth_webview,
             commands::omnidisc::omnidisc_connect,
             commands::omnidisc::gateway::omnidisc_typing,
@@ -1481,6 +1492,204 @@ pub fn run() {
             // Fase 6 (bench do mundo) — f6-bench
             commands::world_bench::world_bench_report,
             // Fase 2 (/llm) — f2-llm-commands, f2-wire-probe; Fase 5 (pet) — f5-pet-window
+            // central:begin (costurado pelo orquestrador; não editar à mão)
+            commands::central::agentkit::agentkit_targets,
+            commands::central::agentkit::agentkit_detect,
+            commands::central::agentkit::agentkit_parse_preview,
+            commands::central::agentkit::agentkit_plan,
+            commands::central::agentkit::agentkit_apply,
+            commands::central::agentkit::agentkit_uninstall,
+            commands::central::agentkit::agentkit_installed,
+            commands::central::agentkit::agentkit_drift,
+            commands::central::agentkit::agentkit_restore,
+            commands::central::agentkit::agentkit_transactions,
+            commands::central::agentkit::agentkit_import_installed,
+            commands::central::threads::threads_snapshot,
+            commands::central::threads::threads_events_after,
+            commands::central::threads::threads_dispatch,
+            commands::central::threads::threads_turns_page,
+            commands::central::threads::threads_drivers,
+            commands::central::vcs::vcs_status,
+            commands::central::vcs::vcs_branches,
+            commands::central::vcs::vcs_log,
+            commands::central::vcs::vcs_project_config,
+            commands::central::vcs::vcs_worktree_create,
+            commands::central::vcs::vcs_worktree_cancel,
+            commands::central::vcs::vcs_worktree_rename_branch,
+            commands::central::vcs::vcs_worktree_remove,
+            commands::central::vcs::vcs_worktree_list,
+            commands::central::vcs::vcs_worktree_cleanup,
+            commands::central::vcs::vcs_checkpoint_capture,
+            commands::central::vcs::vcs_checkpoint_list,
+            commands::central::vcs::vcs_checkpoint_delete,
+            commands::central::vcs::vcs_diff_turn,
+            commands::central::vcs::vcs_diff_full,
+            commands::central::vcs::vcs_diff_range,
+            commands::central::vcs::vcs_restore_turn,
+            commands::central::vcs::vcs_working_changes,
+            commands::central::vcs::vcs_commit_suggest,
+            commands::central::vcs::vcs_commit,
+            commands::central::vcs::vcs_push,
+            commands::central::vcs::vcs_host,
+            commands::central::vcs::vcs_pr_create,
+            commands::central::vcs::vcs_pr_view,
+            commands::central::pty::pty_open,
+            commands::central::pty::pty_write,
+            commands::central::pty::pty_resize,
+            commands::central::pty::pty_close,
+            commands::central::pty::pty_list,
+            commands::central::pty::pty_attach,
+            commands::central::pty::pty_detach,
+            commands::central::pty::pty_ack,
+            commands::central::pty::pty_clear,
+            commands::central::pty::pty_foreground,
+            commands::central::clitools::clitools_list,
+            commands::central::clitools::clitools_detect,
+            commands::central::clitools::clitools_latest,
+            commands::central::clitools::clitools_plan,
+            commands::central::clitools::clitools_run,
+            commands::central::clitools::clitools_login,
+            commands::central::clitools::clitools_acp_registry,
+            commands::central::clitools::clitools_acp_install,
+            commands::central::clitools::clitools_doctor,
+            commands::central::catalog::catalog_meta,
+            commands::central::catalog::catalog_search,
+            commands::central::catalog::catalog_facets,
+            commands::central::catalog::catalog_item,
+            commands::central::catalog::catalog_item_files,
+            commands::central::catalog::catalog_mcp_registry_search,
+            commands::central::catalog::catalog_sources_list,
+            commands::central::catalog::catalog_sources_add,
+            commands::central::catalog::catalog_sources_rescan,
+            commands::central::catalog::catalog_sources_remove,
+            commands::central::catalog::catalog_marketplace,
+            commands::central::catalog::catalog_marketplaces,
+            commands::central::catalog::catalog_collections_list,
+            commands::central::catalog::catalog_collections_create,
+            commands::central::catalog::catalog_collections_rename,
+            commands::central::catalog::catalog_collections_set_defaults,
+            commands::central::catalog::catalog_collections_delete,
+            commands::central::catalog::catalog_collections_add,
+            commands::central::catalog::catalog_collections_remove,
+            commands::central::catalog::catalog_collections_move,
+            commands::central::catalog::catalog_collections_reorder,
+            commands::central::catalog::catalog_collections_export,
+            commands::central::catalog::catalog_collections_import,
+            commands::central::catalog::catalog_install_index,
+            commands::central::sessions::sessions_list,
+            commands::central::sessions::sessions_get,
+            commands::central::sessions::sessions_search,
+            commands::central::sessions::sessions_search_in,
+            commands::central::sessions::sessions_analysis,
+            commands::central::sessions::sessions_usage,
+            commands::central::sessions::sessions_heatmap,
+            commands::central::sessions::sessions_agents,
+            commands::central::sessions::sessions_team,
+            commands::central::sessions::sessions_retro,
+            commands::central::sessions::sessions_export,
+            commands::central::sessions::sessions_import,
+            commands::central::sessions::sessions_resume_command,
+            commands::central::sessions::sessions_sources,
+            commands::central::sessions::sessions_active,
+            commands::central::sessions::sessions_refresh,
+            commands::central::guard::guard_scan_component,
+            commands::central::guard::guard_scan_path,
+            commands::central::guard::guard_scan_paths,
+            commands::central::guard::guard_scan_installed,
+            commands::central::guard::guard_config_stats,
+            commands::central::guard::guard_rules,
+            local_bridge_observe::agentkit_observe_component,
+            local_bridge_observe::agentkit_observe_revoke,
+            local_bridge_observe::agentkit_observe_tools,
+            commands::central::agentkit::agentkit_compat,
+            commands::central::agentkit::agentkit_profiles,
+            commands::central::agentkit::agentkit_profile_plan,
+            commands::central::agentkit::agentkit_loop_plan,
+            commands::central::threads::threads_checkpoints,
+            commands::central::threads::threads_diff,
+            commands::central::threads::threads_revert_to_turn,
+            commands::central::threads::threads_worktree_cancel,
+            commands::central::threads::threads_git_status,
+            commands::central::threads::threads_git_commit_message,
+            commands::central::threads::threads_git_commit,
+            commands::central::threads::threads_git_push,
+            commands::central::threads::threads_git_pr_create,
+            commands::central::threads::threads_git_pr,
+            commands::central::threads::threads_git_pr_refresh,
+            commands::central::threads::threads_files_search,
+            commands::central::threads::threads_terminal_open,
+            commands::central::threads::threads_terminal_close,
+            commands::central::threads::threads_usage,
+            commands::central::threads::threads_limits,
+            commands::central::threads::threads_import_external,
+            commands::central::threads::threads_resume_external,
+            mcp::mcp_thread_get,
+            mcp::mcp_thread_set,
+            mcp::mcp_call_log,
+            commands::central::agentkit::agentkit_plugins_list,
+            commands::central::agentkit::agentkit_plugin_set_enabled,
+            commands::central::remote::remote_status,
+            commands::central::remote::remote_start,
+            commands::central::remote::remote_stop,
+            commands::central::remote::remote_pair_create,
+            commands::central::remote::remote_pair_cancel,
+            commands::central::remote::remote_devices,
+            commands::central::remote::remote_device_revoke,
+            commands::central::remote::remote_device_rename,
+            commands::central::remote::remote_access_log,
+            commands::central::remote::remote_access_log_clear,
+            commands::central::remote::remote_tailscale_status,
+            commands::central::remote::remote_tailscale_serve,
+            commands::central::remote::remote_ssh_command,
+            commands::central::preview::preview_discover_ports,
+            commands::central::preview::preview_open,
+            commands::central::preview::preview_set_bounds,
+            commands::central::preview::preview_hide,
+            commands::central::preview::preview_close,
+            commands::central::preview::preview_navigate,
+            commands::central::preview::preview_history,
+            commands::central::preview::preview_state,
+            commands::central::preview::preview_screenshot,
+            commands::central::preview::preview_report,
+            commands::central::preview::snapshot_list_windows,
+            commands::central::preview::snapshot_capture,
+            commands::central::preview::snapshot_request_permission,
+            commands::central::clitools::clitools_config_files,
+            commands::central::clitools::clitools_updates,
+            commands::central::clitools::clitools_updates_cached,
+            commands::central::arena::arena_create,
+            commands::central::arena::arena_list,
+            commands::central::arena::arena_get,
+            commands::central::arena::arena_diff,
+            commands::central::arena::arena_vote,
+            commands::central::arena::arena_pick,
+            commands::central::arena::arena_verify,
+            commands::central::arena::arena_stop,
+            commands::central::arena::arena_apply_preview,
+            commands::central::arena::arena_apply,
+            commands::central::arena::arena_cleanup,
+            commands::central::arena::arena_delete,
+            commands::central::arena::arena_scoreboard,
+            commands::central::run::run_runners,
+            commands::central::run::run_loop_prepare,
+            commands::central::run::run_loop_start,
+            commands::central::run::run_agent_now,
+            commands::central::run::run_tools,
+            commands::central::run::run_playbook_prepare,
+            commands::central::run::run_playbook_start,
+            commands::central::run::run_playbooks_list,
+            commands::central::run::run_playbook_cancel,
+            commands::central::run::run_playbook_delete,
+            commands::central::run::run_wizard_detect,
+            commands::central::run::run_wizard_plan,
+            commands::central::run::run_wizard_review,
+            commands::central::run::run_sandbox_status,
+            commands::central::run::run_sandbox_dockerfile,
+            commands::central::run::run_sandbox_diff,
+            commands::central::run::run_sandbox_apply,
+            commands::central::run::run_sandbox_discard,
+            commands::central::run::run_stack_detect,
+            // central:end
             commands::llm::roster::llm_roster_list,
             commands::llm::roster::llm_roster_create,
             commands::llm::roster::llm_roster_update,
@@ -1599,13 +1808,23 @@ pub fn run() {
             commands::world::tier::world_tier_get,
             commands::world::tier::world_tier_set,
             commands::world::tier::world_calibration_save,
-        ])
+        ]))
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
             if let tauri::RunEvent::ExitRequested { .. } = &event {
                 // The managed llama-server dies with the app (phase 2).
                 tauri::async_runtime::block_on(omniget_core::core::llm::local_servers::stop());
+                // Central: terminal shells and the CLI driver sessions of the
+                // threads die with the app too (bounded, never blocks exit).
+                crate::pty::manager().shutdown_all();
+                tauri::async_runtime::block_on(async {
+                    let _ = tokio::time::timeout(
+                        std::time::Duration::from_secs(5),
+                        crate::threads_host::shutdown(),
+                    )
+                    .await;
+                });
                 let state = app_handle.state::<AppState>();
                 let session_mutex = state.torrent_session.clone();
                 tauri::async_runtime::block_on(async move {

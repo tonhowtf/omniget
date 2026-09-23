@@ -1,0 +1,152 @@
+# Mistral Vibe. Source: estudo 75/06 0A, 0B.3, 0C.2, 0C.4, 0C.6, 0C.7, Part 5 "Mistral Vibe" (a)-(k), Part 6 §2.2-§2.4 (vibe), §3, §5.1, §5.2, §8.4, §9.
+id = "vibe"
+name = "Mistral Vibe"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://github.com/mistralai/mistral-vibe"
+notes = "Python CLI (vibe) with a separate ACP entrypoint (vibe-acp). Project .vibe/ content and AGENTS.md load only in trusted folders. Commands are skills; agents are TOML; MCP is a [[mcp_servers]] array in config.toml. Claude, Codex and Kimi plugins are adapted automatically."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["vibe", "vibe-acp"]
+home_dirs = ["~/.vibe"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".vibe"]
+global_dir = "~/.vibe"
+config_dir_env = "VIBE_HOME"
+
+[formats]
+rule = "agents_md"
+agent = "vibe_toml"
+command = "skill"
+skill = "skill_dir"
+hook = "vibe_toml"
+setting = "vibe"
+plugin = "agent_plugins"
+
+[reads_claude]
+rules = false
+agents = false
+commands = false
+hooks = false
+skills = false
+plugins = true      # .claude-plugin adapted: skills, MCP, hooks
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "~/.vibe/AGENTS.md"
+
+[paths.agents]
+project = ".vibe/agents"
+global = "~/.vibe/agents"
+
+[paths.prompts]
+# System prompts selected by system_prompt_id (rulesync writes an agent body here).
+project = ".vibe/prompts"
+global = "~/.vibe/prompts"
+
+[paths.commands]
+project = ".vibe/skills"
+global = "~/.vibe/skills"
+
+[paths.skills]
+project = ".vibe/skills"
+global = "~/.vibe/skills"
+project_alt = [".agents/skills"]
+global_alt = ["~/.agents/skills"]
+
+[paths.hooks]
+project = ".vibe/hooks.toml"
+global = "~/.vibe/hooks.toml"
+
+[paths.settings]
+project = ".vibe/config.toml"
+global = "~/.vibe/config.toml"
+
+[paths.plugins]
+project = ".vibe/plugins"
+global = "~/.vibe/plugins"
+
+[[mcp]]
+surface = "cli"
+format = "toml"
+project = ".vibe/config.toml"
+global = "~/.vibe/config.toml"
+key = ["mcp_servers"]
+container = "array"
+name_field = "name"
+stdio_shape = "vibe"
+remote_shape = "vibe"
+transports = ["stdio", "http"]   # transport = stdio | http | streamable-http
+secret_mode = "bearer_env_var"   # [mcp_servers.auth] type = "static" with api_key_env
+prefer_cli = "vibe mcp add {name} --url {url} --transport {transport}"   # remote servers only
+default = true
+
+[hook_event_map]
+PreToolUse = "pre_tool"
+PostToolUse = "post_tool"
+Stop = "post_agent"
+
+[hooks]
+shape = "vibe_toml"
+timeout_unit = "s"
+events_count = 3
+
+[tool_name_map]
+Bash = "bash"
+Read = "read_file"
+Edit = "edit"
+Write = "write_file"
+Grep = "grep"
+WebFetch = "web_fetch"
+WebSearch = "web_search"
+Agent = "task"
+TodoWrite = "todo"
+Skill = "skill"
+AskUserQuestion = "ask_user_question"
+mcp = "{server}_{tool}"
+
+[model_map]
+# active_model takes a Mistral model name; omit to inherit.
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+[permissions]
+syntax = "vibe"
+key = ["tools"]                    # [tools.<name>] permission = always|ask|never
+lists = ["allowlist", "denylist"]  # bash patterns
+
+[transcripts]
+# meta.json carries stats (prompt/completion/cached tokens, session_cost); messages.jsonl sits beside it.
+globs = ["~/.vibe/logs/session/session_*/meta.json"]
+parser = "vibe_meta_json"
+format = "json"
+
+[runner]
+cmd = "vibe"
+headless = ["-p"]
+json_flag = ["--output", "streaming"]
+resume_flag = "--resume"
+permission_flags = { plan = ["--agent", "plan"], accept_edits = ["--agent", "accept-edits"], bypass = ["--yolo"] }
+
+[acp]
+native = true
+cmd = "vibe-acp"
+args = []
+registry_id = "mistral-vibe"
+
+[trust]
+requires_review = true
+how = "Project AGENTS.md, .vibe/ config, hooks, skills and plugins load only in folders listed in ~/.vibe/trusted_folders.toml."

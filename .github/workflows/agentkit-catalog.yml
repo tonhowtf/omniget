@@ -1,0 +1,74 @@
+name: Agentkit catalog
+
+# Regenera o índice do Catálogo da Central (static/agentkit/) com cada fonte no
+# commit mais novo (claude-code-templates + repos de skills + marketplaces) e,
+# se o conteúdo mudou, abre um PR `catalog/auto-<data>`. Nunca empurra na main.
+#
+# "Mudou" = `index.content_sha256` do catalog-meta.json, que ignora data,
+# commits e estrelas: um repo que andou sem mexer em componente não gera PR.
+# Só usa o GITHUB_TOKEN (sem segredo novo). PR aberto com o GITHUB_TOKEN não
+# dispara os outros workflows; o CI roda quando alguém fizer push no branch.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 6 * * 1"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: agentkit-catalog
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Build the index at the newest commits
+        id: build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          meta=static/agentkit/catalog-meta.json
+          hash() { node -e "try{console.log(require('./$1').index.content_sha256||'')}catch{console.log('')}"; }
+          before=$(hash "$meta")
+          node scripts/agentkit-catalog/build.mjs --latest --work "$RUNNER_TEMP/agentkit-catalog"
+          after=$(hash "$meta")
+          echo "before=$before after=$after"
+          if [ -n "$after" ] && [ "$before" != "$after" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+          cat scripts/agentkit-catalog/out/summary.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open a pull request
+        if: steps.build.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          day=$(date -u +%Y-%m-%d)
+          branch="catalog/auto-$day"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add static/agentkit/catalog-index.json.gz static/agentkit/catalog-meta.json scripts/agentkit-catalog/pins.json
+          git commit -m "chore(catalog): refresh the agentkit catalog index ($day)"
+          git push --force origin "$branch"
+          body=scripts/agentkit-catalog/out/summary.txt
+          if gh pr view "$branch" --json state --jq .state 2>/dev/null | grep -q OPEN; then
+            gh pr edit "$branch" --body-file "$body"
+          else
+            gh pr create --base main --head "$branch" \
+              --title "chore(catalog): refresh the agentkit catalog index ($day)" \
+              --body-file "$body"
+          fi

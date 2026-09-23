@@ -1,0 +1,170 @@
+# Letta Code. Source: estudo 75/06 Part 5 "Letta Code" (a)-(k) + Built-in tools, 0A, 0B.3, 0C.2, 0C.4, 0C.7, 0C.8, 0C.9, Part 5 "Cross-tool mapping (quick table)", Part 6 §9 ACP.
+id = "letta"
+name = "Letta Code"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://github.com/letta-ai/letta-code"
+notes = "Docs now brand it 'Letta Harness (formerly Letta Code)'; CLI is `letta`. Stateful agents with git-backed MemFS memory (~/.letta/agents/<agent-id>/memory/), so rules are not a repo file; MCP servers are stored per agent in settings.json agents[].mcpServers[]."
+reads_agents_dir = true
+# AGENTS.md is not auto-loaded: the default prompt tells the agent to read AGENTS.md/CLAUDE.md early; it is injected only on EnterWorktree.
+reads_agents_md = "no"
+
+[detect]
+binaries = ["letta"]
+home_dirs = ["~/.letta"]
+
+[scopes]
+project = true
+global = true
+local = true
+managed = false
+project_markers = [".letta", ".commands"]
+global_dir = "~/.letta"
+
+[formats]
+rule = "agents_md"
+agent = "claude"
+command = "claude"
+skill = "skill_dir"
+hook = "claude"
+setting = "letta"
+statusline = "letta_tsx"
+mod = "letta_mod"
+
+[reads_claude]
+rules = false
+agents = false
+commands = false
+hooks = false
+skills = false
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+# Real memory lives in MemFS: ~/.letta/agents/<agent-id>/memory/system/*.md (per agent id, not templatable here).
+project = "AGENTS.md"
+project_alt = ["CLAUDE.md"]
+
+[paths.agents]
+project = ".letta/agents"
+global = "~/.letta/agents"
+
+[paths.commands]
+# Repo-root `.commands/`, not `.letta/commands`.
+project = ".commands"
+global = "~/.letta/commands"
+
+[paths.skills]
+project = ".agents/skills"
+global = "~/.letta/skills"
+
+[paths.hooks]
+project = ".letta/settings.json"
+global = "~/.letta/settings.json"
+local = ".letta/settings.local.json"
+
+[paths.settings]
+project = ".letta/settings.json"
+global = "~/.letta/settings.json"
+local = ".letta/settings.local.json"
+
+[paths.statusline]
+global = "~/.letta/extensions/statusline.tsx"
+
+[paths.mods]
+# Project-local mods are not supported; per-agent mods live in $MEMORY_DIR/mods/.
+global = "~/.letta/mods"
+
+[[mcp]]
+surface = "cli"
+format = "json"
+global = "~/.letta/settings.json"
+# Per agent: agents[].mcpServers[] (array inside each agents[] entry, selected by agentId).
+key = ["agents", "mcpServers"]
+container = "array"
+name_field = "name"
+# stdio {name, transport?:"stdio", command, args, env}
+stdio_shape = "vibe"
+# remote {name, transport:"http"|"sse", url, headers}
+remote_shape = "letta"
+transports = ["stdio", "http", "sse"]
+default = true
+
+[hook_event_map]
+SessionStart = "SessionStart"
+SessionEnd = "SessionEnd"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"
+PostToolUse = "PostToolUse"
+PostToolUseFailure = "PostToolUseFailure"
+PermissionRequest = "PermissionRequest"
+Stop = "Stop"
+SubagentStop = "SubagentStop"
+PreCompact = "PreCompact"
+Notification = "Notification"
+
+[hooks]
+shape = "claude"
+# command hook timeout is in ms (default 60000); prompt hooks 30000.
+timeout_unit = "ms"
+events_count = 11
+
+[tool_name_map]
+Bash = "Bash"
+Read = "Read"
+Edit = "Edit"
+MultiEdit = "MultiEdit"
+Write = "Write"
+Glob = "Glob"
+Grep = "Grep"
+Agent = "Task"
+Task = "Task"
+TodoWrite = "TodoWrite"
+Skill = "Skill"
+AskUserQuestion = "AskUserQuestion"
+
+[placeholder_map]
+args = "$ARGUMENTS"
+arg = "$N"
+shell = "!`{cmd}`"
+file = "@{path}"
+
+[model_map]
+# Agent frontmatter accepts haiku/sonnet/opus or a handle; default is inherit (omit the field).
+sonnet = "sonnet"
+opus = "opus"
+haiku = "haiku"
+fable = ""
+inherit = ""
+
+[statusline]
+# TSX renderer file, not a command; reload with /reload.
+shape = "letta_tsx"
+
+[permissions]
+syntax = "claude"
+key = ["permissions"]
+lists = ["allow", "deny"]
+
+[transcripts]
+# Local backend only ($LETTA_LOCAL_BACKEND_DIR, default ~/.letta/lc-local-backend); cloud messages live server-side.
+# Format constant "pi-session-entry-jsonl"; per-message usage field names are UNVERIFIED.
+globs = ["~/.letta/lc-local-backend/conversations/*/messages.jsonl"]
+parser = "letta_jsonl"
+format = "jsonl"
+
+[runner]
+cmd = "letta"
+headless = ["-p"]
+json_flag = ["--output-format", "stream-json"]
+resume_flag = "--conversation"
+system_prompt_flag = "--system-custom"
+model_flag = "--model"
+permission_flags = { accept_edits = ["--permission-mode", "acceptEdits"], bypass = ["--yolo"] }
+
+[acp]
+native = false
+cmd = "npx"
+args = ["-y", "@letta-ai/letta-acp"]

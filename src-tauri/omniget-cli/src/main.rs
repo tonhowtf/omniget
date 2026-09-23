@@ -56,6 +56,12 @@ enum Commands {
         #[command(subcommand)]
         command: commands::agent::AgentCommand,
     },
+    /// Catalog of agents, commands, skills, MCP servers, hooks and settings for
+    /// every coding tool (Claude Code, Codex, Gemini, Cursor, Copilot, OpenCode…)
+    Agentkit {
+        #[command(subcommand)]
+        command: commands::agentkit::AgentkitCommand,
+    },
     /// Import a cookies.txt file (Netscape format)
     ImportCookies {
         file: String,
@@ -107,6 +113,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Agent { command } => {
             commands::agent::execute(command, cli.json).await?;
+        }
+        Commands::Agentkit { command } => {
+            commands::agentkit::execute(command, cli.json).await?;
         }
         Commands::ImportCookies {
             file,

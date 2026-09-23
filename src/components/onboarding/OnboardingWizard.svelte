@@ -7,6 +7,7 @@
   import { refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
   import Mascot from "$components/mascot/Mascot.svelte";
   import StepProfile from "./StepProfile.svelte";
+  import StepAiTools from "$components/central/onboarding/StepAiTools.svelte";
 
   type DependencyStatus = {
     name: string;
@@ -14,7 +15,7 @@
     version: string | null;
   };
 
-  const TOTAL_STEPS = 5;
+  const TOTAL_STEPS = 6;
   const ENGINE_DEPS = new Set(["yt-dlp", "ffmpeg"]);
 
   const LANGUAGES: [string, string][] = [
@@ -220,6 +221,10 @@
               <span>{$t("onboarding.agents_world")}</span>
             </div>
           </div>
+        </div>
+      {:else if step === 5}
+        <div class="step step-ai-tools">
+          <StepAiTools />
         </div>
       {:else}
         <div class="step step-done">

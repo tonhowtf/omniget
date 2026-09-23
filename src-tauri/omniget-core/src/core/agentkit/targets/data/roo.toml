@@ -1,0 +1,121 @@
+# Roo Code (discontinued). Source: estudo 75/06 0A.4, 0B.2, 0C.1-0C.10, Part 3 "Roo Code" (a)-(k), Part 6 §2.3/§2.4 (zoocode/roo), §5 skills table, §6.1, §8.
+id = "roo"
+name = "Roo Code"
+tier = 3
+status = "deprecated"
+beta = true
+homepage = "https://roocodeinc.github.io/Roo-Code/"
+notes = "Shut down 2026-05-15 (last release v3.54.0, repo archived); the extension still runs with your own keys. The fork is Zoo Code. Formats are frozen, so support them for import and migration."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["roo"]
+home_dirs = ["~/.roo"]
+vscode_extensions = ["rooveterinaryinc.roo-cline"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".roo", ".roomodes", ".roorules"]
+global_dir = "~/.roo"
+
+[formats]
+rule = "agents_md"
+agent = "roo_modes"
+command = "roo"
+skill = "skill_dir"
+
+[reads_claude]
+rules = false
+agents = false
+commands = false
+hooks = false
+skills = false
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+project_alt = ["AGENT.md", "AGENTS.local.md", ".roorules", ".clinerules"]
+
+# Rule directories (no frontmatter). Mode-specific: .roo/rules-{slug}/ and ~/.roo/rules-{slug}/.
+[paths.scoped_rules]
+project = ".roo/rules"
+global = "~/.roo/rules"
+
+# Custom modes are single YAML files, not a directory.
+[paths.agents]
+project = ".roomodes"
+global = "{vscode_global_storage}/rooveterinaryinc.roo-cline/settings/custom_modes.yaml"
+
+[paths.commands]
+project = ".roo/commands"
+global = "~/.roo/commands"
+
+[paths.skills]
+project = ".roo/skills"
+global = "~/.roo/skills"
+project_alt = [".agents/skills"]
+global_alt = ["~/.agents/skills"]
+
+[[mcp]]
+surface = "vscode"
+format = "json"
+project = ".roo/mcp.json"
+global = "{vscode_global_storage}/rooveterinaryinc.roo-cline/settings/mcp_settings.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "roo"
+transports = ["stdio", "http", "sse"]
+default = true
+
+[tool_name_map]
+Bash = "execute_command"
+Read = "read_file"
+Edit = "apply_diff"
+Write = "write_to_file"
+Glob = "list_files"
+Grep = "search_files"
+WebFetch = ""
+WebSearch = ""
+Agent = "new_task"
+TodoWrite = "update_todo_list"
+Skill = "skill"
+AskUserQuestion = "ask_followup_question"
+mcp = "use_mcp_tool"
+
+[placeholder_map]
+args = "$ARGUMENTS"   # UNVERIFIED
+arg = ""
+shell = ""
+file = ""
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+# Auto-approve lives in VS Code globalState; command lists in roo-cline.allowedCommands / deniedCommands.
+[permissions]
+syntax = "none"
+
+[transcripts]
+globs = ["{vscode_global_storage}/rooveterinaryinc.roo-cline/tasks/*/ui_messages.json"]
+parser = "roo_json"
+format = "json"
+
+[runner]
+cmd = "roo"
+headless = ["--print"]
+json_flag = ["--output-format", "json"]
+model_flag = "-m"
+
+[acp]
+native = false

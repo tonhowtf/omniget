@@ -11,6 +11,7 @@ pub mod broker;
 pub mod budget;
 pub mod cli_runtime;
 pub mod cli_usage;
+pub mod drivers;
 pub mod code_tools;
 pub mod compress;
 pub mod coordinator;

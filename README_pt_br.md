@@ -81,16 +81,43 @@ leitor pdf, flashcards anki, repetição espaçada, player de música, spicetify
   <img src="assets/readme/agents-hero.gif" alt="Loop, o mascote do OmniGet, no meio de uma casa isométrica enquanto três agentes robôs trabalham cada um na sua bancada, com um balão mostrando a tool em uso" width="900" />
 </p>
 
-Novidade da 0.10 e agora o centro do app. Um comando, cerca de 15 segundos, teste verde: é o Claude Code corrigindo um teste que falhava, pelo OmniGet, pedindo permissão com o diff na tela.
+O OmniGet 0.10 é um app local para os agentes de código que você já usa. Confira o diff antes de permitir uma edição, restaure os arquivos alterados com Desfazer e repita o trabalho até a checagem passar.
 
 - **Agente de código com permissões e desfazer.** Escolha um agente, anexe uma pasta, peça uma mudança. Ele lê, edita e roda comandos só dentro daquela pasta, pergunta antes de escrever, e um clique desfaz o turno inteiro.
 - **Claude Code, Codex e Gemini CLI com interface.** As contas entram em **LLM → Contas** com a cota na tela. Qualquer CLI que fale o Agent Client Protocol (Gemini CLI, goose, opencode) vira agente.
 - **Agentes locais com Ollama, LM Studio ou llama-server**, offline e sem chave. O `qwen3:8b` corrige o bug de demonstração em cerca de 3 minutos.
 - **Jobs, Loops e gatilhos.** O trabalho continua com a janela fechada. Um Loop repete rodadas até o seu comando de checagem (`npm test`) passar. Cron e webhook disparam jobs.
-- **Servidor MCP com 49 tools** para Claude Code, Cursor e VS Code.
+- **Servidor MCP com 67 tools** para Claude Code, Cursor e VS Code.
 - **O Mundo.** Uma casa isométrica onde cada agente anda até a sua bancada, mostra a tool num balão e acena quando precisa de você. Abra a casa, passe o código e um amigo entra para visitar.
 
+<p align="center">
+  <img src="assets/readme/agents-world-010.gif" alt="Captura real do OmniGet em release: Omni, Builder e Scout em três postos do modo demo do Mundo, com balões das ferramentas em uso" width="560" />
+  <br/><sub>Captura real em release · demo roteirizada · loop de 10 segundos, sem áudio.</sub>
+  <br/><a href="https://github.com/tonhowtf/omniget/releases/latest">Rode na sua máquina — baixe o OmniGet</a>
+</p>
+
 A descrição completa está no [README em inglês](README.md#agents-and-the-world).
+
+### A Central: configure, pilote e acompanhe todos os agentes de código que você já paga
+
+<p align="center">
+  <img src="assets/readme/central.gif" alt="Loop, o mascote do OmniGet, numa mesa de controle com cinco monitores; em cada um, um agente robô diferente programa na sua própria janela, com linhas de diff verdes e vermelhas e um terminal, enquanto o Loop levanta um cartão de aprovação" width="900" />
+</p>
+
+Novidade depois da 0.10.1: a seção **LLM** abre na Central, um lugar só para Claude Code, Codex, Gemini CLI, Cursor, GitHub Copilot, OpenCode, Qwen Code e cerca de 30 outros agentes de código. Tudo fica na sua máquina, sem telemetria.
+
+- **Threads com worktree e diff por turno.** Cada tarefa roda numa thread com branch e pasta próprias. Cada turno vira um checkpoint que dá para comparar e desfazer ("editar daqui"). As aprovações mostram o diff completo e esperam você. A thread tem terminal de verdade, commit, push e PR. Os drivers são Claude Code (processo contínuo), Codex (app-server), OpenCode e 24 agentes ACP.
+- **Catálogo com 3.802 componentes para 34 ferramentas.** Agentes, comandos, skills, servidores MCP, hooks, regras, perfis de permissão, statuslines e plugins, vindos do claude-code-templates, anthropics/skills, openai/skills, google/skills, superpowers, K-Dense e 36 marketplaces. Cada item é convertido para o formato de cada ferramenta. Antes de gravar, você vê o diff e os comandos que hooks e MCPs vão rodar. Desinstalar remove só o que o OmniGet escreveu.
+- **Ferramentas.** O app detecta os CLIs e mostra a versão instalada e a mais nova. Só atualiza quando prova quem instalou. Instala agentes do registro ACP e abre o login de cada CLI.
+- **Uso, sessões e retrospectiva de 23 ferramentas.** Tokens e custo por dia, modelo e projeto, com cada resposta do Claude contada uma vez só. Tem busca em todas as conversas, retomar na ferramenta certa, exportar e um replay do ano.
+- **Arena, loops e sandbox.** O mesmo prompt em vários agentes, cada um na sua worktree, com os diffs lado a lado e merge do vencedor. Loops do catálogo rodam com qualquer runner, e o sandbox Docker roda com permissões normais.
+- **Acesso pelo celular.** Pareamento por QR para ver as threads e responder aprovações. Vem desligado por padrão e não passa por relay na nuvem.
+
+<p align="center">
+  <img src="assets/readme/illustration-catalog.png" alt="Loop numa lojinha entregando cartões brilhantes a uma fila de robôs diferentes; em cada robô o cartão muda de forma para caber no encaixe do peito" width="820" />
+</p>
+
+Os detalhes estão no [README em inglês](README.md#the-central).
 
 ---
 

@@ -1,0 +1,145 @@
+# OpenHands CLI. Source: estudo 75/06 Part 5 "OpenHands CLI" (a)-(k) + Built-in tools, Part 5 status summary and cross-cutting findings, 0A, 0B.3, 0C.4, 0D, Part 6 §5.2, §8.4, §9 ACP.
+id = "openhands"
+name = "OpenHands CLI"
+tier = 3
+status = "maintenance"
+beta = true
+homepage = "https://github.com/OpenHands/OpenHands-CLI"
+notes = "README: 'no longer actively maintained', points to Agent Canvas (OpenHands/OpenHands); last release 1.16.0 (2026-05-08). Repo moved from All-Hands-AI to the OpenHands org; on-disk formats are software-agent-sdk formats shared with Agent Canvas and Cloud."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["openhands"]
+home_dirs = ["~/.openhands"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".openhands", "AGENTS.md"]
+global_dir = "~/.openhands"
+config_dir_env = "OPENHANDS_PERSISTENCE_DIR"
+
+[formats]
+rule = "agents_md"
+# name, description, model (default inherit), color, tools, skills, permission_mode, max_iteration_per_run, max_budget_per_run, mcp_servers, hooks, condenser
+agent = "openhands_md"
+# No user command dir; keyword-triggered skills (`triggers:`) are the closest equivalent.
+command = "skill"
+skill = "skill_dir"
+hook = "claude"
+setting = "openhands"
+# SDK: Agent Plugins 1.0 (root plugin.json) or .plugin/.claude-plugin layout; CLI install support UNVERIFIED.
+plugin = "agent_plugins"
+
+[reads_claude]
+rules = true
+agents = false
+commands = false
+hooks = false
+skills = false
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+# Repo-root third-party context files are auto-loaded; nested AGENTS.md load as directory-scoped rules.
+project = "AGENTS.md"
+project_alt = ["agent.md", "CLAUDE.md", "GEMINI.md", ".cursorrules", ".openhands/microagents/repo.md"]
+
+[paths.agents]
+project = ".agents/agents"
+global = "~/.agents/agents"
+project_alt = [".openhands/agents"]
+global_alt = ["~/.openhands/agents"]
+
+[paths.skills]
+# .agents/skills/*.md with `paths:` frontmatter also act as path-triggered rules.
+project = ".agents/skills"
+global = "~/.agents/skills"
+project_alt = [".openhands/skills", ".openhands/microagents"]
+global_alt = ["~/.openhands/skills", "~/.openhands/microagents"]
+
+[paths.hooks]
+project = ".openhands/hooks.json"
+global = "~/.openhands/hooks.json"
+
+[paths.hook_scripts]
+project = ".openhands/hooks"
+
+[paths.settings]
+global = "~/.openhands/agent_settings.json"
+global_alt = ["~/.openhands/cli_config.json"]
+
+[paths.plugins]
+global = "~/.openhands/plugins/installed"
+
+[[mcp]]
+surface = "cli"
+format = "json"
+global = "~/.openhands/mcp.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+transports = ["stdio", "http", "sse"]
+prefer_cli = "openhands mcp add {name} --transport {transport} {target} -- {args}"
+default = true
+
+[hook_event_map]
+# Native keys are snake_case (pre_tool_use, ...); PascalCase and the Claude {"hooks":{...}} wrapper are accepted.
+SessionStart = "SessionStart"
+SessionEnd = "SessionEnd"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"
+PostToolUse = "PostToolUse"
+Stop = "Stop"
+
+[hooks]
+# Hook env sets OPENHANDS_PROJECT_DIR (not CLAUDE_PROJECT_DIR). Block = exit 2 with {"decision":"deny","reason":...}.
+shape = "claude"
+timeout_unit = "s"
+events_count = 6
+
+[tool_name_map]
+Bash = "terminal"
+Read = "file_editor"
+Edit = "file_editor"
+Write = "file_editor"
+# glob / grep / delegate ship in other tool packages, not the default preset.
+Glob = "glob"
+Grep = "grep"
+Agent = "delegate"
+TodoWrite = "task_tracker"
+Skill = "invoke_skill"
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = "inherit"
+
+[permissions]
+# Confirmation modes only (default ask, --always-approve/--yolo, --llm-approve); no allow/deny lists.
+syntax = "none"
+
+[transcripts]
+# base_state.json stats.usage_to_metrics holds accumulated_cost and accumulated_token_usage; events are one JSON file each.
+globs = ["~/.openhands/conversations/*/base_state.json", "~/.openhands/conversations/*/events/event-*.json"]
+parser = "openhands_json"
+format = "json"
+
+[runner]
+# Headless always runs in always-approve mode; model comes from agent_settings.json (LLM_* env only with --override-with-envs).
+cmd = "openhands"
+headless = ["--headless", "-t"]
+json_flag = ["--json"]
+resume_flag = "--resume"
+permission_flags = { bypass = ["--always-approve"] }
+
+[acp]
+native = true
+cmd = "openhands"
+args = ["acp"]

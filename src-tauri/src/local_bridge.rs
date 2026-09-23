@@ -233,6 +233,8 @@ pub async fn spawn(app: AppHandle) {
         .merge(crate::local_bridge_jobs::router(
             crate::local_bridge_jobs::JobsBridgeState::from_bridge(&state),
         ))
+        .merge(crate::local_bridge_observe::router(state.app.clone()))
+        .merge(crate::local_bridge_agentkit::router(state.token.clone()))
         .merge(crate::local_bridge_debug::router(
             state.app.clone(),
             state.token.clone(),
@@ -570,19 +572,23 @@ pub fn build_pairing_url(port: u16) -> String {
 
 // ── MCP (Streamable HTTP, só JSON) ─────────────────────────────────────
 
-/// `POST /mcp`: JSON-RPC do MCP. Mesmo bearer da extensão; 403 quando a
-/// tool "Servidor MCP" está desligada; 202 sem corpo para notificações.
+/// `POST /mcp`: JSON-RPC do MCP. Mesmo bearer da extensão (403 quando a
+/// tool "Servidor MCP" está desligada) ou um token de sessão de driver da
+/// Central (`mcp::mint_session_token`, escopo de tools e thread no log);
+/// 202 sem corpo para notificações.
 async fn mcp_post(
     State(state): State<BridgeState>,
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Response {
-    if !check_bearer(&headers, &state.token) {
-        return unauthorized();
-    }
-    if !crate::mcp::enabled() {
-        return (StatusCode::FORBIDDEN, Json(serde_json::json!({ "error": "MCP server is disabled in OmniGet → Tools → MCP server" }))).into_response();
-    }
+    let auth = headers.get("authorization").and_then(|v| v.to_str().ok());
+    let caller = match crate::mcp::authorize(auth, &state.token) {
+        crate::mcp::Auth::Ok(c) => c,
+        crate::mcp::Auth::Unauthorized => return unauthorized(),
+        crate::mcp::Auth::Disabled => {
+            return (StatusCode::FORBIDDEN, Json(serde_json::json!({ "error": "MCP server is disabled in OmniGet → Tools → MCP server" }))).into_response();
+        }
+    };
     let msg: serde_json::Value = match serde_json::from_slice(&body) {
         Ok(v) => v,
         Err(e) => {
@@ -593,7 +599,7 @@ async fn mcp_post(
                 .into_response()
         }
     };
-    match crate::mcp::handle_body(&state.app, &msg).await {
+    match crate::mcp::handle_body(Some(&state.app), &caller, &msg).await {
         Some(resp) => (StatusCode::OK, Json(resp)).into_response(),
         None => StatusCode::ACCEPTED.into_response(),
     }

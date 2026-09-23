@@ -1,0 +1,151 @@
+# Continue (end of life). Source: estudo 75/06 0A.4, 0B.2, 0C.1-0C.10, Part 3 "Continue" (a)-(k), Part 5 newcomers "Continue CLI cn", Part 6 §2.3/§2.4 (continue), §5 skills table.
+id = "continue"
+name = "Continue"
+tier = 3
+status = "deprecated"
+beta = true
+homepage = "https://docs.continue.dev"
+notes = "Repo is read-only after the final 2.0.0 release and hub.continue.dev is offline, so only local YAML and Markdown blocks work. Hooks exist only in the cn CLI, which uses the Claude hooks schema and reads .claude/settings.json."
+reads_agents_dir = false
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["cn"]
+home_dirs = ["~/.continue"]
+
+[scopes]
+project = true
+global = true
+local = true
+managed = false
+project_markers = [".continue"]
+global_dir = "~/.continue"
+config_dir_env = "CONTINUE_GLOBAL_DIR"
+
+[formats]
+rule = "continue_rules"
+command = "continue_prompt"
+skill = "skill_dir"
+hook = "claude"
+
+[reads_claude]
+rules = true
+agents = false
+commands = false
+hooks = true      # cn only
+skills = true
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+project_alt = ["AGENT.md", "CLAUDE.md"]
+
+[paths.scoped_rules]
+project = ".continue/rules"
+global = "~/.continue/rules"
+
+[paths.commands]
+project = ".continue/prompts"
+global = "~/.continue/prompts"
+
+[paths.skills]
+project = ".continue/skills"
+global = "~/.continue/skills"
+project_alt = [".claude/skills"]
+
+[paths.hooks]
+project = ".continue/settings.json"
+global = "~/.continue/settings.json"
+local = ".continue/settings.local.json"
+project_alt = [".claude/settings.json", ".claude/settings.local.json"]
+global_alt = ["~/.claude/settings.json"]
+
+[paths.settings]
+global = "~/.continue/config.yaml"
+
+[paths.permissions]
+global = "~/.continue/permissions.yaml"
+
+# Block files: name, version, schema: v1, mcpServers list. A drop-in JSON
+# .continue/mcpServers/mcp.json with an mcpServers map is also picked up.
+[[mcp]]
+surface = "ide"
+format = "yaml_file_per_server"
+project = ".continue/mcpServers"
+global = "~/.continue/mcpServers"
+key = ["mcpServers"]
+container = "array"
+name_field = "name"
+stdio_shape = "continue"
+remote_shape = "continue"
+transports = ["stdio", "sse", "http"]
+secret_mode = "env_ref"
+env_ref = "${{ secrets.VAR }}"
+default = true
+
+[hook_event_map]
+SessionStart = "SessionStart"
+SessionEnd = "SessionEnd"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"
+PostToolUse = "PostToolUse"
+PostToolUseFailure = "PostToolUseFailure"
+PermissionRequest = "PermissionRequest"
+Stop = "Stop"
+SubagentStart = "SubagentStart"
+SubagentStop = "SubagentStop"
+PreCompact = "PreCompact"
+Notification = "Notification"
+
+[hooks]
+shape = "claude"
+timeout_unit = "s"
+events_count = 17
+
+# cn CLI names (hook matchers use these).
+[tool_name_map]
+Bash = "Bash"
+Read = "Read"
+Edit = "Edit"
+MultiEdit = "MultiEdit"
+Write = "Write"
+WebFetch = "Fetch"
+Agent = "Subagent"
+Skill = "Skills"
+AskUserQuestion = "AskQuestion"
+
+[placeholder_map]
+args = "{{{ input }}}"   # UNVERIFIED
+arg = ""
+shell = ""
+file = ""
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+# permissions.yaml: top-level allow / ask / exclude lists of "Tool(glob)".
+[permissions]
+syntax = "claude"
+key = []
+lists = ["allow", "ask", "exclude"]
+
+[transcripts]
+globs = ["~/.continue/sessions/*.json"]
+parser = "continue_json"
+format = "json"
+
+[runner]
+cmd = "cn"
+headless = ["-p"]
+json_flag = ["--format", "json"]
+resume_flag = "--resume"
+permission_flags = { plan = ["--readonly"], bypass = ["--auto"] }
+
+[acp]
+native = false

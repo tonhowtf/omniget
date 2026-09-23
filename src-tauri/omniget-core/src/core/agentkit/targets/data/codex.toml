@@ -1,0 +1,173 @@
+# OpenAI Codex CLI. Source: estudo 75/06 0B.1, 0C.1-0C.10, Part 1 "OpenAI Codex CLI" (a)-(k) + cross-tool maps, Part 6 §2.3/§2.4, §5.4, §6.1, §8.1, §9.
+id = "codex"
+name = "Codex CLI"
+tier = 1
+status = "active"
+beta = false
+homepage = "https://github.com/openai/codex"
+notes = "Docs moved to learn.chatgpt.com. Custom prompts are deprecated in favor of skills; project .codex/config.toml loads only in trusted projects."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["codex"]
+home_dirs = ["~/.codex"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = true              # requirements.toml (admin-enforced), /etc/codex/skills
+project_markers = [".codex", "AGENTS.md"]
+global_dir = "~/.codex"
+config_dir_env = "CODEX_HOME"
+
+[formats]
+rule = "agents_md"
+agent = "codex_toml"
+command = "skill"           # ~/.codex/prompts is deprecated; 0C.3 says convert commands to skills
+skill = "skill_dir"
+hook = "claude"             # hooks.json uses the Claude event names and JSON shape
+setting = "codex_toml"
+plugin = "agent_plugins"
+
+[reads_claude]
+rules = false
+agents = false
+commands = false            # /import converts Claude commands into skills, not read natively
+hooks = false
+skills = false
+plugins = true              # only .claude-plugin/marketplace.json, read as a legacy-compatible marketplace
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "~/.codex/AGENTS.md"
+project_alt = ["AGENTS.override.md"]
+global_alt = ["~/.codex/AGENTS.override.md"]
+
+[paths.agents]
+project = ".codex/agents"
+global = "~/.codex/agents"
+
+[paths.prompts]
+global = "~/.codex/prompts"   # deprecated custom prompts, user scope only, top level only
+
+[paths.skills]
+project = ".agents/skills"
+global = "~/.agents/skills"
+project_alt = [".codex/skills"]
+global_alt = ["~/.codex/skills"]   # deprecated $CODEX_HOME/skills
+managed_linux = "/etc/codex/skills"
+managed_macos = "/etc/codex/skills"
+
+[paths.hooks]
+project = ".codex/hooks.json"
+global = "~/.codex/hooks.json"
+project_alt = [".codex/config.toml"]   # inline [hooks] table
+global_alt = ["~/.codex/config.toml"]
+
+[paths.hook_scripts]
+project = ".codex/hooks"
+global = "~/.codex/hooks"
+
+[paths.settings]
+project = ".codex/config.toml"
+global = "~/.codex/config.toml"
+
+[paths.plugins]
+global = "~/.codex/plugins/cache"   # install cache <marketplace>/<plugin>/<version>/
+project_alt = [".agents/plugins/marketplace.json", ".claude-plugin/marketplace.json"]
+global_alt = ["~/.agents/plugins/marketplace.json"]
+
+[[mcp]]
+surface = "cli"
+format = "toml"
+project = ".codex/config.toml"      # trusted projects only
+global = "~/.codex/config.toml"
+key = ["mcp_servers"]
+container = "map"
+stdio_shape = "codex"
+remote_shape = "codex"
+transports = ["stdio", "http"]      # no SSE
+secret_mode = "bearer_env_var"
+prefer_cli = "codex mcp add {name} -- {command}"
+default = true
+
+[hook_event_map]
+SessionStart = "SessionStart"
+SessionEnd = "SessionEnd"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"
+PostToolUse = "PostToolUse"
+PermissionRequest = "PermissionRequest"
+Stop = "Stop"
+SubagentStart = "SubagentStart"
+SubagentStop = "SubagentStop"
+PreCompact = "PreCompact"
+
+[hooks]
+shape = "claude"
+timeout_unit = "s"
+env_aliases = ["CLAUDE_PLUGIN_ROOT", "CLAUDE_PLUGIN_DATA"]   # plugin hooks only
+events_count = 12
+
+# Hook matchers see the Claude aliases: shell/exec_command match as Bash, apply_patch as Edit/Write,
+# spawn_agent as Agent (06 Codex (d)), so those keep the Claude names; the runtime names are in the comments.
+[tool_name_map]
+Bash = "Bash"            # runtime exec_command
+Read = ""
+Edit = "Edit"            # runtime apply_patch
+Write = "Write"          # runtime apply_patch
+Glob = ""
+Grep = ""
+WebFetch = ""
+WebSearch = "web_search"
+Agent = "Agent"          # runtime spawn_agent
+TodoWrite = "update_plan"
+Skill = ""
+AskUserQuestion = "request_user_input"
+mcp = "mcp__{server}__{tool}"
+
+[placeholder_map]
+args = "$ARGUMENTS"
+arg = "$N"
+shell = ""
+file = ""
+
+# 0C.2: map Claude aliases to a Codex model or omit; unset agent keys inherit from the parent.
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+# Exec policy lives in Starlark .rules files (.codex/rules/*.rules, ~/.codex/rules/default.rules),
+# plus approval_policy / sandbox_mode in config.toml.
+[permissions]
+syntax = "codex"
+lists = ["allow", "prompt", "forbidden"]
+
+[transcripts]
+globs = ["~/.codex/sessions/*/*/*/rollout-*.jsonl", "~/.codex/sessions/*/*/*/rollout-*.jsonl.zst", "~/.codex/archived_sessions/**/rollout-*.jsonl"]
+parser = "codex_jsonl"
+format = "jsonl"
+
+[runner]
+cmd = "codex"
+headless = ["exec"]
+json_flag = ["--json"]
+resume_flag = "resume"
+permission_flags = { plan = ["--sandbox", "read-only"], accept_edits = ["--sandbox", "workspace-write"], bypass = ["--sandbox", "danger-full-access"] }
+
+[acp]
+native = false
+cmd = "npx"
+args = ["-y", "@agentclientprotocol/codex-acp"]
+registry_id = "codex-acp"
+
+[trust]
+requires_review = true
+how = "Codex hash review: every non-managed hook must be trusted in /hooks (stored per definition hash), and project .codex/config.toml loads only for trusted projects."

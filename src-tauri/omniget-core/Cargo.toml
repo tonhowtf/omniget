@@ -75,6 +75,11 @@ rust_xlsxwriter = "0.99"
 # binario gerido, baixado sob demanda igual ao PDFium e ao Real-ESRGAN.
 ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-27"] }
 ndarray = "0.16"
+# Central de agentes: motor de threads (event sourcing), analytics de sessões
+# (OpenCode/Goose/Crush/Zed/Cursor guardam SQLite) e lockfile do agentkit.
+rusqlite = { version = "0.32", features = ["bundled"] }
+# Rollouts do Codex (.jsonl.zst) e threads do Zed (zstd JSON).
+zstd = "0.13"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

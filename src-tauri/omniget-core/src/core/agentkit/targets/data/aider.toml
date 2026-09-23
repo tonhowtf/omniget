@@ -1,0 +1,64 @@
+# Aider. Source: estudo 75/06 Part 4 "Aider" (a)-(k) + cross-tool quick tables, 0A, 0B.3, 0C.1, 0C.5, 0C.6, 0C.10, 0D, Part 6 §3 (ruler), §4, §6.1, §9.
+id = "aider"
+name = "Aider"
+tier = 3
+status = "maintenance"
+beta = true
+homepage = "https://aider.chat"
+notes = "Close to dormant (aider-chat 0.86.2, last commit 2026-05). No agents, commands, hooks, skills, plugins or MCP; rules are a CONVENTIONS.md (or AGENTS.md) loaded through `read:` in .aider.conf.yml. MCP exists only in forks or via install-mcp's unofficial .aider.mcp.yml."
+reads_agents_dir = false
+reads_agents_md = "opt-in"
+
+[detect]
+binaries = ["aider"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".aider.conf.yml"]
+
+[formats]
+rule = "aider_conventions"
+setting = "aider"
+
+[reads_claude]
+rules = false
+agents = false
+commands = false
+hooks = false
+skills = false
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "CONVENTIONS.md"            # must also be listed under `read:` in .aider.conf.yml
+
+[paths.settings]
+project = ".aider.conf.yml"           # searched in home, git root, cwd; later wins
+global = "~/.aider.conf.yml"
+project_alt = [".aider.model.settings.yml", ".aider.model.metadata.json"]
+
+[permissions]
+syntax = "none"
+
+[transcripts]
+globs = [".aider.chat.history.md"]    # project-relative, one per repo; --analytics-log JSONL when enabled
+parser = "aider_md"
+format = "md"
+
+[runner]
+cmd = "aider"
+headless = ["--message"]
+resume_flag = "--restore-chat-history"
+model_flag = "--model"
+permission_flags = { bypass = ["--yes-always"] }
+
+[acp]
+native = false
+
+[trust]
+requires_review = false
+how = "No trust model; aider only asks confirmations, which --yes-always answers."

@@ -21,6 +21,21 @@
     shortTime,
     type LoopDef,
   } from "$lib/stores/llm-jobs-store.svelte";
+  import CatalogLoops from "$components/central/run/CatalogLoops.svelte";
+  import { agentLabel } from "$components/central/run/run-api";
+  import { itemHref } from "$lib/central/catalog";
+
+  /** Fields the catalog runs add to a Loop (schedule, cost budget, source). */
+  type LoopExtra = LoopDef & {
+    schedule?: string | null;
+    max_cost_usd?: number | null;
+    spent_usd?: number;
+    source?: string | null;
+    next_round_ms?: number | null;
+  };
+  function extra(l: LoopDef): LoopExtra {
+    return l as LoopExtra;
+  }
 
   let agents = $derived(getAgents());
   let loops = $derived(getLoops());
@@ -51,6 +66,7 @@
   });
 
   function agentName(id: string): string {
+    if (id.startsWith("tool:")) return agentLabel(id);
     return agents.find((a) => a.id === id)?.name ?? id;
   }
 
@@ -93,6 +109,7 @@
     </div>
   </header>
   <SurfaceGuide text={$surfaceCopy.loopsHint} href="/help?article=routines#guide" />
+  <CatalogLoops />
 
   <details class="creation-panel"><summary>{$surfaceCopy.createRoutine}</summary>
   <section class="surface-card form">
@@ -198,6 +215,18 @@
                 {#if loop.check_command}
                   <div class="field-label">{$t("llm.loops.check_command")}</div>
                   <code class="path">{loop.check_command}</code>
+                {/if}
+                {#if extra(loop).schedule}
+                  <div class="field-label">{$t("llm.central.run.loop.schedule")}</div>
+                  <code class="path">{extra(loop).schedule}{extra(loop).next_round_ms ? ` · ${$t("llm.central.run.loop.next_round")} ${shortTime(extra(loop).next_round_ms ?? null)}` : ""}</code>
+                {/if}
+                {#if extra(loop).max_cost_usd || extra(loop).spent_usd}
+                  <div class="field-label">{$t("llm.central.run.loop.cost")}</div>
+                  <span class="text">US$ {(extra(loop).spent_usd ?? 0).toFixed(4)}{extra(loop).max_cost_usd ? ` / ${extra(loop).max_cost_usd}` : ""}</span>
+                {/if}
+                {#if extra(loop).source}
+                  <div class="field-label">{$t("llm.central.run.loop.source")}</div>
+                  <a class="path" href={itemHref(extra(loop).source ?? "")}>{extra(loop).source}</a>
                 {/if}
                 {#if loop.last_check}
                   <div class="field-label">{$t("llm.loops.last_check")}</div>

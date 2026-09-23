@@ -1,0 +1,155 @@
+# JetBrains Junie. Source: estudo 75/06 Part 4 "JetBrains Junie" (a)-(k) + cross-tool quick tables, 0A, 0B.3, 0C.1, 0C.4, 0C.5, 0C.6, 0C.8, 0C.10, Part 6 §2.3/§2.4 (junie), §5.2, §8.2, §9.
+id = "junie"
+name = "JetBrains Junie"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://junie.jetbrains.com"
+notes = "Junie CLI (also runs as ACP agent and as Junie Local in JetBrains IDEs) plus the IDE plugin. Hooks are Early Access, read only from ~/.junie/config.json, and do not run under ACP. JetBrains AI Assistant (.aiassistant/rules) is a separate product."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["junie"]
+home_dirs = ["~/.junie"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".junie", "AGENTS.md"]
+global_dir = "~/.junie"
+config_dir_env = "JUNIE_HOME"
+
+[formats]
+rule = "junie_rules"
+agent = "claude"          # same frontmatter set as Claude (name, description, tools, disallowedTools, model, permissionMode, maxTurns, skills, mcpServers)
+command = "junie"         # named $argName arguments
+skill = "skill_dir"
+hook = "claude"
+setting = "junie"
+plugin = "claude"         # reads .claude-plugin/marketplace.json
+
+[reads_claude]
+rules = false
+agents = false            # offers to import .claude/agents, does not read them
+commands = false
+hooks = false
+skills = false            # offers to import .claude/skills
+plugins = true
+settings = false
+statusline = false
+
+[paths.rules]
+project = ".junie/AGENTS.md"          # used exclusively when present
+global = "~/.junie/AGENTS.md"
+project_alt = ["AGENTS.md", ".junie/playbook.md", ".junie/guidelines.md"]
+
+[paths.scoped_rules]
+project = ".junie/rules"
+
+[paths.agents]
+project = ".junie/agents"
+global = "~/.junie/agents"
+project_alt = [".agents"]
+global_alt = ["~/.agents"]
+
+[paths.commands]
+project = ".junie/commands"
+global = "~/.junie/commands"
+
+[paths.skills]
+project = ".junie/skills"
+global = "~/.junie/skills"
+project_alt = [".agents/skills"]
+global_alt = ["~/.agents/skills"]
+
+[paths.hooks]
+global = "~/.junie/config.json"       # project .junie/config.json hooks are ignored unless passed with --config-location
+
+[paths.settings]
+project = ".junie/config.json"        # loaded only in trusted projects
+global = "~/.junie/config.json"
+global_alt = ["~/.junie/settings.json", "~/.junie/allowlist.json", "~/.junie/sandbox.json"]
+
+[paths.plugins]
+global = "~/.junie/extensions"
+
+[[mcp]]
+surface = "cli"
+format = "json"
+project = ".junie/mcp/mcp.json"
+global = "~/.junie/mcp/mcp.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "url"
+transports = ["stdio", "http"]
+default = true
+
+[hook_event_map]
+SessionStart = "SessionStart"
+SessionEnd = "SessionEnd"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"
+PermissionRequest = "PermissionRequest"
+Stop = "Stop"
+
+[hooks]
+shape = "claude"
+timeout_unit = "s"
+events_count = 7
+
+[tool_name_map]
+Bash = "Bash"
+Read = "Read"
+Edit = "Edit"
+Write = "Write"
+Glob = "Glob"
+Grep = "Grep"
+WebFetch = ""
+WebSearch = "WebSearch"
+Agent = ""                            # automatic delegation only
+TodoWrite = ""
+Skill = ""
+AskUserQuestion = "AskUserQuestion"
+
+[placeholder_map]
+args = "$prompt"                      # needs `allowPromptArgument: true`; other args are named $argName
+arg = "$argN"                         # positional N becomes the named argument $argN (all named args are required)
+
+[model_map]
+sonnet = "sonnet"
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+[permissions]
+syntax = "junie"                      # ~/.junie/allowlist.json, rules per category with prefix|pattern + action
+key = ["rules"]
+lists = ["allow", "ask"]
+
+[transcripts]
+globs = ["~/.junie/sessions/*/events.jsonl"]   # layout from the third-party tokscale parser
+parser = "junie_jsonl"
+format = "jsonl"
+
+[runner]
+cmd = "junie"
+headless = ["--task"]
+json_flag = ["--output-format", "json"]
+resume_flag = "--resume"
+model_flag = "--model"
+permission_flags = { bypass = ["--brave"] }
+
+[acp]
+native = true
+cmd = "junie"
+args = ["--acp=true"]
+registry_id = "junie"
+
+[trust]
+requires_review = true
+how = "Project .junie/config.json and .agents/skills load only in trusted projects (markers in ~/.junie/trust/); non-interactive runs are always trusted."

@@ -1,0 +1,123 @@
+# Codebuff / Freebuff. Source: estudo 75/06 Part 5 "Codebuff (now the CodebuffAI/freebuff monorepo)" (a)-(k) + Built-in tools, 0B.3, 0C.3, 0C.6, Part 5 "Cross-tool notes for the installer", Part 6 §8.1 ccusage.
+id = "codebuff"
+name = "Codebuff"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://github.com/CodebuffAI/freebuff"
+notes = "Repo CodebuffAI/codebuff was renamed to CodebuffAI/freebuff; one monorepo builds both `codebuff` and the ad-supported `freebuff`. `knowledge.md` was dropped as a knowledge file name; custom agents are TypeScript modules, not Markdown."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["codebuff", "freebuff"]
+home_dirs = ["~/.config/manicode"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".agents/mcp.json", ".agents/types"]
+global_dir = "~/.config/manicode"
+config_dir_env = "FREEBUFF_CONFIG_DIR"
+
+[formats]
+rule = "agents_md"
+# Native agents are default-exported AgentDefinition in .ts/.tsx/.js/.mjs/.cjs under
+# .agents/ (no converter): Markdown agents are simulated via AGENTS.md.
+agent = "simulated"
+# No user command directory; skills are the closest equivalent.
+command = "skill"
+skill = "skill_dir"
+setting = "codebuff"
+
+[reads_claude]
+rules = true
+agents = false
+commands = false
+hooks = false
+skills = true
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+# Also any *.knowledge.md anywhere in the project (case-insensitive). Only one user-level file is loaded.
+project = "AGENTS.md"
+global = "~/.AGENTS.md"
+project_alt = ["CLAUDE.md"]
+global_alt = ["~/.CLAUDE.md"]
+
+[paths.agents]
+# Also {cwd}/../.agents/.
+project = ".agents"
+global = "~/.agents"
+
+[paths.simulated_agents]
+project = ".agents/agents"
+global = "~/.agents/agents"
+
+[paths.skills]
+project = ".agents/skills"
+global = "~/.agents/skills"
+project_alt = [".claude/skills"]
+global_alt = ["~/.claude/skills"]
+
+[paths.settings]
+global = "~/.config/manicode/settings.json"
+
+[[mcp]]
+surface = "cli"
+format = "json"
+# Also {cwd}/../.agents/mcp.json and per-agent `mcpServers`.
+project = ".agents/mcp.json"
+global = "~/.agents/mcp.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard_typed"
+# {type:"http"|"sse", url, params, headers}
+remote_shape = "typed"
+transports = ["stdio", "http", "sse"]
+secret_mode = "env_ref"
+env_ref = "$VAR"
+default = true
+
+[tool_name_map]
+Bash = "run_terminal_command"
+Read = "read_files"
+Edit = "str_replace"
+Write = "write_file"
+Glob = "glob"
+Grep = "code_search"
+WebFetch = "read_url"
+WebSearch = "web_search"
+Agent = "spawn_agents"
+TodoWrite = "write_todos"
+Skill = "skill"
+AskUserQuestion = "ask_user"
+
+[model_map]
+# Agent `model` is an OpenRouter-style id (e.g. openai/gpt-5); no alias mapping in the study.
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+[permissions]
+syntax = "none"
+
+[transcripts]
+# Override with $CODEBUFF_DATA_DIR; dev stacks use manicode-dev / manicode-staging. Usage in metadata.usage / metadata.codebuff.usage + credits; token field UNVERIFIED.
+globs = ["~/.config/manicode/projects/*/chats/*/chat-messages.json"]
+parser = "codebuff_json"
+format = "json"
+
+[acp]
+# None found. UNVERIFIED
+native = false
+
+[trust]
+requires_review = true
+how = "Repository .agents/ dirs holding agent code or an mcp.json need a trust prompt, stored in ~/.config/manicode/trusted-agent-dirs.json (CI: --trust-agents or CODEBUFF_TRUST_AGENT_DIRS=1); skills load even when untrusted."

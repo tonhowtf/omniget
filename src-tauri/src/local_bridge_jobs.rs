@@ -1,6 +1,11 @@
 //! Bridge routes of the job system, same bearer as the rest of the bridge:
 //! `POST /v1/hooks/<id>` (webhook trigger; the body becomes `{{body}}`), and
-//! the small API `omniget-cli agent run|loop|jobs` talks to.
+//! the small API `omniget-cli agent run|loop|jobs` talks to. `POST
+//! /v1/agent/run-tool` runs an agent of the catalog (or an `.md` file the CLI
+//! read) as the system prompt of a coding CLI (`omniget agent run <agent>
+//! --tool <x>`); `POST /v1/agent/loop-catalog` starts a catalog loop on the
+//! Loops engine (`omniget agent loop --catalog <id>`); `GET /v1/playbooks`
+//! lists the playbook runs.
 
 use axum::extract::Path;
 use axum::http::{HeaderMap, StatusCode};
@@ -65,6 +70,7 @@ where
             ($body)(jobs)
         }};
     }
+    let (s10, s11, s12) = (state.clone(), state.clone(), state.clone());
     let (s1, s2, s3, s4, s5, s6, s7, s8, s9) = (
         state.clone(),
         state.clone(),
@@ -77,6 +83,39 @@ where
         state,
     );
     Router::new()
+        .route(
+            "/v1/agent/run-tool",
+            post(
+                move |headers: HeaderMap,
+                      Json(b): Json<crate::commands::central::run::ToolRunRequest>| async move {
+                    if !check_bearer(&headers, &s10.token) {
+                        return fail(StatusCode::UNAUTHORIZED, "bad or missing bearer token");
+                    }
+                    ok(crate::commands::central::run::submit_tool_run(&s10.app, b).await)
+                },
+            ),
+        )
+        .route(
+            "/v1/agent/loop-catalog",
+            post(
+                move |headers: HeaderMap,
+                      Json(b): Json<crate::commands::central::run::CatalogLoopRequest>| async move {
+                    if !check_bearer(&headers, &s12.token) {
+                        return fail(StatusCode::UNAUTHORIZED, "bad or missing bearer token");
+                    }
+                    ok(crate::commands::central::run::start_catalog_loop(&s12.app, b).await)
+                },
+            ),
+        )
+        .route(
+            "/v1/playbooks",
+            get(move |headers: HeaderMap| async move {
+                guarded!(s11, headers, |j: std::sync::Arc<jobs::Jobs>| Json(json!(
+                    j.playbooks()
+                ))
+                .into_response())
+            }),
+        )
         .route(
             "/v1/hooks/{id}",
             post(

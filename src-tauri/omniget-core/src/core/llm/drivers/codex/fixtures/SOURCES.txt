@@ -1,0 +1,24 @@
+Fixtures of the Codex app-server driver. Each line: {"dir":"in"|"out","msg":<JSON-RPC message>}
+or {"dir":"stderr","line":...}.
+
+app-server-0.156-handshake.jsonl
+  REAL wire of `codex app-server` (codex-cli 0.156.0 via npx, macOS arm64), 2026-09-22,
+  with an empty temporary CODEX_HOME (no login): initialize, account/read (account null,
+  requiresOpenaiAuth true), account/rateLimits/read (-32600 auth required), thread/start
+  (ephemeral), thread/resume of an unknown id (-32600 "no rollout found ...").
+  Sanitized: working dir -> /work/repo, CODEX_HOME -> /home/user/.codex-omniget,
+  hostname -> host.local, installationId zeroed. Nothing else edited.
+
+app-server-0.156-unauthenticated-turn.jsonl
+  REAL wire, same setup: thread/start, turn/start "say hi" that fails with 401 after the
+  websocket and HTTPS retries (error notifications with willRetry true/false,
+  thread/status/changed systemError, turn/completed status failed), then
+  thread/turns/list, thread/read, thread/revert (+ thread/reverted notification),
+  thread/fork, turn/interrupt with no active turn (-32600), an unknown method.
+  Same sanitizing.
+
+app-server-schema-approval-turn.jsonl
+  CONSTRUCTED from the JSON Schema of codex-cli 0.156.0 (see protocol.rs), because a
+  successful turn needs a logged-in account. Shapes follow the generated types exactly
+  (ThreadItem variants, *RequestApprovalParams, ThreadTokenUsage, RateLimitSnapshot);
+  ids and values are invented.

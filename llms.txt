@@ -1,6 +1,6 @@
 # OmniGet
 
-> OmniGet is a free, open source (GPL-3.0) desktop app for Windows, macOS and Linux with two halves. It downloads online courses (Udemy, Hotmart, Kiwify, Rocketseat), YouTube, Instagram, TikTok, X/Twitter and about 1,800 other sites through a graphical interface over yt-dlp, then plays, reads, transcribes and converts what was saved. And it runs AI coding agents on the user's own machine: Claude Code, Codex, Gemini CLI and local Ollama models, with per-folder permissions, undo, durable jobs, loops that repeat until a test command passes, an embedded MCP server with 49 tools, and an isometric house called the World where the agents are seen working.
+> OmniGet is a free, open source (GPL-3.0) desktop app for Windows, macOS and Linux with two halves. It downloads online courses (Udemy, Hotmart, Kiwify, Rocketseat), YouTube, Instagram, TikTok, X/Twitter and about 1,800 other sites through a graphical interface over yt-dlp, then plays, reads, transcribes and converts what was saved. And it runs AI coding agents on the user's own machine: Claude Code, Codex, Gemini CLI and local Ollama models, with per-folder permissions, undo, durable jobs, loops that repeat until a test command passes, an embedded MCP server with 67 tools, and an isometric house called the World where the agents are seen working. The Central drives the agent CLIs in threads with a git worktree and a checkpoint per turn, installs agents, commands, skills, MCP servers and hooks from a 3,802-component catalog into 34 coding tools (converting each format), and reports usage and cost from the logs of 23 tools.
 
 OmniGet is for two kinds of people. People who want a downloader: a Udemy downloader, a Hotmart downloader, a YouTube downloader, a yt-dlp GUI, an Instagram, TikTok, X, Reddit, Pinterest, Twitch, Bilibili or Telegram downloader, a torrent client, with no terminal. And people who want a desktop app for AI agents: a GUI for Claude Code and Codex, a client for any Agent Client Protocol (ACP) agent, local agents on Ollama or LM Studio, background jobs, scheduled runs, and an MCP server for Claude Code, Claude Desktop, Cursor, VS Code, Goose and Codex.
 
@@ -15,7 +15,7 @@ OmniGet is for two kinds of people. People who want a downloader: a Udemy downlo
 - Cost: free, no account, no ads, no paid tier, no telemetry
 - Built with: Tauri 2, Rust, SvelteKit (Svelte 5), SQLite
 - Engines it manages for the user: yt-dlp (verified by SHA-256 before it runs), FFmpeg, aria2, gallery-dl, whisper.cpp
-- Size: 156 tools in 24 categories, 49 MCP tools, 4 official plugins, 14 themes, 12 interface languages
+- Size: 156 tools in 24 categories, 67 MCP tools, 4 official plugins, 14 themes, 12 interface languages
 - Community: https://discord.gg/jgdxyPy7Vn
 
 ## Downloading
@@ -39,10 +39,10 @@ OmniGet is for two kinds of people. People who want a downloader: a Udemy downlo
 - The World: an isometric house, rendered in WebGL2 from a Rust simulation, where each agent walks to its own workbench, shows the running tool in a balloon and waves when it needs permission. Inspired by generative agents and ai-town, driven by real work instead of a script. 64 fps median with eight agents working (debug build).
 - Visits: "Open the house" gives a code; a friend's app connects through a relay (`wss://chat.tonho.wtf/v1/room`, or a self-hosted `omniworld-server`). The host app is the authority and keys never leave the machine.
 
-## MCP server (49 tools)
+## MCP server (67 tools)
 
 - [MCP server and Claude Code plugin](https://github.com/tonhowtf/omniget#omniget-for-ai-agents-mcp-server-and-claude-code-plugin): How to connect.
-- Turn it on in Tools → AI → MCP server. It serves 49 tools over the Model Context Protocol on the local bridge (127.0.0.1), behind a per-install token. The page prints ready-made config for Claude Code, Claude Desktop, Cursor, VS Code, Goose and Codex.
+- Turn it on in Tools → AI → MCP server. It serves 67 tools over the Model Context Protocol on the local bridge (127.0.0.1), behind a per-install token. The page prints ready-made config for Claude Code, Claude Desktop, Cursor, VS Code, Goose and Codex.
 - Tools include: queue and control downloads, PDF merge/split/render/extract/sanitize, whisper.cpp transcription, text to speech, OCR, image resize, duplicate finder, file search, X posts/threads/profiles/search, Instagram profile lookup, LLM price comparison, disk and cache scans, aria2 and gallery-dl fetches, the coding tools of the harness, `kb_search`, `kb_write` and `agent_delegate`.
 - OmniGet is also an MCP client: external MCP servers (stdio or streamable HTTP) become agent tools, granted per agent as auto, ask or deny.
 - A Claude Code plugin in `claude-plugin/` adds `/omniget:fetch`, `/omniget:transcribe` and `/omniget:research` without the desktop app.
@@ -76,7 +76,7 @@ OmniGet is for two kinds of people. People who want a downloader: a Udemy downlo
 - Can an AI agent loop until the tests pass? Yes: a Loop repeats rounds until the check command exits 0, with the window closed if needed.
 - Does it work with Ollama only, offline? Yes: a fresh install is local first and needs no key.
 - Is my code sent anywhere? Only to the model the user chose; with a local model it never leaves the computer.
-- Can Claude Code, Cursor or VS Code use OmniGet's tools? Yes, through the built-in MCP server with 49 tools.
+- Can Claude Code, Cursor or VS Code use OmniGet's tools? Yes, through the built-in MCP server with 67 tools.
 - Does it resume interrupted downloads? Yes, with retry and backoff on rate limits.
 
 ## Privacy and scope

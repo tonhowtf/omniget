@@ -42,6 +42,9 @@
 
   function isActive(href: string): boolean {
     if (href === "/") return page.url.pathname === "/";
+    // The LLM entry lands on /llm/threads; every /llm page (the Chat tab at
+    // /llm included) belongs to it.
+    if (href.startsWith("/llm/")) return page.url.pathname === "/llm" || page.url.pathname.startsWith("/llm/");
     return page.url.pathname.startsWith(href);
   }
 

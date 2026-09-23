@@ -1,0 +1,166 @@
+# OpenCode. Source: estudo 75/06 0B.1, 0C.1-0C.10, Part 2 "OpenCode" a)-k), Part 6 §2.2-§2.4, §5.4, §6.1, §8.1, §9, §10.
+id = "opencode"
+name = "OpenCode"
+tier = 1
+status = "active"
+beta = true
+homepage = "https://opencode.ai"
+notes = "Repo moved from sst/opencode to anomalyco/opencode. Hooks exist only as JS/TS plugins, and sessions are stored in SQLite."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["opencode"]
+home_dirs = ["{xdg_config}/opencode"]
+
+# OPENCODE_CONFIG (file) and OPENCODE_CONFIG_DIR (extra .opencode-style dir) add layers; neither moves the global dir.
+# Managed config dirs: /Library/Application Support/opencode/, /etc/opencode/, %ProgramData%\opencode (file names not given).
+[scopes]
+project = true
+global = true
+local = false
+managed = true
+project_markers = ["opencode.json", "opencode.jsonc", ".opencode", "AGENTS.md"]
+global_dir = "{xdg_config}/opencode"
+
+[formats]
+rule = "agents_md"
+agent = "opencode_md"
+command = "opencode_md"
+skill = "skill_dir"
+hook = "code_plugin"
+setting = "opencode"
+plugin = "code_plugin"
+
+[reads_claude]
+rules = true                # CLAUDE.md only when no AGENTS.md exists (fallback)
+agents = false
+commands = false
+hooks = false
+skills = true
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "{xdg_config}/opencode/AGENTS.md"
+project_alt = ["CLAUDE.md"]
+global_alt = ["~/.claude/CLAUDE.md"]
+
+# Scoped rules: a file here listed in opencode.json `instructions` (loaded always; 0C.1).
+[paths.scoped_rules]
+project = ".opencode/rules"
+global = "{xdg_config}/opencode/rules"
+
+[paths.agents]
+project = ".opencode/agents"
+global = "{xdg_config}/opencode/agents"
+project_alt = [".opencode/modes"]
+global_alt = ["{xdg_config}/opencode/modes"]
+
+[paths.commands]
+project = ".opencode/commands"
+global = "{xdg_config}/opencode/commands"
+
+[paths.skills]
+project = ".opencode/skills"
+global = "{xdg_config}/opencode/skills"
+project_alt = [".claude/skills", ".agents/skills"]
+global_alt = ["~/.claude/skills", "~/.agents/skills"]
+
+# Directory: hooks are generated as a JS plugin that shells out to the hook command (rulesync: plugins/rulesync-hooks.js).
+[paths.hooks]
+project = ".opencode/plugins"
+global = "{xdg_config}/opencode/plugins"
+
+[paths.settings]
+project = "opencode.json"
+global = "{xdg_config}/opencode/opencode.json"
+project_alt = ["opencode.jsonc"]
+global_alt = ["{xdg_config}/opencode/opencode.jsonc"]
+
+[paths.plugins]
+project = ".opencode/plugins"
+global = "{xdg_config}/opencode/plugins"
+
+[[mcp]]
+surface = "cli"
+format = "jsonc"
+project = "opencode.json"
+global = "{xdg_config}/opencode/opencode.json"
+key = ["mcp"]
+container = "map"
+stdio_shape = "opencode"
+remote_shape = "opencode"
+transports = ["stdio", "http", "sse"]   # remote = Streamable HTTP with SSE fallback
+secret_mode = "env_ref"
+env_ref = "{env:VAR}"
+default = true
+
+[hook_event_map]
+SessionStart = "session.created"
+SessionEnd = "session.deleted"
+UserPromptSubmit = "chat.message"
+PreToolUse = "tool.execute.before"
+PostToolUse = "tool.execute.after"
+PermissionRequest = "permission.ask"
+Stop = "session.idle"
+PreCompact = "experimental.session.compacting"
+Notification = "tui.toast.show"
+
+[hooks]
+shape = "code_plugin"
+
+[tool_name_map]
+Bash = "bash"
+Read = "read"
+Edit = "edit"
+Write = "write"
+Glob = "glob"
+Grep = "grep"
+WebFetch = "webfetch"
+WebSearch = "websearch"
+Agent = "task"
+TodoWrite = "todowrite"
+Skill = "skill"
+AskUserQuestion = "question"
+mcp = "{server}_{tool}"
+
+[placeholder_map]
+args = "$ARGUMENTS"
+arg = "$N"
+shell = "!`{cmd}`"
+file = "@{path}"
+
+# Models must be written as provider/model-id (e.g. anthropic/<id>); the study gives no alias table.
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+[permissions]
+syntax = "opencode"
+key = ["permission"]
+lists = ["allow", "ask", "deny"]
+
+[transcripts]
+globs = ["{xdg_data}/opencode/opencode*.db"]   # OPENCODE_DB overrides; legacy storage/message/**/*.json
+parser = "opencode_sqlite"
+format = "sqlite"
+
+[runner]
+cmd = "opencode"
+headless = ["run"]
+json_flag = ["--format", "json"]
+resume_flag = "--session"
+model_flag = "--model"
+permission_flags = { plan = ["--agent", "plan"], bypass = ["--auto"] }
+
+[acp]
+native = true
+cmd = "opencode"
+args = ["acp"]
+registry_id = "opencode"

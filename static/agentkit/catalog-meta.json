@@ -1,0 +1,500 @@
+{
+  "format": "omniget-agentkit-catalog-meta",
+  "version": 1,
+  "generated": "2026-09-23T01:34:36.673Z",
+  "source": {
+    "id": "cct",
+    "name": "claude-code-templates",
+    "repo": "davila7/claude-code-templates",
+    "commit": "590d437baf1e53d934a976bd8a06af54607ed7e1",
+    "commit_date": "2026-09-22T14:00:59Z",
+    "url": "https://github.com/davila7/claude-code-templates",
+    "license": "MIT",
+    "stars": 31138,
+    "attribution": "Components from davila7/claude-code-templates (MIT), each keeping its own license and author. Anthropic proprietary document skills are excluded; skills vendored from an indexed upstream repo are aliases of the upstream item."
+  },
+  "sources": [
+    {
+      "id": "cct",
+      "name": "claude-code-templates",
+      "repo": "davila7/claude-code-templates",
+      "commit": "590d437baf1e53d934a976bd8a06af54607ed7e1",
+      "commit_date": "2026-09-22T14:00:59Z",
+      "url": "https://github.com/davila7/claude-code-templates",
+      "license": "MIT",
+      "stars": 31138,
+      "attribution": "Components from davila7/claude-code-templates (MIT), each keeping its own license and author. Anthropic proprietary document skills are excluded; skills vendored from an indexed upstream repo are aliases of the upstream item."
+    },
+    {
+      "id": "anthropics/skills",
+      "name": "Anthropic Agent Skills",
+      "repo": "anthropics/skills",
+      "commit": "34040c9c568585f6929bedeaad110ad08f079624",
+      "commit_date": "2026-09-10T12:44:08-07:00",
+      "url": "https://github.com/anthropics/skills",
+      "license": "Apache-2.0",
+      "stars": 177660,
+      "items": 15,
+      "excluded": 4,
+      "attribution": "Skills from anthropics/skills, each keeping its own license and author. docx/pdf/pptx/xlsx are source-available (not open source) and are excluded."
+    },
+    {
+      "id": "openai/skills",
+      "name": "OpenAI Skills (Codex)",
+      "repo": "openai/skills",
+      "commit": "49f948faa9258a0c61caceaf225e179651397431",
+      "commit_date": "2026-06-23T19:36:12-07:00",
+      "url": "https://github.com/openai/skills",
+      "license": "per-item",
+      "stars": 27555,
+      "items": 36,
+      "excluded": 8,
+      "attribution": "Skills from openai/skills, each keeping its own license and author. License per skill (LICENSE.txt). Figma skills are under the Figma Developer Terms and are excluded."
+    },
+    {
+      "id": "google/skills",
+      "name": "Google Agent Skills",
+      "repo": "google/skills",
+      "commit": "3863d569ad96ed4e72ef9eade584451ac4ac4dc8",
+      "commit_date": "2026-09-22T16:08:46-07:00",
+      "url": "https://github.com/google/skills",
+      "license": "Apache-2.0",
+      "stars": 20295,
+      "items": 147,
+      "excluded": 0,
+      "attribution": "Skills from google/skills, each keeping its own license and author."
+    },
+    {
+      "id": "obra/superpowers",
+      "name": "Superpowers",
+      "repo": "obra/superpowers",
+      "commit": "5bf4e78011075bcfc0dc295f0724994cd123ee71",
+      "commit_date": "2026-09-18T17:31:35-07:00",
+      "url": "https://github.com/obra/superpowers",
+      "license": "MIT",
+      "stars": 290223,
+      "items": 15,
+      "excluded": 0,
+      "attribution": "Skills from obra/superpowers, each keeping its own license and author."
+    },
+    {
+      "id": "K-Dense-AI/scientific-agent-skills",
+      "name": "Scientific Agent Skills (K-Dense)",
+      "repo": "K-Dense-AI/scientific-agent-skills",
+      "commit": "49c6e97775eaa18ba791bebe23162a70ae601c18",
+      "commit_date": "2026-09-21T09:27:49Z",
+      "url": "https://github.com/K-Dense-AI/scientific-agent-skills",
+      "license": "MIT",
+      "stars": 46146,
+      "items": 161,
+      "excluded": 5,
+      "formerly": "K-Dense-AI/claude-scientific-skills",
+      "attribution": "Skills from K-Dense-AI/scientific-agent-skills, each keeping its own license and author."
+    }
+  ],
+  "skipped_sources": [
+    {
+      "repo": "OpenRouterTeam/skills",
+      "reason": "already_pinned_elsewhere",
+      "detail": "Pinned and installed by omniget-core/src/core/skills/catalog.rs; the repository declares no license."
+    },
+    {
+      "repo": "hesreallyhim/awesome-claude-code",
+      "reason": "links_only",
+      "detail": "An awesome list: resources are links in a CSV/README, no component files to index (license NOASSERTION)."
+    }
+  ],
+  "counts": {
+    "plugin": 1457,
+    "skill": 1273,
+    "agent": 422,
+    "command": 348,
+    "hook": 62,
+    "loop": 18,
+    "mcp": 104,
+    "mod": 29,
+    "sandbox": 3,
+    "setting": 40,
+    "statusline": 32,
+    "template": 14
+  },
+  "by_source": {
+    "marketplaces": {
+      "plugin": 1457
+    },
+    "anthropics/skills": {
+      "skill": 15
+    },
+    "cct": {
+      "agent": 422,
+      "command": 348,
+      "hook": 62,
+      "loop": 18,
+      "mcp": 104,
+      "mod": 29,
+      "sandbox": 3,
+      "setting": 40,
+      "skill": 899,
+      "statusline": 32,
+      "template": 14
+    },
+    "google/skills": {
+      "skill": 147
+    },
+    "K-Dense-AI/scientific-agent-skills": {
+      "skill": 161
+    },
+    "obra/superpowers": {
+      "skill": 15
+    },
+    "openai/skills": {
+      "skill": 36
+    }
+  },
+  "total": 3802,
+  "origin_tool": {
+    "claude": 3543,
+    "copilot": 76,
+    "gemini": 147,
+    "codex": 36
+  },
+  "licenses": {
+    "GPL-3.0": 3,
+    "MIT": 2700,
+    "unknown": 562,
+    "Apache-2.0": 496,
+    "CC-BY-4.0": 6,
+    "Slop-Mop Attribution License v1.0": 1,
+    "PolyForm-Noncommercial-1.0.0": 2,
+    "CC-BY-NC-4.0": 1,
+    "MIT AND BSD-3-Clause": 1,
+    "MPL-2.0": 2,
+    "LicenseRef-html2wp-Source-Available-1.0": 1,
+    "MIT-0": 1,
+    "BSD-3-Clause": 18,
+    "Biopython License Agreement": 1,
+    "GPL-2.0": 1,
+    "BSD": 1,
+    "BSD-2-Clause": 1,
+    "https://github.com/matplotlib/matplotlib/tree/main/LICENSE": 1,
+    "https://github.com/pola-rs/polars/blob/main/LICENSE": 1,
+    "https://github.com/sympy/sympy/blob/master/LICENSE": 1,
+    "CC-BY-NC-SA-4.0": 1
+  },
+  "normalization": {
+    "unpinned_source": 71,
+    "truncated_description": 862,
+    "stripped_example_blocks": 264,
+    "license_from_file": 111,
+    "license_from_repo": 855,
+    "renamed_collision": 72,
+    "copilot_tools": 76,
+    "added_frontmatter": 74,
+    "missing_extension": 1,
+    "removed_invalid_model": 2,
+    "foreign_tool_ids": 10,
+    "nested_path_indexed": 60,
+    "fixed_description_typo": 1,
+    "added_description": 3,
+    "name_differs_from_dir": 165,
+    "alias_of_upstream": 173,
+    "nested_skill_indexed": 18
+  },
+  "collisions": 223,
+  "cross_source_collisions": 4,
+  "aliases": 173,
+  "excluded": [
+    {
+      "source": "cct",
+      "path": "cli-tool/components/skills/document-processing/docx",
+      "name": "docx",
+      "reason": "anthropic_proprietary_document_skill",
+      "license": "Proprietary"
+    },
+    {
+      "source": "cct",
+      "path": "cli-tool/components/skills/document-processing/docx-official",
+      "name": "docx-official",
+      "reason": "anthropic_official_duplicate",
+      "license": "Proprietary"
+    },
+    {
+      "source": "cct",
+      "path": "cli-tool/components/skills/document-processing/pdf",
+      "name": "pdf",
+      "reason": "anthropic_proprietary_document_skill",
+      "license": "Proprietary"
+    },
+    {
+      "source": "cct",
+      "path": "cli-tool/components/skills/document-processing/pdf-anthropic",
+      "name": "pdf-anthropic",
+      "reason": "anthropic_proprietary_document_skill",
+      "license": "Proprietary"
+    },
+    {
+      "source": "cct",
+      "path": "cli-tool/components/skills/document-processing/pdf-official",
+      "name": "pdf-official",
+      "reason": "anthropic_official_duplicate",
+      "license": "Proprietary"
+    },
+    {
+      "source": "cct",
+      "path": "cli-tool/components/skills/document-processing/pdf-processing",
+      "name": "pdf-processing",
+      "reason": "proprietary_license",
+      "license": "Proprietary"
+    },
+    {
+      "source": "cct",
+      "path": "cli-tool/components/skills/document-processing/pptx",
+      "name": "pptx",
+      "reason": "anthropic_proprietary_document_skill",
+      "license": "Proprietary"
+    },
+    {
+      "source": "cct",
+      "path": "cli-tool/components/skills/document-processing/pptx-official",
+      "name": "pptx-official",
+      "reason": "anthropic_official_duplicate",
+      "license": "Proprietary"
+    },
+    {
+      "source": "cct",
+      "path": "cli-tool/components/skills/document-processing/xlsx",
+      "name": "xlsx",
+      "reason": "anthropic_proprietary_document_skill",
+      "license": "Proprietary"
+    },
+    {
+      "source": "cct",
+      "path": "cli-tool/components/skills/document-processing/xlsx-official",
+      "name": "xlsx-official",
+      "reason": "anthropic_official_duplicate",
+      "license": "Proprietary"
+    },
+    {
+      "source": "cct",
+      "path": "cli-tool/components/skills/scientific/document-skills/docx",
+      "name": "docx",
+      "reason": "anthropic_proprietary_document_skill",
+      "license": "Proprietary"
+    },
+    {
+      "source": "cct",
+      "path": "cli-tool/components/skills/scientific/document-skills/pdf",
+      "name": "pdf",
+      "reason": "anthropic_proprietary_document_skill",
+      "license": "Proprietary"
+    },
+    {
+      "source": "cct",
+      "path": "cli-tool/components/skills/scientific/document-skills/pptx",
+      "name": "pptx",
+      "reason": "anthropic_proprietary_document_skill",
+      "license": "Proprietary"
+    },
+    {
+      "source": "cct",
+      "path": "cli-tool/components/skills/scientific/document-skills/xlsx",
+      "name": "xlsx",
+      "reason": "anthropic_proprietary_document_skill",
+      "license": "Proprietary"
+    },
+    {
+      "source": "anthropics/skills",
+      "path": "skills/docx",
+      "name": "docx",
+      "reason": "source_available",
+      "license": "Proprietary"
+    },
+    {
+      "source": "anthropics/skills",
+      "path": "skills/pdf",
+      "name": "pdf",
+      "reason": "source_available",
+      "license": "Proprietary"
+    },
+    {
+      "source": "anthropics/skills",
+      "path": "skills/pptx",
+      "name": "pptx",
+      "reason": "source_available",
+      "license": "Proprietary"
+    },
+    {
+      "source": "anthropics/skills",
+      "path": "skills/xlsx",
+      "name": "xlsx",
+      "reason": "source_available",
+      "license": "Proprietary"
+    },
+    {
+      "source": "openai/skills",
+      "path": "skills/.curated/figma",
+      "name": "figma",
+      "reason": "vendor_terms_not_open_source",
+      "license": "LicenseRef-Figma-Developer-Terms"
+    },
+    {
+      "source": "openai/skills",
+      "path": "skills/.curated/figma-code-connect-components",
+      "name": "figma-code-connect-components",
+      "reason": "vendor_terms_not_open_source",
+      "license": "LicenseRef-Figma-Developer-Terms"
+    },
+    {
+      "source": "openai/skills",
+      "path": "skills/.curated/figma-create-design-system-rules",
+      "name": "figma-create-design-system-rules",
+      "reason": "vendor_terms_not_open_source",
+      "license": "LicenseRef-Figma-Developer-Terms"
+    },
+    {
+      "source": "openai/skills",
+      "path": "skills/.curated/figma-create-new-file",
+      "name": "figma-create-new-file",
+      "reason": "vendor_terms_not_open_source",
+      "license": "LicenseRef-Figma-Developer-Terms"
+    },
+    {
+      "source": "openai/skills",
+      "path": "skills/.curated/figma-generate-design",
+      "name": "figma-generate-design",
+      "reason": "vendor_terms_not_open_source",
+      "license": "LicenseRef-Figma-Developer-Terms"
+    },
+    {
+      "source": "openai/skills",
+      "path": "skills/.curated/figma-generate-library",
+      "name": "figma-generate-library",
+      "reason": "vendor_terms_not_open_source",
+      "license": "LicenseRef-Figma-Developer-Terms"
+    },
+    {
+      "source": "openai/skills",
+      "path": "skills/.curated/figma-implement-design",
+      "name": "figma-implement-design",
+      "reason": "vendor_terms_not_open_source",
+      "license": "LicenseRef-Figma-Developer-Terms"
+    },
+    {
+      "source": "openai/skills",
+      "path": "skills/.curated/figma-use",
+      "name": "figma-use",
+      "reason": "vendor_terms_not_open_source",
+      "license": "LicenseRef-Figma-Developer-Terms"
+    },
+    {
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "path": "skills/docx",
+      "name": "docx",
+      "reason": "anthropic_proprietary_document_skill",
+      "license": "Proprietary"
+    },
+    {
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "path": "skills/pdf",
+      "name": "pdf",
+      "reason": "anthropic_proprietary_document_skill",
+      "license": "Proprietary"
+    },
+    {
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "path": "skills/pptx",
+      "name": "pptx",
+      "reason": "anthropic_proprietary_document_skill",
+      "license": "Proprietary"
+    },
+    {
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "path": "skills/rowan",
+      "name": "rowan",
+      "reason": "proprietary_license",
+      "license": "Proprietary"
+    },
+    {
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "path": "skills/xlsx",
+      "name": "xlsx",
+      "reason": "anthropic_proprietary_document_skill",
+      "license": "Proprietary"
+    }
+  ],
+  "skipped": [
+    {
+      "path": "cli-tool/components/agents/business-marketing/cli-tool/components/agents/business-marketing/cli-tool/components/agents/business-marketing/vital-health-content-agent.md",
+      "reason": "helper_script"
+    },
+    {
+      "path": "cli-tool/components/agents/business-marketing/cli-tool/components/agents/business-marketing/vital-health-content-agent.md",
+      "reason": "helper_script"
+    },
+    {
+      "path": "cli-tool/components/agents/obsidian-ops-team/Scripts/daily_notes_connector.py",
+      "reason": "helper_script"
+    },
+    {
+      "path": "cli-tool/components/agents/obsidian-ops-team/Scripts/enhance_tag_standardizer.py",
+      "reason": "helper_script"
+    },
+    {
+      "path": "cli-tool/components/agents/obsidian-ops-team/Scripts/find_keyword_connections.py",
+      "reason": "helper_script"
+    },
+    {
+      "path": "cli-tool/components/agents/obsidian-ops-team/Scripts/fix_quoted_tags.py",
+      "reason": "helper_script"
+    },
+    {
+      "path": "cli-tool/components/agents/obsidian-ops-team/Scripts/implement_entity_connections.py",
+      "reason": "helper_script"
+    },
+    {
+      "path": "cli-tool/components/agents/obsidian-ops-team/Scripts/link_suggester.py",
+      "reason": "helper_script"
+    },
+    {
+      "path": "cli-tool/components/agents/obsidian-ops-team/Scripts/metadata_adder.py",
+      "reason": "helper_script"
+    },
+    {
+      "path": "cli-tool/components/agents/obsidian-ops-team/Scripts/moc_generator.py",
+      "reason": "helper_script"
+    },
+    {
+      "path": "cli-tool/components/agents/obsidian-ops-team/Scripts/parse_keyword_connections.py",
+      "reason": "helper_script"
+    },
+    {
+      "path": "cli-tool/components/agents/obsidian-ops-team/Scripts/tag_standardizer.py",
+      "reason": "helper_script"
+    },
+    {
+      "path": "cli-tool/components/agents/programming-languages/README.md",
+      "reason": "readme"
+    },
+    {
+      "path": "cli-tool/components/hooks/HOOK_PATTERNS_COMPRESSED.json",
+      "reason": "hook_pattern_library"
+    },
+    {
+      "path": "cli-tool/components/mods/types/claude-code.d.ts",
+      "reason": "mods_support_file"
+    }
+  ],
+  "marketplaces": {
+    "repos": 36,
+    "with_plugins": 36,
+    "plugins": 1457
+  },
+  "index": {
+    "file": "catalog-index.json.gz",
+    "bytes": 1217160,
+    "sha256": "e9efa81121a824a612030aaab438bad89c3dbfb35c4c70854f93234fe4e7a6ce",
+    "json_bytes": 6980168,
+    "json_sha256": "0844c7001c4cd459dd6dc3aff04b5568d9022f8aadd384816957f20b3ae1d977",
+    "content_sha256": "8028b9c44c978180dad39bd186d5259c9b954fb7dcefd50d4cd230996fac874d"
+  }
+}

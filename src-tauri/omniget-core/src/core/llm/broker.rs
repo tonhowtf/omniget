@@ -491,10 +491,20 @@ impl ToolBroker {
                 _ => super::code_tools::preview(name, input),
             },
         });
-        let allowed = match tokio::time::timeout(self.ask_timeout, rx).await {
-            Ok(Ok(allow)) => allow,
-            // Sender dropped or the wait expired: both mean "no".
-            _ => Answer::Deny,
+        // A thread of the Central persists the ask as `request.opened` and
+        // waits for the answer however long it takes (plan §3.3); jobs and
+        // the old chat keep the timeout.
+        let durable = super::code_tools::current_turn()
+            .map(|ctx| super::drivers::is_durable_conversation(&ctx.conversation))
+            .unwrap_or(false);
+        let allowed = if durable {
+            rx.await.unwrap_or(Answer::Deny)
+        } else {
+            match tokio::time::timeout(self.ask_timeout, rx).await {
+                Ok(Ok(allow)) => allow,
+                // Sender dropped or the wait expired: both mean "no".
+                _ => Answer::Deny,
+            }
         };
         let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
         pending.remove(tool_call_id);

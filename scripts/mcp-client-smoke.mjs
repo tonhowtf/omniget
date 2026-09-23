@@ -18,10 +18,35 @@
 //   {"step":"fs_read","isError":false,"lines":8,"path":"src/cart.js"}
 //   {"step":"agent_delegate","isError":false,"agent":"claude-code","answer":"pong"}
 
-const [url, token, file = "README.md", agent] = process.argv.slice(2);
+// Token de sessão de driver (Central, rodada 3): modo só-lista, sem fs_read.
+//   node scripts/mcp-client-smoke.mjs <url> <token> --list [--expect a,b] [--forbid c,d]
+//   node scripts/mcp-client-smoke.mjs <url> <token> --expect-unauthorized
+// O teste `mcp::tests::session_token_over_http` roda os dois contra um
+// servidor de verdade quando OMNIGET_MCP_SMOKE_NODE=1.
+
+const argv = process.argv.slice(2);
+const flags = new Map();
+const positional = [];
+for (let i = 0; i < argv.length; i++) {
+  const a = argv[i];
+  if (a === "--list" || a === "--expect-unauthorized") flags.set(a, true);
+  else if (a === "--expect" || a === "--forbid") flags.set(a, (argv[++i] ?? "").split(",").filter(Boolean));
+  else positional.push(a);
+}
+const [url, token, file = "README.md", agent] = positional;
 if (!url || !token) {
-  console.error("usage: mcp-client-smoke.mjs <http://127.0.0.1:PORT/mcp> <token> [file] [agent]");
+  console.error("usage: mcp-client-smoke.mjs <http://127.0.0.1:PORT/mcp> <token> [file] [agent] | --list [--expect a,b] [--forbid c,d] | --expect-unauthorized");
   process.exit(2);
+}
+
+if (flags.get("--expect-unauthorized")) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+  });
+  console.log(JSON.stringify({ step: "unauthorized", status: res.status }));
+  process.exit(res.status === 401 ? 0 : 1);
 }
 
 let id = 0;
@@ -77,6 +102,12 @@ try {
     has_fs_read: names.includes("fs_read"),
     has_agent_delegate: names.includes("agent_delegate"),
   }));
+  if (flags.get("--list")) {
+    const missing = (flags.get("--expect") ?? []).filter((n) => !names.includes(n));
+    const leaked = (flags.get("--forbid") ?? []).filter((n) => names.includes(n));
+    console.log(JSON.stringify({ step: "scope", missing, leaked, catalog: names.filter((n) => n.startsWith("catalog_")) }));
+    process.exit(missing.length || leaked.length ? 1 : 0);
+  }
 
   const read = await rpc("tools/call", { name: "fs_read", arguments: { path: file } });
   const r = payload(read);

@@ -745,6 +745,51 @@ fn build() -> Vec<ToolEntry> {
             Cheap,
             None,
         ),
+        // ── Catalog (Central): an agent can equip itself, the owner approves ──
+        entry(
+            "catalog_search",
+            "Search the OmniGet catalog of agent components (agents, commands, skills, MCP servers, hooks, settings, statuslines, plugins) that can be installed into Claude Code, Codex, Gemini CLI, Cursor, OpenCode and other coding tools. Returns ids for catalog_get / catalog_plan_install.",
+            obj(json!({ "query": { "type": "string" }, "kinds": { "type": "array", "items": { "type": "string", "enum": ["agent", "command", "skill", "mcp", "hook", "setting", "statusline", "plugin", "rule", "loop", "mod", "template", "sandbox"] } }, "categories": { "type": "array", "items": { "type": "string" } }, "limit": { "type": "integer", "minimum": 1, "maximum": 50 }, "offset": { "type": "integer", "minimum": 0 } }), &[]),
+            ToolImpl::Host,
+            "catalog",
+            Cheap,
+            None,
+        ),
+        entry(
+            "catalog_get",
+            "One catalog item by id: description, files, license, source, and on which installed coding tools it works (and what is lost in the conversion).",
+            obj(json!({ "id": { "type": "string" }, "project": { "type": "string", "description": "absolute project folder, for project-scoped compatibility" } }), &["id"]),
+            ToolImpl::Host,
+            "catalog",
+            Cheap,
+            None,
+        ),
+        entry(
+            "catalog_plan_install",
+            "Plan installing catalog items: every file each target tool would get, with a unified diff, conflicts and the commands the install makes a tool run. Writes nothing. Returns a plan_id for catalog_install.",
+            obj(json!({ "ids": { "type": "array", "items": { "type": "string" }, "minItems": 1 }, "targets": { "type": "array", "items": { "type": "string" }, "description": "tool ids (claude, codex, gemini, cursor, opencode…); empty = the installed tools enabled by default" }, "scope": { "type": "string", "enum": ["project", "global", "local"] }, "project": { "type": "string", "description": "absolute project folder (required for scope project)" }, "policy": { "type": "string", "enum": ["rename", "skip", "overwrite"] } }), &["ids"]),
+            ToolImpl::Host,
+            "catalog",
+            Network,
+            None,
+        ),
+        entry(
+            "catalog_install",
+            "Apply a plan from catalog_plan_install. The owner of this machine is asked first and sees the whole diff; a refusal or no answer fails the call and writes nothing.",
+            obj(json!({ "plan_id": { "type": "string" }, "reason": { "type": "string", "description": "one sentence for the owner: why you need this" } }), &["plan_id"]),
+            ToolImpl::Host,
+            "catalog",
+            Local,
+            None,
+        ),
+        // ── Preview: the thread Browser tab (host body: crate::preview::tools) ──
+        entry("preview_servers", "List dev servers listening on local TCP ports from inside a folder (lsof/netstat + HTTP probe). Returns port, url, pid, command, cwd, inWorkspace, html, title. Without cwd, every local listener.", obj(json!({"cwd":{"type":"string","description":"Project or worktree folder"},"all":{"type":"boolean","description":"Also list local listeners outside the folder"}}), &[]), ToolImpl::Host, "code", Cheap, None),
+        entry("preview_navigate", "Open a URL in the thread's Browser preview (opens a hidden preview when none is open) or go back/forward/reload. Waits for the page load and returns {url, title, loading, visible}.", obj(json!({"url":{"type":"string"},"action":{"type":"string","enum":["back","forward","reload"]},"threadId":{"type":"string"}}), &[]), ToolImpl::Host, "code", Local, None),
+        entry("preview_snapshot", "Accessibility-style snapshot of the preview page: an indented role/name tree whose refs (e12) work as selectors in preview_click/preview_type, plus the visible text (and the HTML with includeHtml).", obj(json!({"threadId":{"type":"string"},"maxNodes":{"type":"integer","maximum":10000},"maxChars":{"type":"integer","maximum":200000},"includeHtml":{"type":"boolean"}}), &[]), ToolImpl::Host, "code", Cheap, None),
+        entry("preview_click", "Click an element of the preview page. selector: a CSS selector, a ref from preview_snapshot (e12), or text=Label.", obj(json!({"selector":{"type":"string"},"double":{"type":"boolean"},"threadId":{"type":"string"}}), &["selector"]), ToolImpl::Host, "code", Local, None),
+        entry("preview_type", "Type into an input, textarea, select or contenteditable of the preview page (React-safe value setter + input/change events). clear defaults to true; submit presses Enter and submits the form.", obj(json!({"selector":{"type":"string"},"text":{"type":"string"},"submit":{"type":"boolean"},"clear":{"type":"boolean"},"threadId":{"type":"string"}}), &["selector", "text"]), ToolImpl::Host, "code", Local, None),
+        entry("preview_console", "Console messages, page errors and failed resource loads captured in the preview since the last page load (drained by default).", obj(json!({"level":{"type":"string","enum":["error","warn","log","info","debug"]},"limit":{"type":"integer","maximum":500},"clear":{"type":"boolean"},"threadId":{"type":"string"}}), &[]), ToolImpl::Host, "code", Cheap, None),
+        entry("preview_screenshot", "PNG screenshot of the preview page; returns {path, width, height}. Shows the preview for a moment when it is hidden.", obj(json!({"threadId":{"type":"string"}}), &[]), ToolImpl::Host, "code", Local, None),
     ]
 }
 
@@ -799,7 +844,7 @@ mod tests {
     #[test]
     fn the_table_has_every_tool_once_with_an_object_schema() {
         let t = table();
-        assert_eq!(t.len(), 56, "the table lost or gained a tool");
+        assert_eq!(t.len(), 67, "the table lost or gained a tool");
         let names: std::collections::HashSet<_> = t.iter().map(|e| e.name).collect();
         assert_eq!(names.len(), t.len(), "duplicate tool name");
         for e in t {
@@ -844,6 +889,17 @@ mod tests {
                 "download_cancel",
                 "download_pause",
                 "download_resume",
+                "catalog_search",
+                "catalog_get",
+                "catalog_plan_install",
+                "catalog_install",
+                "preview_servers",
+                "preview_navigate",
+                "preview_snapshot",
+                "preview_click",
+                "preview_type",
+                "preview_console",
+                "preview_screenshot",
             ]
         );
     }

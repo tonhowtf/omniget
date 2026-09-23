@@ -1,0 +1,167 @@
+# Kiro (IDE 1.x + kiro-cli 3.x). Source: estudo 75/06 0B.3, 0C.1-0C.10, Part 4 "Kiro (AWS)" (a)-(k) + cross-tool tables, Part 5 "Kiro CLI (formerly Amazon Q Developer CLI)", Part 6 §2.3/§2.4 (kiro-cli, kiro-ide), §5.2, §6.1, §8.2, §9.
+id = "kiro"
+name = "Kiro"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://kiro.dev"
+notes = "Kiro IDE and kiro-cli share ~/.kiro and .kiro. kiro-cli replaces the Amazon Q Developer CLI (q still works; legacy .amazonq/ and ~/.aws/amazonq/ are still read). CLI 3.0 is opt-in and moved hooks to .kiro/hooks/*.json; an installer must handle both 2.x and 3.0 layouts. CLI agents are JSON, IDE agents may be Markdown."
+reads_agents_dir = false
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["kiro-cli"]
+home_dirs = ["~/.kiro"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = true              # enterprise managed-settings.json can hold permission rules; path not given in the study
+project_markers = [".kiro", ".amazonq"]
+global_dir = "~/.kiro"
+config_dir_env = "KIRO_HOME"
+
+[formats]
+rule = "kiro_steering"
+agent = "kiro_json"         # IDE (and CLI 3.0) also accept Markdown agents (.md, frontmatter = config)
+command = "kiro_prompt"
+skill = "skill_dir"
+hook = "kiro"
+setting = "kiro"
+plugin = "agent_plugins"    # Kiro Powers follow the Agent Plugins spec
+
+[reads_claude]
+rules = false
+agents = false
+commands = false
+hooks = false
+skills = false
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "~/.kiro/steering/AGENTS.md"
+
+[paths.scoped_rules]
+project = ".kiro/steering"
+global = "~/.kiro/steering"
+project_alt = [".amazonq/rules"]
+global_alt = ["~/.aws/amazonq/rules"]
+
+[paths.agents]
+project = ".kiro/agents"
+global = "~/.kiro/agents"
+project_alt = [".amazonq/cli-agents"]
+global_alt = ["~/.aws/amazonq/cli-agents"]
+
+[paths.commands]
+project = ".kiro/prompts"
+global = "~/.kiro/prompts"
+project_alt = [".amazonq/prompts"]
+global_alt = ["~/.aws/amazonq/prompts"]
+
+[paths.skills]
+project = ".kiro/skills"
+global = "~/.kiro/skills"
+
+[paths.hooks]
+# Any *.json under .kiro/hooks/ is loaded and all scopes are merged; the file name is free (rulesync writes rulesync.json).
+project = ".kiro/hooks/omniget.json"
+global = "~/.kiro/hooks/omniget.json"
+
+[paths.settings]
+global = "~/.kiro/settings/cli.json"
+
+[paths.permissions]
+# Workspace permissions live outside the repo at ~/.kiro/workspace-roots/<hash(workspaceRoot)>/permissions.yaml.
+global = "~/.kiro/settings/permissions.yaml"
+
+[paths.plugins]
+global = "~/.kiro/powers"
+
+# One file serves both Kiro IDE and kiro-cli (agent mcpServers > project > global).
+[[mcp]]
+surface = "cli"
+format = "json"
+project = ".kiro/settings/mcp.json"
+global = "~/.kiro/settings/mcp.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "kiro"
+remote_shape = "url"
+transports = ["stdio", "http"]     # remote must be HTTPS except localhost
+secret_mode = "env_ref"
+env_ref = "${VAR}"                 # expands only for vars approved in the "Mcp Approved Env Vars" setting
+prefer_cli = "kiro-cli mcp add --name {name} --scope {scope} --command {command} --args {args}"   # scope = global|workspace
+default = true
+
+[hook_event_map]
+SessionStart = "SessionStart"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"
+PostToolUse = "PostToolUse"
+Stop = "Stop"
+
+[hooks]
+shape = "kiro"
+timeout_unit = "s"
+version = "v1"
+events_count = 10     # plus IDE-legacy Manual; file and task triggers are IDE-only
+
+[tool_name_map]
+Bash = "shell"
+Read = "read"
+Edit = "write"
+Write = "write"
+Glob = "glob"
+Grep = "grep"
+WebFetch = "web_fetch"
+WebSearch = "web_search"
+Agent = "subagent"
+TodoWrite = "todo"
+Skill = ""
+AskUserQuestion = ""
+mcp = "@{server}/{tool}"   # UNVERIFIED
+
+[placeholder_map]
+# Documented for skills in the CLI only; prompt-file placeholders are not documented.
+args = "$ARGUMENTS"
+arg = "$N"
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+[permissions]
+syntax = "kiro"
+key = ["rules"]
+lists = ["allow", "ask", "deny"]   # rule "effect" values; deny > ask > allow
+
+[transcripts]
+# CLI 3.0/ACP sessions; per-line schema and token/credit fields are UNVERIFIED. Kiro bills in credits.
+globs = ["~/.kiro/sessions/cli/*.jsonl"]
+parser = "kiro_jsonl"
+format = "jsonl"
+
+[runner]
+cmd = "kiro-cli"
+headless = ["chat", "--no-interactive"]
+json_flag = ["--output-format", "stream-json", "--agent-engine", "v3"]   # stream-json needs --agent-engine v2|v3
+resume_flag = "--resume-id"
+permission_flags = { bypass = ["--trust-all-tools"] }
+
+[acp]
+native = true
+cmd = "kiro-cli"
+args = ["acp"]
+# not in the ACP registry (checked 2026-09-22)
+
+[trust]
+requires_review = false
+how = "No workspace-trust prompt is documented; workspace permission rules live outside the repo (~/.kiro/workspace-roots/<hash>/permissions.yaml) so a cloned repo cannot inject them, and MCP ${VAR} expansion needs the var approved in settings."

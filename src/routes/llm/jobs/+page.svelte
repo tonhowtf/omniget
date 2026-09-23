@@ -34,6 +34,10 @@
     type Job,
     type Trigger,
   } from "$lib/stores/llm-jobs-store.svelte";
+  import PlaybookPanel from "$components/central/run/PlaybookPanel.svelte";
+  import SandboxReview from "$components/central/run/SandboxReview.svelte";
+  import RunNow from "$components/central/run/RunNow.svelte";
+  import { agentLabel } from "$components/central/run/run-api";
 
   let agents = $derived(getAgents());
   let jobs = $derived(getJobs());
@@ -93,7 +97,20 @@
   });
 
   function agentName(id: string): string {
+    if (id.startsWith("tool:")) return agentLabel(id);
     return agents.find((a) => a.id === id)?.name ?? id;
+  }
+
+  let agentNames = $derived(Object.fromEntries(agents.map((a) => [a.id, a.name])));
+  let catalogAgent = $state("");
+
+  function kindLabel(kind: string): string {
+    return kind === "playbook" ? $t("llm.central.run.kind.playbook") : $t(`llm.jobs.kind.${kind}`);
+  }
+
+  /** Sandbox options of a tool job (catalog runs), if any. */
+  function sandboxOf(job: Job): unknown {
+    return (job as Job & { spec?: { sandbox?: unknown } | null }).spec?.sandbox ?? null;
   }
 
   function firstLine(text: string): string {
@@ -247,7 +264,7 @@
           <div class="row" class:open={openId === job.id}>
             <button type="button" class="row-head" aria-expanded={openId === job.id} onclick={() => toggle(job)}>
               <span class="pill {pickState(job.state)}">{$t(`llm.jobs.state.${job.state}`)}</span>
-              <span class="kind">{$t(`llm.jobs.kind.${job.kind}`)}</span>
+              <span class="kind">{kindLabel(job.kind)}</span>
               <span class="agent">{agentName(job.agent_id)}</span>
               <span class="line">{firstLine(job.prompt)}</span>
               <span class="time">
@@ -294,6 +311,9 @@
                 {/if}
                 <div class="field-label">{$t("llm.jobs.log")}</div>
                 <pre class="pre log">{full.log || $t("llm.jobs.log_empty")}</pre>
+                {#if sandboxOf(full)}
+                  <SandboxReview jobId={job.id} finished={!isActive(job)} />
+                {/if}
                 <div class="actions">
                   {#if isActive(job)}
                     <button type="button" class="button" onclick={() => void cancelJob(job.id)}>
@@ -311,6 +331,20 @@
         {/each}
       </div>
     {/if}
+  </section>
+
+  <PlaybookPanel {agentNames} />
+
+  <section class="stack">
+    <h2 class="section-header-title">{$t("llm.central.run.now.catalog_title")}</h2>
+    <p class="hint">{$t("llm.central.run.now.catalog_lede")}</p>
+    <div class="form-row">
+      <label class="field grow">
+        <span class="field-label">{$t("llm.central.run.now.catalog_id")}</span>
+        <input class="input" type="text" placeholder="cct:agents/development-team/frontend-developer" bind:value={catalogAgent} />
+      </label>
+      <RunNow agentId={catalogAgent.trim() || null} itemName={catalogAgent.trim()} workspace={workspace} />
+    </div>
   </section>
 
   <section class="stack">
