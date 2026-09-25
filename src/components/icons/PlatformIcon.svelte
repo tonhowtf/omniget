@@ -42,10 +42,6 @@
     <path d="M12 4c3 3 7 6 7 9a4 4 0 0 1-7 2.5" />
     <path d="M12 15.5V20" />
   </svg>
-{:else if platform === "hotmart"}
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M7 4v16M17 4v16M7 12h10" />
-  </svg>
 {:else if platform === "vimeo"}
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M3 8.5C3 8.5 5 7 7 7c3 0 3.5 3 3 6s-3 7-5 7c-1.5 0-2.5-1-2.5-1" />

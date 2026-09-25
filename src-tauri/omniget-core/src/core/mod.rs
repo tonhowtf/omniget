@@ -3,7 +3,6 @@ pub mod ai;
 pub mod binary_overrides;
 pub mod clipboard;
 pub mod cookie_parser;
-pub mod course_utils;
 pub mod dependencies;
 pub mod direct_downloader;
 pub mod embed;

@@ -65,7 +65,6 @@ pub fn is_direct_file_url(url_str: &str) -> bool {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Platform {
-    Hotmart,
     YouTube,
     Instagram,
     Threads,
@@ -77,7 +76,6 @@ pub enum Platform {
     Bluesky,
     Telegram,
     Vimeo,
-    Udemy,
     Bilibili,
     Other(String),
 }
@@ -85,7 +83,6 @@ pub enum Platform {
 impl fmt::Display for Platform {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let name = match self {
-            Platform::Hotmart => "hotmart",
             Platform::YouTube => "youtube",
             Platform::Instagram => "instagram",
             Platform::Threads => "threads",
@@ -97,7 +94,6 @@ impl fmt::Display for Platform {
             Platform::Bluesky => "bluesky",
             Platform::Telegram => "telegram",
             Platform::Vimeo => "vimeo",
-            Platform::Udemy => "udemy",
             Platform::Bilibili => "bilibili",
             Platform::Other(ref name) => name.as_str(),
         };
@@ -110,7 +106,6 @@ impl FromStr for Platform {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "hotmart" => Ok(Platform::Hotmart),
             "youtube" | "yt" => Ok(Platform::YouTube),
             "instagram" | "ig" => Ok(Platform::Instagram),
             "threads" => Ok(Platform::Threads),
@@ -122,7 +117,6 @@ impl FromStr for Platform {
             "bluesky" | "bsky" => Ok(Platform::Bluesky),
             "telegram" | "tg" => Ok(Platform::Telegram),
             "vimeo" => Ok(Platform::Vimeo),
-            "udemy" => Ok(Platform::Udemy),
             "bilibili" | "b站" => Ok(Platform::Bilibili),
             _ => Err(format!("Unknown platform: {}", s)),
         }
@@ -148,9 +142,7 @@ impl Platform {
         let matches =
             |domain: &str| -> bool { host == domain || host.ends_with(&format!(".{}", domain)) };
 
-        if matches("hotmart.com") {
-            Some(Platform::Hotmart)
-        } else if matches("youtube.com") || matches("youtube-nocookie.com") || host == "youtu.be" {
+        if matches("youtube.com") || matches("youtube-nocookie.com") || host == "youtu.be" {
             Some(Platform::YouTube)
         } else if matches("instagram.com") || matches("ddinstagram.com") {
             Some(Platform::Instagram)
@@ -176,24 +168,8 @@ impl Platform {
             Some(Platform::Telegram)
         } else if matches("vimeo.com") {
             Some(Platform::Vimeo)
-        } else if matches("udemy.com") {
-            Some(Platform::Udemy)
         } else if matches("bilibili.com") || matches("bilibili.tv") || host == "b23.tv" {
             Some(Platform::Bilibili)
-        } else if matches("gumroad.com") {
-            Some(Platform::Other("gumroad".to_string()))
-        } else if matches("teachable.com") {
-            Some(Platform::Other("teachable".to_string()))
-        } else if matches("kajabi.com") {
-            Some(Platform::Other("kajabi".to_string()))
-        } else if matches("skool.com") {
-            Some(Platform::Other("skool".to_string()))
-        } else if matches("thegreatcoursesplus.com") || matches("wondrium.com") {
-            Some(Platform::Other("greatcourses".to_string()))
-        } else if matches("thinkific.com") {
-            Some(Platform::Other("thinkific".to_string()))
-        } else if matches("rocketseat.com.br") {
-            Some(Platform::Other("rocketseat".to_string()))
         } else if matches("douyin.com") || matches("iesdouyin.com") || matches("amemv.com") {
             Some(Platform::Other("douyin".to_string()))
         } else if matches("kuaishou.com") {
@@ -217,7 +193,6 @@ impl Platform {
 
     pub fn all() -> &'static [Platform] {
         &[
-            Platform::Hotmart,
             Platform::YouTube,
             Platform::Instagram,
             Platform::Threads,
@@ -229,7 +204,6 @@ impl Platform {
             Platform::Bluesky,
             Platform::Telegram,
             Platform::Vimeo,
-            Platform::Udemy,
             Platform::Bilibili,
         ]
     }

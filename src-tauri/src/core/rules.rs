@@ -203,16 +203,16 @@ mod tests {
         let rules = vec![rule(
             "cursos",
             Condition::PlatformIs {
-                value: "Hotmart".into(),
+                value: "Vimeo".into(),
             },
             Actions {
                 subtitles: Some(true),
-                tags: vec!["curso".into()],
+                tags: vec!["aula".into()],
                 ..Default::default()
             },
         )];
-        let m = first_match(&rules, "https://algum-cdn.example/x", Some("hotmart")).unwrap();
-        assert_eq!(m.then.tags, vec!["curso"]);
+        let m = first_match(&rules, "https://algum-cdn.example/x", Some("vimeo")).unwrap();
+        assert_eq!(m.then.tags, vec!["aula"]);
         assert_eq!(m.then.subtitles, Some(true));
     }
 

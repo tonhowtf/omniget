@@ -15,7 +15,6 @@ pub enum ParsedContentType {
     Image,
     Post,
     Profile,
-    Course,
     Playlist,
     Clip,
     Reel,
@@ -40,12 +39,10 @@ pub fn parse_url(url_str: &str) -> Option<ParsedUrl> {
         Platform::Twitter => parse_twitter(&segments),
         Platform::Reddit => parse_reddit(&segments),
         Platform::Twitch => parse_twitch(&parsed, &segments),
-        Platform::Hotmart => parse_hotmart(&segments),
         Platform::Pinterest => parse_pinterest(&segments),
         Platform::Bluesky => parse_bluesky(&segments),
         Platform::Telegram => parse_telegram(&segments),
         Platform::Vimeo => parse_vimeo(&segments),
-        Platform::Udemy => parse_udemy(&segments),
         Platform::Bilibili => parse_bilibili(&segments),
         Platform::Other(ref name) => match name.as_str() {
             "douyin" => parse_douyin(&segments),
@@ -239,15 +236,6 @@ fn parse_twitch(parsed: &url::Url, segments: &[&str]) -> (Option<String>, Parsed
     (None, ParsedContentType::Unknown)
 }
 
-fn parse_hotmart(segments: &[&str]) -> (Option<String>, ParsedContentType) {
-    if segments.contains(&"club") || segments.contains(&"lesson") || segments.contains(&"course") {
-        let id = segments.last().map(|s| s.to_string());
-        return (id, ParsedContentType::Course);
-    }
-
-    (None, ParsedContentType::Unknown)
-}
-
 fn parse_pinterest(segments: &[&str]) -> (Option<String>, ParsedContentType) {
     if segments.first() == Some(&"pin") {
         let raw_id = segments.get(1).map(|s| {
@@ -291,13 +279,6 @@ fn parse_vimeo(segments: &[&str]) -> (Option<String>, ParsedContentType) {
     (None, ParsedContentType::Unknown)
 }
 
-fn parse_udemy(segments: &[&str]) -> (Option<String>, ParsedContentType) {
-    if segments.first() == Some(&"course") {
-        let slug = segments.get(1).map(|s| s.to_string());
-        return (slug, ParsedContentType::Course);
-    }
-    (None, ParsedContentType::Unknown)
-}
 
 fn parse_bilibili(segments: &[&str]) -> (Option<String>, ParsedContentType) {
     // bilibili.com/video/BV1xxxxx/

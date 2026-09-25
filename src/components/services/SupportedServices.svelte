@@ -7,7 +7,7 @@
   const services = [
     "YouTube", "Instagram", "TikTok", "Twitter / X",
     "Reddit", "Twitch", "Pinterest", "Vimeo",
-    "Bluesky", "Hotmart", "Telegram", "Bilibili",
+    "Bluesky", "Telegram", "Bilibili",
     "Douyin (抖音)", "Xiaohongshu (小红书)", "Kuaishou (快手)",
     "Youku (优酷)", "Torrent",
   ];

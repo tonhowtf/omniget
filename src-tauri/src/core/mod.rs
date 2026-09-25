@@ -1,7 +1,6 @@
 pub use omniget_core::core::adaptive_concurrency;
 pub use omniget_core::core::clipboard;
 pub use omniget_core::core::cookie_parser;
-pub use omniget_core::core::course_utils;
 pub use omniget_core::core::dependencies;
 pub use omniget_core::core::direct_downloader;
 pub use omniget_core::core::ffmpeg;

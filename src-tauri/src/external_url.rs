@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::core::queue::{self, emit_queue_state_from_state};
-use crate::platforms::Platform;
 use crate::storage::config;
 use crate::AppState;
 
@@ -105,12 +104,6 @@ pub async fn queue_url_with_defaults(
         if q.has_url(&url) {
             return Ok(QueueUrlOutcome::AlreadyQueued);
         }
-    }
-
-    let platform = Platform::from_url(&url);
-
-    if matches!(platform, Some(Platform::Hotmart) | Some(Platform::Udemy)) {
-        return Err("Course platforms can't be downloaded from a URL. Open the Courses page (requires the Courses plugin and a logged-in account).".to_string());
     }
 
     let resolved = crate::core::url_resolver::resolve_downloader(&state.registry, &url)
