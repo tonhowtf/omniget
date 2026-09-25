@@ -1239,7 +1239,7 @@
         {#if COURSE_PLATFORMS.has(omniState.info.platform)}
           {#if coursesPluginInstalled === false}
             <p class="course-upsell">{$t('omnibox.courses_plugin_needed')}</p>
-            <button class="download-primary-btn" onclick={() => goto("/marketplace")}>{$t('omnibox.install_courses_plugin')}</button>
+            <button class="download-primary-btn" onclick={() => goto("/settings?tab=plugins")}>{$t('omnibox.install_courses_plugin')}</button>
           {:else}
             <p class="course-upsell">{$t('omnibox.courses_plugin_ready')}</p>
             <button class="download-primary-btn" onclick={handleAction}>{$t(omniState.info.platform === "udemy" ? 'omnibox.go_to_udemy' : 'omnibox.go_to_hotmart')}</button>

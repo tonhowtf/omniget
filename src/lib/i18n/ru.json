@@ -473,7 +473,6 @@
   "nav": {
     "home": "Главная",
     "downloads": "Загрузки",
-    "marketplace": "Маркетплейс",
     "settings": "Настройки",
     "about": "О программе",
     "omnidisc": "Чат",
@@ -487,7 +486,10 @@
     "world": "Мир",
     "help": "Справка",
     "help_subtitle": "Руководства и помощник",
-    "profile_appearance": "Профиль и внешний вид"
+    "profile_appearance": "Профиль и внешний вид",
+    "superpowers": "Суперсилы",
+    "collapse_sidebar": "Свернуть боковую панель",
+    "expand_sidebar": "Развернуть боковую панель"
   },
   "command_palette": {
     "open": "Поиск",
@@ -9815,7 +9817,6 @@
       "team": "Команда",
       "new_chat": "Новый чат",
       "empty": "Агентов пока нет.",
-      "marketplace": "Маркетплейс",
       "no_profile": "Нет локального профиля",
       "search": "Поиск агентов"
     },
@@ -10664,5 +10665,13 @@
     "downloads_active": "Активных загрузок: {{count}}",
     "tooltip_active": "OmniGet — активных: {{count}}",
     "tooltip_speed": "OmniGet — активных: {{count}} · {{speed}}"
+  },
+  "superpowers": {
+    "subtitle": "Дополнительные возможности, которые можно включить, когда нужно.",
+    "league_desc": "Помощник в матче: перезарядки врагов, золото и разведка в League of Legends.",
+    "open": "Открыть",
+    "disabled": "Выключено",
+    "disabled_hint": "Выключено в Настройки › Дополнительно.",
+    "open_settings": "Открыть настройки"
   }
 }

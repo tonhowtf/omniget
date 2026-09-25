@@ -473,7 +473,6 @@
   "nav": {
     "home": "خانه",
     "downloads": "دانلودها",
-    "marketplace": "فروشگاه",
     "settings": "تنظیمات",
     "about": "درباره",
     "omnidisc": "گفتگو",
@@ -487,7 +486,10 @@
     "world": "World",
     "help": "Help",
     "help_subtitle": "Guides and assistant",
-    "profile_appearance": "Profile and appearance"
+    "profile_appearance": "Profile and appearance",
+    "superpowers": "ابرقدرت‌ها",
+    "collapse_sidebar": "جمع کردن نوار کناری",
+    "expand_sidebar": "باز کردن نوار کناری"
   },
   "command_palette": {
     "open": "Search",
@@ -9815,7 +9817,6 @@
       "team": "Team",
       "new_chat": "New chat",
       "empty": "No agents yet.",
-      "marketplace": "Marketplace",
       "no_profile": "No local profile",
       "search": "Search agents"
     },
@@ -10664,5 +10665,13 @@
     "downloads_active": "Downloads: {{count}} active",
     "tooltip_active": "OmniGet — {{count}} active",
     "tooltip_speed": "OmniGet — {{count}} active · {{speed}}"
+  },
+  "superpowers": {
+    "subtitle": "توانایی‌های اضافه که هر وقت لازم داشتید روشن می‌کنید.",
+    "league_desc": "دستیار مسابقه در League of Legends: زمان بازیابی حریفان، طلا و شناسایی.",
+    "open": "باز کردن",
+    "disabled": "خاموش",
+    "disabled_hint": "در تنظیمات › پیشرفته خاموش شده است.",
+    "open_settings": "باز کردن تنظیمات"
   }
 }

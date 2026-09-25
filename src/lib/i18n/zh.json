@@ -473,7 +473,6 @@
   "nav": {
     "home": "首页",
     "downloads": "下载",
-    "marketplace": "插件市场",
     "settings": "设置",
     "about": "关于",
     "omnidisc": "Chat",
@@ -487,7 +486,10 @@
     "world": "World",
     "help": "Help",
     "help_subtitle": "Guides and assistant",
-    "profile_appearance": "Profile and appearance"
+    "profile_appearance": "Profile and appearance",
+    "superpowers": "超能力",
+    "collapse_sidebar": "收起侧边栏",
+    "expand_sidebar": "展开侧边栏"
   },
   "command_palette": {
     "open": "搜索",
@@ -9815,7 +9817,6 @@
       "team": "Team",
       "new_chat": "New chat",
       "empty": "No agents yet.",
-      "marketplace": "Marketplace",
       "no_profile": "No local profile",
       "search": "Search agents"
     },
@@ -10664,5 +10665,13 @@
     "downloads_active": "Downloads: {{count}} active",
     "tooltip_active": "OmniGet — {{count}} active",
     "tooltip_speed": "OmniGet — {{count}} active · {{speed}}"
+  },
+  "superpowers": {
+    "subtitle": "需要时再开启的额外能力。",
+    "league_desc": "英雄联盟对局助手：敌方冷却、金币与侦察。",
+    "open": "打开",
+    "disabled": "已关闭",
+    "disabled_hint": "已在 设置 › 高级 中关闭。",
+    "open_settings": "打开设置"
   }
 }

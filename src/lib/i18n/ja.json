@@ -473,7 +473,6 @@
   "nav": {
     "home": "ホーム",
     "downloads": "ダウンロード",
-    "marketplace": "マーケットプレイス",
     "settings": "設定",
     "about": "このアプリについて",
     "omnidisc": "Chat",
@@ -487,7 +486,10 @@
     "world": "World",
     "help": "Help",
     "help_subtitle": "Guides and assistant",
-    "profile_appearance": "Profile and appearance"
+    "profile_appearance": "Profile and appearance",
+    "superpowers": "スーパーパワー",
+    "collapse_sidebar": "サイドバーを折りたたむ",
+    "expand_sidebar": "サイドバーを展開"
   },
   "command_palette": {
     "open": "Search",
@@ -9815,7 +9817,6 @@
       "team": "Team",
       "new_chat": "New chat",
       "empty": "No agents yet.",
-      "marketplace": "Marketplace",
       "no_profile": "No local profile",
       "search": "Search agents"
     },
@@ -10664,5 +10665,13 @@
     "downloads_active": "Downloads: {{count}} active",
     "tooltip_active": "OmniGet — {{count}} active",
     "tooltip_speed": "OmniGet — {{count}} active · {{speed}}"
+  },
+  "superpowers": {
+    "subtitle": "必要なときにオンにできる追加機能。",
+    "league_desc": "League of Legends の試合中サポート：敵のクールダウン、ゴールド、偵察。",
+    "open": "開く",
+    "disabled": "オフ",
+    "disabled_hint": "設定 › 詳細 でオフになっています。",
+    "open_settings": "設定を開く"
   }
 }

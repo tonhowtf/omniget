@@ -473,7 +473,6 @@
   "nav": {
     "home": "Accueil",
     "downloads": "Téléchargements",
-    "marketplace": "Marketplace",
     "settings": "Paramètres",
     "about": "À propos",
     "omnidisc": "Chat",
@@ -487,7 +486,10 @@
     "world": "World",
     "help": "Help",
     "help_subtitle": "Guides and assistant",
-    "profile_appearance": "Profile and appearance"
+    "profile_appearance": "Profile and appearance",
+    "superpowers": "Superpouvoirs",
+    "collapse_sidebar": "Réduire la barre latérale",
+    "expand_sidebar": "Développer la barre latérale"
   },
   "command_palette": {
     "open": "Search",
@@ -9815,7 +9817,6 @@
       "team": "Team",
       "new_chat": "New chat",
       "empty": "No agents yet.",
-      "marketplace": "Marketplace",
       "no_profile": "No local profile",
       "search": "Search agents"
     },
@@ -10664,5 +10665,13 @@
     "downloads_active": "Downloads: {{count}} active",
     "tooltip_active": "OmniGet — {{count}} active",
     "tooltip_speed": "OmniGet — {{count}} active · {{speed}}"
+  },
+  "superpowers": {
+    "subtitle": "Des capacités en plus, à activer quand vous en avez besoin.",
+    "league_desc": "Aide en partie : recharges ennemies, or et repérage dans League of Legends.",
+    "open": "Ouvrir",
+    "disabled": "Désactivé",
+    "disabled_hint": "Désactivé dans Réglages › Avancé.",
+    "open_settings": "Ouvrir les Réglages"
   }
 }

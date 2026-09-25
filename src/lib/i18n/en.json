@@ -473,7 +473,6 @@
   "nav": {
     "home": "Home",
     "downloads": "Downloads",
-    "marketplace": "Marketplace",
     "settings": "Settings",
     "about": "About",
     "omnidisc": "Chat",
@@ -487,7 +486,10 @@
     "world": "World",
     "help": "Help",
     "help_subtitle": "Guides and assistant",
-    "profile_appearance": "Profile and appearance"
+    "profile_appearance": "Profile and appearance",
+    "superpowers": "Superpowers",
+    "collapse_sidebar": "Collapse sidebar",
+    "expand_sidebar": "Expand sidebar"
   },
   "command_palette": {
     "open": "Search",
@@ -9815,7 +9817,6 @@
       "team": "Team",
       "new_chat": "New chat",
       "empty": "No agents yet.",
-      "marketplace": "Marketplace",
       "no_profile": "No local profile",
       "search": "Search agents"
     },
@@ -10664,5 +10665,13 @@
     "downloads_active": "Downloads: {{count}} active",
     "tooltip_active": "OmniGet — {{count}} active",
     "tooltip_speed": "OmniGet — {{count}} active · {{speed}}"
+  },
+  "superpowers": {
+    "subtitle": "Extra abilities you can switch on when you need them.",
+    "league_desc": "Live match helper: enemy cooldowns, gold and scouting for League of Legends.",
+    "open": "Open",
+    "disabled": "Off",
+    "disabled_hint": "Turned off in Settings › Advanced.",
+    "open_settings": "Open Settings"
   }
 }

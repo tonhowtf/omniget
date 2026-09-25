@@ -473,7 +473,6 @@
   "nav": {
     "home": "Início",
     "downloads": "Downloads",
-    "marketplace": "Marketplace",
     "settings": "Configurações",
     "about": "Sobre",
     "omnidisc": "Chat",
@@ -487,7 +486,10 @@
     "world": "Mundo",
     "help": "Help",
     "help_subtitle": "Guias e assistente",
-    "profile_appearance": "Perfil e aparência"
+    "profile_appearance": "Perfil e aparência",
+    "superpowers": "Superpoderes",
+    "collapse_sidebar": "Recolher barra lateral",
+    "expand_sidebar": "Expandir barra lateral"
   },
   "command_palette": {
     "open": "Search",
@@ -9815,7 +9817,6 @@
       "team": "Time",
       "new_chat": "Nova conversa",
       "empty": "Nenhum agente ainda.",
-      "marketplace": "Marketplace",
       "no_profile": "Sem perfil local",
       "search": "Buscar agentes"
     },
@@ -10664,5 +10665,13 @@
     "downloads_active": "Downloads: {{count}} active",
     "tooltip_active": "OmniGet — {{count}} active",
     "tooltip_speed": "OmniGet — {{count}} active · {{speed}}"
+  },
+  "superpowers": {
+    "subtitle": "Habilidades extras para ligar quando você precisar.",
+    "league_desc": "Ajuda na partida ao vivo: recargas dos inimigos, ouro e scout no League of Legends.",
+    "open": "Abrir",
+    "disabled": "Desligado",
+    "disabled_hint": "Desligado em Configurações › Avançado.",
+    "open_settings": "Abrir Configurações"
   }
 }
