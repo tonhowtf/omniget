@@ -27,8 +27,6 @@ pub mod local_bridge_llm;
 pub mod mcp;
 pub mod models;
 pub mod platforms;
-pub mod plugin_host;
-pub mod plugin_loader;
 pub mod profile;
 pub mod secrets;
 pub mod storage;
@@ -318,13 +316,6 @@ pub fn run() {
     };
     builder
         .manage(state)
-        .manage(Arc::new(tokio::sync::RwLock::new(
-            plugin_loader::PluginManager::new(
-                core::paths::app_data_dir()
-                    .unwrap_or_else(|| std::path::PathBuf::from("."))
-                    .join("plugins"),
-            ),
-        )))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
@@ -455,7 +446,6 @@ pub fn run() {
             // So does the limits strip; off by default, and then this is a no-op.
             limits_strip::commands::restore(app.handle());
 
-            commands::host_queue::register_event_listeners(app.handle());
             {
                 let handle = app.handle().clone();
                 platforms::bilibili::notify::set_emitter(Box::new(
@@ -795,67 +785,6 @@ pub fn run() {
                     jobs::boot(&app_handle);
                 });
             }
-            {
-                let plugins_dir = core::paths::app_data_dir()
-                    .unwrap_or_else(|| std::path::PathBuf::from("."))
-                    .join("plugins");
-                let host: std::sync::Arc<dyn omniget_plugin_sdk::PluginHost> = std::sync::Arc::new(
-                    plugin_host::PluginHostImpl::new(app.handle().clone(), plugins_dir),
-                );
-                let plugin_mgr = app
-                    .handle()
-                    .state::<std::sync::Arc<tokio::sync::RwLock<plugin_loader::PluginManager>>>();
-                let mgr_for_plugins = std::sync::Arc::clone(&*plugin_mgr);
-                let app_emit = app.handle().clone();
-                std::thread::Builder::new()
-                    .name("plugins-bootstrap".into())
-                    .spawn(move || {
-                        use tauri::Emitter;
-
-                        // Load already-installed plugins first so they are
-                        // usable immediately (and offline), without waiting
-                        // on any of the network calls below.
-                        {
-                            let mut mgr = mgr_for_plugins.blocking_write();
-                            mgr.load_all(std::sync::Arc::clone(&host));
-                        }
-                        let _ = app_emit.emit("plugins-changed", ());
-
-                        let rt = match tokio::runtime::Runtime::new() {
-                            Ok(rt) => rt,
-                            Err(e) => {
-                                tracing::warn!("plugins-bootstrap runtime failed: {}", e);
-                                return;
-                            }
-                        };
-                        rt.block_on(commands::plugins::ensure_default_plugins(
-                            std::sync::Arc::clone(&mgr_for_plugins),
-                        ));
-                        rt.block_on(commands::plugins::auto_update_plugins(
-                            std::sync::Arc::clone(&mgr_for_plugins),
-                        ));
-
-                        // Load anything newly installed above. load_all is
-                        // not idempotent (re-inserting drops the previously
-                        // loaded plugin and its dylib), so only load entries
-                        // that are not loaded yet.
-                        {
-                            let mut mgr = mgr_for_plugins.blocking_write();
-                            let to_load: Vec<String> = mgr
-                                .installed_plugins()
-                                .iter()
-                                .filter(|p| p.enabled && !mgr.is_loaded(&p.id))
-                                .map(|p| p.id.clone())
-                                .collect();
-                            for id in &to_load {
-                                let _ = mgr.load_one(id, std::sync::Arc::clone(&host));
-                            }
-                        }
-                        let _ = app_emit.emit("plugins-changed", ());
-                    })
-                    .ok();
-            }
-
             std::thread::Builder::new()
                 .name("startup-checks".into())
                 .spawn(|| {
@@ -1157,9 +1086,6 @@ pub fn run() {
             commands::downloads::clear_download_history,
             commands::downloads::reveal_file,
             commands::downloads::open_path_default,
-            commands::host_queue::host_queue_enqueue_external,
-            commands::host_queue::host_queue_report_progress,
-            commands::host_queue::host_queue_report_complete,
             commands::integration::register_external_frontend,
             commands::settings::get_settings,
             commands::settings::update_settings,
@@ -1431,17 +1357,6 @@ pub fn run() {
             commands::dependencies::dependency_install_dir,
             commands::dependencies::set_dependency_path,
             commands::search::search_videos,
-            commands::plugins::list_plugins,
-            commands::plugins::get_plugin_frontend_path,
-            commands::plugins::set_plugin_enabled,
-            commands::plugins::uninstall_plugin,
-            commands::plugins::get_loaded_plugin_manifests,
-            commands::plugins::plugin_command,
-            commands::plugins::fetch_marketplace_registry,
-            commands::plugins::install_plugin_from_registry,
-            commands::plugins::get_plugin_i18n,
-            commands::plugins::check_plugin_updates,
-            commands::plugins::update_plugin,
             commands::p2p::p2p_send_file,
             commands::p2p::p2p_cancel_send,
             commands::p2p::p2p_pause_send,

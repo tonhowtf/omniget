@@ -14,10 +14,7 @@
     audio: "Audio",
     image: "Image",
     pdf: "PDF",
-    book: "Book",
     webpage: "Web",
-    telegram_media: "Telegram",
-    course_lesson: "Course",
     generic: "File",
   };
 
@@ -55,25 +52,11 @@
       <polyline points="14 2 14 8 20 8" />
       <text x="12" y="17" text-anchor="middle" font-size="6" font-weight="700" font-family="sans-serif" fill="currentColor" stroke="none">PDF</text>
     </svg>
-  {:else if safeKind === "book"}
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-    </svg>
   {:else if safeKind === "webpage"}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="10" />
       <line x1="2" y1="12" x2="22" y2="12" />
       <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-    </svg>
-  {:else if safeKind === "telegram_media"}
-    <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true">
-      <path d="M21.5 4.5l-3 14.5c-.2 1-.9 1.3-1.8.8l-5-3.7-2.4 2.3c-.3.3-.5.5-1 .5l.4-5 9.1-8.2c.4-.4-.1-.6-.6-.2l-11.2 7-4.8-1.5c-1-.3-1-1 .2-1.5L20.3 3.4c.9-.3 1.6.2 1.2 1.1z" />
-    </svg>
-  {:else if safeKind === "course_lesson"}
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-      <path d="M6 12v5c3 3 9 3 12 0v-5" />
     </svg>
   {:else}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -133,21 +116,9 @@
     --badge-bg: var(--queue-kind-pdf-bg);
     --badge-fg: var(--queue-kind-pdf-fg);
   }
-  .queue-kind-badge[data-kind="book"] {
-    --badge-bg: var(--queue-kind-book-bg);
-    --badge-fg: var(--queue-kind-book-fg);
-  }
   .queue-kind-badge[data-kind="webpage"] {
     --badge-bg: var(--queue-kind-webpage-bg);
     --badge-fg: var(--queue-kind-webpage-fg);
-  }
-  .queue-kind-badge[data-kind="telegram_media"] {
-    --badge-bg: var(--queue-kind-telegram_media-bg);
-    --badge-fg: var(--queue-kind-telegram_media-fg);
-  }
-  .queue-kind-badge[data-kind="course_lesson"] {
-    --badge-bg: var(--queue-kind-course_lesson-bg);
-    --badge-fg: var(--queue-kind-course_lesson-fg);
   }
   .queue-kind-badge[data-kind="generic"] {
     --badge-bg: var(--queue-kind-generic-bg);

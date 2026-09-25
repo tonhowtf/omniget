@@ -1,12 +1,4 @@
-# Plugins are dynamic libraries that exchange Rust trait objects with the
-# host. Rust guarantees no ABI stability across compiler releases, so a host
-# and a plugin built with different rustc versions corrupt vtables and
-# segfault at the first plugin call. The loader refuses to load plugins whose
-# embedded rustc fingerprint differs from the host's, and this file pins the
-# compiler so host and plugin builds agree by construction.
-#
-# Bumping this version requires rebuilding and re-releasing every plugin in
-# tonhowtf/omniget-plugins. Keep it in sync across all plugin repos.
+# Pins the compiler so local builds, CI and releases produce the same binary.
 [toolchain]
 channel = "1.97.0"
 components = ["rustfmt", "clippy"]

@@ -1,8 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { goto } from "$app/navigation";
   import { invoke } from "@tauri-apps/api/core";
-  import { pluginInvoke } from "$lib/plugin-invoke";
   import { t } from "$lib/i18n";
   import { setToolbar, type ToolbarAction } from "$lib/stores/toolbar-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -13,14 +11,13 @@
     formatEta,
     getFinishedCount,
     getSpeedHistory,
-    type CourseDownloadItem,
     type GenericDownloadItem,
     type QueueKind,
     type StreamInfo,
   } from "$lib/stores/download-store.svelte";
   import { getDownloadStats } from "$lib/stores/download-stats.svelte";
   import PlatformIcon from "$components/icons/PlatformIcon.svelte";
-  import QueueKindBadge from "$lib/study-components/QueueKindBadge.svelte";
+  import QueueKindBadge from "$components/download/QueueKindBadge.svelte";
   import Mascot from "$components/mascot/Mascot.svelte";
   import RootCauseHint from "$components/downloads/RootCauseHint.svelte";
   import DownloadSpeedGraph from "$components/download/DownloadSpeedGraph.svelte";
@@ -35,23 +32,6 @@
   import { locale as i18nLocale } from "$lib/i18n";
   import { get } from "svelte/store";
   import timeAgo from "$lib/time-ago";
-
-  let studyAvailable = $state(false);
-
-  onMount(async () => {
-    try {
-      const plugins = await invoke<{
-        id: string;
-        enabled: boolean;
-        loaded: boolean;
-      }[]>("list_plugins");
-      studyAvailable = plugins.some(
-        (p) => p.id === "study" && p.enabled && p.loaded,
-      );
-    } catch {
-      studyAvailable = false;
-    }
-  });
 
   const VIDEO_EXTENSIONS = new Set([
     "mp4", "mkv", "webm", "mov", "avi", "ts", "m4v", "flv", "wmv", "mpg", "mpeg", "3gp", "ogv", "m2ts", "mts",
@@ -153,26 +133,7 @@
     return $t('downloads.detail.elapsed', { time }) as string;
   }
 
-  function canOpenInStudy(item: GenericDownloadItem): boolean {
-    return (
-      studyAvailable &&
-      item.status === "complete" &&
-      !!item.filePath &&
-      (item.queueKind === "video" || item.queueKind === "audio")
-    );
-  }
-
-  function openInStudy(filePath: string) {
-    const parts = filePath.replace(/\\/g, "/").split("/");
-    const name = parts[parts.length - 1] ?? "";
-    const url = `/study/watch?path=${encodeURIComponent(filePath)}&name=${encodeURIComponent(name)}`;
-    goto(url);
-  }
-
   let downloads = $derived(getDownloads());
-  let courseList = $derived(
-    [...downloads.values()].filter((d): d is CourseDownloadItem => d.kind === "course")
-  );
   let genericList = $derived(
     [...downloads.values()].filter((d): d is GenericDownloadItem => d.kind === "generic")
   );
@@ -230,18 +191,9 @@
       : finishedFiltered.slice(0, finishedVisibleCount)
   );
 
-  let hasDownloads = $derived(courseList.length > 0 || genericList.length > 0);
+  let hasDownloads = $derived(genericList.length > 0);
   let finishedCount = $derived(getFinishedCount());
   let dlStats = $derived(getDownloadStats());
-
-  async function cancelDownload(courseId: number) {
-    try {
-      await pluginInvoke("courses", "cancel_course_download", { courseId });
-    } catch (e: any) {
-      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
-      showToast("error", msg);
-    }
-  }
 
   async function cancelGenericDownload(id: number) {
     try {
@@ -485,22 +437,6 @@
     return timeAgo(ms, lookup);
   }
 
-  function canPlayInStudyHistory(entry: HistoryEntry): boolean {
-    return (
-      studyAvailable &&
-      entry.success &&
-      !!entry.file_path &&
-      (entry.kind === "video" || entry.kind === "audio")
-    );
-  }
-
-  function openHistoryInStudy(filePath: string) {
-    const parts = filePath.replace(/\\/g, "/").split("/");
-    const name = parts[parts.length - 1] ?? "";
-    const url = `/study/watch?path=${encodeURIComponent(filePath)}&name=${encodeURIComponent(name)}`;
-    goto(url);
-  }
-
   let dragId = $state<number | null>(null);
   let dropTargetId = $state<number | null>(null);
   let dropPosition = $state<"before" | "after">("before");
@@ -647,9 +583,6 @@
           {@render genericItem(item)}
         {/each}
 
-        {#each courseList as item (item.id)}
-          {@render courseItem(item)}
-        {/each}
       {/if}
 
       {#if showSection.queued && grouped.queued.length > 0}
@@ -732,19 +665,6 @@
                   {/if}
                 </div>
                 <div class="history-item-actions">
-                  {#if canPlayInStudyHistory(entry) && entry.file_path}
-                    <button
-                      class="action-icon-btn"
-                      onclick={() => openHistoryInStudy(entry.file_path!)}
-                      aria-label={$t('downloads.open_in_study')}
-                      title={$t('downloads.open_in_study')}
-                    >
-                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10" />
-                        <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none" />
-                      </svg>
-                    </button>
-                  {/if}
                   {#if entry.success && entry.file_path}
                     <button
                       class="action-icon-btn"
@@ -935,19 +855,6 @@
                 {/if}
               </button>
             {:else if item.status === "complete" && item.filePath}
-              {#if canOpenInStudy(item)}
-                <button
-                  class="action-icon-btn"
-                  onclick={() => openInStudy(item.filePath!)}
-                  aria-label={$t('downloads.open_in_study')}
-                  title={$t('downloads.open_in_study')}
-                >
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none" />
-                  </svg>
-                </button>
-              {/if}
               <button
                 class="action-icon-btn"
                 onclick={() => revealFile(item.filePath!)}
@@ -1163,79 +1070,6 @@
         {/if}
       </div>
     </div>
-  </div>
-{/snippet}
-
-{#snippet courseItem(item: CourseDownloadItem)}
-  <div class="download-item" data-status={item.status}>
-    <div class="item-header">
-      <span class="item-name">{item.name}</span>
-      <div class="item-header-actions">
-        {#if item.status === "downloading"}
-          <button
-            class="action-icon-btn"
-            onclick={() => cancelDownload(item.id)}
-            aria-label={$t('downloads.cancel')}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        {/if}
-        <span class="item-status" data-status={item.status}>
-          {$t(`downloads.status.${item.status}`)}
-        </span>
-      </div>
-    </div>
-
-    {#if item.status === "downloading"}
-      {#if item.currentModule}
-        <span class="item-detail">
-          {item.currentModule} &middot; {item.currentPage}
-        </span>
-      {/if}
-
-      <div class="item-stats">
-        {#if item.totalPages > 0}
-          <span>{$t('downloads.page_progress', { current: item.completedPages, total: item.totalPages })}</span>
-          <span class="stats-sep">&middot;</span>
-          <span>{$t('downloads.module_progress', { current: item.currentModuleIndex, total: item.totalModules })}</span>
-        {/if}
-        {#if item.bytesDownloaded > 0}
-          <span class="stats-sep">&middot;</span>
-          <span>{formatBytes(item.bytesDownloaded)}</span>
-        {/if}
-      </div>
-
-      <div class="item-stats">
-        <span>{formatSpeed(item.speed)}</span>
-        {#if item.speed > 0}
-          <DownloadSpeedGraph points={getSpeedHistory(item.id)} />
-        {/if}
-      </div>
-    {/if}
-
-    {#if item.status === "complete" && item.bytesDownloaded > 0}
-      <span class="item-detail">{formatBytes(item.bytesDownloaded)}</span>
-    {/if}
-
-    {#if item.status === "error" && item.error}
-      <RootCauseHint error={item.error} />
-    {/if}
-
-    <div class="progress-track">
-      <div
-        class="progress-fill"
-        data-status={item.status}
-        style:width="{Math.max(0, item.percent).toFixed(1)}%"
-      ></div>
-    </div>
-
-    <span class="item-percent">{Math.max(0, item.percent).toFixed(1)}%</span>
-
-    {#if item.status !== "queued"}
-      <DownloadLog id={item.id} />
-    {/if}
   </div>
 {/snippet}
 

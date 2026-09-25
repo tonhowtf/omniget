@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "omniget-core", "omniget-plugin-sdk", "omniget-cli", "omnidisc-proto", "omnidisc-media", "omnidisc-mls", "omniget-world-tools", "omniget-world", "omniworld-server"]
+members = [".", "omniget-core", "omniget-cli", "omnidisc-proto", "omnidisc-media", "omnidisc-mls", "omniget-world-tools", "omniget-world", "omniworld-server"]
 resolver = "2"
 
 [package]
@@ -76,7 +76,6 @@ hmac = "0.12"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 open = "5"
 omniget-core = { path = "omniget-core", features = ["desktop"] }
-omniget-plugin-sdk = { path = "omniget-plugin-sdk" }
 omnidisc-proto = { path = "omnidisc-proto" }
 omnidisc-media = { path = "omnidisc-media", default-features = false, features = ["rnnoise"] }
 omnidisc-mls = { path = "omnidisc-mls" }

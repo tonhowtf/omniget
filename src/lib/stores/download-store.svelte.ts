@@ -5,10 +5,7 @@ export type QueueKind =
   | "audio"
   | "image"
   | "pdf"
-  | "book"
   | "webpage"
-  | "telegram_media"
-  | "course_lesson"
   | "generic";
 
 type BaseItem = {
@@ -20,19 +17,6 @@ type BaseItem = {
   startedAt: number;
   lastUpdateAt: number;
   queueKind?: QueueKind;
-  external?: boolean;
-};
-
-export type CourseDownloadItem = BaseItem & {
-  kind: "course";
-  currentModule: string;
-  currentPage: string;
-  bytesDownloaded: number;
-  speed: number;
-  totalPages: number;
-  completedPages: number;
-  totalModules: number;
-  currentModuleIndex: number;
 };
 
 /** Stream (formato) que o yt-dlp está baixando; vem de `%(info.*)s` no template de progresso. */
@@ -92,7 +76,7 @@ export type GenericProgressExtra = {
   plannedFormats?: string[] | null;
 };
 
-export type DownloadItem = CourseDownloadItem | GenericDownloadItem;
+export type DownloadItem = GenericDownloadItem;
 
 export type SpeedPoint = { t: number; bps: number };
 
@@ -311,8 +295,8 @@ export function getAggregate(): DownloadAggregate {
       : Number.isFinite(item.percent) ? Math.min(100, Math.max(0, item.percent)) : null;
     if (reportedPercent === null) allPercentsKnown = false;
     else reportedPercentTotal += reportedPercent;
-    const bytes = finiteBytes(item.kind === "generic" ? item.downloadedBytes : item.bytesDownloaded);
-    const total = item.kind === "generic" && finiteBytes(item.totalBytes) > 0
+    const bytes = finiteBytes(item.downloadedBytes);
+    const total = finiteBytes(item.totalBytes) > 0
       ? finiteBytes(item.totalBytes)
       : finished && bytes > 0 ? bytes : null;
     downloadedBytes += finished && total !== null ? total : total !== null ? Math.min(bytes, total) : bytes;
@@ -321,7 +305,7 @@ export function getAggregate(): DownloadAggregate {
     if (!isPending(item)) continue;
     if (total === null) remainingTotalsKnown = false;
     else remainingBytes += Math.max(0, total - bytes);
-    const reportedEta = item.kind === "generic" ? item.etaSeconds : null;
+    const reportedEta = item.etaSeconds;
     const estimate = reportedEta != null && Number.isFinite(reportedEta) && reportedEta > 0
       ? reportedEta
       : total !== null && finiteBytes(item.speed) > 0 ? Math.max(0, total - bytes) / item.speed : null;
@@ -349,77 +333,6 @@ export function getAggregate(): DownloadAggregate {
     activeCount, queuedCount, pausedCount, failedCount,
     speedBps, downloadedBytes, totalBytes, percent, etaSeconds,
   };
-}
-
-export function upsertProgress(
-  courseId: number,
-  courseName: string,
-  percent: number,
-  currentModule: string,
-  currentPage: string,
-  downloadedBytes: number,
-  totalPages: number,
-  completedPages: number,
-  totalModules: number,
-  currentModuleIndex: number,
-) {
-  const now = Date.now();
-  const existing = downloads.get(courseId);
-
-  let speed = 0;
-  if (existing && existing.kind === "course" && existing.bytesDownloaded > 0 && downloadedBytes > existing.bytesDownloaded) {
-    const dt = (now - existing.lastUpdateAt) / 1000;
-    if (dt > 0.1) {
-      const instantSpeed = (downloadedBytes - existing.bytesDownloaded) / dt;
-      speed = existing.speed > 0
-        ? existing.speed * (1 - SPEED_SMOOTHING) + instantSpeed * SPEED_SMOOTHING
-        : instantSpeed;
-    } else {
-      speed = existing.speed;
-    }
-  }
-
-  downloads.set(courseId, {
-    kind: "course",
-    id: courseId,
-    name: courseName,
-    percent: Math.max(0, percent),
-    currentModule,
-    currentPage,
-    status: "downloading",
-    startedAt: existing?.startedAt ?? now,
-    bytesDownloaded: downloadedBytes,
-    lastUpdateAt: now,
-    speed,
-    totalPages,
-    completedPages,
-    totalModules,
-    currentModuleIndex,
-  });
-  pushSpeedPoint(courseId, speed);
-  scheduleFlush();
-}
-
-export function markComplete(courseName: string, success: boolean, error?: string) {
-  for (const [id, item] of downloads) {
-    if (item.name === courseName) {
-      const base = {
-        ...item,
-        percent: success ? 100 : item.percent,
-        status: (success ? "complete" : "error") as DownloadStatus,
-        error,
-        lastUpdateAt: Date.now(),
-      };
-      if (item.kind === "course") {
-        downloads.set(id, { ...base, kind: "course", speed: 0 } as CourseDownloadItem);
-      } else {
-        downloads.set(id, base as GenericDownloadItem);
-      }
-      clearSpeedHistory(id);
-      flushNow();
-      break;
-    }
-  }
 }
 
 export function clearFinished() {
@@ -459,7 +372,6 @@ type QueueItemInfo = {
   file_count: number | null;
   thumbnail_url: string | null;
   kind?: QueueKind;
-  external?: boolean;
   eta_seconds?: number | null;
   quality?: string | null;
   download_mode?: string | null;
@@ -540,7 +452,6 @@ export function syncQueueState(items: QueueItemInfo[]) {
       fileCount: qi.file_count ?? undefined,
       thumbnail_url: qi.thumbnail_url,
       queueKind: qi.kind,
-      external: qi.external,
       quality: qi.quality ?? null,
       downloadMode: qi.download_mode ?? null,
       author: qi.author ?? null,

@@ -1,15 +1,35 @@
 /**
  * Markdown for assistant messages.
  *
- * Same path the rest of the app uses (`$lib/study-markdown` → dynamic `marked`,
- * gfm + breaks, nothing bundled into the route chunk), plus a sanitising pass:
+ * Dynamic `marked` with gfm + breaks, nothing bundled into the route chunk,
+ * plus a sanitising pass:
  * model output is untrusted text, so the HTML that comes out of `marked` goes
  * through an element/attribute allowlist before it reaches `{@html}`.
  *
  * The sanitiser needs a DOM. Without one (vitest's node environment, SSR) it
  * falls back to escaping the whole string, which is safe and merely ugly.
  */
-import { renderMarkdown } from "$lib/study-markdown";
+let loadPromise: Promise<typeof import("marked").marked> | null = null;
+
+function getMarked(): Promise<typeof import("marked").marked> {
+  if (!loadPromise) {
+    loadPromise = import("marked").then((mod) => {
+      mod.marked.setOptions({ gfm: true, breaks: true });
+      return mod.marked;
+    });
+  }
+  return loadPromise;
+}
+
+async function renderMarkdown(text: string): Promise<string> {
+  if (!text) return "";
+  try {
+    const m = await getMarked();
+    return m.parse(text, { async: false }) as string;
+  } catch {
+    return escapeHtml(text);
+  }
+}
 
 const ALLOWED_TAGS = new Set([
   "p", "br", "hr", "em", "strong", "del", "code", "pre", "blockquote",

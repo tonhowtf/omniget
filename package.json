@@ -44,7 +44,6 @@
     "check:i18n": "node scripts/generate-i18n-keys.js --strict",
     "check:clippy-baseline": "node scripts/clippy-baseline.mjs --check",
     "update:clippy-baseline": "node scripts/clippy-baseline.mjs --update",
-    "plugins:deploy": "node scripts/deploy-plugins-local.mjs",
     "extension:sync": "node browser-extension/sync.mjs",
     "test": "vitest run",
     "test:watch": "vitest"

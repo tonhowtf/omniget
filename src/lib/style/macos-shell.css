@@ -339,35 +339,6 @@
   background: var(--accent);
 }
 
-.mac-plugins-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border: none;
-  background: transparent;
-  color: var(--text-dim);
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  padding: 0;
-  opacity: 0;
-  transition: opacity var(--duration-fast) var(--ease-out);
-}
-
-.mac-nav-section:hover .mac-plugins-toggle,
-.mac-plugins-toggle:focus-visible,
-.mac-plugins-toggle[aria-expanded="false"] {
-  opacity: 1;
-}
-
-@media (hover: hover) {
-  .mac-plugins-toggle:hover {
-    background: var(--fill-2);
-    color: var(--text);
-  }
-}
-
 .mac-source-list-footer {
   margin-top: auto;
   padding-top: var(--space-3);

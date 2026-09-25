@@ -166,7 +166,6 @@
 
   <footer class="rail-foot">
     <a class="rail-foot-link" href="/llm/roster">{$t("llm.roster.new")}</a>
-    <a class="rail-foot-link" href="/marketplace">{$t("llm.rail.marketplace")}</a>
     {#if profile}
       <div class="rail-profile">
         <span class="rail-profile-dot" style:background={`rgb(${profile.skin.tint.join(",")})`}></span>

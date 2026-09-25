@@ -52,18 +52,10 @@
   import { trayStrings } from "$lib/tray-strings";
   import { agentPrompts } from "$lib/agent-prompts";
   import { get } from "svelte/store";
-  import { CORE_NAV_ITEMS, pluginIconForRoute, type NavItem } from "$lib/nav-config";
+  import { CORE_NAV_ITEMS, type NavItem } from "$lib/nav-config";
   import { TOOLS, toolHref } from "$lib/tools/catalog";
-  import {
-    STUDY_FOCUS_ENABLED,
-    STUDY_PROGRESS_ENABLED,
-    STUDY_ACHIEVEMENTS_ENABLED,
-    STUDY_NOTES_ENABLED,
-  } from "$lib/study-feature-flags";
   import type { Snippet } from "svelte";
   import type { Component } from "svelte";
-
-  let pluginNavItems = $state<NavItem[]>([]);
 
   let leagueNavItems = $derived<NavItem[]>(
     (getSettings()?.league?.enabled ?? true)
@@ -78,10 +70,9 @@
     )
   );
 
-  let allNav = $derived([...coreNavItems, ...leagueNavItems, ...pluginNavItems].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)));
+  let allNav = $derived([...coreNavItems, ...leagueNavItems].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)));
   let primaryNav = $derived(allNav.filter((item) => item.group === "primary"));
   let appNav = $derived(allNav.filter((item) => item.group === "app"));
-  let pluginNav = $derived(allNav.filter((item) => item.group === "plugins"));
 
   let ytdlpDismissed = $state(false);
   let ytdlpMissing = $derived(isDepsChecked() && !isYtdlpAvailable());
@@ -115,7 +106,6 @@
     });
   });
 
-  let isStudyRoute = $derived(page.url.pathname.startsWith("/study"));
   let isStreamPopout = false;
   // The pet window is a bare 200x200 transparent canvas: no shell around it.
   let isPetWindow = $derived(page.url.pathname === "/pet");
@@ -126,7 +116,6 @@
     page.url.pathname === "/" ||
     page.url.pathname.startsWith("/downloads") ||
     page.url.pathname.startsWith("/settings") ||
-    page.url.pathname.startsWith("/marketplace") ||
     page.url.pathname.startsWith("/league") ||
     page.url.pathname.startsWith("/about"),
   );
@@ -160,35 +149,6 @@
     }
   }
 
-  function reloadPluginNav() {
-    invoke<{ id: string; enabled: boolean; nav: { route: string; label: Record<string, string>; icon_svg: string | null; group: string; order: number }[] }[]>("list_plugins")
-      .then((plugins) => {
-        const items: NavItem[] = [];
-        for (const p of plugins) {
-          if (!p.enabled) continue;
-          for (const n of p.nav) {
-            if (n.route === "/study/focus" && !STUDY_FOCUS_ENABLED) continue;
-            if (n.route === "/study/progress" && !STUDY_PROGRESS_ENABLED) continue;
-            if (n.route === "/study/achievements" && !STUDY_ACHIEVEMENTS_ENABLED) continue;
-            if (n.route === "/study/notes" && !STUDY_NOTES_ENABLED) continue;
-            const icon = pluginIconForRoute(n.route);
-            items.push({
-              href: n.route,
-              label: n.label[get(locale)] || n.label["en"] || p.id,
-              icon,
-              iconSvg: icon === "plugin" ? n.icon_svg || undefined : undefined,
-              group: "plugins",
-              pluginId: p.id,
-              order: n.order,
-            });
-          }
-        }
-        pluginNavItems = items;
-        buildCommandPaletteItems();
-      })
-      .catch(() => {});
-  }
-
   onMount(() => {
     initDownloadListener();
     // If `get_settings` failed while the shell was booting, the sidebar has no
@@ -199,9 +159,7 @@
       const retry = () => {
         if (getSettings() || attempts >= 5) return;
         attempts += 1;
-        loadSettings()
-          .then(() => reloadPluginNav())
-          .catch(() => setTimeout(retry, 1000 * attempts));
+        loadSettings().catch(() => setTimeout(retry, 1000 * attempts));
       };
       setTimeout(retry, 500);
     }
@@ -234,10 +192,8 @@
     refreshYtdlpStatus();
     refreshUpdateInfo();
     initChangelog();
-    reloadPluginNav();
 
     let unlistenExternalUrl: (() => void) | null = null;
-    let unlistenPlugins: (() => void) | null = null;
 
     listen<Omit<ExternalUrlEvent, "id">>("external-url-event", (event) => {
       handleExternalUrlEvent(event.payload);
@@ -245,15 +201,8 @@
       unlistenExternalUrl = un;
     });
 
-    listen("plugins-changed", () => {
-      reloadPluginNav();
-    }).then((un) => {
-      unlistenPlugins = un;
-    });
-
     return () => {
       if (unlistenExternalUrl) unlistenExternalUrl();
-      if (unlistenPlugins) unlistenPlugins();
     };
   });
 
@@ -307,13 +256,6 @@
         },
         { activate: (id) => void activateAccount(id), open: () => goto("/llm/accounts") },
       ),
-      {
-        id: "nav-marketplace",
-        label: get(t)("nav.marketplace"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "plugins extensions store",
-        action: () => goto("/marketplace"),
-      },
       { id: "nav-help", label: get(t)("nav.help"), group: get(t)("command_palette.group_nav"), keywords: "help ajuda guias docs assinatura agente monitor", action: () => goto("/help") },
       {
         id: "nav-about",
@@ -379,24 +321,6 @@
 
   let { children }: { children: Snippet } = $props();
 
-  const VACUUM_LAST_RUN_KEY = "study.library.auto_vacuum.last_run";
-
-  async function checkAutoVacuum() {
-    try {
-      const now = Date.now();
-      const lastRunStr = localStorage.getItem(VACUUM_LAST_RUN_KEY);
-      const lastRun = lastRunStr ? parseInt(lastRunStr, 10) : 0;
-
-      if (now - lastRun > 7 * 24 * 60 * 60 * 1000) {
-        await invoke("db_vacuum");
-        localStorage.setItem(VACUUM_LAST_RUN_KEY, String(now));
-      }
-    } catch {}
-  }
-
-  onMount(() => {
-    void checkAutoVacuum();
-  });
 </script>
 
 {#if isPetWindow || isLimitsStrip}
@@ -408,7 +332,7 @@
 {:else}
 <div class="shell" data-reduce-motion={settings?.accessibility?.reduce_motion} data-reduce-transparency={settings?.accessibility?.reduce_transparency}>
   {#if !hideAppSidebar}
-    <AppSidebar {primaryNav} {appNav} {pluginNav} {badgeLabel} />
+    <AppSidebar {primaryNav} {appNav} {badgeLabel} />
   {/if}
 
   <div class="shell-body" style:--shell-bottom-inset={`${shellLayout.bottomInset}px`}>
@@ -437,11 +361,7 @@
 
     <main id="main-content" class="content" class:ds-scope={designScope} data-ds-preset={designScope ? workspaceDesign.preset : undefined} data-ds-mode={designScope ? workspaceDesign.resolvedMode : undefined}>
       <div class="mac-pane" class:mac-pane--flush={isFlushRoute}>
-        {#if isStudyRoute}
-          <div class="study-shell">
-            {@render children()}
-          </div>
-        {:else if isCoreRoute}
+        {#if isCoreRoute}
           <div class="core-shell" class:core-shell--flush={isFlushRoute}>
             {@render children()}
           </div>
@@ -530,14 +450,6 @@
 
   .core-shell--flush {
     padding: 0;
-    overflow: hidden;
-  }
-
-  .study-shell {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
     overflow: hidden;
   }
 

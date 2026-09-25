@@ -115,7 +115,6 @@ export const TOOLS: ToolEntry[] = [
 
   // ── Edição de vídeo ──────────────────────────────────────────────────
   { id: "video-clip", category: "video", icon: "glyph:scissors", ...P.purple, platforms: ALL_OS, status: "ready", href: "/misc/file-clip", keywords: ["cortar", "corte", "clip", "trim", "trecho", "recortar", "cut"] },
-  { id: "video-convert", category: "video", icon: "glyph:arrows-clockwise", ...P.red, platforms: ALL_OS, status: "ready", href: "/convert", keywords: ["converter", "convert", "reencodar", "reencode", "formato", "format", "mp4", "mkv", "webm", "gif", "compress", "comprimir"] },
   { id: "video-compress", category: "video", icon: "glyph:arrows-in-line-horizontal", ...P.green, platforms: ALL_OS, status: "ready", runner: "video-compress", keywords: ["comprimir", "compress", "tamanho", "size", "discord", "10mb", "8mb", "whatsapp", "email", "anexo", "attachment", "2-pass", "duas passagens", "bitrate", "reduzir"] },
   { id: "video-gif", category: "video", icon: "glyph:film-strip", ...P.teal, platforms: ALL_OS, status: "ready", runner: "video-gif", keywords: ["gif", "webp", "animado", "animated", "meme", "paleta", "palette", "loop", "converter"] },
   { id: "video-silence", category: "video", icon: "glyph:fast-forward", ...P.yellow, platforms: ALL_OS, status: "ready", runner: "video-silence", keywords: ["silencio", "silêncio", "silence", "cortar", "cut", "dead air", "aula", "podcast", "pausa", "jump cut", "automatico", "automático"] },
