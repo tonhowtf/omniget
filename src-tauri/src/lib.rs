@@ -209,11 +209,6 @@ pub struct AppState {
     pub active_p2p_sends: ActiveP2pSends,
     pub frontend_ready: Arc<tokio::sync::Mutex<bool>>,
     pub pending_external_events: Arc<tokio::sync::Mutex<Vec<external_url::ExternalUrlEvent>>>,
-    pub omnidisc_gateways: commands::omnidisc::gateway::Gateways,
-    pub omnidisc_voice: Arc<commands::omnidisc::voice::VoiceManager>,
-    pub omnidisc_stream: Arc<commands::omnidisc::stream::StreamManager>,
-    pub omnidisc_mls: Arc<commands::omnidisc::mls::MlsManager>,
-    pub omnidisc_uploads: Arc<commands::omnidisc::upload::UploadManager>,
     pub profile: Arc<profile::ProfileManager>,
     pub llm: Arc<llm_manager::LlmManager>,
     /// Lazy on purpose: a user who never opens `/world` pays nothing.
@@ -276,11 +271,6 @@ pub fn run() {
         active_p2p_sends: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         frontend_ready: Arc::new(tokio::sync::Mutex::new(false)),
         pending_external_events: Arc::new(tokio::sync::Mutex::new(Vec::new())),
-        omnidisc_gateways: commands::omnidisc::gateway::new_gateways(),
-        omnidisc_voice: Arc::new(commands::omnidisc::voice::VoiceManager::new()),
-        omnidisc_stream: Arc::new(commands::omnidisc::stream::StreamManager::default()),
-        omnidisc_mls: Arc::new(commands::omnidisc::mls::MlsManager::default()),
-        omnidisc_uploads: Arc::new(commands::omnidisc::upload::UploadManager::default()),
         profile: Arc::new(profile::ProfileManager::new()),
         llm: Arc::new(llm_manager::LlmManager::new()),
         world: std::sync::OnceLock::new(),
@@ -327,9 +317,6 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
                     let pressed = event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed;
-                    if hotkey::handle_ptt(app, shortcut, pressed) {
-                        return;
-                    }
                     if pressed {
                         hotkey::on_hotkey_pressed(app, shortcut);
                     }
@@ -731,7 +718,6 @@ pub fn run() {
             }
             tray::setup(app.handle())?;
             hotkey::register_from_settings(app.handle());
-            commands::omnidisc::voice::start(app.handle());
 
             // Migration: drop the manifests / binary copies the previous
             // native-messaging code left under `~/.config/...` so Chrome and
@@ -864,64 +850,13 @@ pub fn run() {
                 api.prevent_close();
                 let _ = window.hide();
             }
-            tauri::WindowEvent::Destroyed
-                if window.label().starts_with("omnidisc-stream-") =>
-            {
-                commands::omnidisc::stream::on_stream_window_destroyed(
-                    &window.app_handle().clone(),
-                    window.label(),
-                );
-            }
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             commands::auth_webview::open_auth_webview,
-            commands::omnidisc::omnidisc_connect,
-            commands::omnidisc::gateway::omnidisc_typing,
-            commands::omnidisc::device::omnidisc_device_fingerprint,
-            commands::omnidisc::device::omnidisc_list_user_devices,
-            commands::omnidisc::device::omnidisc_revoke_device,
-            commands::omnidisc::mls::omnidisc_mls_sync,
-            commands::omnidisc::mls::omnidisc_mls_status,
-            commands::omnidisc::mls::omnidisc_mls_recall,
-            commands::omnidisc::mls::omnidisc_mls_device_revoked,
-            commands::omnidisc::upload::omnidisc_instance_limits,
-            commands::omnidisc::upload::omnidisc_stage_file,
-            commands::omnidisc::upload::omnidisc_upload_start,
-            commands::omnidisc::upload::omnidisc_upload_cancel,
-            commands::omnidisc::upload::omnidisc_download_attachment,
-            commands::omnidisc::gateway::omnidisc_gateway_connect,
-            commands::omnidisc::gateway::omnidisc_gateway_disconnect,
-            commands::omnidisc::gateway::omnidisc_gateway_send,
-            commands::omnidisc::gateway::omnidisc_gateway_status,
-            commands::omnidisc::voice::omnidisc_voice_join,
-            commands::omnidisc::voice::omnidisc_voice_leave,
-            commands::omnidisc::voice::omnidisc_voice_set_mute,
-            commands::omnidisc::voice::omnidisc_voice_set_deaf,
-            commands::omnidisc::voice::omnidisc_voice_set_volume,
-            commands::omnidisc::voice::omnidisc_voice_devices,
-            commands::omnidisc::voice::omnidisc_voice_set_device,
-            commands::omnidisc::voice::omnidisc_voice_stats,
-            commands::omnidisc::voice::omnidisc_voice_ptt,
-            commands::omnidisc::voice::omnidisc_voice_status,
-            commands::omnidisc::voice::omnidisc_voice_set_noise_suppression,
-            commands::omnidisc::voice::omnidisc_voice_mic_test,
-            commands::omnidisc::voice::omnidisc_voice_set_ducking,
-            commands::omnidisc::voice::omnidisc_voice_ptt_status,
-            commands::omnidisc::stream::omnidisc_media_capabilities,
-            commands::omnidisc::stream::omnidisc_stream_sources,
-            commands::omnidisc::stream::omnidisc_stream_start,
-            commands::omnidisc::stream::omnidisc_stream_stop,
-            commands::omnidisc::stream::omnidisc_stream_stats,
-            commands::omnidisc::stream::omnidisc_stream_set_volume,
-            commands::omnidisc::stream::omnidisc_stream_set_viewport,
-            commands::omnidisc::stream::omnidisc_stream_watch,
-            commands::omnidisc::stream::omnidisc_stream_unwatch,
             commands::league::league_status,
             commands::league::league_get,
-            commands::league::league_install_dir,
             commands::league::league_set_positions,
-            commands::league::league_end_of_game_stats,
             commands::league::league_set_icon,
             commands::league::league_set_profile_background,
             commands::league::league_set_status,
@@ -972,18 +907,12 @@ pub fn run() {
             commands::league::profile::league_set_chat_icon,
             commands::league::profile::league_challenges,
             commands::league::profile::league_set_challenge_prefs,
-            commands::league::profile::league_set_regalia,
             commands::league::profile::league_friends,
             commands::league::profile::league_remove_friends,
             commands::league::profile::league_random_champion,
             commands::league::profile::league_declare_champion,
             commands::league::skins::league_roll_skin,
             commands::league::skins::league_roll_ward,
-            commands::league::skins::league_skin_carousel,
-            commands::league::sgp::league_sgp_status,
-            commands::league::sgp::league_sgp_match_history,
-            commands::league::sgp::league_sgp_ranked,
-            commands::league::sgp::league_sgp_summoners,
             commands::league::sgp::league_sgp_download_replay,
             commands::league::coach::league_coach_review,
             commands::league::coach::league_coach_trends,
@@ -991,10 +920,6 @@ pub fn run() {
             commands::league::coach::league_coach_ready,
             commands::bilibili_auth::bilibili_qr_generate,
             commands::bilibili_auth::bilibili_qr_poll,
-            commands::bilibili_auth::bilibili_captcha_challenge,
-            commands::bilibili_auth::bilibili_sms_send,
-            commands::bilibili_auth::bilibili_sms_verify,
-            commands::bilibili_auth::bilibili_account_status,
             commands::bilibili_auth::bilibili_import_watch_later,
             commands::bilibili_auth::bilibili_import_history,
             commands::bilibili_auth::bilibili_preview_info,
@@ -1009,7 +934,6 @@ pub fn run() {
             cookies::commands::cookies_clear_batch,
             cookies::commands::cookies_rename,
             cookies::commands::cookies_accounts_for_url,
-            cookies::commands::cookies_read_as_json,
             cookies::commands::cookies_import_file,
             cookies::commands::cookies_export_to,
             cookies::commands::cookies_add_account,
@@ -1017,7 +941,6 @@ pub fn run() {
             cookies::commands::cookies_test,
             commands::clip::clip_video,
             commands::reencode::reencode_video,
-            commands::diagnostics::get_hwaccel_info,
             commands::diagnostics::diagnose_download_error,
             commands::downloads::detect_platform,
             commands::downloads::check_cookie_error,
@@ -1038,7 +961,6 @@ pub fn run() {
             commands::ai::ai_set_config,
             commands::ai::ai_test,
             commands::ai::ai_summarize_url,
-            commands::ai::whisper_generate,
             commands::ai::ai_history_list,
             commands::ai::ai_history_clear,
             commands::video_ops::video_op_silence_estimate,
@@ -1113,7 +1035,6 @@ pub fn run() {
             commands::tools::ai::tool_ollama_delete,
             commands::tools::ai::tool_pricing_info,
             commands::tools::ai::tool_pricing_search,
-            commands::tools::ai::tool_pricing_for,
             commands::tools::ai::tool_usage_report,
             commands::tools::ai::tool_usage_clear,
             commands::tools::documents::tool_slideshare,
@@ -1261,9 +1182,7 @@ pub fn run() {
             commands::tools::x::tool_x_export_users,
             commands::tools::x::tool_x_render_posts,
             commands::tools::x::tool_x_profile,
-            commands::tools::x::tool_x_profile_lookup,
             commands::tools::x::tool_x_media,
-            commands::tools::x::tool_x_media_posts,
             commands::tools::x::tool_x_search,
             commands::tools::x::tool_x_trends,
             commands::tools::x::tool_x_bookmarks_export,
@@ -1292,17 +1211,13 @@ pub fn run() {
             commands::tools::pinterest::tool_pin_export,
             commands::tools::pinterest::tool_pin_keywords,
             commands::tools::pinterest::tool_pin_source,
-            commands::tools::pinterest::tool_pin_expand,
             commands::tools::instagram::tool_ig_accounts,
             commands::tools::instagram::tool_ig_whoami,
-            commands::tools::instagram::tool_ig_parse,
             commands::tools::instagram::tool_ig_cancel,
-            commands::tools::instagram::tool_ig_post,
             commands::tools::instagram::tool_ig_resolve,
             commands::tools::instagram::tool_ig_download,
             commands::tools::instagram::tool_ig_download_bulk,
             commands::tools::instagram::tool_ig_profile,
-            commands::tools::instagram::tool_ig_friendship,
             commands::tools::instagram::tool_ig_profile_media,
             commands::tools::instagram::tool_ig_stories,
             commands::tools::instagram::tool_ig_stories_tray,
@@ -1337,7 +1252,6 @@ pub fn run() {
             commands::dependencies::install_dependency,
             commands::dependencies::dependency_archived_versions,
             commands::diagnostics::flight_recorder_dump,
-            commands::diagnostics::flight_recorder_clear,
             commands::diagnostics::preflight_batch,
             commands::dependencies::rollback_dependency,
             commands::dependencies::clear_dependency_path,
@@ -1350,8 +1264,6 @@ pub fn run() {
             commands::dedupe::deduplicate_files,
             commands::dedupe::content_store_stats,
             commands::smart_speed::compute_silence_map,
-            commands::smart_speed::silence_skip_target,
-            commands::smart_speed::forget_silence_map,
             commands::torrent_playback::torrent_playback_readiness,
             commands::dependencies::dependency_variants,
             commands::dependencies::dependency_install_dir,
@@ -1362,7 +1274,6 @@ pub fn run() {
             commands::p2p::p2p_pause_send,
             commands::p2p::p2p_resume_send,
             commands::app_lifecycle::force_exit_app,
-            commands::app_lifecycle::get_debug_info,
             commands::app_lifecycle::get_portable_info,
             commands::tools::twitch::tool_tw_emotes,
             commands::tools::twitch::tool_tw_chat_replay,
@@ -1392,8 +1303,6 @@ pub fn run() {
             commands::profile::profile_get,
             commands::profile::profile_set_nickname,
             commands::profile::profile_set_skin,
-            commands::profile::profile_sign,
-            commands::profile::profile_export_public,
             // Fase 6 (bench do mundo) — f6-bench
             commands::world_bench::world_bench_report,
             // Fase 2 (/llm) — f2-llm-commands, f2-wire-probe; Fase 5 (pet) — f5-pet-window
@@ -1403,9 +1312,6 @@ pub fn run() {
             commands::llm::roster::llm_roster_delete,
             commands::llm::roster::llm_roster_apply_template,
             commands::llm::prompts::sync_llm_prompts,
-            commands::llm::chat::llm_conversation_list,
-            commands::llm::chat::llm_conversation_get,
-            commands::llm::chat::llm_conversation_delete,
             commands::llm::chat::llm_turn_start,
             commands::llm::help::help_turn_start,
             commands::llm::help::help_tool_call,
@@ -1440,10 +1346,6 @@ pub fn run() {
             commands::llm::prune::llm_prune_status,
             commands::llm::prune::llm_prune_set_config,
             commands::llm::prune::llm_prune_set_jev_key,
-            commands::llm::local::llm_local_status,
-            commands::llm::local::llm_local_install_llama,
-            commands::llm::local::llm_local_models,
-            commands::llm::local::llm_bridge_openai_enabled,
             commands::llm::wire_probe::llm_wire_probe_run,
             commands::llm::wire_probe::llm_wire_probe_last,
             commands::pet::pet_open,
@@ -1455,17 +1357,11 @@ pub fn run() {
             commands::pet::pet_set_ask_pending,
             limits_strip::commands::limits_strip_get_prefs,
             limits_strip::commands::limits_strip_set_prefs,
-            limits_strip::commands::limits_strip_open,
             limits_strip::commands::limits_strip_close,
             limits_strip::commands::limits_strip_state,
             limits_strip::commands::limits_strip_refresh,
             limits_strip::commands::limits_strip_set_expanded,
             commands::tools::ai::tool_ai_keys_openrouter_pkce,
-            commands::tools::ai::tool_ai_keys_openrouter_pkce_finish,
-            commands::llm::roster::llm_roster_templates,
-            commands::llm::local::llm_local_download_model,
-            commands::llm::local::llm_local_start_llama,
-            commands::llm::local::llm_local_stop_llama,
             // Rodada 3: Fase 3 (MCP, skills) e Fase 4 (contas)
             commands::llm::mcp::llm_mcp_list,
             commands::llm::mcp::llm_mcp_upsert,
@@ -1506,7 +1402,6 @@ pub fn run() {
             commands::world::house::house_leave,
             commands::world::house::house_input,
             commands::world::house::house_chat,
-            commands::world::city::city_status,
             commands::world::city::city_join,
             commands::world::city::city_leave,
             commands::world::city::city_input,
@@ -1525,9 +1420,6 @@ pub fn run() {
             commands::world::demo::world_demo,
             commands::world::session::world_delete,
             commands::world::input::world_input,
-            commands::world::tier::world_tier_get,
-            commands::world::tier::world_tier_set,
-            commands::world::tier::world_calibration_save,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

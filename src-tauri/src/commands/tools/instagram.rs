@@ -88,27 +88,11 @@ pub async fn tool_ig_whoami(slug: Option<String>) -> Result<profile::UserInfo, S
 }
 
 #[tauri::command]
-pub fn tool_ig_parse(input: String) -> ig::IgTarget {
-    ig::parse_target(&input)
-}
-
-#[tauri::command]
 pub fn tool_ig_cancel(job: String) -> bool {
     ig::job_cancel(&job)
 }
 
 // ── Download ─────────────────────────────────────────────────────────────
-
-#[tauri::command]
-pub async fn tool_ig_post(slug: Option<String>, url: String) -> Result<media::MediaItem, String> {
-    let client = load_client(slug.as_deref())?;
-    match ig::parse_target(&url) {
-        ig::IgTarget::Post { shortcode } => {
-            media::post_info(&client, &shortcode).await.map_err(err)
-        }
-        _ => Err("cole o link de um post, reel ou IGTV".into()),
-    }
-}
 
 /// Resolve qualquer link (post, story, highlight, perfil) em itens de mídia.
 async fn resolve_items(
@@ -256,15 +240,6 @@ pub async fn tool_ig_profile(
 ) -> Result<profile::UserInfo, String> {
     let client = load_client(slug.as_deref())?;
     profile::resolve_user(&client, &user).await.map_err(err)
-}
-
-#[tauri::command]
-pub async fn tool_ig_friendship(
-    slug: Option<String>,
-    user_id: String,
-) -> Result<profile::Friendship, String> {
-    let client = load_client(slug.as_deref())?;
-    profile::friendship(&client, &user_id).await.map_err(err)
 }
 
 /// `tab` = posts | reels | tagged | saved | stories | highlights (todos os itens).

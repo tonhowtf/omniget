@@ -1367,11 +1367,3 @@ pub async fn tool_pin_source(url: String, cookies: Option<String>) -> Result<Sou
         resolved_url,
     })
 }
-
-/// Expande pin.it e devolve a URL final + alvo reconhecido.
-#[tauri::command]
-pub async fn tool_pin_expand(url: String) -> Result<(String, Target), String> {
-    let c = client(&None)?;
-    let (t, resolved) = resolve(&c, &url).await?;
-    Ok((resolved, t))
-}

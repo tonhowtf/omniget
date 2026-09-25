@@ -279,7 +279,6 @@ fn parse_vimeo(segments: &[&str]) -> (Option<String>, ParsedContentType) {
     (None, ParsedContentType::Unknown)
 }
 
-
 fn parse_bilibili(segments: &[&str]) -> (Option<String>, ParsedContentType) {
     // bilibili.com/video/BV1xxxxx/
     if segments.first() == Some(&"video") {

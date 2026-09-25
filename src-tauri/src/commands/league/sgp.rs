@@ -9,7 +9,6 @@
 
 use super::{ensure_enabled, get_client, lcu_get_raw, LcuClient};
 use once_cell::sync::Lazy;
-use serde::Serialize;
 use serde_json::{json, Value};
 use tokio::sync::Mutex;
 
@@ -379,96 +378,6 @@ pub(crate) async fn match_history_local(
                 .collect()
         })
         .unwrap_or_default())
-}
-
-#[derive(Serialize)]
-pub struct SgpStatus {
-    pub enabled: bool,
-    pub supported: bool,
-    pub server: Option<String>,
-    pub region: Option<String>,
-    pub tokens_ready: bool,
-}
-
-#[tauri::command]
-pub async fn league_sgp_status() -> Result<SgpStatus, String> {
-    ensure_enabled()?;
-    let client = get_client().await?;
-    let region = client.region.clone();
-    let server = region.as_deref().and_then(server_for);
-    let tokens_ready = if enabled() && server.is_some() {
-        tokens(&client).await.is_ok()
-    } else {
-        false
-    };
-    Ok(SgpStatus {
-        enabled: enabled(),
-        supported: server.is_some(),
-        server: server.map(|s| s.id.to_string()),
-        region,
-        tokens_ready,
-    })
-}
-
-/// Match history for any player, straight from the backend.
-#[tauri::command]
-pub async fn league_sgp_match_history(
-    puuid: String,
-    start: Option<u32>,
-    count: Option<u32>,
-) -> Result<Value, String> {
-    ensure_enabled()?;
-    if puuid.is_empty() || !puuid.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-        return Err("invalid player".to_string());
-    }
-    let client = get_client().await?;
-    let games =
-        match_history_local(&client, &puuid, start.unwrap_or(0), count.unwrap_or(20)).await?;
-    Ok(json!({ "games": { "games": games }, "source": "sgp" }))
-}
-
-/// Ranked stats straight from the leagues service, including previous
-/// season peaks the local endpoint leaves out.
-#[tauri::command]
-pub async fn league_sgp_ranked(puuid: String) -> Result<Value, String> {
-    ensure_enabled()?;
-    if puuid.is_empty() || !puuid.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-        return Err("invalid player".to_string());
-    }
-    let client = get_client().await?;
-    let target = target(&client).await?;
-    get_json(
-        &target,
-        TokenKind::LeagueSession,
-        &format!("/leagues-ledge/v2/rankedStats/puuid/{}", puuid),
-    )
-    .await
-}
-
-/// Summoner records for a batch of puuids (names, levels, privacy).
-#[tauri::command]
-pub async fn league_sgp_summoners(puuids: Vec<String>) -> Result<Value, String> {
-    ensure_enabled()?;
-    if puuids.is_empty() || puuids.len() > 20 {
-        return Err("give between 1 and 20 players".to_string());
-    }
-    let client = get_client().await?;
-    let target = target(&client).await?;
-    let path = format!(
-        "/summoner-ledge/v1/regions/{}/summoners/puuids",
-        region_segment(&target.server)
-    );
-    send(
-        &target,
-        TokenKind::LeagueSession,
-        reqwest::Method::POST,
-        &path,
-        Some(json!(puuids)),
-    )
-    .await?
-    .json::<Value>()
-    .await
-    .map_err(|e| format!("sgp decode failed: {}", e))
 }
 
 /// Downloads the replay file for a game into the default download folder.

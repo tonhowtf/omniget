@@ -48,11 +48,6 @@ pub async fn tool_pricing_search(
 }
 
 #[tauri::command]
-pub async fn tool_pricing_for(model: String) -> Option<pricing::ModelPrice> {
-    pricing::price_for(&model).await
-}
-
-#[tauri::command]
 pub async fn tool_usage_report(days: Option<u32>) -> usage::UsageReport {
     usage::report(days.unwrap_or(30)).await
 }
@@ -128,18 +123,6 @@ pub fn tool_keys_use(id: String) -> Result<(), String> {
 #[tauri::command]
 pub fn tool_ai_keys_openrouter_pkce() -> ai_keys::PkceStart {
     ai_keys::pkce_start()
-}
-
-/// Exchanges the code for a key and files it in the vault. Returns the masked
-/// view of the entry it created or updated.
-#[tauri::command]
-pub async fn tool_ai_keys_openrouter_pkce_finish(
-    code: String,
-    state: Option<String>,
-) -> Result<ai_keys::KeyView, String> {
-    ai_keys::pkce_finish(&code, state.as_deref())
-        .await
-        .map_err(err)
 }
 
 // ── Servidor MCP ──
@@ -230,52 +213,4 @@ pub async fn tool_mcp_selftest(app: tauri::AppHandle) -> Result<String, String> 
 
 // ── Contagem de tokens e custo por modelo (estende ai-prices) ──
 
-use omniget_core::core::tools::{ai_tokens, arxiv};
-
-/// As famílias de tokenizador que a heurística conhece, com o fator de cada uma.
-#[tauri::command]
-pub fn tool_tokens_families() -> Vec<ai_tokens::Family> {
-    ai_tokens::FAMILIES.to_vec()
-}
-
-/// Modelos comparados quando a UI não escolhe nenhum.
-#[tauri::command]
-pub fn tool_tokens_default_models() -> Vec<String> {
-    ai_tokens::DEFAULT_MODELS
-        .iter()
-        .map(|s| s.to_string())
-        .collect()
-}
-
-/// Só a contagem (sem tabela de preços e sem rede).
-#[tauri::command]
-pub async fn tool_tokens_count(
-    app: tauri::AppHandle,
-    opts: ai_tokens::Options,
-) -> Result<ai_tokens::Report, String> {
-    let p = progress(&app);
-    tokio::task::spawn_blocking(move || ai_tokens::count(&opts, &p))
-        .await
-        .map_err(err)?
-        .map_err(err)
-}
-
-/// Contagem estimada + custo por modelo. O número é sempre estimativa:
-/// `margin_pct` e `estimated` vêm no resultado para a UI dizer isso.
-#[tauri::command]
-pub async fn tool_tokens_cost(
-    app: tauri::AppHandle,
-    opts: ai_tokens::Options,
-) -> Result<ai_tokens::Report, String> {
-    ai_tokens::run(opts, progress(&app)).await.map_err(err)
-}
-
 // ── arXiv → Markdown ──
-
-#[tauri::command]
-pub async fn tool_arxiv_md(
-    app: tauri::AppHandle,
-    opts: arxiv::Options,
-) -> Result<arxiv::ArxivDoc, String> {
-    arxiv::fetch(opts, progress(&app)).await.map_err(err)
-}

@@ -165,10 +165,6 @@ pub fn decode_b64(raw: &str) -> Result<Vec<u8>, String> {
         .map_err(|_| format!("{ERR_SIGN}: the payload is not base64"))
 }
 
-pub fn encode_signature(sig: &[u8; 64]) -> String {
-    b64().encode(sig)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

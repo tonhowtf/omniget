@@ -3,7 +3,7 @@
 
 use omniget_core::core::llm::agent::AgentDef;
 use omniget_core::core::llm::roster_store;
-use serde_json::{json, Value};
+use serde_json::Value;
 use tauri::State;
 
 use crate::AppState;
@@ -49,13 +49,6 @@ pub async fn llm_roster_apply_template(
     template: String,
 ) -> Result<Value, String> {
     ok(state.llm.roster_apply_template(&template)?)
-}
-
-/// The template ids the UI can offer. Not in the Phase 2 contract list, so it
-/// is declared in the handoff as a new `invoke_handler` entry.
-#[tauri::command]
-pub async fn llm_roster_templates() -> Result<Value, String> {
-    Ok(json!(roster_store::template_ids()))
 }
 
 /// ACP-capable CLIs found on the PATH (Gemini CLI, claude-code-acp, codex-acp,

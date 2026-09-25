@@ -1536,24 +1536,6 @@ pub async fn league_set_positions(first: String, second: Option<String>) -> Resu
     .await
 }
 
-/// End-of-game summary the client shows on its own screen, useful when that
-/// screen was dismissed too fast.
-#[tauri::command]
-pub async fn league_end_of_game_stats() -> Result<Value, String> {
-    ensure_enabled()?;
-    let client = get_client().await?;
-    lcu_get_raw(&client, "/lol-end-of-game/v1/eog-stats-block").await
-}
-
-/// Where the game is installed, as far as the running process reveals. Null when
-/// the client is not running or the path could not be told.
-#[tauri::command]
-pub async fn league_install_dir() -> Result<Value, String> {
-    ensure_enabled()?;
-    let dir = locator::install_dir().await;
-    Ok(json!({ "path": dir.map(|p| p.to_string_lossy().to_string()) }))
-}
-
 /// Full detail of one match: every participant with runes, items, spells and the
 /// long tail of stats the client keeps but its own end-of-game screen hides,
 /// plus the puuid needed to look a player up afterwards.

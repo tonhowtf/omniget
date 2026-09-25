@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "omniget-core", "omniget-cli", "omnidisc-proto", "omnidisc-media", "omnidisc-mls", "omniget-world-tools", "omniget-world", "omniworld-server"]
+members = [".", "omniget-core", "omniget-cli", "omnidisc-proto", "omnidisc-mls", "omniget-world-tools", "omniget-world", "omniworld-server"]
 resolver = "2"
 
 [package]
@@ -20,13 +20,6 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
-
-[features]
-default = ["linux-capture"]
-# Off for the x86_64 Linux release, whose runner has PipeWire headers older than
-# the capture backend can compile against. Everything else in the client is
-# unaffected, and `MediaCapabilities` reports the loss rather than hiding it.
-linux-capture = ["omnidisc-media/linux-capture"]
 
 [dependencies]
 tauri = { version = "2", features = ["protocol-asset", "tray-icon", "macos-private-api"] }
@@ -77,7 +70,6 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 open = "5"
 omniget-core = { path = "omniget-core", features = ["desktop"] }
 omnidisc-proto = { path = "omnidisc-proto" }
-omnidisc-media = { path = "omnidisc-media", default-features = false, features = ["rnnoise"] }
 omnidisc-mls = { path = "omnidisc-mls" }
 omniget-world = { path = "omniget-world" }
 libloading = "0.8"

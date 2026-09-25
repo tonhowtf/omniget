@@ -15,7 +15,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
@@ -520,14 +520,6 @@ pub fn migrate_legacy_if_needed() -> anyhow::Result<usize> {
 pub fn has_been_migrated() -> bool {
     let registry = load_registry();
     !registry.buckets.is_empty()
-}
-
-pub fn migrate_path(path: &Path) -> PathBuf {
-    cookies_root().join(".migrated").join(
-        path.file_name()
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(|| "legacy".to_string()),
-    )
 }
 
 #[cfg(test)]

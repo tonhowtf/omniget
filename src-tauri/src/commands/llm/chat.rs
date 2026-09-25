@@ -11,32 +11,6 @@ use tauri::{AppHandle, Emitter, State};
 use super::{emit_turn, ensure_wired, spawn_telemetry_ticker, DeltaCoalescer, DELTA_HZ};
 use crate::AppState;
 
-#[tauri::command]
-pub async fn llm_conversation_list(state: State<'_, AppState>) -> Result<Value, String> {
-    serde_json::to_value(state.llm.conversations()).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn llm_conversation_get(
-    state: State<'_, AppState>,
-    conversation_id: String,
-) -> Result<Value, String> {
-    let messages = state.llm.conversation(&conversation_id);
-    Ok(json!({
-        "conversation_id": conversation_id,
-        "messages": serde_json::to_value(messages).map_err(|e| e.to_string())?,
-    }))
-}
-
-#[tauri::command]
-pub async fn llm_conversation_delete(
-    state: State<'_, AppState>,
-    conversation_id: String,
-) -> Result<Value, String> {
-    state.llm.conversation_delete(&conversation_id)?;
-    Ok(json!({ "ok": true }))
-}
-
 /// Starts a turn and returns the `request_id` the Coordinator minted for it —
 /// the same one that comes back in `TurnEvent::Started`, in every
 /// `llm://tool-ask` of the turn and in `llm_tool_answer`. Every event arrives

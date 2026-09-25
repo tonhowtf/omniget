@@ -15,9 +15,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::Stdio;
 
-use crate::core::silence_map::{
-    needs_recompute, savings_secs, skip_target, SilenceMap, CURRENT_VERSION,
-};
+use crate::core::silence_map::{needs_recompute, savings_secs, SilenceMap, CURRENT_VERSION};
 
 const MAPS_FILE: &str = "silence-maps.json";
 
@@ -140,26 +138,6 @@ pub async fn compute_silence_map(
         map: mapa,
         from_cache: false,
     })
-}
-
-/// Para onde saltar, se a posicao atual cai dentro de um silencio.
-///
-/// Chamada pelo player a cada atualizacao de tempo. Fica no backend em vez de
-/// duplicar a regra em TypeScript: uma segunda implementacao do mesmo calculo
-/// divergiria no primeiro ajuste de padding.
-#[tauri::command]
-pub fn silence_skip_target(path: String, position_secs: f64) -> Option<f64> {
-    let mapa = load();
-    skip_target(mapa.get(&path)?, position_secs)
-}
-
-/// Esquece o mapa de um arquivo.
-#[tauri::command]
-pub fn forget_silence_map(path: String) {
-    let mut todos = load();
-    if todos.remove(&path).is_some() {
-        save(&todos);
-    }
 }
 
 #[cfg(test)]

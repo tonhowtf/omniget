@@ -8,8 +8,6 @@ pub fn reregister(app: &tauri::AppHandle) {
     if let Err(e) = app.global_shortcut().unregister_all() {
         tracing::warn!("Failed to unregister hotkeys: {}", e);
     }
-    #[cfg(windows)]
-    forget_held_ptt();
     register_from_settings(app);
 }
 
@@ -25,88 +23,8 @@ pub fn register_from_settings(app: &tauri::AppHandle) {
     if settings.download.music_hotkey_enabled {
         register_one(app, &settings.download.music_hotkey_binding, "music");
     }
-    let ptt = settings.omnidisc.voice.ptt_key.trim();
-    if !ptt.is_empty() {
-        register_one(app, ptt, "omnidisc-ptt");
-    }
     crate::commands::tools::desktop::register_tool_hotkeys(app);
 }
-
-pub fn handle_ptt(app: &tauri::AppHandle, shortcut: &Shortcut, pressed: bool) -> bool {
-    let settings = config::load_settings(app);
-    let ptt = settings.omnidisc.voice.ptt_key.trim();
-    if ptt.is_empty() || !matches_binding(shortcut, ptt) {
-        return false;
-    }
-    #[cfg(windows)]
-    tame_key_repeat(app, *shortcut, pressed);
-    crate::commands::omnidisc::voice::ptt_from_hotkey(app, pressed);
-    true
-}
-
-/// Windows repeats `WM_HOTKEY` for as long as the key is down, and the
-/// global-shortcut backend answers every repeat by spawning a thread that
-/// busy-polls that key until it comes back up. A few seconds of push-to-talk
-/// would therefore pile up dozens of spinning threads — a call that heats the
-/// machine while you talk. Dropping the registration for the duration of the
-/// hold stops the repeat at the source, and the release still arrives, because
-/// the thread the first press spawned is already watching the key.
-#[cfg(windows)]
-fn tame_key_repeat(app: &tauri::AppHandle, shortcut: Shortcut, pressed: bool) {
-    use std::sync::atomic::Ordering;
-
-    if !pressed {
-        restore_ptt_binding(app, shortcut);
-        return;
-    }
-    if PTT_HELD.swap(true, Ordering::AcqRel) {
-        return;
-    }
-    let generation = PTT_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
-    if let Err(e) = app.global_shortcut().unregister(shortcut) {
-        tracing::debug!("[hotkey] could not pause the push-to-talk binding: {}", e);
-    }
-    // A release that never lands would leave the microphone open and the key
-    // unbound, so a hold gets an upper bound it can recover from.
-    let app = app.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(PTT_MAX_HOLD);
-        if PTT_GENERATION.load(Ordering::Acquire) != generation {
-            return;
-        }
-        tracing::warn!("[hotkey] push-to-talk stayed down too long; releasing it");
-        crate::commands::omnidisc::voice::ptt_from_hotkey(&app, false);
-        restore_ptt_binding(&app, shortcut);
-    });
-}
-
-#[cfg(windows)]
-fn restore_ptt_binding(app: &tauri::AppHandle, shortcut: Shortcut) {
-    use std::sync::atomic::Ordering;
-
-    if !PTT_HELD.swap(false, Ordering::AcqRel) {
-        return;
-    }
-    PTT_GENERATION.fetch_add(1, Ordering::AcqRel);
-    if let Err(e) = app.global_shortcut().register(shortcut) {
-        tracing::warn!("[hotkey] push-to-talk could not be re-armed: {}", e);
-    }
-}
-
-#[cfg(windows)]
-fn forget_held_ptt() {
-    use std::sync::atomic::Ordering;
-
-    PTT_HELD.store(false, Ordering::Release);
-    PTT_GENERATION.fetch_add(1, Ordering::AcqRel);
-}
-
-#[cfg(windows)]
-static PTT_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-#[cfg(windows)]
-static PTT_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-#[cfg(windows)]
-const PTT_MAX_HOLD: std::time::Duration = std::time::Duration::from_secs(30);
 
 fn register_one(app: &tauri::AppHandle, binding: &str, label: &str) {
     match binding.parse::<Shortcut>() {

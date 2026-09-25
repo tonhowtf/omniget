@@ -1783,11 +1783,6 @@ pub fn build_provider_with(id: &ProviderId, capture: bool) -> Option<Arc<dyn Pro
     })
 }
 
-/// Error for an unknown model on the bridge.
-pub fn unknown_model_error(model: &str) -> LlmError {
-    LlmError::new(ERR_LLM_MODEL, format!("unknown model {model}"))
-}
-
 /// Collects a turn stream into the final answer, for callers that do not
 /// stream (the bridge without `stream: true`).
 pub async fn collect_answer(

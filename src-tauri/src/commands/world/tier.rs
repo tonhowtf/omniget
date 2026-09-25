@@ -115,63 +115,6 @@ pub fn apply_calibration(
     })
 }
 
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
-}
-
-fn root() -> Result<PathBuf, String> {
-    omniget_core::core::paths::app_data_dir().ok_or_else(|| "ERR_WORLD_NO_DATA_DIR".to_string())
-}
-
-fn as_json(p: &WorldProfile) -> serde_json::Value {
-    serde_json::json!({
-        "tier": p.effective(),
-        "pinned": p.pinned,
-        "measured": p.measured,
-        "medianMs": p.median_ms,
-        "backend": p.backend,
-        "contextLostDuring": p.context_lost,
-        "calibratedAtMs": p.calibrated_at_ms,
-        "maxTier": MAX_TIER,
-    })
-}
-
-/// The tier the route should render at, plus everything Settings shows about
-/// it. Never starts the world: Settings must be openable with no world at all.
-#[tauri::command]
-pub async fn world_tier_get() -> Result<serde_json::Value, String> {
-    let root = root()?;
-    Ok(as_json(&load_profile(&root)))
-}
-
-/// Pin a tier, or pass `null` to go back to the measurement.
-#[tauri::command]
-pub async fn world_tier_set(tier: Option<u8>) -> Result<serde_json::Value, String> {
-    let root = root()?;
-    let mut p = load_profile(&root);
-    p.pinned = match tier {
-        Some(t) => Some(check_tier(t)?),
-        None => None,
-    };
-    store_profile(&root, &p)?;
-    Ok(as_json(&p))
-}
-
-/// File a `CalibrationResult` from `src/lib/world/render/calibrate.ts`.
-#[tauri::command]
-pub async fn world_calibration_save(
-    result: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    let root = root()?;
-    let prev = load_profile(&root);
-    let next = apply_calibration(&prev, &result, now_ms())?;
-    store_profile(&root, &next)?;
-    Ok(as_json(&next))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

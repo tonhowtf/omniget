@@ -145,19 +145,6 @@ pub fn spawn_telemetry_ticker(app: AppHandle) {
     });
 }
 
-/// Forwards the typed bus to the webview: `ToolAsk` becomes `llm://tool-ask`
-/// and `Rerouted` becomes `llm://rerouted`; every event also feeds telemetry.
-///
-/// Started once, on the first command that has an `AppHandle`. It ends when the
-/// bus is dropped, which only happens with the app.
-pub fn spawn_bus_forwarder(app: AppHandle) {
-    let manager = app.state::<crate::AppState>().llm.clone();
-    if manager.claim_bus_forwarder() {
-        return;
-    }
-    spawn_bus_forwarder_claimed(app, manager);
-}
-
 /// The forwarder itself, for a caller that already claimed the slot.
 fn spawn_bus_forwarder_claimed(
     app: AppHandle,

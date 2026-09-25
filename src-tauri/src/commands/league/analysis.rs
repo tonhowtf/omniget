@@ -3,9 +3,6 @@
 
 use super::stats;
 
-/// Summoner's Rift is roughly a 15000x15000 square with mid on the diagonal.
-pub const MAP_MAX: f64 = 15_000.0;
-
 /// Minutes of a game considered "early" for pathing purposes.
 pub const EARLY_MINUTES: usize = 14;
 

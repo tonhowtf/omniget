@@ -106,13 +106,6 @@ pub async fn tool_x_profile(
 }
 
 #[tauri::command]
-pub async fn tool_x_profile_lookup(input: String) -> Result<XUser, String> {
-    let handle = x::handle_from(&input)
-        .ok_or_else(|| format!("nao reconheci um perfil do X em: {}", input))?;
-    x::fx::profile(&handle).await.map_err(err)
-}
-
-#[tauri::command]
 pub async fn tool_x_media(
     app: tauri::AppHandle,
     input: String,
@@ -128,26 +121,6 @@ pub async fn tool_x_media(
         photos.unwrap_or(true),
         videos.unwrap_or(true),
         progress(&app),
-    )
-    .await
-    .map_err(err)
-}
-
-#[tauri::command]
-pub async fn tool_x_media_posts(
-    app: tauri::AppHandle,
-    posts: Vec<XPost>,
-    dest: String,
-    job: String,
-) -> Result<media::MediaResult, String> {
-    x::clear_cancel(&job);
-    media::download_posts(
-        &posts,
-        std::path::Path::new(&dest),
-        true,
-        true,
-        &job,
-        &progress(&app),
     )
     .await
     .map_err(err)

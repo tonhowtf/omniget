@@ -277,11 +277,6 @@ fn run(
     });
 }
 
-#[tauri::command]
-pub async fn city_status() -> Result<Value, String> {
-    Ok(state_json())
-}
-
 /// Enter the city. Answers with the `ready` message; the first snapshot and
 /// every frame after it arrive on `channel`.
 #[tauri::command]
