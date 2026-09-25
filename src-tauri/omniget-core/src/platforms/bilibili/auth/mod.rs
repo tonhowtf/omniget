@@ -4,10 +4,7 @@ use serde_json::Value;
 use super::api::{ApiClient, BilibiliError, Result};
 use super::{runtime_persist_account, BilibiliAuthCookie};
 
-pub mod captcha;
 pub mod qr;
-pub mod sms;
-
 const NAV_URL: &str = "https://api.bilibili.com/x/web-interface/nav";
 const LOGOUT_URL: &str = "https://passport.bilibili.com/login/exit/v2";
 

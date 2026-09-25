@@ -101,7 +101,7 @@ pub async fn compute_silence_map(
 
     let ffmpeg = crate::core::dependencies::find_tool("ffmpeg")
         .await
-        .ok_or_else(|| "FFmpeg nao encontrado. Instale em Config → Plugins.".to_string())?;
+        .ok_or_else(|| "FFmpeg nao encontrado. Instale em Config → Dependências.".to_string())?;
 
     let alvo = arquivo.clone();
     let stderr = tokio::task::spawn_blocking(move || {

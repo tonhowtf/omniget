@@ -386,8 +386,8 @@
   position: relative;
 }
 
-/* Plugin surfaces expect to be flex children of a column that fills the pane
-   (`flex: 1; min-height: 0`), so this wrapper is a flex column, not a block. */
+/* Routes outside the core shell expect to be flex children of a column that
+   fills the pane (`flex: 1; min-height: 0`), so this wrapper is a flex column. */
 .mac-pane-scroll {
   flex: 1;
   min-height: 0;

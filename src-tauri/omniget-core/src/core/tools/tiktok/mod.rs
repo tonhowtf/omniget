@@ -17,8 +17,6 @@
 
 pub mod download;
 pub mod favorites;
-pub mod sound;
-
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;

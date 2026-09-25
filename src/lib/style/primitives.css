@@ -1,5 +1,5 @@
 /*
- * OmniGet primitives — the shared vocabulary every surface (core and plugin)
+ * OmniGet primitives — the shared vocabulary every surface
  * builds from. Apple idioms: grouped inset lists with hairline separators,
  * bezel controls, pop-up buttons, switches, segmented controls, sheets, popovers.
  * Each primitive covers default / hover / active / focus-visible / disabled.
