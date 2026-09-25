@@ -57,12 +57,8 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 base64 = "0.22.1"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 sha2 = "0.10"
-md-5 = "0.10"
-murmur3 = "0.5"
 hex = "0.4"
-thiserror = "1"
 hmac = "0.12"
-qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 open = "5"
 omniget-core = { path = "omniget-core", features = ["desktop"] }
 omnidisc-proto = { path = "omnidisc-proto" }

@@ -45,7 +45,7 @@ function hexToRgb(hex: string): [number, number, number] {
 }
 
 /**
- * Eight tints taken from the `P` palette of `$lib/tools/catalog.ts` (the light
+ * Eight tints from the former Tools catalog palette (the light
  * stop of each gradient), so an avatar sits in the same colour family as the
  * rest of the app.
  */

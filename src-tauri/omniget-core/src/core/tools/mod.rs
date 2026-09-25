@@ -1,79 +1,13 @@
-//! Seção Tools: cada módulo aqui é uma capacidade isolada com entrada e saída
-//! serializáveis, para a UI Svelte e (mais tarde) um servidor MCP chamarem o
-//! mesmo código. Nada de estado de janela; progresso sai por callback.
+//! Shared plumbing the LLM layer uses: AI keys, usage and pricing, the
+//! Ollama and ONNX runtimes, GitHub release downloads, and the progress
+//! callback and HTTP helpers they share.
 
 pub mod ai_keys;
-pub mod aria2;
-pub mod audio_clean;
-pub mod autoclick;
-pub mod calameo;
-pub mod ctf;
-pub mod dictation;
-pub mod disk;
-pub mod dub;
-pub mod dupes;
-pub mod edge_tts;
-pub mod exif;
-pub mod file_search;
-pub mod gallery;
-pub mod games;
-pub mod gdocs;
 pub mod github;
-pub mod hosts_block;
-pub mod humanize;
-pub mod icon_pack;
-pub mod image_compress;
-pub mod image_dupes;
-pub mod image_resize;
-pub mod image_sprite;
-pub mod image_stitch;
-pub mod instagram;
-pub mod jpeg_pdf;
-pub mod kdeconnect;
-pub mod linkedin;
-pub mod lists;
-pub mod manifest_dl;
-pub mod music;
-pub mod ocr;
 pub mod ollama;
 pub mod onnx;
-pub mod pdf;
-pub mod pdf_markdown;
-pub mod pdf_repair;
-pub mod pdf_write;
-pub mod pinterest;
 pub mod pricing;
-pub mod reddit;
-pub mod rename;
-pub mod ryd;
-pub mod screen_record;
-pub mod shred;
-pub mod silence_cut;
-pub mod slides;
-pub mod sponsorblock;
-pub mod srt_translate;
-pub mod startup;
-pub mod sticker;
-pub mod subtitle;
-pub mod sysclean;
-pub mod tiktok;
-pub mod twitch;
-pub mod uninstall;
-pub mod upscale;
 pub mod usage;
-pub mod video_compress;
-pub mod video_gif;
-pub mod video_restore;
-pub mod vimeo;
-pub mod voicestudio;
-pub mod whisper;
-pub mod win_apps;
-pub mod win_registry;
-pub mod win_tweaks;
-pub mod win_updater;
-pub mod x;
-pub mod yt_archive;
-pub mod yt_notes;
 
 use std::sync::Arc;
 

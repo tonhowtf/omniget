@@ -13,7 +13,6 @@ mobile = []
 
 [dependencies]
 # Edge TTS (core/tools/edge_tts.rs) fala WebSocket com o servico do Edge.
-tokio-tungstenite = { version = "0.30.0", features = ["native-tls"] }
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "cookies", "stream", "http2", "gzip", "brotli", "deflate", "rustls-tls", "multipart"] }
 futures = "0.3"
@@ -40,7 +39,6 @@ sha2 = "0.10"
 hmac = "0.12"
 murmur3 = "0.5"
 md-5 = "0.10"
-sha1 = "0.10"
 hex = "0.4"
 once_cell = "1"
 thiserror = "1"
@@ -57,12 +55,7 @@ open = "5"
 # Autoclicker e ditado (enigo), espaco em disco (fs4).
 # PDF: o PDFium só lê e renderiza; escrever estrutura (senha, marca d'água,
 # CropBox, sumário) é o lopdf, MIT e Rust puro.
-lopdf = { version = "0.45", default-features = false, features = ["chrono"] }
-libloading = "0.8"
 walkdir = "2"
-trash = "5"
-enigo = { version = "0.6", default-features = false, features = ["x11rb"] }
-fs4 = "1"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "ico"] }
 # Tags de audio (ID3/Vorbis/MP4) em Rust puro, sem binario externo.
 # HTML -> Markdown para exportar posts (Substack/Medium), mesmo padrao do pdf-to-markdown.

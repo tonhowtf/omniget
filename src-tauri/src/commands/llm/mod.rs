@@ -7,6 +7,7 @@ pub mod chat;
 pub mod help;
 pub mod help_redaction;
 pub mod jobs;
+pub mod keys;
 pub mod local;
 pub mod mcp;
 pub mod models;

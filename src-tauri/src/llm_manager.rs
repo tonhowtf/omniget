@@ -2228,7 +2228,7 @@ mod tests {
     #[test]
     fn mcp_specs_are_not_empty_and_carry_schemas() {
         let specs = mcp_specs();
-        assert!(specs.len() >= 30, "only {} specs", specs.len());
+        assert!(specs.len() >= 20, "only {} specs", specs.len());
         assert!(specs.iter().all(|s| s.input_schema.is_object()));
     }
 

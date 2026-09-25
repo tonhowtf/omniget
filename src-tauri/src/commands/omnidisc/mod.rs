@@ -1,27 +1,10 @@
 pub mod http;
 pub mod store;
 
-use serde::Serialize;
-use serde_json::Value;
-
 pub const ERR_INVALID_URL: &str =
     "OmniDisc: invalid instance URL. Use http:// or https:// without a username or password.";
 pub const ERR_UNREACHABLE: &str =
     "OmniDisc: the server did not respond. Check the address or ask the owner for a new link.";
-
-#[derive(Serialize)]
-pub struct ConnectResult {
-    pub url: String,
-    pub recognized: bool,
-    /// The session token and every message travel in the clear on this
-    /// instance. Plain `http://` still works — a lot of self-hosting starts on
-    /// a LAN — but the UI has to say so instead of showing the same padlock as
-    /// everyone else.
-    pub insecure: bool,
-    pub instance: Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub invite: Option<String>,
-}
 
 /// Loopback traffic never leaves the machine, so `http://localhost` is not the
 /// thing this flag is warning about.

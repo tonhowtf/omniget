@@ -53,7 +53,6 @@
   import { agentPrompts } from "$lib/agent-prompts";
   import { get } from "svelte/store";
   import { CORE_NAV_ITEMS, type NavItem } from "$lib/nav-config";
-  import { TOOLS, toolHref } from "$lib/tools/catalog";
   import type { Snippet } from "svelte";
   import type { Component } from "svelte";
 
@@ -227,22 +226,6 @@
         keywords: "preferences options config",
         action: () => goto("/settings"),
       },
-      {
-        id: "nav-tools",
-        label: get(t)("nav.tools"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "ferramentas tools utilities apps",
-        action: () => goto("/tools"),
-      },
-      // Cada ferramenta do catálogo entra na paleta com as mesmas
-      // palavras-chave da busca do hub, então ⌘K acha "instagram" também.
-      ...TOOLS.map((tool) => ({
-        id: `tool-${tool.id}`,
-        label: get(t)(`tools.catalog.${tool.id}.name`),
-        group: get(t)("tools.hub.title"),
-        keywords: [...tool.keywords, get(t)(`tools.categories.${tool.category}.name`)].join(" "),
-        action: () => goto(toolHref(tool)),
-      })),
       // Contas & cota: ⌘K troca a assinatura do CLI sem abrir a aba. Lê só o
       // estado já carregado, então não há IPC no boot.
       ...accountPaletteItems(

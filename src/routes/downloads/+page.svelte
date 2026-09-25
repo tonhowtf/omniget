@@ -26,7 +26,6 @@
   import DownloadPhases from "$components/download/DownloadPhases.svelte";
   import DownloadCommand from "$components/download/DownloadCommand.svelte";
   import ReencodeDialog from "$components/dialog/ReencodeDialog.svelte";
-  import ToolsPanel from "$components/downloads/ToolsPanel.svelte";
   import VideoOpsOverlay from "$components/downloads/VideoOpsOverlay.svelte";
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { locale as i18nLocale } from "$lib/i18n";
@@ -323,7 +322,7 @@
     kind: QueueKind | null;
   };
 
-  let viewMode = $state<"active" | "history" | "tools">("active");
+  let viewMode = $state<"active" | "history">("active");
 
   // The toolbar acts on the list beneath it: view switcher in the centre,
   // bulk actions trailing. Registered here so the shell renders them.
@@ -346,12 +345,10 @@
       segments: [
         { id: "active", label: $t("downloads.view_queue") as string, count: filterCounts.active },
         { id: "history", label: $t("downloads.view_history") as string },
-        { id: "tools", label: $t("downloads.view_tools") as string },
       ],
       activeSegment: viewMode,
       onSegment: (id) => {
         if (id === "history") { if (viewMode !== "history") toggleHistoryView(); }
-        else if (id === "tools") { if (viewMode !== "tools") toggleToolsView(); }
         else viewMode = "active";
       },
       actions,
@@ -400,10 +397,6 @@
       viewMode = "history";
       loadHistory();
     }
-  }
-
-  function toggleToolsView() {
-    viewMode = viewMode === "tools" ? "active" : "tools";
   }
 
   async function historyRetry(url: string, platform: string) {
@@ -709,8 +702,6 @@
           </ul>
         {/if}
       </div>
-    {:else}
-      <ToolsPanel />
     {/if}
   </div>
 {:else}
@@ -731,12 +722,6 @@
           <polyline points="12 7 12 12 15 14" />
         </svg>
         {$t('downloads.history_view_link')}
-      </button>
-      <button class="history-link" onclick={toggleToolsView}>
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-2.4z" />
-        </svg>
-        {$t('tools.tab')}
       </button>
     </div>
   </div>

@@ -36,7 +36,6 @@ pub mod registry;
 pub mod secrets;
 pub mod shell_words;
 pub mod skills;
-pub mod spicetify;
 pub mod subtitle_merge;
 pub mod tools;
 pub mod ytdlp;

@@ -21,7 +21,6 @@
     settings: { glyph: "gear-six", from: "#A3A3A8", to: "#6F6F75" },
     about: { glyph: "info", from: "#5AA9FF", to: "#1E6FE8" },
     league: { glyph: "sword", from: "#E8B84A", to: "#B8860B" },
-    tools: { glyph: "toolbox", from: "#FF9F5A", to: "#E8641A" },
     fallback: { glyph: "puzzle-piece", from: "#8E8E93", to: "#5C5C60" },
   };
 
