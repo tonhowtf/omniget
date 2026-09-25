@@ -29,7 +29,7 @@ pub mod migrate;
 pub struct KeyEntry {
     pub id: String,
     pub name: String,
-    /// openai | anthropic | openrouter | deepseek | gemini | groq | xai | mistral | siliconflow | newapi | ollama | custom
+    /// openai | anthropic | openrouter | deepseek | gemini | groq | xai | mistral | siliconflow | requesty | newapi | ollama | custom
     pub kind: String,
     pub base_url: String,
     /// Never serialised: the vault file holds metadata only. Deserialising it
@@ -250,6 +250,16 @@ pub const KINDS: &[Kind] = &[
         base_url: "https://api.siliconflow.cn/v1",
         balance: true,
         env: "SILICONFLOW_API_KEY",
+        wire: "openai",
+        streaming: true,
+        tools: true,
+    },
+    Kind {
+        id: "requesty",
+        name: "Requesty",
+        base_url: "https://router.requesty.ai/v1",
+        balance: false,
+        env: "REQUESTY_API_KEY",
         wire: "openai",
         streaming: true,
         tools: true,
