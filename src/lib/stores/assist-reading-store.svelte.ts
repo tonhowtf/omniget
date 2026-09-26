@@ -5,13 +5,8 @@
  *
  * Nothing runs at rest: every read is one `invoke` fired by a mount or a
  * click. A failed write returns an error key and keeps the caller's draft.
- *
- * The Study plugin is an optional source ("from the reader"): on the
- * person's click we list its books with `study:read:library:list` and use
- * `reading_pct` as progress with origin `reader`. Manual entry works alone.
  */
 import { invoke } from "@tauri-apps/api/core";
-import { pluginInvoke } from "$lib/plugin-invoke";
 
 // ── Wire types ──────────────────────────────────────────────────────────
 
@@ -181,15 +176,6 @@ export interface Overview {
   skill_bound?: boolean;
 }
 
-export interface ReaderBook {
-  id: number;
-  title: string;
-  author: string | null;
-  format: string;
-  reading_pct: number;
-  last_opened_at: number | null;
-}
-
 export type Outcome<T = void> = { ok: true; value: T } | { ok: false; errorKey: string; detail: string };
 
 // ── Pure helpers ────────────────────────────────────────────────────────
@@ -269,28 +255,6 @@ export function splitList(s: string): string[] {
     .split(/[,;\n]/)
     .map((x) => x.trim())
     .filter((x) => x.length > 0);
-}
-
-/** Reader items come as `{ items }` or a bare array; keep what we use. */
-export function normaliseReaderBooks(raw: unknown): ReaderBook[] {
-  const arr = Array.isArray(raw) ? raw : Array.isArray((raw as { items?: unknown[] })?.items) ? (raw as { items: unknown[] }).items : [];
-  return arr
-    .map((b) => b as Record<string, unknown>)
-    .filter((b) => typeof b.id === "number")
-    .map((b) => ({
-      id: b.id as number,
-      title: (typeof b.title === "string" && b.title.trim()) || String(b.file_path ?? "").split(/[\\/]/).pop() || `#${b.id}`,
-      author: typeof b.author === "string" ? b.author : null,
-      format: typeof b.format === "string" ? b.format : "",
-      reading_pct: typeof b.reading_pct === "number" ? b.reading_pct : 0,
-      last_opened_at: typeof b.last_opened_at === "number" ? b.last_opened_at : null,
-    }));
-}
-
-/** The reader stores 0–1 (`/study/progress` renders `reading_pct * 100`). */
-export function readerPercent(pct: number): number {
-  const v = pct * 100;
-  return Math.max(0, Math.min(100, Math.round(v * 10) / 10));
 }
 
 // ── State ───────────────────────────────────────────────────────────────
@@ -400,14 +364,3 @@ export function installSkill(botId: string, replace = false) {
   return act<{ already_installed: boolean; outcome?: { needs_confirm?: string | null } }>(botId, "assist_reading_install_skill", { replace });
 }
 
-/** Books from the Study plugin's reader, on the person's click. */
-export async function readerBooks(search: string): Promise<Outcome<ReaderBook[]>> {
-  try {
-    const filters: Record<string, unknown> = { page: 0, pageSize: 20 };
-    if (search.trim()) filters.search = search.trim();
-    const raw = await pluginInvoke<unknown>("study", "study:read:library:list", { filters });
-    return { ok: true, value: normaliseReaderBooks(raw) };
-  } catch (e) {
-    return { ok: false, errorKey: "assist.reading.reader_unavailable", detail: errorDetail(e) };
-  }
-}
