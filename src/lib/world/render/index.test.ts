@@ -33,6 +33,8 @@ function fakeRenderer(): Renderer & { frames: number; slept: number; woke: numbe
     },
     bakeChunk() {},
     invalidateChunk() {},
+    setDynamicPage() {},
+    memory: () => ({ textures: 0, bytes: 0, dynamicPage: 0 }),
     text: () => ({ id: 1, w: 10, h: 10 }),
     resize() {},
     sleep() {

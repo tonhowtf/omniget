@@ -56,6 +56,24 @@ enum Commands {
         #[command(subcommand)]
         command: commands::agent::AgentCommand,
     },
+    /// Open Claude Code on one of the app's accounts (/llm → Accounts), skipping permission prompts
+    Claude {
+        /// Account id or label (a unique prefix works); without it, asks when there are several
+        account: Option<String>,
+
+        #[arg(long, help = "List the Claude accounts and exit")]
+        list: bool,
+
+        #[arg(
+            long,
+            help = "Keep Claude Code's permission prompts (no --dangerously-skip-permissions)"
+        )]
+        safe: bool,
+
+        /// Extra arguments for claude, after `--` (e.g. -- -c)
+        #[arg(last = true)]
+        extra: Vec<String>,
+    },
     /// Import a cookies.txt file (Netscape format)
     ImportCookies {
         file: String,
@@ -107,6 +125,14 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Agent { command } => {
             commands::agent::execute(command, cli.json).await?;
+        }
+        Commands::Claude {
+            account,
+            list,
+            safe,
+            extra,
+        } => {
+            commands::claude::execute(account, list, safe, extra)?;
         }
         Commands::ImportCookies {
             file,

@@ -61,7 +61,11 @@
       editing = false;
     } catch (e: any) {
       const msg = typeof e === "string" ? e : e?.message ?? String(e);
-      showToast("error", $t("downloads.command.invalid", { error: msg }));
+      if (msg.startsWith("LINK_EXPIRED")) {
+        showToast("error", $t("downloads.history_link_expired"));
+      } else {
+        showToast("error", $t("downloads.command.invalid", { error: msg }));
+      }
     } finally {
       running = false;
     }

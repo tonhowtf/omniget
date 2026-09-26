@@ -97,3 +97,67 @@ export function connectionMatchesIntent(agent: AgentDef, expected: AgentDef): bo
     && agent.budget?.tokens_per_turn === expected.budget?.tokens_per_turn
     && (agent.budget?.max_tool_calls_per_turn ?? 0) === (expected.budget?.max_tool_calls_per_turn ?? 0);
 }
+
+/** What went wrong with a connection, in terms a person can act on. */
+export type ConnectionProblem =
+  | 'missing_executable' | 'login_expired' | 'credential_invalid' | 'model_unavailable'
+  | 'local_service_down' | 'rate_limited' | 'network' | 'cancelled' | 'no_answer' | 'unknown';
+
+export interface ConnectionDiagnosis {
+  problem: ConnectionProblem;
+  /** i18n keys: what happened and what to do. */
+  titleKey: string;
+  actionKey: string;
+  /** Offered buttons, in order. */
+  actions: ('retry' | 'sign_in' | 'switch' | 'open_local' | 'install_cli' | 'change_model')[];
+  /** The backend's message with anything that looks like a secret masked. */
+  detail: string;
+}
+
+/** Masks API keys, bearer tokens and long opaque strings before an error is shown or kept. */
+export function sanitizeError(text: string): string {
+  return text
+    .replace(/(bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi, '$1•••')
+    .replace(/\b(sk|pk|rk|xai|gsk|key|tok|ghp|github_pat|AIza)[-_A-Za-z0-9]{12,}/g, '•••')
+    .replace(/([?&](?:key|token|api_key|access_token)=)[^&\s]+/gi, '$1•••')
+    .replace(/\b[A-Za-z0-9_-]{40,}\b/g, '•••')
+    .slice(0, 600);
+}
+
+/**
+ * Turns a failed connect/test into a concrete problem. `mode` is the wizard's
+ * choice: a network error against a local model means the server is off.
+ */
+export function diagnoseConnectionError(raw: unknown, mode: 'subscription' | 'api' | 'local' | string): ConnectionDiagnosis {
+  const text = String((raw as { message?: string })?.message ?? raw ?? '');
+  const has = (...needles: string[]) => needles.some(n => text.includes(n));
+  const lower = text.toLowerCase();
+  let problem: ConnectionProblem = 'unknown';
+  if (has('ERR_CLI_NOT_FOUND', 'ERR_CLI_SPAWN', 'ERR_LLM_LOCAL_BINARY') || /not found on (the )?path|no such file or directory|enoent/.test(lower)) problem = 'missing_executable';
+  else if (has('ERR_CLI_AUTH', 'ERR_CLI_ACCOUNT') || /(not logged in|login (has )?expired|please (log|sign) ?in|session expired|oauth)/.test(lower)) problem = 'login_expired';
+  else if (has('ERR_LLM_AUTH') || /\b(401|403)\b|invalid (api )?key|unauthori[sz]ed|forbidden/.test(lower)) problem = mode === 'subscription' ? 'login_expired' : 'credential_invalid';
+  else if (has('ERR_LLM_MODEL', 'ERR_LLM_LOCAL_MODEL', 'ERR_LLM_NO_CANDIDATE') || /model .*(not found|does not exist|unavailable)|unknown model|no models/.test(lower)) problem = 'model_unavailable';
+  else if (has('ERR_LLM_RATE', 'ERR_CLI_RATE') || /\b429\b|rate limit|quota/.test(lower)) problem = 'rate_limited';
+  else if (has('ERR_LLM_NET') || /connection refused|econnrefused|timed? ?out|dns|network/.test(lower)) problem = mode === 'local' ? 'local_service_down' : 'network';
+  else if (/test cancelled/i.test(text)) problem = 'cancelled';
+  else if (/test incomplete|ended before start/i.test(text)) problem = 'no_answer';
+  const actions: ConnectionDiagnosis['actions'] = {
+    missing_executable: ['install_cli', 'retry', 'switch'],
+    login_expired: ['sign_in', 'retry', 'switch'],
+    credential_invalid: ['switch', 'retry'],
+    model_unavailable: ['change_model', 'retry', 'switch'],
+    local_service_down: ['open_local', 'retry', 'switch'],
+    rate_limited: ['retry', 'switch'],
+    network: ['retry', 'switch'],
+    cancelled: ['retry'],
+    no_answer: ['retry', 'change_model', 'switch'],
+    unknown: ['retry', 'switch'],
+  }[problem] as ConnectionDiagnosis['actions'];
+  return {
+    problem,
+    titleKey: `assist.bots.connection.problem.${problem}`,
+    actionKey: `assist.bots.connection.action.${problem}`,
+    actions,
+    detail: sanitizeError(text),
+  };
+}

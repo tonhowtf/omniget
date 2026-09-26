@@ -63,6 +63,10 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 # ONNX Runtime: "load-dynamic" NAO linka nada no build; a lib nativa e um
 # binario gerido, baixado sob demanda igual ao PDFium e ao Real-ESRGAN.
 ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-27"] }
+# core/assist: bots, memória pessoal, leitura, sessões e recibos em SQLite
+# (mesma versão/feature do crate do app, então compila uma vez só).
+rusqlite = { version = "0.32", features = ["bundled"] }
+tempfile = "=3.25.0"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

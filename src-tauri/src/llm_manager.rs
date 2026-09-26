@@ -733,6 +733,28 @@ pub fn sanitize_id(id: &str) -> String {
 
 // ── Manager ───────────────────────────────────────────────────────────
 
+/// Roster adapter for `assist::external_config` (C02). Weak, so it never
+/// keeps a manager alive; a dropped manager reads as "no roster" (fail closed).
+struct RosterReader(std::sync::Weak<Inner>);
+
+impl omniget_core::core::assist::external_config::BotRoster for RosterReader {
+    fn get(&self, id: &str) -> Option<AgentDef> {
+        self.0.upgrade().and_then(|i| i.roster.get(id))
+    }
+    fn apply_planned(
+        &self,
+        agent: AgentDef,
+        before: Option<AgentDef>,
+        source: AgentDef,
+    ) -> Result<AgentDef, String> {
+        let inner = self.0.upgrade().ok_or("EXTERNAL_ROSTER_UNAVAILABLE")?;
+        inner
+            .roster
+            .apply_planned(agent, before, source)
+            .map_err(|e| e.to_string())
+    }
+}
+
 struct Inner {
     root: PathBuf,
     roster: RosterStore,
@@ -767,6 +789,16 @@ struct TurnHandle {
 /// wholesale whenever the broker says nothing is pending any more.
 static PRUNE_RECEIPTS: Mutex<Vec<serde_json::Value>> = Mutex::new(Vec::new());
 static PENDING_ASKS: Mutex<Vec<serde_json::Value>> = Mutex::new(Vec::new());
+
+/// The roster editor's skill checklist (`AgentDef::skills`) is a mirror of
+/// the bot's bindings in `assist.db`; saving the agent brings the bindings in
+/// line. A failure is logged, not fatal: the agent itself was saved.
+fn sync_skill_bindings(bot: &str, skills: &[String]) {
+    use omniget_core::core::assist::bots::{skills as bot_skills, BotEnv};
+    if let Err(e) = bot_skills::sync_bindings(&BotEnv::global(), bot, skills) {
+        tracing::warn!("[bots] skill bindings of {bot}: {e}");
+    }
+}
 
 pub struct LlmManager {
     inner: OnceLock<Arc<Inner>>,
@@ -815,8 +847,8 @@ impl LlmManager {
         let bus = Arc::new(Bus::new());
         let executor = Arc::new(McpToolExecutor::new());
         // Source 1 of 3: the internal table. MCP servers (`register_mcp_tools`)
-        // and skills (`register_skill_tools`) register themselves later, when
-        // the user enables them; the broker takes them through the `Arc`.
+        // register themselves later, when the user enables them; the skills
+        // (`register_skill_tools`) right after the assistant database opens.
         let broker = Arc::new(ToolBroker::new(
             internal_specs(),
             executor.clone(),
@@ -861,6 +893,37 @@ impl LlmManager {
                 .with_dir(Some(root.join("conversations"))),
         );
 
+        // Assistant subsystem: `assist.db` (bots, memory, reading, runs),
+        // its tools as a broker source, and the per-turn hooks.
+        {
+            use omniget_core::core::assist;
+            match assist::db::AssistDb::open(&root.join(assist::db::DB_FILE)) {
+                Ok(db) => {
+                    let db = Arc::new(db);
+                    assist::db::set_global(db.clone());
+                    // Conversation context (projectless/project) and the
+                    // room-aware memory resolver live in `assist::groups`.
+                    assist::groups::install(db);
+                }
+                Err(e) => tracing::error!("[assist] {e}"),
+            }
+            broker.register_source(
+                assist::tools::ASSIST_SOURCE,
+                assist::tools::all_specs(),
+                Arc::new(assist::tools::AssistExecutor),
+            );
+            for hook in assist::augments() {
+                coordinator.add_augment(hook);
+            }
+        }
+
+        // Bot layer: the broker it checks "registered" against, and the skill
+        // tools of whatever is installed (needs `assist.db`, opened above).
+        omniget_core::core::assist::bots::set_broker(broker.clone());
+        if let Err(e) = omniget_core::core::assist::bots::skills::projection().reproject() {
+            tracing::warn!("[skills] projection: {e}");
+        }
+
         let inner = Arc::new(Inner {
             roster: RosterStore::at(root.join("roster.json")),
             conversations: ConversationStore::at(root.join("conversations")),
@@ -884,7 +947,12 @@ impl LlmManager {
             root,
         });
         let _ = self.inner.set(inner.clone());
-        self.inner.get().cloned().unwrap_or(inner)
+        let chosen = self.inner.get().cloned().unwrap_or(inner);
+        // C02: external derived bots read/write the same real roster.
+        omniget_core::core::assist::external_config::install_roster(Arc::new(RosterReader(
+            Arc::downgrade(&chosen),
+        )));
+        chosen
     }
 
     pub fn bus(&self) -> Arc<Bus> {
@@ -919,13 +987,15 @@ impl LlmManager {
         self.inner().broker.unregister_mcp(server)
     }
 
-    /// Source 3: the installed skills, namespaced to `skill:<name>`.
+    /// Source 3: the installed skills, one provider-safe tool per installed
+    /// version (`skill__<name>_<hash8>`, see `assist::bots::skills`). Called
+    /// at boot and after every install, update, removal or repair; the
+    /// source is replaced whole, so no tool outlives its skill.
     pub fn register_skill_tools(
         &self,
-        specs: Vec<ToolSpec>,
-        executor: Arc<dyn ToolExecutor>,
-    ) -> usize {
-        self.inner().broker.register_skills(specs, executor)
+    ) -> Result<omniget_core::core::assist::bots::skills::ProjectionSummary, String> {
+        let _ = self.inner();
+        omniget_core::core::assist::bots::skills::projection().reproject()
     }
 
     pub fn budget(&self) -> Arc<BudgetStore> {
@@ -1000,18 +1070,22 @@ impl LlmManager {
     }
 
     pub fn roster_create(&self, agent: AgentDef) -> Result<Vec<AgentDef>, String> {
+        let (id, skills) = (agent.id.clone(), agent.skills.clone());
         self.inner()
             .roster
             .create(agent)
             .map_err(|e| e.to_string())?;
+        sync_skill_bindings(&id, &skills);
         Ok(self.roster())
     }
 
     pub fn roster_update(&self, agent: AgentDef) -> Result<Vec<AgentDef>, String> {
+        let (id, skills) = (agent.id.clone(), agent.skills.clone());
         self.inner()
             .roster
             .update(agent)
             .map_err(|e| e.to_string())?;
+        sync_skill_bindings(&id, &skills);
         Ok(self.roster())
     }
 
@@ -1029,6 +1103,13 @@ impl LlmManager {
 
     pub fn roster_delete(&self, id: &str) -> Result<Vec<AgentDef>, String> {
         self.inner().roster.delete(id).map_err(|e| e.to_string())?;
+        // The bot's profile and skill bindings go with it; its traced reads
+        // stay as the record of past runs.
+        if let Ok(db) = omniget_core::core::assist::db::global() {
+            if let Err(e) = omniget_core::core::assist::bots::profile::delete(&db, id) {
+                tracing::warn!("[bots] deleting {id}: {e}");
+            }
+        }
         Ok(self.roster())
     }
 
@@ -1165,7 +1246,26 @@ impl LlmManager {
         let agent = self
             .agent(agent_id)
             .ok_or_else(|| format!("{ERR_NO_AGENT}: no agent {agent_id}"))?;
-        self.turn_with_agent(conversation_id, agent, input).await
+        self.turn_with_agent(conversation_id, agent, input, CancellationToken::new())
+            .await
+    }
+
+    /// The job owns this token before the first provider handshake begins.
+    pub async fn turn_stream_with_cancel(
+        &self,
+        conversation_id: &str,
+        agent_id: &str,
+        input: &str,
+        cancel: CancellationToken,
+    ) -> Result<(String, CancellationToken, BoxStream<'static, TurnEvent>), String> {
+        if cancel.is_cancelled() {
+            return Err("CANCELLED".into());
+        }
+        let agent = self
+            .agent(agent_id)
+            .ok_or_else(|| format!("{ERR_NO_AGENT}: no agent {agent_id}"))?;
+        self.turn_with_agent(conversation_id, agent, input, cancel)
+            .await
     }
 
     pub async fn help_turn_stream(
@@ -1219,7 +1319,8 @@ impl LlmManager {
                 });
             }
         }
-        self.turn_with_agent(conversation_id, agent, input).await
+        self.turn_with_agent(conversation_id, agent, input, CancellationToken::new())
+            .await
     }
 
     async fn turn_with_agent(
@@ -1227,15 +1328,26 @@ impl LlmManager {
         conversation_id: &str,
         mut agent: AgentDef,
         input: &str,
+        cancel: CancellationToken,
     ) -> Result<(String, CancellationToken, BoxStream<'static, TurnEvent>), String> {
         let inner = self.inner();
-        if let Some(model) = self.model_override(conversation_id) {
-            agent.model = ModelPolicy::Fixed { model };
+        let external = omniget_core::core::assist::authority::external(conversation_id);
+        if external {
+            omniget_core::core::assist::authority::check_agent(conversation_id, &agent)?;
+        } else {
+            // A derived bot (or an external room participant) never runs as
+            // LOCAL_USER: direct chat, room, local mission, bridge, help (H1).
+            let bot = agent.id.strip_prefix("help-").unwrap_or(&agent.id);
+            omniget_core::core::assist::external_config::local_turn_allowed(conversation_id, bot)?;
+            if let Some(model) = self.model_override(conversation_id) {
+                agent.model = ModelPolicy::Fixed { model };
+            }
         }
         self.ensure_providers(&agent)?;
-        self.refresh_capacity(&agent);
+        if !external {
+            self.refresh_capacity(&agent);
+        }
 
-        let cancel = CancellationToken::new();
         let mut stream = inner.coordinator.run_turn(
             &sanitize_id(conversation_id),
             &agent,
@@ -1453,6 +1565,9 @@ impl LlmManager {
             .and_then(|mut turns| turns.remove(request_id))
             .ok_or_else(|| format!("{ERR_NO_TURN}: {request_id}"))?;
         handle.cancel.cancel();
+        // Pending permission requests of this turn resolve as cancelled, not
+        // denied, and a late answer can no longer apply to them.
+        inner.broker.cancel_request(request_id);
         // A question of a turn that no longer exists must not wait out its
         // 120 s: it would sit in the jobs list as a ghost approval.
         let orphans: Vec<String> = {

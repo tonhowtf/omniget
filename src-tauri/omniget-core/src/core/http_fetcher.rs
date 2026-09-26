@@ -306,7 +306,12 @@ impl HttpFetcher {
         if let Some(h) = &self.headers {
             req = req.headers(h.clone());
         }
-        let resp = req.send().await?;
+        let mut identity = reqwest::header::HeaderMap::new();
+        identity.insert(
+            reqwest::header::ACCEPT_ENCODING,
+            reqwest::header::HeaderValue::from_static("identity"),
+        );
+        let resp = req.headers(identity).send().await?;
         if !resp.status().is_success() {
             return Err(anyhow!("HTTP {} downloading {}", resp.status(), self.url));
         }
@@ -584,6 +589,26 @@ struct ProbeResult {
     accept_ranges: bool,
 }
 
+/// The probe got 429 or 503: the server answered "not now". Typed so callers
+/// that own one attempt (the MCP worker) can end it with this verdict instead
+/// of sending more requests.
+#[derive(Debug, Clone)]
+pub struct ServerBusy {
+    pub status: u16,
+    /// Raw `Retry-After` value, if the server sent one (bounded).
+    pub retry_after: Option<String>,
+}
+impl std::fmt::Display for ServerBusy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "probe returned HTTP {}", self.status)
+    }
+}
+impl std::error::Error for ServerBusy {}
+
+fn is_busy_status(status: reqwest::StatusCode) -> bool {
+    matches!(status.as_u16(), 429 | 503)
+}
+
 /// O que dá para saber de um recurso remoto antes de baixar.
 #[derive(Debug, Clone)]
 pub struct RemoteProbe {
@@ -666,6 +691,20 @@ pub async fn probe_remote(
     }
     let head = match tokio::time::timeout(timeout, req.send()).await {
         Ok(Ok(r)) if r.status().is_success() => Some(r),
+        // 429/503 are the server's verdict on this request ("come back
+        // later"), not "HEAD unsupported". Firing the GET range fallback right
+        // after would be a hidden retry: the caller's retry policy owns that.
+        Ok(Ok(r)) if is_busy_status(r.status()) => {
+            return Err(ServerBusy {
+                status: r.status().as_u16(),
+                retry_after: r
+                    .headers()
+                    .get(reqwest::header::RETRY_AFTER)
+                    .and_then(|v| v.to_str().ok())
+                    .map(|v| v.chars().take(64).collect()),
+            }
+            .into());
+        }
         Ok(Ok(r)) => {
             tracing::debug!("[http_fetcher] HEAD returned HTTP {}", r.status());
             None
@@ -720,6 +759,17 @@ pub async fn probe_remote(
         Err(_) => return Err(anyhow!("probe timed out")),
     };
     let status = resp.status();
+    if is_busy_status(status) {
+        return Err(ServerBusy {
+            status: status.as_u16(),
+            retry_after: resp
+                .headers()
+                .get(reqwest::header::RETRY_AFTER)
+                .and_then(|v| v.to_str().ok())
+                .map(|v| v.chars().take(64).collect()),
+        }
+        .into());
+    }
     if !status.is_success() {
         return Err(anyhow!("probe returned HTTP {}", status));
     }
@@ -958,6 +1008,13 @@ async fn download_segment(
         reqwest::header::RANGE,
         format!("bytes={}-{}", range_start, end),
     );
+    // A compressed body would land at the wrong offsets of the file.
+    let mut identity = reqwest::header::HeaderMap::new();
+    identity.insert(
+        reqwest::header::ACCEPT_ENCODING,
+        reqwest::header::HeaderValue::from_static("identity"),
+    );
+    req = req.headers(identity);
 
     let resp = tokio::time::timeout(cfg.connect_timeout, req.send())
         .await
@@ -1129,7 +1186,7 @@ pub fn part_path_for(output: &Path) -> PathBuf {
     PathBuf::from(s)
 }
 
-fn sidecar_path_for(part_path: &Path) -> PathBuf {
+pub(crate) fn sidecar_path_for(part_path: &Path) -> PathBuf {
     let mut s = part_path.as_os_str().to_owned();
     s.push(".resume.json");
     PathBuf::from(s)
@@ -1691,5 +1748,196 @@ mod range_header_tests {
 
         headers.insert(CONTENT_RANGE, HeaderValue::from_static("items 0-1/2"));
         assert_eq!(content_range_start(&headers), None);
+    }
+}
+
+/// Scripted HTTP/1.1 server for the downloader tests (direct, HLS, fetcher).
+/// One request per connection (`Connection: close`), every request recorded.
+#[cfg(test)]
+pub(crate) mod test_server {
+    use std::sync::{Arc, Mutex};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[derive(Debug, Clone)]
+    #[allow(dead_code)]
+    pub struct Req {
+        pub method: String,
+        pub path: String,
+        pub headers: Vec<(String, String)>,
+    }
+
+    impl Req {
+        pub fn header(&self, name: &str) -> Option<&str> {
+            self.headers
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case(name))
+                .map(|(_, v)| v.as_str())
+        }
+
+        /// `(start, end)` of a `Range: bytes=start-[end]` header.
+        pub fn range(&self) -> Option<(u64, Option<u64>)> {
+            let spec = self.header("range")?.strip_prefix("bytes=")?;
+            let (a, b) = spec.split_once('-')?;
+            Some((a.trim().parse().ok()?, b.trim().parse().ok()))
+        }
+    }
+
+    pub struct Reply {
+        pub status: u16,
+        pub headers: Vec<(String, String)>,
+        pub body: Vec<u8>,
+        /// Send only this many body bytes (Content-Length still announces all).
+        pub cut_after: Option<usize>,
+        /// After the cut: hang the connection open instead of closing it.
+        pub stall: bool,
+    }
+
+    impl Reply {
+        pub fn new(status: u16, body: Vec<u8>) -> Self {
+            Self {
+                status,
+                headers: Vec::new(),
+                body,
+                cut_after: None,
+                stall: false,
+            }
+        }
+        pub fn header(mut self, k: &str, v: &str) -> Self {
+            self.headers.push((k.to_string(), v.to_string()));
+            self
+        }
+    }
+
+    /// 206 slice when a Range is asked for, else 200 with `Accept-Ranges: bytes`.
+    pub fn serve_bytes(body: &[u8], req: &Req) -> Reply {
+        let total = body.len() as u64;
+        if let Some((start, end)) = req.range() {
+            let end = end.unwrap_or(total - 1).min(total - 1);
+            let slice = body[start as usize..=end as usize].to_vec();
+            return Reply::new(206, slice)
+                .header(
+                    "Content-Range",
+                    &format!("bytes {}-{}/{}", start, end, total),
+                )
+                .header("Accept-Ranges", "bytes");
+        }
+        Reply::new(200, body.to_vec()).header("Accept-Ranges", "bytes")
+    }
+
+    pub type Log = Arc<Mutex<Vec<Req>>>;
+
+    pub async fn spawn<F>(handler: F) -> (String, Log)
+    where
+        F: Fn(usize, &Req) -> Reply + Send + Sync + 'static,
+    {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let log: Log = Arc::new(Mutex::new(Vec::new()));
+        let handler = Arc::new(handler);
+        let log_srv = log.clone();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut stream, _)) = listener.accept().await else {
+                    break;
+                };
+                let handler = handler.clone();
+                let log = log_srv.clone();
+                tokio::spawn(async move {
+                    let mut raw = Vec::new();
+                    let mut buf = [0u8; 4096];
+                    while !raw.windows(4).any(|w| w == b"\r\n\r\n") {
+                        match stream.read(&mut buf).await {
+                            Ok(0) | Err(_) => return,
+                            Ok(n) => raw.extend_from_slice(&buf[..n]),
+                        }
+                    }
+                    let text = String::from_utf8_lossy(&raw).to_string();
+                    let mut lines = text.split("\r\n");
+                    let mut first = lines.next().unwrap_or("").split_whitespace();
+                    let method = first.next().unwrap_or("").to_string();
+                    let path = first.next().unwrap_or("").to_string();
+                    let headers = lines
+                        .take_while(|l| !l.is_empty())
+                        .filter_map(|l| l.split_once(':'))
+                        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+                        .collect();
+                    let req = Req {
+                        method,
+                        path,
+                        headers,
+                    };
+                    let idx = {
+                        let mut l = log.lock().unwrap();
+                        l.push(req.clone());
+                        l.len() - 1
+                    };
+                    let reply = handler(idx, &req);
+                    let mut head = format!("HTTP/1.1 {} X\r\nConnection: close\r\n", reply.status);
+                    head.push_str(&format!("Content-Length: {}\r\n", reply.body.len()));
+                    for (k, v) in &reply.headers {
+                        head.push_str(&format!("{}: {}\r\n", k, v));
+                    }
+                    head.push_str("\r\n");
+                    let _ = stream.write_all(head.as_bytes()).await;
+                    if req.method == "HEAD" {
+                        return;
+                    }
+                    let n = reply
+                        .cut_after
+                        .unwrap_or(reply.body.len())
+                        .min(reply.body.len());
+                    let _ = stream.write_all(&reply.body[..n]).await;
+                    let _ = stream.flush().await;
+                    if reply.stall {
+                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                    }
+                });
+            }
+        });
+        (base, log)
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn segmented_and_streaming_requests_ask_for_identity_encoding() {
+        let payload: Vec<u8> = (0u8..=255).cycle().take(600 * 1024).collect();
+        let body = payload.clone();
+        let (base, log) =
+            test_server::spawn(move |_, req| test_server::serve_bytes(&body, req)).await;
+        let dir =
+            std::env::temp_dir().join(format!("omniget_fetcher_identity_{}", now_unix_nanos()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let output = dir.join("f.bin");
+        let cfg = HttpFetcherConfig {
+            min_size_for_chunked: 128 * 1024,
+            segment_size_hint: 128 * 1024,
+            concurrent_segments: 3,
+            use_sidecar_resume: false,
+            ..Default::default()
+        };
+        let fetcher = HttpFetcher::new(
+            reqwest::Client::new(),
+            format!("{}/f.bin", base),
+            output.clone(),
+        )
+        .with_config(cfg);
+        let (tx, mut rx) = tokio::sync::mpsc::channel(64);
+        tokio::spawn(async move { while rx.recv().await.is_some() {} });
+        fetcher.download(tx).await.unwrap();
+        assert_eq!(std::fs::read(&output).unwrap(), payload);
+        let reqs = log.lock().unwrap().clone();
+        let gets: Vec<_> = reqs
+            .iter()
+            .filter(|r| r.method == "GET" && r.range().is_some_and(|(s, _)| s > 0))
+            .collect();
+        assert!(!gets.is_empty(), "expected ranged segment GETs: {reqs:?}");
+        for r in gets {
+            assert_eq!(r.header("accept-encoding"), Some("identity"), "{r:?}");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

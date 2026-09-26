@@ -7,6 +7,7 @@
    * stays where it is); everything pure moved to `$lib/llm/mcp` so both halves
    * mask the token the same way.
    */
+  import ServerConnections from "./ServerConnections.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
@@ -74,7 +75,10 @@
     showToast("success", $t("tools.common.copied") as string);
   }
 
+  let serverOn = $derived(status?.enabled === true);
   let snippet = $derived(status?.snippets?.[client]?.[1] ?? "");
+  // The Claude Code command never holds the token (argv, shell history).
+  let tokenOutsideSnippet = $derived(status?.snippets?.[client]?.[0] === "Claude Code");
 </script>
 
 <section class="half">
@@ -91,11 +95,11 @@
       </div>
       <div class="group-row-trailing">
         <button
-          class="toggle"
-          class:on={status?.enabled}
+          class="toggle server-switch"
+          class:on={serverOn}
           type="button"
           role="switch"
-          aria-checked={status?.enabled ?? false}
+          aria-checked={serverOn}
           aria-label={$t("llm.mcp.server_title")}
           disabled={!status || busy}
           onclick={toggle}
@@ -127,32 +131,14 @@
       </div>
     </div>
 
-    <div class="group-row">
-      <div class="group-row-content">
-        <div class="group-row-title">{$t("llm.mcp.token")}</div>
-        <div class="group-row-sub mono">
-          {status ? (reveal ? status.token : maskToken(status.token)) : "—"}
-        </div>
-        <div class="group-row-sub">{$t("llm.mcp.token_hint")}</div>
-      </div>
-      <div class="group-row-trailing row">
-        <button type="button" class="button" onclick={() => (reveal = !reveal)}>
-          {reveal ? $t("llm.mcp.hide") : $t("llm.mcp.show")}
-        </button>
-        {#if status}
-          <button type="button" class="button" onclick={() => copy(status!.token)}>
-            {$t("llm.mcp.copy")}
-          </button>
-        {/if}
-      </div>
-    </div>
-
     {#if selftest}
       <div class="group-row">
         <div class="group-row-content"><div class="group-row-sub mono">{selftest}</div></div>
       </div>
     {/if}
   </div>
+
+  {#if status}<ServerConnections url={status.url} />{/if}
 
   {#if status && status.snippets.length > 0}
     <div class="group">
@@ -177,11 +163,19 @@
       <div class="group-row">
         <div class="group-row-content">
           <pre class="code">{maskSnippet(snippet, status.token, reveal)}</pre>
+          {#if tokenOutsideSnippet}
+            <div class="group-row-sub">{$t("mcp_connections.claude_code_hint")}</div>
+          {/if}
         </div>
         <div class="group-row-trailing">
           <button type="button" class="button" onclick={() => copy(snippet)}>
             {$t("llm.mcp.copy")}
           </button>
+          {#if tokenOutsideSnippet}
+            <button type="button" class="button" onclick={() => copy(status!.token)}>
+              {$t("mcp_connections.copy_token")}
+            </button>
+          {/if}
         </div>
       </div>
     </div>
@@ -233,6 +227,19 @@
 
   .danger {
     color: var(--danger);
+  }
+
+  /* The app's switch (primitives.css .toggle, 38×22). Its on-state is also
+     stated here, scoped, so the knob and track always follow aria-checked. */
+  .server-switch.on,
+  .server-switch[aria-checked="true"] {
+    background: var(--accent);
+    box-shadow: none;
+  }
+
+  .server-switch.on :global(.toggle-knob),
+  .server-switch[aria-checked="true"] :global(.toggle-knob) {
+    transform: translateX(16px);
   }
 
   .code {

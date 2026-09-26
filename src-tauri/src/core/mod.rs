@@ -19,12 +19,14 @@ pub use omniget_core::core::redirect;
 pub use omniget_core::core::registry;
 pub use omniget_core::core::ytdlp;
 
+pub mod artifact_validation;
 pub mod awake;
 pub mod binary_versions;
 pub mod cas;
 pub mod channel_poller;
 pub mod channels;
 pub mod db;
+pub mod download_journal;
 pub mod download_log;
 pub mod events;
 pub mod flight_recorder;

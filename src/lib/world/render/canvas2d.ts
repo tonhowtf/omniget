@@ -1,5 +1,6 @@
 // Canvas 2D backend = tier 0. drawImage per sprite, chunk baked into an
-// OffscreenCanvas and blitted once. No tint (2D has no per-vertex colour): alpha only.
+// OffscreenCanvas and blitted once. A tint (baked tile or sprite) is applied
+// through a scratch canvas: multiply, then keep the sprite's alpha.
 
 import { parseAtlas, type AtlasData } from './atlas';
 import { sortByDepth } from './batcher';
@@ -15,6 +16,7 @@ import {
   type Caps,
   type ChunkId,
   type ChunkTile,
+  type DynamicFrame,
   type FrameStats,
   type InitOpts,
   type Renderer,
@@ -26,6 +28,30 @@ import {
 
 type AnyCanvas = HTMLCanvasElement | OffscreenCanvas;
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+/** One reusable scratch surface for tinting a tile while baking. */
+let tintScratch: AnyCanvas | null = null;
+function tinted(bmp: ImageBitmap, f: { x: number; y: number; w: number; h: number }, dw: number, dh: number, tint: number): AnyCanvas | null {
+  const w = Math.max(1, Math.ceil(dw));
+  const h = Math.max(1, Math.ceil(dh));
+  if (!tintScratch) tintScratch = offscreen(Math.max(64, w, h));
+  if (tintScratch.width < w || tintScratch.height < h) {
+    tintScratch.width = Math.max(tintScratch.width, w);
+    tintScratch.height = Math.max(tintScratch.height, h);
+  }
+  const c = tintScratch.getContext('2d') as Ctx2D | null;
+  if (!c) return null;
+  c.globalCompositeOperation = 'source-over';
+  c.clearRect(0, 0, tintScratch.width, tintScratch.height);
+  c.drawImage(bmp, f.x, f.y, f.w, f.h, 0, 0, w, h);
+  c.globalCompositeOperation = 'multiply';
+  c.fillStyle = `#${tint.toString(16).padStart(6, '0')}`;
+  c.fillRect(0, 0, w, h);
+  c.globalCompositeOperation = 'destination-in';
+  c.drawImage(bmp, f.x, f.y, f.w, f.h, 0, 0, w, h);
+  c.globalCompositeOperation = 'source-over';
+  return tintScratch;
+}
 
 function offscreen(size: number): AnyCanvas {
   if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(size, size);
@@ -41,6 +67,8 @@ export function createCanvas2dRenderer(): Renderer {
   let ctx: CanvasRenderingContext2D | null = null;
   let atlas: AtlasData | null = null;
   let bitmaps: ImageBitmap[] = [];
+  let staticPages = 0;
+  let dynamicFrames: string[] = [];
   let tier: Tier = 0;
   let width = 1;
   let height = 1;
@@ -75,12 +103,16 @@ export function createCanvas2dRenderer(): Renderer {
       const dy = p.py - f.pivotY * layout.scale;
       const dw = f.w * layout.scale;
       const dh = f.h * layout.scale;
+      const scratch = t.tint !== undefined && t.tint !== 0xffffff ? tinted(bmp, f, dw, dh, t.tint) : null;
       if (t.flip) {
         c2.save();
         c2.translate(dx + dw, dy);
         c2.scale(-1, 1);
-        c2.drawImage(bmp, f.x, f.y, f.w, f.h, 0, 0, dw, dh);
+        if (scratch) c2.drawImage(scratch as CanvasImageSource, 0, 0, Math.ceil(dw), Math.ceil(dh), 0, 0, dw, dh);
+        else c2.drawImage(bmp, f.x, f.y, f.w, f.h, 0, 0, dw, dh);
         c2.restore();
+      } else if (scratch) {
+        c2.drawImage(scratch as CanvasImageSource, 0, 0, Math.ceil(dw), Math.ceil(dh), dx, dy, dw, dh);
       } else {
         c2.drawImage(bmp, f.x, f.y, f.w, f.h, dx, dy, dw, dh);
       }
@@ -129,7 +161,9 @@ export function createCanvas2dRenderer(): Renderer {
         throw new RenderError(ERR.ATLAS_INVALID, 'fewer bitmaps than atlas pages');
       }
       atlas = data;
-      bitmaps = pages;
+      bitmaps = pages.slice(0, data.pages.length);
+      staticPages = data.pages.length;
+      dynamicFrames = [];
       chunks.invalidateAll();
       chunkCanvases.clear();
       return { id: 1, frames: new Set(data.frames.keys()) };
@@ -177,14 +211,19 @@ export function createCanvas2dRenderer(): Renderer {
         if (dx + dw < 0 || dy + dh < 0 || dx > width || dy > height) continue;
         const alpha = s.alpha ?? 1;
         if (alpha !== 1) ctx.globalAlpha = alpha;
+        // A tinted sprite (a house finish, the edit ghost) goes through the
+        // same multiply scratch as a baked tile, at its drawn size.
+        const scratch = s.tint !== undefined && s.tint !== 0xffffff ? tinted(bmp, f, dw, dh, s.tint) : null;
+        const src = scratch ? (scratch as CanvasImageSource) : bmp;
+        const [sx, sy, sw, sh] = scratch ? [0, 0, Math.ceil(dw), Math.ceil(dh)] : [f.x, f.y, f.w, f.h];
         if (s.flip) {
           ctx.save();
           ctx.translate(dx + dw, dy);
           ctx.scale(-1, 1);
-          ctx.drawImage(bmp, f.x, f.y, f.w, f.h, 0, 0, dw, dh);
+          ctx.drawImage(src, sx, sy, sw, sh, 0, 0, dw, dh);
           ctx.restore();
         } else {
-          ctx.drawImage(bmp, f.x, f.y, f.w, f.h, dx, dy, dw, dh);
+          ctx.drawImage(src, sx, sy, sw, sh, dx, dy, dw, dh);
         }
         if (alpha !== 1) ctx.globalAlpha = 1;
         stats.sprites++;
@@ -225,6 +264,27 @@ export function createCanvas2dRenderer(): Renderer {
 
     invalidateChunk(id: ChunkId): void {
       chunks.invalidate(id);
+    },
+
+    setDynamicPage(page: ImageBitmap | null, frames: Record<string, DynamicFrame>): void {
+      if (!atlas) throw new RenderError(ERR.NOT_INITIALISED, 'dynamic page before the atlas');
+      for (const id of dynamicFrames) atlas.frames.delete(id);
+      dynamicFrames = [];
+      bitmaps.length = staticPages;
+      if (!page) return;
+      bitmaps[staticPages] = page;
+      for (const [id, f] of Object.entries(frames)) {
+        atlas.frames.set(id, { page: staticPages, x: f.x, y: f.y, w: f.w, h: f.h, pivotX: f.pivotX, pivotY: f.pivotY, zBase: 0 });
+        dynamicFrames.push(id);
+      }
+    },
+
+    memory() {
+      const size = budgetForTier(tier).chunkTexture;
+      let bytes = chunkCanvases.size * size * size * 4;
+      for (const b of bitmaps) if (b) bytes += b.width * b.height * 4;
+      const dyn = bitmaps[staticPages];
+      return { textures: chunkCanvases.size + bitmaps.filter(Boolean).length, bytes, dynamicPage: dyn ? dyn.width * dyn.height * 4 : 0 };
     },
 
     text(str: string, style?: TextStyle): TextHandle {

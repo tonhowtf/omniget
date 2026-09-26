@@ -231,6 +231,9 @@
 .mac-source-list {
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
+  transition:
+    width 200ms var(--ease-out),
+    min-width 200ms var(--ease-out);
   display: flex;
   flex-direction: column;
   background: transparent;
@@ -278,8 +281,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 32px;
-  padding: 0 var(--space-2);
+  height: 36px;
+  padding: 0 var(--space-2) 0 6px;
   border-radius: var(--radius-md);
   color: var(--text);
   font-size: var(--text-base);
@@ -344,7 +347,52 @@
   padding-top: var(--space-3);
 }
 
-/* Narrow windows: icon-only rail */
+/* Icon-only rail: chosen by the user (settings.appearance.sidebar_collapsed,
+   ⌃⌘S) or forced by a narrow window. Icon centres keep the same x and the
+   same vertical rhythm as the expanded list, so nothing jumps. */
+[data-shell="mac"][data-sidebar="collapsed"] {
+  --sidebar-width: 64px;
+}
+
+[data-sidebar="collapsed"] .mac-nav-label,
+[data-sidebar="collapsed"] .mac-nav-badge {
+  display: none;
+}
+
+/* Section headers collapse into a short hairline divider. */
+[data-sidebar="collapsed"] .mac-nav-section-header {
+  font-size: 0;
+  min-height: 0;
+  height: 1px;
+  width: 24px;
+  margin: 0 auto var(--space-2);
+  padding: 0;
+  background: var(--separator, var(--content-border));
+}
+
+[data-sidebar="collapsed"] .mac-nav-section-header > * {
+  display: none;
+}
+
+[data-sidebar="collapsed"] .mac-nav-item {
+  justify-content: center;
+  padding: 0;
+  height: 44px;
+}
+
+/* The downloads count survives in the rail as a dot on the icon. */
+[data-sidebar="collapsed"] .mac-nav-item:has(.mac-nav-badge.live)::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--sidebar-bg, var(--bg));
+}
+
 @media (max-width: 860px) {
   [data-shell="mac"] {
     --sidebar-width: 64px;
@@ -359,11 +407,17 @@
   .mac-nav-item {
     justify-content: center;
     padding: 0;
-    height: 34px;
+    height: 44px;
   }
 
   .mac-nav-item :global(.nav-tile) {
     --tile-size: 26px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mac-source-list {
+    transition: none;
   }
 }
 

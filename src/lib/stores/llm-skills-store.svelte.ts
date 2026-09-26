@@ -305,6 +305,8 @@ export function skillErrorKey(err: unknown): string {
   if (code.includes("ERR_SKILL_PATH")) return "llm.skills.err_path";
   if (code.includes("ERR_SKILL_PENDING")) return "llm.skills.err_pending";
   if (code.includes("ERR_SKILL_IO")) return "llm.skills.err_io";
+  if (code.includes("ERR_SKILL_CHANGED")) return "assist.bots.err.skill_changed";
+  if (code.includes("ERR_SKILL_NOT_BOUND")) return "assist.bots.err.skill_not_bound";
   return "llm.skills.err_generic";
 }
 
@@ -697,6 +699,61 @@ export async function removeSkill(name: string): Promise<boolean> {
   }
 }
 
+// ── Version state (hash on disk vs recorded at install) ────────────────
+
+export interface SkillDependency { raw: string; kind: string; server?: string; tool?: string; name?: string }
+
+/** `llm_skills_status`: what is on disk against what OmniGet recorded. */
+export interface SkillVersionStatus {
+  name: string;
+  hash?: string | null;
+  recorded_hash?: string | null;
+  version?: string | null;
+  state: "ok" | "drift" | "unrecorded" | "invalid";
+  compatibility?: string | null;
+  dependencies?: SkillDependency[];
+  bots: string[];
+  error?: string;
+}
+
+let versionStatus = $state<Record<string, SkillVersionStatus>>({});
+let statusInFlight: Promise<void> | null = null;
+
+export function getSkillStatus(name: string): SkillVersionStatus | null {
+  return versionStatus[name] ?? null;
+}
+
+/** Loads the version state of every installed skill. Never throws. */
+export function loadSkillStatus(): Promise<void> {
+  if (statusInFlight) return statusInFlight;
+  statusInFlight = invoke<SkillVersionStatus[] | null>("llm_skills_status")
+    .then((list) => {
+      if (!Array.isArray(list)) return;
+      versionStatus = Object.fromEntries(list.map((s) => [s.name, s]));
+    })
+    .catch(() => {})
+    .finally(() => { statusInFlight = null; });
+  return statusInFlight;
+}
+
+/** Repair: accept the files on disk (`accept`) or install again from the recorded origin (`reinstall`). */
+export async function repairSkill(name: string, how: "accept" | "reinstall"): Promise<boolean> {
+  if (busy) return false;
+  busy = name;
+  errorKey = null;
+  try {
+    await invoke(how === "accept" ? "llm_skills_accept" : "llm_skills_reinstall", { name });
+    await loadSkills(true);
+    await loadSkillStatus();
+    return true;
+  } catch (err) {
+    errorKey = skillErrorKey(err);
+    return false;
+  } finally {
+    busy = null;
+  }
+}
+
 /** Test seam: drops every bit of state. */
 export function resetSkillsStore(): void {
   skills = [];
@@ -713,4 +770,6 @@ export function resetSkillsStore(): void {
   catalogLoadedOnce = false;
   scannerLoadedOnce = false;
   inFlight = null;
+  versionStatus = {};
+  statusInFlight = null;
 }

@@ -96,6 +96,34 @@ pub enum Input {
         ent: EntId,
         text: String,
     },
+    /// Let an agent choose its own tasks (residents), or stop (the task in
+    /// hand is cancelled with `preempted`).
+    SetAutonomy {
+        ent: EntId,
+        enabled: bool,
+    },
+    /// The objects (farm beds) someone entitled delegated to this agent. The
+    /// full set: an object missing from it is revoked.
+    SetDelegation {
+        ent: EntId,
+        objects: Vec<ObjectId>,
+    },
+    /// Cancel the task in hand.
+    CancelTask {
+        ent: EntId,
+    },
+    /// The server's answer to an `EffectRequest`.
+    TaskResult {
+        task: crate::sim::tasks::TaskId,
+        revision: u32,
+        ok: bool,
+        #[serde(default)]
+        code: String,
+    },
+    /// Replace the task and need parameters.
+    SetTaskParams {
+        params: crate::sim::tasks::TaskParams,
+    },
     /// Nothing; useful for a caller that has no input this tick.
     Tick,
 }
@@ -199,10 +227,12 @@ pub struct World {
     tick: u64,
     sleep: SleepState,
     map: Map,
-    grid: Grid,
+    pub(crate) grid: Grid,
     pub(crate) agents: Agents,
     pub(crate) objects: Objects,
     mailbox: Mailbox,
+    /// Tasks, reservations and autonomy (session 06).
+    pub(crate) tasks: crate::sim::tasks::TaskBook,
     pub(crate) astar: AStar,
     // --- scratch, reused so a tick in steady state allocates nothing ---
     pub(crate) path_buf: Vec<Tile>,
@@ -230,6 +260,7 @@ impl World {
             agents: Agents::default(),
             objects: Objects::default(),
             mailbox: Mailbox::new(),
+            tasks: Default::default(),
             astar: AStar::new(),
             path_buf: Vec::with_capacity(64),
             order_buf: Vec::with_capacity(32),
@@ -279,6 +310,16 @@ impl World {
 
     pub const fn tick(&self) -> u64 {
         self.tick
+    }
+
+    /// Tasks, reservations, autonomy and the inspector's trace.
+    pub fn tasks(&self) -> &crate::sim::tasks::TaskBook {
+        &self.tasks
+    }
+
+    /// Effect requests emitted by the last steps (farm tasks), for the server.
+    pub fn take_effects(&mut self) -> Vec<crate::sim::tasks::EffectRequest> {
+        self.tasks.take_effects()
     }
 
     pub const fn seed(&self) -> u64 {
@@ -373,6 +414,7 @@ impl World {
         self.tick += ticks;
         report.caught_up = ticks;
         self.settle_to_routine();
+        self.settle_tasks(ticks);
         self.events.push(WorldEvent::CaughtUp { ticks });
         report.tick = self.tick;
         report.events = self.events.len() as u32;
@@ -479,11 +521,42 @@ impl World {
                 dir,
                 slot,
             } => self.place_object(*object, kind, *tile, *dir, slot.clone()),
+            Input::SetAutonomy { ent, enabled } => {
+                if !self.agents.contains(*ent) {
+                    return Err(WorldError::UnknownEnt(ent.0));
+                }
+                self.set_autonomy(*ent, *enabled);
+                Ok(true)
+            }
+            Input::SetDelegation { ent, objects } => {
+                if !self.agents.contains(*ent) {
+                    return Err(WorldError::UnknownEnt(ent.0));
+                }
+                self.set_delegation(*ent, objects);
+                Ok(true)
+            }
+            Input::CancelTask { ent } => {
+                if !self.agents.contains(*ent) {
+                    return Err(WorldError::UnknownEnt(ent.0));
+                }
+                Ok(self.cancel_current(*ent))
+            }
+            Input::TaskResult {
+                task,
+                revision,
+                ok,
+                code,
+            } => Ok(self.task_result(*task, *revision, *ok, code)),
+            Input::SetTaskParams { params } => {
+                self.tasks.params = params.clone();
+                Ok(true)
+            }
             Input::RemoveObject { object } => {
                 let o = self.objects.remove(*object)?;
                 if !o.walkable {
                     self.grid.set_footprint(o.tile, o.footprint, false);
                 }
+                self.tasks_on_removed(*object);
                 self.events
                     .push(WorldEvent::ObjectRemoved { object: *object });
                 self.obj_log
@@ -536,6 +609,9 @@ impl World {
         };
         if !o.walkable {
             self.grid.set_footprint(o.tile, o.footprint, true);
+        }
+        if !o.walkable && !self.tasks.tasks.is_empty() {
+            self.tasks_on_blocked();
         }
         let state = object_state(&o);
         self.objects.put(o);
@@ -908,7 +984,10 @@ fn input_ent(input: &Input) -> EntId {
         | Input::SetEnergy { ent, .. }
         | Input::Caption { ent, .. }
         | Input::SetRoutine { ent, .. }
-        | Input::Interact { ent, .. } => *ent,
+        | Input::Interact { ent, .. }
+        | Input::SetAutonomy { ent, .. }
+        | Input::SetDelegation { ent, .. }
+        | Input::CancelTask { ent } => *ent,
         _ => EntId::NONE,
     }
 }

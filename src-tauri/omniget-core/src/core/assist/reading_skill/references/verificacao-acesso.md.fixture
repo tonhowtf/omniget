@@ -1,0 +1,33 @@
+# Verificação de acesso e legendas (Brasil)
+
+## Identidade da obra
+
+- Confirme título, ano e, se houver homônimo, direção. Um homônimo de outro ano é outro filme.
+- Registre com `reading_record_movie` (título em português, título original, ano, direção).
+
+## Onde está
+
+- Descoberta: `web_search` com "<título> <ano> onde assistir" ou o nome do agregador. Resultado de busca não confirma nada.
+- Abra o agregador e a página da plataforma com `web_fetch`. A região tem de ser o Brasil: catálogo de outro país não vale.
+- Tipo de acesso: `subscription` (assinatura), `rent` (aluguel), `buy` (compra) ou `free` (grátis e legal). Assinatura e aluguel são opções diferentes.
+- Quando agregador e plataforma divergem, vale a plataforma.
+- Página que se diz desatualizada ("atualizado em ...") informa a data em `page_date_ms`; evidência velha não vale como atual.
+
+## Legenda em português
+
+- Fonte preferida: a página do título na plataforma (seção de idiomas / "Legendas").
+- `confirmed` só com a palavra "legendas"/"subtitles" e português visíveis no trecho citado.
+- `absent` quando a plataforma diz explicitamente que não há legenda PT: a opção sai.
+- `inferred` quando só há hábito da plataforma ou indício indireto; diga em `note` o que falta.
+- Página exige login: `login_required: true`, status `inferred` ou `unknown`, e diga isso à pessoa.
+- Áudio em português se registra com `kind: "audio"`; não comprova legenda.
+
+## Estados finais (calculados pelo app)
+
+| Estado | Condição |
+|---|---|
+| Confirmado | disponível no BR (evidência atual) e legenda PT confirmada naquela opção |
+| Provável | disponível no BR, legenda PT inferida ou não verificada (dizer o que falta) |
+| Não confirmado | sem evidência atual, fora do BR, fora das preferências, saiu do catálogo ou sem legenda PT |
+
+"Somente confirmados", quando pedido, exclui também os prováveis.

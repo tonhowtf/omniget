@@ -414,7 +414,7 @@ impl PlatformDownloader for TikTokDownloader {
                 return self
                     .get_media_info_via_ytdlp(&original_url, &post_id)
                     .await
-                    .or_else(|_| Err(first_err));
+                    .map_err(|e| fallback_error(first_err, e));
             }
         };
 
@@ -668,5 +668,40 @@ impl PlatformDownloader for TikTokDownloader {
             }
             _ => Err(anyhow!("Unsupported media type for download")),
         }
+    }
+}
+
+/// Error of a failed native extraction followed by a failed yt-dlp fallback.
+/// When yt-dlp ran, its statement about the post ("Your IP address is blocked
+/// from accessing this post", private, removed) is the evidence; the native
+/// parser's failure is usually a generic "blocking requests". Only a missing
+/// engine keeps the native error.
+fn fallback_error(native: anyhow::Error, engine: anyhow::Error) -> anyhow::Error {
+    if engine.to_string().starts_with("yt-dlp not found") {
+        native
+    } else {
+        engine
+    }
+}
+
+#[cfg(test)]
+mod fallback_tests {
+    use super::*;
+    #[test]
+    fn engine_statement_survives_the_native_failure() {
+        let e = fallback_error(
+            anyhow!("TikTok is blocking requests. Try again in a few minutes."),
+            anyhow!("ERROR: [TikTok] 6748451240264420610: Your IP address is blocked from accessing this post"),
+        );
+        assert!(e.to_string().contains("IP address is blocked"));
+        assert_eq!(
+            crate::core::errors::classify_download_error(&e.to_string()).0,
+            "blocked_by_platform"
+        );
+        let e = fallback_error(
+            anyhow!("Post not available"),
+            anyhow!("yt-dlp not found — install it in Settings"),
+        );
+        assert_eq!(e.to_string(), "Post not available");
     }
 }

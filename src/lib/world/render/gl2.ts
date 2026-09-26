@@ -19,6 +19,7 @@ import { ContextTracker, waitForRestore } from './context';
 import { TextAtlas, textUV } from './text';
 import { budgetForTier } from './tier';
 import {
+  CANVAS_REPLACED_EVENT,
   CHUNK_TILES,
   ERR,
   RenderError,
@@ -26,6 +27,7 @@ import {
   type Caps,
   type ChunkId,
   type ChunkTile,
+  type DynamicFrame,
   type FrameStats,
   type InitOpts,
   type Renderer,
@@ -53,7 +55,10 @@ in vec2 vUV; in vec4 vColor;
 uniform sampler2D uTex;
 out vec4 outColor;
 void main() {
-  vec4 c = texture(uTex, vUV) * vColor;
+  // Premultiplied throughout: the texture is uploaded premultiplied, the tint
+  // scales the colour and the alpha scales everything.
+  vec4 t = texture(uTex, vUV);
+  vec4 c = vec4(t.rgb * vColor.rgb, t.a) * vColor.a;
   if (c.a < 0.004) discard;
   outColor = c;
 }`;
@@ -71,7 +76,8 @@ const FS1 = `precision mediump float;
 varying vec2 vUV; varying vec4 vColor;
 uniform sampler2D uTex;
 void main() {
-  vec4 c = texture2D(uTex, vUV) * vColor;
+  vec4 t = texture2D(uTex, vUV);
+  vec4 c = vec4(t.rgb * vColor.rgb, t.a) * vColor.a;
   if (c.a < 0.004) discard;
   gl_FragColor = c;
 }`;
@@ -81,7 +87,11 @@ export const GL_ATTRIBUTES: WebGLContextAttributes = {
   antialias: false,
   depth: false,
   stencil: false,
-  premultipliedAlpha: false,
+  // Premultiplied end to end (textures, blending, chunk bakes, the canvas).
+  // Straight alpha here double-darkened every anti-aliased edge, because the
+  // webview hands ImageBitmaps over already premultiplied (measured, C01
+  // acceptance, session 06).
+  premultipliedAlpha: true,
   preserveDrawingBuffer: false,
   powerPreference: 'high-performance',
   // Left false on purpose: llvmpipe would be rejected on Linux, where it is the
@@ -133,24 +143,29 @@ export function buildProgram(gl: GL, version: 1 | 2): WebGLProgram {
  * same DOM position, copying size and presentation. Returns null when the canvas
  * is detached, in which case the caller has to rebuild the renderer itself.
  */
-function replaceCanvas(old: HTMLCanvasElement): HTMLCanvasElement | null {
+export function replaceCanvas(old: HTMLCanvasElement): HTMLCanvasElement | null {
   const parent = old.parentNode;
   if (!parent || typeof document === 'undefined') return null;
   const next = document.createElement('canvas');
+  // Every attribute (class, tabindex, aria-label, style, id…), so focus and
+  // assistive tech see the same element they saw before.
+  for (const a of Array.from(old.attributes)) next.setAttribute(a.name, a.value);
   next.width = old.width;
   next.height = old.height;
-  next.className = old.className;
-  if (old.id) next.id = old.id;
-  next.setAttribute('style', old.getAttribute('style') ?? '');
   parent.replaceChild(next, old);
+  old.dispatchEvent(new CustomEvent(CANVAS_REPLACED_EVENT, { detail: next }));
   return next;
 }
 
 interface LoadedAtlas {
   data: AtlasData;
+  /** Shipped pages, then (at `staticPages`) the dynamic page when there is one. */
   bitmaps: ImageBitmap[];
   textures: WebGLTexture[];
   sizes: PageSize[];
+  staticPages: number;
+  /** Frame ids that live on the dynamic page. */
+  dynamicFrames: string[];
 }
 
 export function createGlRenderer(version: 1 | 2): Renderer {
@@ -205,7 +220,8 @@ export function createGlRenderer(version: 1 | 2): Renderer {
     bindAttribs(g);
     g.disable(g.DEPTH_TEST);
     g.enable(g.BLEND);
-    g.blendFuncSeparate(g.SRC_ALPHA, g.ONE_MINUS_SRC_ALPHA, g.ONE, g.ONE_MINUS_SRC_ALPHA);
+    g.blendFunc(g.ONE, g.ONE_MINUS_SRC_ALPHA);
+    g.pixelStorei(g.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
     g.clearColor(0, 0, 0, 0);
   }
 
@@ -395,7 +411,7 @@ export function createGlRenderer(version: 1 | 2): Renderer {
         throw new RenderError(ERR.ATLAS_INVALID, 'fewer bitmaps than atlas pages');
       }
       if (atlas) for (const t of atlas.textures) g.deleteTexture(t);
-      const loaded: LoadedAtlas = { data, bitmaps: pages, textures: [], sizes: [] };
+      const loaded: LoadedAtlas = { data, bitmaps: pages.slice(0, data.pages.length), textures: [], sizes: [], staticPages: data.pages.length, dynamicFrames: [] };
       uploadAtlasPages(g, loaded);
       atlas = loaded;
       chunks.invalidateAll();
@@ -515,6 +531,50 @@ export function createGlRenderer(version: 1 | 2): Renderer {
 
     invalidateChunk(id: ChunkId): void {
       chunks.invalidate(id);
+    },
+
+    setDynamicPage(page: ImageBitmap | null, frames: Record<string, DynamicFrame>): void {
+      if (!atlas) throw new RenderError(ERR.NOT_INITIALISED, 'dynamic page before the atlas');
+      const idx = atlas.staticPages;
+      for (const id of atlas.dynamicFrames) atlas.data.frames.delete(id);
+      atlas.dynamicFrames = [];
+      if (!page) {
+        const tex = atlas.textures[idx];
+        if (tex && gl) gl.deleteTexture(tex);
+        atlas.bitmaps.length = idx;
+        atlas.textures.length = Math.min(atlas.textures.length, idx);
+        atlas.sizes.length = Math.min(atlas.sizes.length, idx);
+        return;
+      }
+      atlas.bitmaps[idx] = page;
+      atlas.sizes[idx] = { w: page.width, h: page.height };
+      for (const [id, f] of Object.entries(frames)) {
+        atlas.data.frames.set(id, { page: idx, x: f.x, y: f.y, w: f.w, h: f.h, pivotX: f.pivotX, pivotY: f.pivotY, zBase: 0 });
+        atlas.dynamicFrames.push(id);
+      }
+      // One texture for the page, reused: a new picture re-uploads into it.
+      const g = gl;
+      if (!g || sleeping || !ctx.isLive || atlas.textures.length < idx) return; // wake() uploads it
+      let tex = atlas.textures[idx];
+      if (!tex) {
+        tex = makeTexture(g);
+        atlas.textures[idx] = tex;
+      }
+      g.bindTexture(g.TEXTURE_2D, tex);
+      g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, g.RGBA, g.UNSIGNED_BYTE, page);
+    },
+
+    memory() {
+      let textures = chunkTextures.size + (textTexture ? 1 : 0);
+      let bytes = chunkTextures.size * budgetForTier(tier).chunkTexture ** 2 * 4;
+      if (atlas) {
+        textures += atlas.textures.filter(Boolean).length;
+        atlas.textures.forEach((t, i) => {
+          if (t && atlas!.sizes[i]) bytes += atlas!.sizes[i].w * atlas!.sizes[i].h * 4;
+        });
+      }
+      const dyn = atlas && atlas.bitmaps.length > atlas.staticPages ? atlas.sizes[atlas.staticPages] : null;
+      return { textures, bytes, dynamicPage: dyn ? dyn.w * dyn.h * 4 : 0 };
     },
 
     text(str: string, style?: TextStyle): TextHandle {

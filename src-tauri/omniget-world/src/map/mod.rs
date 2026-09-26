@@ -498,6 +498,7 @@ pub(crate) mod fixtures {
                 wall,
                 object: vec![],
                 height,
+                tint: Vec::new(),
             }],
             slots: vec![SlotDef {
                 id: "bench".into(),

@@ -101,6 +101,7 @@
     if (id.startsWith("nav-home")) return "M4 10.5 12 4l8 6.5V20H4z";
     if (id.startsWith("nav-downloads")) return "M12 4v11m0 0 4-4m-4 4-4-4M5 20h14";
     if (id.startsWith("nav-settings")) return "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm7-3 1.5-.9-1-1.7-1.7.5a6 6 0 0 0-1.4-1.4l.5-1.7-1.7-1L14.3 7a6 6 0 0 0-2-.5V4.8h-2v1.7a6 6 0 0 0-2 .5L6.9 5.8l-1.7 1 .5 1.7A6 6 0 0 0 4.3 10L2.6 9.5l-1 1.7L3 12l-1.4.9 1 1.7 1.7-.5a6 6 0 0 0 1.4 1.4l-.5 1.7 1.7 1L8.3 17a6 6 0 0 0 2 .5v1.7h2v-1.7a6 6 0 0 0 2-.5l1.4 1.2 1.7-1-.5-1.7a6 6 0 0 0 1.4-1.4l1.7.5 1-1.7L19 12z";
+    if (id.startsWith("nav-superpowers")) return "M13 2 4 14h7l-1 8 9-12h-7z";
     if (id.startsWith("nav-about")) return "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zm0-13v.01M12 11v6";
     if (id.startsWith("action-paste")) return "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2";
     return "M6 12h12M12 6v12";

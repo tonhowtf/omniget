@@ -9,6 +9,7 @@
   import { renderSafeMarkdownSync } from "$lib/llm/markdown";
   import { agentTint, type AgentDef, type ChatMessage, type ToolCallView } from "$lib/llm/types";
   import { tintToCss } from "$lib/stores/profile-store.svelte";
+  import { getAgent } from "$lib/stores/llm-store.svelte";
 
   let {
     message,
@@ -26,18 +27,26 @@
   onDestroy(() => cache.clear());
 
   let isAssistant = $derived(message.role === "assistant");
+  let authorKind = $derived(message.author?.kind ?? (isAssistant ? "bot" : "user"));
+  let isSystem = $derived(authorKind === "system");
+  // Rooms have several authors: the bubble names the one that wrote it.
+  let author = $derived(message.author?.botId ? getAgent(message.author.botId) : agent);
+  let authorName = $derived(author?.name ?? message.author?.botId ?? agent?.name ?? "");
+  let delegated = $derived(authorKind === "bot" && !!message.taskId);
   let html = $derived.by(() => {
     version; // re-run once `marked` has loaded
     return isAssistant ? renderSafeMarkdownSync(message.text, cache, () => (version += 1)) : "";
   });
   let toolCalls = $derived<ToolCallView[]>(message.toolCalls ?? []);
-  let name = $derived(isAssistant ? (agent?.name ?? "") : $t("llm.conv.you"));
+  let name = $derived(
+    isSystem ? $t("assist.groups.app_note") : authorKind === "user" ? $t("llm.conv.you") : authorName,
+  );
 </script>
 
-<article class="bubble" class:assistant={isAssistant}>
+<article class="bubble" class:assistant={isAssistant} class:system={isSystem}>
   <header class="bubble-head">
-    {#if isAssistant}
-      <span class="dot" style:background={tintToCss(agentTint(agent))} aria-hidden="true"></span>
+    {#if isAssistant && !isSystem}
+      <span class="dot" style:background={tintToCss(agentTint(author))} aria-hidden="true"></span>
     {/if}
     <span class="who">{name}</span>
     {#if message.modelLabel}
@@ -62,8 +71,18 @@
     </details>
   {/each}
 
-  {#if isAssistant}
-    {#if message.text}
+  {#if isSystem}
+    <p class="body system-note">
+      {#if message.author?.botId && message.status === "skipped"}{$t("assist.groups.skipped", { bot: authorName })} {/if}{message.text}
+    </p>
+  {:else if delegated}
+    <details class="tool delegated">
+      <summary>{$t("assist.groups.delegated_answer", { bot: authorName })}</summary>
+      <!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised in $lib/llm/markdown -->
+      <div class="body markdown">{@html html}</div>
+    </details>
+  {:else if isAssistant}
+    {#if message.text && message.status !== "failed"}
       <!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised in $lib/llm/markdown -->
       <div class="body markdown">{@html html}</div>
     {/if}
@@ -75,7 +94,14 @@
   {/if}
 
   {#if message.error}
-    <p class="bubble-error">{$t("llm.conv.error")}: {message.error.code}</p>
+    <div class="bubble-error" role="alert">
+      <p>{$t("llm.conv.error")}: {message.error.code}</p>
+      {#if message.error.message && message.error.message !== message.error.code}
+        <p class="bubble-error-detail">{message.error.message}</p>
+      {/if}
+    </div>
+  {:else if message.status === "interrupted"}
+    <p class="bubble-note">{$t("assist.conversation.status_interrupted")}</p>
   {:else if message.finish === "cancelled"}
     <p class="bubble-note">{$t("llm.conv.cancelled")}</p>
   {/if}
@@ -203,7 +229,19 @@
     margin: 0;
     font-size: var(--text-sm);
     color: var(--danger);
+    min-width: 0;
   }
+  .bubble-error p { margin: 0; }
+  .bubble-error-detail {
+    color: var(--text-muted, var(--text-dim));
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 12em;
+    overflow-y: auto;
+  }
+  .bubble.system { padding: var(--space-1) 0; }
+  .system-note { font-size: var(--text-sm); color: var(--text-dim); }
+  .delegated .body { margin-top: var(--space-2); }
 
   .bubble-note {
     margin: 0;

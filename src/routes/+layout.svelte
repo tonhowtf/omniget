@@ -31,9 +31,10 @@
   import { listen } from "@tauri-apps/api/event";
   import { initDownloadListener } from "$lib/stores/download-listener";
   import { getCounts } from "$lib/stores/download-store.svelte";
-  import { getSettings, loadSettings } from "$lib/stores/settings-store.svelte";
+  import { getSettings, loadSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { queueExternalPrefill, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
+  import McpAuthPrompt from "$components/llm/mcp/McpAuthPrompt.svelte";
   import AppSidebar from "$components/shell/AppSidebar.svelte";
   import AppToolbar from "$components/shell/AppToolbar.svelte";
   import CommandPalette from "$components/shell/CommandPalette.svelte";
@@ -56,11 +57,6 @@
   import type { Snippet } from "svelte";
   import type { Component } from "svelte";
 
-  let leagueNavItems = $derived<NavItem[]>(
-    (getSettings()?.league?.enabled ?? true)
-      ? [{ href: "/league", labelKey: "league.nav", icon: "league", group: "app", order: 45 }]
-      : []
-  );
 
   let coreNavItems = $derived(
     CORE_NAV_ITEMS.filter(
@@ -69,7 +65,7 @@
     )
   );
 
-  let allNav = $derived([...coreNavItems, ...leagueNavItems].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)));
+  let allNav = $derived([...coreNavItems].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)));
   let primaryNav = $derived(allNav.filter((item) => item.group === "primary"));
   let appNav = $derived(allNav.filter((item) => item.group === "app"));
 
@@ -113,6 +109,7 @@
     page.url.pathname === "/" ||
     page.url.pathname.startsWith("/downloads") ||
     page.url.pathname.startsWith("/settings") ||
+    page.url.pathname.startsWith("/superpowers") ||
     page.url.pathname.startsWith("/league") ||
     page.url.pathname.startsWith("/about"),
   );
@@ -237,6 +234,13 @@
         },
         { activate: (id) => void activateAccount(id), open: () => goto("/llm/accounts") },
       ),
+      {
+        id: "nav-superpowers",
+        label: get(t)("nav.superpowers"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "superpowers superpoderes league of legends lol extras",
+        action: () => goto("/superpowers"),
+      },
       { id: "nav-help", label: get(t)("nav.help"), group: get(t)("command_palette.group_nav"), keywords: "help ajuda guias docs assinatura agente monitor", action: () => goto("/help") },
       {
         id: "nav-about",
@@ -300,15 +304,39 @@
     buildCommandPaletteItems();
   });
 
+  // Icon-only sidebar. The state is a setting so it survives restarts and
+  // follows the user across windows; ⌃⌘S (Ctrl+Shift+S off macOS) toggles it.
+  let sidebarCollapsed = $derived(getSettings()?.appearance?.sidebar_collapsed ?? false);
+
+  $effect(() => {
+    document.documentElement.setAttribute("data-sidebar", sidebarCollapsed ? "collapsed" : "expanded");
+  });
+
+  function toggleSidebar() {
+    updateSettings({ appearance: { sidebar_collapsed: !sidebarCollapsed } }).catch(() => {
+      // settings IPC is unavailable in the browser preview; nothing to persist
+    });
+  }
+
+  function onSidebarShortcut(e: KeyboardEvent) {
+    if (isPetWindow || isLimitsStrip || e.key.toLowerCase() !== "s" || e.altKey) return;
+    const combo = isMac() ? e.ctrlKey && e.metaKey && !e.shiftKey : e.ctrlKey && e.shiftKey && !e.metaKey;
+    if (!combo) return;
+    e.preventDefault();
+    toggleSidebar();
+  }
+
   let { children }: { children: Snippet } = $props();
 
 </script>
+
+<svelte:window onkeydown={onSidebarShortcut} />
 
 {#if isPetWindow || isLimitsStrip}
   {@render children()}
 {:else}
 <div class="shell" data-reduce-motion={settings?.accessibility?.reduce_motion} data-reduce-transparency={settings?.accessibility?.reduce_transparency}>
-  <AppSidebar {primaryNav} {appNav} {badgeLabel} />
+  <AppSidebar {primaryNav} {appNav} {badgeLabel} badgeCount={counts.badge} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebar} />
 
   <div class="shell-body" style:--shell-bottom-inset={`${shellLayout.bottomInset}px`}>
     <AppToolbar />
@@ -354,6 +382,7 @@
 {/if}
 
 <Toast />
+<McpAuthPrompt />
 <CommandPalette />
 
 {#if showOnboarding && OnboardingWizard}

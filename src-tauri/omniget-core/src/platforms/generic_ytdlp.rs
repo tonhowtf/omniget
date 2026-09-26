@@ -591,9 +591,61 @@ fn platform_referer(url: &str) -> Option<&'static str> {
     None
 }
 
+/// Native extraction first, yt-dlp second. When both fail the caller gets both
+/// causes, yt-dlp outermost (as bluesky.rs chain_fallback): the old
+/// `map_err(|_| native_err)` threw away the yt-dlp verdict (bench reddit-5).
+pub(crate) async fn native_then_ytdlp<F, Fut>(
+    tag: &str,
+    native: anyhow::Result<MediaInfo>,
+    fallback: F,
+) -> anyhow::Result<MediaInfo>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = anyhow::Result<MediaInfo>>,
+{
+    let native_err = match native {
+        Ok(info) => return Ok(info),
+        Err(e) => e,
+    };
+    tracing::warn!("[{tag}] native failed: {native_err:#}, trying yt-dlp fallback");
+    fallback().await.map_err(|ytdlp_err| {
+        ytdlp_err.context(format!("native: {native_err:#}; yt-dlp fallback failed"))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn native_then_ytdlp_keeps_both_errors() {
+        let e = native_then_ytdlp("t", Err(anyhow!("bad certificate format")), || async {
+            Err::<MediaInfo, _>(anyhow!("yt-dlp: [Reddit] 1cxwzso: No video formats found"))
+        })
+        .await
+        .unwrap_err();
+        let s = format!("{e:#}");
+        assert!(s.contains("bad certificate format"), "{s}");
+        assert!(s.contains("No video formats found"), "{s}");
+    }
+
+    #[tokio::test]
+    async fn native_then_ytdlp_skips_fallback_on_success() {
+        let info = MediaInfo {
+            title: "t".into(),
+            author: String::new(),
+            platform: "x".into(),
+            duration_seconds: None,
+            thumbnail_url: None,
+            available_qualities: vec![],
+            media_type: MediaType::Video,
+            file_size_bytes: None,
+        };
+        let got = native_then_ytdlp("t", Ok(info), || async { panic!("fallback must not run") })
+            .await
+            .unwrap();
+        assert_eq!(got.title, "t");
+    }
 
     #[test]
     fn hls_referer_prefers_explicit() {

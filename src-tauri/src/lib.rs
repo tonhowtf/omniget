@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::Manager;
@@ -25,6 +27,7 @@ pub mod local_bridge_debug;
 pub mod local_bridge_jobs;
 pub mod local_bridge_llm;
 pub mod mcp;
+pub mod missions;
 pub mod models;
 pub mod platforms;
 pub mod profile;
@@ -597,14 +600,17 @@ pub fn run() {
                 }
             });
             {
+                if core::download_journal::init().is_err() {
+                    tracing::warn!("download journal unavailable; evidence persistence is incomplete");
+                }
                 let app_handle = app.handle().clone();
                 omniget_core::core::log_hook::set_log_sink(std::sync::Arc::new(move |id, line| {
                     // B33: caixa-preta. Toda linha de log de download passa por
                     // aqui, e o `record` redige antes de guardar — e o unico
                     // ponto onde da para capturar o historico sem instrumentar
                     // cada chamada uma por uma.
-                    core::flight_recorder::record(line);
-                    let should_emit = core::download_log::push_line(id, line);
+                    let line = core::flight_recorder::redact(line);
+                    let should_emit = core::download_log::push_line(id, &line);
                     if should_emit {
                         // A linha vai junto para o card mostrar "a última
                         // coisa que o yt-dlp disse" sem pedir o log inteiro
@@ -1018,8 +1024,22 @@ pub fn run() {
             commands::llm::keys::tool_keys_save,
             commands::llm::keys::tool_keys_test,
             commands::llm::keys::tool_mcp_status,
+            commands::llm::keys::tool_mcp_clients,
+            commands::llm::keys::tool_mcp_client_snippets,
+            commands::llm::keys::tool_mcp_client_create,
+            commands::llm::keys::tool_mcp_client_revoke,
+            commands::llm::keys::tool_mcp_root_grant,
+            commands::llm::keys::tool_mcp_root_revoke,
+            commands::llm::keys::tool_mcp_executors,
+            commands::llm::keys::tool_mcp_execution_grant,
+            commands::llm::keys::tool_mcp_network_grant,
+            commands::llm::keys::tool_mcp_gateway_grant,
+            commands::llm::keys::tool_mcp_media_configure,
+            commands::llm::keys::tool_mcp_media_budget,
             commands::llm::keys::tool_mcp_set_enabled,
             commands::llm::keys::tool_mcp_selftest,
+            mcp::auth::tool_mcp_auth_requests,
+            mcp::auth::tool_mcp_auth_request_answer,
             commands::dependencies::check_ytdlp_available,
             commands::dependencies::install_dependency,
             commands::dependencies::dependency_archived_versions,
@@ -1157,6 +1177,7 @@ pub fn run() {
             commands::world::city::city_chat,
             commands::world::city::city_resync,
             commands::world::city::city_api,
+            commands::world::city::city_asset,
             commands::world::city::city_session,
             commands::world::city::city_login,
             commands::world::city::city_register,
@@ -1168,6 +1189,131 @@ pub fn run() {
             commands::world::demo::world_demo,
             commands::world::session::world_delete,
             commands::world::input::world_input,
+            // assist:begin
+            commands::assist::memory::assist_memory_list,
+            commands::assist::memory::assist_memory_scopes,
+            commands::assist::memory::assist_memory_history,
+            commands::assist::memory::assist_memory_profile,
+            commands::assist::memory::assist_memory_create,
+            commands::assist::memory::assist_memory_correct,
+            commands::assist::memory::assist_memory_confirm,
+            commands::assist::memory::assist_memory_retract,
+            commands::assist::memory::assist_memory_forget,
+            commands::assist::memory::assist_memory_export,
+            commands::assist::memory::assist_memory_import,
+            commands::assist::memory::assist_memory_backups,
+            commands::assist::memory::assist_memory_delete_backups,
+            commands::assist::memory::assist_memory_reindex,
+            commands::assist::reading::assist_reading_overview,
+            commands::assist::reading::assist_reading_list_all,
+            commands::assist::reading::assist_reading_journey,
+            commands::assist::reading::assist_reading_start_journey,
+            commands::assist::reading::assist_reading_update_journey,
+            commands::assist::reading::assist_reading_delete_journey,
+            commands::assist::reading::assist_reading_record_progress,
+            commands::assist::reading::assist_reading_note_context,
+            commands::assist::reading::assist_reading_record_viewing,
+            commands::assist::reading::assist_reading_forget_reaction,
+            commands::assist::reading::assist_reading_get_prefs,
+            commands::assist::reading::assist_reading_set_prefs,
+            commands::assist::reading::assist_reading_assess,
+            commands::assist::reading::assist_reading_skill_status,
+            commands::assist::reading::assist_reading_install_skill,
+            commands::assist::bots::assist_bot_create,
+            commands::assist::bots::assist_bot_get,
+            commands::assist::bots::assist_bots_list,
+            commands::assist::bots::assist_bot_save_profile,
+            commands::assist::bots::assist_bot_set_connection,
+            commands::assist::bots::assist_bot_bind_skill,
+            commands::assist::bots::assist_bot_unbind_skill,
+            commands::assist::bots::assist_bot_skill_grants,
+            commands::assist::bots::assist_bot_capabilities,
+            commands::assist::bots::assist_bot_skill_reads,
+            commands::assist::bots::assist_bot_capability_catalog,
+            commands::llm::skills::llm_skills_status,
+            commands::llm::skills::llm_skills_reproject,
+            commands::llm::skills::llm_skills_accept,
+            commands::llm::skills::llm_skills_reinstall,
+            commands::assist::runs::assist_runs_list,
+            commands::assist::runs::assist_run_get,
+            commands::assist::runs::assist_run_diff,
+            commands::assist::runs::assist_permissions_pending,
+            commands::assist::runs::assist_permission_answer,
+            commands::assist::runs::assist_run_cancel,
+            commands::assist::runs::assist_run_resolve,
+            commands::assist::runs::assist_runtime_caps,
+            commands::assist::runs::assist_budget_in_flight,
+            commands::llm::jobs::llm_job_resume,
+            commands::llm::jobs::llm_job_mark_done,
+            commands::llm::jobs::llm_job_discard,
+            commands::llm::jobs::llm_loop_resume,
+            commands::llm::jobs::llm_loop_settle,
+            commands::llm::jobs::llm_trigger_mute,
+            commands::assist::groups::assist_group_list,
+            commands::assist::groups::assist_group_create,
+            commands::assist::groups::assist_group_update,
+            commands::assist::groups::assist_group_delete,
+            commands::assist::groups::assist_group_messages,
+            commands::assist::groups::assist_group_send,
+            commands::assist::groups::assist_group_cancel,
+            commands::assist::groups::assist_group_shares,
+            commands::assist::groups::assist_group_share,
+            commands::assist::groups::assist_group_unshare,
+            commands::assist::groups::assist_conversation_context,
+            commands::assist::groups::assist_worktree_create,
+            commands::assist::groups::assist_worktree_list,
+            commands::assist::groups::assist_worktree_remove,
+            // assist:end
+            // missions:start (autonomy: missions, learning, packs)
+            commands::assist::missions::assist_mission_list,
+            commands::assist::missions::assist_mission_get,
+            commands::assist::missions::assist_mission_create,
+            commands::assist::missions::assist_mission_from_chat,
+            commands::assist::missions::assist_mission_start,
+            commands::assist::missions::assist_mission_pause,
+            commands::assist::missions::assist_mission_resume,
+            commands::assist::missions::assist_mission_cancel,
+            commands::assist::missions::assist_mission_delete,
+            commands::assist::missions::assist_mission_note,
+            commands::assist::missions::assist_mission_revise_criteria,
+            commands::assist::missions::assist_mission_accept,
+            commands::assist::missions::assist_mission_unblock_task,
+            commands::assist::missions::assist_mission_allow_replay,
+            commands::assist::missions::assist_mission_revise_budget,
+            commands::assist::missions::assist_mission_verify,
+            commands::assist::missions::assist_mission_diagnostics,
+            commands::assist::missions::assist_mission_log,
+            commands::assist::missions::assist_mission_presets,
+            commands::assist::missions::assist_mission_apply_preset,
+            commands::assist::missions::assist_mission_group_plan,
+            commands::assist::missions::assist_mcp_derived_bot_revoke,
+            commands::assist::learning::assist_learning_overview,
+            commands::assist::learning::assist_learning_settings_save,
+            commands::assist::learning::assist_learning_observe,
+            commands::assist::learning::assist_learning_revoke,
+            commands::assist::learning::assist_learning_propose,
+            commands::assist::learning::assist_learning_revise,
+            commands::assist::learning::assist_learning_candidate,
+            commands::assist::learning::assist_learning_add_case,
+            commands::assist::learning::assist_learning_delete_case,
+            commands::assist::learning::assist_learning_record_fixture,
+            commands::assist::learning::assist_learning_evaluate,
+            commands::assist::learning::assist_learning_eval_status,
+            commands::assist::learning::assist_learning_promote,
+            commands::assist::learning::assist_learning_rollback,
+            commands::assist::learning::assist_learning_export,
+            commands::assist::learning::assist_learning_forget,
+            commands::assist::packs::assist_packs_catalog,
+            commands::assist::packs::assist_packs_plan,
+            commands::assist::packs::assist_packs_apply,
+            commands::assist::packs::assist_packs_items,
+            commands::assist::packs::assist_packs_text,
+            commands::assist::packs::assist_packs_history,
+            commands::assist::packs::assist_packs_rollback,
+            commands::assist::packs::assist_packs_agent_to_bot,
+            commands::llm::keys::tool_mcp_execution_grant_revoke,
+            commands::llm::keys::tool_mcp_execution_grants_list,
+            // missions:end
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

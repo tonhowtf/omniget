@@ -29,7 +29,21 @@ fn fail(err: SkillError) -> String {
 /// the score. The manifest is there either way so the dialog can name the
 /// skill it is asking about.
 fn ok(outcome: InstallOutcome) -> Result<Value, String> {
+    if !outcome.is_pending() {
+        changed(Some(&outcome.manifest.name));
+    }
     serde_json::to_value(outcome).map_err(|e| e.to_string())
+}
+
+/// After an install, update, removal or repair: record the new hash (bindings
+/// follow it) and re-register the skill tools, so the next turn sees exactly
+/// what is on disk and no tool outlives its skill. A failure is logged: the
+/// files themselves are already in place, and the Skills page shows drift.
+fn changed(name: Option<&str>) {
+    let projection = omniget_core::core::assist::bots::skills::projection();
+    if let Err(e) = omniget_core::core::assist::bots::skills::skills_changed(&projection, name) {
+        tracing::warn!("[skills] re-projecting after a change: {e}");
+    }
 }
 
 /// Installed skills, read from disk, sorted by name. Never fails: a folder
@@ -136,6 +150,7 @@ pub async fn llm_skills_install_catalog(name: String) -> Result<Value, String> {
 #[tauri::command]
 pub async fn llm_skills_confirm_install(token: String) -> Result<Value, String> {
     let manifest = skills::confirm_install(&token).map_err(fail)?;
+    changed(Some(&manifest.name));
     serde_json::to_value(manifest).map_err(|e| e.to_string())
 }
 
@@ -173,7 +188,100 @@ pub async fn llm_skills_scanner() -> Result<Value, String> {
 #[tauri::command]
 pub async fn llm_skills_remove(name: String) -> Result<Value, String> {
     skills::remove(&name).map_err(fail)?;
+    changed(Some(&name));
     Ok(Value::Null)
+}
+
+/// Every installed skill with its version state: the hash on disk, the hash
+/// OmniGet recorded, `drift` when they differ (edited outside OmniGet), the
+/// declared dependencies, and which bots are bound to it.
+#[tauri::command]
+pub async fn llm_skills_status() -> Result<Value, String> {
+    use omniget_core::core::assist::{bots::skills as bot_skills, db};
+    let root = install::skills_dir().map_err(fail)?;
+    let db = db::global()?;
+    let bound: Vec<(String, String)> = db.with(|c| {
+        let mut st = c.prepare("SELECT skill, bot_id FROM bots_skill_bindings ORDER BY bot_id")?;
+        let rows = st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        rows.collect()
+    })?;
+    let (found, bad) = install::list_with_errors_in(&root);
+    let mut out = Vec::new();
+    for m in found {
+        let hash = skills::hash::dir_hash(&m.path).ok();
+        let record = bot_skills::install_record(&db, &m.name)?;
+        let state = match (&hash, &record) {
+            (Some(h), Some(r)) if h == &r.hash => "ok",
+            (Some(_), None) => "unrecorded",
+            _ => "drift",
+        };
+        out.push(json!({
+            "name": m.name,
+            "hash": hash,
+            "recorded_hash": record.as_ref().map(|r| r.hash.clone()),
+            "version": m.metadata.get("version"),
+            "source": m.source,
+            "state": state,
+            "compatibility": m.compatibility,
+            "dependencies": skills::dependencies(&m),
+            "bots": bound.iter().filter(|(s, _)| s == &m.name).map(|(_, b)| b.clone()).collect::<Vec<_>>(),
+        }));
+    }
+    for (name, err) in bad {
+        out.push(json!({ "name": name, "state": "invalid", "error": err.to_string(),
+            "bots": bound.iter().filter(|(s, _)| s == &name).map(|(_, b)| b.clone()).collect::<Vec<_>>() }));
+    }
+    Ok(Value::Array(out))
+}
+
+/// Re-registers the skill tools from what is on disk (the "reload" repair).
+#[tauri::command]
+pub async fn llm_skills_reproject() -> Result<Value, String> {
+    let projection = omniget_core::core::assist::bots::skills::projection();
+    serde_json::to_value(projection.reproject()?).map_err(|e| e.to_string())
+}
+
+/// Repair for drift, option 1: accept the files on disk as the new version.
+#[tauri::command]
+pub async fn llm_skills_accept(name: String) -> Result<Value, String> {
+    let projection = omniget_core::core::assist::bots::skills::projection();
+    let summary = omniget_core::core::assist::bots::skills::accept_current(&projection, &name)?;
+    serde_json::to_value(summary).map_err(|e| e.to_string())
+}
+
+/// Repair for drift or a removed skill, option 2: install again from the
+/// origin recorded at install time (git at the same revision, the same folder
+/// or zip). Same scanner and quarantine as a first install.
+#[tauri::command]
+pub async fn llm_skills_reinstall(name: String) -> Result<Value, String> {
+    use omniget_core::core::assist::{bots::skills as bot_skills, db};
+    let root = install::skills_dir().map_err(fail)?;
+    let source = match install::skill_path(&root, &name) {
+        Ok(dir) => skills::manifest::parse(&dir).ok().map(|m| m.source),
+        Err(_) => None,
+    }
+    .filter(|s| !matches!(s, skills::SkillSource::Unknown))
+    .or_else(|| {
+        db::global()
+            .ok()
+            .and_then(|db| bot_skills::install_record(&db, &name).ok().flatten())
+            .map(|r| r.source)
+    });
+    let outcome = tokio::task::spawn_blocking(move || match source {
+        Some(skills::SkillSource::Git { url, rev, subdir }) => {
+            skills::install_from_git(&url, rev.as_deref(), subdir.as_deref())
+        }
+        Some(skills::SkillSource::Dir { from }) => skills::install_from_dir(&PathBuf::from(from)),
+        Some(skills::SkillSource::Zip { from }) => skills::install_from_zip(&PathBuf::from(from)),
+        _ => Err(SkillError::new(
+            skills::ERR_SKILL_NOT_FOUND,
+            "this skill has no recorded origin to reinstall from",
+        )),
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(fail)?;
+    ok(outcome)
 }
 
 /// The pinned `OpenRouterTeam/skills` showcase. Static data: no network, no

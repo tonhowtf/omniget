@@ -46,6 +46,7 @@
     "update:clippy-baseline": "node scripts/clippy-baseline.mjs --update",
     "extension:sync": "node browser-extension/sync.mjs",
     "test": "vitest run",
+    "test:fast": "node scripts/test-fast.mjs",
     "test:watch": "vitest"
   },
   "license": "GPL-3.0",

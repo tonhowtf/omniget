@@ -4,9 +4,9 @@
   "version": "0.10.1",
   "identifier": "wtf.tonho.omniget",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "node scripts/mcp/build-worker.mjs --debug && pnpm dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "node scripts/mcp/build-worker.mjs && pnpm build",
     "frontendDist": "../build"
   },
   "app": {
@@ -83,6 +83,9 @@
       "rpm": {
         "desktopTemplate": "./desktop.template"
       }
-    }
+    },
+    "externalBin": [
+      "binaries/omniget-worker"
+    ]
   }
 }

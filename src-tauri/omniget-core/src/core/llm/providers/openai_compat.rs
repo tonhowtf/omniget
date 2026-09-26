@@ -485,6 +485,12 @@ pub(crate) fn backoff_ms(attempt: u32) -> u64 {
 #[async_trait]
 impl Provider for OpenAiCompat {
     async fn turn(&self, req: TurnRequest) -> Result<BoxStream<'static, TurnEvent>, LlmError> {
+        // Capture task-local authority before any await. The coordinator
+        // reserves one request; ambiguous external sends cannot be retried
+        // inside the adapter without another durable debit/authority check.
+        let external = crate::core::llm::code_tools::current_turn()
+            .is_some_and(|ctx| crate::core::assist::authority::external(&ctx.conversation));
+        let max_attempts = if external { 1 } else { self.max_attempts };
         let body = build_body(&req);
         if let Some(c) = &self.capture {
             c.record_request(body.clone());
@@ -520,7 +526,11 @@ impl Provider for OpenAiCompat {
                 Ok(r) => {
                     let status = r.status().as_u16();
                     let wait = retry_after_ms(r.headers(), attempt);
-                    let text = r.text().await.unwrap_or_default();
+                    let text = tokio::select! {
+                        biased;
+                        _ = req.cancel.cancelled() => return Err(LlmError::new(ERR_LLM_CANCELLED, "cancelled")),
+                        text = r.text() => text.unwrap_or_default(),
+                    };
                     (status_to_error(status, &text), wait)
                 }
                 Err(e) => (
@@ -534,7 +544,7 @@ impl Provider for OpenAiCompat {
                 ),
             };
             attempt += 1;
-            if !err.retryable || attempt >= self.max_attempts {
+            if !err.retryable || attempt >= max_attempts {
                 return Err(LlmError {
                     retry_after_ms: Some(wait),
                     ..err
@@ -775,6 +785,94 @@ mod tests {
     use crate::core::llm::sse::NdjsonParser;
     use crate::core::llm::types::{GenParams, ModelRef};
     use tokio_util::sync::CancellationToken;
+
+    #[tokio::test]
+    async fn external_failed_post_is_never_retried_inside_adapter() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        // Exercise both a retryable status and an ambiguous accepted request
+        // whose connection vanishes without an HTTP response. Local fixture.
+        for disconnect in [false, true] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let base = format!("http://{}", listener.local_addr().unwrap());
+            let count = Arc::new(AtomicUsize::new(0));
+            let seen = count.clone();
+            let server = tokio::spawn(async move {
+                while let Ok((mut socket, _)) = listener.accept().await {
+                    let mut buf = [0u8; 8192];
+                    let _ = socket.read(&mut buf).await;
+                    seen.fetch_add(1, Ordering::SeqCst);
+                    if !disconnect {
+                        let _=socket.write_all(b"HTTP/1.1 503 Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await;
+                    }
+                }
+            });
+            let provider = OpenAiCompat::new(ProviderId::new("custom"), base, "")
+                .unwrap()
+                .with_max_attempts(3);
+            let request = req(
+                vec![Message::text(Role::User, "fixture")],
+                GenParams::default(),
+                vec![],
+            );
+            let result = tokio::time::timeout(
+                Duration::from_secs(3),
+                crate::core::llm::code_tools::scope(
+                    "external-mcp-fixture",
+                    "bot",
+                    "request",
+                    provider.turn(request),
+                ),
+            )
+            .await;
+            server.abort();
+            assert!(matches!(result, Ok(Err(_))));
+            assert_eq!(count.load(Ordering::SeqCst), 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn cancel_interrupts_stalled_error_response_body() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let (sent, ready) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 8192];
+            let _ = socket.read(&mut buf).await;
+            socket
+                .write_all(b"HTTP/1.1 503 Unavailable\r\nContent-Length: 100000\r\n\r\nx")
+                .await
+                .unwrap();
+            let _ = sent.send(());
+            std::future::pending::<()>().await;
+        });
+        let provider = OpenAiCompat::new(ProviderId::new("custom"), base, "").unwrap();
+        let request = req(
+            vec![Message::text(Role::User, "fixture")],
+            GenParams::default(),
+            vec![],
+        );
+        let cancel = request.cancel.clone();
+        let call = tokio::spawn(async move {
+            crate::core::llm::code_tools::scope(
+                "external-mcp-fixture",
+                "bot",
+                "request",
+                provider.turn(request),
+            )
+            .await
+        });
+        ready.await.unwrap();
+        cancel.cancel();
+        let result = tokio::time::timeout(Duration::from_secs(1), call).await;
+        server.abort();
+        match result {
+            Ok(Ok(Err(e))) => assert_eq!(e.code, ERR_LLM_CANCELLED),
+            _ => panic!("cancel must interrupt response-body wait"),
+        }
+    }
 
     fn req(messages: Vec<Message>, params: GenParams, tools: Vec<ToolSpec>) -> TurnRequest {
         TurnRequest {

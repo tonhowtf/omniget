@@ -1,0 +1,1091 @@
+{
+ "destinations_list|0": [
+  {
+   "destinations": [
+    {
+     "destinationId": "default",
+     "name": "OmniGet output folder",
+     "transferAllowed": false
+    }
+   ]
+  }
+ ],
+ "download_artifacts|0": [
+  {
+   "artifacts": [],
+   "maxArtifacts": 20,
+   "truncated": false
+  },
+  {
+   "artifacts": [
+    {
+     "artifactId": "728687336760525:0",
+     "bytes": 204742,
+     "media": {
+      "format": {
+       "duration": "2.000000",
+       "format_name": "mov,mp4,m4a,3gp,3g2,mj2"
+      },
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+       {
+        "codec_name": "h264",
+        "codec_type": "video",
+        "disposition": {
+         "attached_pic": 0
+        },
+        "duration": "2.000000",
+        "height": 360,
+        "width": 640
+       },
+       {
+        "codec_name": "aac",
+        "codec_type": "audio",
+        "disposition": {
+         "attached_pic": 0
+        },
+        "duration": "2.000000"
+       }
+      ]
+     },
+     "name": "good.mp4",
+     "primary": true,
+     "transferAllowed": false,
+     "validation": "ffprobe",
+     "validationError": null
+    }
+   ],
+   "maxArtifacts": 20,
+   "truncated": false
+  },
+  {
+   "artifacts": [
+    {
+     "artifactId": "3702979586323634:0",
+     "bytes": 204742,
+     "media": {
+      "format": {
+       "duration": "2.000000",
+       "format_name": "mov,mp4,m4a,3gp,3g2,mj2"
+      },
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+       {
+        "codec_name": "h264",
+        "codec_type": "video",
+        "disposition": {
+         "attached_pic": 0
+        },
+        "duration": "2.000000",
+        "height": 360,
+        "width": 640
+       },
+       {
+        "codec_name": "aac",
+        "codec_type": "audio",
+        "disposition": {
+         "attached_pic": 0
+        },
+        "duration": "2.000000"
+       }
+      ]
+     },
+     "name": "good.mp4",
+     "primary": true,
+     "transferAllowed": false,
+     "transferError": "ROOT_NOT_GRANTED",
+     "validation": "ffprobe",
+     "validationError": null
+    }
+   ],
+   "maxArtifacts": 20,
+   "truncated": false
+  },
+  {
+   "artifacts": [
+    {
+     "access": {
+      "artifactId": "5c3800f1-d59c-4ef5-939b-530cd38337d2",
+      "bytes": 1017460,
+      "digest": "40906f4b3e670445129f6a916f0c6f4ca1265abe2ec765f0a8f71d79e8e5c018",
+      "downloadPath": "/mcp/artifacts/5c3800f1-d59c-4ef5-939b-530cd38337d2",
+      "expiresAt": 1790337976,
+      "name": "instagram_aye83DjauH.mp4",
+      "transferAllowed": true
+     },
+     "artifactId": "746525179836511:0",
+     "bytes": 1017460,
+     "media": {
+      "format": {
+       "duration": "8.742075",
+       "format_name": "mov,mp4,m4a,3gp,3g2,mj2"
+      },
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+       {
+        "codec_name": "h264",
+        "codec_type": "video",
+        "disposition": {
+         "attached_pic": 0
+        },
+        "duration": "8.742075",
+        "height": 640,
+        "width": 640
+       }
+      ]
+     },
+     "name": "instagram_aye83DjauH.mp4",
+     "primary": true,
+     "transferAllowed": true,
+     "validation": "ffprobe",
+     "validationError": null
+    }
+   ],
+   "maxArtifacts": 20,
+   "truncated": false
+  }
+ ],
+ "download_artifacts|1": [
+  {
+   "error": {
+    "code": "DOWNLOAD_NOT_FOUND",
+    "message": "DOWNLOAD_NOT_FOUND"
+   }
+  }
+ ],
+ "download_cancel|0": [
+  {
+   "action": "cancel",
+   "download_id": 282399972623303,
+   "item": {
+    "downloaded_bytes": 0,
+    "external": false,
+    "file_count": 1,
+    "file_path": null,
+    "file_size_bytes": null,
+    "id": 282399972623303,
+    "kind": "generic",
+    "percent": 0.0,
+    "phase": "cancelled",
+    "platform": "mcp_worker",
+    "quality": "720p",
+    "speed_bytes_per_sec": 0.0,
+    "started_at_ms": 1790336933192,
+    "status": {
+     "data": {
+      "message": "Cancelled",
+      "retryable": false
+     },
+     "type": "Error"
+    },
+    "thumbnail_url": null,
+    "title": "hang.mp4",
+    "total_bytes": null,
+    "url": "http://127.0.0.1:47841/hang.mp4"
+   }
+  }
+ ],
+ "download_cancel|1": [
+  {
+   "error": {
+    "code": "DOWNLOAD_NOT_FOUND",
+    "message": "DOWNLOAD_NOT_FOUND"
+   }
+  }
+ ],
+ "download_diagnose|0": [
+  {
+   "diagnosis": null,
+   "downloadId": 214627646313056,
+   "nextActions": [],
+   "status": "completed"
+  },
+  {
+   "diagnosis": {
+    "code": "UNKNOWN",
+    "confidence": "unknown",
+    "nextAction": "inspect_more_evidence",
+    "phase": "unknown",
+    "retryable": "unknown",
+    "unknowns": [
+     "No specific evidence matched; inspect paginated logs"
+    ]
+   },
+   "downloadId": 2047858545039693,
+   "evidence": [],
+   "externalContent": true,
+   "incomplete": true,
+   "nextActions": [],
+   "nextCursor": 0,
+   "retry": null,
+   "unknowns": [
+    "Rules cannot confirm remote account access or upstream service state"
+   ]
+  },
+  {
+   "diagnosis": {
+    "code": "NOT_FOUND",
+    "confidence": "probable",
+    "nextAction": "check_source",
+    "phase": "resolution",
+    "retryable": "never",
+    "unknowns": []
+   },
+   "downloadId": 1214710104384891,
+   "evidence": [
+    {
+     "attemptId": "156cf405-1c4a-467a-a447-ee33d0618372",
+     "eventId": 74,
+     "excerpt": "[omniget] download failed: HTTP 404 not found"
+    },
+    {
+     "attemptId": "156cf405-1c4a-467a-a447-ee33d0618372",
+     "eventId": 75,
+     "excerpt": "[finalization] error: HTTP 404 not found"
+    }
+   ],
+   "externalContent": true,
+   "incomplete": false,
+   "nextActions": [],
+   "nextCursor": 0,
+   "retry": {
+    "allowed": false,
+    "attempt": 0,
+    "maxRetries": 2,
+    "notBeforeMs": 1790336256009,
+    "retryable": false
+   },
+   "unknowns": [
+    "Rules cannot confirm remote account access or upstream service state"
+   ]
+  },
+  {
+   "diagnosis": {
+    "code": "UNKNOWN",
+    "confidence": "unknown",
+    "nextAction": "inspect_more_evidence",
+    "phase": "unknown",
+    "retryable": "unknown",
+    "unknowns": [
+     "No specific evidence matched; inspect paginated logs"
+    ]
+   },
+   "downloadId": 3709147499718007,
+   "evidence": [
+    {
+     "attemptId": "28f8e00a-4e94-437b-ba8d-9a29fa32524b",
+     "eventId": 154,
+     "excerpt": "[omniget] download failed: ENGINE_FAILED"
+    },
+    {
+     "attemptId": "28f8e00a-4e94-437b-ba8d-9a29fa32524b",
+     "eventId": 155,
+     "excerpt": "[finalization] error: ENGINE_FAILED"
+    }
+   ],
+   "externalContent": true,
+   "incomplete": true,
+   "nextActions": [],
+   "nextCursor": 0,
+   "retry": {
+    "allowed": false,
+    "attempt": 0,
+    "maxRetries": 2,
+    "notBeforeMs": 1790336739146,
+    "retryable": false
+   },
+   "unknowns": [
+    "Rules cannot confirm remote account access or upstream service state"
+   ]
+  }
+ ],
+ "download_diagnose|1": [
+  {
+   "error": {
+    "code": "DOWNLOAD_NOT_FOUND",
+    "message": "DOWNLOAD_NOT_FOUND"
+   }
+  }
+ ],
+ "download_enqueue|0": [
+  {
+   "attempt": 0,
+   "download_id": 2047858545039693,
+   "outcome": "unknown",
+   "recovery": "local_reconciliation_required"
+  },
+  {
+   "attempt": 0,
+   "download_id": 1160874318550154,
+   "item": {
+    "downloaded_bytes": 0,
+    "external": false,
+    "file_count": null,
+    "file_path": null,
+    "file_size_bytes": null,
+    "id": 1160874318550154,
+    "kind": "generic",
+    "percent": 0.0,
+    "platform": "mcp_worker",
+    "quality": "720p",
+    "speed_bytes_per_sec": 0.0,
+    "status": {
+     "type": "Queued"
+    },
+    "thumbnail_url": null,
+    "title": "http://127.0.0.1:47841/slow.mp4",
+    "total_bytes": null,
+    "url": "http://127.0.0.1:47841/slow.mp4"
+   },
+   "outcome": "queued"
+  },
+  {
+   "attempt": 0,
+   "download_id": 2055327509390855,
+   "item": {
+    "downloaded_bytes": 0,
+    "external": false,
+    "file_count": null,
+    "file_path": null,
+    "file_size_bytes": null,
+    "id": 2055327509390855,
+    "kind": "generic",
+    "percent": 0.0,
+    "platform": "mcp_worker",
+    "quality": "720p",
+    "speed_bytes_per_sec": 0.0,
+    "started_at_ms": 1790336271406,
+    "status": {
+     "type": "Active"
+    },
+    "thumbnail_url": null,
+    "title": "http://127.0.0.1:47841/big.mp4",
+    "total_bytes": null,
+    "url": "http://127.0.0.1:47841/big.mp4"
+   },
+   "outcome": "queued"
+  }
+ ],
+ "download_enqueue|1": [
+  {
+   "error": {
+    "code": "INVALID_URL",
+    "message": "INVALID_URL"
+   }
+  }
+ ],
+ "download_history|0": [
+  {
+   "items": []
+  },
+  {
+   "items": [
+    {
+     "completed_at": 1790337076,
+     "error": null,
+     "file_path": "/tmp/omniget-test/gverify/p1/media/omniget-mcp-746525179836511/instagram_aye83DjauH.mp4",
+     "file_size_bytes": 1017460,
+     "id": 746525179836511,
+     "kind": "generic",
+     "platform": "mcp_worker",
+     "success": true,
+     "thumbnail_url": null,
+     "title": "instagram_aye83DjauH",
+     "total_bytes": null,
+     "url": "https://www.instagram.com/p/aye83DjauH/?igsh=SYNTHTOK_f0edf2d4ea0c68a0a1d01ae5&token=[REDACTED]"
+    },
+    {
+     "completed_at": 1790337074,
+     "error": "HTTP 404 not found",
+     "file_path": null,
+     "file_size_bytes": null,
+     "id": 2407348104806316,
+     "kind": "generic",
+     "platform": "mcp_worker",
+     "success": false,
+     "thumbnail_url": null,
+     "title": "https://www.youtube.com/watch?v=zzzzzzzzzzz&access_token=[REDACTED]&signature=[REDACTED]",
+     "total_bytes": null,
+     "url": "https://www.youtube.com/watch?v=zzzzzzzzzzz&access_token=[REDACTED]&signature=[REDACTED]"
+    },
+    {
+     "completed_at": 1790336699,
+     "error": null,
+     "file_path": "/tmp/omniget-test/gverify/p1/media/omniget-mcp-192364125499763/Big Buck Bunny 60fps 4K - Official Blender .mkv",
+     "file_size_bytes": 81411033,
+     "id": 192364125499763,
+     "kind": "generic",
+     "platform": "mcp_worker",
+     "success": true,
+     "thumbnail_url": null,
+     "title": "Big Buck Bunny 60fps 4K - Official Blender Foundation Short Film",
+     "total_bytes": null,
+     "url": "https://www.youtube.com/watch?v=aqz-KE-bpKQ"
+    }
+   ]
+  }
+ ],
+ "download_logs|0": [
+  {
+   "accountingNote": "Global journal counters are lower bounds. Producers never wait for disk; pending accounting can be lost on process termination or disk failure. Prior-session gaps conservatively include shutdowns without a proven final checkpoint. Page-budget truncation is marked inline and does not delete stored text.",
+   "accountingPending": false,
+   "dropped": 0,
+   "events": [],
+   "evidenceIncomplete": false,
+   "hasMore": false,
+   "nextCursor": 99999999,
+   "oldestAvailable": 69,
+   "priorSessionGaps": 0,
+   "truncated": 0
+  },
+  {
+   "accountingNote": "Global journal counters are lower bounds. Producers never wait for disk; pending accounting can be lost on process termination or disk failure. Prior-session gaps conservatively include shutdowns without a proven final checkpoint. Page-budget truncation is marked inline and does not delete stored text.",
+   "accountingPending": false,
+   "dropped": 0,
+   "events": [
+    {
+     "attemptId": "156cf405-1c4a-467a-a447-ee33d0618372",
+     "downloadId": 1214710104384891,
+     "eventId": 74,
+     "externalContent": true,
+     "level": "error",
+     "message": "[omniget] download failed: HTTP 404 not found",
+     "phase": "engine",
+     "timestamp": 1790336251
+    },
+    {
+     "attemptId": "156cf405-1c4a-467a-a447-ee33d0618372",
+     "downloadId": 1214710104384891,
+     "eventId": 75,
+     "externalContent": true,
+     "level": "error",
+     "message": "[finalization] error: HTTP 404 not found",
+     "phase": "finalization",
+     "timestamp": 1790336251
+    }
+   ],
+   "evidenceIncomplete": false,
+   "hasMore": false,
+   "nextCursor": 75,
+   "oldestAvailable": 69,
+   "priorSessionGaps": 0,
+   "truncated": 0
+  }
+ ],
+ "download_logs|1": [
+  {
+   "error": {
+    "code": "DOWNLOAD_NOT_FOUND",
+    "message": "DOWNLOAD_NOT_FOUND"
+   }
+  }
+ ],
+ "download_pause|0": [
+  {
+   "action": "pause",
+   "download_id": 1160874318550154,
+   "item": {
+    "downloaded_bytes": 2424832,
+    "external": false,
+    "file_count": 1,
+    "file_path": null,
+    "file_size_bytes": null,
+    "id": 1160874318550154,
+    "kind": "generic",
+    "percent": 82.90500103937593,
+    "phase": "paused",
+    "platform": "mcp_worker",
+    "quality": "720p",
+    "speed_bytes_per_sec": 0.0,
+    "started_at_ms": 1790336232082,
+    "status": {
+     "type": "Paused"
+    },
+    "thumbnail_url": null,
+    "title": "slow.mp4",
+    "total_bytes": null,
+    "url": "http://127.0.0.1:47841/slow.mp4"
+   }
+  }
+ ],
+ "download_pause|1": [
+  {
+   "error": {
+    "code": "DOWNLOAD_NOT_FOUND",
+    "message": "DOWNLOAD_NOT_FOUND"
+   }
+  }
+ ],
+ "download_recovery_options|0": [
+  {
+   "diagnosis": {
+    "code": "UNKNOWN",
+    "confidence": "unknown",
+    "nextAction": "inspect_more_evidence",
+    "phase": "unknown",
+    "retryable": "unknown",
+    "unknowns": [
+     "No specific evidence matched; inspect paginated logs"
+    ]
+   },
+   "downloadId": 2047858545039693,
+   "evidence": [],
+   "externalContent": true,
+   "incomplete": true,
+   "nextActions": [],
+   "nextCursor": 0,
+   "retry": null,
+   "unknowns": [
+    "Rules cannot confirm remote account access or upstream service state"
+   ]
+  },
+  {
+   "diagnosis": {
+    "code": "NOT_FOUND",
+    "confidence": "probable",
+    "nextAction": "check_source",
+    "phase": "resolution",
+    "retryable": "never",
+    "unknowns": []
+   },
+   "downloadId": 1214710104384891,
+   "evidence": [
+    {
+     "attemptId": "156cf405-1c4a-467a-a447-ee33d0618372",
+     "eventId": 74,
+     "excerpt": "[omniget] download failed: HTTP 404 not found"
+    },
+    {
+     "attemptId": "156cf405-1c4a-467a-a447-ee33d0618372",
+     "eventId": 75,
+     "excerpt": "[finalization] error: HTTP 404 not found"
+    }
+   ],
+   "externalContent": true,
+   "incomplete": false,
+   "nextActions": [],
+   "nextCursor": 0,
+   "retry": {
+    "allowed": false,
+    "attempt": 0,
+    "maxRetries": 2,
+    "notBeforeMs": 1790336256009,
+    "retryable": false
+   },
+   "unknowns": [
+    "Rules cannot confirm remote account access or upstream service state"
+   ]
+  }
+ ],
+ "download_recovery_options|1": [
+  {
+   "error": {
+    "code": "DOWNLOAD_NOT_FOUND",
+    "message": "DOWNLOAD_NOT_FOUND"
+   }
+  }
+ ],
+ "download_resume|0": [
+  {
+   "attempt": 1,
+   "download_id": 1508761426857970,
+   "item": {
+    "downloaded_bytes": 0,
+    "external": false,
+    "file_count": null,
+    "file_path": null,
+    "file_size_bytes": null,
+    "id": 1508761426857970,
+    "kind": "generic",
+    "percent": 0.0,
+    "platform": "mcp_worker",
+    "quality": "720p",
+    "speed_bytes_per_sec": 0.0,
+    "started_at_ms": 1790336512836,
+    "status": {
+     "type": "Active"
+    },
+    "thumbnail_url": null,
+    "title": "http://127.0.0.1:47841/slow.mp4?r=2",
+    "total_bytes": null,
+    "url": "http://127.0.0.1:47841/slow.mp4?r=2"
+   },
+   "outcome": "queued"
+  }
+ ],
+ "download_resume|1": [
+  {
+   "error": {
+    "code": "RETRY_COOLDOWN_UNTIL",
+    "message": "RETRY_COOLDOWN_UNTIL:1790336241962"
+   }
+  }
+ ],
+ "download_retry|0": [
+  {
+   "attempt": 1,
+   "download_id": 190181742871157,
+   "item": {
+    "downloaded_bytes": 0,
+    "external": false,
+    "file_count": null,
+    "file_path": null,
+    "file_size_bytes": null,
+    "id": 190181742871157,
+    "kind": "generic",
+    "percent": 0.0,
+    "platform": "mcp_worker",
+    "quality": "720p",
+    "speed_bytes_per_sec": 0.0,
+    "started_at_ms": 1790336831961,
+    "status": {
+     "type": "Active"
+    },
+    "thumbnail_url": null,
+    "title": "http://127.0.0.1:47841/limited.mp4",
+    "total_bytes": null,
+    "url": "http://127.0.0.1:47841/limited.mp4"
+   },
+   "outcome": "queued"
+  }
+ ],
+ "download_retry|1": [
+  {
+   "error": {
+    "code": "DOWNLOAD_NOT_FOUND",
+    "message": "DOWNLOAD_NOT_FOUND"
+   }
+  }
+ ],
+ "download_status|0": [
+  {
+   "item": {
+    "downloaded_bytes": 0,
+    "external": false,
+    "file_count": null,
+    "file_path": null,
+    "file_size_bytes": null,
+    "id": 2047858545039693,
+    "kind": "generic",
+    "percent": 0.0,
+    "platform": "mcp_worker",
+    "quality": "720p",
+    "speed_bytes_per_sec": 0.0,
+    "started_at_ms": 1790336850718,
+    "status": {
+     "type": "Active"
+    },
+    "thumbnail_url": null,
+    "title": "http://127.0.0.1:47841/hang.mp4",
+    "total_bytes": null,
+    "url": "http://127.0.0.1:47841/hang.mp4"
+   },
+   "nextPollAfterMs": 1000
+  },
+  {
+   "item": {
+    "downloaded_bytes": 2424832,
+    "external": false,
+    "file_count": 1,
+    "file_path": null,
+    "file_size_bytes": null,
+    "id": 1160874318550154,
+    "kind": "generic",
+    "percent": 82.90500103937593,
+    "phase": "paused",
+    "platform": "mcp_worker",
+    "quality": "720p",
+    "speed_bytes_per_sec": 0.0,
+    "started_at_ms": 1790336232082,
+    "status": {
+     "type": "Paused"
+    },
+    "thumbnail_url": null,
+    "title": "slow.mp4",
+    "total_bytes": null,
+    "url": "http://127.0.0.1:47841/slow.mp4"
+   },
+   "nextPollAfterMs": 1000
+  },
+  {
+   "item": {
+    "downloaded_bytes": 0,
+    "external": false,
+    "file_count": null,
+    "file_path": null,
+    "file_size_bytes": null,
+    "id": 190181742871157,
+    "kind": "generic",
+    "percent": 0.0,
+    "phase": "error",
+    "platform": "mcp_worker",
+    "speed_bytes_per_sec": 0.0,
+    "status": {
+     "data": {
+      "message": "HTTP 429 rate limited; retry_after_seconds=60",
+      "retryable": true
+     },
+     "type": "Error"
+    },
+    "thumbnail_url": null,
+    "title": "limited.mp4",
+    "total_bytes": null,
+    "url": "http://127.0.0.1:47841/limited.mp4"
+   },
+   "nextPollAfterMs": 1000
+  },
+  {
+   "item": {
+    "downloaded_bytes": 2424832,
+    "external": false,
+    "file_count": 1,
+    "file_path": null,
+    "file_size_bytes": null,
+    "id": 1160874318550154,
+    "kind": "generic",
+    "percent": 82.90500103937593,
+    "phase": "cancelled",
+    "platform": "mcp_worker",
+    "quality": "720p",
+    "speed_bytes_per_sec": 0.0,
+    "started_at_ms": 1790336232082,
+    "status": {
+     "data": {
+      "message": "Cancelled",
+      "retryable": false
+     },
+     "type": "Error"
+    },
+    "thumbnail_url": null,
+    "title": "slow.mp4",
+    "total_bytes": null,
+    "url": "http://127.0.0.1:47841/slow.mp4"
+   },
+   "nextPollAfterMs": 1000
+  }
+ ],
+ "download_status|1": [
+  {
+   "error": {
+    "code": "DOWNLOAD_NOT_FOUND",
+    "message": "DOWNLOAD_NOT_FOUND"
+   }
+  }
+ ],
+ "download_wait|0": [
+  {
+   "item": {
+    "downloaded_bytes": 0,
+    "external": false,
+    "file_count": 1,
+    "file_path": null,
+    "file_size_bytes": null,
+    "id": 2055327509390855,
+    "kind": "generic",
+    "percent": 0.0,
+    "platform": "mcp_worker",
+    "quality": "720p",
+    "speed_bytes_per_sec": 0.0,
+    "started_at_ms": 1790336271406,
+    "status": {
+     "type": "Active"
+    },
+    "thumbnail_url": null,
+    "title": "big.mp4",
+    "total_bytes": null,
+    "url": "http://127.0.0.1:47841/big.mp4"
+   },
+   "nextPollAfterMs": 1000,
+   "timedOut": false
+  },
+  {
+   "item": {
+    "downloaded_bytes": 0,
+    "external": false,
+    "file_count": 1,
+    "file_path": null,
+    "file_size_bytes": null,
+    "id": 2055327509390855,
+    "kind": "generic",
+    "percent": 0.0,
+    "phase": "running",
+    "platform": "mcp_worker",
+    "quality": "720p",
+    "speed_bytes_per_sec": 0.0,
+    "started_at_ms": 1790336271406,
+    "status": {
+     "type": "Active"
+    },
+    "thumbnail_url": null,
+    "title": "big.mp4",
+    "total_bytes": null,
+    "url": "http://127.0.0.1:47841/big.mp4"
+   },
+   "nextPollAfterMs": 1000,
+   "timedOut": false
+  },
+  {
+   "item": {
+    "downloaded_bytes": 0,
+    "external": false,
+    "file_count": null,
+    "file_path": null,
+    "file_size_bytes": null,
+    "id": 3709147499718007,
+    "kind": "generic",
+    "percent": 0.0,
+    "platform": "mcp_worker",
+    "quality": "720p",
+    "speed_bytes_per_sec": 0.0,
+    "started_at_ms": 1790336672971,
+    "status": {
+     "type": "Active"
+    },
+    "thumbnail_url": null,
+    "title": "http://127.0.0.1:47841/secret401.mp4?token=[REDACTED]",
+    "total_bytes": null,
+    "url": "http://127.0.0.1:47841/secret401.mp4?token=[REDACTED]"
+   },
+   "nextPollAfterMs": 1000,
+   "timedOut": true
+  },
+  {
+   "item": {
+    "downloaded_bytes": 0,
+    "external": false,
+    "file_count": 1,
+    "file_path": null,
+    "file_size_bytes": null,
+    "id": 1214710104384891,
+    "kind": "generic",
+    "percent": 0.0,
+    "phase": "error",
+    "platform": "mcp_worker",
+    "quality": "720p",
+    "speed_bytes_per_sec": 0.0,
+    "started_at_ms": 1790336249214,
+    "status": {
+     "data": {
+      "message": "HTTP 404 not found",
+      "retryable": false
+     },
+     "type": "Error"
+    },
+    "thumbnail_url": null,
+    "title": "flaky.mp4",
+    "total_bytes": null,
+    "url": "http://127.0.0.1:47841/flaky.mp4"
+   },
+   "nextPollAfterMs": 1000,
+   "timedOut": true
+  }
+ ],
+ "download_wait|1": [
+  {
+   "error": {
+    "code": "DOWNLOAD_NOT_FOUND",
+    "message": "DOWNLOAD_NOT_FOUND"
+   }
+  }
+ ],
+ "downloads_batch_enqueue|0": [
+  {
+   "batchId": "batch-1",
+   "children": [
+    {
+     "accepted": true,
+     "result": {
+      "attempt": 0,
+      "download_id": 2097612292004788,
+      "item": {
+       "downloaded_bytes": 0,
+       "external": false,
+       "file_count": null,
+       "file_path": null,
+       "file_size_bytes": null,
+       "id": 2097612292004788,
+       "kind": "generic",
+       "percent": 0.0,
+       "platform": "mcp_worker",
+       "quality": "720p",
+       "speed_bytes_per_sec": 0.0,
+       "started_at_ms": 1790336228569,
+       "status": {
+        "type": "Active"
+       },
+       "thumbnail_url": null,
+       "title": "http://127.0.0.1:47841/good.mp4?b=1",
+       "total_bytes": null,
+       "url": "http://127.0.0.1:47841/good.mp4?b=1"
+      },
+      "outcome": "queued"
+     }
+    },
+    {
+     "accepted": true,
+     "result": {
+      "attempt": 0,
+      "download_id": 2174196491222183,
+      "item": {
+       "downloaded_bytes": 0,
+       "external": false,
+       "file_count": null,
+       "file_path": null,
+       "file_size_bytes": null,
+       "id": 2174196491222183,
+       "kind": "generic",
+       "percent": 0.0,
+       "platform": "mcp_worker",
+       "quality": "720p",
+       "speed_bytes_per_sec": 0.0,
+       "started_at_ms": 1790336228692,
+       "status": {
+        "type": "Active"
+       },
+       "thumbnail_url": null,
+       "title": "http://127.0.0.1:47841/good.mp4?b=2",
+       "total_bytes": null,
+       "url": "http://127.0.0.1:47841/good.mp4?b=2"
+      },
+      "outcome": "queued"
+     }
+    },
+    {
+     "accepted": false,
+     "error": "INVALID_URL"
+    }
+   ]
+  }
+ ],
+ "downloads_preflight|0": [
+  {
+   "availableBytes": 198900854784,
+   "items": [
+    {
+     "authentication": "unknown",
+     "estimatedBytes": null,
+     "problem": null,
+     "url": "http://127.0.0.1:47841/good.mp4",
+     "valid": true
+    },
+    {
+     "authentication": "unknown",
+     "estimatedBytes": null,
+     "problem": null,
+     "url": "http://127.0.0.1:47841/missing.mp4",
+     "valid": true
+    },
+    {
+     "authentication": "unknown",
+     "estimatedBytes": null,
+     "problem": "INVALID_URL",
+     "url": "notaurl",
+     "valid": false
+    }
+   ],
+   "networkProbes": false
+  }
+ ],
+ "downloads_queue|0": [
+  {
+   "items": [],
+   "total": 0
+  }
+ ],
+ "media_collection_list|0": [
+  {
+   "items": [
+    {
+     "title": "good",
+     "url": "http://127.0.0.1:47841/good.mp4"
+    }
+   ],
+   "nextCursor": null,
+   "title": "playlist",
+   "total": null
+  }
+ ],
+ "media_inspect|0": [
+  {
+   "author": "",
+   "duration": null,
+   "formats": [
+    {
+     "format": "direct_video",
+     "height": 0,
+     "label": "original",
+     "url": "",
+     "width": 0
+    }
+   ],
+   "title": "good.mp4"
+  }
+ ],
+ "omniget_capabilities|0": [
+  {
+   "currentBuildClientValidation": "pending",
+   "executionIsolation": {
+    "available": true,
+    "backend": "macos-seatbelt-broker-v1",
+    "nativeMissionFiles": "create_only+revision_bound_edit",
+    "workerWireVersion": 1
+   },
+   "historicallyValidatedClients": [
+    {
+     "name": "Codex CLI",
+     "transport": "http",
+     "version": "0.155.0-alpha.9.2"
+    },
+    {
+     "name": "Claude Code",
+     "transport": "http",
+     "version": "2.1.282"
+    },
+    {
+     "name": "@modelcontextprotocol/sdk",
+     "transports": [
+      "http",
+      "stdio"
+     ],
+     "version": "1.30.1"
+    }
+   ],
+   "limitations": [
+    "Compatibility is limited to the recorded client versions and tested flows",
+    "Artifact transfer requires a separate local root grant and the transfer scope",
+    "Downloads require the installed confined worker; execution isolation is currently macOS only",
+    "Native missions require a local execution grant; files are created new or edited only against the SHA-256 of the revision last read (max 1 MiB, macOS/Linux atomic swap); media tools only when explicitly granted"
+   ],
+   "protocol": "2025-06-18",
+   "remote": false,
+   "remoteGateway": {
+    "boundaryVersion": 1,
+    "transferEnabled": false,
+    "writeEnabled": false
+   },
+   "scopes": [
+    "discover",
+    "enqueue",
+    "control",
+    "diagnostics",
+    "artifacts",
+    "history",
+    "transfer"
+   ],
+   "transports": [
+    "http",
+    "stdio_adapter"
+   ]
+  }
+ ],
+ "omniget_health|0": [
+  {
+   "app": "running",
+   "queue": "available",
+   "remote": "disabled"
+  }
+ ]
+}

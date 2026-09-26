@@ -16,14 +16,24 @@
   import { tintToCss } from "$lib/stores/profile-store.svelte";
   import RosterEditor from "$components/llm/RosterEditor.svelte";
   import TemplatePicker from "$components/llm/TemplatePicker.svelte";
+  import CreateBot from "$components/llm/bots/CreateBot.svelte";
+  import BotPanel from "$components/llm/bots/BotPanel.svelte";
+  import { page } from "$app/state";
 
   let agents = $derived(getAgents());
   let editing = $state<AgentDef | null>(null);
+  // "Create bot" (the guided flow) and the bot screen of one roster agent.
+  let creating = $state(false);
+  let selected = $state<string | null>(null);
+  let selectedAgent = $derived(agents.find((a) => a.id === selected) ?? null);
   let query = $state("");
   let filtered = $derived(agents.filter(agent => `${agent.name} ${agent.system_prompt}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())));
 
   onMount(() => {
     void loadRoster();
+    const q = page.url.searchParams;
+    if (q.get("create") === "1") creating = true;
+    if (q.get("bot")) selected = q.get("bot");
   });
 
   function blankAgent(): AgentDef {
@@ -80,9 +90,14 @@
       <h1 class="page-title">{$t("llm.roster.title")}</h1>
       <p class="page-lede">{$t("llm.roster.roles_hint")}</p>
     </div>
-    <button type="button" class="button primary" disabled={saving} onclick={() => { saved = false; saveError = false; editing = blankAgent(); }}>
-      {$t("llm.roster.new")}
-    </button>
+    <div class="head-actions">
+      <button type="button" class="button primary" disabled={saving} onclick={() => { saved = false; saveError = false; editing = null; selected = null; creating = true; }}>
+        {$t("assist.bots.create.open")}
+      </button>
+      <button type="button" class="button" disabled={saving} onclick={() => { saved = false; saveError = false; creating = false; selected = null; editing = blankAgent(); }}>
+        {$t("llm.roster.new")}
+      </button>
+    </div>
   </header>
   <SurfaceGuide text={$t("llm.surface.roster_hint")} href="/help?article=agent#guide" />
 
@@ -93,7 +108,15 @@
 
   {#if saveError}<p class="notice" role="alert">{$t("llm.roster.save_error")}</p>{/if}
   {#if saved}<p class="notice" role="status">{$t("llm.roster.saved")}</p>{/if}
-  {#if editing}
+  {#if creating}
+    <CreateBot oncancel={() => (creating = false)} oncreated={(v) => { creating = false; selected = v.agent.id; }} />
+  {:else if selectedAgent && !editing}
+    <div class="bot-actions">
+      <button type="button" class="button" onclick={() => (selected = null)}>‹ {$t("assist.bots.back")}</button>
+      <button type="button" class="button" onclick={() => { editing = selectedAgent; }}>{$t("assist.bots.edit_advanced")}</button>
+    </div>
+    {#key selectedAgent.id}<BotPanel botId={selectedAgent.id} />{/key}
+  {:else if editing}
     {#key editing.id}
     <RosterEditor
       agent={editing}
@@ -109,7 +132,7 @@
     <label class="agent-search"><span>{$t("llm.surface.search")}</span><input class="input" type="search" bind:value={query} /></label>
     <div class="group">
       {#each filtered as agent (agent.id)}
-        <button type="button" class="group-row agent-row" onclick={() => (editing = agent)}>
+        <button type="button" class="group-row agent-row" onclick={() => (selected = agent.id)}>
           <span class="dot" style:background={tintToCss(agentTint(agent))}></span>
           <span class="group-row-content">
             <span class="group-row-title">{agent.name}</span>
@@ -129,6 +152,8 @@
 </div>
 
 <style>
+  .head-actions, .bot-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .bot-actions { margin-bottom:16px; }
   .agent-search { display:flex; flex-direction:column; gap:8px; max-width:400px; margin-bottom:20px; font-size:13px; color:var(--text-muted); }
   .agent-connection { display:block; margin-top:6px; color:var(--text-muted); }
   .team-templates summary { cursor:pointer; padding:16px 0; font-weight:600; }

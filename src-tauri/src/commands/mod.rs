@@ -1,5 +1,6 @@
 pub mod ai;
 pub mod app_lifecycle;
+pub mod assist;
 pub mod auth_webview;
 pub mod autostart;
 pub mod bilibili_auth;

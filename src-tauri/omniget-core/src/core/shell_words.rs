@@ -222,6 +222,81 @@ pub fn redact(args: &[String]) -> Vec<String> {
     out
 }
 
+/// Flags whose value identifies an account; kept in the UI's editable
+/// command, but never written to the operator log.
+const IDENTITY_VALUE_FLAGS: &[&str] = &[
+    "--username",
+    "-u",
+    "--ap-username",
+    "--twofactor",
+    "-2",
+    "--cookies",
+];
+
+/// Stricter [`redact`] for logs: any header whose name speaks of a cookie,
+/// auth, session, token, CSRF, key or secret loses its value, and so do
+/// account identities. Not for the editable command (it must round-trip).
+pub fn redact_for_log(args: &[String]) -> Vec<String> {
+    let base = redact(args);
+    let mut out = Vec::with_capacity(base.len());
+    let mut identity_next = false;
+    let mut header_next = false;
+    for a in base {
+        if identity_next {
+            identity_next = false;
+            out.push("<redacted>".to_string());
+            continue;
+        }
+        if header_next {
+            header_next = false;
+            out.push(redact_sensitive_header(&a));
+            continue;
+        }
+        if IDENTITY_VALUE_FLAGS.contains(&a.as_str()) {
+            identity_next = true;
+            out.push(a);
+            continue;
+        }
+        if a == "--add-headers" || a == "--add-header" {
+            header_next = true;
+            out.push(a);
+            continue;
+        }
+        if let Some((flag, value)) = a.split_once('=') {
+            if IDENTITY_VALUE_FLAGS.contains(&flag) {
+                out.push(format!("{flag}=<redacted>"));
+                continue;
+            }
+            if flag == "--add-headers" || flag == "--add-header" {
+                out.push(format!("{flag}={}", redact_sensitive_header(value)));
+                continue;
+            }
+        }
+        out.push(a);
+    }
+    out
+}
+
+fn redact_sensitive_header(v: &str) -> String {
+    match v.split_once(':') {
+        Some((name, _)) => {
+            let n = name.trim().to_ascii_lowercase();
+            let sensitive = [
+                "cookie", "auth", "session", "token", "csrf", "xsrf", "key", "secret", "claim",
+                "sign",
+            ]
+            .iter()
+            .any(|s| n.contains(s));
+            if sensitive {
+                format!("{}:<redacted>", name.trim())
+            } else {
+                v.to_string()
+            }
+        }
+        None => v.to_string(),
+    }
+}
+
 fn redact_header_value(v: &str) -> String {
     match v.split_once(':') {
         Some((name, _)) if name.trim().eq_ignore_ascii_case("cookie") => {
@@ -253,8 +328,17 @@ fn redact_extractor_args(v: &str) -> String {
     }
     v.split(';')
         .map(|part| {
-            if part.trim_start().starts_with("po_token") {
-                "po_token=<redacted>".to_string()
+            // The first key follows the extractor name: "youtube:po_token=…"
+            // did not start with "po_token" and kept its token.
+            let (ie, kv) = match part.split_once(':') {
+                Some((ie, kv)) if !ie.contains('=') => (Some(ie), kv),
+                _ => (None, part),
+            };
+            if kv.trim_start().starts_with("po_token") {
+                match ie {
+                    Some(ie) => format!("{ie}:po_token=<redacted>"),
+                    None => "po_token=<redacted>".to_string(),
+                }
             } else {
                 part.to_string()
             }
@@ -347,5 +431,40 @@ mod tests {
         assert_eq!(r[7], "http://%3Credacted%3E@host:1/");
         assert_eq!(r[9], "http://host:1/");
         assert_eq!(r[11], "youtube:player_client=web;po_token=<redacted>");
+    }
+
+    #[test]
+    fn log_redaction_covers_auth_headers_and_identities() {
+        let argv: Vec<String> = [
+            "--add-headers",
+            "X-CSRFToken:abc",
+            "--add-headers=X-IG-WWW-Claim:abc",
+            "--add-headers",
+            "Referer:https://a/",
+            "--username",
+            "me@example.com",
+            "--cookies=/tmp/c.txt",
+            "--proxy",
+            "http://omniget:pw@127.0.0.1:1/",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let r = redact_for_log(&argv);
+        assert_eq!(r[1], "X-CSRFToken:<redacted>");
+        assert_eq!(r[2], "--add-headers=X-IG-WWW-Claim:<redacted>");
+        assert_eq!(r[4], "Referer:https://a/");
+        assert_eq!(r[6], "<redacted>");
+        assert_eq!(r[7], "--cookies=<redacted>");
+        assert!(!r[9].contains("pw"));
+        assert_eq!(
+            redact(&[
+                "--extractor-args".to_string(),
+                "youtube:po_token=web.gvs+XYZ;player_client=web".to_string()
+            ])[1],
+            "youtube:po_token=<redacted>;player_client=web"
+        );
+        // The editable command is unchanged by the log-only rules.
+        assert_eq!(redact(&argv)[1], "X-CSRFToken:abc");
     }
 }
