@@ -26,7 +26,6 @@ pub mod router;
 pub mod runtime;
 pub mod snapshot;
 pub mod sse;
-pub mod templates;
 pub mod tool_table;
 pub mod types;
 pub mod wire_probe;

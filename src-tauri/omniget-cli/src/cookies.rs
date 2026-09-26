@@ -1,8 +1,6 @@
 use anyhow::{Context, Result};
-use std::collections::HashMap;
 use std::path::PathBuf;
 
-use omniget_core::core::cookie_parser::parse_cookie_input;
 use omniget_core::core::paths::app_data_dir;
 
 const COOKIES_DIR: &str = "cookies";
@@ -114,17 +112,4 @@ pub fn preview_import(src_path: &PathBuf) -> Result<Vec<(String, usize)>> {
             (domain, count)
         })
         .collect())
-}
-
-pub fn import_cookies_raw(input: &str, target_cookie: &str) -> Result<ParsedCookies> {
-    let parsed = parse_cookie_input(input, target_cookie);
-    Ok(ParsedCookies {
-        token: parsed.token,
-        cookie_string: parsed.cookie_string,
-    })
-}
-
-pub struct ParsedCookies {
-    pub token: String,
-    pub cookie_string: String,
 }

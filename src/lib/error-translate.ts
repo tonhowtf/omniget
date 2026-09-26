@@ -42,8 +42,6 @@ const BACKEND_ERROR_MAP: Record<string, string> = {
     "errors.output_missing",
   "Downloaded streams are DRM-protected and cannot be merged. This content is not supported.":
     "errors.drm_protected",
-  "Course platforms can't be downloaded from a URL. Open the Courses page (requires the Courses plugin and a logged-in account).":
-    "errors.course_platform_url",
   "The owner of this site asked OmniGet not to support it.":
     "errors.platform_opted_out",
   "OmniDisc: invalid instance URL. Use http:// or https:// without a username or password.":
@@ -149,8 +147,6 @@ export function translateBackendError(
 
   const key = BACKEND_ERROR_MAP[stripped];
   if (key) return t(key);
-
-  if (stripped.startsWith("ERR_PLUGIN_OUTDATED")) return t("errors.plugin_outdated");
 
   if (stripped.startsWith("ERR_")) {
     const prefix = stripped.split(":")[0];

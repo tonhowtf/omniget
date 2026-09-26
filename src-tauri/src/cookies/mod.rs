@@ -1,10 +1,7 @@
 //! Cookie Manager — multi-platform per-domain cookie storage.
 //!
-//! Lives on top of the legacy single-file `chrome-extension-cookies.txt` (see
-//! `extension_storage`). The bridge endpoints (`/v1/enqueue`, `/v1/cookies`)
-//! and the existing native message path continue to write the legacy file for
-//! backwards compatibility with plugins compiled against SDK v2; this module
-//! is invoked in parallel so plugins compiled against v3+ see the new layout.
+//! Replaces the legacy single-file `chrome-extension-cookies.txt` (see
+//! `extension_storage`), which is only read now, to migrate old installs.
 //!
 //! Module layout:
 //! * `platform` — domain → `PlatformKind` mapping (drives UI logo + copy)

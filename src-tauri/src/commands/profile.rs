@@ -11,7 +11,7 @@
 
 use tauri::State;
 
-use crate::profile::{identity, ProfilePublic, ProfileView};
+use crate::profile::ProfileView;
 use crate::AppState;
 
 #[tauri::command]
@@ -34,18 +34,4 @@ pub async fn profile_set_skin(
     tint: [u8; 3],
 ) -> Result<ProfileView, String> {
     state.profile.set_skin(&id, tint).map(|p| p.view())
-}
-
-/// Sign an arbitrary payload with the local identity. Base64 in, base64 out:
-/// the message is bytes, not text, and JSON has no way to carry those.
-#[tauri::command]
-pub async fn profile_sign(state: State<'_, AppState>, msg_b64: String) -> Result<String, String> {
-    let msg = identity::decode_b64(&msg_b64)?;
-    let sig = state.profile.sign(&msg)?;
-    Ok(identity::encode_signature(&sig))
-}
-
-#[tauri::command]
-pub async fn profile_export_public(state: State<'_, AppState>) -> Result<ProfilePublic, String> {
-    state.profile.public()
 }

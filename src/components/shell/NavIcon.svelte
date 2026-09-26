@@ -2,16 +2,15 @@
   /**
    * Sidebar icon. Core sections use the Loop sticker art in
    * static/icons/menu (32/64/128 px WebP, see assets/icons/menu for the
-   * masters); everything else — plugins, ids without art — falls back to the
+   * masters); ids without art fall back to the
    * macOS System Settings tile: a rounded square with a colour of its own and
    * a chunky white glyph (Phosphor Fill, MIT, shipped in static/icons).
    */
   let {
     icon,
-    iconSvg,
     size = 22,
     active = false,
-  }: { icon: string; iconSvg?: string; size?: number; active?: boolean } = $props();
+  }: { icon: string; size?: number; active?: boolean } = $props();
 
   // glyph file + tile gradient per nav id. Colours follow Apple's system
   // palette so the column reads like a native sidebar.
@@ -26,25 +25,16 @@
     settings: { glyph: "gear-six", from: "#A3A3A8", to: "#6F6F75" },
     about: { glyph: "info", from: "#5AA9FF", to: "#1E6FE8" },
     league: { glyph: "sword", from: "#E8B84A", to: "#B8860B" },
-    courses: { glyph: "graduation-cap", from: "#C77DFF", to: "#8E3FD8" },
-    study: { glyph: "book-open-text", from: "#48CFDF", to: "#1A9EB5" },
-    telegram: { glyph: "paper-plane-tilt", from: "#55C2FF", to: "#1F8FE0" },
-    convert: { glyph: "arrows-clockwise", from: "#FF7A7A", to: "#E33A3A" },
-    misc: { glyph: "wrench", from: "#9B9BA3", to: "#63636B" },
-    tools: { glyph: "toolbox", from: "#FF9F5A", to: "#E8641A" },
-    music: { glyph: "music-notes", from: "#FF5E7A", to: "#E0203F" },
-    library: { glyph: "books", from: "#D8A15C", to: "#A66A24" },
-    read: { glyph: "book-open-text", from: "#FFA05C", to: "#E06A1A" },
-    plugin: { glyph: "puzzle-piece", from: "#8E8E93", to: "#5C5C60" },
+    fallback: { glyph: "puzzle-piece", from: "#8E8E93", to: "#5C5C60" },
   };
 
   const ART = new Set([
-    "home", "downloads", "llm", "help", "world", "tools",
+    "home", "downloads", "llm", "help", "world",
     "superpowers", "settings", "about", "league",
   ]);
 
-  let tile = $derived(TILES[icon] ?? TILES.plugin);
-  let art = $derived(!iconSvg && ART.has(icon));
+  let tile = $derived(TILES[icon] ?? TILES.fallback);
+  let art = $derived(ART.has(icon));
   // 1x/2x pair picked from the rendered size: the 32 px file covers the rail
   // and the list at 1x, 64/128 cover retina and the Superpowers cards.
   let artSrc = $derived(size > 32 ? `/icons/menu/${icon}-64.webp` : `/icons/menu/${icon}-32.webp`);
@@ -78,15 +68,7 @@
   style:--tile-size="{size}px"
   aria-hidden="true"
 >
-  {#if iconSvg}
-    <svg viewBox="0 0 24 24" width={glyphSize} height={glyphSize} fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-      {#each iconSvg.split(" M").map((d, i) => (i === 0 ? d : "M" + d)) as pathD}
-        <path d={pathD} />
-      {/each}
-    </svg>
-  {:else}
-    <span class="nav-glyph" style:--glyph="url(/icons/{tile.glyph}.svg)" style:width="{glyphSize}px" style:height="{glyphSize}px"></span>
-  {/if}
+  <span class="nav-glyph" style:--glyph="url(/icons/{tile.glyph}.svg)" style:width="{glyphSize}px" style:height="{glyphSize}px"></span>
 </span>
 {/if}
 

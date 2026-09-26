@@ -80,10 +80,7 @@ pub enum QueueKind {
     Audio,
     Image,
     Pdf,
-    Book,
     Webpage,
-    TelegramMedia,
-    CourseLesson,
     Generic,
 }
 
@@ -95,9 +92,6 @@ pub fn kind_from_platform(platform: &str) -> QueueKind {
         "soundcloud" | "spotify" => QueueKind::Audio,
         "pinterest" => QueueKind::Image,
         "magnet" | "p2p" | "torrent" => QueueKind::Generic,
-        "telegram" | "telegram_media" => QueueKind::TelegramMedia,
-        "courses" | "course_lesson" => QueueKind::CourseLesson,
-        "annas_archive" | "book" | "libgen" | "gutendex" => QueueKind::Book,
         "pdf" => QueueKind::Pdf,
         "webpage" | "embed" => QueueKind::Webpage,
         _ => QueueKind::Generic,
@@ -224,8 +218,6 @@ pub struct QueueItemInfo {
     pub thumbnail_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<QueueKind>,
-    #[serde(default)]
-    pub external: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub eta_seconds: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -286,7 +278,6 @@ pub struct QueueItem {
     pub from_hotkey: bool,
     pub torrent_id: Option<usize>,
     pub kind: Option<QueueKind>,
-    pub external: bool,
     pub thumbnail_url_override: Option<String>,
     pub retry_count: u32,
     pub max_retries: u32,
@@ -331,7 +322,6 @@ impl QueueItem {
                     .and_then(|m| m.thumbnail_url.clone())
             }),
             kind: self.kind,
-            external: self.external,
             eta_seconds: self.eta_seconds,
             quality: self.quality.clone(),
             download_mode: self.download_mode.clone(),
@@ -450,7 +440,6 @@ impl DownloadQueue {
             from_hotkey,
             torrent_id: None,
             kind: computed_kind,
-            external: false,
             thumbnail_url_override: None,
             retry_count: 0,
             max_retries: self.default_max_retries,
@@ -606,7 +595,6 @@ impl DownloadQueue {
             from_hotkey: false,
             torrent_id: None,
             kind: entry.kind,
-            external: false,
             thumbnail_url_override: entry.thumbnail_url.clone(),
             retry_count: 0,
             max_retries: 0,
@@ -798,27 +786,25 @@ impl DownloadQueue {
             item.eta_seconds = None;
             crate::core::recovery::remove(id);
 
-            if !item.external {
-                let entry = crate::core::queue_history::HistoryEntry {
-                    id: item.id,
-                    url: item.url.clone(),
-                    platform: item.platform.clone(),
-                    title: item.title.clone(),
-                    file_path: item.file_path.clone(),
-                    file_size_bytes: item.file_size_bytes,
-                    total_bytes: item.total_bytes,
-                    success,
-                    error: if success { None } else { error_for_history },
-                    completed_at: crate::core::queue_history::now_unix_seconds(),
-                    thumbnail_url: item.thumbnail_url_override.clone().or_else(|| {
-                        item.media_info
-                            .as_ref()
-                            .and_then(|m| m.thumbnail_url.clone())
-                    }),
-                    kind: item.kind,
-                };
-                crate::core::queue_history::record(entry);
-            }
+            let entry = crate::core::queue_history::HistoryEntry {
+                id: item.id,
+                url: item.url.clone(),
+                platform: item.platform.clone(),
+                title: item.title.clone(),
+                file_path: item.file_path.clone(),
+                file_size_bytes: item.file_size_bytes,
+                total_bytes: item.total_bytes,
+                success,
+                error: if success { None } else { error_for_history },
+                completed_at: crate::core::queue_history::now_unix_seconds(),
+                thumbnail_url: item.thumbnail_url_override.clone().or_else(|| {
+                    item.media_info
+                        .as_ref()
+                        .and_then(|m| m.thumbnail_url.clone())
+                }),
+                kind: item.kind,
+            };
+            crate::core::queue_history::record(entry);
         }
     }
 
@@ -2909,32 +2895,9 @@ mod kind_tests {
     }
 
     #[test]
-    fn book_platforms() {
-        assert_eq!(kind_from_platform("annas_archive"), QueueKind::Book);
-        assert_eq!(kind_from_platform("libgen"), QueueKind::Book);
-        assert_eq!(kind_from_platform("gutendex"), QueueKind::Book);
-        assert_eq!(kind_from_platform("book"), QueueKind::Book);
-    }
-
-    #[test]
     fn webpage_kind() {
         assert_eq!(kind_from_platform("webpage"), QueueKind::Webpage);
         assert_eq!(kind_from_platform("embed"), QueueKind::Webpage);
-    }
-
-    #[test]
-    fn telegram_kind() {
-        assert_eq!(kind_from_platform("telegram"), QueueKind::TelegramMedia);
-        assert_eq!(
-            kind_from_platform("telegram_media"),
-            QueueKind::TelegramMedia
-        );
-    }
-
-    #[test]
-    fn course_lesson_kind() {
-        assert_eq!(kind_from_platform("courses"), QueueKind::CourseLesson);
-        assert_eq!(kind_from_platform("course_lesson"), QueueKind::CourseLesson);
     }
 
     #[test]
@@ -2954,7 +2917,7 @@ mod kind_tests {
     #[test]
     fn case_insensitive() {
         assert_eq!(kind_from_platform("YouTube"), QueueKind::Video);
-        assert_eq!(kind_from_platform("TELEGRAM"), QueueKind::TelegramMedia);
+        assert_eq!(kind_from_platform("VIMEO"), QueueKind::Video);
     }
 }
 

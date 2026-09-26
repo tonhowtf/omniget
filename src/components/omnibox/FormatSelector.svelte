@@ -86,7 +86,7 @@
   });
 
   function isYtdlpPlatform(p: string): boolean {
-    return !["hotmart", "telegram", "udemy", "unknown"].includes(p);
+    return !["telegram", "unknown"].includes(p);
   }
 
   function applyBest() {

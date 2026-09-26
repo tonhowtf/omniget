@@ -9,14 +9,8 @@
   --queue-kind-image-fg: #15803d;
   --queue-kind-pdf-bg: color-mix(in oklab, #dc2626 18%, transparent);
   --queue-kind-pdf-fg: #b91c1c;
-  --queue-kind-book-bg: color-mix(in oklab, #f59e0b 22%, transparent);
-  --queue-kind-book-fg: #b45309;
   --queue-kind-webpage-bg: color-mix(in oklab, var(--accent) 14%, transparent);
   --queue-kind-webpage-fg: color-mix(in oklab, var(--accent) 80%, var(--secondary));
-  --queue-kind-telegram_media-bg: color-mix(in oklab, #2aabee 22%, transparent);
-  --queue-kind-telegram_media-fg: #1e88c8;
-  --queue-kind-course_lesson-bg: color-mix(in oklab, #8b5cf6 22%, transparent);
-  --queue-kind-course_lesson-fg: #7c3aed;
   --queue-kind-generic-bg: color-mix(in oklab, var(--secondary) 12%, transparent);
   --queue-kind-generic-fg: var(--tertiary);
 }
@@ -27,10 +21,7 @@
     --queue-kind-audio-fg: #22d3ee;
     --queue-kind-image-fg: #4ade80;
     --queue-kind-pdf-fg: #f87171;
-    --queue-kind-book-fg: #fbbf24;
     --queue-kind-webpage-fg: color-mix(in oklab, var(--accent) 80%, white);
-    --queue-kind-telegram_media-fg: #38bdf8;
-    --queue-kind-course_lesson-fg: #a78bfa;
     --queue-kind-generic-fg: var(--secondary);
   }
 }

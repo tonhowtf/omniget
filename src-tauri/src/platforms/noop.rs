@@ -29,7 +29,7 @@ impl PlatformDownloader for NoopDownloader {
 
     async fn get_media_info(&self, _url: &str) -> anyhow::Result<MediaInfo> {
         Err(anyhow::anyhow!(
-            "NoopDownloader cannot fetch media info; this item is driven by an external plugin"
+            "NoopDownloader cannot fetch media info; it only stands in for items restored from history"
         ))
     }
 
@@ -40,7 +40,7 @@ impl PlatformDownloader for NoopDownloader {
         _progress: tokio::sync::mpsc::Sender<omniget_core::models::progress::ProgressUpdate>,
     ) -> anyhow::Result<DownloadResult> {
         Err(anyhow::anyhow!(
-            "NoopDownloader cannot drive download; this item is driven by an external plugin"
+            "NoopDownloader cannot drive download; it only stands in for items restored from history"
         ))
     }
 }

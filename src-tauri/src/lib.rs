@@ -30,8 +30,6 @@ pub mod mcp;
 pub mod missions;
 pub mod models;
 pub mod platforms;
-pub mod plugin_host;
-pub mod plugin_loader;
 pub mod profile;
 pub mod secrets;
 pub mod storage;
@@ -214,11 +212,6 @@ pub struct AppState {
     pub active_p2p_sends: ActiveP2pSends,
     pub frontend_ready: Arc<tokio::sync::Mutex<bool>>,
     pub pending_external_events: Arc<tokio::sync::Mutex<Vec<external_url::ExternalUrlEvent>>>,
-    pub omnidisc_gateways: commands::omnidisc::gateway::Gateways,
-    pub omnidisc_voice: Arc<commands::omnidisc::voice::VoiceManager>,
-    pub omnidisc_stream: Arc<commands::omnidisc::stream::StreamManager>,
-    pub omnidisc_mls: Arc<commands::omnidisc::mls::MlsManager>,
-    pub omnidisc_uploads: Arc<commands::omnidisc::upload::UploadManager>,
     pub profile: Arc<profile::ProfileManager>,
     pub llm: Arc<llm_manager::LlmManager>,
     /// Lazy on purpose: a user who never opens `/world` pays nothing.
@@ -281,11 +274,6 @@ pub fn run() {
         active_p2p_sends: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         frontend_ready: Arc::new(tokio::sync::Mutex::new(false)),
         pending_external_events: Arc::new(tokio::sync::Mutex::new(Vec::new())),
-        omnidisc_gateways: commands::omnidisc::gateway::new_gateways(),
-        omnidisc_voice: Arc::new(commands::omnidisc::voice::VoiceManager::new()),
-        omnidisc_stream: Arc::new(commands::omnidisc::stream::StreamManager::default()),
-        omnidisc_mls: Arc::new(commands::omnidisc::mls::MlsManager::default()),
-        omnidisc_uploads: Arc::new(commands::omnidisc::upload::UploadManager::default()),
         profile: Arc::new(profile::ProfileManager::new()),
         llm: Arc::new(llm_manager::LlmManager::new()),
         world: std::sync::OnceLock::new(),
@@ -321,13 +309,6 @@ pub fn run() {
     };
     builder
         .manage(state)
-        .manage(Arc::new(tokio::sync::RwLock::new(
-            plugin_loader::PluginManager::new(
-                core::paths::app_data_dir()
-                    .unwrap_or_else(|| std::path::PathBuf::from("."))
-                    .join("plugins"),
-            ),
-        )))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
@@ -339,9 +320,6 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
                     let pressed = event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed;
-                    if hotkey::handle_ptt(app, shortcut, pressed) {
-                        return;
-                    }
                     if pressed {
                         hotkey::on_hotkey_pressed(app, shortcut);
                     }
@@ -458,16 +436,6 @@ pub fn run() {
             // So does the limits strip; off by default, and then this is a no-op.
             limits_strip::commands::restore(app.handle());
 
-            commands::host_queue::register_event_listeners(app.handle());
-            {
-                let handle = app.handle().clone();
-                platforms::bilibili::notify::set_emitter(Box::new(
-                    move |event: &str, payload: serde_json::Value| {
-                        use tauri::Emitter;
-                        let _ = handle.emit(event, payload);
-                    },
-                ));
-            }
             {
                 let handle = app.handle().clone();
                 omniget_core::platforms::bilibili::notify::set_emitter(Box::new(
@@ -747,7 +715,6 @@ pub fn run() {
             }
             tray::setup(app.handle())?;
             hotkey::register_from_settings(app.handle());
-            commands::omnidisc::voice::start(app.handle());
 
             // Migration: drop the manifests / binary copies the previous
             // native-messaging code left under `~/.config/...` so Chrome and
@@ -801,67 +768,6 @@ pub fn run() {
                     jobs::boot(&app_handle);
                 });
             }
-            {
-                let plugins_dir = core::paths::app_data_dir()
-                    .unwrap_or_else(|| std::path::PathBuf::from("."))
-                    .join("plugins");
-                let host: std::sync::Arc<dyn omniget_plugin_sdk::PluginHost> = std::sync::Arc::new(
-                    plugin_host::PluginHostImpl::new(app.handle().clone(), plugins_dir),
-                );
-                let plugin_mgr = app
-                    .handle()
-                    .state::<std::sync::Arc<tokio::sync::RwLock<plugin_loader::PluginManager>>>();
-                let mgr_for_plugins = std::sync::Arc::clone(&*plugin_mgr);
-                let app_emit = app.handle().clone();
-                std::thread::Builder::new()
-                    .name("plugins-bootstrap".into())
-                    .spawn(move || {
-                        use tauri::Emitter;
-
-                        // Load already-installed plugins first so they are
-                        // usable immediately (and offline), without waiting
-                        // on any of the network calls below.
-                        {
-                            let mut mgr = mgr_for_plugins.blocking_write();
-                            mgr.load_all(std::sync::Arc::clone(&host));
-                        }
-                        let _ = app_emit.emit("plugins-changed", ());
-
-                        let rt = match tokio::runtime::Runtime::new() {
-                            Ok(rt) => rt,
-                            Err(e) => {
-                                tracing::warn!("plugins-bootstrap runtime failed: {}", e);
-                                return;
-                            }
-                        };
-                        rt.block_on(commands::plugins::ensure_default_plugins(
-                            std::sync::Arc::clone(&mgr_for_plugins),
-                        ));
-                        rt.block_on(commands::plugins::auto_update_plugins(
-                            std::sync::Arc::clone(&mgr_for_plugins),
-                        ));
-
-                        // Load anything newly installed above. load_all is
-                        // not idempotent (re-inserting drops the previously
-                        // loaded plugin and its dylib), so only load entries
-                        // that are not loaded yet.
-                        {
-                            let mut mgr = mgr_for_plugins.blocking_write();
-                            let to_load: Vec<String> = mgr
-                                .installed_plugins()
-                                .iter()
-                                .filter(|p| p.enabled && !mgr.is_loaded(&p.id))
-                                .map(|p| p.id.clone())
-                                .collect();
-                            for id in &to_load {
-                                let _ = mgr.load_one(id, std::sync::Arc::clone(&host));
-                            }
-                        }
-                        let _ = app_emit.emit("plugins-changed", ());
-                    })
-                    .ok();
-            }
-
             std::thread::Builder::new()
                 .name("startup-checks".into())
                 .spawn(|| {
@@ -941,64 +847,13 @@ pub fn run() {
                 api.prevent_close();
                 let _ = window.hide();
             }
-            tauri::WindowEvent::Destroyed
-                if window.label().starts_with("omnidisc-stream-") =>
-            {
-                commands::omnidisc::stream::on_stream_window_destroyed(
-                    &window.app_handle().clone(),
-                    window.label(),
-                );
-            }
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             commands::auth_webview::open_auth_webview,
-            commands::omnidisc::omnidisc_connect,
-            commands::omnidisc::gateway::omnidisc_typing,
-            commands::omnidisc::device::omnidisc_device_fingerprint,
-            commands::omnidisc::device::omnidisc_list_user_devices,
-            commands::omnidisc::device::omnidisc_revoke_device,
-            commands::omnidisc::mls::omnidisc_mls_sync,
-            commands::omnidisc::mls::omnidisc_mls_status,
-            commands::omnidisc::mls::omnidisc_mls_recall,
-            commands::omnidisc::mls::omnidisc_mls_device_revoked,
-            commands::omnidisc::upload::omnidisc_instance_limits,
-            commands::omnidisc::upload::omnidisc_stage_file,
-            commands::omnidisc::upload::omnidisc_upload_start,
-            commands::omnidisc::upload::omnidisc_upload_cancel,
-            commands::omnidisc::upload::omnidisc_download_attachment,
-            commands::omnidisc::gateway::omnidisc_gateway_connect,
-            commands::omnidisc::gateway::omnidisc_gateway_disconnect,
-            commands::omnidisc::gateway::omnidisc_gateway_send,
-            commands::omnidisc::gateway::omnidisc_gateway_status,
-            commands::omnidisc::voice::omnidisc_voice_join,
-            commands::omnidisc::voice::omnidisc_voice_leave,
-            commands::omnidisc::voice::omnidisc_voice_set_mute,
-            commands::omnidisc::voice::omnidisc_voice_set_deaf,
-            commands::omnidisc::voice::omnidisc_voice_set_volume,
-            commands::omnidisc::voice::omnidisc_voice_devices,
-            commands::omnidisc::voice::omnidisc_voice_set_device,
-            commands::omnidisc::voice::omnidisc_voice_stats,
-            commands::omnidisc::voice::omnidisc_voice_ptt,
-            commands::omnidisc::voice::omnidisc_voice_status,
-            commands::omnidisc::voice::omnidisc_voice_set_noise_suppression,
-            commands::omnidisc::voice::omnidisc_voice_mic_test,
-            commands::omnidisc::voice::omnidisc_voice_set_ducking,
-            commands::omnidisc::voice::omnidisc_voice_ptt_status,
-            commands::omnidisc::stream::omnidisc_media_capabilities,
-            commands::omnidisc::stream::omnidisc_stream_sources,
-            commands::omnidisc::stream::omnidisc_stream_start,
-            commands::omnidisc::stream::omnidisc_stream_stop,
-            commands::omnidisc::stream::omnidisc_stream_stats,
-            commands::omnidisc::stream::omnidisc_stream_set_volume,
-            commands::omnidisc::stream::omnidisc_stream_set_viewport,
-            commands::omnidisc::stream::omnidisc_stream_watch,
-            commands::omnidisc::stream::omnidisc_stream_unwatch,
             commands::league::league_status,
             commands::league::league_get,
-            commands::league::league_install_dir,
             commands::league::league_set_positions,
-            commands::league::league_end_of_game_stats,
             commands::league::league_set_icon,
             commands::league::league_set_profile_background,
             commands::league::league_set_status,
@@ -1049,18 +904,12 @@ pub fn run() {
             commands::league::profile::league_set_chat_icon,
             commands::league::profile::league_challenges,
             commands::league::profile::league_set_challenge_prefs,
-            commands::league::profile::league_set_regalia,
             commands::league::profile::league_friends,
             commands::league::profile::league_remove_friends,
             commands::league::profile::league_random_champion,
             commands::league::profile::league_declare_champion,
             commands::league::skins::league_roll_skin,
             commands::league::skins::league_roll_ward,
-            commands::league::skins::league_skin_carousel,
-            commands::league::sgp::league_sgp_status,
-            commands::league::sgp::league_sgp_match_history,
-            commands::league::sgp::league_sgp_ranked,
-            commands::league::sgp::league_sgp_summoners,
             commands::league::sgp::league_sgp_download_replay,
             commands::league::coach::league_coach_review,
             commands::league::coach::league_coach_trends,
@@ -1068,10 +917,6 @@ pub fn run() {
             commands::league::coach::league_coach_ready,
             commands::bilibili_auth::bilibili_qr_generate,
             commands::bilibili_auth::bilibili_qr_poll,
-            commands::bilibili_auth::bilibili_captcha_challenge,
-            commands::bilibili_auth::bilibili_sms_send,
-            commands::bilibili_auth::bilibili_sms_verify,
-            commands::bilibili_auth::bilibili_account_status,
             commands::bilibili_auth::bilibili_import_watch_later,
             commands::bilibili_auth::bilibili_import_history,
             commands::bilibili_auth::bilibili_preview_info,
@@ -1086,15 +931,12 @@ pub fn run() {
             cookies::commands::cookies_clear_batch,
             cookies::commands::cookies_rename,
             cookies::commands::cookies_accounts_for_url,
-            cookies::commands::cookies_read_as_json,
             cookies::commands::cookies_import_file,
             cookies::commands::cookies_export_to,
             cookies::commands::cookies_add_account,
             cookies::commands::cookies_health,
             cookies::commands::cookies_test,
-            commands::clip::clip_video,
             commands::reencode::reencode_video,
-            commands::diagnostics::get_hwaccel_info,
             commands::diagnostics::diagnose_download_error,
             commands::downloads::detect_platform,
             commands::downloads::check_cookie_error,
@@ -1115,7 +957,6 @@ pub fn run() {
             commands::ai::ai_set_config,
             commands::ai::ai_test,
             commands::ai::ai_summarize_url,
-            commands::ai::whisper_generate,
             commands::ai::ai_history_list,
             commands::ai::ai_history_clear,
             commands::video_ops::video_op_silence_estimate,
@@ -1163,9 +1004,6 @@ pub fn run() {
             commands::downloads::clear_download_history,
             commands::downloads::reveal_file,
             commands::downloads::open_path_default,
-            commands::host_queue::host_queue_enqueue_external,
-            commands::host_queue::host_queue_report_progress,
-            commands::host_queue::host_queue_report_complete,
             commands::integration::register_external_frontend,
             commands::settings::get_settings,
             commands::settings::update_settings,
@@ -1180,258 +1018,32 @@ pub fn run() {
             commands::settings::rotate_bridge_token,
             commands::settings::bridge_open_pairing,
             commands::dependencies::check_dependencies,
-            commands::spicetify::spicetify_status,
-            commands::spicetify::spicetify_install,
-            commands::spicetify::spicetify_action,
-            commands::spicetify::spicetify_set_theme,
-            commands::spicetify::spicetify_remove_addon,
-            commands::spicetify::spicetify_install_marketplace,
-            commands::tools::text::tool_humanize,
-            commands::tools::ai::tool_ollama_status,
-            commands::tools::ai::tool_ollama_recommended,
-            commands::tools::ai::tool_ollama_pull,
-            commands::tools::ai::tool_ollama_delete,
-            commands::tools::ai::tool_pricing_info,
-            commands::tools::ai::tool_pricing_search,
-            commands::tools::ai::tool_pricing_for,
-            commands::tools::ai::tool_usage_report,
-            commands::tools::ai::tool_usage_clear,
-            commands::tools::documents::tool_slideshare,
-            commands::tools::documents::tool_gdocs_parse,
-            commands::tools::documents::tool_gdocs_download,
-            commands::tools::documents::tool_calameo,
-            commands::tools::documents::tool_gallery_status,
-            commands::tools::documents::tool_gallery_install,
-            commands::tools::documents::tool_gallery_download,
-            commands::tools::downloads::tool_aria2_status,
-            commands::tools::downloads::tool_aria2_download,
-            commands::tools::downloads::tool_manifest_download,
-            commands::tools::files::tool_dupes_scan,
-            commands::tools::files::tool_shred,
-            commands::tools::files::tool_dupes_delete,
-            commands::tools::files::tool_rename_plan,
-            commands::tools::files::tool_rename_apply,
-            commands::tools::files::tool_file_search_backend,
-            commands::tools::files::tool_file_search,
-            commands::tools::files::tool_awake_set,
-            commands::tools::files::tool_awake_get,
-            commands::tools::images::tool_upscale_status,
-            commands::tools::images::tool_upscale_install,
-            commands::tools::images::tool_upscale_run,
-            commands::tools::images::tool_resize,
-            commands::tools::images::tool_ocr_status,
-            commands::tools::images::tool_ocr_run,
-            commands::tools::images::tool_exif_read,
-            commands::tools::images::tool_exif_strip,
-            commands::tools::images::tool_icon_pack,
-            commands::tools::images::tool_img_dupes,
-            commands::tools::images::tool_img_compress,
-            commands::tools::video::tool_video_compress,
-            commands::tools::video::tool_video_restore,
-            commands::tools::video::tool_video_gif,
-            commands::tools::video::tool_video_silence,
-            commands::tools::video::tool_subtitle_convert,
-            commands::tools::video::tool_subtitle_burn,
-            commands::tools::audio::tool_audio_clean,
-            commands::tools::ctf::tool_ctf_hash,
-            commands::tools::ctf::tool_ctf_hmac,
-            commands::tools::ctf::tool_ctf_hash_id,
-            commands::tools::ctf::tool_ctf_magic,
-            commands::tools::ctf::tool_ctf_cipher,
-            commands::tools::ctf::tool_ctf_caesar_brute,
-            commands::tools::ctf::tool_ctf_xor,
-            commands::tools::ctf::tool_ctf_encode,
-            commands::tools::ctf::tool_ctf_detect,
-            commands::tools::ctf::tool_ctf_freq,
-            commands::tools::phone::tool_kde_status,
-            commands::tools::phone::tool_kde_share,
-            commands::tools::phone::tool_kde_ping,
-            commands::tools::phone::tool_kde_refresh,
-            commands::tools::speech::tool_whisper_status,
-            commands::tools::speech::tool_whisper_install,
-            commands::tools::speech::tool_whisper_model_download,
-            commands::tools::speech::tool_whisper_model_remove,
-            commands::tools::speech::tool_whisper_transcribe,
-            commands::tools::speech::tool_tts_voices,
-            commands::tools::speech::tool_tts_speak,
-            commands::tools::speech::tool_srt_translate,
-            commands::tools::speech::tool_dub,
-            commands::tools::ai::tool_keys_kinds,
-            commands::tools::ai::tool_keys_list,
-            commands::tools::ai::tool_keys_save,
-            commands::tools::ai::tool_keys_delete,
-            commands::tools::ai::tool_keys_test,
-            commands::tools::ai::tool_keys_balance,
-            commands::tools::ai::tool_keys_models,
-            commands::tools::ai::tool_keys_export,
-            commands::tools::ai::tool_keys_use,
-            commands::tools::ai::tool_mcp_status,
-            commands::tools::ai::tool_mcp_clients,
-            commands::tools::ai::tool_mcp_client_snippets,
-            commands::tools::ai::tool_mcp_client_create,
-            commands::tools::ai::tool_mcp_client_revoke,
-            commands::tools::ai::tool_mcp_root_grant,
-            commands::tools::ai::tool_mcp_root_revoke,
-            commands::tools::ai::tool_mcp_executors,
-            commands::tools::ai::tool_mcp_execution_grant,
-            commands::tools::ai::tool_mcp_network_grant,
-            commands::tools::ai::tool_mcp_gateway_grant,
-            commands::tools::ai::tool_mcp_media_configure,
-            commands::tools::ai::tool_mcp_media_budget,
-            commands::tools::ai::tool_mcp_set_enabled,
-            commands::tools::ai::tool_mcp_selftest,
+            commands::llm::keys::tool_usage_report,
+            commands::llm::keys::tool_keys_kinds,
+            commands::llm::keys::tool_keys_list,
+            commands::llm::keys::tool_keys_save,
+            commands::llm::keys::tool_keys_test,
+            commands::llm::keys::tool_mcp_status,
+            commands::llm::keys::tool_mcp_clients,
+            commands::llm::keys::tool_mcp_client_snippets,
+            commands::llm::keys::tool_mcp_client_create,
+            commands::llm::keys::tool_mcp_client_revoke,
+            commands::llm::keys::tool_mcp_root_grant,
+            commands::llm::keys::tool_mcp_root_revoke,
+            commands::llm::keys::tool_mcp_executors,
+            commands::llm::keys::tool_mcp_execution_grant,
+            commands::llm::keys::tool_mcp_network_grant,
+            commands::llm::keys::tool_mcp_gateway_grant,
+            commands::llm::keys::tool_mcp_media_configure,
+            commands::llm::keys::tool_mcp_media_budget,
+            commands::llm::keys::tool_mcp_set_enabled,
+            commands::llm::keys::tool_mcp_selftest,
             mcp::auth::tool_mcp_auth_requests,
             mcp::auth::tool_mcp_auth_request_answer,
-            commands::tools::desktop::tool_hotkeys_get,
-            commands::tools::desktop::tool_hotkey_set,
-            commands::tools::desktop::tool_autoclick_start,
-            commands::tools::desktop::tool_autoclick_stop,
-            commands::tools::desktop::tool_autoclick_state,
-            commands::tools::desktop::tool_autoclick_mouse,
-            commands::tools::desktop::tool_dictation_devices,
-            commands::tools::desktop::tool_dictation_options,
-            commands::tools::desktop::tool_dictation_set_options,
-            commands::tools::desktop::tool_dictation_state,
-            commands::tools::desktop::tool_dictation_start,
-            commands::tools::desktop::tool_dictation_stop,
-            commands::tools::desktop::tool_record_sources,
-            commands::tools::desktop::tool_record_state,
-            commands::tools::desktop::tool_record_start,
-            commands::tools::desktop::tool_record_stop,
-            commands::tools::desktop::tool_record_save_replay,
-            commands::tools::desktop::tool_vs_status,
-            commands::tools::desktop::tool_vs_launch,
-            commands::tools::desktop::tool_vs_clone,
-            commands::tools::desktop::tool_vs_design,
-            commands::tools::desktop::tool_vs_isolate,
-            commands::tools::pdf::tool_pdf_status,
-            commands::tools::pdf::tool_pdf_info,
-            commands::tools::pdf::tool_pdf_merge,
-            commands::tools::pdf::tool_pdf_split,
-            commands::tools::pdf::tool_pdf_render,
-            commands::tools::pdf::tool_pdf_text,
-            commands::tools::pdf::tool_pdf_from_images,
-            commands::tools::pdf::tool_pdf_compress,
-            commands::tools::pdf::tool_pdf_sanitize,
-            commands::tools::pdf::tool_pdf_ocr,
-            commands::tools::pdf::tool_pdf_office,
-            commands::tools::pdf::tool_pdf_repair,
-            commands::tools::pdf::tool_pdf_redaction_check,
-            commands::tools::pdf::tool_pdf_password,
-            commands::tools::pdf::tool_pdf_watermark,
-            commands::tools::pdf::tool_pdf_crop,
-            commands::tools::pdf::tool_pdf_outline_read,
-            commands::tools::pdf::tool_pdf_outline_write,
-            commands::tools::system::tool_win_tweaks_status,
-            commands::tools::system::tool_win_tweak_apply,
-            commands::tools::system::tool_clean_scan,
-            commands::tools::system::tool_clean_run,
-            commands::tools::system::tool_disk_volumes,
-            commands::tools::system::tool_disk_scan,
-            commands::tools::system::tool_disk_trash,
-            commands::tools::system::tool_startup_list,
-            commands::tools::system::tool_startup_set,
-            commands::tools::system::tool_uninstall_list,
-            commands::tools::system::tool_uninstall_leftovers,
-            commands::tools::system::tool_uninstall_run,
-            commands::tools::system::tool_debloat_list,
-            commands::tools::system::tool_debloat_remove,
-            commands::tools::system::tool_debloat_restore,
-            commands::tools::system::tool_registry_scan,
-            commands::tools::system::tool_registry_fix,
-            commands::tools::system::tool_registry_backups_dir,
-            commands::tools::system::tool_updater_status,
-            commands::tools::system::tool_updater_upgrade,
-            commands::tools::youtube::tool_sponsorblock,
-            commands::tools::youtube::tool_ryd,
-            commands::tools::youtube::tool_yt_video_id,
-            commands::tools::youtube::tool_save_url,
-            commands::tools::x::tool_x_session,
-            commands::tools::x::tool_x_query_ids_refresh,
-            commands::tools::x::tool_x_cancel,
-            commands::tools::x::tool_x_post,
-            commands::tools::x::tool_x_thread,
-            commands::tools::x::tool_x_export_posts,
-            commands::tools::x::tool_x_export_users,
-            commands::tools::x::tool_x_render_posts,
-            commands::tools::x::tool_x_profile,
-            commands::tools::x::tool_x_profile_lookup,
-            commands::tools::x::tool_x_media,
-            commands::tools::x::tool_x_media_posts,
-            commands::tools::x::tool_x_search,
-            commands::tools::x::tool_x_trends,
-            commands::tools::x::tool_x_bookmarks_export,
-            commands::tools::x::tool_x_follows_audit,
-            commands::tools::x::tool_x_unfollow,
-            commands::tools::x::tool_x_whitelist_get,
-            commands::tools::x::tool_x_whitelist_set,
-            commands::tools::x::tool_x_archive_open,
-            commands::tools::x::tool_x_archive_export,
-            commands::tools::x::tool_x_grok_config,
-            commands::tools::x::tool_x_grok_config_set,
-            commands::tools::x::tool_x_grok_ask,
-            commands::tools::x::tool_x_data_url,
-            commands::tools::x::tool_x_save_data_url,
-            commands::tools::x::tool_x_write_text,
-            commands::tools::pinterest::tool_pin_inspect,
-            commands::tools::pinterest::tool_pin_list,
-            commands::tools::pinterest::tool_pin_related,
-            commands::tools::pinterest::tool_pin_boards_search,
-            commands::tools::pinterest::tool_pin_download,
-            commands::tools::pinterest::tool_pin_download_many,
-            commands::tools::pinterest::tool_pin_backup,
-            commands::tools::pinterest::tool_pin_dupes,
-            commands::tools::pinterest::tool_pin_unsave,
-            commands::tools::pinterest::tool_pin_palette,
-            commands::tools::pinterest::tool_pin_export,
-            commands::tools::pinterest::tool_pin_keywords,
-            commands::tools::pinterest::tool_pin_source,
-            commands::tools::pinterest::tool_pin_expand,
-            commands::tools::instagram::tool_ig_accounts,
-            commands::tools::instagram::tool_ig_whoami,
-            commands::tools::instagram::tool_ig_parse,
-            commands::tools::instagram::tool_ig_cancel,
-            commands::tools::instagram::tool_ig_post,
-            commands::tools::instagram::tool_ig_resolve,
-            commands::tools::instagram::tool_ig_download,
-            commands::tools::instagram::tool_ig_download_bulk,
-            commands::tools::instagram::tool_ig_profile,
-            commands::tools::instagram::tool_ig_friendship,
-            commands::tools::instagram::tool_ig_profile_media,
-            commands::tools::instagram::tool_ig_stories,
-            commands::tools::instagram::tool_ig_stories_tray,
-            commands::tools::instagram::tool_ig_highlights,
-            commands::tools::instagram::tool_ig_highlight_items,
-            commands::tools::instagram::tool_ig_story_viewers,
-            commands::tools::instagram::tool_ig_follow_lists,
-            commands::tools::instagram::tool_ig_whitelist_get,
-            commands::tools::instagram::tool_ig_whitelist_set,
-            commands::tools::instagram::tool_ig_actions_today,
-            commands::tools::instagram::tool_ig_actions,
-            commands::tools::instagram::tool_ig_resolve_users,
-            commands::tools::instagram::tool_ig_snapshot_take,
-            commands::tools::instagram::tool_ig_snapshots,
-            commands::tools::instagram::tool_ig_snapshot_diff,
-            commands::tools::instagram::tool_ig_snapshot_delete,
-            commands::tools::instagram::tool_ig_ghosts,
-            commands::tools::instagram::tool_ig_export,
-            commands::tools::instagram::tool_ig_write_csv,
-            commands::tools::instagram::tool_ig_read_text,
-            commands::tools::instagram::tool_ig_analytics,
-            commands::tools::instagram::tool_ig_hashtag,
-            commands::tools::instagram::tool_ig_comments,
-            commands::tools::instagram::tool_ig_likers,
-            commands::tools::instagram::tool_ig_giveaway,
-            commands::tools::instagram::tool_ig_publish,
-            commands::tools::instagram::tool_ig_publish_graph,
-            commands::tools::instagram::tool_ig_schedule_list,
-            commands::tools::instagram::tool_ig_schedule_add,
-            commands::tools::instagram::tool_ig_schedule_remove,
             commands::dependencies::check_ytdlp_available,
             commands::dependencies::install_dependency,
             commands::dependencies::dependency_archived_versions,
             commands::diagnostics::flight_recorder_dump,
-            commands::diagnostics::flight_recorder_clear,
             commands::diagnostics::preflight_batch,
             commands::dependencies::rollback_dependency,
             commands::dependencies::clear_dependency_path,
@@ -1444,61 +1056,21 @@ pub fn run() {
             commands::dedupe::deduplicate_files,
             commands::dedupe::content_store_stats,
             commands::smart_speed::compute_silence_map,
-            commands::smart_speed::silence_skip_target,
-            commands::smart_speed::forget_silence_map,
             commands::torrent_playback::torrent_playback_readiness,
             commands::dependencies::dependency_variants,
             commands::dependencies::dependency_install_dir,
             commands::dependencies::set_dependency_path,
             commands::search::search_videos,
-            commands::plugins::list_plugins,
-            commands::plugins::get_plugin_frontend_path,
-            commands::plugins::set_plugin_enabled,
-            commands::plugins::uninstall_plugin,
-            commands::plugins::get_loaded_plugin_manifests,
-            commands::plugins::plugin_command,
-            commands::plugins::fetch_marketplace_registry,
-            commands::plugins::install_plugin_from_registry,
-            commands::plugins::get_plugin_i18n,
-            commands::plugins::check_plugin_updates,
-            commands::plugins::update_plugin,
             commands::p2p::p2p_send_file,
             commands::p2p::p2p_cancel_send,
             commands::p2p::p2p_pause_send,
             commands::p2p::p2p_resume_send,
             commands::app_lifecycle::force_exit_app,
-            commands::app_lifecycle::get_debug_info,
             commands::app_lifecycle::get_portable_info,
-            commands::tools::twitch::tool_tw_emotes,
-            commands::tools::twitch::tool_tw_chat_replay,
-            commands::tools::music::tool_music_playlist,
-            commands::tools::music::tool_lyrics_sync,
-            commands::tools::music::tool_music_history,
-            commands::tools::reddit::tool_rd_download,
-            commands::tools::reddit::tool_rd_thread,
-            commands::tools::reddit::tool_rd_gdpr,
-            commands::tools::images::tool_img_stitch,
-            commands::tools::images::tool_img_sprite,
-            commands::tools::bilibili::tool_bili_danmaku_export,
-            commands::tools::bilibili::tool_bili_danmaku_burn,
-            commands::tools::games::tool_switch_album,
-            commands::tools::games::tool_clip_organizer,
-            commands::tools::games::tool_protondb,
-            commands::tools::system::tool_hosts_read,
-            commands::tools::system::tool_hosts_apply,
-            commands::tools::system::tool_hosts_restore,
-            commands::tools::video::tool_sticker,
-            commands::tools::pdf::tool_pdf_markdown,
-            commands::tools::linkedin::tool_li_overview,
-            commands::tools::linkedin::tool_li_connections,
-            commands::tools::linkedin::tool_li_messages,
-            commands::tools::linkedin::tool_li_checklist,
             // Fase 1 (perfil local) — f1-perfil-core
             commands::profile::profile_get,
             commands::profile::profile_set_nickname,
             commands::profile::profile_set_skin,
-            commands::profile::profile_sign,
-            commands::profile::profile_export_public,
             // Fase 6 (bench do mundo) — f6-bench
             commands::world_bench::world_bench_report,
             // Fase 2 (/llm) — f2-llm-commands, f2-wire-probe; Fase 5 (pet) — f5-pet-window
@@ -1508,9 +1080,6 @@ pub fn run() {
             commands::llm::roster::llm_roster_delete,
             commands::llm::roster::llm_roster_apply_template,
             commands::llm::prompts::sync_llm_prompts,
-            commands::llm::chat::llm_conversation_list,
-            commands::llm::chat::llm_conversation_get,
-            commands::llm::chat::llm_conversation_delete,
             commands::llm::chat::llm_turn_start,
             commands::llm::help::help_turn_start,
             commands::llm::help::help_tool_call,
@@ -1545,10 +1114,6 @@ pub fn run() {
             commands::llm::prune::llm_prune_status,
             commands::llm::prune::llm_prune_set_config,
             commands::llm::prune::llm_prune_set_jev_key,
-            commands::llm::local::llm_local_status,
-            commands::llm::local::llm_local_install_llama,
-            commands::llm::local::llm_local_models,
-            commands::llm::local::llm_bridge_openai_enabled,
             commands::llm::wire_probe::llm_wire_probe_run,
             commands::llm::wire_probe::llm_wire_probe_last,
             commands::pet::pet_open,
@@ -1560,17 +1125,11 @@ pub fn run() {
             commands::pet::pet_set_ask_pending,
             limits_strip::commands::limits_strip_get_prefs,
             limits_strip::commands::limits_strip_set_prefs,
-            limits_strip::commands::limits_strip_open,
             limits_strip::commands::limits_strip_close,
             limits_strip::commands::limits_strip_state,
             limits_strip::commands::limits_strip_refresh,
             limits_strip::commands::limits_strip_set_expanded,
-            commands::tools::ai::tool_ai_keys_openrouter_pkce,
-            commands::tools::ai::tool_ai_keys_openrouter_pkce_finish,
-            commands::llm::roster::llm_roster_templates,
-            commands::llm::local::llm_local_download_model,
-            commands::llm::local::llm_local_start_llama,
-            commands::llm::local::llm_local_stop_llama,
+            commands::llm::keys::tool_ai_keys_openrouter_pkce,
             // Rodada 3: Fase 3 (MCP, skills) e Fase 4 (contas)
             commands::llm::mcp::llm_mcp_list,
             commands::llm::mcp::llm_mcp_upsert,
@@ -1611,7 +1170,6 @@ pub fn run() {
             commands::world::house::house_leave,
             commands::world::house::house_input,
             commands::world::house::house_chat,
-            commands::world::city::city_status,
             commands::world::city::city_join,
             commands::world::city::city_leave,
             commands::world::city::city_input,
@@ -1631,9 +1189,6 @@ pub fn run() {
             commands::world::demo::world_demo,
             commands::world::session::world_delete,
             commands::world::input::world_input,
-            commands::world::tier::world_tier_get,
-            commands::world::tier::world_tier_set,
-            commands::world::tier::world_calibration_save,
             // assist:begin
             commands::assist::memory::assist_memory_list,
             commands::assist::memory::assist_memory_scopes,
@@ -1756,8 +1311,8 @@ pub fn run() {
             commands::assist::packs::assist_packs_history,
             commands::assist::packs::assist_packs_rollback,
             commands::assist::packs::assist_packs_agent_to_bot,
-            commands::tools::ai::tool_mcp_execution_grant_revoke,
-            commands::tools::ai::tool_mcp_execution_grants_list,
+            commands::llm::keys::tool_mcp_execution_grant_revoke,
+            commands::llm::keys::tool_mcp_execution_grants_list,
             // missions:end
         ])
         .build(tauri::generate_context!())

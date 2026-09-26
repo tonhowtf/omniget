@@ -358,39 +358,6 @@ pub async fn league_set_challenge_prefs(
     .await
 }
 
-/// Banner and crest preferences shown on the profile and in loading screens.
-#[tauri::command]
-pub async fn league_set_regalia(
-    banner_type: Option<String>,
-    crest_type: Option<String>,
-    prestige_crest: Option<i64>,
-) -> Result<Value, String> {
-    ensure_enabled()?;
-    let client = get_client().await?;
-    let current = lcu_get_raw(&client, "/lol-regalia/v2/current-summoner/regalia").await?;
-    let mut body = json!({
-        "preferredBannerType": current.get("preferredBannerType").cloned().unwrap_or(json!("")),
-        "preferredCrestType": current.get("preferredCrestType").cloned().unwrap_or(json!("")),
-        "selectedPrestigeCrest": current.get("selectedPrestigeCrest").cloned().unwrap_or(json!(0)),
-    });
-    if let Some(b) = banner_type {
-        body["preferredBannerType"] = json!(b);
-    }
-    if let Some(c) = crest_type {
-        body["preferredCrestType"] = json!(c);
-    }
-    if let Some(p) = prestige_crest {
-        body["selectedPrestigeCrest"] = json!(p);
-    }
-    lcu_send(
-        &client,
-        reqwest::Method::PUT,
-        "/lol-regalia/v2/current-summoner/regalia",
-        Some(body),
-    )
-    .await
-}
-
 /// The friends list, trimmed to what the manager shows.
 #[tauri::command]
 pub async fn league_friends() -> Result<Value, String> {

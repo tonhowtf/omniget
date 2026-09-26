@@ -208,31 +208,6 @@ pub async fn ai_summarize_url(
     Ok(AiSummaryResult { title, summary })
 }
 
-#[cfg(not(target_os = "android"))]
-#[tauri::command]
-pub async fn whisper_generate(url: String) -> Result<String, String> {
-    let cfg = ai::get();
-    if !matches!(cfg.provider, AiProvider::Openai | AiProvider::Local) {
-        return Err("ai_not_configured".to_string());
-    }
-    let ytdlp = crate::core::ytdlp::find_ytdlp_cached()
-        .await
-        .ok_or_else(|| "yt-dlp unavailable".to_string())?;
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let tmp = std::env::temp_dir().join(format!("omniget-whisper-{stamp}"));
-    tokio::fs::create_dir_all(&tmp)
-        .await
-        .map_err(|e| e.to_string())?;
-    let result = transcribe_via_audio(&ytdlp, &url, &tmp).await;
-    let _ = tokio::fs::remove_dir_all(&tmp).await;
-    let transcript = result?;
-    ai::history_add("transcript", &url, "", &transcript);
-    Ok(transcript)
-}
-
 #[tauri::command]
 pub fn ai_history_list() -> Vec<AiHistoryEntry> {
     ai::history_list()

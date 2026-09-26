@@ -13,26 +13,6 @@ pub const ERR_SERVER: &str = "ERR_SERVER";
 pub const ERR_BAD_REQUEST: &str = "ERR_BAD_REQUEST";
 pub const ERR_NO_SESSION: &str = "ERR_NO_SESSION";
 
-/// Ids reach `Api` as strings from the frontend and from server payloads, and
-/// they end up interpolated into a request path. `Url::parse` resolves `..`, so
-/// an id is only ever a snowflake, a device id or a group id: never a way to
-/// walk out of the route it was meant for.
-pub fn path_id(id: &str) -> Result<&str, String> {
-    let ok = !id.is_empty()
-        && id.len() <= 128
-        && id != "."
-        && id != ".."
-        && id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
-    if ok {
-        Ok(id)
-    } else {
-        tracing::warn!("[omnidisc] refused an id that is not a plain identifier");
-        Err(format!("{}:invalid_id", ERR_BAD_REQUEST))
-    }
-}
-
 /// Last line of defence for every request this module makes: the assembled path
 /// must still be the route we wrote, whatever was interpolated into it.
 fn safe_path(path: &str) -> bool {
@@ -178,14 +158,4 @@ fn with_code(base: &str, code: &str) -> String {
     } else {
         format!("{}:{}", base, code)
     }
-}
-
-pub async fn typing_rest(url: &str, channel_id: &str) -> Result<(), String> {
-    let api = Api::authed(url)?;
-    api.send_empty(
-        Method::POST,
-        &format!("/api/channels/{}/typing", channel_id),
-        None,
-    )
-    .await
 }

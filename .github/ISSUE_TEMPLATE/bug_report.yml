@@ -36,7 +36,7 @@ body:
     id: platform
     attributes:
       label: Platform / site that failed
-      description: e.g. YouTube, Hotmart, a generic URL, Telegram plugin…
+      description: e.g. YouTube, Instagram, a generic URL…
       placeholder: "YouTube"
     validations:
       required: false

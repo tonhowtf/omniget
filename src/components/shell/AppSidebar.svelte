@@ -10,7 +10,6 @@
   interface Props {
     primaryNav?: NavItem[];
     appNav?: NavItem[];
-    pluginNav?: NavItem[];
     badgeLabel?: string;
     badgeCount?: number;
     /** Icon-only rail; the state lives in settings.appearance.sidebar_collapsed. */
@@ -21,7 +20,6 @@
   let {
     primaryNav = [],
     appNav = [],
-    pluginNav = [],
     badgeLabel = "",
     badgeCount = 0,
     collapsed = false,
@@ -68,18 +66,6 @@
   loadProfile();
   let profile = $derived(getProfile());
 
-  const PLUGINS_KEY = "omniget.sidebar.plugins_expanded";
-  let pluginsExpanded = $state(
-    typeof localStorage === "undefined" ? true : localStorage.getItem(PLUGINS_KEY) !== "0",
-  );
-
-  function togglePlugins() {
-    pluginsExpanded = !pluginsExpanded;
-    try {
-      localStorage.setItem(PLUGINS_KEY, pluginsExpanded ? "1" : "0");
-    } catch {}
-  }
-
   function isActive(href: string): boolean {
     if (href === "/") return page.url.pathname === "/";
     const path = page.url.pathname;
@@ -107,7 +93,7 @@
     onfocus={(e) => showTip(e, title)}
     onblur={hideTip}
   >
-    <NavIcon icon={item.icon} iconSvg={item.iconSvg} size={collapsed ? 30 : 26} {active} />
+    <NavIcon icon={item.icon} size={collapsed ? 30 : 26} {active} />
     <span class="mac-nav-label">{title}{#if item.href === "/help"}<small>{$t("nav.help_subtitle")}</small>{/if}</span>
     {#if item.badge === "downloads" && badgeCount > 0}
       <span class="mac-nav-badge live">{badgeLabel}</span>
@@ -131,34 +117,6 @@
       {@render navLink(item)}
     {/each}
   </nav>
-
-  {#if pluginNav.length > 0}
-    <nav class="mac-nav-section" aria-label={$t("nav.section_plugins")}>
-      <div class="mac-nav-section-header">
-        <span>{$t("nav.section_plugins")}</span>
-        <button
-          type="button"
-          class="mac-plugins-toggle"
-          onclick={togglePlugins}
-          aria-expanded={pluginsExpanded}
-          aria-label={pluginsExpanded ? $t("nav.collapse_plugins") : $t("nav.expand_plugins")}
-        >
-          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            {#if pluginsExpanded}
-              <path d="M4 6l4 4 4-4" />
-            {:else}
-              <path d="M6 4l4 4-4 4" />
-            {/if}
-          </svg>
-        </button>
-      </div>
-      {#if pluginsExpanded}
-        {#each pluginNav as item (item.href)}
-          {@render navLink(item)}
-        {/each}
-      {/if}
-    </nav>
-  {/if}
 
   </div>
   <button

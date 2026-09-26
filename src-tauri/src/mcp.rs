@@ -208,22 +208,6 @@ impl HostTools for AppHost {
                     crate::external_url::handle_external_url(app, url.clone(), "mcp").await?;
                 Ok(json!({ "url": url, "action": format!("{:?}", action).to_lowercase() }))
             }
-            "instagram_profile" => {
-                let account = {
-                    let v = s(&a, "account");
-                    if v.is_empty() {
-                        None
-                    } else {
-                        Some(v)
-                    }
-                };
-                let client = crate::commands::tools::instagram::load_client(account.as_deref())?;
-                to_json(
-                    tools::instagram::profile::resolve_user(&client, &s(&a, "username"))
-                        .await
-                        .map_err(err)?,
-                )
-            }
             "download_enqueue" => {
                 let url = need_str(&a, "url")?;
                 let mode = match s(&a, "mode").as_str() {
@@ -946,7 +930,7 @@ mod tests {
     fn a_lista_do_servidor_e_a_tabela_do_core() {
         let table = omniget_core::core::llm::tool_table::table();
         let list = tools();
-        assert_eq!(list.len(), 56, "a tabela mudou de tamanho");
+        assert_eq!(list.len(), 26, "a tabela mudou de tamanho");
         assert_eq!(list.len(), table.len());
         for (def, entry) in list.iter().zip(table) {
             assert_eq!(def.name, entry.name);
@@ -963,7 +947,7 @@ mod tests {
             .filter(|e| e.needs_host())
             .map(|e| e.name)
             .collect();
-        assert_eq!(host.len(), 16, "{:?}", host);
+        assert_eq!(host.len(), 15, "{:?}", host);
     }
 
     #[test]

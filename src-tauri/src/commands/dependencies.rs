@@ -173,7 +173,7 @@ pub async fn install_dependency(
 /// Locates the managed binary without touching it. Previously this called
 /// `ensure_ytdlp`, which downloads a missing binary and spawns a freshness
 /// check plus a JS-runtime check (yt-dlp and deno processes) on every call.
-/// Listing archived versions is a read, and the Plugins tab does it on
+/// Listing archived versions is a read, and the Dependencies tab does it on
 /// render, so that turned a UI refresh into a process storm (#281).
 async fn managed_binary_path(name: &str) -> Option<PathBuf> {
     match name {
@@ -284,7 +284,7 @@ pub fn dependency_variants(name: String) -> Result<Vec<DependencyVariantInfo>, S
 pub fn dependency_install_dir(name: String) -> Result<String, String> {
     let dir = match name.as_str() {
         "PDFium" => pdfium::pdfium_target_dir()
-            .ok_or_else(|| "could not determine plugin data dir".to_string())?,
+            .ok_or_else(|| "could not determine the PDFium dir".to_string())?,
         "yt-dlp" | "FFmpeg" => crate::core::paths::app_data_dir()
             .ok_or_else(|| "could not determine app data dir".to_string())?
             .join("bin"),

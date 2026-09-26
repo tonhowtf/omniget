@@ -2,18 +2,10 @@ import { listen } from "@tauri-apps/api/event";
 import { get } from "svelte/store";
 import { t } from "$lib/i18n";
 import {
-  upsertProgress,
-  markComplete,
   syncQueueState,
   upsertGenericProgress,
-  getDownloads,
 } from "./download-store.svelte";
 import { showToast } from "./toast-store.svelte";
-import {
-  updateFileProgress,
-  markFileComplete,
-  markFileError,
-} from "./convert-store.svelte";
 import { setMediaPreview } from "./media-preview-store.svelte";
 import { addLog } from "./debug-store.svelte";
 import { recordDownloadComplete } from "./download-stats.svelte";
@@ -39,25 +31,6 @@ async function notifyComplete(title: string) {
   }
 }
 
-type ProgressPayload = {
-  course_id: number;
-  course_name: string;
-  percent: number;
-  current_module: string;
-  current_page: string;
-  downloaded_bytes: number;
-  total_pages: number;
-  completed_pages: number;
-  total_modules: number;
-  current_module_index: number;
-};
-
-type CompletePayload = {
-  course_name: string;
-  success: boolean;
-  error: string | null;
-};
-
 type QueueItemInfo = {
   id: number;
   url: string;
@@ -74,21 +47,6 @@ type QueueItemInfo = {
   thumbnail_url: string | null;
   eta_seconds?: number | null;
 };
-
-export type BatchFileStatusPayload = {
-  batch_id: number;
-  message_id: number;
-  status: "waiting" | "downloading" | "done" | "error" | "skipped";
-  percent: number;
-  error: string | null;
-};
-
-type BatchFileStatusCallback = (payload: BatchFileStatusPayload) => void;
-let batchFileStatusCallback: BatchFileStatusCallback | null = null;
-
-export function onBatchFileStatus(cb: BatchFileStatusCallback | null) {
-  batchFileStatusCallback = cb;
-}
 
 type QueueItemProgressPayload = {
   id: number;
@@ -107,43 +65,6 @@ type QueueItemProgressPayload = {
   planned_formats?: string[] | null;
 };
 
-type ConvertProgressPayload = {
-  id: number;
-  percent: number;
-};
-
-type ConvertCompletePayload = {
-  id: number;
-  success: boolean;
-  result: {
-    output_path: string;
-    file_size_bytes: number;
-    duration_seconds: number;
-    error: string | null;
-  } | null;
-  error: string | null;
-};
-
-type UdemyProgressPayload = {
-  course_id: number;
-  course_name: string;
-  percent: number;
-  current_chapter: string;
-  current_lecture: string;
-  downloaded_bytes: number;
-  total_lectures: number;
-  completed_lectures: number;
-};
-
-type UdemyCompletePayload = {
-  course_name: string;
-  success: boolean;
-  error: string | null;
-  drm_skipped: number;
-};
-
-const seenCourseIds = new Set<number>();
-const seenUdemyCourseIds = new Set<number>();
 const loggedQueueTerminal = new Set<number>();
 const queueToastEligibleIds = new Set<number>();
 const seenGenericIds = new Set<number>();
@@ -169,100 +90,6 @@ function throttledSyncQueueState(payload: QueueItemInfo[]) {
 }
 
 export async function initDownloadListener(): Promise<() => void> {
-  const unlistenProgress = await listen<ProgressPayload>("download-progress", (event) => {
-    const d = event.payload;
-
-    if (!seenCourseIds.has(d.course_id)) {
-      seenCourseIds.add(d.course_id);
-      const tr = get(t);
-      showToast("info", tr("toast.download_started", { name: d.course_name }));
-      addLog("info", "download", `Course download started: ${d.course_name}`);
-    }
-
-    upsertProgress(
-      d.course_id,
-      d.course_name,
-      d.percent,
-      d.current_module,
-      d.current_page,
-      d.downloaded_bytes,
-      d.total_pages,
-      d.completed_pages,
-      d.total_modules,
-      d.current_module_index,
-    );
-  });
-
-  const unlistenComplete = await listen<CompletePayload>("download-complete", (event) => {
-    const d = event.payload;
-    markComplete(d.course_name, d.success, d.error ?? undefined);
-
-    const tr = get(t);
-    if (d.success) {
-      showToast("success", tr("toast.download_complete", { name: d.course_name }));
-      void notifyComplete(d.course_name);
-      addLog("info", "download", `Course download complete: ${d.course_name}`);
-      recordDownloadComplete(0);
-      void rpcSyncIdleStats();
-    } else {
-      let msg = tr("toast.download_error", { name: d.course_name });
-      if (d.error) msg += ` — ${d.error}`;
-      showToast("error", msg);
-      addLog("error", "download", `Course download failed: ${d.course_name}`, d.error ?? undefined);
-    }
-  });
-
-  const unlistenUdemyProgress = await listen<UdemyProgressPayload>("udemy-download-progress", (event) => {
-    const d = event.payload;
-
-    if (!seenUdemyCourseIds.has(d.course_id)) {
-      seenUdemyCourseIds.add(d.course_id);
-      const tr = get(t);
-      showToast("info", tr("toast.download_started", { name: d.course_name }));
-      addLog("info", "download", `Udemy download started: ${d.course_name}`);
-    }
-
-    upsertProgress(
-      d.course_id,
-      d.course_name,
-      d.percent,
-      d.current_chapter,
-      d.current_lecture,
-      d.downloaded_bytes,
-      d.total_lectures,
-      d.completed_lectures,
-      0,
-      0,
-    );
-  });
-
-  const unlistenUdemyComplete = await listen<UdemyCompletePayload>("udemy-download-complete", (event) => {
-    const d = event.payload;
-    markComplete(d.course_name, d.success, d.error ?? undefined);
-    seenUdemyCourseIds.delete([...seenUdemyCourseIds].find(id => {
-      const item = getDownloads().get(id);
-      return item?.name === d.course_name;
-    }) ?? -1);
-
-    const tr = get(t);
-    if (d.success) {
-      showToast("success", tr("toast.download_complete", { name: d.course_name }));
-      void notifyComplete(d.course_name);
-      addLog("info", "download", `Udemy download complete: ${d.course_name}`);
-      recordDownloadComplete(0);
-      void rpcSyncIdleStats();
-      if (d.drm_skipped > 0) {
-        showToast("info", tr("toast.drm_skipped", { count: String(d.drm_skipped) }));
-        addLog("warn", "download", `${d.drm_skipped} DRM-protected video(s) skipped`, d.course_name);
-      }
-    } else {
-      let msg = tr("toast.download_error", { name: d.course_name });
-      if (d.error) msg += ` — ${d.error}`;
-      showToast("error", msg);
-      addLog("error", "download", `Udemy download failed: ${d.course_name}`, d.error ?? undefined);
-    }
-  });
-
   const unlistenQueueState = await listen<QueueItemInfo[]>(
     "queue-state-update",
     (event) => {
@@ -341,40 +168,6 @@ export async function initDownloadListener(): Promise<() => void> {
     },
   );
 
-  const unlistenBatchFileStatus = await listen<BatchFileStatusPayload>(
-    "telegram-batch-file-status",
-    (event) => {
-      if (batchFileStatusCallback) {
-        batchFileStatusCallback(event.payload);
-      }
-    },
-  );
-
-  const unlistenConvertProgress = await listen<ConvertProgressPayload>(
-    "convert-progress",
-    (event) => {
-      updateFileProgress(event.payload.id, event.payload.percent);
-    },
-  );
-
-  const unlistenConvertComplete = await listen<ConvertCompletePayload>(
-    "convert-complete",
-    (event) => {
-      const d = event.payload;
-      const tr = get(t);
-      if (d.success && d.result) {
-        markFileComplete(d.id, d.result.output_path, d.result.file_size_bytes);
-        showToast("success", tr("convert.toast_complete"));
-        addLog("info", "convert", `Conversion complete: ${d.result.output_path}`);
-      } else {
-        const errorMsg = d.error ?? d.result?.error ?? tr("common.unknown_error");
-        markFileError(d.id, errorMsg);
-        showToast("error", `${tr("convert.toast_error")} — ${errorMsg}`);
-        addLog("error", "convert", `Conversion failed`, errorMsg);
-      }
-    },
-  );
-
   const unlistenFileCopied = await listen<{ path: string }>(
     "file-copied-to-clipboard",
     () => {
@@ -409,15 +202,8 @@ export async function initDownloadListener(): Promise<() => void> {
   }, 5000);
 
   return () => {
-    unlistenProgress();
-    unlistenComplete();
-    unlistenUdemyProgress();
-    unlistenUdemyComplete();
     unlistenQueueState();
     unlistenQueueItemProgress();
-    unlistenBatchFileStatus();
-    unlistenConvertProgress();
-    unlistenConvertComplete();
     unlistenFileCopied();
     unlistenMediaPreview();
     clearInterval(cookieCheckInterval);

@@ -6,11 +6,9 @@ pub mod autostart;
 pub mod bilibili_auth;
 pub mod browser_extension;
 pub mod channels;
-pub mod clip;
 pub mod dedupe;
 pub mod diagnostics;
 pub mod downloads;
-pub mod host_queue;
 pub mod integration;
 pub mod league;
 pub mod llm;
@@ -18,7 +16,6 @@ pub mod media_history;
 pub mod omnidisc;
 pub mod p2p;
 pub mod pet;
-pub mod plugins;
 pub mod profile;
 pub mod reencode;
 pub mod rpc;
@@ -36,7 +33,3 @@ pub mod yt_templates;
 pub mod dependencies;
 #[cfg(not(target_os = "android"))]
 pub mod search;
-#[cfg(not(target_os = "android"))]
-pub mod spicetify;
-#[cfg(not(target_os = "android"))]
-pub mod tools;

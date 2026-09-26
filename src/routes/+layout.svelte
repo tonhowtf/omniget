@@ -53,18 +53,10 @@
   import { trayStrings } from "$lib/tray-strings";
   import { agentPrompts } from "$lib/agent-prompts";
   import { get } from "svelte/store";
-  import { CORE_NAV_ITEMS, pluginIconForRoute, type NavItem } from "$lib/nav-config";
-  import { TOOLS, toolHref } from "$lib/tools/catalog";
-  import {
-    STUDY_FOCUS_ENABLED,
-    STUDY_PROGRESS_ENABLED,
-    STUDY_ACHIEVEMENTS_ENABLED,
-    STUDY_NOTES_ENABLED,
-  } from "$lib/study-feature-flags";
+  import { CORE_NAV_ITEMS, type NavItem } from "$lib/nav-config";
   import type { Snippet } from "svelte";
   import type { Component } from "svelte";
 
-  let pluginNavItems = $state<NavItem[]>([]);
 
   let coreNavItems = $derived(
     CORE_NAV_ITEMS.filter(
@@ -73,11 +65,9 @@
     )
   );
 
-  // Plugins are being removed (branch remove-plugins); their routes stay out of the sidebar.
   let allNav = $derived([...coreNavItems].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)));
   let primaryNav = $derived(allNav.filter((item) => item.group === "primary"));
   let appNav = $derived(allNav.filter((item) => item.group === "app"));
-  let pluginNav = $derived(allNav.filter((item) => item.group === "plugins"));
 
   let ytdlpDismissed = $state(false);
   let ytdlpMissing = $derived(isDepsChecked() && !isYtdlpAvailable());
@@ -111,13 +101,10 @@
     });
   });
 
-  let isStudyRoute = $derived(page.url.pathname.startsWith("/study"));
-  let isStreamPopout = false;
   // The pet window is a bare 200x200 transparent canvas: no shell around it.
   let isPetWindow = $derived(page.url.pathname === "/pet");
   // Same for the limits strip: the window is exactly as big as what it draws.
   let isLimitsStrip = $derived(page.url.pathname === "/limits-strip");
-  let hideAppSidebar = false;
   let isCoreRoute = $derived(
     page.url.pathname === "/" ||
     page.url.pathname.startsWith("/downloads") ||
@@ -156,35 +143,6 @@
     }
   }
 
-  function reloadPluginNav() {
-    invoke<{ id: string; enabled: boolean; nav: { route: string; label: Record<string, string>; icon_svg: string | null; group: string; order: number }[] }[]>("list_plugins")
-      .then((plugins) => {
-        const items: NavItem[] = [];
-        for (const p of plugins) {
-          if (!p.enabled) continue;
-          for (const n of p.nav) {
-            if (n.route === "/study/focus" && !STUDY_FOCUS_ENABLED) continue;
-            if (n.route === "/study/progress" && !STUDY_PROGRESS_ENABLED) continue;
-            if (n.route === "/study/achievements" && !STUDY_ACHIEVEMENTS_ENABLED) continue;
-            if (n.route === "/study/notes" && !STUDY_NOTES_ENABLED) continue;
-            const icon = pluginIconForRoute(n.route);
-            items.push({
-              href: n.route,
-              label: n.label[get(locale)] || n.label["en"] || p.id,
-              icon,
-              iconSvg: icon === "plugin" ? n.icon_svg || undefined : undefined,
-              group: "plugins",
-              pluginId: p.id,
-              order: n.order,
-            });
-          }
-        }
-        pluginNavItems = items;
-        buildCommandPaletteItems();
-      })
-      .catch(() => {});
-  }
-
   onMount(() => {
     initDownloadListener();
     // If `get_settings` failed while the shell was booting, the sidebar has no
@@ -195,9 +153,7 @@
       const retry = () => {
         if (getSettings() || attempts >= 5) return;
         attempts += 1;
-        loadSettings()
-          .then(() => reloadPluginNav())
-          .catch(() => setTimeout(retry, 1000 * attempts));
+        loadSettings().catch(() => setTimeout(retry, 1000 * attempts));
       };
       setTimeout(retry, 500);
     }
@@ -230,10 +186,8 @@
     refreshYtdlpStatus();
     refreshUpdateInfo();
     initChangelog();
-    reloadPluginNav();
 
     let unlistenExternalUrl: (() => void) | null = null;
-    let unlistenPlugins: (() => void) | null = null;
 
     listen<Omit<ExternalUrlEvent, "id">>("external-url-event", (event) => {
       handleExternalUrlEvent(event.payload);
@@ -241,15 +195,8 @@
       unlistenExternalUrl = un;
     });
 
-    listen("plugins-changed", () => {
-      reloadPluginNav();
-    }).then((un) => {
-      unlistenPlugins = un;
-    });
-
     return () => {
       if (unlistenExternalUrl) unlistenExternalUrl();
-      if (unlistenPlugins) unlistenPlugins();
     };
   });
 
@@ -276,22 +223,6 @@
         keywords: "preferences options config",
         action: () => goto("/settings"),
       },
-      {
-        id: "nav-tools",
-        label: get(t)("nav.tools"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "ferramentas tools utilities apps",
-        action: () => goto("/tools"),
-      },
-      // Cada ferramenta do catálogo entra na paleta com as mesmas
-      // palavras-chave da busca do hub, então ⌘K acha "instagram" também.
-      ...TOOLS.map((tool) => ({
-        id: `tool-${tool.id}`,
-        label: get(t)(`tools.catalog.${tool.id}.name`),
-        group: get(t)("tools.hub.title"),
-        keywords: [...tool.keywords, get(t)(`tools.categories.${tool.category}.name`)].join(" "),
-        action: () => goto(toolHref(tool)),
-      })),
       // Contas & cota: ⌘K troca a assinatura do CLI sem abrir a aba. Lê só o
       // estado já carregado, então não há IPC no boot.
       ...accountPaletteItems(
@@ -397,39 +328,15 @@
 
   let { children }: { children: Snippet } = $props();
 
-  const VACUUM_LAST_RUN_KEY = "study.library.auto_vacuum.last_run";
-
-  async function checkAutoVacuum() {
-    try {
-      const now = Date.now();
-      const lastRunStr = localStorage.getItem(VACUUM_LAST_RUN_KEY);
-      const lastRun = lastRunStr ? parseInt(lastRunStr, 10) : 0;
-
-      if (now - lastRun > 7 * 24 * 60 * 60 * 1000) {
-        await invoke("db_vacuum");
-        localStorage.setItem(VACUUM_LAST_RUN_KEY, String(now));
-      }
-    } catch {}
-  }
-
-  onMount(() => {
-    void checkAutoVacuum();
-  });
 </script>
 
 <svelte:window onkeydown={onSidebarShortcut} />
 
 {#if isPetWindow || isLimitsStrip}
   {@render children()}
-{:else if isStreamPopout}
-  <div class="stream-popout">
-    {@render children()}
-  </div>
 {:else}
 <div class="shell" data-reduce-motion={settings?.accessibility?.reduce_motion} data-reduce-transparency={settings?.accessibility?.reduce_transparency}>
-  {#if !hideAppSidebar}
-    <AppSidebar {primaryNav} {appNav} {pluginNav} {badgeLabel} badgeCount={counts.badge} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebar} />
-  {/if}
+  <AppSidebar {primaryNav} {appNav} {badgeLabel} badgeCount={counts.badge} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebar} />
 
   <div class="shell-body" style:--shell-bottom-inset={`${shellLayout.bottomInset}px`}>
     <AppToolbar />
@@ -457,11 +364,7 @@
 
     <main id="main-content" class="content" class:ds-scope={designScope} data-ds-preset={designScope ? workspaceDesign.preset : undefined} data-ds-mode={designScope ? workspaceDesign.resolvedMode : undefined}>
       <div class="mac-pane" class:mac-pane--flush={isFlushRoute}>
-        {#if isStudyRoute}
-          <div class="study-shell">
-            {@render children()}
-          </div>
-        {:else if isCoreRoute}
+        {#if isCoreRoute}
           <div class="core-shell" class:core-shell--flush={isFlushRoute}>
             {@render children()}
           </div>
@@ -473,9 +376,7 @@
       </div>
     </main>
 
-    {#if !hideAppSidebar}
-      <DownloadStatusBar />
-    {/if}
+    <DownloadStatusBar />
   </div>
 </div>
 {/if}
@@ -554,20 +455,6 @@
     overflow: hidden;
   }
 
-  .study-shell {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .stream-popout {
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-    background: var(--bg);
-  }
 
   .ytdlp-banner {
     display: flex;

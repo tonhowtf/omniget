@@ -64,9 +64,6 @@
     format_note: string | null;
   };
 
-  // Platforms whose content is downloaded via the Courses page (courses
-  // plugin + logged-in account), not from a pasted URL.
-  const COURSE_PLATFORMS = new Set(["hotmart", "udemy"]);
 
   let url = $state(getOmniboxDraftUrl());
   let homeInputMode = $state<HomeInputMode>("url");
@@ -150,15 +147,6 @@
   let errorCopied = $state(false);
   let mediaPreview = $derived(getMediaPreview());
   let dlStats = $derived(getDownloadStats());
-  let coursesPluginInstalled = $state<boolean | null>(null);
-
-  onMount(() => {
-    invoke<{ id: string; enabled: boolean }[]>("list_plugins")
-      .then((plugins) => {
-        coursesPluginInstalled = plugins.some((p) => p.id === "courses" && p.enabled);
-      })
-      .catch(() => {});
-  });
   let pendingExternalPrefill = $derived(getPendingExternalPrefill());
   let previewImageLoading = $state(true);
   let showP2pSendDialog = $state(false);
@@ -196,7 +184,7 @@
     if (!pendingAutoDownload) return;
     if (omniState.kind === "detected") {
       const info = omniState.info;
-      if (COURSE_PLATFORMS.has(info.platform) || info.platform === "p2p") {
+      if (info.platform === "p2p") {
         pendingAutoDownload = false;
         return;
       }
@@ -373,9 +361,7 @@
       const result = await invoke<PlatformInfo>("detect_platform", { url: value });
       if (result.supported) {
         omniState = { kind: "detected", info: result };
-        if (!COURSE_PLATFORMS.has(result.platform)) {
-          invoke("prefetch_media_info", { url: value }).catch(() => {});
-        }
+        invoke("prefetch_media_info", { url: value }).catch(() => {});
         loadCookieAccounts(value);
         if (result.content_type === "playlist") {
           loadPlaylistEntries(value);
@@ -599,11 +585,6 @@
   async function handleAction() {
     if (omniState.kind !== "detected") return;
     const info = omniState.info;
-
-    if (COURSE_PLATFORMS.has(info.platform)) {
-      goto(`/courses/${encodeURIComponent(info.platform)}`);
-      return;
-    }
 
     if (info.platform === "p2p") {
       const trimmed = url.trim();
@@ -1328,15 +1309,6 @@
             <button type="button" class="cookie-hint-link" onclick={() => goto("/settings?tab=cookies")}>{$t("omnibox.cookie_hint_action")}</button>
           </p>
         {/if}
-        {#if COURSE_PLATFORMS.has(omniState.info.platform)}
-          {#if coursesPluginInstalled === false}
-            <p class="course-upsell">{$t('omnibox.courses_plugin_needed')}</p>
-            <button class="download-primary-btn" onclick={() => goto("/settings?tab=plugins")}>{$t('omnibox.install_courses_plugin')}</button>
-          {:else}
-            <p class="course-upsell">{$t('omnibox.courses_plugin_ready')}</p>
-            <button class="download-primary-btn" onclick={handleAction}>{$t(omniState.info.platform === "udemy" ? 'omnibox.go_to_udemy' : 'omnibox.go_to_hotmart')}</button>
-          {/if}
-        {:else}
           {@const playlistBlocked = omniState.info.content_type === "playlist" && playlistEntries.length > 0 && selectedPlaylistItems.size === 0}
           {@const torrentBlocked = torrentEntries.length > 0 && selectedTorrentFiles.size === 0}
           {#if omniState.info.platform === "bilibili"}
@@ -1410,7 +1382,6 @@
               </div>
             </details>
           {/if}
-        {/if}
         {/if}
       </HomeInspector>
     </div>
@@ -1753,13 +1724,6 @@
     width: auto;
     flex: 0 1 auto;
     min-width: 5.4em;
-  }
-
-  .course-upsell {
-    margin: 0;
-    font-size: var(--text-base);
-    line-height: var(--leading-base);
-    color: var(--text-muted);
   }
 
   .cookie-hint {

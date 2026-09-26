@@ -83,14 +83,9 @@ jobs:
       - name: Build frontend
         run: pnpm build
 
-      # `--no-default-features` derruba `linux-capture`: os headers de PipeWire
-      # do 22.04 (0.3.48) nao compilam o `libspa` (mesma razao e mesma receita
-      # do `release.yml`, matriz `ubuntu-22.04`). Nada do mundo depende de
-      # captura de tela. Sem isto o job nem chega a medir: `cargo build` puro
-      # falha em `libspa` — verificado num container `ubuntu:22.04` local.
       - name: Build app
         working-directory: src-tauri
-        run: cargo build --no-default-features
+        run: cargo build
 
       # Versoes que entram no JSON. O app nao tem como perguntar isso a si
       # mesmo sem uma dependencia nova, entao o workflow mede e passa por

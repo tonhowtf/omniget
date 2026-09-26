@@ -877,12 +877,6 @@ pub async fn download_from_url(
 ) -> Result<DownloadStarted, String> {
     omniget_core::core::platform_optout::ensure_allowed(&url)?;
     let _timer_start = std::time::Instant::now();
-    let platform = Platform::from_url(&url);
-
-    if matches!(platform, Some(Platform::Hotmart) | Some(Platform::Udemy)) {
-        return Err("Course platforms can't be downloaded from a URL. Open the Courses page (requires the Courses plugin and a logged-in account).".to_string());
-    }
-
     let custom_ytdlp_args = match time_range.as_deref().map(str::trim) {
         Some(r) if !r.is_empty() && is_valid_time_range(r) => {
             Some(vec!["--download-sections".to_string(), format!("*{}", r)])

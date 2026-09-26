@@ -7,6 +7,7 @@ pub mod chat;
 pub mod help;
 pub mod help_redaction;
 pub mod jobs;
+pub mod keys;
 pub mod local;
 pub mod mcp;
 pub mod models;
@@ -143,19 +144,6 @@ pub fn spawn_telemetry_ticker(app: AppHandle) {
         }
         manager.release_telemetry_ticker();
     });
-}
-
-/// Forwards the typed bus to the webview: `ToolAsk` becomes `llm://tool-ask`
-/// and `Rerouted` becomes `llm://rerouted`; every event also feeds telemetry.
-///
-/// Started once, on the first command that has an `AppHandle`. It ends when the
-/// bus is dropped, which only happens with the app.
-pub fn spawn_bus_forwarder(app: AppHandle) {
-    let manager = app.state::<crate::AppState>().llm.clone();
-    if manager.claim_bus_forwarder() {
-        return;
-    }
-    spawn_bus_forwarder_claimed(app, manager);
 }
 
 /// The forwarder itself, for a caller that already claimed the slot.

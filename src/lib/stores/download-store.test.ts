@@ -258,22 +258,6 @@ describe("getAggregate", () => {
     }
   });
 
-  it("uses item progress when a course makes the aggregate byte total unknowable", () => {
-    store.syncQueueState([
-      queueItem(1, { speed_bytes_per_sec: 1000, downloaded_bytes: 200, total_bytes: 1000, eta_seconds: 5 }),
-    ]);
-    store.upsertProgress(77, "Some course", 30, "Module 1", "Page 2", 4096, 10, 3, 2, 0);
-
-    const agg = store.getAggregate();
-    expect(agg.activeCount).toBe(2);
-    expect(agg.totalBytes).toBeNull();
-    expect(agg.percent).toBe(15);
-    expect(agg.downloadedBytes).toBe(200 + 4096);
-    expect(agg.etaSeconds).toBeNull();
-
-    store.removeDownload(77);
-  });
-
   it("caps the aggregate speed history at the history limit", () => {
     let clock = Date.now();
     const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => clock);

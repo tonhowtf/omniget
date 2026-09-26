@@ -185,46 +185,6 @@ pub struct AccountsForUrlResponse {
     pub accounts: Vec<AccountEntry>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct CookieJsonEntry {
-    pub name: String,
-    pub value: String,
-    pub domain: String,
-    pub path: String,
-    pub secure: bool,
-    pub expires: i64,
-    #[serde(rename = "httpOnly")]
-    pub http_only: bool,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ReadAsJsonRequest {
-    pub domain: String,
-    #[serde(default)]
-    pub slug: Option<String>,
-}
-
-#[tauri::command]
-pub async fn cookies_read_as_json(
-    request: ReadAsJsonRequest,
-) -> Result<Vec<CookieJsonEntry>, String> {
-    let slug = request.slug.as_deref().unwrap_or(DEFAULT_SLUG);
-    let content = storage::read_account_file(&request.domain, slug).map_err(|e| e.to_string())?;
-    let parsed = parsers::parse_netscape(&content).map_err(|e| e.to_string())?;
-    Ok(parsed
-        .into_iter()
-        .map(|c| CookieJsonEntry {
-            name: c.name,
-            value: c.value,
-            domain: c.domain,
-            path: c.path,
-            secure: c.secure,
-            expires: c.expires,
-            http_only: c.http_only,
-        })
-        .collect())
-}
-
 #[tauri::command]
 pub async fn cookies_accounts_for_url(url: String) -> Result<AccountsForUrlResponse, String> {
     let parsed = url::Url::parse(&url).map_err(|e| e.to_string())?;

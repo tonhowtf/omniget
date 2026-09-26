@@ -322,23 +322,6 @@ pub async fn league_roll_ward() -> Result<i64, String> {
     roll_ward_and_apply(&client).await
 }
 
-/// What the champ select card shows: the selectable skins and the current pick.
-#[tauri::command]
-pub async fn league_skin_carousel() -> Result<Value, String> {
-    ensure_enabled()?;
-    let client = get_client().await?;
-    let carousel = lcu_get_raw(&client, "/lol-champ-select/v1/skin-carousel-skins").await?;
-    let selected = lcu_get_raw(&client, "/lol-champ-select/v1/session/my-selection")
-        .await
-        .ok()
-        .and_then(|s| s.get("selectedSkinId").and_then(Value::as_i64))
-        .unwrap_or(0);
-    Ok(json!({
-        "skins": selectable_skins(&carousel),
-        "selectedSkinId": selected,
-    }))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

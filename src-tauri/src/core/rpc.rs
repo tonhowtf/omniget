@@ -156,25 +156,6 @@ fn format_count_short(count: u64) -> String {
     }
 }
 
-fn redact(settings: &RpcSettings) -> Value {
-    let connected = match RPC.lock() {
-        Ok(g) => {
-            g.connected && !settings.app_id.is_empty() && g.connected_app_id == settings.app_id
-        }
-        Err(_) => false,
-    };
-    json!({
-        "enabled": settings.enabled,
-        "app_id": settings.app_id,
-        "large_image_key": settings.large_image_key,
-        "connected": connected,
-    })
-}
-
-pub fn settings_view(settings: &RpcSettings) -> Value {
-    redact(settings)
-}
-
 fn select_top_activity(state: &RpcState) -> Option<SourceActivity> {
     state
         .activities

@@ -84,25 +84,6 @@ pub struct RuleOutcome {
     pub tags: Vec<String>,
 }
 
-/// Resolve a regra para uma URL.
-///
-/// Retorna vazio quando nada casa — o caminho de quem nunca criou regra nenhuma,
-/// que e a maioria, e que nao pode pagar nada por isso.
-pub fn resolve_for(url: &str, platform: Option<&str>) -> RuleOutcome {
-    let rules = load_rules();
-    match first_match(&rules, url, platform) {
-        Some(r) => RuleOutcome {
-            rule_name: Some(r.name.clone()),
-            output_dir: r.then.output_dir.clone(),
-            quality: r.then.quality.clone(),
-            audio_only: r.then.audio_only,
-            subtitles: r.then.subtitles,
-            tags: r.then.tags.clone(),
-        },
-        None => RuleOutcome::default(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

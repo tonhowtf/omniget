@@ -12,7 +12,7 @@ import { chromium } from "playwright";
 import { spawn } from "node:child_process";
 
 const BASE = "http://localhost:1420";
-const ROUTES = (process.argv[2] || "/,/downloads,/marketplace,/settings,/_kitchen-sink").split(",");
+const ROUTES = (process.argv[2] || "/,/downloads,/settings,/_kitchen-sink").split(",");
 
 const SETTINGS = { schema_version: 1, appearance: { theme: "dark", language: "en" }, download: { default_output_dir: "/tmp", always_ask_path: false, video_quality: "1080p", skip_existing: true, download_attachments: false, download_descriptions: false, embed_metadata: true, embed_thumbnail: true, clipboard_detection: false, auto_download_on_paste: false, filename_template: "%(title)s.%(ext)s", organize_by_platform: true, download_subtitles: false, include_auto_subtitles: false, caption_locale: "en", keep_vtt: false, subtitle_format: "srt", embed_subtitles: false, keep_subtitle_files: true, skip_archived: false, continuous_lecture_numbers: false, translate_metadata: false, youtube_sponsorblock: false, sponsorblock_mode: "mark", sponsorblock_categories: [], split_by_chapters: false, live_from_start: false, speed_limit: "", hotkey_enabled: true, hotkey_binding: "CmdOrCtrl+Shift+D", music_hotkey_enabled: false, music_hotkey_binding: "", music_audio_format: "mp3", copy_to_clipboard_on_hotkey: false, cookie_file: "", always_use_managed_cookies: false, bilibili_danmaku_enabled: false, bilibili_danmaku_format: "ass", bilibili_container: "mp4", bilibili_nfo_enabled: false, bilibili_cover_sidecar: false, bilibili_cover_format: "jpg", bilibili_naming_video: "", bilibili_naming_multi_part: "", bilibili_naming_bangumi: "", bilibili_naming_cheese: "", bilibili_naming_collection: "", bilibili_cdn_hosts: "", bilibili_cdn_prefer_alternatives: false, bilibili_preferred_qn: 80, bilibili_preferred_codec: 7, bilibili_preferred_audio_qn: 30280 }, advanced: { max_concurrent_segments: 4, max_retries: 3, max_concurrent_downloads: 3, concurrent_fragments: 4, stagger_delay_ms: 500, torrent_listen_port: 6881, torrent_auto_trackers: true, torrent_upnp: true, prevent_sleep: true, cookies_from_browser: "", twitter_manual_cookie: "", user_agent: "" }, telegram: { concurrent_downloads: 2, fix_file_extensions: true }, rpc: { enabled: false, app_id: "", large_image_key: "" }, onboarding_completed: true, start_with_system: false, start_minimized: false, legal_acknowledged: true };
 
@@ -26,7 +26,7 @@ function initScript() {
           case "plugin:event|listen": { const cb = window["_" + args.handler]; if (cb) (listeners[args.event] ||= []).push(cb); return Promise.resolve(++id); }
           case "get_settings": return Promise.resolve(S);
           case "check_ytdlp_available": return Promise.resolve(true);
-          case "list_plugins": case "register_external_frontend": case "check_plugin_updates": case "get_download_history": case "check_dependencies": case "fetch_marketplace_registry": return Promise.resolve([]);
+          case "register_external_frontend": case "get_download_history": case "check_dependencies": return Promise.resolve([]);
           case "check_cookie_error": return Promise.resolve(false);
           case "plugin:app|version": return Promise.resolve("0.7.0");
           default: return Promise.resolve(null);

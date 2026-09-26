@@ -50,7 +50,6 @@
     "omniget_lib|clippy::useless_conversion": 1,
     "omniget_lib|clippy::useless_vec": 3,
     "omniget_lib|clippy::vec_init_then_push": 1,
-    "omniget_plugin_sdk|clippy::derivable_impls": 1,
     "omniget-cli|dead_code": 7,
     "omniget-cli|unused_imports": 1
   }

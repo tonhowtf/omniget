@@ -48,26 +48,13 @@ const DEFAULT_ROUTES = [
   "/_kitchen-sink",
   "/",
   "/downloads",
-  "/marketplace",
   "/settings",
   "/about",
   "/about/changelog",
   "/about/project",
   "/about/terms",
   "/about/privacy",
-  "/courses",
-  "/convert",
-  "/telegram",
-  "/misc",
-  "/misc/studio",
-  "/misc/library",
   "/misc/file-clip",
-  "/study",
-  "/study/player",
-  "/study/read",
-  "/study/library",
-  "/study/music",
-  "/study/watch",
 ];
 
 const ROUTES = argOf("routes") ? argOf("routes").split(",") : DEFAULT_ROUTES;
@@ -153,35 +140,6 @@ const SETTINGS = {
   last_download_options: { mode: "auto", quality: "1080p" },
 };
 
-const navLabel = (en) => ({ en });
-const PLUGINS = [
-  {
-    id: "courses", name: "Courses", version: "1.4.0", description: "Download courses", author: "tonhowtf",
-    enabled: true, loaded: true, icon: null, load_error: null,
-    nav: [{ route: "/courses", label: navLabel("Courses"), icon_svg: null, group: "plugins", order: 10 }],
-  },
-  {
-    id: "study", name: "Study", version: "2.1.0", description: "Reader, player, notes", author: "tonhowtf",
-    enabled: true, loaded: true, icon: null, load_error: null,
-    nav: [{ route: "/study", label: navLabel("Study"), icon_svg: null, group: "plugins", order: 20 }],
-  },
-  {
-    id: "telegram", name: "Telegram", version: "1.2.0", description: "Telegram downloads", author: "tonhowtf",
-    enabled: true, loaded: true, icon: null, load_error: null,
-    nav: [{ route: "/telegram", label: navLabel("Telegram"), icon_svg: null, group: "plugins", order: 30 }],
-  },
-  {
-    id: "convert", name: "Convert", version: "1.0.3", description: "Media conversion", author: "tonhowtf",
-    enabled: true, loaded: true, icon: null, load_error: null,
-    nav: [{ route: "/convert", label: navLabel("Convert"), icon_svg: null, group: "plugins", order: 40 }],
-  },
-  {
-    id: "misc", name: "Utilities", version: "1.1.0", description: "Studio, clips, library", author: "tonhowtf",
-    enabled: true, loaded: true, icon: null, load_error: null,
-    nav: [{ route: "/misc", label: navLabel("Utilities"), icon_svg: null, group: "plugins", order: 50 }],
-  },
-];
-
 const now = Math.floor(Date.now() / 1000);
 const HISTORY = [
   { id: 101, url: "https://www.youtube.com/watch?v=abc123", platform: "youtube", title: "Building a Desktop App with Tauri 2 — Full Walkthrough", file_path: "/Users/demo/Downloads/OmniGet/YouTube/tauri-walkthrough.mp4", file_size_bytes: 734003200, total_bytes: 734003200, success: true, error: null, completed_at: now - 3600, thumbnail_url: null, kind: "video" },
@@ -200,21 +158,13 @@ const QUEUE = [
   { id: 4, url: "https://www.youtube.com/watch?v=priv1", platform: "youtube", title: "Members-only masterclass", status: { type: "Error", data: { message: "ERROR: [youtube] priv1: Private video. Sign in if you've been granted access", retryable: false } }, percent: 0, speed_bytes_per_sec: 0, downloaded_bytes: 0, total_bytes: null, file_path: null, file_size_bytes: null, file_count: null, thumbnail_url: null, eta_seconds: null, kind: "video", author: "Masterclass Co.", command: { program: "yt-dlp", args: [], display: "yt-dlp -f 'bv*+ba[ext=m4a]/bv*+ba/b' --ignore-config -N 8 --extractor-args 'youtube:player_client=ios;formats=dashy' --cookies '/Users/demo/Library/Application Support/wtf.tonho.omniget/cookies/youtube.txt' -o '/Users/demo/Downloads/OmniGet/%(title).200s [%(id)s].%(ext)s' https://www.youtube.com/watch?v=priv1", attempt: 3, max_attempts: 3, player_client: "ios", connections: 8, engine: "native", overridden: false } },
 ];
 
-const REGISTRY = [
-  { id: "courses", name: "Courses", description: "Download from Hotmart, Udemy and Rocketseat.", author: "tonhowtf", repo: "tonhowtf/omniget-plugin-courses", homepage: null, tags: ["courses", "education"], official: true, capabilities: ["nav"], installed: true, installed_version: "1.4.0" },
-  { id: "study", name: "Study", description: "Reader, player, notes, flashcards and focus tools.", author: "tonhowtf", repo: "tonhowtf/omniget-study", homepage: null, tags: ["study", "reader"], official: true, capabilities: ["nav"], installed: true, installed_version: "2.1.0" },
-  { id: "telegram", name: "Telegram", description: "Browse and batch-download from Telegram chats.", author: "tonhowtf", repo: "tonhowtf/omniget-plugin-telegram", homepage: null, tags: ["telegram"], official: true, capabilities: ["nav"], installed: true, installed_version: "1.2.0" },
-  { id: "convert", name: "Convert", description: "FFmpeg conversions with GPU acceleration.", author: "tonhowtf", repo: "tonhowtf/omniget-plugin-convert", homepage: null, tags: ["ffmpeg", "convert"], official: true, capabilities: ["nav"], installed: true, installed_version: "1.0.3" },
-  { id: "misc", name: "Utilities", description: "Screen recording studio, file clips and media library.", author: "tonhowtf", repo: "tonhowtf/omniget-plugin-misc", homepage: null, tags: ["studio", "library"], official: true, capabilities: ["nav"], installed: false, installed_version: null },
-];
-
 const DEPS = [
   { name: "yt-dlp", installed: true, version: "2026.07.10" },
   { name: "ffmpeg", installed: true, version: "7.1" },
   { name: "pdfium", installed: false, version: null },
 ];
 
-const FIXTURES = { SETTINGS, PLUGINS, HISTORY, QUEUE, REGISTRY, DEPS };
+const FIXTURES = { SETTINGS, HISTORY, QUEUE, DEPS };
 
 function initScript(theme) {
   return `(() => {
@@ -243,16 +193,12 @@ function initScript(theme) {
         case "plugin:updater|check": return null;
         case "get_settings": return F.SETTINGS;
         case "save_settings": return null;
-        case "list_plugins": return F.PLUGINS;
         case "check_ytdlp_available": return true;
         case "register_external_frontend": return [];
         case "check_cookie_error": return false;
         case "get_download_history": return F.HISTORY;
         case "check_dependencies": return F.DEPS;
-        case "fetch_marketplace_registry": return F.REGISTRY;
-        case "check_plugin_updates": return [];
         case "rpc_set_idle_stats": return null;
-        case "plugin_command": return null;
         case "get_download_log": return args && args.downloadId === 1
           ? ["[omniget] $ yt-dlp -f 'bv*[height<=1080]+ba' … https://www.youtube.com/watch?v=live1", "[youtube] live1: Downloading webpage", "[info] live1: Downloading 2 format(s): 299+140", "[dashsegments] Total fragments: 25", "[download] Destination: Conference Keynote 2026.f299.mp4"]
           : args && args.downloadId === 4

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use omniget_core::platforms::bilibili::api::ApiClient;
-use omniget_core::platforms::bilibili::auth::{self, qr, sms};
+use omniget_core::platforms::bilibili::auth::{self, qr};
 use omniget_core::platforms::bilibili::parser;
 use omniget_core::platforms::bilibili::preview;
 use omniget_core::platforms::bilibili::url_kind::{self, UrlKind};
@@ -106,47 +106,6 @@ pub async fn bilibili_qr_poll(
     qr::poll(&client, &qrcode_key)
         .await
         .map_err(|e| e.i18n_key().to_string())
-}
-
-#[tauri::command]
-pub async fn bilibili_captcha_challenge(
-    user_agent: Option<String>,
-) -> Result<auth::captcha::CaptchaChallenge, String> {
-    let client = build_anonymous_client(user_agent)?;
-    auth::captcha::request_challenge(&client)
-        .await
-        .map_err(|e| e.i18n_key().to_string())
-}
-
-#[tauri::command]
-pub async fn bilibili_sms_send(
-    input: sms::SmsSendInput,
-    user_agent: Option<String>,
-) -> Result<sms::SmsSendResult, String> {
-    let client = build_anonymous_client(user_agent)?;
-    sms::send(&client, input)
-        .await
-        .map_err(|e| e.i18n_key().to_string())
-}
-
-#[tauri::command]
-pub async fn bilibili_sms_verify(
-    input: sms::SmsVerifyInput,
-    user_agent: Option<String>,
-) -> Result<sms::SmsVerifyResult, String> {
-    let client = build_anonymous_client(user_agent)?;
-    sms::verify(&client, input)
-        .await
-        .map_err(|e| e.i18n_key().to_string())
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BilibiliAccountStatus {
-    pub logged_in: bool,
-    pub slug: Option<String>,
-    pub uname: Option<String>,
-    pub mid: Option<u64>,
-    pub is_vip: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -328,41 +287,4 @@ pub async fn bilibili_import_history(slug: Option<String>) -> Result<BilibiliImp
     let slug =
         resolve_account_slug(slug).ok_or_else(|| "errors.bilibili.not_logged_in".to_string())?;
     run_import(slug, UrlKind::History).await
-}
-
-#[tauri::command]
-pub async fn bilibili_account_status(
-    slug: Option<String>,
-) -> Result<BilibiliAccountStatus, String> {
-    let resolved = resolve_account_slug(slug);
-    let client = match resolved.as_deref() {
-        Some(s) => ApiClient::new()
-            .map_err(|e| e.i18n_key().to_string())?
-            .with_account(s),
-        None => {
-            return Ok(BilibiliAccountStatus {
-                logged_in: false,
-                slug: None,
-                uname: None,
-                mid: None,
-                is_vip: false,
-            });
-        }
-    };
-    match auth::fetch_account_info(&client).await {
-        Ok(info) => Ok(BilibiliAccountStatus {
-            logged_in: true,
-            slug: resolved,
-            uname: Some(info.uname),
-            mid: Some(info.mid),
-            is_vip: info.is_vip,
-        }),
-        Err(_) => Ok(BilibiliAccountStatus {
-            logged_in: false,
-            slug: None,
-            uname: None,
-            mid: None,
-            is_vip: false,
-        }),
-    }
 }

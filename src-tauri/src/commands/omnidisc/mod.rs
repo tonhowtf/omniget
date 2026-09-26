@@ -1,36 +1,10 @@
-pub mod device;
-pub mod ducking;
-pub mod gateway;
 pub mod http;
-pub mod mls;
 pub mod store;
-pub mod stream;
-pub mod upload;
-pub mod voice;
-
-use serde::Serialize;
-use serde_json::Value;
-use std::time::Duration;
 
 pub const ERR_INVALID_URL: &str =
     "OmniDisc: invalid instance URL. Use http:// or https:// without a username or password.";
 pub const ERR_UNREACHABLE: &str =
     "OmniDisc: the server did not respond. Check the address or ask the owner for a new link.";
-pub const ERR_NOT_AN_INSTANCE: &str = "OmniDisc: this address is not an OmniDisc server.";
-
-#[derive(Serialize)]
-pub struct ConnectResult {
-    pub url: String,
-    pub recognized: bool,
-    /// The session token and every message travel in the clear on this
-    /// instance. Plain `http://` still works — a lot of self-hosting starts on
-    /// a LAN — but the UI has to say so instead of showing the same padlock as
-    /// everyone else.
-    pub insecure: bool,
-    pub instance: Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub invite: Option<String>,
-}
 
 /// Loopback traffic never leaves the machine, so `http://localhost` is not the
 /// thing this flag is warning about.
@@ -77,61 +51,6 @@ pub fn normalize_instance_url(raw: &str) -> Result<String, String> {
         base.pop();
     }
     Ok(base)
-}
-
-#[tauri::command]
-pub async fn omnidisc_connect(url: String, invite: Option<String>) -> Result<Value, String> {
-    let base = normalize_instance_url(&url)?;
-    let endpoint = format!("{}/api/instance", base);
-
-    let client = crate::core::http_client::apply_global_proxy(
-        reqwest::Client::builder()
-            .user_agent("OmniGet")
-            .timeout(Duration::from_secs(10)),
-    )
-    .build()
-    .map_err(|e| format!("OmniDisc: could not build HTTP client: {}", e))?;
-
-    let response = client.get(&endpoint).send().await.map_err(|e| {
-        tracing::warn!("[omnidisc] {} unreachable: {}", base, e);
-        ERR_UNREACHABLE.to_string()
-    })?;
-
-    if !response.status().is_success() {
-        tracing::warn!("[omnidisc] {} answered {}", endpoint, response.status());
-        return Err(ERR_NOT_AN_INSTANCE.to_string());
-    }
-
-    let body: Value = response.json().await.map_err(|e| {
-        tracing::warn!("[omnidisc] {} returned non-JSON body: {}", endpoint, e);
-        ERR_NOT_AN_INSTANCE.to_string()
-    })?;
-
-    let (recognized, instance) =
-        match serde_json::from_value::<omnidisc_proto::gateway::InstanceInfo>(body.clone()) {
-            Ok(info) => (true, serde_json::to_value(info).unwrap_or(body)),
-            Err(_) => (false, body),
-        };
-
-    let invite = invite
-        .map(|i| i.trim().to_string())
-        .filter(|i| !i.is_empty());
-
-    let insecure = is_insecure_instance_url(&base);
-    if insecure {
-        tracing::warn!(
-            "[omnidisc] {} is plain http; the session token travels in the clear",
-            base
-        );
-    }
-    serde_json::to_value(ConnectResult {
-        url: base,
-        recognized,
-        insecure,
-        instance,
-        invite,
-    })
-    .map_err(|e| format!("OmniDisc: could not serialize response: {}", e))
 }
 
 #[cfg(test)]

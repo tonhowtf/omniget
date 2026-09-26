@@ -13,7 +13,7 @@
   import { refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
   import { isDebugEnabled, setDebugEnabled, setDebugPanelOpen } from "$lib/stores/debug-store.svelte";
   import ContextHint from "$components/hints/ContextHint.svelte";
-  import SettingsPlugins from "$components/settings/SettingsPlugins.svelte";
+  import SettingsDependencies from "$components/settings/SettingsDependencies.svelte";
   import SettingsAdvanced from "$components/settings/SettingsAdvanced.svelte";
   import SettingsRules from "$components/settings/SettingsRules.svelte";
   import SettingsStorage from "$components/settings/SettingsStorage.svelte";
@@ -160,7 +160,7 @@
     await updateSettings({ download: { video_quality: value } });
   }
 
-  type SettingsCategory = "downloads" | "appearance" | "profile" | "typography" | "network" | "cookies" | "channels" | "ai" | "world" | "plugins" | "advanced";
+  type SettingsCategory = "downloads" | "appearance" | "profile" | "typography" | "network" | "cookies" | "channels" | "ai" | "world" | "dependencies" | "advanced";
 
   const SETTINGS_NAV_GROUPS: {
     labelKey: string;
@@ -186,7 +186,7 @@
         ["channels", "settings.cat_channels"],
         ["ai", "settings.cat_ai"],
         ["world", "settings.cat_world"],
-        ["plugins", "settings.cat_plugins"],
+        ["dependencies", "settings.dependencies.title"],
       ],
     },
     {
@@ -199,7 +199,7 @@
 
   $effect(() => {
     const tab = page.url.searchParams.get("tab");
-    const valid = ["downloads", "appearance", "profile", "typography", "network", "cookies", "channels", "ai", "world", "plugins", "advanced"];
+    const valid = ["downloads", "appearance", "profile", "typography", "network", "cookies", "channels", "ai", "world", "dependencies", "advanced"];
     activeCategory = tab && valid.includes(tab) ? tab as SettingsCategory : "downloads";
   });
 
@@ -361,7 +361,7 @@
     cookies: "M12 3a9 9 0 1 0 9 9 3 3 0 0 1-3-3 3 3 0 0 1-3-3 3 3 0 0 1-3-3zM8 12h.01M12 16h.01M9 8h.01M15 13h.01",
     channels: "M4 6h16v12H4zM4 10h16M9 14h6",
     ai: "M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z",
-    plugins: "M9 3h6v2.5a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2zM6 7h12a2 2 0 0 1 2 2v4h-2a2 2 0 1 0 0 4h2v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2h2a2 2 0 1 0 0-4H4V9a2 2 0 0 1 2-2z",
+    dependencies: "M9 3h6v2.5a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2zM6 7h12a2 2 0 0 1 2 2v4h-2a2 2 0 1 0 0 4h2v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2h2a2 2 0 1 0 0-4H4V9a2 2 0 0 1 2-2z",
     advanced: "M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6",
   };
 
@@ -589,9 +589,9 @@
       </div>
     {/if}
 
-    {#if isSearching || activeCategory === "plugins"}
-      <div class="settings-panel" data-settings-cat="plugins">
-        <SettingsPlugins
+    {#if isSearching || activeCategory === "dependencies"}
+      <div class="settings-panel" data-settings-cat="dependencies">
+        <SettingsDependencies
           {deps}
           {installingDep}
           onInstallDep={handleInstallDep}

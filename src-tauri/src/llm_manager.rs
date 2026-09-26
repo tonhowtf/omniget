@@ -1898,11 +1898,6 @@ pub fn build_provider_with(id: &ProviderId, capture: bool) -> Option<Arc<dyn Pro
     })
 }
 
-/// Error for an unknown model on the bridge.
-pub fn unknown_model_error(model: &str) -> LlmError {
-    LlmError::new(ERR_LLM_MODEL, format!("unknown model {model}"))
-}
-
 /// Collects a turn stream into the final answer, for callers that do not
 /// stream (the bridge without `stream: true`).
 pub async fn collect_answer(
@@ -2348,7 +2343,7 @@ mod tests {
     #[test]
     fn mcp_specs_are_not_empty_and_carry_schemas() {
         let specs = mcp_specs();
-        assert!(specs.len() >= 30, "only {} specs", specs.len());
+        assert!(specs.len() >= 20, "only {} specs", specs.len());
         assert!(specs.iter().all(|s| s.input_schema.is_object()));
     }
 

@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "omniget-core", "omniget-plugin-sdk", "omniget-cli", "omnidisc-proto", "omnidisc-media", "omnidisc-mls", "omniget-world-tools", "omniget-world", "omniworld-server"]
+members = [".", "omniget-core", "omniget-cli", "omnidisc-proto", "omnidisc-mls", "omniget-world-tools", "omniget-world", "omniworld-server"]
 resolver = "2"
 
 [package]
@@ -21,13 +21,6 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
-[features]
-default = ["linux-capture"]
-# Off for the x86_64 Linux release, whose runner has PipeWire headers older than
-# the capture backend can compile against. Everything else in the client is
-# unaffected, and `MediaCapabilities` reports the loss rather than hiding it.
-linux-capture = ["omnidisc-media/linux-capture"]
-
 [dependencies]
 tauri = { version = "2", features = ["protocol-asset", "tray-icon", "macos-private-api"] }
 tauri-plugin-shell = "2"
@@ -42,7 +35,6 @@ async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 regex = "1"
-m3u8-rs = "6"
 aes = "0.8"
 cbc = "0.1"
 anyhow = "1"
@@ -63,25 +55,15 @@ urlencoding = "2"
 rand = "0.10.0"
 rusqlite = { version = "0.32", features = ["bundled"] }
 base64 = "0.22.1"
-filetime = "0.2.27"
 zip = { version = "2", default-features = false, features = ["deflate"] }
-tar = "0.4"
-xz2 = { version = "0.1", features = ["static"] }
 sha2 = "0.10"
-md-5 = "0.10"
-murmur3 = "0.5"
 hex = "0.4"
-thiserror = "1"
 hmac = "0.12"
-qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 open = "5"
 omniget-core = { path = "omniget-core", features = ["desktop"] }
-omniget-plugin-sdk = { path = "omniget-plugin-sdk" }
 omnidisc-proto = { path = "omnidisc-proto" }
-omnidisc-media = { path = "omnidisc-media", default-features = false, features = ["rnnoise"] }
 omnidisc-mls = { path = "omnidisc-mls" }
 omniget-world = { path = "omniget-world" }
-libloading = "0.8"
 which = "7"
 librqbit = "8.1.1"
 keepawake = "0.5"

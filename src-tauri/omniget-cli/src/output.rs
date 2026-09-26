@@ -16,9 +16,3 @@ pub fn print_json<T: serde::Serialize>(value: &T) {
         Err(e) => eprintln!("JSON serialization error: {}", e),
     }
 }
-
-pub fn print_text(text: &str) {
-    if !is_json_mode() {
-        println!("{}", text);
-    }
-}

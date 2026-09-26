@@ -22,11 +22,6 @@ use async_trait::async_trait;
 use serde::Serialize;
 use serde_json::{json, Value};
 
-use crate::core::tools::{
-    self as tools, ai_keys, disk, dupes, edge_tts, file_search, humanize, image_resize, ocr, pdf,
-    pricing, ryd, sponsorblock, startup, sysclean, uninstall, whisper, x,
-};
-
 use super::types::ToolSpec;
 
 /// The future a [`ToolImpl::Core`] call returns. Boxed so the table can hold
@@ -80,11 +75,9 @@ pub struct ToolEntry {
     pub description: &'static str,
     pub input_schema: Value,
     pub call: ToolImpl,
-    /// The Tools section category this belongs to (`catalog.ts` category id).
+    /// The group this tool belongs to (help, code, downloads).
     pub category: &'static str,
     pub cost_hint: CostHint,
-    /// The `catalog.ts` entry the UI can link to, when the tool has a page.
-    pub catalog_id: Option<&'static str>,
 }
 
 impl ToolEntry {
@@ -150,19 +143,6 @@ pub fn to_json<T: Serialize>(v: T) -> Result<Value, String> {
     serde_json::to_value(v).map_err(|e| e.to_string())
 }
 
-fn err<E: std::fmt::Display>(e: E) -> String {
-    e.to_string()
-}
-
-fn or_default(v: &Value, k: &str, default: &str) -> String {
-    let value = s(v, k);
-    if value.is_empty() {
-        default.to_string()
-    } else {
-        value
-    }
-}
-
 /// The queue status keys the downloads tools accept, and the ones
 /// `QueueStatus` serialises to. The app asserts both sides still match.
 pub const QUEUE_STATUS_KEYS: &[&str] =
@@ -178,7 +158,6 @@ fn entry(
     call: ToolImpl,
     category: &'static str,
     cost_hint: CostHint,
-    catalog_id: Option<&'static str>,
 ) -> ToolEntry {
     ToolEntry {
         name,
@@ -187,7 +166,6 @@ fn entry(
         call,
         category,
         cost_hint,
-        catalog_id,
     }
 }
 
@@ -199,50 +177,50 @@ fn core(f: CoreCall) -> ToolImpl {
 fn build() -> Vec<ToolEntry> {
     use CostHint::{Cheap, Local, Network, Paid};
     vec![
-        entry("help_connection_check", "Check local installation evidence without login or paid requests. Unknown authentication is not success.", obj(json!({"connectionId":{"type":"string"}}), &["connectionId"]), ToolImpl::Host, "help", Local, None),
-        entry("help_diagnostic_run", "Run a selected, allowlisted local check. Never runs a paid model probe.", obj(json!({"checkId":{"type":"string","enum":["connection","documentation"]},"targetId":{"type":"string"},"locale":{"type":"string"}}), &["checkId"]), ToolImpl::Host, "help", Local, None),
-        entry("help_docs_search", "Search bundled OmniGet help. Returns versioned citation sources.", obj(json!({"query":{"type":"string"},"locale":{"type":"string"},"limit":{"type":"integer","maximum":8}}), &["query"]), ToolImpl::Host, "help", Cheap, None),
-        entry("help_docs_read", "Read a bundled OmniGet help article.", obj(json!({"articleId":{"type":"string"},"locale":{"type":"string"}}), &["articleId"]), ToolImpl::Host, "help", Cheap, None),
-        entry("help_setup_inspect", "Inspect sanitized agent connections without secrets or network calls.", obj(json!({}), &[]), ToolImpl::Host, "help", Cheap, None),
-        entry("help_agent_plan", "Plan a new agent or edit an existing agent name/connection. New agents have no tools; edits preserve permissions. Does not save.", obj(json!({"sourceAgentId":{"type":"string"},"name":{"type":"string"},"agentId":{"type":"string"}}), &["sourceAgentId", "name"]), ToolImpl::Host, "help", Cheap, None),
-        entry("help_agent_apply", "Apply a previously reviewed agent plan idempotently. Requires the exact revision.", obj(json!({"planId":{"type":"string"},"expectedRevision":{"type":"string"},"idempotencyKey":{"type":"string"}}), &["planId", "expectedRevision", "idempotencyKey"]), ToolImpl::Host, "help", Cheap, None),
+        entry("help_connection_check", "Check local installation evidence without login or paid requests. Unknown authentication is not success.", obj(json!({"connectionId":{"type":"string"}}), &["connectionId"]), ToolImpl::Host, "help", Local),
+        entry("help_diagnostic_run", "Run a selected, allowlisted local check. Never runs a paid model probe.", obj(json!({"checkId":{"type":"string","enum":["connection","documentation"]},"targetId":{"type":"string"},"locale":{"type":"string"}}), &["checkId"]), ToolImpl::Host, "help", Local),
+        entry("help_docs_search", "Search bundled OmniGet help. Returns versioned citation sources.", obj(json!({"query":{"type":"string"},"locale":{"type":"string"},"limit":{"type":"integer","maximum":8}}), &["query"]), ToolImpl::Host, "help", Cheap),
+        entry("help_docs_read", "Read a bundled OmniGet help article.", obj(json!({"articleId":{"type":"string"},"locale":{"type":"string"}}), &["articleId"]), ToolImpl::Host, "help", Cheap),
+        entry("help_setup_inspect", "Inspect sanitized agent connections without secrets or network calls.", obj(json!({}), &[]), ToolImpl::Host, "help", Cheap),
+        entry("help_agent_plan", "Plan a new agent or edit an existing agent name/connection. New agents have no tools; edits preserve permissions. Does not save.", obj(json!({"sourceAgentId":{"type":"string"},"name":{"type":"string"},"agentId":{"type":"string"}}), &["sourceAgentId", "name"]), ToolImpl::Host, "help", Cheap),
+        entry("help_agent_apply", "Apply a previously reviewed agent plan idempotently. Requires the exact revision.", obj(json!({"planId":{"type":"string"},"expectedRevision":{"type":"string"},"idempotencyKey":{"type":"string"}}), &["planId", "expectedRevision", "idempotencyKey"]), ToolImpl::Host, "help", Cheap),
         // ── Coding harness (core/llm/code_tools.rs): confined to the workspace ──
         entry("fs_read", "Read a text file of the workspace with line numbers. A directory path lists it. Use offset/limit for long files.",
             obj(json!({ "path": { "type": "string" }, "offset": { "type": "integer", "minimum": 1 }, "limit": { "type": "integer", "minimum": 1 } }), &["path"]),
-            core(|a| Box::pin(async move { super::code_tools::fs_read(&a) })), "code", Local, None),
+            core(|a| Box::pin(async move { super::code_tools::fs_read(&a) })), "code", Local),
         entry("fs_list", "List files and folders of the workspace (skips .git, node_modules, target).",
             obj(json!({ "path": { "type": "string" }, "depth": { "type": "integer", "minimum": 1, "maximum": 8 } }), &[]),
-            core(|a| Box::pin(async move { super::code_tools::fs_list(&a) })), "code", Local, None),
+            core(|a| Box::pin(async move { super::code_tools::fs_list(&a) })), "code", Local),
         entry("fs_glob", "Find files by glob pattern (e.g. **/*.rs, src/**/*.{ts,svelte}).",
             obj(json!({ "pattern": { "type": "string" }, "path": { "type": "string" } }), &["pattern"]),
-            core(|a| Box::pin(async move { super::code_tools::fs_glob(&a) })), "code", Local, None),
+            core(|a| Box::pin(async move { super::code_tools::fs_glob(&a) })), "code", Local),
         entry("fs_grep", "Search file contents by regex; returns path:line: text.",
             obj(json!({ "pattern": { "type": "string" }, "path": { "type": "string" }, "include": { "type": "string" }, "literal_text": { "type": "boolean" } }), &["pattern"]),
-            core(|a| Box::pin(async move { super::code_tools::fs_grep(&a) })), "code", Local, None),
+            core(|a| Box::pin(async move { super::code_tools::fs_grep(&a) })), "code", Local),
         entry("fs_edit", "Replace old_string with new_string in a file. old_string must match exactly one place unless replace_all is true. Empty old_string creates a new file.",
             obj(json!({ "path": { "type": "string" }, "old_string": { "type": "string" }, "new_string": { "type": "string" }, "replace_all": { "type": "boolean" } }), &["path", "old_string", "new_string"]),
-            core(|a| Box::pin(async move { super::code_tools::fs_edit(&a) })), "code", Local, None),
+            core(|a| Box::pin(async move { super::code_tools::fs_edit(&a) })), "code", Local),
         entry("fs_write", "Create or overwrite a whole file.",
             obj(json!({ "path": { "type": "string" }, "content": { "type": "string" } }), &["path", "content"]),
-            core(|a| Box::pin(async move { super::code_tools::fs_write(&a) })), "code", Local, None),
+            core(|a| Box::pin(async move { super::code_tools::fs_write(&a) })), "code", Local),
         entry("fs_apply_patch", "Apply a multi-file patch in the '*** Begin Patch' envelope (*** Add File / *** Update File with @@ hunks of ' ', '-', '+' lines / *** Delete File / *** End Patch).",
             obj(json!({ "patch": { "type": "string" } }), &["patch"]),
-            core(|a| Box::pin(async move { super::code_tools::fs_apply_patch(&a) })), "code", Local, None),
+            core(|a| Box::pin(async move { super::code_tools::fs_apply_patch(&a) })), "code", Local),
         entry("shell_exec", "Run a shell command inside the workspace. Sandboxed on macOS: writes only inside the workspace, no network. Runs at the workspace root; paths are relative to it and workdir (optional) is a folder relative to it. Say what the command does in description.",
             obj(json!({ "command": { "type": "string" }, "description": { "type": "string" }, "workdir": { "type": "string" }, "timeout_ms": { "type": "integer", "minimum": 1000 } }), &["command", "description"]),
-            core(|a| Box::pin(async move { super::code_tools::shell_exec(a).await })), "code", Local, None),
+            core(|a| Box::pin(async move { super::code_tools::shell_exec(a).await })), "code", Local),
         entry("todo_write", "Publish or update the plan for the task: a list of steps with status pending, in_progress or completed.",
             obj(json!({ "plan": { "type": "array", "items": { "type": "object", "properties": { "step": { "type": "string" }, "status": { "type": "string", "enum": ["pending", "in_progress", "completed"] } }, "required": ["step", "status"] } }, "explanation": { "type": "string" } }), &["plan"]),
-            core(|a| Box::pin(async move { super::code_tools::todo_write(&a) })), "code", Local, None),
+            core(|a| Box::pin(async move { super::code_tools::todo_write(&a) })), "code", Local),
         entry("kb_search", "Search the project knowledge base (.omniget/kb, markdown notes written by the team of agents): decisions, conventions, how things are run, what was already tried. Search before you explore a codebase you were in before.",
             obj(json!({ "query": { "type": "string" }, "limit": { "type": "integer", "minimum": 1, "maximum": 20 } }), &["query"]),
-            core(|a| Box::pin(async move { super::kb::kb_search(a).await })), "code", Cheap, None),
+            core(|a| Box::pin(async move { super::kb::kb_search(a).await })), "code", Cheap),
         entry("kb_write", "Save a note to the project knowledge base so the next agent (or you, tomorrow) does not rediscover it: a decision and its reason, a command that works, a trap. One topic per note; `append` adds to an existing note with the same title.",
             obj(json!({ "title": { "type": "string" }, "content": { "type": "string", "description": "markdown" }, "append": { "type": "boolean" } }), &["title", "content"]),
-            core(|a| Box::pin(async move { super::kb::kb_write(&a) })), "code", Cheap, None),
+            core(|a| Box::pin(async move { super::kb::kb_write(&a) })), "code", Cheap),
         entry("agent_delegate", "Hand a self-contained sub-task to another agent of the roster and get its final answer back. The other agent works in the same workspace, with its own tools and budget. Use it for work that fits another role better or can be isolated.",
             obj(json!({ "agent_id": { "type": "string", "description": "id of the roster agent" }, "task": { "type": "string", "description": "everything the other agent needs to know; it does not see this conversation" } }), &["agent_id", "task"]),
-            ToolImpl::Host, "code", Paid, None),
+            ToolImpl::Host, "code", Paid),
         entry(
             "download_url",
             "Queue a URL (video, audio, playlist, course, image) in the OmniGet Downloads panel. Same as pasting it in the app.",
@@ -250,446 +228,6 @@ fn build() -> Vec<ToolEntry> {
             ToolImpl::Host,
             "downloads",
             Network,
-            None,
-        ),
-        entry(
-            "youtube_sponsorblock",
-            "SponsorBlock segments (sponsor, intro, outro, selfpromo…) of a YouTube video.",
-            obj(json!({ "url": { "type": "string" }, "categories": { "type": "array", "items": { "type": "string" } } }), &["url"]),
-            core(|a| Box::pin(async move {
-                to_json(sponsorblock::segments(&s(&a, "url"), &list(&a, "categories")).await.map_err(err)?)
-            })),
-            "youtube",
-            Network,
-            Some("yt-sponsorblock"),
-        ),
-        entry(
-            "youtube_dislikes",
-            "Return YouTube Dislike estimates for a video.",
-            obj(json!({ "url": { "type": "string" } }), &["url"]),
-            core(|a| Box::pin(async move {
-                to_json(ryd::votes(&s(&a, "url")).await.map_err(err)?)
-            })),
-            "youtube",
-            Network,
-            Some("yt-dislikes"),
-        ),
-        entry(
-            "pdf_info",
-            "Pages, size, title, author and whether the PDF has a text layer.",
-            obj(json!({ "path": { "type": "string" } }), &["path"]),
-            core(|a| Box::pin(async move {
-                let path = s(&a, "path");
-                to_json(
-                    tokio::task::spawn_blocking(move || pdf::info(&path, None))
-                        .await
-                        .map_err(err)?
-                        .map_err(err)?,
-                )
-            })),
-            "pdf",
-            Cheap,
-            None,
-        ),
-        entry(
-            "pdf_merge",
-            "Merge PDFs into one file, in the given order.",
-            obj(json!({ "inputs": { "type": "array", "items": { "type": "string" } }, "output": { "type": "string" } }), &["inputs", "output"]),
-            core(|a| Box::pin(async move {
-                let p = tools::noop_progress();
-                let opts = pdf::MergeOptions {
-                    inputs: list(&a, "inputs"),
-                    output: s(&a, "output"),
-                };
-                to_json(
-                    tokio::task::spawn_blocking(move || pdf::merge(&opts, &p))
-                        .await
-                        .map_err(err)?
-                        .map_err(err)?,
-                )
-            })),
-            "pdf",
-            Local,
-            Some("pdf-merge"),
-        ),
-        entry(
-            "pdf_split",
-            "Split a PDF: mode each | every | ranges (\"1-3; 4-10\") | extract (\"1,3,5-7\").",
-            obj(json!({ "input": { "type": "string" }, "mode": { "type": "string" }, "every": { "type": "integer" }, "ranges": { "type": "string" }, "output_dir": { "type": "string" } }), &["input", "mode"]),
-            core(|a| Box::pin(async move {
-                let p = tools::noop_progress();
-                let opts = pdf::SplitOptions {
-                    input: s(&a, "input"),
-                    mode: s(&a, "mode"),
-                    every: num(&a, "every").unwrap_or(0) as usize,
-                    ranges: s(&a, "ranges"),
-                    output_dir: s(&a, "output_dir"),
-                };
-                to_json(
-                    tokio::task::spawn_blocking(move || pdf::split(&opts, &p))
-                        .await
-                        .map_err(err)?
-                        .map_err(err)?,
-                )
-            })),
-            "pdf",
-            Local,
-            Some("pdf-split"),
-        ),
-        entry(
-            "pdf_text",
-            "Extract the text of a PDF (optionally a page range like \"1-3, 5\").",
-            obj(json!({ "path": { "type": "string" }, "pages": { "type": "string" } }), &["path"]),
-            core(|a| Box::pin(async move {
-                let (path, pages) = (s(&a, "path"), s(&a, "pages"));
-                to_json(
-                    tokio::task::spawn_blocking(move || pdf::to_text(&path, &pages, false, ""))
-                        .await
-                        .map_err(err)?
-                        .map_err(err)?,
-                )
-            })),
-            "pdf",
-            Local,
-            None,
-        ),
-        entry(
-            "pdf_render",
-            "Render PDF pages to PNG or JPG files.",
-            obj(json!({ "input": { "type": "string" }, "pages": { "type": "string" }, "dpi": { "type": "integer" }, "format": { "type": "string", "enum": ["png", "jpg"] }, "output_dir": { "type": "string" } }), &["input"]),
-            core(|a| Box::pin(async move {
-                let p = tools::noop_progress();
-                let opts = pdf::RenderOptions {
-                    input: s(&a, "input"),
-                    pages: s(&a, "pages"),
-                    dpi: num(&a, "dpi").unwrap_or(0) as u32,
-                    format: s(&a, "format"),
-                    quality: 0,
-                    output_dir: s(&a, "output_dir"),
-                };
-                to_json(
-                    tokio::task::spawn_blocking(move || pdf::render(&opts, &p))
-                        .await
-                        .map_err(err)?
-                        .map_err(err)?,
-                )
-            })),
-            "pdf",
-            Local,
-            None,
-        ),
-        entry(
-            "pdf_sanitize",
-            "Rebuild a PDF from pixels (Dangerzone-style) so scripts, forms and attachments are dropped.",
-            obj(json!({ "input": { "type": "string" }, "output_dir": { "type": "string" } }), &["input"]),
-            core(|a| Box::pin(async move {
-                let p = tools::noop_progress();
-                let (input, dir) = (s(&a, "input"), s(&a, "output_dir"));
-                to_json(
-                    tokio::task::spawn_blocking(move || pdf::sanitize(&input, &dir, 0, 0, &p))
-                        .await
-                        .map_err(err)?
-                        .map_err(err)?,
-                )
-            })),
-            "pdf",
-            Local,
-            Some("pdf-sanitize"),
-        ),
-        entry(
-            "tts_speak",
-            "Text to speech with Microsoft Edge neural voices; writes an MP3.",
-            obj(json!({ "text": { "type": "string" }, "voice": { "type": "string", "description": "e.g. pt-BR-AntonioNeural, en-US-AriaNeural" }, "output": { "type": "string" } }), &["text", "output"]),
-            core(|a| Box::pin(async move {
-                let p = tools::noop_progress();
-                let voice = or_default(&a, "voice", "pt-BR-AntonioNeural");
-                let opts: edge_tts::TtsOptions =
-                    serde_json::from_value(json!({ "text": s(&a, "text"), "voice": voice }))
-                        .map_err(err)?;
-                to_json(
-                    edge_tts::synthesize(opts, std::path::Path::new(&s(&a, "output")), p)
-                        .await
-                        .map_err(err)?,
-                )
-            })),
-            "speech",
-            Network,
-            Some("speech-tts"),
-        ),
-        entry(
-            "transcribe",
-            "Transcribe audio or video locally with whisper.cpp; returns text and SRT path.",
-            obj(json!({ "input": { "type": "string" }, "model": { "type": "string", "description": "GGML model id, default base" }, "language": { "type": "string", "description": "auto | pt | en …" } }), &["input"]),
-            core(|a| Box::pin(async move {
-                let p = tools::noop_progress();
-                let model = or_default(&a, "model", "base");
-                let language = or_default(&a, "language", "auto");
-                let opts: whisper::TranscribeOptions = serde_json::from_value(
-                    json!({ "input": s(&a, "input"), "model": model, "language": language }),
-                )
-                .map_err(err)?;
-                let r = whisper::transcribe(opts, p).await.map_err(err)?;
-                Ok(json!({ "language": r.language, "text": r.text, "srt": r.srt_path, "vtt": r.vtt_path, "txt": r.txt_path, "seconds": r.seconds }))
-            })),
-            "speech",
-            Local,
-            Some("speech-transcribe"),
-        ),
-        entry(
-            "image_resize",
-            "Resize images in batch. mode width | height | fit | percent.",
-            obj(json!({ "inputs": { "type": "array", "items": { "type": "string" } }, "mode": { "type": "string" }, "value": { "type": "integer" }, "value2": { "type": "integer" }, "format": { "type": "string" }, "output_dir": { "type": "string" } }), &["inputs", "mode", "value"]),
-            core(|a| Box::pin(async move {
-                let p = tools::noop_progress();
-                let opts: image_resize::ResizeOptions = serde_json::from_value(json!({ "inputs": list(&a, "inputs"), "mode": s(&a, "mode"), "value": num(&a, "value").unwrap_or(1024), "value2": num(&a, "value2").unwrap_or(0), "format": s(&a, "format"), "output_dir": s(&a, "output_dir") })).map_err(err)?;
-                to_json(image_resize::run(opts, p).await.map_err(err)?)
-            })),
-            "images",
-            Local,
-            Some("img-resize"),
-        ),
-        entry(
-            "ocr",
-            "Extract text from images with Tesseract.",
-            obj(json!({ "inputs": { "type": "array", "items": { "type": "string" } }, "langs": { "type": "string", "description": "por+eng" } }), &["inputs"]),
-            core(|a| Box::pin(async move {
-                let p = tools::noop_progress();
-                to_json(ocr::run(&list(&a, "inputs"), &s(&a, "langs"), p).await.map_err(err)?)
-            })),
-            "images",
-            Local,
-            Some("img-ocr"),
-        ),
-        entry(
-            "find_duplicates",
-            "Find duplicate files (same content) under folders.",
-            obj(json!({ "dirs": { "type": "array", "items": { "type": "string" } }, "min_size": { "type": "integer" } }), &["dirs"]),
-            core(|a| Box::pin(async move {
-                let p = tools::noop_progress();
-                let opts: dupes::DupesOptions = serde_json::from_value(json!({ "dirs": list(&a, "dirs"), "min_size": num(&a, "min_size").unwrap_or(1024) })).map_err(err)?;
-                to_json(
-                    tokio::task::spawn_blocking(move || dupes::scan(&opts, &p))
-                        .await
-                        .map_err(err)?,
-                )
-            })),
-            "files",
-            Local,
-            Some("files-dupes"),
-        ),
-        entry(
-            "file_search",
-            "Search files by name (Everything, Spotlight or locate/find).",
-            obj(json!({ "query": { "type": "string" }, "folder": { "type": "string" }, "limit": { "type": "integer" } }), &["query"]),
-            core(|a| Box::pin(async move {
-                to_json(
-                    file_search::search(
-                        &s(&a, "query"),
-                        &s(&a, "folder"),
-                        num(&a, "limit").unwrap_or(100) as usize,
-                    )
-                    .await
-                    .map_err(err)?,
-                )
-            })),
-            "files",
-            Local,
-            Some("files-search"),
-        ),
-        entry(
-            "ai_prices",
-            "Search LLM prices per million tokens (LiteLLM + models.dev).",
-            obj(json!({ "query": { "type": "string" }, "limit": { "type": "integer" } }), &["query"]),
-            core(|a| Box::pin(async move {
-                to_json(
-                    pricing::search(&s(&a, "query"), "", num(&a, "limit").unwrap_or(30) as usize)
-                        .await
-                        .map_err(err)?,
-                )
-            })),
-            "ai",
-            Network,
-            Some("ai-prices"),
-        ),
-        entry(
-            "humanize",
-            "Rewrite AI-sounding text so it reads like a person wrote it, using the app's configured AI.",
-            obj(json!({ "text": { "type": "string" } }), &["text"]),
-            core(|a| Box::pin(async move {
-                Ok(json!({ "text": humanize::humanize(&s(&a, "text"), None).await? }))
-            })),
-            "ai",
-            Paid,
-            Some("ai-humanize"),
-        ),
-        entry(
-            "x_post",
-            "Fetch an X/Twitter post (text, author, media) by URL or id.",
-            obj(json!({ "url": { "type": "string" } }), &["url"]),
-            core(|a| Box::pin(async move {
-                let input = s(&a, "url");
-                let id = x::post_id_from(&input).ok_or_else(|| format!("not an X post: {}", input))?;
-                to_json(x::fx::status(&id).await.map_err(err)?)
-            })),
-            "x",
-            Network,
-            Some("x-download"),
-        ),
-        entry(
-            "x_thread",
-            "Unroll an X/Twitter thread from any post in it.",
-            obj(json!({ "url": { "type": "string" } }), &["url"]),
-            core(|a| Box::pin(async move {
-                to_json(x::thread::unroll(&s(&a, "url")).await.map_err(err)?)
-            })),
-            "x",
-            Network,
-            Some("x-thread"),
-        ),
-        entry(
-            "x_profile",
-            "Profile analytics for an X/Twitter user (engagement, best hours, top posts).",
-            obj(json!({ "handle": { "type": "string" }, "limit": { "type": "integer" } }), &["handle"]),
-            core(|a| Box::pin(async move {
-                to_json(
-                    x::profile::analyze(&s(&a, "handle"), num(&a, "limit").unwrap_or(100) as usize, false)
-                        .await
-                        .map_err(err)?,
-                )
-            })),
-            "x",
-            Network,
-            Some("x-profile"),
-        ),
-        entry(
-            "x_search",
-            "Search X/Twitter posts (advanced operators supported).",
-            obj(json!({ "query": { "type": "string" }, "feed": { "type": "string", "enum": ["latest", "top"] } }), &["query"]),
-            core(|a| Box::pin(async move {
-                let feed = or_default(&a, "feed", "latest");
-                to_json(x::search::search(&s(&a, "query"), &feed, None).await.map_err(err)?)
-            })),
-            "x",
-            Network,
-            Some("x-search"),
-        ),
-        entry(
-            "x_trends",
-            "Current X/Twitter trends.",
-            obj(json!({}), &[]),
-            core(|_a| Box::pin(async move {
-                to_json(x::search::trends().await.map_err(err)?)
-            })),
-            "x",
-            Network,
-            None,
-        ),
-        entry(
-            "instagram_profile",
-            "Public info of an Instagram profile, using the cookies captured by the OmniGet extension.",
-            obj(json!({ "username": { "type": "string" }, "account": { "type": "string", "description": "cookie slot, default _default" } }), &["username"]),
-            ToolImpl::Host,
-            "instagram",
-            Network,
-            Some("ig-viewer"),
-        ),
-        entry(
-            "gallery_download",
-            "Download a gallery/profile with gallery-dl (Pinterest, ArtStation, DeviantArt, Reddit…).",
-            obj(json!({ "url": { "type": "string" }, "dest": { "type": "string" } }), &["url", "dest"]),
-            core(|a| Box::pin(async move {
-                let p = tools::noop_progress();
-                to_json(tools::gallery::download(&s(&a, "url"), &s(&a, "dest"), None, p).await.map_err(err)?)
-            })),
-            "documents",
-            Network,
-            Some("doc-gallery"),
-        ),
-        entry(
-            "aria2_download",
-            "Download a large file with aria2 (multi-connection).",
-            obj(json!({ "url": { "type": "string" }, "dest_dir": { "type": "string" }, "connections": { "type": "integer" } }), &["url", "dest_dir"]),
-            core(|a| Box::pin(async move {
-                let p = tools::noop_progress();
-                let opts: tools::aria2::Aria2Options = serde_json::from_value(json!({ "url": s(&a, "url"), "dest_dir": s(&a, "dest_dir"), "connections": num(&a, "connections").unwrap_or(16) })).map_err(err)?;
-                to_json(tools::aria2::download(opts, p).await.map_err(err)?)
-            })),
-            "downloads",
-            Network,
-            Some("dl-aria2"),
-        ),
-        entry(
-            "disk_volumes",
-            "Mounted volumes with total and free space.",
-            obj(json!({}), &[]),
-            core(|_a| Box::pin(async move { to_json(disk::volumes()) })),
-            "system",
-            Cheap,
-            Some("sys-disk"),
-        ),
-        entry(
-            "disk_scan",
-            "Folder sizes tree and largest files under a path.",
-            obj(json!({ "path": { "type": "string" }, "depth": { "type": "integer" } }), &["path"]),
-            core(|a| Box::pin(async move {
-                let p = tools::noop_progress();
-                let (path, depth) = (s(&a, "path"), num(&a, "depth").unwrap_or(2) as usize);
-                to_json(
-                    tokio::task::spawn_blocking(move || disk::scan(&path, depth, 25, &p))
-                        .await
-                        .map_err(err)?
-                        .map_err(err)?,
-                )
-            })),
-            "system",
-            Local,
-            Some("sys-disk"),
-        ),
-        entry(
-            "clean_scan",
-            "What the cache cleaner would remove (rule, size, files). Does not delete anything.",
-            obj(json!({}), &[]),
-            core(|_a| Box::pin(async move {
-                let p = tools::noop_progress();
-                to_json(
-                    tokio::task::spawn_blocking(move || sysclean::scan(&p))
-                        .await
-                        .map_err(err)?,
-                )
-            })),
-            "system",
-            Local,
-            Some("sys-clean"),
-        ),
-        entry(
-            "startup_items",
-            "Programs that start with the system.",
-            obj(json!({}), &[]),
-            core(|_a| Box::pin(async move { to_json(startup::list().await) })),
-            "system",
-            Cheap,
-            Some("sys-startup"),
-        ),
-        entry(
-            "installed_apps",
-            "Installed applications with version and size.",
-            obj(json!({}), &[]),
-            core(|_a| Box::pin(async move {
-                let p = tools::noop_progress();
-                to_json(uninstall::list(p).await)
-            })),
-            "system",
-            Local,
-            Some("sys-uninstall"),
-        ),
-        entry(
-            "ai_keys",
-            "Saved AI API accounts (names, providers, balances). Keys are never returned.",
-            obj(json!({}), &[]),
-            core(|_a| Box::pin(async move { to_json(ai_keys::list()) })),
-            "ai",
-            Cheap,
-            Some("ai-keys"),
         ),
         entry(
             "download_enqueue",
@@ -698,7 +236,6 @@ fn build() -> Vec<ToolEntry> {
             ToolImpl::Host,
             "downloads",
             Network,
-            None,
         ),
         entry(
             "downloads_queue",
@@ -707,7 +244,6 @@ fn build() -> Vec<ToolEntry> {
             ToolImpl::Host,
             "downloads",
             Cheap,
-            None,
         ),
         entry(
             "download_status",
@@ -716,7 +252,6 @@ fn build() -> Vec<ToolEntry> {
             ToolImpl::Host,
             "downloads",
             Cheap,
-            None,
         ),
         entry(
             "download_cancel",
@@ -725,7 +260,6 @@ fn build() -> Vec<ToolEntry> {
             ToolImpl::Host,
             "downloads",
             Cheap,
-            None,
         ),
         entry(
             "download_pause",
@@ -734,7 +268,6 @@ fn build() -> Vec<ToolEntry> {
             ToolImpl::Host,
             "downloads",
             Cheap,
-            None,
         ),
         entry(
             "download_resume",
@@ -743,7 +276,6 @@ fn build() -> Vec<ToolEntry> {
             ToolImpl::Host,
             "downloads",
             Cheap,
-            None,
         ),
     ]
 }
@@ -799,7 +331,7 @@ mod tests {
     #[test]
     fn the_table_has_every_tool_once_with_an_object_schema() {
         let t = table();
-        assert_eq!(t.len(), 56, "the table lost or gained a tool");
+        assert_eq!(t.len(), 26, "the table lost or gained a tool");
         let names: std::collections::HashSet<_> = t.iter().map(|e| e.name).collect();
         assert_eq!(names.len(), t.len(), "duplicate tool name");
         for e in t {
@@ -837,7 +369,6 @@ mod tests {
                 "help_agent_apply",
                 "agent_delegate",
                 "download_url",
-                "instagram_profile",
                 "download_enqueue",
                 "downloads_queue",
                 "download_status",
@@ -855,21 +386,6 @@ mod tests {
         for (spec, e) in specs.iter().zip(table()) {
             assert_eq!(spec.name, e.name);
             assert_eq!(spec.input_schema, e.input_schema);
-        }
-    }
-
-    #[test]
-    fn every_catalog_id_looks_like_a_catalog_entry() {
-        // `catalog.ts` ids are `<category-prefix>-<slug>`; a typo like
-        // `pdf_merge` would silently break the UI link.
-        for e in table() {
-            let Some(id) = e.catalog_id else { continue };
-            assert!(
-                id.contains('-') && !id.contains('_') && id == id.to_lowercase(),
-                "{}: bad catalog id {:?}",
-                e.name,
-                id
-            );
         }
     }
 
@@ -915,9 +431,12 @@ mod tests {
 
     #[tokio::test]
     async fn a_core_tool_runs_without_the_app() {
-        // `disk_volumes` is local and read-only: no network, no app handle.
-        let out = dispatch("disk_volumes", json!({}), None).await.unwrap();
-        assert!(out.is_array(), "{}", out);
+        // `todo_write` only records the plan: no network, no app handle.
+        let plan = json!([{ "step": "a", "status": "pending" }]);
+        let out = dispatch("todo_write", json!({ "plan": plan }), None)
+            .await
+            .unwrap();
+        assert_eq!(out["plan"], plan);
     }
 
     #[test]

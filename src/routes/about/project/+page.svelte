@@ -39,7 +39,6 @@
   <h5 class="card-title">{$t('about.features_title')}</h5>
   <div class="features-list">
     <p class="feature-item">{$t('about.feature_platforms')}</p>
-    <p class="feature-item">{$t('about.feature_hotmart')}</p>
     <p class="feature-item">{$t('about.feature_progress')}</p>
     <p class="feature-item">{$t('about.feature_mascot')}</p>
     <p class="feature-item">{$t('about.feature_themes')}</p>

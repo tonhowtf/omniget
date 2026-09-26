@@ -1,7 +1,5 @@
 import { defineConfig } from "vite";
 import { sveltekit } from "@sveltejs/kit/vite";
-import wasm from "vite-plugin-wasm";
-import topLevelAwait from "vite-plugin-top-level-await";
 import { execSync, spawnSync } from "child_process";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
@@ -62,25 +60,8 @@ export default defineConfig(({ command }) => {
   return {
     plugins: [
       i18nKeysPlugin({ strict: strictI18n }),
-      wasm(),
-      topLevelAwait(),
       sveltekit(),
     ],
-
-    // PlantUML / Graphviz packages ship WASM + workers that need special
-    // handling. `optimizeDeps.exclude` keeps the dep optimizer out of the way
-    // so vite-plugin-wasm gets to handle the wasm imports. The graphviz
-    // package internally spawns a worker — Vite 6 requires worker.format=es
-    // for code-splitting builds, otherwise it errors with "Invalid value 'iife'".
-    optimizeDeps: {
-      exclude: [
-        "@kookyleo/plantuml-little-web",
-        "@kookyleo/graphviz-anywhere-web",
-      ],
-    },
-    worker: {
-      format: "es",
-    },
 
     define: {
       __COMMIT_HASH__: JSON.stringify(gitInfo.hash),
