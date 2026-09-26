@@ -32,6 +32,12 @@ pub struct ChunkDef {
     pub object: Vec<u8>,
     #[serde(default)]
     pub height: Vec<u8>,
+    /// Per-cell floor colour, 0xRRGGBB in sRGB, multiplied over the floor
+    /// sprite by the renderer; 0 (or a missing layer) means white. Visual
+    /// only: not part of the map hash, collision or coordinates, so maps
+    /// written before this field existed load unchanged.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tint: Vec<u32>,
 }
 
 /// A chunk in memory: fixed-size arrays, no allocation per access.
@@ -74,6 +80,7 @@ impl Chunk {
             wall: self.wall.to_vec(),
             object: self.object.to_vec(),
             height: self.height.to_vec(),
+            tint: Vec::new(),
         }
     }
 
@@ -133,6 +140,7 @@ mod tests {
             wall: vec![],
             object: vec![],
             height: vec![32],
+            tint: Vec::new(),
         };
         let c = Chunk::from_def(&def);
         assert_eq!(c.floor[0], 1);
@@ -151,6 +159,7 @@ mod tests {
             wall: vec![],
             object: vec![],
             height: vec![],
+            tint: Vec::new(),
         };
         let c = Chunk::from_def(&def);
         assert_eq!(c.floor.len(), CHUNK_AREA);

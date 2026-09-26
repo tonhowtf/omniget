@@ -1,5 +1,6 @@
 // Canvas 2D backend = tier 0. drawImage per sprite, chunk baked into an
-// OffscreenCanvas and blitted once. No tint (2D has no per-vertex colour): alpha only.
+// OffscreenCanvas and blitted once. Sprites carry alpha only; a baked tile's
+// tint is applied through a scratch canvas (multiply, then keep the sprite's alpha).
 
 import { parseAtlas, type AtlasData } from './atlas';
 import { sortByDepth } from './batcher';
@@ -26,6 +27,30 @@ import {
 
 type AnyCanvas = HTMLCanvasElement | OffscreenCanvas;
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+/** One reusable scratch surface for tinting a tile while baking. */
+let tintScratch: AnyCanvas | null = null;
+function tinted(bmp: ImageBitmap, f: { x: number; y: number; w: number; h: number }, dw: number, dh: number, tint: number): AnyCanvas | null {
+  const w = Math.max(1, Math.ceil(dw));
+  const h = Math.max(1, Math.ceil(dh));
+  if (!tintScratch) tintScratch = offscreen(Math.max(64, w, h));
+  if (tintScratch.width < w || tintScratch.height < h) {
+    tintScratch.width = Math.max(tintScratch.width, w);
+    tintScratch.height = Math.max(tintScratch.height, h);
+  }
+  const c = tintScratch.getContext('2d') as Ctx2D | null;
+  if (!c) return null;
+  c.globalCompositeOperation = 'source-over';
+  c.clearRect(0, 0, tintScratch.width, tintScratch.height);
+  c.drawImage(bmp, f.x, f.y, f.w, f.h, 0, 0, w, h);
+  c.globalCompositeOperation = 'multiply';
+  c.fillStyle = `#${tint.toString(16).padStart(6, '0')}`;
+  c.fillRect(0, 0, w, h);
+  c.globalCompositeOperation = 'destination-in';
+  c.drawImage(bmp, f.x, f.y, f.w, f.h, 0, 0, w, h);
+  c.globalCompositeOperation = 'source-over';
+  return tintScratch;
+}
 
 function offscreen(size: number): AnyCanvas {
   if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(size, size);
@@ -75,12 +100,16 @@ export function createCanvas2dRenderer(): Renderer {
       const dy = p.py - f.pivotY * layout.scale;
       const dw = f.w * layout.scale;
       const dh = f.h * layout.scale;
+      const scratch = t.tint !== undefined && t.tint !== 0xffffff ? tinted(bmp, f, dw, dh, t.tint) : null;
       if (t.flip) {
         c2.save();
         c2.translate(dx + dw, dy);
         c2.scale(-1, 1);
-        c2.drawImage(bmp, f.x, f.y, f.w, f.h, 0, 0, dw, dh);
+        if (scratch) c2.drawImage(scratch as CanvasImageSource, 0, 0, Math.ceil(dw), Math.ceil(dh), 0, 0, dw, dh);
+        else c2.drawImage(bmp, f.x, f.y, f.w, f.h, 0, 0, dw, dh);
         c2.restore();
+      } else if (scratch) {
+        c2.drawImage(scratch as CanvasImageSource, 0, 0, Math.ceil(dw), Math.ceil(dh), dx, dy, dw, dh);
       } else {
         c2.drawImage(bmp, f.x, f.y, f.w, f.h, dx, dy, dw, dh);
       }

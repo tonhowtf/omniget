@@ -124,6 +124,10 @@ export interface InputHandlers {
   onCamera?(): void;
   /** Escape, for closing the object picker. */
   onEscape?(): void;
+  /** The pointer is over this tile (no drag in progress). */
+  onHoverTile?(tile: Tile): void;
+  /** First look at a key; true means it was consumed. */
+  onKey?(ev: KeyboardEvent): boolean;
 }
 
 export interface InputOpts {
@@ -181,6 +185,7 @@ export function attachInput(
       return;
     }
     handlers.onHover(pickAgent(opts.pickables(), opts.camera, p.sx, p.sy));
+    handlers.onHoverTile?.(tileAt(opts.camera, p.sx, p.sy));
   };
 
   const onPointerUp = (ev: PointerEvent) => {
@@ -209,6 +214,10 @@ export function attachInput(
   };
 
   const onKeyDown = (ev: KeyboardEvent) => {
+    if (handlers.onKey?.(ev)) {
+      ev.preventDefault();
+      return;
+    }
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
     if (ev.key === 'Escape') {
       handlers.onEscape?.();
