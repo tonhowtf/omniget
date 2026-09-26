@@ -506,17 +506,30 @@
     "action_paste": "Coller l'URL du presse-papiers"
   },
   "home": {
-    "inspector_title": "Download options",
-    "hero_title": "OmniGet",
-    "hero_subtitle": "Paste a link or search. We'll take it from there.",
-    "action_batch": "Many links at once",
-    "action_torrent": "Open a .torrent file",
-    "action_p2p": "Send a file to someone",
-    "action_advanced": "Advanced options",
-    "action_simple": "Back to the simple view",
-    "value_line": "{{count}} files · {{size}} saved with OmniGet",
-    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies.",
-    "analyze": "Analyze link"
+    "inspector_title": "Options de téléchargement",
+    "sr_title": "Télécharger",
+    "more": "Autres façons de télécharger",
+    "paste": "Coller",
+    "paste_empty": "Aucun lien dans le presse-papiers.",
+    "submit": "Télécharger ce lien",
+    "first_sites": "Fonctionne avec YouTube, Instagram, TikTok et [{{count}} autres sites].",
+    "first_terms": "Utiliser OmniGet signifie que vous acceptez les [conditions].",
+    "saved_count_one": "{{count}} fichier",
+    "saved_count_other": "{{count}} fichiers",
+    "saved_line": "{{files}} · {{size}} enregistrés",
+    "drop_title": "Déposez pour télécharger",
+    "drop_hint": "Liens, fichiers torrent ou liste .txt",
+    "drop_unsupported": "OmniGet ne peut pas ouvrir ce fichier. Essayez un lien, un torrent ou une liste .txt.",
+    "action_batch": "Coller plusieurs liens…",
+    "action_torrent": "Ouvrir un fichier torrent…",
+    "action_p2p": "Envoyer un fichier avec un code…",
+    "action_advanced": "Commande yt-dlp…",
+    "action_simple": "Retour",
+    "adv_title": "Commande yt-dlp",
+    "success_title": "Ajouté aux téléchargements",
+    "success_first": "Votre premier téléchargement !",
+    "success_open": "Ouvrir les téléchargements",
+    "batch_hint": "Plusieurs liens ? Collez-les tous d'un coup, un par ligne."
   },
   "tools": {
     "tab": "Outils",
@@ -4455,21 +4468,19 @@
     "cat_world": "World"
   },
   "omnibox": {
-    "placeholder": "Collez une URL ou recherchez",
-    "searching": "Recherche...",
-    "search_empty": "Aucun résultat trouvé",
-    "unsupported": "Plateforme pas encore prise en charge",
+    "placeholder": "Collez un lien ou recherchez",
+    "searching": "Recherche…",
+    "search_empty": "Aucun résultat pour « {{query}} ».",
+    "unsupported": "OmniGet ne peut pas encore ouvrir ce site.",
     "go_to_hotmart": "Aller sur Hotmart",
     "go_to_udemy": "Aller sur Udemy",
     "download": "Télécharger",
-    "options": "Options",
+    "options": "Qualité et plus",
     "advanced": "Avancé",
-    "preparing": "Préparation du téléchargement...",
+    "preparing": "Préparation…",
     "error": "Échec du téléchargement",
     "retry": "Réessayer",
-    "batch_detected": "{{count}} URLs détectées",
-    "batch_download_all": "Tout télécharger",
-    "batch_queued": "{{count}} téléchargements ajoutés à la file d'attente",
+    "batch_download_all": "Tout télécharger ({{count}})",
     "preflight_stop": "Aucun des {{total}} liens ne peut être téléchargé : aucun site pris en charge parmi eux.",
     "media_changed": "Ce lien a changé depuis votre dernier téléchargement : {{summary}}",
     "rule_applied": "Règle « {{name}} » appliquée",
@@ -4478,8 +4489,8 @@
     "batch_file_title": "Sélectionner un fichier .txt avec des URL",
     "batch_file_empty": "Aucune URL valide trouvée dans le fichier",
     "mode_auto": "Auto",
-    "mode_audio": "Audio uniquement (MP3)",
-    "mode_mute": "Sans son",
+    "mode_audio": "Audio seul (MP3)",
+    "mode_mute": "Vidéo sans son",
     "quality": "Qualité",
     "quality_best": "Meilleure qualite",
     "quality_2160p": "4K (2160p)",
@@ -4521,13 +4532,13 @@
     "playlist_loading": "Chargement de la playlist…",
     "playlist_empty": "Impossible de charger les éléments de la playlist",
     "playlist_none_selected": "Sélectionnez au moins un élément à télécharger",
-    "torrent_selected": "{{selected}} sur {{total}} fichiers sélectionnés",
+    "torrent_selected": "{{selected}} sur {{total}} fichiers",
     "torrent_loading": "Lecture du contenu du torrent…",
     "torrent_none_selected": "Sélectionnez au moins un fichier à télécharger",
     "cookie_hint_stale": "Le cookie enregistré de ce site commence à dater.",
     "cookie_hint_expired": "Le cookie enregistré de ce site a expiré — les téléchargements peuvent échouer.",
     "cookie_hint_action": "Mettre à jour",
-    "external_url_ready": "URL reçue depuis l'extension Chrome",
+    "external_url_ready": "Lien reçu de l'extension du navigateur",
     "content_type": {
       "video": "Vidéo",
       "audio": "Audio",
@@ -4555,15 +4566,15 @@
     "adv": {
       "url_label": "URL",
       "url_placeholder": "https://...",
-      "args_label": "Arguments yt-dlp",
+      "args_label": "Arguments",
       "args_placeholder": "-f bv*+ba/b --merge-output-format mp4 --sub-langs fr --embed-subs",
-      "args_hint": "Une flag par token, séparées par des espaces. Utilisez des guillemets pour les valeurs avec espaces.",
+      "args_hint": "Séparez les flags par des espaces. Mettez entre guillemets les valeurs qui contiennent des espaces.",
       "run": "Télécharger",
       "queuing": "Mise en file...",
       "queued": "Téléchargement ajouté à la file",
       "url_required": "Saisissez d'abord une URL",
-      "templates_title": "Modèles enregistrés",
-      "templates_empty": "Aucun modèle enregistré. Tapez les flags au-dessus et cliquez Enregistrer pour les réutiliser.",
+      "templates_title": "Modèles",
+      "templates_empty": "Enregistrez les flags que vous utilisez souvent.",
       "template_new": "+ Nouveau",
       "template_name_placeholder": "Nom du modèle",
       "template_name_required": "Donnez un nom au modèle",
@@ -4575,7 +4586,73 @@
     },
     "courses_plugin_needed": "This is a course page. The free Courses plugin signs in with your account and downloads every lesson.",
     "courses_plugin_ready": "Course pages are downloaded from the Courses tab with your account signed in.",
-    "install_courses_plugin": "Get the Courses plugin"
+    "install_courses_plugin": "Get the Courses plugin",
+    "checking": "Vérification du lien…",
+    "search_results": "Résultats pour « {{query}} »",
+    "search_empty_hint": "Essayez d'autres mots ou collez le lien.",
+    "see_all": "Voir les sites pris en charge",
+    "download_video": "Télécharger la vidéo",
+    "download_audio": "Télécharger l'audio",
+    "download_image": "Télécharger la photo",
+    "download_files_one": "Télécharger {{count}} fichier",
+    "download_files_other": "Télécharger {{count}} fichiers",
+    "download_playlist_one": "Télécharger {{count}} vidéo",
+    "download_playlist_other": "Télécharger {{count}} vidéos",
+    "preparing_first": "Mise en route. Le premier téléchargement prend un peu plus de temps.",
+    "batch_detected_one": "{{count}} lien trouvé",
+    "batch_detected_other": "{{count}} liens trouvés",
+    "batch_queued_one": "{{count}} téléchargement ajouté",
+    "batch_queued_other": "{{count}} téléchargements ajoutés",
+    "error_details": "Détails",
+    "error_copy": "Copier",
+    "error_copied": "Copié",
+    "err": {
+      "login": {
+        "title": "Il faut votre connexion pour celui-ci.",
+        "body": "Si vous pouvez l'ouvrir dans votre navigateur, OmniGet peut utiliser cette connexion.",
+        "action": "Utiliser la connexion du navigateur"
+      },
+      "age": {
+        "title": "Ce contenu est soumis à une limite d'âge.",
+        "body": "Connectez-vous au site dans votre navigateur, puis réessayez.",
+        "action": "Utiliser la connexion du navigateur"
+      },
+      "geo": {
+        "title": "Indisponible dans votre région.",
+        "body": "Le site bloque ce lien là où vous êtes.",
+        "action": ""
+      },
+      "removed": {
+        "title": "Ce lien n'existe plus.",
+        "body": "Il a été supprimé ou rendu privé.",
+        "action": "Coller un autre lien"
+      },
+      "rate": {
+        "title": "Le site nous demande de ralentir.",
+        "body": "Attendez quelques minutes, puis réessayez.",
+        "action": ""
+      },
+      "network": {
+        "title": "Impossible de joindre le site.",
+        "body": "Vérifiez votre connexion et réessayez.",
+        "action": ""
+      },
+      "unsupported": {
+        "title": "OmniGet ne peut pas encore ouvrir ce site.",
+        "body": "Vérifiez le lien ou voyez quels sites fonctionnent.",
+        "action": "Voir les sites pris en charge"
+      },
+      "ffmpeg": {
+        "title": "La vidéo est enregistrée, mais n'a pas pu être assemblée.",
+        "body": "OmniGet a besoin de FFmpeg pour assembler la vidéo et l'audio.",
+        "action": "Installer FFmpeg"
+      },
+      "generic": {
+        "title": "Impossible de télécharger ceci.",
+        "body": "Réessayez. Si ça échoue encore, copiez les détails et signalez-le.",
+        "action": ""
+      }
+    }
   },
   "about": {
     "tab": {
@@ -4683,17 +4760,6 @@
     "plugin_load_failed_hint": "OmniGet n'a pas pu charger ce plugin. Essayez de le reinstaller depuis le Marketplace.",
     "plugin_load_error_details": "Details: {{error}}",
     "reinstall": "Reinstaller"
-  },
-  "services": {
-    "title": "YouTube, Instagram et plus de 1000 sites pris en charge",
-    "title_show": "afficher les services pris en charge",
-    "title_hide": "masquer les services pris en charge",
-    "disclaimer": "la disponibilité dépend de chaque plateforme et peut varier",
-    "and_more": "+1000 de plus"
-  },
-  "terms_note": {
-    "agreement": "en continuant, vous acceptez les",
-    "link": "conditions et l'éthique d'utilisation"
   },
   "convert": {
     "title": "Convertir",

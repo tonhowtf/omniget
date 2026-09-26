@@ -29,6 +29,10 @@ export type SearchResult = {
 
 export type HomeInputMode = "url" | "batch" | "torrent" | "p2p";
 
+export type MoreAction = "batch" | "torrent" | "p2p" | "advanced";
+
+export type HomeArt = "idle" | "analyzing" | "success" | "error" | "unsupported" | "drop";
+
 export function isUrl(value: string): boolean {
   return (
     value.startsWith("http://") ||

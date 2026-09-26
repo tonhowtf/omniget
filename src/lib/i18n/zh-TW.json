@@ -506,17 +506,30 @@
     "action_paste": "從剪貼簿貼上 URL"
   },
   "home": {
-    "inspector_title": "Download options",
-    "hero_title": "OmniGet",
-    "hero_subtitle": "Paste a link or search. We'll take it from there.",
-    "action_batch": "Many links at once",
-    "action_torrent": "Open a .torrent file",
-    "action_p2p": "Send a file to someone",
-    "action_advanced": "Advanced options",
-    "action_simple": "Back to the simple view",
-    "value_line": "{{count}} files · {{size}} saved with OmniGet",
-    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies.",
-    "analyze": "Analyze link"
+    "inspector_title": "下載選項",
+    "sr_title": "下載",
+    "more": "更多下載方式",
+    "paste": "貼上",
+    "paste_empty": "剪貼簿裡沒有連結。",
+    "submit": "下載此連結",
+    "first_sites": "支援 YouTube、Instagram、TikTok 及[其他 {{count}} 個網站]。",
+    "first_terms": "使用 OmniGet 即表示你接受[條款]。",
+    "saved_count_one": "{{count}} 個檔案",
+    "saved_count_other": "{{count}} 個檔案",
+    "saved_line": "已儲存 {{files}} · {{size}}",
+    "drop_title": "拖放到這裡下載",
+    "drop_hint": "連結、torrent 檔或 .txt 清單",
+    "drop_unsupported": "OmniGet 無法開啟此檔案。試試連結、torrent 或 .txt 清單。",
+    "action_batch": "貼上多個連結…",
+    "action_torrent": "開啟 torrent 檔…",
+    "action_p2p": "用代碼傳送檔案…",
+    "action_advanced": "yt-dlp 指令…",
+    "action_simple": "返回",
+    "adv_title": "yt-dlp 指令",
+    "success_title": "已加入下載",
+    "success_first": "你的第一個下載！",
+    "success_open": "開啟下載",
+    "batch_hint": "有多個連結？一次全部貼上，每行一個。"
   },
   "tools": {
     "tab": "工具",
@@ -4455,21 +4468,19 @@
     "cat_world": "World"
   },
   "omnibox": {
-    "placeholder": "貼上 URL、磁力連結、.torrent，或搜尋",
-    "searching": "搜尋中...",
-    "search_empty": "找不到結果",
-    "unsupported": "此平台尚未支援",
+    "placeholder": "貼上連結或搜尋",
+    "searching": "搜尋中…",
+    "search_empty": "找不到「{{query}}」的結果。",
+    "unsupported": "OmniGet 目前還無法開啟這個網站。",
     "go_to_hotmart": "前往 Hotmart",
     "go_to_udemy": "前往 Udemy",
     "download": "下載",
-    "options": "选项",
+    "options": "畫質及更多",
     "advanced": "高级",
-    "preparing": "正在準備下載...",
+    "preparing": "準備中…",
     "error": "下載失敗",
-    "retry": "重試",
-    "batch_detected": "偵測到 {{count}} 個 URL",
-    "batch_download_all": "全部下載",
-    "batch_queued": "已將 {{count}} 個下載加入佇列",
+    "retry": "再試一次",
+    "batch_download_all": "全部下載（{{count}} 個）",
     "preflight_stop": "{{total}} 個連結都無法下載 —— 其中沒有支援的網站。",
     "media_changed": "這個連結自上次下載後有變化：{{summary}}",
     "rule_applied": "已套用規則「{{name}}」",
@@ -4478,8 +4489,8 @@
     "batch_file_title": "選擇包含 URL 的 .txt 檔案",
     "batch_file_empty": "檔案中找不到有效的 URL",
     "mode_auto": "自動",
-    "mode_audio": "音訊",
-    "mode_mute": "靜音",
+    "mode_audio": "僅音訊 (MP3)",
+    "mode_mute": "無聲影片",
     "quality": "畫質",
     "quality_best": "最佳畫質",
     "quality_2160p": "4K (2160p)",
@@ -4521,13 +4532,13 @@
     "playlist_loading": "正在載入播放清單…",
     "playlist_empty": "無法載入播放清單項目",
     "playlist_none_selected": "請至少選擇一個項目進行下載",
-    "torrent_selected": "已選擇 {{total}} 個檔案中的 {{selected}} 個",
+    "torrent_selected": "{{selected}} / {{total}} 個檔案",
     "torrent_loading": "正在讀取種子內容…",
     "torrent_none_selected": "請至少選擇一個檔案進行下載",
     "cookie_hint_stale": "該網站儲存的 Cookie 正在變舊。",
     "cookie_hint_expired": "該網站儲存的 Cookie 已過期——下載可能失敗。",
     "cookie_hint_action": "更新",
-    "external_url_ready": "已从 Chrome 扩展收到 URL",
+    "external_url_ready": "來自瀏覽器擴充功能的連結",
     "content_type": {
       "video": "影片",
       "audio": "音訊",
@@ -4555,15 +4566,15 @@
     "adv": {
       "url_label": "URL",
       "url_placeholder": "https://...",
-      "args_label": "yt-dlp 參數",
+      "args_label": "參數",
       "args_placeholder": "-f bv*+ba/b --merge-output-format mp4 --sub-langs zh-TW --embed-subs",
-      "args_hint": "每個 token 一個 flag，以空格分隔。含空格的值請用引號包住。",
+      "args_hint": "用空格分隔各個 flag。含空格的值請加上引號。",
       "run": "下載",
       "queuing": "排隊中...",
       "queued": "已加入下載佇列",
       "url_required": "請先輸入 URL",
-      "templates_title": "已儲存的範本",
-      "templates_empty": "尚未儲存任何範本。在上方輸入 flags 並點選儲存以便重複使用。",
+      "templates_title": "範本",
+      "templates_empty": "儲存常用的 flags。",
       "template_new": "+ 新增",
       "template_name_placeholder": "範本名稱",
       "template_name_required": "請給範本一個名稱",
@@ -4575,7 +4586,73 @@
     },
     "courses_plugin_needed": "This is a course page. The free Courses plugin signs in with your account and downloads every lesson.",
     "courses_plugin_ready": "Course pages are downloaded from the Courses tab with your account signed in.",
-    "install_courses_plugin": "Get the Courses plugin"
+    "install_courses_plugin": "Get the Courses plugin",
+    "checking": "正在檢查連結…",
+    "search_results": "「{{query}}」的結果",
+    "search_empty_hint": "換個關鍵字試試，或貼上連結。",
+    "see_all": "查看支援的網站",
+    "download_video": "下載影片",
+    "download_audio": "下載音訊",
+    "download_image": "下載照片",
+    "download_files_one": "下載 {{count}} 個檔案",
+    "download_files_other": "下載 {{count}} 個檔案",
+    "download_playlist_one": "下載 {{count}} 部影片",
+    "download_playlist_other": "下載 {{count}} 部影片",
+    "preparing_first": "正在準備。第一次下載會稍久一點。",
+    "batch_detected_one": "找到 {{count}} 個連結",
+    "batch_detected_other": "找到 {{count}} 個連結",
+    "batch_queued_one": "已加入 {{count}} 個下載",
+    "batch_queued_other": "已加入 {{count}} 個下載",
+    "error_details": "詳細資料",
+    "error_copy": "複製",
+    "error_copied": "已複製",
+    "err": {
+      "login": {
+        "title": "這個需要登入。",
+        "body": "只要你能在瀏覽器中開啟，OmniGet 就能使用那個登入狀態。",
+        "action": "使用瀏覽器的登入"
+      },
+      "age": {
+        "title": "這個內容有年齡限制。",
+        "body": "請先在瀏覽器中登入該網站，然後再試一次。",
+        "action": "使用瀏覽器的登入"
+      },
+      "geo": {
+        "title": "你所在的地區無法使用。",
+        "body": "該網站在你所在的地區封鎖了這個連結。",
+        "action": ""
+      },
+      "removed": {
+        "title": "這個連結已失效。",
+        "body": "內容已被刪除或設為私人。",
+        "action": "貼上其他連結"
+      },
+      "rate": {
+        "title": "網站要求我們放慢速度。",
+        "body": "請等幾分鐘後再試。",
+        "action": ""
+      },
+      "network": {
+        "title": "無法連線到該網站。",
+        "body": "請檢查網路連線後再試。",
+        "action": ""
+      },
+      "unsupported": {
+        "title": "OmniGet 目前還無法開啟這個網站。",
+        "body": "請檢查連結，或查看哪些網站可用。",
+        "action": "查看支援的網站"
+      },
+      "ffmpeg": {
+        "title": "影片已儲存，但無法合併。",
+        "body": "OmniGet 需要 FFmpeg 來合併影片和音訊。",
+        "action": "安裝 FFmpeg"
+      },
+      "generic": {
+        "title": "無法下載。",
+        "body": "請再試一次。如果一直失敗，請複製詳細資料並回報問題。",
+        "action": ""
+      }
+    }
   },
   "about": {
     "tab": {
@@ -4683,17 +4760,6 @@
     "plugin_load_failed_hint": "OmniGet 無法載入此外掛。請嘗試從 Marketplace 重新安裝。",
     "plugin_load_error_details": "詳細資訊: {{error}}",
     "reinstall": "重新安裝"
-  },
-  "services": {
-    "title": "支援的服務",
-    "title_show": "顯示支援的服務",
-    "title_hide": "隱藏支援的服務",
-    "disclaimer": "實際可用性取決於各平台，可能會有所不同",
-    "and_more": "+1000 個以上"
-  },
-  "terms_note": {
-    "agreement": "繼續操作即表示您同意",
-    "link": "使用條款與倫理規範"
   },
   "convert": {
     "title": "轉換",
