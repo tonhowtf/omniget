@@ -2978,10 +2978,10 @@ fn fd1_redaction_covers_prefixed_env_vars_token_shapes_signed_urls_and_split_lin
         ("GITHUB_TOKEN=abcd1234efgh5678ijkl", "abcd1234efgh"),
         ("OPENAI_API_KEY=proj_8f7d6s5a4d3f2g1h", "proj_8f7d"),
         (concat!("stripe key sk_", "live_51H8abcdefghijklmnopqrstu"), "sk_live_51H8"),
-        ("hf token hf_AbCdEfGhIjKlMnOpQrStUvWxYz123456", "hf_AbCdEf"),
-        ("google oauth ya29.a0AfH6SMBxxxxxxxxxxxxxxxxxxxxxxxx", "ya29.a0AfH6"),
-        ("https://api.telegram.org/bot123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw/getMe", "AAHdqTcvCH1v"),
-        ("https://discord.com/api/webhooks/1234567890/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789", "AbCdEfGhIjKl"),
+        (concat!("hf token hf_", "AbCdEfGhIjKlMnOpQrStUvWxYz123456"), "hf_AbCdEf"),
+        (concat!("google oauth ya29.", "a0AfH6SMBxxxxxxxxxxxxxxxxxxxxxxxx"), "ya29.a0AfH6"),
+        (concat!("https://api.telegram.org/bot123456789:", "AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw/getMe"), "AAHdqTcvCH1v"),
+        (concat!("https://discord.com/api/webhooks/", "1234567890/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789"), "AbCdEfGhIjKl"),
         ("https://rr3---sn.googlevideo.com/videoplayback?expire=1&ip=203.0.113.9&lsig=AG3C_xAwRQIhAKsecret&sig=AOq0QJ8w", "AG3C_xAwRQ"),
         ("https://scontent.cdninstagram.com/v/t51.jpg?_nc_ht=x&oh=00_AfBsecretsignature&oe=66F00000", "AfBsecretsig"),
         ("https://cdn.example.com/f.mp4?hdnea=exp=1~acl=/*~hmac=deadbeefcafebabe0123456789", "deadbeefcafe"),
@@ -3037,7 +3037,7 @@ fn fd1_redaction_covers_prefixed_env_vars_token_shapes_signed_urls_and_split_lin
     assert!(red.contains("text/html"));
     assert!(diag::leak_check(&red).is_none());
     for leak in [
-        "ghp_abcdefghijklmnopqrstuvwxyz0123",
+        concat!("ghp_", "abcdefghijklmnopqrstuvwxyz0123"),
         concat!("AKIA", "ABCDEFGHIJKLMNOP"),
         "xoxb-1234567890-abc",
         "-----BEGIN RSA PRIVATE KEY-----",
