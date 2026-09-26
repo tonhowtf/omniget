@@ -224,11 +224,6 @@ html.ds-scope, main.ds-scope, .ds-scope {
 .ds-scope .page-head { gap: var(--space-4); flex-wrap: wrap; }
 .ds-scope .page-lede { max-width: 76ch; }
 .ds-scope .surface-card { padding: var(--space-4); }
-.ds-scope .home-stage::before { content: none; }
-.ds-scope .home-stage { gap: var(--space-4); padding-block: var(--space-5); }
-.ds-scope .home-stage .home-hero { max-height: 160px; overflow: hidden; }
-.ds-scope .home-stage-title { font-size: clamp(24px, 3vw, 32px); }
-.ds-scope .home-secondary-link { min-height: 36px; font-size: 13px; }
 .ds-scope .conv-head { flex-wrap: wrap; }
 .ds-scope .conv-actions { flex-wrap: wrap; }
 .ds-scope .message { max-width: 80ch; }
@@ -240,9 +235,6 @@ html.ds-scope, main.ds-scope, .ds-scope {
 @media (prefers-reduced-motion: reduce) {
  .ds-scope *, .ds-scope *::before, .ds-scope *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
-
-/* A light surface keeps the official dark mascot legible in both modes. */
-.ds-scope .home-stage .mascot-img { background: var(--ds-art-surface); border-radius: 50%; padding: 8px; box-sizing: border-box; }
 
 .ds-scope .button.primary {
   background: var(--ds-primary);

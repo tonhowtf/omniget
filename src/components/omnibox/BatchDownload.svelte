@@ -1,17 +1,18 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
+  import { pluralKey } from "$lib/home/plural";
 
   let { count, onDownload } = $props();
 </script>
 
 <div class="feedback feedback-enter" data-supported="true">
   <span class="feedback-text">
-    {$t('omnibox.batch_detected', { count })}
+    {$t(pluralKey('omnibox.batch_detected', count), { count })}
   </span>
 </div>
 
 <button class="button action-btn" onclick={onDownload}>
-  {$t('omnibox.batch_download_all')}
+  {$t('omnibox.batch_download_all', { count })}
 </button>
 
 <style>

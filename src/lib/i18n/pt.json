@@ -501,17 +501,30 @@
     "action_paste": "Colar URL da área de transferência"
   },
   "home": {
-    "inspector_title": "Download options",
-    "hero_title": "O que você quer baixar?",
-    "hero_subtitle": "Cole um link ou pesquise. A gente cuida do resto.",
-    "action_batch": "Many links at once",
-    "action_torrent": "Open a .torrent file",
-    "action_p2p": "Send a file to someone",
-    "action_advanced": "Advanced options",
-    "action_simple": "Back to the simple view",
-    "value_line": "{{count}} files · {{size}} saved with OmniGet",
-    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies.",
-    "analyze": "Analisar link"
+    "inspector_title": "Opções de download",
+    "sr_title": "Baixar",
+    "more": "Mais formas de baixar",
+    "paste": "Colar",
+    "paste_empty": "Sua área de transferência não tem nenhum link.",
+    "submit": "Baixar este link",
+    "first_sites": "Funciona com YouTube, Instagram, TikTok e [outros {{count}} sites].",
+    "first_terms": "Ao usar o OmniGet, você aceita os [termos].",
+    "saved_count_one": "{{count}} arquivo",
+    "saved_count_other": "{{count}} arquivos",
+    "saved_line": "{{files}} · {{size}} salvos",
+    "drop_title": "Solte para baixar",
+    "drop_hint": "Links, arquivos torrent ou uma lista .txt",
+    "drop_unsupported": "O OmniGet não consegue abrir este arquivo. Tente um link, um torrent ou uma lista .txt.",
+    "action_batch": "Colar vários links…",
+    "action_torrent": "Abrir um arquivo torrent…",
+    "action_p2p": "Enviar um arquivo com um código…",
+    "action_advanced": "Comando do yt-dlp…",
+    "action_simple": "Voltar",
+    "adv_title": "Comando do yt-dlp",
+    "success_title": "Adicionado aos Downloads",
+    "success_first": "Seu primeiro download!",
+    "success_open": "Abrir Downloads",
+    "batch_hint": "Vários links? Cole todos de uma vez, um por linha."
   },
   "tools": {
     "common": {
@@ -1290,19 +1303,17 @@
     "cat_world": "Mundo"
   },
   "omnibox": {
-    "placeholder": "Cole uma URL, magnet link, .torrent ou pesquise",
-    "searching": "Buscando...",
-    "search_empty": "Nenhum resultado encontrado",
-    "unsupported": "Plataforma não suportada ainda",
+    "placeholder": "Cole um link ou pesquise",
+    "searching": "Pesquisando…",
+    "search_empty": "Nada encontrado para “{{query}}”.",
+    "unsupported": "O OmniGet ainda não abre este site.",
     "download": "Baixar",
-    "options": "Opções",
+    "options": "Qualidade e mais",
     "advanced": "Avançado",
-    "preparing": "Preparando download...",
+    "preparing": "Preparando…",
     "error": "Download falhou",
-    "retry": "Tentar novamente",
-    "batch_detected": "{{count}} URLs detectadas",
-    "batch_download_all": "Baixar todos",
-    "batch_queued": "{{count}} downloads adicionados à fila",
+    "retry": "Tentar de novo",
+    "batch_download_all": "Baixar todos os {{count}}",
     "preflight_stop": "Nenhum dos {{total}} links pode ser baixado — nenhum site suportado entre eles.",
     "media_changed": "Este link mudou desde o último download: {{summary}}",
     "rule_applied": "Regra “{{name}}” aplicada",
@@ -1311,8 +1322,8 @@
     "batch_file_title": "Selecione um arquivo .txt com URLs",
     "batch_file_empty": "Nenhuma URL válida encontrada no arquivo",
     "mode_auto": "Automático",
-    "mode_audio": "Só Áudio (MP3)",
-    "mode_mute": "Sem Som",
+    "mode_audio": "Só áudio (MP3)",
+    "mode_mute": "Vídeo sem som",
     "quality": "Qualidade",
     "quality_best": "Melhor qualidade",
     "quality_2160p": "4K (2160p)",
@@ -1354,13 +1365,13 @@
     "playlist_loading": "Carregando playlist…",
     "playlist_empty": "Não foi possível carregar os itens da playlist",
     "playlist_none_selected": "Selecione ao menos um item para baixar",
-    "torrent_selected": "{{selected}} de {{total}} arquivos selecionados",
+    "torrent_selected": "{{selected}} de {{total}} arquivos",
     "torrent_loading": "Lendo conteúdo do torrent…",
     "torrent_none_selected": "Selecione ao menos um arquivo para baixar",
     "cookie_hint_stale": "O cookie salvo deste site está ficando velho.",
     "cookie_hint_expired": "O cookie salvo deste site expirou — downloads podem falhar.",
     "cookie_hint_action": "Atualizar",
-    "external_url_ready": "URL recebida da extensão do Chrome",
+    "external_url_ready": "Link da extensão do navegador",
     "content_type": {
       "video": "Vídeo",
       "audio": "Áudio",
@@ -1388,15 +1399,15 @@
     "adv": {
       "url_label": "URL",
       "url_placeholder": "https://...",
-      "args_label": "Argumentos yt-dlp",
+      "args_label": "Argumentos",
       "args_placeholder": "-f bv*+ba/b --merge-output-format mp4 --sub-langs pt --embed-subs",
-      "args_hint": "Uma flag por token, separadas por espaço. Use aspas em valores que contenham espaço.",
+      "args_hint": "Separe as flags com espaços. Coloque entre aspas os valores que têm espaço.",
       "run": "Baixar",
       "queuing": "Enfileirando...",
       "queued": "Download enfileirado",
       "url_required": "Digite uma URL primeiro",
-      "templates_title": "Templates salvos",
-      "templates_empty": "Nenhum template salvo ainda. Digite flags acima e clique Salvar pra guardar pra próxima.",
+      "templates_title": "Templates",
+      "templates_empty": "Salve as flags que você usa sempre.",
       "template_new": "+ Novo",
       "template_name_placeholder": "Nome do template",
       "template_name_required": "Dê um nome ao template",
@@ -1405,6 +1416,72 @@
       "template_saved": "Template salvo",
       "template_delete": "Excluir template",
       "template_flags": "flags"
+    },
+    "checking": "Verificando o link…",
+    "search_results": "Resultados para “{{query}}”",
+    "search_empty_hint": "Tente outras palavras ou cole o link.",
+    "see_all": "Ver sites compatíveis",
+    "download_video": "Baixar vídeo",
+    "download_audio": "Baixar áudio",
+    "download_image": "Baixar foto",
+    "download_files_one": "Baixar {{count}} arquivo",
+    "download_files_other": "Baixar {{count}} arquivos",
+    "download_playlist_one": "Baixar {{count}} vídeo",
+    "download_playlist_other": "Baixar {{count}} vídeos",
+    "preparing_first": "Configurando. O primeiro download demora um pouco mais.",
+    "batch_detected_one": "{{count}} link encontrado",
+    "batch_detected_other": "{{count}} links encontrados",
+    "batch_queued_one": "{{count}} download adicionado",
+    "batch_queued_other": "{{count}} downloads adicionados",
+    "error_details": "Detalhes",
+    "error_copy": "Copiar",
+    "error_copied": "Copiado",
+    "err": {
+      "login": {
+        "title": "Este precisa do seu login.",
+        "body": "Se você consegue abrir no navegador, o OmniGet pode usar esse login.",
+        "action": "Usar o login do navegador"
+      },
+      "age": {
+        "title": "Este tem restrição de idade.",
+        "body": "Entre no site pelo navegador e tente de novo.",
+        "action": "Usar o login do navegador"
+      },
+      "geo": {
+        "title": "Indisponível na sua região.",
+        "body": "O site bloqueia este link onde você está.",
+        "action": ""
+      },
+      "removed": {
+        "title": "Este link não existe mais.",
+        "body": "Ele foi removido ou ficou privado.",
+        "action": "Colar outro link"
+      },
+      "rate": {
+        "title": "O site pediu para irmos mais devagar.",
+        "body": "Espere alguns minutos e tente de novo.",
+        "action": ""
+      },
+      "network": {
+        "title": "Não foi possível acessar o site.",
+        "body": "Confira sua conexão e tente de novo.",
+        "action": ""
+      },
+      "unsupported": {
+        "title": "O OmniGet ainda não abre este site.",
+        "body": "Confira o link ou veja quais sites funcionam.",
+        "action": "Ver sites compatíveis"
+      },
+      "ffmpeg": {
+        "title": "O vídeo foi salvo, mas não deu para juntar as partes.",
+        "body": "O OmniGet precisa do FFmpeg para juntar vídeo e áudio.",
+        "action": "Instalar FFmpeg"
+      },
+      "generic": {
+        "title": "Não foi possível baixar isto.",
+        "body": "Tente de novo. Se continuar falhando, copie os detalhes e relate o problema.",
+        "action": ""
+      }
     }
   },
   "about": {
@@ -1461,17 +1538,6 @@
     "roadmap_community_issue": "ou abra uma issue no repositório:",
     "tagline": "Baixe qualquer coisa, de qualquer lugar.",
     "credit": "Feito com amor por tonho.wtf"
-  },
-  "services": {
-    "title": "Suporta YouTube, Instagram e mais 1000 sites",
-    "title_show": "mostrar plataformas suportadas",
-    "title_hide": "esconder plataformas suportadas",
-    "disclaimer": "a disponibilidade depende de cada plataforma e pode variar",
-    "and_more": "+1000 mais"
-  },
-  "terms_note": {
-    "agreement": "ao continuar, você concorda com os",
-    "link": "termos e ética de uso"
   },
   "changelog": {
     "title": "Novidades",
