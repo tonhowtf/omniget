@@ -1250,7 +1250,7 @@ mod revision_tests {
         let fifo = std::ffi::CString::new(p.join("fifo").to_str().unwrap()).unwrap();
         assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
         assert_eq!(artifact_digest(Some(&p), &["fifo".into()]), None);
-        std::fs::set_permissions(p.join("file"), std::fs::Permissions::from_mode(0)).unwrap();
+        std::fs::set_permissions(p.join("file"), std::fs::Permissions::from_mode(0o0)).unwrap();
         if unsafe { libc::geteuid() } != 0 {
             assert_eq!(artifact_digest(Some(&p), &["file".into()]), None);
         }
