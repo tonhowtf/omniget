@@ -62,6 +62,11 @@ impl Path {
     pub fn goal(&self) -> Option<Tile> {
         self.steps.last().copied()
     }
+
+    /// Tiles still to walk, the next one first.
+    pub fn remaining_tiles(&self) -> &[Tile] {
+        &self.steps[self.cursor.min(self.steps.len())..]
+    }
 }
 
 /// What an agent means to do when it gets where it is going. Walking is a

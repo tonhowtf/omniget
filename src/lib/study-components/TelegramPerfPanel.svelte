@@ -121,7 +121,7 @@
     try {
       const r = await telegramPerfSet({ maxThreads: draftMax });
       if (perf) perf = { ...perf, max_threads: r.max_threads };
-      showToast("info", $t("study.telegram.perf.max_threads_toast", { n: r.max_threads }));
+      showToast("info", $t("study.telegram.perf.max_threads_toast", { count: r.max_threads }));
       await load();
     } catch (e: any) {
       showToast("error", typeof e === "string" ? e : (e?.message ?? "Erro"));
@@ -295,7 +295,7 @@
             <div class="sync-status-row">
               <span class="sync-meta">
                 {#if sync.last_success_at > 0}
-                  {$t("study.telegram.perf.last_sync_line", { time: new Date(sync.last_success_at * 1000).toLocaleTimeString(), n: sync.last_updated_count, ms: sync.last_duration_ms })}
+                  {$t("study.telegram.perf.last_sync_line", { time: new Date(sync.last_success_at * 1000).toLocaleTimeString(), count: sync.last_updated_count, ms: sync.last_duration_ms })}
                 {:else}
                   {$t("study.telegram.perf.never_synced")}
                 {/if}

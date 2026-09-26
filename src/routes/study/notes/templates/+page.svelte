@@ -214,7 +214,7 @@
         args,
       );
       applyOpen = false;
-      showToast("ok", $t("study.notes.templates.blocks_added", { n: r.blocks_created }));
+      showToast("ok", $t("study.notes.templates.blocks_added", { count: r.blocks_created }));
       goto(`/study/notes?page=${encodeURIComponent(targetPageName())}`);
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));
@@ -350,7 +350,7 @@
               >
                 <header>
                   <strong>{tpl.title ?? tpl.name}</strong>
-                  <span class="meta">{$t("study.notes.templates.blocks_count", { n: tpl.block_count })}</span>
+                  <span class="meta">{$t("study.notes.templates.blocks_count", { count: tpl.block_count })}</span>
                 </header>
                 <p class="path">{tpl.name}</p>
                 {#if tpl.placeholders.length > 0}

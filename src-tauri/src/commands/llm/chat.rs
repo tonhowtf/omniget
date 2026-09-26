@@ -52,14 +52,50 @@ pub async fn llm_turn_start(
 ) -> Result<Value, String> {
     ensure_wired(&app);
     let manager = state.llm.clone();
-    let (request_id, _cancel, mut stream) = manager
+    let (request_id, _cancel, stream) = manager
         .turn_stream(&conversation_id, &agent_id, &input)
         .await?;
+    forward_turn(
+        app,
+        manager,
+        agent_id,
+        conversation_id,
+        input,
+        request_id.clone(),
+        stream,
+        None,
+    );
+    Ok(json!({ "request_id": request_id }))
+}
 
+/// How a forwarded turn ended, for callers that record it elsewhere (rooms).
+#[derive(Debug, Clone, Default)]
+pub struct TurnSummary {
+    pub text: String,
+    pub error: Option<String>,
+    pub cancelled: bool,
+    /// Input + output tokens reported by the provider; `None` when it
+    /// reported nothing (unknown is not zero).
+    pub tokens: Option<i64>,
+}
+
+pub type TurnDone = Box<dyn FnOnce(TurnSummary) + Send + 'static>;
+
+/// Re-emits one running turn on `llm://turn` (text coalesced to 30 Hz),
+/// mirrors it as a job and calls `on_done` with how it ended. Shared by the
+/// direct chat and by the members of a group room.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn forward_turn(
+    app: AppHandle,
+    manager: std::sync::Arc<crate::llm_manager::LlmManager>,
+    agent_id: String,
+    conversation_id: String,
+    input: String,
+    request_id: String,
+    mut stream: futures::stream::BoxStream<'static, omniget_core::core::llm::types::TurnEvent>,
+    on_done: Option<TurnDone>,
+) {
     spawn_telemetry_ticker(app.clone());
-
-    let id = request_id.clone();
-    let agent = agent_id.clone();
     // Mirrored as a job so `/llm/jobs` lists everything the agents did.
     let jobs = crate::jobs::get(&app).ok();
     let job_id = jobs
@@ -70,15 +106,15 @@ pub async fn llm_turn_start(
     tauri::async_runtime::spawn(async move {
         let mut coalescer = DeltaCoalescer::new(DELTA_HZ);
         // Every event of the turn is forwarded as it comes, `Started`
-        // included: its `request_id` is the one returned above and the one
-        // `llm://tool-ask` carries, so the front can filter by equality.
+        // included: its `request_id` is the one returned to the caller and
+        // the one `llm://tool-ask` carries, so the front filters by equality.
         let mut said = String::new();
         let mut failed: Option<String> = None;
         let mut cancelled = false;
         let mut usage = Vec::new();
         let mut receipts = Vec::new();
         while let Some(event) = stream.next().await {
-            manager.note_event(&agent, &event);
+            manager.note_event(&agent_id, &event);
             match &event {
                 omniget_core::core::llm::types::TurnEvent::TextDelta { text } => {
                     said.push_str(text)
@@ -101,19 +137,31 @@ pub async fn llm_turn_start(
                 _ => {}
             }
             for out in coalescer.push(event, Instant::now()) {
-                emit_turn(&app, &id, &out);
+                emit_turn(&app, &request_id, &out);
             }
         }
         if let Some(rest) = coalescer.flush() {
-            emit_turn(&app, &id, &rest);
+            emit_turn(&app, &request_id, &rest);
         }
-        manager.finish_turn(&id, &agent);
+        manager.finish_turn(&request_id, &agent_id);
+        let tokens = (!usage.is_empty()).then(|| {
+            usage
+                .iter()
+                .map(|u| (u.input_tokens as i64) + (u.output_tokens as i64))
+                .sum::<i64>()
+        });
         if let (Some(jobs), Some(job_id)) = (jobs, job_id) {
-            jobs.chat_finished(&job_id, &said, failed, cancelled, &usage, &receipts);
+            jobs.chat_finished(&job_id, &said, failed.clone(), cancelled, &usage, &receipts);
+        }
+        if let Some(done) = on_done {
+            done(TurnSummary {
+                text: said,
+                error: failed,
+                cancelled,
+                tokens,
+            });
         }
     });
-
-    Ok(json!({ "request_id": request_id }))
 }
 
 #[tauri::command]
@@ -169,10 +217,12 @@ pub async fn llm_switch_model(
     }))
 }
 
-/// The folder the coding tools are confined to. With a `conversation_id` the
-/// folder belongs to that conversation; without one it is the process-wide
-/// fallback (what the embedded MCP server and new conversations use). `null`
-/// detaches it.
+/// The folder the coding tools are confined to. With a `conversation_id`
+/// the folder belongs to that conversation only (it becomes a Project
+/// conversation; `null` makes it personal again) and nothing else changes:
+/// not another conversation, not the process-wide folder (O18/O19). Without
+/// one it is the process-wide folder, which only callers outside a turn use
+/// (the embedded MCP server, the `omniget` CLI).
 #[tauri::command]
 pub async fn llm_workspace_set(
     path: Option<String>,
@@ -182,11 +232,11 @@ pub async fn llm_workspace_set(
     let path = path.map(std::path::PathBuf::from);
     let set = match conversation_id.as_deref().filter(|c| !c.is_empty()) {
         Some(conv) => {
-            // The last folder picked is also the default of the next conversation.
-            if path.is_some() {
-                let _ = code_tools::set_workspace(path.clone());
-            }
-            code_tools::set_conversation_workspace(&crate::llm_manager::sanitize_id(conv), path)?
+            omniget_core::core::assist::groups::set_context(
+                &crate::llm_manager::sanitize_id(conv),
+                path,
+            )?
+            .1
         }
         None => code_tools::set_workspace(path)?,
     };
@@ -216,6 +266,8 @@ fn workspace_json(
     };
     let undo_error = path.as_deref().and_then(snapshot::problem);
     serde_json::json!({
+        // `projectless` (personal) or `project`: what the chat header shows.
+        "context": if path.is_some() { "project" } else { "projectless" },
         "undo_error": undo_error,
         "path": path.as_ref().map(|p| p.to_string_lossy().to_string()),
         "name": path.as_ref().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().to_string()),
@@ -296,4 +348,35 @@ pub async fn llm_permission_rules_set(
 ) -> Result<serde_json::Value, String> {
     omniget_core::core::llm::perm::set_rules(&agent_id, rules);
     Ok(serde_json::json!({ "ok": true }))
+}
+
+#[cfg(test)]
+mod workspace_command_tests {
+    use omniget_core::core::llm::code_tools;
+
+    /// O18/O19: picking a folder in one conversation changes that
+    /// conversation only — never the process-wide folder, never another chat.
+    #[tokio::test]
+    async fn picking_a_folder_in_a_conversation_does_not_set_the_global_one() {
+        let dir = std::env::temp_dir().join(format!("omniget-ws-cmd-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let before = code_tools::workspace();
+        let out = super::llm_workspace_set(
+            Some(dir.to_string_lossy().to_string()),
+            Some("ws-cmd-project".into()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(out["context"], "project");
+        assert_eq!(
+            code_tools::workspace(),
+            before,
+            "the global folder is untouched"
+        );
+        let other = super::llm_workspace_get(Some("ws-cmd-personal".into()))
+            .await
+            .unwrap();
+        assert_eq!(other["context"], "projectless");
+        assert!(other["path"].is_null());
+    }
 }

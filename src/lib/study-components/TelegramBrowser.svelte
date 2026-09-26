@@ -1465,7 +1465,7 @@
         } else if (diag.get_history_count === 0 && diag.search_photo_count === 0 && diag.search_video_count === 0 && diag.search_document_count === 0) {
           mediaError = $t("study.telegram.browser.media_error");
         } else if (diag.get_history_with_media === 0) {
-          mediaError = $t("study.telegram.browser.media_none_detectable", { n: diag.get_history_count });
+          mediaError = $t("study.telegram.browser.media_none_detectable", { count: diag.get_history_count });
         }
       } catch (e) {
         console.warn("[TG] diag_list_media failed:", e);
@@ -2034,13 +2034,13 @@
       if (deleteRevoke) {
         showToast(
           "info",
-          $t("study.library.telegram.delete_done_revoke", { n: count }),
+          $t("study.library.telegram.delete_done_revoke", { count: count }),
           5000,
         );
       } else {
         showToast(
           "info",
-          $t("study.library.telegram.delete_done_local", { n: count }),
+          $t("study.library.telegram.delete_done_local", { count: count }),
           5000,
         );
       }
@@ -3046,7 +3046,7 @@
                 <button
                   type="button"
                   class="album-badge"
-                  title={$t("study.library.telegram.album_indicator", { n: 0 })}
+                  title={$t("study.library.telegram.album_indicator", { count: 0 })}
                   onclick={(ev) => {
                     ev.stopPropagation();
                     if (selectedChat) {
@@ -3206,7 +3206,7 @@
     {#if selectedIds.size > 0}
       <div class="selection-bar" role="region" aria-label="bulk actions">
         <span class="count mono">
-          {$t("study.library.telegram.selected", { n: selectedIds.size })}
+          {$t("study.library.telegram.selected", { count: selectedIds.size })}
         </span>
         <button
           type="button"
@@ -3278,7 +3278,7 @@
       variant="danger"
       title={$t("study.library.telegram.delete_confirm_title")}
       message={$t("study.library.telegram.delete_confirm_body", {
-        n: selectedIds.size,
+        count: selectedIds.size,
       })}
       confirmLabel={$t("study.library.telegram.bulk_delete")}
       onConfirm={() => void bulkDelete()}

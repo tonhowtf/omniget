@@ -139,6 +139,33 @@ export interface ChunkTile {
   tint?: number;
 }
 
+/**
+ * Fired on the old canvas when a GL context refused to come back and the
+ * renderer put a fresh `<canvas>` in its place (`detail` is the new one).
+ * Whoever listens on the old element (input, probes) moves to the new one.
+ */
+export const CANVAS_REPLACED_EVENT = 'omniget:world-canvas-replaced';
+
+/** A frame of the dynamic page, in its pixels (see `Renderer.setDynamicPage`). */
+export interface DynamicFrame {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  pivotX: number;
+  pivotY: number;
+}
+
+/** What a renderer holds right now, for the "rebuilt, not duplicated" proof. */
+export interface RenderMemory {
+  /** Live textures (GL) or cached canvases/bitmaps (Canvas 2D). */
+  textures: number;
+  /** Their size as RGBA8, in bytes. */
+  bytes: number;
+  /** Size of the dynamic page, 0 when there is none. */
+  dynamicPage: number;
+}
+
 export interface InitOpts {
   backend?: BackendName;
   tier: Tier;
@@ -150,6 +177,14 @@ export interface Renderer {
   loadAtlas(json: unknown, pages: ImageBitmap[]): AtlasHandle;
   frame(scene: Scene, dt: number): FrameStats;
   bakeChunk(id: ChunkId, tiles: ChunkTile[]): void;
+  /**
+   * The page drawn at runtime (pictures users published) next to the shipped
+   * atlas pages. Replaces the previous page and all its frames; `null` drops
+   * both. The renderer keeps the bitmap, so sleep/wake and a lost context
+   * rebuild it; GL reuses one texture for it, never a second copy.
+   */
+  setDynamicPage(page: ImageBitmap | null, frames: Record<string, DynamicFrame>): void;
+  memory(): RenderMemory;
   invalidateChunk(id: ChunkId): void;
   text(str: string, style?: TextStyle): TextHandle;
   resize(w: number, h: number, dpr: number): void;

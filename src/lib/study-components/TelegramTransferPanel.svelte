@@ -53,7 +53,7 @@
       <header class="drawer-header">
         <div>
           <h2>{$t("study.telegram.transfer.title")}</h2>
-          <p class="subtitle">{$t("study.telegram.transfer.active_summary", { a: active.length, h: history.length })}</p>
+          <p class="subtitle">{$t("study.telegram.transfer.active_summary", { active: active.length, history: history.length })}</p>
         </div>
         <button type="button" class="icon-btn" onclick={close} aria-label={$t("study.common.close")}>
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

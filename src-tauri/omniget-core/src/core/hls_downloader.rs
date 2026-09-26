@@ -293,6 +293,28 @@ impl HlsDownloader {
             std::fs::create_dir_all(parent)?;
         }
 
+        let (jobs, init_sections) = plan_segments(&playlist, m3u8_url);
+        let user_agent = self.effective_user_agent().to_string();
+
+        // EXT-X-MAP: fMP4/CMAF playlists need their init section in front of
+        // the media segments, or the remux sees a stream with no moov.
+        let mut inits = Vec::with_capacity(init_sections.len());
+        for init in &init_sections {
+            let data = download_segment_with_retry(
+                &self.client,
+                &init.url,
+                init.range,
+                referer,
+                &user_agent,
+                max_retries.max(1),
+                &cancel_token,
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("Init section (EXT-X-MAP) download failed: {}", e))?;
+            inits.push(data);
+        }
+        let init_plan: Vec<Option<usize>> = jobs.iter().map(|j| j.init).collect();
+
         let (seg_tx, seg_rx) = mpsc::channel::<(usize, Vec<u8>)>(max_concurrent as usize);
 
         let writer_output = part_path.clone();
@@ -304,6 +326,10 @@ impl HlsDownloader {
                 &encryption,
                 media_sequence,
                 total_segments,
+                &InitSections {
+                    data: inits,
+                    plan: init_plan,
+                },
             )
             .await
         });
@@ -315,12 +341,7 @@ impl HlsDownloader {
         let errors: Arc<tokio::sync::Mutex<HashMap<String, u32>>> =
             Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
-        let segment_urls: Vec<(usize, String)> = playlist
-            .segments
-            .iter()
-            .enumerate()
-            .map(|(i, seg)| (i, resolve_url(m3u8_url, &seg.uri)))
-            .collect();
+        let segment_jobs: Vec<(usize, SegmentJob)> = jobs.into_iter().enumerate().collect();
 
         let client = &self.client;
         let errors_ref = &errors;
@@ -328,12 +349,11 @@ impl HlsDownloader {
         let downloaded_ref = &downloaded_bytes;
         let fail_ref = &fail_token;
         let sem_ref = &semaphore;
-        let user_agent = self.effective_user_agent().to_string();
         let user_agent_ref = &user_agent;
         let progress_ref = &self.progress_tx;
 
-        stream::iter(segment_urls)
-            .map(|(i, url)| {
+        stream::iter(segment_jobs)
+            .map(|(i, job)| {
                 let bytes_tx = bytes_tx.clone();
                 let seg_tx = seg_tx.clone();
                 let referer = referer.to_string();
@@ -344,7 +364,8 @@ impl HlsDownloader {
                     }
                     match download_segment_with_retry(
                         client,
-                        &url,
+                        &job.url,
+                        job.range,
                         &referer,
                         user_agent_ref,
                         max_retries,
@@ -643,23 +664,103 @@ async fn finalize_container(part_path: &Path, output: &Path) -> anyhow::Result<(
     Ok(())
 }
 
+/// One media segment to fetch: absolute URL, optional `(start, length)` byte
+/// range (EXT-X-BYTERANGE) and the init section (EXT-X-MAP) it belongs to.
+#[derive(Debug, Clone, PartialEq)]
+struct SegmentJob {
+    url: String,
+    range: Option<(u64, u64)>,
+    init: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct InitSection {
+    url: String,
+    range: Option<(u64, u64)>,
+}
+
+/// Init bytes plus, per segment, which of them must precede it.
+struct InitSections {
+    data: Vec<Vec<u8>>,
+    plan: Vec<Option<usize>>,
+}
+
+/// Resolves every segment of a media playlist into what to fetch.
+///
+/// m3u8-rs attaches `EXT-X-MAP` only to the segment right after the tag, but
+/// the spec applies it to every following segment until the next MAP, so it
+/// is carried forward here. A BYTERANGE without `@offset` starts where the
+/// previous sub-range of the same resource ended (streamlink hls.py:189-194).
+fn plan_segments(
+    playlist: &m3u8_rs::MediaPlaylist,
+    base: &str,
+) -> (Vec<SegmentJob>, Vec<InitSection>) {
+    let mut jobs = Vec::with_capacity(playlist.segments.len());
+    let mut inits: Vec<InitSection> = Vec::new();
+    let mut current_init = None;
+    let mut next_offset: HashMap<String, u64> = HashMap::new();
+    for seg in &playlist.segments {
+        if let Some(map) = &seg.map {
+            let init = InitSection {
+                url: resolve_url(base, &map.uri),
+                range: map
+                    .byte_range
+                    .as_ref()
+                    .map(|b| (b.offset.unwrap_or(0), b.length)),
+            };
+            current_init = Some(match inits.iter().position(|i| *i == init) {
+                Some(p) => p,
+                None => {
+                    inits.push(init);
+                    inits.len() - 1
+                }
+            });
+        }
+        let url = resolve_url(base, &seg.uri);
+        let range = seg.byte_range.as_ref().map(|b| {
+            let start = b
+                .offset
+                .unwrap_or_else(|| next_offset.get(&url).copied().unwrap_or(0));
+            next_offset.insert(url.clone(), start + b.length);
+            (start, b.length)
+        });
+        jobs.push(SegmentJob {
+            url,
+            range,
+            init: current_init,
+        });
+    }
+    (jobs, inits)
+}
+
 async fn write_segments_ordered(
     mut rx: mpsc::Receiver<(usize, Vec<u8>)>,
     output_path: &PathBuf,
     encryption: &Option<EncryptionInfo>,
     media_sequence: u64,
     total_segments: usize,
+    init_sections: &InitSections,
 ) -> anyhow::Result<()> {
     use std::io::Write;
     let mut file =
         std::io::BufWriter::with_capacity(256 * 1024, std::fs::File::create(output_path)?);
     let mut next_expected: usize = 0;
     let mut pending: BTreeMap<usize, Vec<u8>> = BTreeMap::new();
+    let mut written_init: Option<usize> = None;
 
     while let Some((idx, data)) = rx.recv().await {
         pending.insert(idx, data);
 
         while let Some(segment_data) = pending.remove(&next_expected) {
+            // A new EXT-X-MAP goes in once, right before its first segment.
+            if let Some(Some(init)) = init_sections.plan.get(next_expected) {
+                if written_init != Some(*init) {
+                    if let Some(bytes) = init_sections.data.get(*init) {
+                        file.write_all(bytes)?;
+                    }
+                    written_init = Some(*init);
+                }
+            }
             // The image wrapper, when present, sits outside the encryption:
             // it has to come off before the AES-128 block decryption runs.
             let payload_start = image_wrapper_offset(&segment_data);
@@ -699,53 +800,82 @@ async fn write_segments_ordered(
     Ok(())
 }
 
-const SEGMENT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+/// A segment that sends no byte for this long is abandoned and re-requested
+/// from the byte it stopped at (streamlink `segment-timeout`, 10 s).
+const SEGMENT_STALL: Duration = Duration::from_secs(10);
 
 async fn download_segment_with_retry(
     client: &Client,
     url: &str,
+    range: Option<(u64, u64)>,
     referer: &str,
     user_agent: &str,
     max_retries: u32,
     cancel: &CancellationToken,
 ) -> anyhow::Result<Vec<u8>> {
+    download_segment_watched(
+        client,
+        url,
+        range,
+        referer,
+        user_agent,
+        max_retries,
+        cancel,
+        SEGMENT_STALL,
+    )
+    .await
+}
+
+/// Fetches one segment with a stall watchdog instead of a total timeout: a
+/// slow but moving segment is never cut, a frozen one is retried after
+/// `stall` with `Range` from the bytes already received.
+#[allow(clippy::too_many_arguments)]
+async fn download_segment_watched(
+    client: &Client,
+    url: &str,
+    range: Option<(u64, u64)>,
+    referer: &str,
+    user_agent: &str,
+    max_retries: u32,
+    cancel: &CancellationToken,
+    stall: Duration,
+) -> anyhow::Result<Vec<u8>> {
+    let mut buf: Vec<u8> = Vec::new();
+    let mut resumable = false;
     let mut last_err = None;
     for attempt in 0..max_retries {
         if cancel.is_cancelled() {
             anyhow::bail!("Download cancelled");
         }
+        if !resumable {
+            buf.clear();
+        }
 
-        let result = tokio::time::timeout(SEGMENT_TIMEOUT, async {
-            let resp = apply_referer_headers(client.get(url), referer)
-                .header("User-Agent", user_agent)
-                .send()
-                .await?;
-
-            let status = resp.status();
-            if !status.is_success() {
-                let code = status.as_u16();
-                if (400..500).contains(&code) && code != 429 && code != 408 {
-                    return Err(anyhow::anyhow!("HTTP {} (fatal) downloading segment", code));
-                }
-                return Err(anyhow::anyhow!("HTTP {} downloading segment", code));
-            }
-
-            resp.bytes()
-                .await
-                .map(|b| b.to_vec())
-                .map_err(|e| anyhow::anyhow!(e))
-        })
-        .await;
-
-        match result {
-            Ok(Ok(data)) => return Ok(data),
-            Ok(Err(e)) => {
+        match fetch_segment_once(
+            client,
+            url,
+            range,
+            referer,
+            user_agent,
+            stall,
+            &mut buf,
+            &mut resumable,
+        )
+        .await
+        {
+            Ok(()) => return Ok(buf),
+            Err(e) => {
                 if e.to_string().contains("(fatal)") {
                     return Err(e);
                 }
+                tracing::debug!(
+                    "[hls] segment attempt {} failed after {} bytes: {}",
+                    attempt + 1,
+                    buf.len(),
+                    e
+                );
                 last_err = Some(e);
             }
-            Err(_) => last_err = Some(anyhow::anyhow!("Timeout downloading segment")),
         }
         if attempt < max_retries - 1 {
             let base = 500 * (attempt as u64 + 1);
@@ -756,6 +886,110 @@ async fn download_segment_with_retry(
     Err(last_err.unwrap_or_else(|| {
         anyhow::anyhow!("Segment download failed after {} attempts", max_retries)
     }))
+}
+
+/// One request for a segment, appending to `buf` (which may already hold the
+/// head of it from a stalled try). Sets `resumable` when the server proved it
+/// serves ranges, so the next try can ask only for what is missing.
+#[allow(clippy::too_many_arguments)]
+async fn fetch_segment_once(
+    client: &Client,
+    url: &str,
+    range: Option<(u64, u64)>,
+    referer: &str,
+    user_agent: &str,
+    stall: Duration,
+    buf: &mut Vec<u8>,
+    resumable: &mut bool,
+) -> anyhow::Result<()> {
+    let got = buf.len() as u64;
+    let start = range.map(|(s, _)| s).unwrap_or(0) + got;
+    let range_header = match range {
+        Some((s, len)) => Some(format!("bytes={}-{}", s + got, s + len - 1)),
+        None if got > 0 => Some(format!("bytes={}-", got)),
+        None => None,
+    };
+
+    let mut req = apply_referer_headers(client.get(url), referer)
+        .header("User-Agent", user_agent)
+        // Segment bytes must arrive as stored, or Range offsets are wrong.
+        .header(reqwest::header::ACCEPT_ENCODING, "identity");
+    if let Some(r) = &range_header {
+        req = req.header(reqwest::header::RANGE, r.as_str());
+    }
+    let resp = tokio::time::timeout(stall, req.send())
+        .await
+        .map_err(|_| anyhow::anyhow!("Timeout waiting for segment response"))??;
+
+    let status = resp.status();
+    if !status.is_success() {
+        let code = status.as_u16();
+        if (400..500).contains(&code) && code != 429 && code != 408 && code != 416 {
+            return Err(anyhow::anyhow!("HTTP {} (fatal) downloading segment", code));
+        }
+        *resumable = false;
+        return Err(anyhow::anyhow!("HTTP {} downloading segment", code));
+    }
+
+    // A 200 to a ranged request is the whole resource: start over and, for a
+    // BYTERANGE segment, cut the slice out at the end.
+    let whole = status != reqwest::StatusCode::PARTIAL_CONTENT;
+    if whole {
+        buf.clear();
+        *resumable = range.is_none()
+            && resp
+                .headers()
+                .get(reqwest::header::ACCEPT_RANGES)
+                .and_then(|v| v.to_str().ok())
+                .is_some_and(|v| v.contains("bytes"));
+    } else {
+        let answered = resp
+            .headers()
+            .get(reqwest::header::CONTENT_RANGE)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.trim().strip_prefix("bytes"))
+            .and_then(|v| v.trim_start().split('-').next())
+            .and_then(|v| v.trim().parse::<u64>().ok());
+        if answered.is_some_and(|a| a != start) {
+            buf.clear();
+            *resumable = false;
+            return Err(anyhow::anyhow!(
+                "server answered a different range for the segment"
+            ));
+        }
+        *resumable = true;
+    }
+    let expected = resp.content_length().map(|n| n + buf.len() as u64);
+
+    let mut stream = resp.bytes_stream();
+    loop {
+        match tokio::time::timeout(stall, stream.next()).await {
+            Ok(Some(Ok(chunk))) => buf.extend_from_slice(&chunk),
+            Ok(Some(Err(e))) => return Err(anyhow::anyhow!("Segment stream error: {}", e)),
+            Ok(None) => break,
+            Err(_) => {
+                return Err(anyhow::anyhow!(
+                    "Segment stalled: no data for {} s",
+                    stall.as_secs()
+                ))
+            }
+        }
+    }
+    if expected.is_some_and(|e| (buf.len() as u64) < e) {
+        return Err(anyhow::anyhow!("Segment ended early"));
+    }
+
+    if let (true, Some((s, len))) = (whole, range) {
+        let (s, e) = (s as usize, (s + len) as usize);
+        if buf.len() < e {
+            buf.clear();
+            anyhow::bail!("Segment shorter than its BYTERANGE");
+        }
+        let slice = buf[s..e].to_vec();
+        *buf = slice;
+        *resumable = false;
+    }
+    Ok(())
 }
 
 const PNG_SIGNATURE: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
@@ -1408,5 +1642,136 @@ mod tests {
             downloader.prefetched_for("https://cdn.example.com/live/master.m3u8"),
             None
         );
+    }
+
+    use crate::core::http_fetcher::test_server;
+
+    #[test]
+    fn plan_carries_ext_x_map_forward_and_accumulates_byteranges() {
+        let text = b"#EXTM3U
+#EXT-X-VERSION:7
+#EXT-X-TARGETDURATION:4
+#EXT-X-MAP:URI=\"init.mp4\",BYTERANGE=\"720@0\"
+#EXTINF:4.0,
+#EXT-X-BYTERANGE:1000@720
+media.mp4
+#EXTINF:4.0,
+#EXT-X-BYTERANGE:500
+media.mp4
+#EXT-X-DISCONTINUITY
+#EXT-X-MAP:URI=\"init2.mp4\"
+#EXTINF:4.0,
+seg3.m4s
+#EXTINF:4.0,
+seg4.m4s
+#EXT-X-ENDLIST
+";
+        let (_, pl) = parse_media_playlist(text).unwrap();
+        let (jobs, inits) = plan_segments(&pl, "https://cdn.test/v/index.m3u8");
+        assert_eq!(
+            inits,
+            vec![
+                InitSection {
+                    url: "https://cdn.test/v/init.mp4".into(),
+                    range: Some((0, 720))
+                },
+                InitSection {
+                    url: "https://cdn.test/v/init2.mp4".into(),
+                    range: None
+                },
+            ]
+        );
+        assert_eq!(jobs.len(), 4);
+        assert_eq!(jobs[0].range, Some((720, 1000)));
+        assert_eq!(jobs[1].range, Some((1720, 500)), "no @offset continues");
+        assert_eq!(jobs[1].init, Some(0), "MAP applies until the next one");
+        assert_eq!(jobs[2].init, Some(1));
+        assert_eq!(jobs[3].init, Some(1));
+        assert_eq!(jobs[3].range, None);
+    }
+
+    #[tokio::test]
+    async fn init_section_is_written_once_before_its_segments() {
+        let dir = std::env::temp_dir().join(format!(
+            "omniget-hls-init-{}-{}",
+            std::process::id(),
+            rand::random::<u32>()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let out = dir.join("o.part");
+        let (tx, rx) = mpsc::channel(8);
+        for (i, d) in [b"S0".to_vec(), b"S1".to_vec(), b"S2".to_vec()]
+            .into_iter()
+            .enumerate()
+            .rev()
+        {
+            tx.send((i, d)).await.unwrap();
+        }
+        drop(tx);
+        let inits = InitSections {
+            data: vec![b"IA".to_vec(), b"IB".to_vec()],
+            plan: vec![Some(0), Some(0), Some(1)],
+        };
+        write_segments_ordered(rx, &out, &None, 0, 3, &inits)
+            .await
+            .unwrap();
+        assert_eq!(std::fs::read(&out).unwrap(), b"IAS0S1IBS2");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn byterange_segment_requests_only_its_slice() {
+        let body: Vec<u8> = (0u8..=255).cycle().take(4096).collect();
+        let b = body.clone();
+        let (base, log) = test_server::spawn(move |_, r| test_server::serve_bytes(&b, r)).await;
+        let data = download_segment_watched(
+            &Client::new(),
+            &format!("{base}/media.mp4"),
+            Some((100, 50)),
+            "",
+            "ua",
+            3,
+            &CancellationToken::new(),
+            Duration::from_secs(5),
+        )
+        .await
+        .unwrap();
+        assert_eq!(data, body[100..150].to_vec());
+        let reqs = log.lock().unwrap().clone();
+        assert_eq!(reqs[0].header("range"), Some("bytes=100-149"));
+        assert_eq!(reqs[0].header("accept-encoding"), Some("identity"));
+    }
+
+    #[tokio::test]
+    async fn stalled_segment_is_retried_from_the_received_byte() {
+        let body: Vec<u8> = (0u8..=255).cycle().take(64 * 1024).collect();
+        let b = body.clone();
+        let (base, log) = test_server::spawn(move |_, r| {
+            let mut reply = test_server::serve_bytes(&b, r);
+            if r.range().is_none() {
+                reply.cut_after = Some(b.len() / 2);
+                reply.stall = true;
+            }
+            reply
+        })
+        .await;
+        let t0 = std::time::Instant::now();
+        let data = download_segment_watched(
+            &Client::new(),
+            &format!("{base}/seg.ts"),
+            None,
+            "",
+            "ua",
+            3,
+            &CancellationToken::new(),
+            Duration::from_millis(300),
+        )
+        .await
+        .unwrap();
+        assert!(t0.elapsed() < Duration::from_secs(5), "{:?}", t0.elapsed());
+        assert_eq!(data, body);
+        let reqs = log.lock().unwrap().clone();
+        assert_eq!(reqs.len(), 2, "{reqs:?}");
+        assert_eq!(reqs[1].range(), Some(((body.len() / 2) as u64, None)));
     }
 }

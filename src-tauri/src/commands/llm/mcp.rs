@@ -108,6 +108,9 @@ pub struct McpTestResultDto {
     pub tool_count: usize,
     pub elapsed_ms: u64,
     pub error: Option<McpErrorDto>,
+    /// reachable → authenticated → initialized → tool-capable; only the last
+    /// is usable (a 401 answer is reachable, not usable).
+    pub health: omniget_core::core::assist::missions::diag::McpHealth,
 }
 
 /// What `llm_mcp_grant` takes: an MCP tool and the mode, `null` to clear it.
@@ -355,14 +358,23 @@ pub async fn llm_mcp_test(id: String) -> Result<McpTestResultDto, String> {
 /// below drive it with the fixture instead of the user's real config.
 pub async fn probe(reg: &Arc<McpRegistry>, id: &str) -> Result<McpTestResultDto, String> {
     let started = Instant::now();
-    let fail = |error: McpError, started: Instant| McpTestResultDto {
-        ok: false,
-        server_name: None,
-        protocol_version: None,
-        protocol_known: true,
-        tool_count: 0,
-        elapsed_ms: started.elapsed().as_millis() as u64,
-        error: Some(error.into()),
+    let fail = |error: McpError, started: Instant| {
+        let error: McpErrorDto = error.into();
+        McpTestResultDto {
+            ok: false,
+            server_name: None,
+            protocol_version: None,
+            protocol_known: true,
+            tool_count: 0,
+            elapsed_ms: started.elapsed().as_millis() as u64,
+            health: omniget_core::core::assist::missions::diag::mcp_health(
+                false,
+                Some(&error.code),
+                Some(&error.message),
+                0,
+            ),
+            error: Some(error),
+        }
     };
     let client = match reg.client_for(id).await {
         Ok(client) => client,
@@ -377,6 +389,12 @@ pub async fn probe(reg: &Arc<McpRegistry>, id: &str) -> Result<McpTestResultDto,
             tool_count: tools.len(),
             elapsed_ms: started.elapsed().as_millis() as u64,
             error: None,
+            health: omniget_core::core::assist::missions::diag::mcp_health(
+                true,
+                None,
+                None,
+                tools.len(),
+            ),
         }),
         Err(error) => Ok(fail(error, started)),
     }

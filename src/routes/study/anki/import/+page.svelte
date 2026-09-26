@@ -424,13 +424,13 @@
       </ul>
       {#if result.kind === "csv" && result.data.errors.length > 0}
         <details class="errors">
-          <summary>{$t("study.anki.import.error_rows", { n: result.data.errors.length })}</summary>
+          <summary>{$t("study.anki.import.error_rows", { count: result.data.errors.length })}</summary>
           <ul>
             {#each result.data.errors.slice(0, 20) as err (err)}
               <li>{err}</li>
             {/each}
             {#if result.data.errors.length > 20}
-              <li class="muted">{$t("study.anki.import.more_n", { n: result.data.errors.length - 20 })}</li>
+              <li class="muted">{$t("study.anki.import.more_n", { count: result.data.errors.length - 20 })}</li>
             {/if}
           </ul>
         </details>

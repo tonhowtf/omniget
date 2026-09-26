@@ -10,7 +10,7 @@ type QueueItem = {
   platform: string;
   title: string;
   status: { type: string; data?: unknown };
-  percent: number;
+  percent: number | null;
   speed_bytes_per_sec: number;
   downloaded_bytes: number;
   total_bytes: number | null;
@@ -104,6 +104,29 @@ describe("generic download progress", () => {
       speed: 0,
       error: "Cancelled",
     });
+  });
+});
+
+describe("unknown total (D-04)", () => {
+  it("keeps a null queue percent as null instead of a number", () => {
+    store.syncQueueState([queueItem(950, { percent: null, total_bytes: null, downloaded_bytes: 2_400_000 })]);
+    const item = store.getDownloads().get(950)!;
+    expect(item.percent).toBeNull();
+    expect(item.kind === "generic" && item.downloadedBytes).toBe(2_400_000);
+  });
+
+  it("keeps a null progress-event percent as null and the aggregate indeterminate", () => {
+    store.syncQueueState([queueItem(951, { total_bytes: null })]);
+    store.upsertGenericProgress(951, "Example video", "youtube", null, 10, 5_000, null, "downloading");
+    expect(store.getDownloads().get(951)!.percent).toBeNull();
+    expect(store.getAggregate().percent).toBeNull();
+  });
+
+  it("clamps known percents and maps non-finite ones to null", () => {
+    expect(store.knownPercent(42)).toBe(42);
+    expect(store.knownPercent(-3)).toBe(0);
+    expect(store.knownPercent(null)).toBeNull();
+    expect(store.knownPercent(Number.NaN)).toBeNull();
   });
 });
 

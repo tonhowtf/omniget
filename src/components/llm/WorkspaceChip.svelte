@@ -1,7 +1,7 @@
 <script lang="ts">
-  // The folder the coding tools are confined to. Without one, every coding
-  // tool answers ERR_CODE_NO_WORKSPACE, so this chip is what turns the agent
-  // into a coding agent.
+  // The context of THIS conversation: Personal (no folder: the project tools
+  // are absent) or Project: <folder>. Picking a folder here never changes
+  // another conversation nor the process-wide folder.
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
@@ -13,6 +13,8 @@
   let { conversationId = null, refreshKey = 0 }: { conversationId?: string | null; refreshKey?: number } = $props();
 
   type Workspace = {
+    /** `projectless` (personal) or `project`. */
+    context?: "projectless" | "project";
     path: string | null;
     name: string | null;
     sandbox: string;
@@ -32,6 +34,11 @@
   let undoing = $state(false);
 
   async function refresh() {
+    // No conversation, no context: never show the process-wide folder here.
+    if (!conversationId) {
+      ws = { path: null, name: null, sandbox: "none" };
+      return;
+    }
     try {
       ws = (await invoke("llm_workspace_get", { conversationId })) as Workspace;
     } catch {
@@ -88,10 +95,20 @@
   }
 </script>
 
-<div class="ws-chip" class:attached={ws.path !== null} title={ws.path ?? ($t("llm.workspace.none_hint") as string)}>
-  <button type="button" class="ws-main" onclick={pick}>
+<div class="ws-chip" class:attached={ws.path !== null} title={ws.path ?? ($t("assist.conversation.context_personal_hint") as string)}>
+  <button
+    type="button"
+    class="ws-main"
+    onclick={pick}
+    disabled={!conversationId}
+    aria-label={(ws.path
+      ? $t("assist.conversation.context_project_label", { name: ws.name ?? ws.path })
+      : $t("assist.conversation.context_personal_label")) as string}
+  >
     <span class="ws-glyph" aria-hidden="true"></span>
-    <span class="ws-name">{ws.name ?? $t("llm.workspace.pick")}</span>
+    <span class="ws-name">
+      {#if ws.path}{$t("assist.conversation.context_project", { name: ws.name ?? ws.path })}{:else}{$t("assist.conversation.context_personal")}{/if}
+    </span>
   </button>
   {#if ws.path}
     <span class="ws-sandbox" class:on={ws.sandbox !== "none"}>
@@ -184,6 +201,8 @@
     background: rgba(52, 199, 89, 0.18);
     color: #1f8f43;
   }
+  .ws-main:focus-visible, .ws-x:focus-visible, .ws-undo:focus-visible { outline: var(--focus-ring); border-radius: var(--radius-sm); }
+  .ws-main:disabled { cursor: default; }
   .ws-x {
     background: none;
     border: 0;

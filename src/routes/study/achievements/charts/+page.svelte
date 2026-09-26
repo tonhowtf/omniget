@@ -341,7 +341,7 @@
         <header class="card-head">
           <h3>Level ao longo do tempo</h3>
           <span class="meta">
-            {$t("study.achv.charts.level_ups", { n: levelPlot.count })}
+            {$t("study.achv.charts.level_ups", { count: levelPlot.count })}
           </span>
         </header>
         {#if levelPlot.points.length > 0}
@@ -433,7 +433,7 @@
         <header class="card-head">
           <h3>Unlocks por dia</h3>
           <span class="meta">
-            {$t("study.achv.charts.unlocks", { n: filteredAchievements.length })}
+            {$t("study.achv.charts.unlocks", { count: filteredAchievements.length })}
           </span>
         </header>
         {#if unlocksPlot.points.length > 0}

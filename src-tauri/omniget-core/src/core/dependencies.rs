@@ -105,6 +105,103 @@ pub mod integrity {
     }
 }
 
+/// yt-dlp onedir (PyInstaller `--onedir`) oficial, extraido uma vez.
+///
+/// O onefile (`yt-dlp_macos`) desempacota 72 MB a cada processo e o macOS
+/// varre tudo de novo: 13-25 s por `--version` (medido 26/09, user 0,8 s). O
+/// `yt-dlp_macos.zip` da mesma release traz o executavel e `_internal/` ja
+/// abertos: a primeira execucao paga a varredura (~20-33 s) e as seguintes
+/// levam 0,34-0,46 s. A varredura e feita aqui, no diretorio ainda em
+/// preparo, e sobrevive ao rename (medido). So macOS: e onde o custo existe.
+pub mod ytdlp_onedir {
+    use anyhow::anyhow;
+    use std::path::{Path, PathBuf};
+
+    pub const DIR_NAME: &str = "yt-dlp_onedir";
+    const EXE_NAME: &str = "yt-dlp_macos";
+
+    /// Asset da release com o onedir desta plataforma.
+    pub fn asset_name() -> Option<&'static str> {
+        if cfg!(target_os = "macos") {
+            Some("yt-dlp_macos.zip")
+        } else {
+            None
+        }
+    }
+
+    pub fn exe_in(dir: &Path) -> PathBuf {
+        dir.join(EXE_NAME)
+    }
+
+    /// Executavel e `_internal/` presentes (extracao interrompida nao conta).
+    pub fn is_complete(dir: &Path) -> bool {
+        exe_in(dir).is_file() && dir.join("_internal").is_dir()
+    }
+
+    fn sibling(target: &Path, suffix: &str) -> PathBuf {
+        let name = target
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(DIR_NAME);
+        target.with_file_name(format!("{name}{suffix}"))
+    }
+
+    /// Extrai o zip (ja verificado por hash) em `<target>.new`, confere o
+    /// layout, roda `warm` no executavel preparado e so entao troca. A copia
+    /// anterior vai para `<target>.old` e so e apagada na proxima instalacao:
+    /// um yt-dlp em andamento importa modulos de `_internal/` sob demanda.
+    pub fn install_from_zip(
+        bytes: &[u8],
+        target: &Path,
+        warm: impl FnOnce(&Path) -> anyhow::Result<()>,
+    ) -> anyhow::Result<PathBuf> {
+        let staged = sibling(target, ".new");
+        let old = sibling(target, ".old");
+        let _ = std::fs::remove_dir_all(&staged);
+        let result = (|| {
+            let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes))
+                .map_err(|e| anyhow!("yt-dlp onedir: zip invalido: {e}"))?;
+            archive
+                .extract(&staged)
+                .map_err(|e| anyhow!("yt-dlp onedir: falha ao extrair: {e}"))?;
+            if !is_complete(&staged) {
+                return Err(anyhow!(
+                    "yt-dlp onedir: layout inesperado (sem {EXE_NAME} ou _internal)"
+                ));
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(exe_in(&staged), std::fs::Permissions::from_mode(0o755))?;
+            }
+            warm(&exe_in(&staged))
+        })();
+        if let Err(e) = result {
+            let _ = std::fs::remove_dir_all(&staged);
+            return Err(e);
+        }
+        let _ = std::fs::remove_dir_all(&old);
+        let had_previous = target.exists();
+        if had_previous {
+            std::fs::rename(target, &old)
+                .map_err(|e| anyhow!("yt-dlp onedir: nao foi possivel mover o anterior: {e}"))?;
+        }
+        if let Err(e) = std::fs::rename(&staged, target) {
+            if had_previous {
+                let _ = std::fs::rename(&old, target);
+            }
+            let _ = std::fs::remove_dir_all(&staged);
+            return Err(anyhow!("yt-dlp onedir: falha ao instalar: {e}"));
+        }
+        let exe = exe_in(target);
+        if let Ok(f) = std::fs::File::open(&exe) {
+            // O mtime vem do zip (data do build); a janela de frescor comeca agora.
+            let _ = f.set_modified(std::time::SystemTime::now());
+        }
+        Ok(exe)
+    }
+}
+
 pub fn bin_name(tool: &str) -> String {
     if cfg!(target_os = "windows") {
         format!("{}.exe", tool)
@@ -127,9 +224,30 @@ pub async fn find_tool(tool: &str) -> Option<PathBuf> {
     find_tool_with_source(tool).await.map(|(path, _)| path)
 }
 
+/// Worker processes receive only fixed dependencies from their trusted parent.
+/// No discovery, provisioning or background self-update is allowed there.
+pub fn worker_mode() -> bool {
+    std::env::var_os("OMNIGET_WORKER_MODE").is_some_and(|v| v == "1")
+}
+pub fn worker_tool(tool: &str) -> Option<PathBuf> {
+    let key = match tool {
+        "yt-dlp" => "OMNIGET_WORKER_YTDLP",
+        "ffmpeg" => "OMNIGET_WORKER_FFMPEG",
+        "ffprobe" => "OMNIGET_WORKER_FFPROBE",
+        "node" => "OMNIGET_WORKER_NODE",
+        "deno" => "OMNIGET_WORKER_DENO",
+        _ => return None,
+    };
+    let path = PathBuf::from(std::env::var_os(key)?);
+    (path.is_absolute() && path.is_file()).then_some(path)
+}
+
 /// Like `find_tool` but also returns a source tag: "flatpak", "managed", or "system".
 /// Returns `None` if the tool is not found anywhere.
 pub async fn find_tool_with_source(tool: &str) -> Option<(PathBuf, &'static str)> {
+    if worker_mode() {
+        return worker_tool(tool).map(|p| (p, "worker-pinned"));
+    }
     // Issue #222. Antes de tudo: o caminho que o usuario escolheu. "custom" e
     // uma origem propria para a tabela de dependencias poder mostrar de onde o
     // binario veio, em vez de mentir "managed".
@@ -373,6 +491,10 @@ pub async fn update_ffmpeg() -> anyhow::Result<PathBuf> {
 }
 
 pub async fn ensure_ffmpeg() -> anyhow::Result<PathBuf> {
+    if worker_mode() {
+        return worker_tool("ffmpeg")
+            .ok_or_else(|| anyhow::anyhow!("WORKER_DEPENDENCY_UNAVAILABLE"));
+    }
     // Always ensure the managed binary exists — the standalone yt-dlp.exe
     // cannot discover system FFmpeg from PATH.
     if !is_flatpak() {
@@ -662,6 +784,9 @@ async fn extract_tar_xz_ffmpeg(
 /// challenge solver. Checks for any existing runtime first (Node.js, Deno,
 /// Bun), then auto-downloads Deno if none is found.
 pub async fn ensure_js_runtime() -> Option<PathBuf> {
+    if worker_mode() {
+        return worker_tool("deno").or_else(|| worker_tool("node"));
+    }
     // Check system-installed runtimes first.
     for tool in &["deno", "node", "bun"] {
         if let Some(path) = find_tool(tool).await {
@@ -793,6 +918,9 @@ async fn download_deno() -> anyhow::Result<PathBuf> {
 }
 
 pub async fn ensure_gallerydl() -> Option<PathBuf> {
+    if worker_mode() {
+        return None;
+    }
     if let Some(path) = find_tool("gallery-dl").await {
         return Some(path);
     }
@@ -859,6 +987,9 @@ async fn download_gallerydl() -> anyhow::Result<PathBuf> {
 }
 
 pub async fn ensure_aria2c() -> Option<PathBuf> {
+    if worker_mode() {
+        return None;
+    }
     if let Some(path) = find_tool("aria2c").await {
         return Some(path);
     }
@@ -996,5 +1127,92 @@ mod integrity_tests {
         );
         assert_eq!(parse_github_digest(VAZIO), None);
         assert_eq!(parse_github_digest("sha512:abc"), None);
+    }
+}
+
+#[cfg(test)]
+mod ytdlp_onedir_tests {
+    use super::ytdlp_onedir::*;
+    use std::io::Write;
+
+    fn zip_bytes(entries: &[(&str, &str, u32)]) -> Vec<u8> {
+        let mut w = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        for (name, body, mode) in entries {
+            let opts = zip::write::SimpleFileOptions::default().unix_permissions(*mode);
+            w.start_file(*name, opts).unwrap();
+            w.write_all(body.as_bytes()).unwrap();
+        }
+        w.finish().unwrap().into_inner()
+    }
+
+    fn onedir_zip(version: &str) -> Vec<u8> {
+        zip_bytes(&[
+            (
+                "yt-dlp_macos",
+                &format!("#!/bin/sh\necho {version}\n"),
+                0o755,
+            ),
+            ("_internal/base_library.zip", "py", 0o644),
+        ])
+    }
+
+    #[test]
+    fn instala_troca_e_guarda_o_anterior() {
+        let tmp = tempfile::tempdir().unwrap();
+        let target = tmp.path().join(DIR_NAME);
+        let exe = install_from_zip(&onedir_zip("2026.08.19"), &target, |_| Ok(())).unwrap();
+        assert!(is_complete(&target));
+        assert_eq!(exe, exe_in(&target));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&exe).unwrap().permissions().mode();
+            assert_eq!(mode & 0o111, 0o111, "executavel sem bit x: {mode:o}");
+        }
+        install_from_zip(&onedir_zip("2026.09.01"), &target, |_| Ok(())).unwrap();
+        let body = std::fs::read_to_string(exe_in(&target)).unwrap();
+        assert!(body.contains("2026.09.01"), "{body}");
+        assert!(tmp.path().join(format!("{DIR_NAME}.old")).is_dir());
+        assert!(!tmp.path().join(format!("{DIR_NAME}.new")).exists());
+    }
+
+    #[test]
+    fn aquecimento_falho_nao_toca_na_instalacao_atual() {
+        let tmp = tempfile::tempdir().unwrap();
+        let target = tmp.path().join(DIR_NAME);
+        install_from_zip(&onedir_zip("boa"), &target, |_| Ok(())).unwrap();
+        let err = install_from_zip(&onedir_zip("ruim"), &target, |_| {
+            Err(anyhow::anyhow!("--version falhou"))
+        });
+        assert!(err.is_err());
+        let body = std::fs::read_to_string(exe_in(&target)).unwrap();
+        assert!(body.contains("boa"));
+        assert!(!tmp.path().join(format!("{DIR_NAME}.new")).exists());
+    }
+
+    #[test]
+    fn zip_sem_internal_e_recusado() {
+        let tmp = tempfile::tempdir().unwrap();
+        let target = tmp.path().join(DIR_NAME);
+        let so_exe = zip_bytes(&[("yt-dlp_macos", "x", 0o755)]);
+        assert!(install_from_zip(&so_exe, &target, |_| Ok(())).is_err());
+        assert!(!target.exists());
+    }
+
+    #[test]
+    fn aquece_o_executavel_preparado_antes_da_troca() {
+        let tmp = tempfile::tempdir().unwrap();
+        let target = tmp.path().join(DIR_NAME);
+        let mut visto = None;
+        install_from_zip(&onedir_zip("x"), &target, |exe| {
+            visto = Some(exe.to_path_buf());
+            Ok(())
+        })
+        .unwrap();
+        let visto = visto.unwrap();
+        assert!(
+            visto.starts_with(tmp.path().join(format!("{DIR_NAME}.new"))),
+            "{visto:?}"
+        );
     }
 }

@@ -7,7 +7,7 @@
 // the route: `attachInput` detaches every listener it added.
 
 import { clampZoom, screenToWorld } from '$lib/world/render/camera';
-import type { Camera } from '$lib/world/render/types';
+import { CANVAS_REPLACED_EVENT, type Camera } from '$lib/world/render/types';
 
 /** Pointer travel, in device pixels, past which a press is a drag, not a click. */
 export const DRAG_SLOP = 4;
@@ -255,5 +255,36 @@ export function attachInput(
     canvas.removeEventListener('pointercancel', onPointerLeave);
     canvas.removeEventListener('wheel', onWheel);
     canvas.removeEventListener('keydown', onKeyDown);
+  };
+}
+
+/**
+ * Keep a binding on the canvas the renderer is actually drawing to. A GL
+ * wake whose context did not come back swaps the element for a fresh one
+ * (`CANVAS_REPLACED_EVENT` on the old one); the binding on the old element is
+ * torn down, `onSwap` learns the new element, and the binding is made again
+ * there. Returns the teardown of whatever binding is current.
+ */
+export function followCanvas<T extends EventTarget>(
+  canvas: T,
+  bind: (el: T) => () => void,
+  onSwap?: (next: T) => void,
+): () => void {
+  let current = canvas;
+  let unbind = bind(current);
+  const onReplaced = (e: Event) => {
+    const next = (e as CustomEvent<T>).detail;
+    if (!next || next === current) return;
+    unbind();
+    current.removeEventListener(CANVAS_REPLACED_EVENT, onReplaced);
+    current = next;
+    onSwap?.(next);
+    unbind = bind(next);
+    next.addEventListener(CANVAS_REPLACED_EVENT, onReplaced);
+  };
+  current.addEventListener(CANVAS_REPLACED_EVENT, onReplaced);
+  return () => {
+    unbind();
+    current.removeEventListener(CANVAS_REPLACED_EVENT, onReplaced);
   };
 }

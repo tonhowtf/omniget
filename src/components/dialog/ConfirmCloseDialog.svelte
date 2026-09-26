@@ -36,7 +36,7 @@
     {$t("confirm_close.title")}
   </h3>
   <p class="dialog-body">
-    {$t("confirm_close.message", { values: { count: activeCount } })}
+    {$t("confirm_close.message", { count: activeCount })}
   </p>
   <div class="dialog-actions">
     <button type="button" class="btn btn-secondary" onclick={cancel}>

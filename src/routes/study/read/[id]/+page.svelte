@@ -2111,7 +2111,7 @@
                 <p class="muted small">{$t("study.read.search_no_hits")}</p>
               {:else}
                 <p class="muted small">
-                  {$t("study.read.search_hits_count", { n: epubSearchHits.length })}
+                  {$t("study.read.search_hits_count", { count: epubSearchHits.length })}
                   {#if searchTruncated}+{/if}
                 </p>
                 <ul class="hits-list">
@@ -2133,7 +2133,7 @@
               <p class="muted small">{$t("study.read.search_no_hits")}</p>
             {:else}
               <p class="muted small">
-                {$t("study.read.search_hits_count", { n: searchHits.length })}
+                {$t("study.read.search_hits_count", { count: searchHits.length })}
                 {#if searchTruncated}+{/if}
               </p>
               <ul class="hits-list">

@@ -337,7 +337,7 @@
       <nav class="secondary" aria-label="more actions">
         {#if hero.kind !== "review" && dueToday > 0}
           <a href="/study/anki" class="s-link">
-            <span>{$t("study.hub.secondary_review", { n: dueToday })}</span>
+            <span>{$t("study.hub.secondary_review", { count: dueToday })}</span>
             <span aria-hidden="true">→</span>
           </a>
         {/if}

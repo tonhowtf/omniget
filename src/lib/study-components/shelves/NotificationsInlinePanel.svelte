@@ -114,12 +114,12 @@
         </span>
         <span class="title">
           {items.length === 1
-            ? $t("notifications.inline_count_one", { n: String(items.length) })
-            : $t("notifications.inline_count_other", { n: String(items.length) })}
+            ? $t("notifications.inline_count_one", { count: String(items.length) })
+            : $t("notifications.inline_count_other", { count: String(items.length) })}
           {#if unreadCount > 0 && unreadCount !== items.length}
             <span class="unread-tag">{unreadCount === 1
-              ? $t("notifications.inline_unread_tag_one", { n: String(unreadCount) })
-              : $t("notifications.inline_unread_tag_other", { n: String(unreadCount) })}</span>
+              ? $t("notifications.inline_unread_tag_one", { count: String(unreadCount) })
+              : $t("notifications.inline_unread_tag_other", { count: String(unreadCount) })}</span>
           {/if}
         </span>
       </div>

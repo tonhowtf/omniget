@@ -137,7 +137,7 @@
       {loading ? $t("llm.models.loading") : $t("llm.models.load")}
     </button>
     {#if models.length > 0}
-      <span class="picker-note">{$t("llm.models.count", { n: models.length })}</span>
+      <span class="picker-note">{$t("llm.models.count", { count: models.length })}</span>
     {:else if loadError}
       <span class="picker-note" role="alert">{$t("llm.models.load_failed", { error: loadError })}</span>
     {:else if modelsLoaded}

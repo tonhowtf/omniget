@@ -148,13 +148,13 @@
     const diff = Date.now() - d;
     const min = Math.floor(diff / 60000);
     if (min < 1) return "·";
-    if (min < 60) return $t("study.achievements.minutes_ago", { n: min }) as string;
+    if (min < 60) return $t("study.achievements.minutes_ago", { count: min }) as string;
     const h = Math.floor(min / 60);
-    if (h < 24) return $t("study.achievements.hours_ago", { n: h }) as string;
+    if (h < 24) return $t("study.achievements.hours_ago", { count: h }) as string;
     const days = Math.floor(h / 24);
     if (days < 30) {
       const key = days === 1 ? "study.achievements.day_ago" : "study.achievements.days_ago";
-      return $t(key, { n: days }) as string;
+      return $t(key, { count: days }) as string;
     }
     return new Date(d).toLocaleDateString();
   }

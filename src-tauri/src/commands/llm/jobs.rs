@@ -64,7 +64,12 @@ pub async fn llm_loop_delete(app: AppHandle, id: String) -> Result<Value, String
 #[tauri::command]
 pub async fn llm_triggers_list(app: AppHandle) -> Result<Value, String> {
     let bridge = jobs::bridge_info(&app);
-    Ok(json!({ "triggers": to(jobs::get(&app)?.triggers())?, "bridge": bridge }))
+    let triggers: Vec<Value> = jobs::get(&app)?
+        .triggers()
+        .iter()
+        .map(jobs::trigger_view)
+        .collect();
+    Ok(json!({ "triggers": triggers, "bridge": bridge }))
 }
 
 #[tauri::command]
@@ -81,4 +86,39 @@ pub async fn llm_trigger_delete(app: AppHandle, id: String) -> Result<Value, Str
 #[tauri::command]
 pub async fn llm_trigger_fire(app: AppHandle, id: String) -> Result<Value, String> {
     to(jobs::get(&app)?.fire(&id, None)?)
+}
+
+/// An interrupted job again (a person asked; the agent is told to check
+/// what was already done first).
+#[tauri::command]
+pub async fn llm_job_resume(app: AppHandle, id: String) -> Result<Value, String> {
+    to(jobs::get(&app)?.job_resume(&id)?)
+}
+
+#[tauri::command]
+pub async fn llm_job_mark_done(app: AppHandle, id: String) -> Result<Value, String> {
+    to(jobs::get(&app)?.job_mark_done(&id)?)
+}
+
+#[tauri::command]
+pub async fn llm_job_discard(app: AppHandle, id: String) -> Result<Value, String> {
+    to(jobs::get(&app)?.job_discard(&id)?)
+}
+
+#[tauri::command]
+pub async fn llm_loop_resume(app: AppHandle, id: String) -> Result<Value, String> {
+    to(jobs::get(&app)?.loop_resume(&id)?)
+}
+
+/// `done: true` marks an interrupted Loop finished, `false` discards it.
+#[tauri::command]
+pub async fn llm_loop_settle(app: AppHandle, id: String, done: bool) -> Result<Value, String> {
+    to(jobs::get(&app)?.loop_settle(&id, done)?)
+}
+
+#[tauri::command]
+pub async fn llm_trigger_mute(app: AppHandle, id: String, muted: bool) -> Result<Value, String> {
+    to(jobs::trigger_view(
+        &jobs::get(&app)?.trigger_mute(&id, muted)?,
+    ))
 }

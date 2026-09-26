@@ -4,7 +4,7 @@
   import { goto } from '$app/navigation';
   import { t } from '$lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
-  import { testConnection, parseConnectionDraft, CONNECTION_TOKEN_LIMIT, connectionMatchesIntent } from '$lib/llm/connection-setup';
+  import { testConnection, parseConnectionDraft, CONNECTION_TOKEN_LIMIT, connectionMatchesIntent, diagnoseConnectionError, type ConnectionDiagnosis } from '$lib/llm/connection-setup';
   import { loadAccounts, type AccountView, type AccountsSnapshot, type CliDetected } from '$lib/stores/llm-accounts-store.svelte';
   import { loadRoster, selectAgent } from '$lib/stores/llm-store.svelte';
   import type { AgentDef } from '$lib/llm/types';
@@ -14,6 +14,9 @@
   let step = $state(0);
   let busy = $state(false);
   let error = $state('');
+  // What the last failure means and what can be done about it (A06).
+  let diagnosis = $derived<ConnectionDiagnosis | null>(error ? diagnoseConnectionError(error, mode) : null);
+  let lastAction = $state<(() => Promise<void>) | null>(null);
   let clis = $state<CliDetected[]>([]);
   let accounts = $state<AccountView[]>([]);
   let cli = $state('claude');
@@ -72,6 +75,7 @@
     });
   }
   async function connect() {
+    lastAction = connect;
     persist();
     await guard(async () => {
       if (mode === 'subscription') {
@@ -127,6 +131,7 @@
     });
   }
   async function test() {
+    lastAction = test;
     controller = new AbortController(); verified = false;
     await guard(async () => {
       const roster = await invoke<AgentDef[]>('llm_roster_list');
@@ -178,7 +183,23 @@
       {#if mode === 'subscription'}<button class="button" disabled={busy} onclick={() => guard(async () => { await invoke('llm_accounts_login', { id: account }); verified = false; })}>{$t('llm.accounts.wizard.sign_in_again')}</button>{/if}
       <div class="actions"><button class="button active" disabled={busy} onclick={test}>{$t('llm.accounts.wizard.test_agent')}</button>{#if busy}<button class="button" onclick={() => controller?.abort()}>{$t('llm.accounts.wizard.cancel_test')}</button>{/if}{#if verified}<button class="button active" onclick={() => { selectAgent(agentId); goto('/llm'); }}>{$t('llm.accounts.wizard.open_conversation')}</button>{/if}</div>
     {/if}
-    {#if error}<p class="error" role="alert">{error}</p><p>{$t('llm.accounts.wizard.preserved_retry')}</p>{/if}
+    {#if error && diagnosis}
+      <div class="problem" role="alert">
+        <p class="error"><strong>{$t(diagnosis.titleKey)}</strong></p>
+        <p>{$t(diagnosis.actionKey)}</p>
+        <div class="actions">
+          {#each diagnosis.actions as act (act)}
+            {#if act === 'retry' && lastAction}<button class="button" disabled={busy} onclick={() => lastAction?.()}>{$t('assist.bots.connection.retry')}</button>
+            {:else if act === 'sign_in' && mode === 'subscription' && account}<button class="button" disabled={busy} onclick={() => guard(async () => { await invoke('llm_accounts_login', { id: account }); loginOpened = true; verified = false; })}>{$t('llm.accounts.wizard.sign_in_again')}</button>
+            {:else if act === 'switch'}<button class="button" disabled={busy} onclick={() => { error = ''; mode = ''; step = 0; }}>{$t('assist.bots.connection.switch')}</button>
+            {:else if act === 'open_local'}<button class="button" onclick={() => goto('/llm/local')}>{$t('llm.accounts.wizard.open_local_models')}</button>
+            {:else if act === 'change_model' && mode !== 'subscription' && models.length}<button class="button" disabled={busy} onclick={() => { error = ''; step = 2; }}>{$t('assist.bots.connection.change_model')}</button>{/if}
+          {/each}
+        </div>
+        <details><summary>{$t('assist.bots.connection.details')}</summary><p class="detail">{diagnosis.detail}</p></details>
+        <p>{$t('llm.accounts.wizard.preserved_retry')}</p>
+      </div>
+    {/if}
     {#if busy && step !== 3}<p role="status">{$t('llm.accounts.wizard.connecting')}</p>{/if}
   {/if}
 </section>
@@ -194,6 +215,8 @@
   .steps li { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-muted); }
   .steps li span { display:grid; place-items:center; width:26px; height:26px; border:1px solid var(--separator); border-radius:50%; }
   .steps .current { color:var(--text); font-weight:600; } .steps .current span,.steps .done span { background:var(--fill-secondary); }
-  .error { color:var(--error, #b42318); overflow-wrap:anywhere; } .actions { justify-content:flex-start; }
+  .error { color:var(--error, #b42318); overflow-wrap:anywhere; }
+  .problem { display:grid; gap:8px; padding:12px; border:1px solid var(--separator); border-radius:var(--radius-sm); }
+  .problem summary { cursor:pointer; font-size:13px; } .detail { font-family:var(--font-mono); font-size:12px; overflow-wrap:anywhere; } .actions { justify-content:flex-start; }
   @media(max-width:650px) { .choices { grid-template-columns:1fr; } .connection { padding:16px; } }
 </style>

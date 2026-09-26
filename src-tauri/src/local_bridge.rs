@@ -227,6 +227,13 @@ pub async fn spawn(app: AppHandle) {
         .route("/v1/log/{id}", get(download_log))
         .route("/v1/cookies", post(cookies_export))
         .route("/mcp", post(mcp_post).get(mcp_get).delete(mcp_get))
+        .route("/mcp/artifacts/{id}", get(mcp_artifact))
+        // Scoped projection of the assistant tools for CLI/ACP runtimes: its
+        // own bearer (a per-session token), never the extension's.
+        .route(
+            "/mcp/assist",
+            post(assist_mcp_post).get(mcp_get).delete(mcp_get),
+        )
         .merge(crate::local_bridge_llm::router(
             crate::local_bridge_llm::LlmBridgeState::from_bridge(&state),
         ))
@@ -241,6 +248,9 @@ pub async fn spawn(app: AppHandle) {
         .layer(cors);
 
     tracing::info!("local bridge listening on http://127.0.0.1:{port}");
+    omniget_core::core::assist::projection::set_endpoint(Some(format!(
+        "http://127.0.0.1:{port}/mcp/assist"
+    )));
 
     tokio::spawn(async move {
         if let Err(error) = axum::serve(listener, router).await {
@@ -261,6 +271,7 @@ async fn queue_state(State(state): State<BridgeState>, headers: HeaderMap) -> Re
         let q = app_state.download_queue.lock().await;
         q.get_state()
     };
+    let items = crate::core::queue::redacted_for_display(items);
     (StatusCode::OK, Json(items)).into_response()
 }
 
@@ -577,9 +588,53 @@ async fn mcp_post(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Response {
-    if !check_bearer(&headers, &state.token) {
-        return unauthorized();
+    let principal =
+        match bearer_of(&headers).and_then(|t| crate::mcp::policy::authenticate(&t).ok()) {
+            Some(p) => p,
+            None => return unauthorized(),
+        };
+    let host = headers
+        .get("host")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    let valid_host = url::Url::parse(&format!("http://{host}"))
+        .ok()
+        .is_some_and(|u| {
+            matches!(u.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"))
+                && u.username().is_empty()
+                && u.path() == "/"
+        });
+    if !valid_host || headers.contains_key("origin") {
+        return (
+            StatusCode::FORBIDDEN,
+            "MCP accepts authenticated native clients only",
+        )
+            .into_response();
     }
+    if headers
+        .get("mcp-protocol-version")
+        .is_some_and(|v| !matches!(v.to_str(), Ok("2025-03-26" | "2025-06-18")))
+    {
+        return (StatusCode::BAD_REQUEST, "Unsupported MCP protocol version").into_response();
+    }
+    if !headers
+        .get("content-type")
+        .and_then(|h| h.to_str().ok())
+        .is_some_and(|s| s.split(';').next() == Some("application/json"))
+    {
+        return StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response();
+    }
+    if body.len() > 65536 {
+        return StatusCode::PAYLOAD_TOO_LARGE.into_response();
+    }
+    let accept = headers
+        .get("accept")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    if !accept.contains("application/json") || !accept.contains("text/event-stream") {
+        return StatusCode::NOT_ACCEPTABLE.into_response();
+    }
+
     if !crate::mcp::enabled() {
         return (StatusCode::FORBIDDEN, Json(serde_json::json!({ "error": "MCP server is disabled in OmniGet → Tools → MCP server" }))).into_response();
     }
@@ -593,9 +648,213 @@ async fn mcp_post(
                 .into_response()
         }
     };
-    match crate::mcp::handle_body(&state.app, &msg).await {
+    let protocol = headers
+        .get("mcp-protocol-version")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+    match crate::mcp::REQUEST_PROTOCOL
+        .scope(
+            protocol,
+            crate::mcp::handle_body(&state.app, &principal, &msg),
+        )
+        .await
+    {
         Some(resp) => (StatusCode::OK, Json(resp)).into_response(),
         None => StatusCode::ACCEPTED.into_response(),
+    }
+}
+
+fn bearer_of(headers: &HeaderMap) -> Option<String> {
+    let raw = headers.get("authorization")?.to_str().ok()?;
+    raw.strip_prefix("Bearer ")
+        .or_else(|| raw.strip_prefix("bearer "))
+        .map(|s| s.trim().to_string())
+}
+
+/// Authorized byte transport, separate from JSON-RPC. Each 64 KiB chunk
+/// rechecks revocation/expiry. Bytes already in socket buffers cannot be recalled.
+async fn mcp_artifact(
+    axum::extract::Path(id): axum::extract::Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    use tokio::io::{AsyncReadExt, AsyncSeekExt};
+    if !crate::mcp::enabled() {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let principal =
+        match bearer_of(&headers).and_then(|t| crate::mcp::policy::authenticate(&t).ok()) {
+            Some(p) => p,
+            None => return unauthorized(),
+        };
+    let host = headers
+        .get("host")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    if headers.contains_key("origin")
+        || !url::Url::parse(&format!("http://{host}"))
+            .ok()
+            .is_some_and(|u| {
+                matches!(u.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"))
+                    && u.username().is_empty()
+                    && u.path() == "/"
+            })
+    {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let Some(digest) = headers
+        .get("if-match")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.trim_matches('"').to_owned())
+    else {
+        return StatusCode::PRECONDITION_REQUIRED.into_response();
+    };
+    let (_, last) = match crate::mcp::artifacts::preflight(&principal, &id, &digest, None) {
+        Ok(size) => size,
+        Err(e) if e == "ARTIFACT_REVISION_MISMATCH" => {
+            return StatusCode::PRECONDITION_FAILED.into_response()
+        }
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    if crate::mcp::artifacts::range(headers.get("range").and_then(|v| v.to_str().ok()), last + 1)
+        .is_err()
+    {
+        return (
+            StatusCode::RANGE_NOT_SATISFIABLE,
+            [("content-range", format!("bytes */{}", last + 1))],
+        )
+            .into_response();
+    }
+    let permit = match crate::mcp::artifacts::admit() {
+        Ok(p) => p,
+        Err(_) => return StatusCode::TOO_MANY_REQUESTS.into_response(),
+    };
+    let p = principal.clone();
+    let aid = id.clone();
+    let (snapshot, permit) = match tokio::task::spawn_blocking(move || {
+        crate::mcp::artifacts::open(&p, &aid, &digest).map(|s| (s, permit))
+    })
+    .await
+    {
+        Ok(Ok(s)) => s,
+        Ok(Err(e)) if e == "ARTIFACT_REVISION_MISMATCH" => {
+            return StatusCode::PRECONDITION_FAILED.into_response()
+        }
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    let bytes = snapshot.bytes;
+    let (start, end) = match crate::mcp::artifacts::range(
+        headers.get("range").and_then(|v| v.to_str().ok()),
+        bytes,
+    ) {
+        Ok(r) => r,
+        Err(_) => {
+            return (
+                StatusCode::RANGE_NOT_SATISFIABLE,
+                [("content-range", format!("bytes */{bytes}"))],
+            )
+                .into_response()
+        }
+    };
+    let digest = snapshot.digest;
+    let mut file = tokio::fs::File::from_std(snapshot.file);
+    if file.seek(std::io::SeekFrom::Start(start)).await.is_err() {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    let length = end - start + 1;
+    let stream = futures::stream::try_unfold(
+        (file, length, principal, id, permit),
+        |(mut file, left, p, id, permit)| async move {
+            if left == 0 {
+                return Ok::<_, std::io::Error>(None);
+            }
+            let cp = p.clone();
+            let cid = id.clone();
+            let permitted =
+                tokio::task::spawn_blocking(move || crate::mcp::artifacts::authorized(&cp, &cid))
+                    .await;
+            if !matches!(permitted, Ok(Ok(()))) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "ARTIFACT_ACCESS_REVOKED",
+                ));
+            }
+            let mut buf = vec![0u8; left.min(65536) as usize];
+            let n = file.read(&mut buf).await?;
+            if n == 0 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "ARTIFACT_INCOMPLETE",
+                ));
+            }
+            buf.truncate(n);
+            Ok(Some((buf, (file, left - n as u64, p, id, permit))))
+        },
+    );
+    let partial = headers.contains_key("range");
+    let mut response = Response::builder()
+        .status(if partial {
+            StatusCode::PARTIAL_CONTENT
+        } else {
+            StatusCode::OK
+        })
+        .header("content-type", "application/octet-stream")
+        .header("content-length", length)
+        .header("etag", format!("\"{digest}\""))
+        .header("accept-ranges", "bytes")
+        .header("cache-control", "private, no-store")
+        .header("x-content-type-options", "nosniff")
+        .header("content-disposition", "attachment");
+    if partial {
+        response = response.header("content-range", format!("bytes {start}-{end}/{bytes}"));
+    }
+    response
+        .body(axum::body::Body::from_stream(stream))
+        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+}
+
+/// The projection's answer to one POST: 401 without a valid session token,
+/// 202 for a notification, 200 with the JSON-RPC reply otherwise.
+pub async fn assist_mcp_response(
+    db: &omniget_core::core::assist::db::AssistDb,
+    headers: &HeaderMap,
+    body: &[u8],
+) -> (StatusCode, Option<serde_json::Value>) {
+    let msg: serde_json::Value = match serde_json::from_slice(body) {
+        Ok(v) => v,
+        Err(e) => {
+            // Parse errors still need a valid token: say nothing otherwise.
+            if bearer_of(headers)
+                .and_then(|t| omniget_core::core::assist::projection::validate(db, &t, now_ms()))
+                .is_none()
+            {
+                return (StatusCode::UNAUTHORIZED, None);
+            }
+            return (
+                StatusCode::BAD_REQUEST,
+                Some(
+                    serde_json::json!({ "jsonrpc": "2.0", "id": null, "error": { "code": -32700, "message": format!("parse error: {e}") } }),
+                ),
+            );
+        }
+    };
+    match omniget_core::core::assist::projection::handle(db, bearer_of(headers).as_deref(), &msg)
+        .await
+    {
+        Err(_) => (StatusCode::UNAUTHORIZED, None),
+        Ok(Some(reply)) => (StatusCode::OK, Some(reply)),
+        Ok(None) => (StatusCode::ACCEPTED, None),
+    }
+}
+
+async fn assist_mcp_post(headers: HeaderMap, body: axum::body::Bytes) -> Response {
+    let db = match omniget_core::core::assist::db::global() {
+        Ok(db) => db,
+        Err(_) => return StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    match assist_mcp_response(&db, &headers, &body).await {
+        (status, Some(v)) => (status, Json(v)).into_response(),
+        (StatusCode::UNAUTHORIZED, None) => unauthorized(),
+        (status, None) => status.into_response(),
     }
 }
 
@@ -608,6 +867,45 @@ async fn mcp_get() -> Response {
 mod tests {
     use super::*;
     use axum::http::HeaderValue;
+
+    #[test]
+    fn queue_route_payload_has_no_url_secrets() {
+        const S: &str = "SYNTHETIC_SECRET_b1r";
+        let raw =
+            format!("https://s3.test/o.mp4?X-Amz-Signature={S}&token={S}&sig={S}&igsh={S}#frag{S}");
+        let mut q = crate::core::queue::DownloadQueue::new(3);
+        q.enqueue(
+            1,
+            raw.clone(),
+            "generic".into(),
+            "t".into(),
+            "/tmp".into(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            std::sync::Arc::new(crate::platforms::noop::NoopDownloader),
+            None,
+            false,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        let items = crate::core::queue::redacted_for_display(q.get_state());
+        let json = serde_json::to_string(&items).unwrap();
+        assert!(!json.contains(S), "{json}");
+        assert!(json.contains("https://s3.test/o.mp4?"), "{json}");
+        // The download itself still has the executable URL in memory.
+        assert!(q.has_url(&raw));
+    }
 
     fn header_with_auth(value: &str) -> HeaderMap {
         let mut headers = HeaderMap::new();
@@ -655,6 +953,33 @@ mod tests {
     fn check_bearer_rejects_missing_scheme_prefix() {
         let headers = header_with_auth("abc");
         assert!(!check_bearer(&headers, "abc"));
+    }
+
+    #[tokio::test]
+    async fn the_assist_projection_route_wants_its_own_session_token() {
+        use omniget_core::core::assist::{db::AssistDb, projection};
+        let db = AssistDb::open_in_memory().unwrap();
+        let list = br#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#;
+        let (status, body) = assist_mcp_response(&db, &HeaderMap::new(), list).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert!(body.is_none());
+        let (status, _) = assist_mcp_response(&db, &header_with_auth("Bearer wrong"), list).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        let issued = projection::issue(&db, "bot", "conv", None, &[], false, 60_000).unwrap();
+        let auth = header_with_auth(&format!("Bearer {}", issued.token));
+        let (status, body) = assist_mcp_response(&db, &auth, list).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body.unwrap()["result"]["tools"], serde_json::json!([]));
+        let note = br#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#;
+        assert_eq!(
+            assist_mcp_response(&db, &auth, note).await.0,
+            StatusCode::ACCEPTED
+        );
+        projection::revoke(&db, &issued.id);
+        assert_eq!(
+            assist_mcp_response(&db, &auth, list).await.0,
+            StatusCode::UNAUTHORIZED
+        );
     }
 
     #[test]

@@ -146,9 +146,9 @@
     const days = Math.floor((Date.now() / 1000 - secs) / 86400);
     if (days <= 0) return "hoje";
     if (days === 1) return "ontem";
-    if (days < 30) return $t("study.achv.tree.d_ago", { n: days });
-    if (days < 365) return $t("study.achv.tree.mo_ago", { n: Math.floor(days / 30) });
-    return $t("study.achv.tree.y_ago", { n: Math.floor(days / 365) });
+    if (days < 30) return $t("study.achv.tree.d_ago", { count: days });
+    if (days < 365) return $t("study.achv.tree.mo_ago", { count: Math.floor(days / 30) });
+    return $t("study.achv.tree.y_ago", { count: Math.floor(days / 365) });
   }
 
   onMount(load);

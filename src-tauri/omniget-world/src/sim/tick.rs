@@ -32,6 +32,7 @@ impl World {
     pub(crate) fn run_tick(&mut self, report: &mut StepReport) {
         self.fire_routines();
         self.take_decisions(report);
+        self.run_tasks();
         self.energy_behaviour();
         self.move_agents(report);
     }
@@ -56,6 +57,11 @@ impl World {
             if self.agents.routine[slot].is_empty() {
                 continue;
             }
+            // An autonomous agent chooses its own tasks; its routine is not
+            // replayed on top of them.
+            if self.tasks.is_autonomous(self.agents.id[slot]) {
+                continue;
+            }
             if !self.agents.activity[slot].interruptible_by_routine() {
                 continue;
             }
@@ -76,7 +82,12 @@ impl World {
                 continue;
             };
             report.decisions += 1;
-            if let Err(e) = self.apply_decision(slot, id, decision) {
+            let handled = self.decision_as_task(slot, id, &decision);
+            let result = match handled {
+                Some(r) => r,
+                None => self.apply_decision(slot, id, decision),
+            };
+            if let Err(e) = result {
                 report.rejected += 1;
                 self.events.push(WorldEvent::Rejected {
                     ent: id,
@@ -215,6 +226,10 @@ impl World {
         let order = self.order();
         for &slot in &order {
             let id = self.agents.id[slot];
+            // Needs of autonomous agents are the task step's business.
+            if self.tasks.is_autonomous(id) {
+                continue;
+            }
             let energy = self.agents.energy[slot];
             let activity = self.agents.activity[slot];
             if energy >= ENERGY_TIRED {
@@ -319,7 +334,7 @@ impl World {
         self.agents.intent[slot] = Intent::None;
     }
 
-    fn face_object(&mut self, slot: usize, object: ObjectId) {
+    pub(crate) fn face_object(&mut self, slot: usize, object: ObjectId) {
         if let Some(o) = self.objects.get(object) {
             let here = self.agents.tile_of(slot);
             self.agents.dir[slot] = dir_from_delta(o.tile.x - here.x, o.tile.y - here.y);
@@ -335,7 +350,7 @@ impl World {
         self.events.push(WorldEvent::Slept { ent: id });
     }
 
-    fn set_activity(&mut self, slot: usize, a: Activity) {
+    pub(crate) fn set_activity(&mut self, slot: usize, a: Activity) {
         let changed = self.agents.activity[slot] != a;
         self.agents.set_activity(slot, a);
         if changed {
@@ -357,6 +372,9 @@ impl World {
         let order = self.order();
         for &slot in &order {
             let id = self.agents.id[slot];
+            if self.tasks.is_autonomous(id) {
+                continue; // settle_tasks
+            }
             self.agents.path[slot].clear();
             self.agents.intent[slot] = Intent::None;
             self.agents.timer[slot] = 0;

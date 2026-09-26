@@ -128,7 +128,7 @@ const OMNIDISC_PREFIX_MAP: Record<string, string> = {
 export function translateBackendError(
   msg: string,
   t: (key: string) => string,
-  tWithValues?: (key: string, opts: { values: Record<string, string | number> }) => string
+  tWithValues?: (key: string, vars: Record<string, string | number>) => string
 ): string {
   if (!msg) return t("common.unknown_error");
 
@@ -137,9 +137,8 @@ export function translateBackendError(
     const limit = Number(parts[1] ?? 0);
     const current = Number(parts[2] ?? 0);
     if (tWithValues) {
-      return tWithValues("errors.path_too_long", {
-        values: { limit, current },
-      });
+      // sveltekit-i18n reads the payload itself: {{limit}}, {{current}}.
+      return tWithValues("errors.path_too_long", { limit, current });
     }
     return t("errors.path_too_long");
   }

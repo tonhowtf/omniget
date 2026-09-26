@@ -56,6 +56,24 @@ pub trait LineParser: Send + Sync {
 /// can read `Capacity` without spawning anything.
 pub type RateSink = Arc<dyn Fn(RateSnapshot) + Send + Sync>;
 
+/// Longest stdout line kept (one JSON event). A longer line is dropped, with
+/// a warning, instead of growing the buffer without bound.
+pub const MAX_LINE_BYTES: usize = 8 * 1024 * 1024;
+
+/// Everything besides the event stream a turn can report, all optional.
+#[derive(Default, Clone)]
+pub struct TurnHooks {
+    pub rate: Option<RateSink>,
+    /// The provider's session id (`CliSignal::Session`), once per id.
+    pub session: Option<Arc<dyn Fn(String) + Send + Sync>>,
+    /// Right after the spawn: pid and our launch id (also in the child's
+    /// environment as `OMNIGET_LAUNCH_ID`).
+    pub spawned: Option<Arc<dyn Fn(Option<u32>, &str) + Send + Sync>>,
+    /// Runs once when the turn task ends, whatever the path (temp files,
+    /// tokens).
+    pub cleanup: Option<Arc<dyn Fn() + Send + Sync>>,
+}
+
 /// Spawns the CLI and returns the turn stream.
 ///
 /// The stream always ends: on a clean exit, on a non-zero exit
@@ -67,6 +85,107 @@ pub fn spawn_turn(
     cancel: CancellationToken,
     rate_sink: Option<RateSink>,
 ) -> Result<BoxStream<'static, TurnEvent>, LlmError> {
+    spawn_turn_with(
+        spec,
+        parser,
+        cancel,
+        TurnHooks {
+            rate: rate_sink,
+            ..Default::default()
+        },
+    )
+}
+
+/// Reads one line of at most `max` bytes. `Ok(None)` at EOF; an oversized
+/// line comes back as `Some((String::new(), true))` after it is skipped.
+async fn read_line_bounded<R: tokio::io::AsyncBufRead + Unpin>(
+    reader: &mut R,
+    buf: &mut Vec<u8>,
+    max: usize,
+) -> std::io::Result<Option<(String, bool)>> {
+    buf.clear();
+    let mut oversized = false;
+    loop {
+        let chunk = reader.fill_buf().await?;
+        if chunk.is_empty() {
+            if buf.is_empty() && !oversized {
+                return Ok(None);
+            }
+            break;
+        }
+        let (take, done) = match chunk.iter().position(|b| *b == b'\n') {
+            Some(i) => (i + 1, true),
+            None => (chunk.len(), false),
+        };
+        if !oversized {
+            if buf.len() + take > max {
+                oversized = true;
+                buf.clear();
+            } else {
+                buf.extend_from_slice(&chunk[..take]);
+            }
+        }
+        reader.consume(take);
+        if done {
+            break;
+        }
+    }
+    if oversized {
+        return Ok(Some((String::new(), true)));
+    }
+    while matches!(buf.last(), Some(b'\n') | Some(b'\r')) {
+        buf.pop();
+    }
+    Ok(Some((String::from_utf8_lossy(buf).into_owned(), false)))
+}
+
+/// Stops the child and every process of its own group (the child is the
+/// group leader: `process_group(0)` at spawn). Processes outside the group
+/// are never touched. TERM first, KILL after the grace.
+async fn kill_tree(child: &mut tokio::process::Child, pgid: Option<u32>) {
+    #[cfg(unix)]
+    if let Some(pg) = pgid {
+        // SAFETY: plain syscall on a process group id we created.
+        unsafe {
+            libc::killpg(pg as libc::pid_t, libc::SIGTERM);
+        }
+        let exited = tokio::time::timeout(
+            std::time::Duration::from_millis(KILL_GRACE_MS / 2),
+            child.wait(),
+        )
+        .await
+        .is_ok();
+        unsafe {
+            // Descendants may outlive the leader: the group gets KILL anyway.
+            libc::killpg(pg as libc::pid_t, libc::SIGKILL);
+        }
+        if !exited {
+            let _ = tokio::time::timeout(
+                std::time::Duration::from_millis(KILL_GRACE_MS / 2),
+                child.wait(),
+            )
+            .await;
+        }
+        return;
+    }
+    let _ = pgid;
+    let _ = child.start_kill();
+    let _ = tokio::time::timeout(
+        std::time::Duration::from_millis(KILL_GRACE_MS),
+        child.wait(),
+    )
+    .await;
+}
+
+/// [`spawn_turn`] with every hook. The child runs in a process group of its
+/// own, so a cancel stops its descendants too and nothing else.
+pub fn spawn_turn_with(
+    spec: SpawnSpec,
+    parser: Arc<dyn LineParser>,
+    cancel: CancellationToken,
+    hooks: TurnHooks,
+) -> Result<BoxStream<'static, TurnEvent>, LlmError> {
+    let launch_id = uuid::Uuid::new_v4().to_string();
     let mut cmd = crate::core::process::command(&spec.program);
     cmd.args(&spec.args);
     for key in &spec.scrub {
@@ -75,9 +194,12 @@ pub fn spawn_turn(
     for (key, value) in &spec.env {
         cmd.env(key, value);
     }
+    cmd.env("OMNIGET_LAUNCH_ID", &launch_id);
     if let Some(dir) = &spec.cwd {
         cmd.current_dir(dir);
     }
+    #[cfg(unix)]
+    cmd.process_group(0);
     // The prompt travels on stdin, so the argv is safe to log.
     tracing::info!(
         "[cli] spawn {} {} (cwd {:?}, env {:?})",
@@ -96,23 +218,50 @@ pub fn spawn_turn(
         .stderr(Stdio::piped())
         .kill_on_drop(true);
 
-    let mut child = crate::core::process::spawn_retrying_busy(|| cmd.spawn()).map_err(|e| {
-        LlmError::new(
-            ERR_CLI_SPAWN,
-            format!("cannot start {}: {e}", spec.program.display()),
-        )
-    })?;
+    let mut child = match crate::core::process::spawn_retrying_busy(|| cmd.spawn()) {
+        Ok(c) => c,
+        Err(e) => {
+            if let Some(cleanup) = &hooks.cleanup {
+                cleanup();
+            }
+            return Err(LlmError::new(
+                ERR_CLI_SPAWN,
+                format!("cannot start {}: {e}", spec.program.display()),
+            ));
+        }
+    };
+    let pid = child.id();
+    // With `process_group(0)` the group id is the child's pid.
+    let pgid = if cfg!(unix) { pid } else { None };
+    if let Some(spawned) = &hooks.spawned {
+        spawned(pid, &launch_id);
+    }
 
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| LlmError::new(ERR_CLI_SPAWN, "the CLI gave no stdout".to_string()))?;
+    let Some(stdout) = child.stdout.take() else {
+        if let Some(cleanup) = &hooks.cleanup {
+            cleanup();
+        }
+        return Err(LlmError::new(
+            ERR_CLI_SPAWN,
+            "the CLI gave no stdout".to_string(),
+        ));
+    };
     let stderr = child.stderr.take();
     let mut stdin = child.stdin.take();
 
     let (mut tx, rx) = mpsc::channel::<TurnEvent>(64);
 
     tokio::spawn(async move {
+        struct Cleanup(Option<Arc<dyn Fn() + Send + Sync>>);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                if let Some(f) = self.0.take() {
+                    f();
+                }
+            }
+        }
+        let _cleanup = Cleanup(hooks.cleanup.clone());
+
         if let Some(mut pipe) = stdin.take() {
             if let Some(text) = &spec.stdin {
                 let _ = pipe.write_all(text.as_bytes()).await;
@@ -125,19 +274,32 @@ pub fn spawn_turn(
         // child, and its tail explains a non-zero exit.
         let stderr_task = stderr.map(|mut pipe| {
             tokio::spawn(async move {
-                let mut buf = Vec::new();
-                let _ = pipe.read_to_end(&mut buf).await;
-                if buf.len() > STDERR_TAIL_BYTES {
-                    buf = buf.split_off(buf.len() - STDERR_TAIL_BYTES);
+                let mut tail: Vec<u8> = Vec::new();
+                let mut chunk = vec![0u8; 8192];
+                loop {
+                    match pipe.read(&mut chunk).await {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => {
+                            tail.extend_from_slice(&chunk[..n]);
+                            if tail.len() > STDERR_TAIL_BYTES * 2 {
+                                tail = tail.split_off(tail.len() - STDERR_TAIL_BYTES);
+                            }
+                        }
+                    }
                 }
-                String::from_utf8_lossy(&buf).into_owned()
+                if tail.len() > STDERR_TAIL_BYTES {
+                    tail = tail.split_off(tail.len() - STDERR_TAIL_BYTES);
+                }
+                String::from_utf8_lossy(&tail).into_owned()
             })
         });
 
-        let mut lines = BufReader::new(stdout).lines();
+        let mut reader = BufReader::new(stdout);
+        let mut line_buf: Vec<u8> = Vec::new();
         let mut saw_error = false;
         let mut saw_finish = false;
         let mut cancelled = false;
+        let mut sessions_seen: Vec<String> = Vec::new();
 
         loop {
             let next = tokio::select! {
@@ -148,9 +310,13 @@ pub fn spawn_turn(
                 }
                 // A read error ends the stream like EOF: the exit status below
                 // is what explains the turn.
-                line = lines.next_line() => line.unwrap_or_default(),
+                line = read_line_bounded(&mut reader, &mut line_buf, MAX_LINE_BYTES) => line.unwrap_or_default(),
             };
-            let Some(line) = next else { break };
+            let Some((line, oversized)) = next else { break };
+            if oversized {
+                tracing::warn!("[cli] dropped a stdout line over {MAX_LINE_BYTES} bytes");
+                continue;
+            }
             if line.trim().is_empty() {
                 continue;
             }
@@ -170,12 +336,18 @@ pub fn spawn_turn(
                         }
                     }
                     CliSignal::Rate(snapshot) => {
-                        if let Some(sink) = &rate_sink {
+                        if let Some(sink) = &hooks.rate {
                             sink(snapshot);
                         }
                     }
                     CliSignal::Session(id) => {
                         tracing::debug!("[cli] session {id}");
+                        if !sessions_seen.contains(&id) {
+                            sessions_seen.push(id.clone());
+                            if let Some(sink) = &hooks.session {
+                                sink(id);
+                            }
+                        }
                     }
                     CliSignal::Ignored => {}
                 }
@@ -186,12 +358,7 @@ pub fn spawn_turn(
         }
 
         if cancelled {
-            let _ = child.start_kill();
-            let _ = tokio::time::timeout(
-                std::time::Duration::from_millis(KILL_GRACE_MS),
-                child.wait(),
-            )
-            .await;
+            kill_tree(&mut child, pgid).await;
             let _ = tx
                 .send(TurnEvent::Error {
                     error: LlmError::new(ERR_LLM_CANCELLED, "turn cancelled"),
@@ -550,6 +717,124 @@ mod tests {
         .err()
         .expect("spawning a missing binary must fail");
         assert_eq!(err.code, ERR_CLI_SPAWN);
+    }
+
+    #[cfg(unix)]
+    fn alive(pid: i32) -> bool {
+        // SAFETY: signal 0 only checks existence.
+        unsafe { libc::kill(pid, 0) == 0 }
+    }
+
+    /// A12: cancelling a run whose CLI has a grandchild stops both; a process
+    /// outside the group (spawned here, not by the turn) survives; no
+    /// completion is reported.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a12_cancel_kills_our_tree_and_spares_a_foreign_process() {
+        let dir = std::env::temp_dir().join(format!("omniget-a12-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let pidfile = dir.join("grandchild.pid");
+        // The CLI starts a grandchild (sleep) in the background, prints, waits.
+        let cli = fake_cli(
+            "a12",
+            &format!(
+                "sleep 120 &\necho $! > {}\necho started\nwait\n",
+                pidfile.display()
+            ),
+        );
+        // A process that is not ours: its own group, spawned by the test.
+        let mut foreign = std::process::Command::new("sleep")
+            .arg("120")
+            .spawn()
+            .unwrap();
+        let foreign_pid = foreign.id() as i32;
+
+        let spawned: Arc<std::sync::Mutex<Option<u32>>> = Arc::default();
+        let s2 = spawned.clone();
+        let cleaned = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let c2 = cleaned.clone();
+        let cancel = CancellationToken::new();
+        let mut stream = spawn_turn_with(
+            spec(cli.clone()),
+            Arc::new(EchoParser),
+            cancel.clone(),
+            TurnHooks {
+                spawned: Some(Arc::new(move |pid, launch| {
+                    assert!(!launch.is_empty());
+                    *s2.lock().unwrap() = pid;
+                })),
+                cleanup: Some(Arc::new(move || {
+                    c2.store(true, std::sync::atomic::Ordering::SeqCst);
+                })),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let first = stream.next().await.expect("started");
+        assert!(matches!(first, TurnEvent::TextDelta { .. }));
+        let child_pid = spawned.lock().unwrap().expect("pid") as i32;
+        let grandchild: i32 = std::fs::read_to_string(&pidfile)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        assert!(alive(child_pid) && alive(grandchild) && alive(foreign_pid));
+
+        cancel.cancel();
+        let rest: Vec<TurnEvent> = stream.collect().await;
+        assert!(matches!(
+            rest.last(),
+            Some(TurnEvent::Finished {
+                reason: FinishReason::Cancelled
+            })
+        ));
+        assert!(!rest.iter().any(|e| matches!(
+            e,
+            TurnEvent::Finished {
+                reason: FinishReason::Stop
+            }
+        )));
+        // Give the kernel a moment to reap.
+        for _ in 0..50 {
+            if !alive(grandchild) {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+        assert!(!alive(grandchild), "the grandchild must die with the run");
+        assert!(alive(foreign_pid), "a foreign process must survive");
+        assert!(cleaned.load(std::sync::atomic::Ordering::SeqCst));
+        let _ = foreign.kill();
+        let _ = foreign.wait();
+        let _ = std::fs::remove_file(cli);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn an_oversized_line_is_dropped_not_buffered_forever() {
+        let big = MAX_LINE_BYTES + 10;
+        let cli = fake_cli(
+            "bigline",
+            &format!("head -c {big} /dev/zero | tr '\\0' 'a'\necho\necho after\n"),
+        );
+        let stream = spawn_turn(
+            spec(cli.clone()),
+            Arc::new(EchoParser),
+            CancellationToken::new(),
+            None,
+        )
+        .unwrap();
+        let events: Vec<TurnEvent> = stream.collect().await;
+        let texts: Vec<String> = events
+            .iter()
+            .filter_map(|e| match e {
+                TurnEvent::TextDelta { text } => Some(text.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(texts, vec!["after"]);
+        let _ = std::fs::remove_file(cli);
     }
 
     #[test]

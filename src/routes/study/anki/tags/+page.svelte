@@ -171,7 +171,7 @@
           ? $t("study.anki.tags.no_unused")
           : r.removed === 1
             ? "1 tag removida"
-            : $t("study.anki.tags.removed_many", { n: r.removed }),
+            : $t("study.anki.tags.removed_many", { count: r.removed }),
       );
       if (r.removed > 0) await load();
     } catch (e) {

@@ -112,12 +112,54 @@ fn take_external() -> bool {
         .unwrap_or(false)
 }
 
-/// Where the conversation → workspace map is persisted (the app sets it once).
+/// The canonical store of "which folder belongs to which conversation".
+/// `assist::groups` installs one backed by `assist.db` at boot; without it
+/// (tests, tools that never booted the assistant) the legacy in-memory map
+/// loaded from `workspaces.json` answers.
+pub trait WorkspaceBindings: Send + Sync {
+    /// The folder authorised for `conversation`, `None` when it is personal.
+    fn get(&self, conversation: &str) -> Option<PathBuf>;
+    /// Binds (`Some`, already canonical) or detaches (`None`) one conversation.
+    fn set(&self, conversation: &str, path: Option<&Path>) -> Result<(), String>;
+    /// Called with the legacy map when `workspaces.json` is loaded, so old
+    /// per-conversation folders survive the move (idempotent, never deletes).
+    fn import_legacy(&self, _map: &std::collections::HashMap<String, PathBuf>) {}
+}
+
+static BINDINGS: RwLock<Option<std::sync::Arc<dyn WorkspaceBindings>>> = RwLock::new(None);
+
+/// Installs the canonical binding store and hands it the legacy map.
+pub fn set_bindings(bindings: Option<std::sync::Arc<dyn WorkspaceBindings>>) {
+    if let Some(b) = &bindings {
+        b.import_legacy(&legacy_bindings());
+    }
+    *BINDINGS.write().unwrap_or_else(|e| e.into_inner()) = bindings;
+}
+
+fn bindings() -> Option<std::sync::Arc<dyn WorkspaceBindings>> {
+    BINDINGS.read().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+/// The per-conversation folders read from `workspaces.json` (legacy store).
+pub fn legacy_bindings() -> std::collections::HashMap<String, PathBuf> {
+    BY_CONVERSATION
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+        .unwrap_or_default()
+}
+
+/// Where the legacy conversation → workspace map is persisted (the app sets
+/// it once). With a [`WorkspaceBindings`] installed the file is only read,
+/// to import what older versions wrote; it is never deleted.
 pub fn set_store_file(path: PathBuf) {
     let loaded: std::collections::HashMap<String, PathBuf> = std::fs::read(&path)
         .ok()
         .and_then(|b| serde_json::from_slice(&b).ok())
         .unwrap_or_default();
+    if let Some(b) = bindings() {
+        b.import_legacy(&loaded);
+    }
     *BY_CONVERSATION.write().unwrap_or_else(|e| e.into_inner()) = Some(loaded);
     *STORE_FILE.write().unwrap_or_else(|e| e.into_inner()) = Some(path);
 }
@@ -132,12 +174,18 @@ fn canonical_dir(p: PathBuf) -> Result<PathBuf, String> {
     Ok(real)
 }
 
-/// Bind one conversation to a folder. `None` detaches it.
+/// Bind one conversation to a folder (it becomes a Project conversation).
+/// `None` detaches it (personal again). Never touches another conversation
+/// nor the process-wide folder.
 pub fn set_conversation_workspace(
     conversation: &str,
     path: Option<PathBuf>,
 ) -> Result<Option<PathBuf>, String> {
     let resolved = path.map(canonical_dir).transpose()?;
+    if let Some(b) = bindings() {
+        b.set(conversation, resolved.as_deref())?;
+        return Ok(resolved);
+    }
     let mut guard = BY_CONVERSATION.write().unwrap_or_else(|e| e.into_inner());
     let map = guard.get_or_insert_with(Default::default);
     match &resolved {
@@ -156,15 +204,20 @@ pub fn set_conversation_workspace(
     Ok(resolved)
 }
 
-/// The folder of one conversation, falling back to the process-wide one.
+/// The folder authorised for one conversation, or `None` for a personal
+/// (projectless) one. There is deliberately NO fallback to the process-wide
+/// folder: a personal chat must never inherit the last project somebody
+/// opened elsewhere (A04), and two conversations keep their own folders (A05).
 pub fn workspace_of(conversation: &str) -> Option<PathBuf> {
-    BY_CONVERSATION
-        .read()
-        .unwrap_or_else(|e| e.into_inner())
-        .as_ref()
-        .and_then(|m| m.get(conversation).cloned())
-        .filter(|p| p.is_dir())
-        .or_else(global_workspace)
+    let found = match bindings() {
+        Some(b) => b.get(conversation),
+        None => BY_CONVERSATION
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .and_then(|m| m.get(conversation).cloned()),
+    };
+    found.filter(|p| p.is_dir())
 }
 
 /// True when `raw` is a path the tool would resolve outside the workspace.
@@ -198,11 +251,121 @@ fn global_workspace() -> Option<PathBuf> {
     WORKSPACE.read().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
-/// The workspace of the running turn's conversation, else the process-wide one.
+/// Inside a turn: the folder of that turn's conversation, or `None` for a
+/// personal conversation. Outside a turn (the embedded MCP server, the `omniget`
+/// CLI, background checks): the process-wide folder, which only those callers
+/// use and which choosing a folder in a conversation never changes.
 pub fn workspace() -> Option<PathBuf> {
     match current_turn() {
         Some(ctx) => workspace_of(&ctx.conversation),
         None => global_workspace(),
+    }
+}
+
+// ── one writer per workspace (B06) ──────────────────────────────────────
+//
+// Two conversations (or two members of a room) bound to the same folder must
+// not interleave writes. Every write tool takes the folder's lock for the
+// whole call: `fs_edit` / `fs_write` / `fs_apply_patch` hold it for the
+// milliseconds of the write, `shell_exec` for the whole command. The key is
+// the canonical folder, so two spellings of one path share one lock.
+
+struct WsLock {
+    busy: std::sync::Mutex<bool>,
+    cv: std::sync::Condvar,
+    notify: tokio::sync::Notify,
+}
+
+static WRITE_LOCKS: std::sync::Mutex<
+    Option<std::collections::HashMap<PathBuf, std::sync::Arc<WsLock>>>,
+> = std::sync::Mutex::new(None);
+
+pub const ERR_WORKSPACE_BUSY: &str = "ERR_CODE_WORKSPACE_BUSY";
+
+fn lock_for(root: &Path) -> std::sync::Arc<WsLock> {
+    let key = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let mut g = WRITE_LOCKS.lock().unwrap_or_else(|e| e.into_inner());
+    g.get_or_insert_with(Default::default)
+        .entry(key)
+        .or_insert_with(|| {
+            std::sync::Arc::new(WsLock {
+                busy: std::sync::Mutex::new(false),
+                cv: std::sync::Condvar::new(),
+                notify: tokio::sync::Notify::new(),
+            })
+        })
+        .clone()
+}
+
+/// Held while one write tool runs in a folder; dropping it lets the next in.
+pub struct WriteGuard(std::sync::Arc<WsLock>);
+
+impl Drop for WriteGuard {
+    fn drop(&mut self) {
+        *self.0.busy.lock().unwrap_or_else(|e| e.into_inner()) = false;
+        self.0.cv.notify_all();
+        self.0.notify.notify_waiters();
+    }
+}
+
+fn try_take(lock: &std::sync::Arc<WsLock>) -> Option<WriteGuard> {
+    let mut busy = lock.busy.lock().unwrap_or_else(|e| e.into_inner());
+    if *busy {
+        return None;
+    }
+    *busy = true;
+    Some(WriteGuard(lock.clone()))
+}
+
+/// Waits for the folder's write lock without blocking the runtime.
+pub async fn write_lock(root: &Path) -> WriteGuard {
+    let lock = lock_for(root);
+    loop {
+        let notified = lock.notify.notified();
+        tokio::pin!(notified);
+        notified.as_mut().enable();
+        if let Some(g) = try_take(&lock) {
+            return g;
+        }
+        notified.await;
+    }
+}
+
+/// The same lock for the synchronous write tools. On a multi-thread runtime
+/// the wait moves off the worker (`block_in_place`); on a current-thread
+/// runtime a wait could deadlock the holder, so a busy folder answers
+/// `ERR_CODE_WORKSPACE_BUSY` instead of blocking.
+pub fn write_lock_blocking(root: &Path) -> Result<WriteGuard, String> {
+    let lock = lock_for(root);
+    if let Some(g) = try_take(&lock) {
+        return Ok(g);
+    }
+    let wait = || {
+        let deadline =
+            std::time::Instant::now() + std::time::Duration::from_millis(600_000 + 5_000);
+        let mut busy = lock.busy.lock().unwrap_or_else(|e| e.into_inner());
+        while *busy {
+            let left = deadline.saturating_duration_since(std::time::Instant::now());
+            if left.is_zero() {
+                return Err(format!(
+                    "{ERR_WORKSPACE_BUSY}: another agent is still writing here"
+                ));
+            }
+            busy = lock
+                .cv
+                .wait_timeout(busy, left)
+                .unwrap_or_else(|e| e.into_inner())
+                .0;
+        }
+        *busy = true;
+        Ok(WriteGuard(lock.clone()))
+    };
+    match tokio::runtime::Handle::try_current().map(|h| h.runtime_flavor()) {
+        Ok(tokio::runtime::RuntimeFlavor::CurrentThread) => Err(format!(
+            "{ERR_WORKSPACE_BUSY}: another agent is writing in this folder; try again"
+        )),
+        Ok(_) => tokio::task::block_in_place(wait),
+        Err(_) => wait(),
     }
 }
 
@@ -604,6 +767,7 @@ fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
 
 pub fn fs_edit(a: &Value) -> Result<Value, String> {
     let root = root()?;
+    let _write = write_lock_blocking(&root)?;
     let path = join_inside(&root, &arg_str(a, "path"))?;
     writable(&root, &path)?;
     let old = arg_str(a, "old_string");
@@ -657,6 +821,7 @@ pub fn fs_edit(a: &Value) -> Result<Value, String> {
 
 pub fn fs_write(a: &Value) -> Result<Value, String> {
     let root = root()?;
+    let _write = write_lock_blocking(&root)?;
     let path = join_inside(&root, &arg_str(a, "path"))?;
     writable(&root, &path)?;
     let content = arg_str(a, "content");
@@ -698,6 +863,7 @@ fn find_block(lines: &[String], block: &[String], from: usize) -> Option<(usize,
 
 pub fn fs_apply_patch(a: &Value) -> Result<Value, String> {
     let root = root()?;
+    let _write = write_lock_blocking(&root)?;
     let patch = arg_str(a, "patch");
     let lines: Vec<&str> = patch.lines().collect();
     let begin = lines
@@ -930,6 +1096,8 @@ pub async fn shell_exec(a: Value) -> Result<Value, String> {
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true);
+    // One writer per folder: a command may write anywhere inside it.
+    let _write = write_lock(&root).await;
     let started = std::time::Instant::now();
     let child = cmd.spawn().map_err(|e| format!("spawn: {e}"))?;
     let out = match tokio::time::timeout(
@@ -1006,5 +1174,130 @@ mod tool_call_context_tests {
         })
         .await;
         assert!(super::current_tool_call().is_none());
+    }
+}
+
+#[cfg(test)]
+mod conversation_workspace_tests {
+    use super::*;
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("omniget-ct-{tag}-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&d).unwrap();
+        d.canonicalize().unwrap()
+    }
+
+    /// A04: a project opened elsewhere (the process-wide folder, or another
+    /// conversation) must not become the cwd of a personal conversation.
+    #[tokio::test]
+    async fn a_personal_conversation_does_not_inherit_the_last_opened_folder() {
+        let project = temp_dir("a04");
+        std::fs::write(project.join("secret.txt"), "project data").unwrap();
+        // Somebody opened a project: in another conversation and globally
+        // (what `llm_workspace_set` used to do on every pick).
+        set_conversation_workspace("a04-project-chat", Some(project.clone())).unwrap();
+        set_workspace(Some(project.clone())).unwrap();
+
+        assert_eq!(workspace_of("a04-personal-chat"), None);
+        let seen = scope("a04-personal-chat", "reader", "r1", async {
+            (
+                workspace(),
+                fs_read(&json!({ "path": "secret.txt" })),
+                fs_list(&json!({})),
+            )
+        })
+        .await;
+        assert_eq!(seen.0, None, "no fallback to the last cwd");
+        assert!(seen.1.unwrap_err().starts_with(ERR_NO_WORKSPACE));
+        assert!(seen.2.unwrap_err().starts_with(ERR_NO_WORKSPACE));
+        // The project conversation still has its folder.
+        let own = scope("a04-project-chat", "coder", "r2", async { workspace() }).await;
+        assert_eq!(own, Some(project.clone()));
+        // Outside any turn (embedded MCP server, CLI) the global one still answers.
+        assert!(workspace().is_some());
+    }
+
+    /// A05: two conversations, two folders, each keeps its own.
+    #[tokio::test]
+    async fn two_conversations_keep_their_own_folders() {
+        let a = temp_dir("a05a");
+        let b = temp_dir("a05b");
+        std::fs::write(a.join("which.txt"), "A").unwrap();
+        std::fs::write(b.join("which.txt"), "B").unwrap();
+        set_conversation_workspace("a05-one", Some(a.clone())).unwrap();
+        set_conversation_workspace("a05-two", Some(b.clone())).unwrap();
+        let read = |conv: &'static str| async move {
+            scope(conv, "coder", "r", async {
+                fs_read(&json!({ "path": "which.txt" })).unwrap()["content"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string()
+            })
+            .await
+        };
+        assert!(read("a05-one").await.contains('A'));
+        assert!(read("a05-two").await.contains('B'));
+        // Re-pointing one does not move the other.
+        let c = temp_dir("a05c");
+        set_conversation_workspace("a05-one", Some(c.clone())).unwrap();
+        assert_eq!(workspace_of("a05-one"), Some(c));
+        assert_eq!(workspace_of("a05-two"), Some(b));
+        set_conversation_workspace("a05-one", None).unwrap();
+        assert_eq!(workspace_of("a05-one"), None);
+    }
+
+    /// B06: two writers in one folder run one after the other.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn writes_in_one_folder_are_serialised() {
+        let ws = temp_dir("b06");
+        let log = std::sync::Arc::new(std::sync::Mutex::new(Vec::<(&str, u128)>::new()));
+        let t0 = std::time::Instant::now();
+        let mut tasks = Vec::new();
+        for who in ["first", "second"] {
+            let ws = ws.clone();
+            let log = log.clone();
+            tasks.push(tokio::spawn(async move {
+                let _g = write_lock(&ws).await;
+                log.lock().unwrap().push((who, t0.elapsed().as_millis()));
+                tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                log.lock().unwrap().push((who, t0.elapsed().as_millis()));
+            }));
+        }
+        for t in tasks {
+            t.await.unwrap();
+        }
+        let log = log.lock().unwrap().clone();
+        assert_eq!(log.len(), 4);
+        // enter/leave pairs never interleave
+        assert_eq!(log[0].0, log[1].0);
+        assert_eq!(log[2].0, log[3].0);
+        assert!(log[2].1 >= log[1].1);
+
+        // A synchronous write waits for a shell-style holder in the same folder.
+        set_conversation_workspace("b06-a", Some(ws.clone())).unwrap();
+        set_conversation_workspace("b06-b", Some(ws.clone())).unwrap();
+        let holder = write_lock(&ws).await;
+        let writer = tokio::spawn(scope("b06-b", "second", "r", async {
+            let started = std::time::Instant::now();
+            fs_write(&json!({ "path": "out.txt", "content": "late" })).unwrap();
+            started.elapsed().as_millis()
+        }));
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        assert!(
+            !ws.join("out.txt").exists(),
+            "the writer must wait for the holder"
+        );
+        drop(holder);
+        let waited = writer.await.unwrap();
+        assert!(waited >= 150, "waited {waited} ms");
+        assert_eq!(std::fs::read_to_string(ws.join("out.txt")).unwrap(), "late");
+    }
+
+    #[tokio::test]
+    async fn a_busy_folder_on_a_single_thread_runtime_answers_instead_of_deadlocking() {
+        let ws = temp_dir("b06-ct");
+        let _held = write_lock(&ws).await;
+        let err = write_lock_blocking(&ws).err().unwrap();
+        assert!(err.starts_with(ERR_WORKSPACE_BUSY));
     }
 }

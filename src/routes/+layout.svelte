@@ -34,6 +34,7 @@
   import { getSettings, loadSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { queueExternalPrefill, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
+  import McpAuthPrompt from "$components/llm/mcp/McpAuthPrompt.svelte";
   import AppSidebar from "$components/shell/AppSidebar.svelte";
   import AppToolbar from "$components/shell/AppToolbar.svelte";
   import CommandPalette from "$components/shell/CommandPalette.svelte";
@@ -72,7 +73,8 @@
     )
   );
 
-  let allNav = $derived([...coreNavItems, ...pluginNavItems].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)));
+  // Plugins are being removed (branch remove-plugins); their routes stay out of the sidebar.
+  let allNav = $derived([...coreNavItems].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)));
   let primaryNav = $derived(allNav.filter((item) => item.group === "primary"));
   let appNav = $derived(allNav.filter((item) => item.group === "app"));
   let pluginNav = $derived(allNav.filter((item) => item.group === "plugins"));
@@ -479,6 +481,7 @@
 {/if}
 
 <Toast />
+<McpAuthPrompt />
 <CommandPalette />
 
 {#if showOnboarding && OnboardingWizard}

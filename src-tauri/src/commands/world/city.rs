@@ -418,6 +418,53 @@ pub async fn city_api(
     Err(crate::commands::omnidisc::http::map_error(status, &code))
 }
 
+/// The bytes of a published picture (`GET /api/world/assets/{hash}`), raw,
+/// for the renderer's picture page. The server decides who may read it; a
+/// removed picture comes back as `ERR_WORLD_ASSET_REMOVED` and one the user
+/// may not see as `ERR_WORLD_ASSET_PRIVATE`, so the canvas can tell a
+/// placeholder from a retry. Nothing is cached here: the canvas keeps the
+/// decoded image and asks again after a reconnection.
+#[tauri::command]
+pub async fn city_asset(
+    app: AppHandle,
+    hash: String,
+    server: Option<String>,
+) -> Result<tauri::ipc::Response, String> {
+    if hash.len() != 64 || !hash.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(format!("{ERR_CITY}_BAD_PATH"));
+    }
+    let base = match session().as_ref() {
+        Some(s) => s.base.clone(),
+        None => resolve_base(server, &app)?,
+    };
+    let token = token_for(&base)?;
+    let client = crate::commands::omnidisc::http::http_client(std::time::Duration::from_secs(20))?;
+    let res = client
+        .get(format!("{base}/api/world/assets/{hash}"))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| format!("{ERR_CITY}_UNREACHABLE: {e}"))?;
+    match res.status() {
+        s if s.is_success() => {
+            let bytes = res
+                .bytes()
+                .await
+                .map_err(|e| format!("{ERR_CITY}_UNREACHABLE: {e}"))?;
+            Ok(tauri::ipc::Response::new(bytes.to_vec()))
+        }
+        reqwest::StatusCode::GONE => Err("ERR_WORLD_ASSET_REMOVED".into()),
+        reqwest::StatusCode::FORBIDDEN => Err("ERR_WORLD_ASSET_PRIVATE".into()),
+        s => {
+            let v: Value = res.json().await.unwrap_or(Value::Null);
+            Err(crate::commands::omnidisc::http::map_error(
+                s,
+                v["code"].as_str().unwrap_or(""),
+            ))
+        }
+    }
+}
+
 /// Is there an OmniDisc session for the city's instance. The chat shell that
 /// used to sign in is retired, so the city has its own sign-in below.
 #[tauri::command]

@@ -28,15 +28,23 @@ fn store() -> &'static Mutex<HashMap<u64, Entry>> {
 }
 
 pub fn push_line(id: u64, line: &str) -> bool {
+    let line = super::flight_recorder::redact(line);
+    super::flight_recorder::record(&line);
+    super::download_journal::record(id, &line);
     let mut map = match store().lock() {
         Ok(g) => g,
         Err(_) => return false,
     };
+    if map.len() >= 1024 && !map.contains_key(&id) {
+        if let Some(old) = map.keys().next().copied() {
+            map.remove(&old);
+        }
+    }
     let entry = map.entry(id).or_insert_with(Entry::new);
     if entry.lines.len() >= MAX_LINES_PER_DOWNLOAD {
         entry.lines.pop_front();
     }
-    entry.lines.push_back(line.to_string());
+    entry.lines.push_back(line);
 
     let now = Instant::now();
     let should_emit = match entry.last_emit {

@@ -54,6 +54,18 @@ struct Session {
     session_id: String,
     cwd: PathBuf,
     command: String,
+    /// The agent can reopen a session by id (`loadSession` capability).
+    load_session: bool,
+    /// Projection token of this session (refreshed every turn).
+    grant_id: Option<String>,
+}
+
+/// What `start` should do about the session: create one, or reopen the one
+/// the agent gave us before (only when it announces `loadSession`).
+struct StartOptions {
+    mcp_server: Option<Value>,
+    grant_id: Option<String>,
+    load: Option<String>,
 }
 
 impl Session {
@@ -134,7 +146,12 @@ fn spawn_reader(
     });
 }
 
-async fn start(command: &str, args: &[String], cwd: PathBuf) -> Result<Arc<Session>, String> {
+async fn start(
+    command: &str,
+    args: &[String],
+    cwd: PathBuf,
+    opts: StartOptions,
+) -> Result<(Arc<Session>, bool), String> {
     let mut cmd = crate::core::process::command(command);
     cmd.args(args)
         .current_dir(&cwd)
@@ -174,6 +191,8 @@ async fn start(command: &str, args: &[String], cwd: PathBuf) -> Result<Arc<Sessi
         session_id: String::new(),
         cwd: cwd.clone(),
         command: command.to_string(),
+        load_session: false,
+        grant_id: None,
     };
     let call = |s: &Session, method: &str, params: Value| {
         let (id, rx) = s.register();
@@ -199,11 +218,40 @@ async fn start(command: &str, args: &[String], cwd: PathBuf) -> Result<Arc<Sessi
         }),
     );
     session.write(&msg).await?;
-    wait(rx).await.map_err(|e| format!("initialize: {e}"))?;
+    let init = wait(rx).await.map_err(|e| format!("initialize: {e}"))?;
+    let caps = &init["agentCapabilities"];
+    session.load_session = caps["loadSession"].as_bool().unwrap_or(false);
+    // Our assistant tools go in only over a transport the agent announced.
+    let http = caps["mcpCapabilities"]["http"].as_bool().unwrap_or(false);
+    let servers: Vec<Value> = match (&opts.mcp_server, http) {
+        (Some(server), true) => {
+            session.grant_id = opts.grant_id.clone();
+            vec![server.clone()]
+        }
+        _ => Vec::new(),
+    };
+    // Reopen the agent's own session when it can; otherwise a new one.
+    if let (Some(id), true) = (&opts.load, session.load_session) {
+        let (msg, rx) = call(
+            &session,
+            "session/load",
+            json!({ "sessionId": id, "cwd": cwd.to_string_lossy(), "mcpServers": servers }),
+        );
+        session.write(&msg).await?;
+        if wait(rx).await.is_ok() {
+            session.session_id = id.clone();
+            // The agent replays the history as `session/update`s; drop them
+            // so the next turn does not show the past again.
+            if let Ok(mut inbound) = session.inbound.try_lock() {
+                while inbound.try_recv().is_ok() {}
+            }
+            return Ok((Arc::new(session), true));
+        }
+    }
     let (msg, rx) = call(
         &session,
         "session/new",
-        json!({ "cwd": cwd.to_string_lossy(), "mcpServers": [] }),
+        json!({ "cwd": cwd.to_string_lossy(), "mcpServers": servers }),
     );
     session.write(&msg).await?;
     let created = wait(rx)
@@ -213,7 +261,7 @@ async fn start(command: &str, args: &[String], cwd: PathBuf) -> Result<Arc<Sessi
         .as_str()
         .ok_or("session/new returned no sessionId")?
         .to_string();
-    Ok(Arc::new(session))
+    Ok((Arc::new(session), false))
 }
 
 pub struct AcpRuntime {
@@ -308,34 +356,146 @@ impl AgentRuntime for AcpRuntime {
             .map(|c| c.conversation.clone())
             .unwrap_or_else(|| format!("acp-{}", agent.id));
         let request_id = ctx.as_ref().map(|c| c.request.clone()).unwrap_or_default();
-        let cwd = super::code_tools::workspace()
-            .or_else(|| std::env::current_dir().ok())
-            .unwrap_or_else(std::env::temp_dir);
+        // The conversation's own folder; a personal conversation runs in an
+        // empty private folder of the bot, never in the last folder used.
+        let workspace = ctx
+            .as_ref()
+            .and_then(|c| super::code_tools::workspace_of(&c.conversation));
+        let projectless = ctx.is_some() && workspace.is_none();
+        let cwd = match (&ctx, workspace) {
+            (_, Some(ws)) => ws,
+            (Some(_), None) => super::roster_store::llm_dir()
+                .map(|d| d.join("sandboxes").join(&agent.id))
+                .filter(|d| std::fs::create_dir_all(d).is_ok())
+                .unwrap_or_else(std::env::temp_dir),
+            (None, None) => super::code_tools::workspace()
+                .or_else(|| std::env::current_dir().ok())
+                .unwrap_or_else(std::env::temp_dir),
+        };
+        let registry = crate::core::assist::runs::active();
+        let tools = crate::core::assist::projection::granted_tools(&self.broker, &agent.tools);
+        let has_history = req.messages.iter().any(|m| m.role == Role::Assistant);
 
         let key = format!("{conversation}\u{0}{}", agent.id);
-        let (session, fresh) = {
+        let (session, fresh, loaded) = {
             let mut sessions = self.sessions.lock().await;
             let live = sessions
                 .get(&key)
                 .filter(|s| !s.dead.load(Ordering::SeqCst) && s.cwd == cwd && &s.command == command)
                 .cloned();
             match live {
-                Some(s) => (s, false),
+                Some(s) => (s, false, false),
                 None => {
-                    let s = start(command, args, cwd.clone())
-                        .await
-                        .map_err(|e| LlmError::new(ERR_ACP, e))?;
+                    // A token for this session, when the bridge is up.
+                    let (mcp_server, grant_id) =
+                        match (&registry, crate::core::assist::projection::endpoint()) {
+                            (Some(reg), Some(url)) => match crate::core::assist::projection::issue(
+                                reg.db(),
+                                &agent.id,
+                                &conversation,
+                                Some(&request_id),
+                                &tools,
+                                false,
+                                crate::core::assist::projection::DEFAULT_TTL_MS,
+                            ) {
+                                Ok(issued) => {
+                                    crate::core::assist::projection::attach_broker(
+                                        &issued.id,
+                                        self.broker.clone(),
+                                    );
+                                    (
+                                        Some(crate::core::assist::projection::acp_mcp_server(
+                                            &url,
+                                            &issued.token,
+                                        )),
+                                        Some(issued.id),
+                                    )
+                                }
+                                Err(_) => (None, None),
+                            },
+                            _ => (None, None),
+                        };
+                    // The agent's handle from an earlier app session, if the
+                    // folder and command are the same.
+                    let load = registry.as_ref().and_then(|reg| {
+                        reg.session(&conversation, &agent.id)
+                            .filter(|s| {
+                                s.runtime == format!("acp:{command}")
+                                    && s.cwd.as_deref() == Some(&*cwd.to_string_lossy())
+                            })
+                            .and_then(|s| s.provider_handle)
+                    });
+                    let (s, loaded) = start(
+                        command,
+                        args,
+                        cwd.clone(),
+                        StartOptions {
+                            mcp_server,
+                            grant_id: grant_id.clone(),
+                            load,
+                        },
+                    )
+                    .await
+                    .map_err(|e| LlmError::new(ERR_ACP, e))?;
+                    if s.grant_id.is_none() {
+                        if let (Some(reg), Some(id)) = (&registry, &grant_id) {
+                            crate::core::assist::projection::revoke(reg.db(), id);
+                        }
+                    }
                     sessions.insert(key, s.clone());
-                    (s, true)
+                    (s, true, loaded)
                 }
             }
         };
+        // Each turn: this turn's grants and run on the session's token.
+        if let (Some(reg), Some(id)) = (&registry, &session.grant_id) {
+            let _ = crate::core::assist::projection::refresh(
+                reg.db(),
+                id,
+                Some(&request_id),
+                &tools,
+                crate::core::assist::projection::DEFAULT_TTL_MS,
+            );
+        }
+        let resume_kind = if !fresh || loaded {
+            crate::core::assist::runs::ResumeKind::Native
+        } else if has_history {
+            crate::core::assist::runs::ResumeKind::Replay
+        } else {
+            crate::core::assist::runs::ResumeKind::New
+        };
+        if let Some(reg) = &registry {
+            let pins = crate::core::assist::runs::SessionPins {
+                runtime: format!("acp:{command}"),
+                account: None,
+                exe_version: None,
+                cwd: Some(cwd.to_string_lossy().into_owned()),
+                context_kind: if projectless {
+                    "projectless"
+                } else {
+                    "project"
+                }
+                .into(),
+                native_resume: session.load_session,
+            };
+            if let Ok((rec, _)) = reg.open_session(&conversation, &agent.id, &pins) {
+                let _ = reg.set_handle(&rec.id, &session.session_id);
+                let _ = reg.bind_session(
+                    &request_id,
+                    &rec.id,
+                    resume_kind,
+                    Some(&cwd.to_string_lossy()),
+                );
+            }
+        }
+        let fresh = fresh && !loaded;
 
         let (tx, rx) = mpsc::channel::<TurnEvent>(256);
         let broker = self.broker.clone();
         let agent_id = agent.id.clone();
         let cancel = req.cancel.clone();
         let prompt = prompt_for(&req, fresh);
+        let run_registry = registry.clone();
         tokio::spawn(async move {
             let _ = tx
                 .send(TurnEvent::Started {
@@ -382,7 +542,7 @@ impl AgentRuntime for AcpRuntime {
                         };
                     }
                     Some(msg) = inbound.recv() => {
-                        let reply = handle_inbound(&msg, &session, &broker, &agent_id, &conversation, &request_id, &tx).await;
+                        let reply = handle_inbound(&msg, &session, &broker, &agent_id, &conversation, &request_id, &tx, run_registry.as_ref()).await;
                         if let (Some(id), Some(reply)) = (msg.id.clone(), reply) {
                             let body = match reply {
                                 Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
@@ -415,6 +575,7 @@ async fn handle_inbound(
     conversation: &str,
     request_id: &str,
     tx: &mpsc::Sender<TurnEvent>,
+    registry: Option<&crate::core::assist::runs::Registry>,
 ) -> Option<Result<Value, String>> {
     let p = &msg.params;
     match msg.method.as_str() {
@@ -429,6 +590,34 @@ async fn handle_inbound(
                     let _ = tx.send(TurnEvent::ThinkingDelta { text: chunk }).await;
                 }
                 // The agent runs its own tools: shown, never re-executed by us.
+                "tool_call" | "tool_call_update"
+                    if registry.is_some() && u["toolCallId"].is_string() =>
+                {
+                    // Recorded once per id and status (the agent's own tools).
+                    if let Some(reg) = registry {
+                        let id = u["toolCallId"].as_str().unwrap_or("");
+                        let status = u["status"].as_str().unwrap_or("pending");
+                        let _ = reg.add_event(
+                            request_id,
+                            "tool_call",
+                            Some(&format!("{id}:{status}")),
+                            json!({
+                                "name": u["title"].as_str().or(u["kind"].as_str()).unwrap_or("tool"),
+                                "input": u.get("rawInput").cloned().unwrap_or(Value::Null),
+                                "status": status,
+                                "runtime": "acp",
+                            }),
+                        );
+                    }
+                    if u["sessionUpdate"] == "tool_call" {
+                        let title = u["title"].as_str().unwrap_or("tool");
+                        let _ = tx
+                            .send(TurnEvent::ThinkingDelta {
+                                text: format!("\n→ {title}\n"),
+                            })
+                            .await;
+                    }
+                }
                 "tool_call" => {
                     let title = u["title"].as_str().unwrap_or("tool");
                     let _ = tx

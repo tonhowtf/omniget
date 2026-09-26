@@ -149,7 +149,8 @@
       </button>
     </div>
   </header>
-  <SurfaceGuide text={$t("llm.surface.mcp_hint")} href="/help?article=mcp#guide" />
+  <!-- Each half has its own intro: the client sentence is not repeated on "Your endpoint". -->
+  <SurfaceGuide text={$t(half === "server" ? "llm.surface.mcp_server_hint" : "llm.surface.mcp_hint")} href="/help?article=mcp#guide" />
 
   {#if half === "server"}
     <ServerHalf />

@@ -36,7 +36,7 @@ import { t } from "$lib/i18n";
     busy = "refs";
     try {
       const r = await notesRefsRebuildAll();
-      onToast("ok", $t("study.notes.maintenance.backlinks_done", { n: r.total_refs }));
+      onToast("ok", $t("study.notes.maintenance.backlinks_done", { count: r.total_refs }));
     } catch (e) {
       onToast("err", e instanceof Error ? e.message : String(e));
     } finally {

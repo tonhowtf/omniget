@@ -357,7 +357,7 @@
       } else {
         showToast(
           "ok",
-          r.removed === 1 ? $t("study.anki.settings.toast_removed_one") : $t("study.anki.settings.toast_removed_many", { n: r.removed }),
+          r.removed === 1 ? $t("study.anki.settings.toast_removed_one") : $t("study.anki.settings.toast_removed_many", { count: r.removed }),
         );
         await loadBackups();
       }
@@ -491,7 +491,7 @@
                   min="0"
                   bind:value={learnAheadSecs}
                 />
-                <span class="default">{$t("study.anki.settings.default_val", { v: "1200" })}</span>
+                <span class="default">{$t("study.anki.settings.default_val", { value: "1200" })}</span>
               </div>
 
               <div class="field">
@@ -504,7 +504,7 @@
                   min="0"
                   bind:value={collapseTime}
                 />
-                <span class="default">{$t("study.anki.settings.default_val", { v: "1200" })}</span>
+                <span class="default">{$t("study.anki.settings.default_val", { value: "1200" })}</span>
               </div>
             </div>
 
@@ -579,7 +579,7 @@
                   min="0"
                   bind:value={dailyNewLimit}
                 />
-                <span class="default">{$t("study.anki.settings.default_val", { v: "20" })}</span>
+                <span class="default">{$t("study.anki.settings.default_val", { value: "20" })}</span>
               </div>
 
               <div class="field">
@@ -592,7 +592,7 @@
                   min="0"
                   bind:value={dailyReviewLimit}
                 />
-                <span class="default">{$t("study.anki.settings.default_val", { v: "200" })}</span>
+                <span class="default">{$t("study.anki.settings.default_val", { value: "200" })}</span>
               </div>
             </div>
 
@@ -619,7 +619,7 @@
                   {$t("study.anki.settings.learn_steps")} <span class="hint">{$t("study.anki.settings.unit_minutes")}</span>
                 </label>
                 <input id="learn" type="text" bind:value={learnStepsRaw} />
-                <span class="default">{$t("study.anki.settings.default_val", { v: "1 10" })}</span>
+                <span class="default">{$t("study.anki.settings.default_val", { value: "1 10" })}</span>
               </div>
 
               <div class="field">
@@ -627,7 +627,7 @@
                   {$t("study.anki.settings.relearn_steps")} <span class="hint">{$t("study.anki.settings.unit_minutes")}</span>
                 </label>
                 <input id="relearn" type="text" bind:value={relearnStepsRaw} />
-                <span class="default">{$t("study.anki.settings.default_val", { v: "10" })}</span>
+                <span class="default">{$t("study.anki.settings.default_val", { value: "10" })}</span>
               </div>
             </div>
 
@@ -642,7 +642,7 @@
                   min="1"
                   bind:value={leechThreshold}
                 />
-                <span class="default">{$t("study.anki.settings.default_val", { v: "8" })}</span>
+                <span class="default">{$t("study.anki.settings.default_val", { value: "8" })}</span>
               </div>
 
               <div class="field">
@@ -707,7 +707,7 @@
                 ? $t("study.anki.settings.backup_sub_none")
                 : backups.length === 1
                   ? $t("study.anki.settings.backup_saved_one")
-                  : $t("study.anki.settings.backup_saved_many", { n: backups.length })}
+                  : $t("study.anki.settings.backup_saved_many", { count: backups.length })}
             </span>
           </div>
           <span class="chev" aria-hidden="true">›</span>
@@ -835,7 +835,7 @@
               <dt>{$t("study.anki.settings.deck_presets")}</dt>
               <dd>
                 {$t("study.anki.settings.presets_registered", {
-                  n: deckConfigs.length,
+                  count: deckConfigs.length,
                   decks: deckConfigs.reduce((s, c) => s + c.use_count, 0),
                 })}
               </dd>

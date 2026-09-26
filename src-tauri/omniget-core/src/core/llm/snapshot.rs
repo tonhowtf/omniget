@@ -30,7 +30,35 @@ pub struct Entry {
     /// the turn's bubbles back too. `None` in entries written before 0.10.0.
     #[serde(default)]
     pub messages_before: Option<usize>,
+    /// Tree right after the turn ended, so the turn's own diff can be shown
+    /// later even when newer turns changed the folder again.
+    #[serde(default)]
+    pub after: Option<String>,
 }
+
+/// One file a turn changed.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FileChange {
+    pub path: String,
+    /// `A` added, `M` modified, `D` deleted, `R` renamed.
+    pub status: String,
+    pub additions: Option<u64>,
+    pub deletions: Option<u64>,
+}
+
+/// The real diff of one turn, from the shadow snapshots.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TurnDiff {
+    pub files: Vec<FileChange>,
+    /// Unified diff, clipped to [`DIFF_MAX_BYTES`].
+    pub patch: String,
+    pub clipped: bool,
+    /// False while the turn has not ended (the diff is against the folder
+    /// as it is now).
+    pub complete: bool,
+}
+
+pub const DIFF_MAX_BYTES: usize = 256 * 1024;
 
 /// Turn marks of this process: request id → messages the conversation held
 /// when the turn began. The Coordinator sets one per turn; `before_write`
@@ -223,6 +251,7 @@ async fn before_write_inner(
     stack.push(Entry {
         request: request.to_string(),
         messages_before: mark_of(request),
+        after: None,
         tree,
         at_ms: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -235,6 +264,100 @@ async fn before_write_inner(
     }
     store(&dir, conversation, &stack);
     Ok(())
+}
+
+/// Records the tree after a turn that took a snapshot. A turn that wrote
+/// nothing has no entry and costs nothing here.
+pub async fn after_turn(workspace: &Path, conversation: &str, request: &str) -> Result<(), String> {
+    let dir = git_dir(workspace)?;
+    if !dir.join("HEAD").exists() {
+        return Ok(());
+    }
+    let mut stack = load(&dir, conversation);
+    let Some(pos) = stack.iter().rposition(|e| e.request == request) else {
+        return Ok(());
+    };
+    let tree = stage_tree(&dir, workspace).await?;
+    stack[pos].after = Some(tree);
+    store(&dir, conversation, &stack);
+    Ok(())
+}
+
+/// The files and patch one turn changed: its snapshot tree against the tree
+/// taken when it ended (or the folder now, while it runs).
+pub async fn turn_diff(
+    workspace: &Path,
+    conversation: &str,
+    request: &str,
+) -> Result<Option<TurnDiff>, String> {
+    let dir = git_dir(workspace)?;
+    if !dir.join("HEAD").exists() {
+        return Ok(None);
+    }
+    let stack = load(&dir, conversation);
+    let Some(entry) = stack.iter().rev().find(|e| e.request == request).cloned() else {
+        return Ok(None);
+    };
+    let (after, complete) = match entry.after.clone() {
+        Some(t) => (t, true),
+        None => (stage_tree(&dir, workspace).await?, false),
+    };
+    let status = git(
+        &dir,
+        workspace,
+        &["diff", "--name-status", "-M", &entry.tree, &after],
+    )
+    .await?;
+    let numstat = git(
+        &dir,
+        workspace,
+        &["diff", "--numstat", "-M", &entry.tree, &after],
+    )
+    .await?;
+    let mut files: Vec<FileChange> = status
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .filter_map(|l| {
+            let mut parts = l.split('\t');
+            let st = parts.next()?.chars().next()?.to_string();
+            let path = parts.last()?.to_string();
+            Some(FileChange {
+                path,
+                status: st,
+                additions: None,
+                deletions: None,
+            })
+        })
+        .collect();
+    for l in numstat.lines() {
+        let cols: Vec<&str> = l.split('\t').collect();
+        if cols.len() < 3 {
+            continue;
+        }
+        let path = cols[cols.len() - 1];
+        if let Some(f) = files
+            .iter_mut()
+            .find(|f| f.path == path || path.ends_with(&f.path))
+        {
+            f.additions = cols[0].parse().ok();
+            f.deletions = cols[1].parse().ok();
+        }
+    }
+    let mut patch = git(&dir, workspace, &["diff", "-M", &entry.tree, &after]).await?;
+    let clipped = patch.len() > DIFF_MAX_BYTES;
+    if clipped {
+        let mut end = DIFF_MAX_BYTES;
+        while !patch.is_char_boundary(end) {
+            end -= 1;
+        }
+        patch.truncate(end);
+    }
+    Ok(Some(TurnDiff {
+        files,
+        patch,
+        clipped,
+        complete,
+    }))
 }
 
 pub fn depth(workspace: &Path, conversation: &str) -> usize {

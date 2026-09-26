@@ -174,6 +174,9 @@ pub struct CliRuntimeOptions {
     pub partial_messages: bool,
     /// Working directory for the child. `None` leaves it at ours.
     pub cwd: Option<PathBuf>,
+    /// Where personal (projectless) conversations run: an empty private
+    /// folder per bot, `<root>/<bot>`. `None` = `<llm dir>/sandboxes`.
+    pub sandbox_root: Option<PathBuf>,
 }
 
 impl Default for CliRuntimeOptions {
@@ -181,8 +184,31 @@ impl Default for CliRuntimeOptions {
         Self {
             partial_messages: true,
             cwd: None,
+            sandbox_root: None,
         }
     }
+}
+
+/// How one turn is launched, decided from the session record and the caps.
+#[derive(Debug, Clone)]
+pub struct LaunchPlan {
+    pub cwd: Option<PathBuf>,
+    pub projectless: bool,
+    /// `Some(handle)` = resume the provider session (`--resume`).
+    pub resume: Option<String>,
+    pub resume_kind: crate::core::assist::runs::ResumeKind,
+    pub mcp_config: Option<PathBuf>,
+    pub permission_prompt_tool: Option<String>,
+    pub restrict_tools: bool,
+    /// An external (MCP-controlled) mission: no built-in tools at all, a
+    /// private empty folder, only OmniGet's projection.
+    pub external: bool,
+    /// A project job whose CLI knows `--tools`, `--strict-mcp-config` and
+    /// `--exclude-dynamic-system-prompt-sections`: launched lean (see
+    /// [`claude::PROJECT_TOOLS`]) when the account can write.
+    pub lean_project: bool,
+    /// The CLI lists `--effort` in its help (see [`claude::PROJECT_EFFORT`]).
+    pub effort_flag: bool,
 }
 
 /// The CLI half of `CompositeRuntime`.
@@ -192,6 +218,8 @@ pub struct CliRuntime {
     options: CliRuntimeOptions,
     /// Resolved binary per CLI, so `find_tool` runs once per process.
     binaries: RwLock<HashMap<CliKind, PathBuf>>,
+    /// Probed (or pinned, in tests) capabilities per CLI.
+    caps: RwLock<HashMap<CliKind, super::caps::RuntimeCaps>>,
 }
 
 impl std::fmt::Debug for CliRuntime {
@@ -209,7 +237,54 @@ impl CliRuntime {
             capacity,
             options: CliRuntimeOptions::default(),
             binaries: RwLock::new(HashMap::new()),
+            caps: RwLock::new(HashMap::new()),
         }
+    }
+
+    /// Pins the capabilities of a CLI (tests; a fake binary has no help).
+    pub fn set_caps(&self, cli: CliKind, caps: super::caps::RuntimeCaps) {
+        if let Ok(mut map) = self.caps.write() {
+            map.insert(cli, caps);
+        }
+    }
+
+    /// What the installed CLI supports, probed once per process.
+    pub async fn caps_of(
+        &self,
+        cli: CliKind,
+        binary: &std::path::Path,
+    ) -> super::caps::RuntimeCaps {
+        if let Some(c) = self.caps.read().ok().and_then(|m| m.get(&cli).cloned()) {
+            return c;
+        }
+        let probed = super::caps::probe_binary(cli.bin(), binary).await;
+        self.set_caps(cli, probed.clone());
+        probed
+    }
+
+    fn sandbox_dir(&self, bot: &str) -> Option<PathBuf> {
+        let root = self
+            .options
+            .sandbox_root
+            .clone()
+            .or_else(|| super::roster_store::llm_dir().map(|d| d.join("sandboxes")))?;
+        let safe: String = bot
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect();
+        let dir = root.join(if safe.is_empty() {
+            "bot".to_string()
+        } else {
+            safe
+        });
+        std::fs::create_dir_all(&dir).ok()?;
+        Some(dir)
     }
 
     pub fn with_options(mut self, options: CliRuntimeOptions) -> Self {
@@ -281,30 +356,130 @@ impl CliRuntime {
         req: &TurnRequest,
         system_prompt: Option<String>,
     ) -> (SpawnSpec, Arc<dyn LineParser>) {
+        self.plan_with(account, binary, req, system_prompt, None)
+    }
+
+    /// [`Self::plan`] for a turn with a session decision. `None` keeps the
+    /// legacy launch (no session record: the whole transcript on stdin).
+    pub fn plan_with(
+        &self,
+        account: &CliAccount,
+        binary: PathBuf,
+        req: &TurnRequest,
+        system_prompt: Option<String>,
+        launch: Option<&LaunchPlan>,
+    ) -> (SpawnSpec, Arc<dyn LineParser>) {
+        let legacy_cwd =
+            || crate::core::llm::code_tools::workspace().or_else(|| self.options.cwd.clone());
+        let cwd = match launch {
+            Some(l) => l.cwd.clone(),
+            None => legacy_cwd(),
+        };
         let env = accounts::account_env(account);
         let scrub: Vec<String> = SCRUB_ENV.iter().map(|s| s.to_string()).collect();
         match account.cli {
             CliKind::Claude => {
+                let resume = launch.and_then(|l| l.resume.clone());
+                // Resumed: the provider holds the history; only this turn's
+                // instructions/context and the new message travel.
+                let (system_prompt, stdin) = match &resume {
+                    Some(_) => {
+                        let sys = claude::system_text(&req.messages);
+                        (
+                            (!sys.trim().is_empty()).then_some(sys).or(system_prompt),
+                            claude::last_user_text(&req.messages),
+                        )
+                    }
+                    None => (system_prompt, claude::render_prompt(&req.messages)),
+                };
+                let restrict = launch
+                    .map(|l| l.projectless && l.restrict_tools)
+                    .unwrap_or(false);
+                let external = launch.map(|l| l.external).unwrap_or(false);
+                let mcp = launch
+                    .and_then(|l| l.mcp_config.as_ref())
+                    .map(|p| p.display().to_string());
+                // Missions measured on 2.1.283: -25..-70% cost per job, mostly
+                // the fixed context (user MCPs, agent tools) and cross-job
+                // cache reuse; the batching line cuts turns.
+                let lean = !external
+                    && !restrict
+                    && account.sandbox == accounts::SandboxMode::Write
+                    && launch
+                        .map(|l| l.lean_project && !l.projectless)
+                        .unwrap_or(false);
+                let system_prompt = if lean {
+                    Some(match system_prompt {
+                        Some(s) if !s.trim().is_empty() => {
+                            format!("{s}\n\n{}", claude::PROJECT_BATCHING)
+                        }
+                        _ => claude::PROJECT_BATCHING.to_string(),
+                    })
+                } else {
+                    system_prompt
+                };
                 let args = claude::ClaudeArgs {
                     model: model_of(req),
                     system_prompt,
                     max_budget_usd: None,
                     partial_messages: self.options.partial_messages,
-                    resume: None,
+                    resume,
                     settings: None,
                     // Claude's half of the account's sandbox knob. Always set,
                     // so a turn never inherits whatever the profile's
                     // `settings.json` happens to say.
-                    permission_mode: Some(claude::permission_mode(account.sandbox)),
+                    permission_mode: Some(if external {
+                        "default"
+                    } else {
+                        claude::permission_mode(account.sandbox)
+                    }),
+                    allowed_tools: if mcp.is_some() {
+                        vec![format!(
+                            "mcp__{}",
+                            crate::core::assist::projection::SERVER_NAME
+                        )]
+                    } else {
+                        Vec::new()
+                    },
+                    mcp_config: mcp,
+                    tools: if external {
+                        Some(String::new())
+                    } else if lean {
+                        Some(claude::PROJECT_TOOLS.to_string())
+                    } else {
+                        restrict.then(|| claude::PROJECTLESS_TOOLS.to_string())
+                    },
+                    disallowed_tools: if external {
+                        vec![claude::EXTERNAL_DENIED.to_string()]
+                    } else if restrict {
+                        vec![claude::PROJECTLESS_DENIED.to_string()]
+                    } else {
+                        Vec::new()
+                    },
+                    permission_prompt_tool: launch.and_then(|l| l.permission_prompt_tool.clone()),
+                    restricted: external,
+                    // The app's projection (if any) stays; the user's own
+                    // MCP servers do not ride along on a project job.
+                    strict_mcp: external || lean,
+                    exclude_dynamic: lean,
+                    effort: launch
+                        .filter(|l| l.effort_flag)
+                        .and_then(|_| {
+                            req.params
+                                .reasoning_effort
+                                .as_deref()
+                                .and_then(claude::effort_level)
+                                .or(lean.then_some(claude::PROJECT_EFFORT))
+                        })
+                        .map(String::from),
                 };
                 let spec = SpawnSpec {
                     program: binary,
                     args: claude::argv(&args),
                     env,
                     scrub,
-                    cwd: crate::core::llm::code_tools::workspace()
-                        .or_else(|| self.options.cwd.clone()),
-                    stdin: Some(claude::render_prompt(&req.messages)),
+                    cwd,
+                    stdin: Some(stdin),
                 };
                 (
                     spec,
@@ -323,8 +498,7 @@ impl CliRuntime {
                     args: codex::argv(&args),
                     env,
                     scrub,
-                    cwd: crate::core::llm::code_tools::workspace()
-                        .or_else(|| self.options.cwd.clone()),
+                    cwd,
                     stdin: Some(codex::render_prompt(&req.messages)),
                 };
                 (spec, Arc::new(codex::CodexParser::new()))
@@ -375,15 +549,163 @@ impl AgentRuntime for CliRuntime {
         } else {
             Some(agent.system_prompt.clone())
         };
-        let (spec, parser) = self.plan(&account, binary, &req, system_prompt);
 
         let capacity = self.capacity.clone();
         let account_id = account.id.clone();
-        let sink: session::RateSink = Arc::new(move |snapshot: RateSnapshot| {
-            capacity.record(&account_id, snapshot);
-        });
+        let mut hooks = session::TurnHooks {
+            rate: Some(Arc::new(move |snapshot: RateSnapshot| {
+                capacity.record(&account_id, snapshot);
+            })),
+            ..Default::default()
+        };
 
-        session::spawn_turn(spec, parser, req.cancel.clone(), Some(sink))
+        // Inside a coordinator turn: pin the session, decide resume vs
+        // replay, pick the folder, project the assistant tools.
+        let turn = super::code_tools::current_turn();
+        let registry = crate::core::assist::runs::active();
+        let mut launch: Option<LaunchPlan> = None;
+        if let Some(turn) = &turn {
+            let caps = self.caps_of(kind, &binary).await;
+            let external = crate::core::assist::authority::external(&turn.conversation);
+            // External missions never run the CLI in the granted workspace:
+            // its files are reached only through the projection's checked tools.
+            let workspace = if external {
+                None
+            } else {
+                super::code_tools::workspace_of(&turn.conversation)
+            };
+            let projectless = workspace.is_none();
+            let cwd = workspace.or_else(|| {
+                self.sandbox_dir(&if external {
+                    format!("external-{}", agent.id)
+                } else {
+                    agent.id.clone()
+                })
+            });
+            let has_history = req
+                .messages
+                .iter()
+                .any(|m| m.role == super::types::Role::Assistant);
+            let mut plan = LaunchPlan {
+                cwd: cwd.clone(),
+                projectless,
+                resume: None,
+                resume_kind: if has_history {
+                    crate::core::assist::runs::ResumeKind::Replay
+                } else {
+                    crate::core::assist::runs::ResumeKind::New
+                },
+                mcp_config: None,
+                permission_prompt_tool: None,
+                restrict_tools: caps.has_flag("--tools") || caps.has_flag("--disallowedTools"),
+                external,
+                lean_project: kind == CliKind::Claude
+                    && caps.has_flag("--tools")
+                    && caps.has_flag("--strict-mcp-config")
+                    && caps.has_flag("--exclude-dynamic-system-prompt-sections"),
+                effort_flag: kind == CliKind::Claude && caps.has_flag("--effort"),
+            };
+            if let Some(reg) = &registry {
+                let pins = crate::core::assist::runs::SessionPins {
+                    runtime: format!("cli:{kind}"),
+                    account: Some(format!("{}@{}", account.id, account.config_dir.display())),
+                    exe_version: caps.version.clone(),
+                    cwd: cwd.as_ref().map(|p| p.display().to_string()),
+                    context_kind: if projectless {
+                        "projectless"
+                    } else {
+                        "project"
+                    }
+                    .into(),
+                    native_resume: caps.native_resume && kind == CliKind::Claude,
+                };
+                match reg.open_session(&turn.conversation, &agent.id, &pins) {
+                    Ok((sess, repinned)) => {
+                        if kind == CliKind::Claude && caps.native_resume && !repinned && has_history
+                        {
+                            if let Some(handle) = sess.provider_handle.clone() {
+                                plan.resume = Some(handle);
+                                plan.resume_kind = crate::core::assist::runs::ResumeKind::Native;
+                            }
+                        }
+                        let _ = reg.bind_session(
+                            &turn.request,
+                            &sess.id,
+                            plan.resume_kind,
+                            plan.cwd
+                                .as_ref()
+                                .map(|p| p.display().to_string())
+                                .as_deref(),
+                        );
+                        let (r, sid) = (reg.clone(), sess.id.clone());
+                        hooks.session = Some(Arc::new(move |handle: String| {
+                            let _ = r.set_handle(&sid, &handle);
+                        }));
+                        let (r, run) = (reg.clone(), turn.request.clone());
+                        hooks.spawned = Some(Arc::new(move |pid, launch_id: &str| {
+                            let _ = r.set_process(&run, launch_id, pid);
+                        }));
+                    }
+                    Err(e) => tracing::warn!("[cli] session record: {e}"),
+                }
+            }
+            // The coordinator issued a projection for this turn: hand it to
+            // Claude Code through a private config file.
+            if kind == CliKind::Claude && caps.has_flag("--mcp-config") {
+                if let Some(p) = crate::core::assist::projection::current_turn() {
+                    let dir = std::env::temp_dir().join("omniget-mcp");
+                    match crate::core::assist::projection::write_mcp_config(&dir, &p.url, &p.token)
+                    {
+                        Ok(path) => {
+                            if caps.interactive_permissions {
+                                plan.permission_prompt_tool = Some(format!(
+                                    "mcp__{}__{}",
+                                    crate::core::assist::projection::SERVER_NAME,
+                                    crate::core::assist::projection::PERMISSION_TOOL
+                                ));
+                            }
+                            plan.mcp_config = Some(path);
+                        }
+                        Err(e) => tracing::warn!("[cli] projection config: {e}"),
+                    }
+                }
+            }
+            launch = Some(plan);
+        }
+
+        let (spec, parser) = self.plan_with(&account, binary, &req, system_prompt, launch.as_ref());
+        if let Some(path) = launch.as_ref().and_then(|l| l.mcp_config.clone()) {
+            hooks.cleanup = Some(Arc::new(move || {
+                let _ = std::fs::remove_file(&path);
+            }));
+        }
+        let stream = session::spawn_turn_with(spec, parser, req.cancel.clone(), hooks)?;
+        // A resumed handle the provider no longer knows: forget it, so the
+        // next turn replays instead of failing the same way.
+        let forget = match (&launch, &registry, &turn) {
+            (Some(l), Some(reg), Some(t)) if l.resume.is_some() => reg
+                .session(&t.conversation, &agent.id)
+                .map(|s| (reg.clone(), s.id)),
+            _ => None,
+        };
+        Ok(match forget {
+            Some((reg, sid)) => {
+                use futures::StreamExt;
+                stream
+                    .inspect(move |e| {
+                        if let TurnEvent::Error { error } = e {
+                            let m = error.message.to_ascii_lowercase();
+                            if m.contains("no conversation found")
+                                || m.contains("session") && m.contains("not found")
+                            {
+                                let _ = reg.drop_handle(&sid);
+                            }
+                        }
+                    })
+                    .boxed()
+            }
+            None => stream,
+        })
     }
 }
 
@@ -523,6 +845,137 @@ mod tests {
         assert_eq!(spec.stdin.as_deref(), Some("User: responda ok"));
         // The prompt never reaches argv.
         assert!(!spec.args.iter().any(|a| a.contains("responda ok")));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A project job on a write account gets the lean launch: built-in tools
+    /// cut to the coding set, no user MCP servers, per-machine sections out of
+    /// the system prompt, and the batching instruction after the agent's own.
+    #[test]
+    fn a_project_write_job_gets_the_lean_launch() {
+        let root = tmp("plan-lean");
+        let accounts = store_with(&root, CliKind::Claude);
+        accounts.set_sandbox("max-1", SandboxMode::Write).unwrap();
+        let runtime = CliRuntime::new(accounts.clone(), Arc::new(CliCapacity::new()));
+        let account = accounts.get("max-1").unwrap();
+        let plan = |lean: bool, projectless: bool| LaunchPlan {
+            cwd: Some(root.clone()),
+            projectless,
+            resume: None,
+            resume_kind: crate::core::assist::runs::ResumeKind::New,
+            mcp_config: None,
+            permission_prompt_tool: None,
+            restrict_tools: projectless,
+            external: false,
+            lean_project: lean,
+            effort_flag: false,
+        };
+        let (spec, _) = runtime.plan_with(
+            &account,
+            PathBuf::from("/usr/bin/claude"),
+            &request("sonnet"),
+            Some("be brief".into()),
+            Some(&plan(true, false)),
+        );
+        let a = &spec.args;
+        let after = |f: &str| {
+            a.iter()
+                .position(|x| x == f)
+                .map(|i| a[i + 1].clone())
+                .unwrap_or_else(|| panic!("{f} missing: {a:?}"))
+        };
+        assert_eq!(after("--tools"), claude::PROJECT_TOOLS);
+        assert!(a.iter().any(|x| x == "--strict-mcp-config"));
+        assert!(a
+            .iter()
+            .any(|x| x == "--exclude-dynamic-system-prompt-sections"));
+        let sys = after("--append-system-prompt");
+        assert!(sys.starts_with("be brief"), "{sys}");
+        assert!(sys.contains(claude::PROJECT_BATCHING));
+
+        // A CLI without the flags (caps said no) keeps the old launch.
+        let (spec, _) = runtime.plan_with(
+            &account,
+            PathBuf::from("/usr/bin/claude"),
+            &request("sonnet"),
+            Some("be brief".into()),
+            Some(&plan(false, false)),
+        );
+        let joined = spec.args.join(" ");
+        assert!(!joined.contains("--strict-mcp-config"), "{joined}");
+        assert!(!joined.contains("--tools"), "{joined}");
+        assert!(!joined.contains(claude::PROJECT_BATCHING));
+        // A read-only account never gets it either.
+        accounts
+            .set_sandbox("max-1", SandboxMode::ReadOnly)
+            .unwrap();
+        let account = accounts.get("max-1").unwrap();
+        let (spec, _) = runtime.plan_with(
+            &account,
+            PathBuf::from("/usr/bin/claude"),
+            &request("sonnet"),
+            None,
+            Some(&plan(true, false)),
+        );
+        assert!(!spec.args.join(" ").contains("--strict-mcp-config"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Missions on 2.1.283 (3 reps, sonnet): `--effort low` on a lean project
+    /// job cut the median time of the 11 missions from 152.8 s to 125.6 s at
+    /// the same cost and 33/33 success. An explicit `reasoning_effort` wins;
+    /// a CLI without `--effort` never gets it.
+    #[test]
+    fn a_lean_project_job_runs_at_low_effort_unless_the_turn_asks() {
+        let root = tmp("plan-effort");
+        let accounts = store_with(&root, CliKind::Claude);
+        accounts.set_sandbox("max-1", SandboxMode::Write).unwrap();
+        let runtime = CliRuntime::new(accounts.clone(), Arc::new(CliCapacity::new()));
+        let account = accounts.get("max-1").unwrap();
+        let plan = |lean: bool, effort_flag: bool| LaunchPlan {
+            cwd: Some(root.clone()),
+            projectless: false,
+            resume: None,
+            resume_kind: crate::core::assist::runs::ResumeKind::New,
+            mcp_config: None,
+            permission_prompt_tool: None,
+            restrict_tools: false,
+            external: false,
+            lean_project: lean,
+            effort_flag,
+        };
+        let effort = |req: &TurnRequest, p: &LaunchPlan| {
+            let (spec, _) = runtime.plan_with(
+                &account,
+                PathBuf::from("/usr/bin/claude"),
+                req,
+                None,
+                Some(p),
+            );
+            spec.args
+                .iter()
+                .position(|x| x == "--effort")
+                .map(|i| spec.args[i + 1].clone())
+        };
+        assert_eq!(
+            effort(&request("sonnet"), &plan(true, true)).as_deref(),
+            Some(claude::PROJECT_EFFORT)
+        );
+        let mut asked = request("sonnet");
+        asked.params.reasoning_effort = Some("High".into());
+        assert_eq!(effort(&asked, &plan(true, true)).as_deref(), Some("high"));
+        asked.params.reasoning_effort = Some("minimal".into());
+        assert_eq!(effort(&asked, &plan(true, true)).as_deref(), Some("low"));
+        // Not lean: only an explicit ask sets it.
+        assert_eq!(effort(&request("sonnet"), &plan(false, true)), None);
+        asked.params.reasoning_effort = Some("medium".into());
+        assert_eq!(
+            effort(&asked, &plan(false, true)).as_deref(),
+            Some("medium")
+        );
+        // A CLI that does not list `--effort` never gets it.
+        assert_eq!(effort(&asked, &plan(true, false)), None);
+        assert_eq!(effort(&request("sonnet"), &plan(true, false)), None);
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -874,3 +1327,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 }
+
+#[cfg(test)]
+mod durable_tests;

@@ -343,7 +343,7 @@
     {/each}
     {#if globalResult.results.some((r) => !r.ok)}
       <details class="failed-sources">
-        <summary class="muted small">{$t("study.read.discover_global_failed", { n: globalResult.results.filter((r) => !r.ok).length })}</summary>
+        <summary class="muted small">{$t("study.read.discover_global_failed", { count: globalResult.results.filter((r) => !r.ok).length })}</summary>
         <ul>
           {#each globalResult.results.filter((r) => !r.ok) as r (r.source_id)}
             <li class="small muted">

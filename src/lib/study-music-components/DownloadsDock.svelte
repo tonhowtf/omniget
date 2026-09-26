@@ -20,7 +20,7 @@
     if (job.stage === "starting") return $t("study.music.dock.preparing");
     if (job.stage === "downloading") {
       if (job.kind === "bulk") {
-        return $t("study.music.dock.downloading", { a: job.currentCount ?? 0, b: job.totalCount ?? 0 });
+        return $t("study.music.dock.downloading", { done: job.currentCount ?? 0, total: job.totalCount ?? 0 });
       }
       return $t("study.music.dock.saving_track");
     }
@@ -228,7 +228,7 @@
                   aria-expanded={!!job.expanded}
                 >
                   <span class="chev" class:open={job.expanded}>▸</span>
-                  {$t("study.music.dock.failed_count", { n: failedList.length })}
+                  {$t("study.music.dock.failed_count", { count: failedList.length })}
                 </button>
                 <button
                   type="button"

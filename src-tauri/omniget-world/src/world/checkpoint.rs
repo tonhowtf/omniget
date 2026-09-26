@@ -39,7 +39,8 @@ use crate::world::{World, HISTORY_EVENTS, HISTORY_OBJ, HISTORY_TICKS};
 
 /// Bumped when a field is added or its meaning changes. A server refuses a
 /// checkpoint from a newer crate instead of guessing.
-pub const CHECKPOINT_VERSION: u32 = 1;
+/// 2: `tasks` (session 06). A version-1 checkpoint loads with an empty book.
+pub const CHECKPOINT_VERSION: u32 = 2;
 
 /// One agent, every component.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -77,6 +78,8 @@ pub struct Checkpoint {
     /// Ascending by id.
     pub objects: Vec<Object>,
     pub mailbox: Mailbox,
+    #[serde(default)]
+    pub tasks: crate::sim::tasks::TaskBook,
 }
 
 impl World {
@@ -114,6 +117,7 @@ impl World {
             agents,
             objects: self.objects.all().to_vec(),
             mailbox: self.mailbox.clone(),
+            tasks: self.tasks.clone(),
         }
     }
 
@@ -175,6 +179,7 @@ impl World {
             agents,
             objects,
             mailbox: cp.mailbox.clone(),
+            tasks: cp.tasks.clone(),
             astar: AStar::new(),
             path_buf: Vec::with_capacity(64),
             order_buf: Vec::with_capacity(32),

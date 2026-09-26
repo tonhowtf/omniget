@@ -275,7 +275,8 @@
       await invoke("retry_download", { downloadId: id });
     } catch (e: any) {
       const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
-      showToast("error", msg);
+      // Reloaded from history/recovery: the stored link lost its key.
+      showToast("error", msg.startsWith("LINK_EXPIRED") ? ($t("downloads.history_link_expired") as string) : msg);
     }
   }
 
@@ -455,6 +456,12 @@
   }
 
   async function historyRetry(url: string, platform: string) {
+    // History only keeps the redacted URL; a signed link lost its key and
+    // would fail on the server with a confusing error.
+    if (url.includes("[REDACTED]")) {
+      showToast("error", $t("downloads.history_link_expired") as string);
+      return;
+    }
     try {
       const settings = (await import("$lib/stores/settings-store.svelte")).getSettings();
       const outputDir = settings?.download.default_output_dir ?? "";
@@ -1149,11 +1156,15 @@
               <div
                 class="progress-fill"
                 data-status={item.status}
-                class:indeterminate={item.status === "downloading" && item.percent <= 0 && !isTransferPhase(item.phase)}
-                style:width="{Math.max(0, item.percent).toFixed(1)}%"
+                class:indeterminate={item.status === "downloading" && (item.percent === null || (item.percent <= 0 && !isTransferPhase(item.phase)))}
+                style:width="{item.percent === null ? 0 : item.percent.toFixed(1)}%"
               ></div>
             </div>
-            <span class="item-percent">{Math.max(0, item.percent).toFixed(0)}%</span>
+            {#if item.percent === null}
+              <span class="item-percent">{item.downloadedBytes > 0 ? formatBytes(item.downloadedBytes) : "…"}</span>
+            {:else}
+              <span class="item-percent">{item.percent.toFixed(0)}%</span>
+            {/if}
           </div>
         {/if}
 
@@ -1227,11 +1238,11 @@
       <div
         class="progress-fill"
         data-status={item.status}
-        style:width="{Math.max(0, item.percent).toFixed(1)}%"
+        style:width="{Math.max(0, item.percent ?? 0).toFixed(1)}%"
       ></div>
     </div>
 
-    <span class="item-percent">{Math.max(0, item.percent).toFixed(1)}%</span>
+    <span class="item-percent">{Math.max(0, item.percent ?? 0).toFixed(1)}%</span>
 
     {#if item.status !== "queued"}
       <DownloadLog id={item.id} />

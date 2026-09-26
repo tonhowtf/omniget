@@ -136,7 +136,7 @@
       <p>{$t("study.music.albums_empty")}</p>
     </div>
   {:else}
-    <p class="result-count">{$t("study.music.albums_count", { n: filtered.length })}</p>
+    <p class="result-count">{$t("study.music.albums_count", { count: filtered.length })}</p>
     <div class="album-grid">
       {#each filtered as album (album.name + (album.artist ?? ""))}
         <div

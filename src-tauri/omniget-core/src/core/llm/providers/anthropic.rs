@@ -111,13 +111,15 @@ fn part_block(p: &ContentPart) -> Option<Value> {
     }
 }
 
-/// `true` when the caller asked for prompt caching via `params.extra["cache"]`.
+/// Prompt caching is on by default; `params.extra["cache"] = false` opts out.
+/// A tool loop resends the whole history every request, so the breakpoint on
+/// the latest user turn lets each request read the prefix at 0.1x.
 fn wants_cache(extra: &Map<String, Value>) -> bool {
     match extra.get("cache") {
         Some(Value::Bool(b)) => *b,
         Some(Value::String(s)) => !s.is_empty() && s != "false",
-        Some(v) => !v.is_null(),
-        None => false,
+        Some(Value::Null) | None => true,
+        Some(_) => true,
     }
 }
 
@@ -171,6 +173,19 @@ pub fn build_body(req: &TurnRequest) -> Value {
             }
         }
         body.insert("system".into(), Value::Array(system_blocks));
+    }
+    if cache {
+        // Third breakpoint: last block of the latest user turn (tool results
+        // included), so the next request of the loop reads it from cache.
+        if let Some(last) = msgs
+            .iter_mut()
+            .rev()
+            .find(|m| m["role"] == "user")
+            .and_then(|m| m["content"].as_array_mut())
+            .and_then(|a| a.last_mut())
+        {
+            last["cache_control"] = json!({ "type": "ephemeral" });
+        }
     }
     body.insert("messages".into(), Value::Array(msgs));
 
@@ -471,6 +486,12 @@ pub fn parse_event(state: &mut AnthropicStreamState, v: &Value, out: &mut Vec<Tu
 #[async_trait]
 impl Provider for AnthropicProvider {
     async fn turn(&self, req: TurnRequest) -> Result<BoxStream<'static, TurnEvent>, LlmError> {
+        // Capture task-local authority before any await. The coordinator
+        // reserves one request; ambiguous external sends cannot be retried
+        // inside the adapter without another durable debit/authority check.
+        let external = crate::core::llm::code_tools::current_turn()
+            .is_some_and(|ctx| crate::core::assist::authority::external(&ctx.conversation));
+        let max_attempts = if external { 1 } else { self.max_attempts };
         let body = build_body(&req);
         if let Some(c) = &self.capture {
             c.record_request(body.clone());
@@ -507,7 +528,11 @@ impl Provider for AnthropicProvider {
                 Ok(r) => {
                     let status = r.status().as_u16();
                     let wait = retry_after_ms(r.headers(), attempt);
-                    let text = r.text().await.unwrap_or_default();
+                    let text = tokio::select! {
+                        biased;
+                        _ = req.cancel.cancelled() => return Err(LlmError::new(ERR_LLM_CANCELLED, "cancelled")),
+                        text = r.text() => text.unwrap_or_default(),
+                    };
                     (status_to_error(status, &text), wait)
                 }
                 Err(e) => (
@@ -521,7 +546,7 @@ impl Provider for AnthropicProvider {
                 ),
             };
             attempt += 1;
-            if !err.retryable || attempt >= self.max_attempts {
+            if !err.retryable || attempt >= max_attempts {
                 return Err(LlmError {
                     retry_after_ms: Some(wait),
                     ..err
@@ -698,6 +723,94 @@ mod tests {
     use crate::core::llm::types::{GenParams, Message, ModelRef};
     use tokio_util::sync::CancellationToken;
 
+    #[tokio::test]
+    async fn external_failed_post_is_never_retried_inside_adapter() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        // Exercise both a retryable status and an ambiguous accepted request
+        // whose connection vanishes without an HTTP response. Local fixture.
+        for disconnect in [false, true] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let base = format!("http://{}", listener.local_addr().unwrap());
+            let count = Arc::new(AtomicUsize::new(0));
+            let seen = count.clone();
+            let server = tokio::spawn(async move {
+                while let Ok((mut socket, _)) = listener.accept().await {
+                    let mut buf = [0u8; 8192];
+                    let _ = socket.read(&mut buf).await;
+                    seen.fetch_add(1, Ordering::SeqCst);
+                    if !disconnect {
+                        let _=socket.write_all(b"HTTP/1.1 503 Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await;
+                    }
+                }
+            });
+            let provider = AnthropicProvider::new(base, "")
+                .unwrap()
+                .with_max_attempts(3);
+            let request = req(
+                vec![Message::text(Role::User, "fixture")],
+                GenParams::default(),
+                vec![],
+            );
+            let result = tokio::time::timeout(
+                Duration::from_secs(3),
+                crate::core::llm::code_tools::scope(
+                    "external-mcp-fixture",
+                    "bot",
+                    "request",
+                    provider.turn(request),
+                ),
+            )
+            .await;
+            server.abort();
+            assert!(matches!(result, Ok(Err(_))));
+            assert_eq!(count.load(Ordering::SeqCst), 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn cancel_interrupts_stalled_error_response_body() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let (sent, ready) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 8192];
+            let _ = socket.read(&mut buf).await;
+            socket
+                .write_all(b"HTTP/1.1 503 Unavailable\r\nContent-Length: 100000\r\n\r\nx")
+                .await
+                .unwrap();
+            let _ = sent.send(());
+            std::future::pending::<()>().await;
+        });
+        let provider = AnthropicProvider::new(base, "").unwrap();
+        let request = req(
+            vec![Message::text(Role::User, "fixture")],
+            GenParams::default(),
+            vec![],
+        );
+        let cancel = request.cancel.clone();
+        let call = tokio::spawn(async move {
+            crate::core::llm::code_tools::scope(
+                "external-mcp-fixture",
+                "bot",
+                "request",
+                provider.turn(request),
+            )
+            .await
+        });
+        ready.await.unwrap();
+        cancel.cancel();
+        let result = tokio::time::timeout(Duration::from_secs(1), call).await;
+        server.abort();
+        match result {
+            Ok(Ok(Err(e))) => assert_eq!(e.code, ERR_LLM_CANCELLED),
+            _ => panic!("cancel must interrupt response-body wait"),
+        }
+    }
+
     fn req(messages: Vec<Message>, params: GenParams, tools: Vec<ToolSpec>) -> TurnRequest {
         TurnRequest {
             model: ModelRef {
@@ -826,6 +939,66 @@ mod tests {
         assert_eq!(b["system"][0]["cache_control"]["type"], "ephemeral");
         assert_eq!(b["tools"][0]["cache_control"]["type"], "ephemeral");
         // "cache" itself is a knob, not a body field.
+        assert!(b.get("cache").is_none());
+    }
+
+    #[test]
+    fn cache_is_on_by_default_with_three_breakpoints() {
+        let b = build_body(&req(
+            vec![
+                Message::text(Role::System, "long prompt"),
+                Message::text(Role::User, "first"),
+                Message::text(Role::Assistant, "ok"),
+                Message {
+                    role: Role::Tool,
+                    parts: vec![ContentPart::ToolResult {
+                        tool_use_id: "c1".into(),
+                        content: "out".into(),
+                        is_error: false,
+                    }],
+                },
+            ],
+            GenParams::default(),
+            vec![ToolSpec {
+                name: "t".into(),
+                description: "d".into(),
+                input_schema: json!({}),
+            }],
+        ));
+        assert_eq!(b["system"][0]["cache_control"]["type"], "ephemeral");
+        assert_eq!(b["tools"][0]["cache_control"]["type"], "ephemeral");
+        let m = b["messages"].as_array().unwrap();
+        // Only the last block of the last user turn carries the breakpoint.
+        assert_eq!(
+            m[2]["content"][0]["cache_control"]["type"], "ephemeral",
+            "tool_result of the latest user turn must be a breakpoint"
+        );
+        assert!(m[0]["content"][0].get("cache_control").is_none());
+        assert!(m[1]["content"][0].get("cache_control").is_none());
+        let marks = b.to_string().matches("cache_control").count();
+        assert_eq!(marks, 3, "Anthropic allows at most 4 breakpoints");
+    }
+
+    #[test]
+    fn cache_false_opts_out_of_every_breakpoint() {
+        let mut extra = Map::new();
+        extra.insert("cache".into(), json!(false));
+        let b = build_body(&req(
+            vec![
+                Message::text(Role::System, "long prompt"),
+                Message::text(Role::User, "hi"),
+            ],
+            GenParams {
+                extra,
+                ..GenParams::default()
+            },
+            vec![ToolSpec {
+                name: "t".into(),
+                description: "d".into(),
+                input_schema: json!({}),
+            }],
+        ));
+        assert!(!b.to_string().contains("cache_control"));
         assert!(b.get("cache").is_none());
     }
 
