@@ -4287,6 +4287,7 @@
       "model": "Modello",
       "model_desc": "L'identificatore del modello per il provider scelto.",
       "model_placeholder": "es. gpt-4o-mini, claude-3-5-sonnet-latest, llama3",
+      "api_key": "API key",
       "openai_key": "Chiave API OpenAI",
       "anthropic_key": "Chiave API Anthropic",
       "key_set": "Una chiave è salvata. Lascia vuoto per mantenerla.",

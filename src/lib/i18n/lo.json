@@ -4287,6 +4287,7 @@
       "model": "ໂມເດວ",
       "model_desc": "ຕົວລະບຸໂມເດວສຳລັບຜູ້ໃຫ້ບໍລິການທີ່ເລືອກ.",
       "model_placeholder": "ເຊັ່ນ gpt-4o-mini, claude-3-5-sonnet-latest, llama3",
+      "api_key": "API key",
       "openai_key": "ຄີ API OpenAI",
       "anthropic_key": "ຄີ API Anthropic",
       "key_set": "ບັນທຶກຄີແລ້ວ. ປະວ່າງໄວ້ເພື່ອໃຊ້ຄີເດີມ.",

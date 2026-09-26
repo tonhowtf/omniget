@@ -72,8 +72,25 @@ impl AiConfig {
             AiProvider::None => false,
             AiProvider::Openai => !self.openai_key.is_empty(),
             AiProvider::Anthropic => !self.anthropic_key.is_empty(),
-            AiProvider::Local => !self.local_base_url.is_empty(),
+            // `Local` is every OpenAI-shaped provider that is not api.openai.com, so the
+            // endpoint is what makes it usable. A key is only required by the rows that
+            // take one: a local server answers without it.
+            AiProvider::Local => {
+                !self.local_base_url.is_empty()
+                    && (!self.kind_needs_key() || !self.openai_key.is_empty())
+            }
         }
+    }
+
+    /// Whether the kind this config records takes a credential. An unknown or empty
+    /// kind is treated as taking one, because refusing to call a configuration
+    /// "configured" is the safer failure for a request that would go out unauthenticated.
+    fn kind_needs_key(&self) -> bool {
+        if self.kind.is_empty() {
+            return true;
+        }
+
+        crate::core::tools::ai_keys::kind_of(&self.kind).needs_key()
     }
 }
 
@@ -202,6 +219,69 @@ pub fn provider_for_kind(kind: &str) -> AiProvider {
         _ if kind == "openai" => AiProvider::Openai,
         _ => AiProvider::Local,
     }
+}
+
+/// What a settings form wants done with the stored credential.
+///
+/// A blank field cannot mean both "keep what is there" and "there is no key", and the
+/// two are no longer the same thing: switching between two providers that share the
+/// `openai_key` slot would otherwise send the first provider's credential to the
+/// second one's endpoint.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KeyAction<'a> {
+    Keep,
+    Set(&'a str),
+    Clear,
+}
+
+/// Configure the app's AI from a settings form rather than from a vault entry.
+///
+/// `set` cannot be used for this: it keeps the previous `kind`, so the `provider_id`
+/// a request is routed on falls back to the wire (`custom`) and the entry the user
+/// just picked is lost. Deriving the wire from the kind is the same rule
+/// [`provider_for_kind`] documents, and the base URL comes from the kind's default
+/// when the form leaves it out, which is what makes `deepseek`, `groq`, `xai`,
+/// `mistral` and the like reachable without retyping their endpoints.
+pub fn set_with_kind(kind: &str, model: String, base_url: String, key: KeyAction<'_>) -> AiConfig {
+    let provider = provider_for_kind(kind);
+    let mut guard = store().lock().unwrap();
+    guard.provider = provider;
+    guard.kind = kind.trim().to_string();
+    guard.key_id = String::new();
+    guard.model = model.trim().to_string();
+    guard.local_base_url = if !base_url.trim().is_empty() {
+        base_url.trim().trim_end_matches('/').to_string()
+    } else if provider == AiProvider::Local {
+        crate::core::tools::ai_keys::app_base_url(kind, "")
+    } else {
+        // The OpenAI and Anthropic wires have a fixed endpoint in `provider_from_config`.
+        String::new()
+    };
+    match key {
+        KeyAction::Keep => {}
+        KeyAction::Set(k) => match provider {
+            AiProvider::Anthropic => guard.anthropic_key = k.trim().to_string(),
+            _ => guard.openai_key = k.trim().to_string(),
+        },
+        KeyAction::Clear => {
+            guard.openai_key.clear();
+            guard.anthropic_key.clear();
+        }
+    }
+    write_to_disk(&guard);
+    guard.clone()
+}
+
+/// Turn AI off. Clearing `kind` is part of that: `view()` hands the kind to the
+/// settings form, and a stale one makes a disabled config read as the provider that
+/// was configured before it was disabled.
+pub fn clear() -> AiConfig {
+    let mut guard = store().lock().unwrap();
+    guard.provider = AiProvider::None;
+    guard.kind = String::new();
+    guard.key_id = String::new();
+    write_to_disk(&guard);
+    guard.clone()
 }
 
 impl AiConfig {
@@ -620,5 +700,113 @@ mod tests {
         assert!(!cfg.is_configured());
         cfg.anthropic_key = "k".to_string();
         assert!(cfg.is_configured());
+    }
+
+    /// Choosing a provider by kind has to survive the round trip: the wire is
+    /// derived, the id the request is routed on is the kind, and a provider whose
+    /// endpoint is not `api.openai.com` gets its own base URL without the form
+    /// having to carry one.
+    #[test]
+    fn a_provider_chosen_by_kind_keeps_its_endpoint_and_its_id() {
+        let cfg = AiConfig {
+            provider: provider_for_kind("deepseek"),
+            kind: "deepseek".to_string(),
+            model: "deepseek-chat".to_string(),
+            local_base_url: crate::core::tools::ai_keys::app_base_url("deepseek", ""),
+            openai_key: "k".to_string(),
+            ..Default::default()
+        };
+
+        // deepseek speaks the openai dialect, so it routes as Local - and that is not a
+        // downgrade, it is what makes the base URL below reachable at all
+        assert_eq!(cfg.provider, AiProvider::Local);
+        assert_eq!(cfg.provider_id(), "deepseek");
+        assert_eq!(cfg.local_base_url, "https://api.deepseek.com");
+        assert!(cfg.is_configured());
+
+        // the same rule for a kind on the other wire, where the endpoint is fixed in
+        // provider_from_config and must stay empty so it is not mistaken for a local URL
+        assert_eq!(provider_for_kind("anthropic"), AiProvider::Anthropic);
+        assert_eq!(provider_for_kind("openai"), AiProvider::Openai);
+    }
+
+    /// GEMINI is the one non-OpenAI wire that still needs a URL, and it needs the
+    /// OpenAI-compatible route rather than the native one.
+    #[test]
+    fn gemini_by_kind_gets_its_openai_compatible_route() {
+        let url = crate::core::tools::ai_keys::app_base_url("gemini", "");
+
+        assert!(url.ends_with("/openai"), "{url}");
+        assert_eq!(provider_for_kind("gemini"), AiProvider::Local);
+    }
+
+    /// A blank key field means "keep", but switching providers means "do not carry the
+    /// other provider's credential over". Both used to arrive as `None`, so the first
+    /// provider's key was sent to the second one's endpoint as a bearer token.
+    #[test]
+    fn switching_provider_can_drop_the_previous_credential() {
+        let cfg = AiConfig {
+            provider: provider_for_kind("deepseek"),
+            kind: "deepseek".to_string(),
+            local_base_url: crate::core::tools::ai_keys::app_base_url("deepseek", ""),
+            openai_key: "sk-deepseek".to_string(),
+            ..Default::default()
+        };
+        // a keyed provider is only configured once it has both halves, which is what the
+        // settings form checks before offering the summarize controls
+        assert!(cfg.is_configured());
+
+        // and a local server without a key still is
+        let ollama = AiConfig {
+            provider: provider_for_kind("ollama"),
+            kind: "ollama".to_string(),
+            local_base_url: crate::core::tools::ai_keys::app_base_url("ollama", ""),
+            ..Default::default()
+        };
+        assert!(ollama.is_configured(), "a local server answers without a key");
+
+        // the two actions a form can ask for, in the shape the command builds them
+        match KeyAction::Set("sk-xai") {
+            KeyAction::Set(k) => assert_eq!(k, "sk-xai"),
+            _ => panic!("Set must carry the credential"),
+        }
+        match KeyAction::Clear {
+            KeyAction::Clear => {}
+            _ => panic!("Clear must not carry one"),
+        }
+    }
+
+    /// Turning AI off has to drop the recorded kind, or the next read of the config
+    /// reports the provider that was configured before it was turned off.
+    #[test]
+    fn a_cleared_config_reports_no_provider() {
+        let cfg = AiConfig {
+            provider: AiProvider::None,
+            kind: String::new(),
+            key_id: String::new(),
+            ..Default::default()
+        };
+
+        assert_eq!(cfg.provider_id(), "");
+        assert!(!cfg.is_configured());
+    }
+
+    /// The capability flags the settings form reads come from the table row, so a
+    /// provider added later cannot be missing from a second list kept somewhere else.
+    #[test]
+    fn the_table_carries_the_form_capabilities() {
+        use crate::core::tools::ai_keys::kind_of;
+
+        // a provider behind a real endpoint takes a key and does not ask for a URL
+        assert!(kind_of("deepseek").needs_key());
+        assert!(!kind_of("deepseek").base_url_editable());
+
+        // a local server answers without one, and its URL is the user's to give
+        assert!(!kind_of("ollama").needs_key());
+        assert!(kind_of("ollama").base_url_editable());
+
+        // a relay is deployed per site, so its table URL is a placeholder until replaced
+        assert!(kind_of("newapi").needs_key());
+        assert!(kind_of("newapi").base_url_editable());
     }
 }

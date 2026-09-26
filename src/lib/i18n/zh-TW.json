@@ -4287,6 +4287,7 @@
       "model": "模型",
       "model_desc": "所選提供者的模型識別碼。",
       "model_placeholder": "例如 gpt-4o-mini、claude-3-5-sonnet-latest、llama3",
+      "api_key": "API key",
       "openai_key": "OpenAI API 金鑰",
       "anthropic_key": "Anthropic API 金鑰",
       "key_set": "已儲存金鑰。留空以保留。",

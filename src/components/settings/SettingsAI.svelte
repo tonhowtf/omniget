@@ -4,9 +4,41 @@
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
 
+  // the provider table the LLM layer routes on (ai_keys::KINDS). Kept in sync by
+  // reading it instead of repeating it here: the list was hardcoded to three entries
+  // while twelve exist, which is what left deepseek and the other eight unreachable
+  // from this panel even though every other surface could already use them.
+  // needs_key / base_url_editable come from the same rows, so a provider added later
+  // cannot be missing from a second list kept somewhere else.
+  type Kind = {
+    id: string;
+    name: string;
+    base_url: string;
+    balance: boolean;
+    env: string;
+    needs_key: boolean;
+    base_url_editable: boolean;
+  };
+  // a model name is not available from the registry, so these are placeholders only -
+  // the field stays free text and whatever the provider accepts is what works
+  const MODEL_HINTS: Record<string, string> = {
+    openai: "gpt-4o-mini",
+    anthropic: "claude-sonnet-4-5",
+    deepseek: "deepseek-chat",
+    openrouter: "openai/gpt-4o-mini",
+    gemini: "gemini-2.5-flash",
+    groq: "llama-3.3-70b-versatile",
+    xai: "grok-3",
+    mistral: "mistral-large-latest",
+    siliconflow: "deepseek-ai/DeepSeek-V3",
+    newapi: "gpt-4o-mini",
+    ollama: "llama3.2"
+  };
+
   type Provider = "none" | "openai" | "anthropic" | "local";
   type ConfigView = {
     provider: Provider;
+    kind: string;
     model: string;
     local_base_url: string;
     has_openai_key: boolean;
@@ -21,13 +53,16 @@
     created_at_ms: number;
   };
 
-  let provider = $state<Provider>("none");
+  let kinds = $state<Kind[]>([]);
+  // "none" | a kind id. The kind is the selection; the legacy `provider` string is
+  // derived from it server-side so a request still has a wire to speak.
+  let kind = $state<string>("none");
+  // the kind the saved config already had, so a switch can be told from a re-save
+  let savedKind = $state<string>("none");
   let model = $state("");
   let localBaseUrl = $state("");
-  let openaiKey = $state("");
-  let anthropicKey = $state("");
-  let hasOpenaiKey = $state(false);
-  let hasAnthropicKey = $state(false);
+  let keyInput = $state("");
+  let hasKey = $state(false);
 
   let testing = $state(false);
   let summarizeUrl = $state("");
@@ -36,16 +71,30 @@
   let summaryLang = $state("");
   let history = $state<HistoryEntry[]>([]);
 
+  const selectedKind = $derived(kinds.find((k) => k.id === kind));
+  const needsKey = $derived(!!selectedKind?.needs_key);
+  const needsBaseUrl = $derived(!!selectedKind?.base_url_editable);
+
+  async function loadKinds() {
+    try {
+      kinds = await invoke<Kind[]>("tool_keys_kinds");
+    } catch {
+      kinds = [];
+    }
+  }
+
   async function loadConfig() {
     try {
       const c = await invoke<ConfigView>("ai_get_config");
-      provider = c.provider;
+      // an older build stored no kind at all. `custom` is what the server falls back to
+      // for a bare local endpoint, so the picker shows that instead of a name it does
+      // not carry, and the endpoint stays editable
+      kind = c.kind || (c.provider === "local" ? "custom" : c.provider);
+      savedKind = kind;
       model = c.model;
       localBaseUrl = c.local_base_url;
-      hasOpenaiKey = c.has_openai_key;
-      hasAnthropicKey = c.has_anthropic_key;
-      openaiKey = "";
-      anthropicKey = "";
+      hasKey = c.provider === "anthropic" ? c.has_anthropic_key : c.has_openai_key;
+      keyInput = "";
     } catch (e: any) {
       showToast("error", typeof e === "string" ? e : $t("common.error"));
     }
@@ -60,18 +109,39 @@
   }
 
   onMount(() => {
+    loadKinds();
     loadConfig();
     loadHistory();
   });
 
+  // the endpoint belongs to the provider, so it follows the choice instead of being
+  // retyped. Providers whose table URL is real keep it; the ones whose URL only has a
+  // shape (ollama, custom, and a relay that is deployed per site) take what is typed.
+  function onKindChange() {
+    const k = selectedKind;
+    if (!k) {
+      localBaseUrl = "";
+      return;
+    }
+    localBaseUrl = k.base_url_editable ? (localBaseUrl.trim() ? localBaseUrl : k.base_url) : "";
+  }
+
   async function save() {
     try {
+      // leaving the field blank keeps the stored credential, but only while the
+      // provider stays the same: switching providers has to clear it, or the previous
+      // provider's key is sent to the new endpoint as a bearer token
+      const switched = kind !== savedKind;
+      const entered = keyInput.trim();
+      const keyAction = entered ? "set" : switched ? "clear" : "keep";
+
       await invoke("ai_set_config", {
-        provider,
+        provider: kind === "none" ? "none" : "local",
+        kind: kind === "none" ? null : kind,
         model: model.trim(),
-        localBaseUrl: localBaseUrl.trim(),
-        openaiKey: openaiKey.trim() !== "" ? openaiKey.trim() : null,
-        anthropicKey: anthropicKey.trim() !== "" ? anthropicKey.trim() : null,
+        localBaseUrl: needsBaseUrl ? localBaseUrl.trim() : "",
+        keyAction,
+        key: entered ? entered : null,
       });
       await loadConfig();
       showToast("success", $t("settings.ai.saved") as string);
@@ -141,68 +211,70 @@
         <span class="setting-label">{$t('settings.ai.provider')}</span>
         <span class="setting-path">{$t('settings.ai.provider_desc')}</span>
       </div>
-      <select class="input-text select" bind:value={provider}>
+      <select class="input-text select" bind:value={kind} onchange={onKindChange}>
         <option value="none">{$t('settings.ai.provider_none')}</option>
-        <option value="openai">OpenAI</option>
-        <option value="anthropic">Anthropic</option>
-        <option value="local">{$t('settings.ai.provider_local')}</option>
+        {#each kinds as k (k.id)}
+          <option value={k.id}>{k.name}</option>
+        {/each}
       </select>
     </div>
 
-    {#if provider !== "none"}
+    {#if kind !== "none"}
       <div class="divider"></div>
       <div class="setting-row">
         <div class="setting-col">
           <span class="setting-label">{$t('settings.ai.model')}</span>
           <span class="setting-path">{$t('settings.ai.model_desc')}</span>
         </div>
-        <input type="text" class="input-text" placeholder={$t('settings.ai.model_placeholder')} bind:value={model} />
+        <input
+          type="text"
+          class="input-text"
+          placeholder={MODEL_HINTS[kind] ?? ($t('settings.ai.model_placeholder') as string)}
+          bind:value={model}
+        />
       </div>
     {/if}
 
-    {#if provider === "openai"}
+    {#if needsKey}
       <div class="divider"></div>
       <div class="setting-row">
         <div class="setting-col">
-          <span class="setting-label">{$t('settings.ai.openai_key')}</span>
-          <span class="setting-path">{hasOpenaiKey ? $t('settings.ai.key_set') : $t('settings.ai.key_unset')}</span>
+          <span class="setting-label">{$t('settings.ai.api_key')}</span>
+          <span class="setting-path">
+            {hasKey ? $t('settings.ai.key_set') : $t('settings.ai.key_unset')}
+            {#if selectedKind}· {selectedKind.env}{/if}
+          </span>
         </div>
-        <input type="password" class="input-text" placeholder={hasOpenaiKey ? "••••••••" : "sk-…"} bind:value={openaiKey} />
+        <input type="password" class="input-text" placeholder={hasKey ? "••••••••" : "sk-…"} bind:value={keyInput} />
       </div>
     {/if}
 
-    {#if provider === "anthropic"}
-      <div class="divider"></div>
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t('settings.ai.anthropic_key')}</span>
-          <span class="setting-path">{hasAnthropicKey ? $t('settings.ai.key_set') : $t('settings.ai.key_unset')}</span>
-        </div>
-        <input type="password" class="input-text" placeholder={hasAnthropicKey ? "••••••••" : "sk-ant-…"} bind:value={anthropicKey} />
-      </div>
-    {/if}
-
-    {#if provider === "local"}
+    {#if needsBaseUrl}
       <div class="divider"></div>
       <div class="setting-row">
         <div class="setting-col">
           <span class="setting-label">{$t('settings.ai.local_url')}</span>
           <span class="setting-path">{$t('settings.ai.local_url_desc')}</span>
         </div>
-        <input type="text" class="input-text" placeholder="http://localhost:11434/v1" bind:value={localBaseUrl} />
+        <input
+          type="text"
+          class="input-text"
+          placeholder={selectedKind?.base_url ?? "http://localhost:11434/v1"}
+          bind:value={localBaseUrl}
+        />
       </div>
     {/if}
 
     <div class="divider"></div>
     <div class="actions-row">
       <button class="primary-btn" onclick={save}>{$t('settings.ai.save')}</button>
-      {#if provider !== "none"}
+      {#if kind !== "none"}
         <button class="ghost-btn" disabled={testing} onclick={runTest}>{$t('settings.ai.test')}</button>
       {/if}
     </div>
   </div>
 
-  {#if provider !== "none"}
+  {#if kind !== "none"}
     <h5 class="section-title">{$t('settings.ai.summarize_title')}</h5>
     <div class="card">
       <div class="add-row">
