@@ -502,16 +502,29 @@
   },
   "home": {
     "inspector_title": "گزینه‌های دانلود",
-    "hero_title": "OmniGet",
-    "hero_subtitle": "Paste a link or search. We'll take it from there.",
-    "action_batch": "Many links at once",
-    "action_torrent": "Open a .torrent file",
-    "action_p2p": "Send a file to someone",
-    "action_advanced": "Advanced options",
-    "action_simple": "Back to the simple view",
-    "value_line": "{{count}} files · {{size}} saved with OmniGet",
-    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies.",
-    "analyze": "Analyze link"
+    "sr_title": "دانلود",
+    "more": "راه‌های دیگر دانلود",
+    "paste": "جای‌گذاری",
+    "paste_empty": "در کلیپ‌بورد لینکی نیست.",
+    "submit": "دانلود این لینک",
+    "first_sites": "با YouTube، Instagram، TikTok و [{{count}} سایت دیگر] کار می‌کند.",
+    "first_terms": "با استفاده از OmniGet، [شرایط] را می‌پذیرید.",
+    "saved_count_one": "{{count}} فایل",
+    "saved_count_other": "{{count}} فایل",
+    "saved_line": "{{files}} · {{size}} ذخیره شد",
+    "drop_title": "رها کنید تا دانلود شود",
+    "drop_hint": "لینک‌ها، فایل‌های تورنت یا یک فهرست .txt",
+    "drop_unsupported": "OmniGet نمی‌تواند این فایل را باز کند. یک لینک، تورنت یا فهرست .txt را امتحان کنید.",
+    "action_batch": "جای‌گذاری چند لینک…",
+    "action_torrent": "باز کردن فایل تورنت…",
+    "action_p2p": "ارسال فایل با کد…",
+    "action_advanced": "فرمان yt-dlp…",
+    "action_simple": "بازگشت",
+    "adv_title": "فرمان yt-dlp",
+    "success_title": "به دانلودها اضافه شد",
+    "success_first": "اولین دانلود شما!",
+    "success_open": "باز کردن دانلودها",
+    "batch_hint": "چند لینک دارید؟ همه را یک‌جا جای‌گذاری کنید، هر کدام در یک خط."
   },
   "tools": {
     "tab": "Tools",
@@ -4449,21 +4462,19 @@
     "cat_world": "World"
   },
   "omnibox": {
-    "placeholder": "Paste a URL, magnet link, .torrent, or search",
-    "searching": "Searching...",
-    "search_empty": "No results found",
-    "unsupported": "Platform not supported yet",
+    "placeholder": "یک لینک جای‌گذاری کنید یا جستجو کنید",
+    "searching": "در حال جستجو…",
+    "search_empty": "چیزی برای «{{query}}» پیدا نشد.",
+    "unsupported": "OmniGet هنوز نمی‌تواند این سایت را باز کند.",
     "go_to_hotmart": "Go to Hotmart",
     "go_to_udemy": "Go to Udemy",
     "download": "Download",
-    "options": "Options",
+    "options": "کیفیت و بیشتر",
     "advanced": "Advanced",
-    "preparing": "Preparing download...",
+    "preparing": "در حال آماده‌سازی…",
     "error": "Download failed",
-    "retry": "Retry",
-    "batch_detected": "{{count}} URLs detected",
-    "batch_download_all": "Download all",
-    "batch_queued": "{{count}} downloads added to queue",
+    "retry": "دوباره امتحان کنید",
+    "batch_download_all": "دانلود همه ({{count}})",
     "preflight_stop": "None of the {{total}} links can be downloaded — no supported site among them.",
     "media_changed": "This link changed since you last downloaded it: {{summary}}",
     "rule_applied": "Rule “{{name}}” applied",
@@ -4472,8 +4483,8 @@
     "batch_file_title": "Select a .txt file with URLs",
     "batch_file_empty": "No valid URLs found in the file",
     "mode_auto": "Auto",
-    "mode_audio": "Audio Only (MP3)",
-    "mode_mute": "No Sound",
+    "mode_audio": "فقط صدا (MP3)",
+    "mode_mute": "ویدیو بدون صدا",
     "quality": "Quality",
     "quality_best": "Best quality",
     "quality_2160p": "4K (2160p)",
@@ -4515,13 +4526,13 @@
     "playlist_loading": "Loading playlist…",
     "playlist_empty": "Could not load playlist items",
     "playlist_none_selected": "Select at least one item to download",
-    "torrent_selected": "{{selected}} of {{total}} files selected",
+    "torrent_selected": "{{selected}} از {{total}} فایل",
     "torrent_loading": "Reading torrent contents…",
     "torrent_none_selected": "Select at least one file to download",
     "cookie_hint_stale": "This site's saved cookie is getting old.",
     "cookie_hint_expired": "This site's saved cookie has expired — downloads may fail.",
     "cookie_hint_action": "Update it",
-    "external_url_ready": "URL received from the Chrome extension",
+    "external_url_ready": "لینک از افزونه مرورگر شما",
     "content_type": {
       "video": "Video",
       "audio": "Audio",
@@ -4549,15 +4560,15 @@
     "adv": {
       "url_label": "URL",
       "url_placeholder": "https://...",
-      "args_label": "yt-dlp arguments",
+      "args_label": "آرگومان‌ها",
       "args_placeholder": "-f bv*+ba/b --merge-output-format mp4 --sub-langs en --embed-subs",
-      "args_hint": "One flag per token, separated by spaces. Use quotes around values that contain spaces.",
-      "run": "Run download",
+      "args_hint": "فلگ‌ها را با فاصله جدا کنید. مقدارهایی را که فاصله دارند داخل گیومه بگذارید.",
+      "run": "دانلود",
       "queuing": "Queuing...",
       "queued": "Download queued",
       "url_required": "Type a URL first",
-      "templates_title": "Saved templates",
-      "templates_empty": "No templates saved yet. Type flags above and click Save to keep them for next time.",
+      "templates_title": "قالب‌ها",
+      "templates_empty": "فلگ‌هایی را که زیاد استفاده می‌کنید ذخیره کنید.",
       "template_new": "+ New",
       "template_name_placeholder": "Template name",
       "template_name_required": "Give the template a name",
@@ -4569,7 +4580,73 @@
     },
     "courses_plugin_needed": "This is a course page. The free Courses plugin signs in with your account and downloads every lesson.",
     "courses_plugin_ready": "Course pages are downloaded from the Courses tab with your account signed in.",
-    "install_courses_plugin": "Get the Courses plugin"
+    "install_courses_plugin": "Get the Courses plugin",
+    "checking": "در حال بررسی لینک…",
+    "search_results": "نتایج برای «{{query}}»",
+    "search_empty_hint": "کلمه‌های دیگری امتحان کنید یا لینک را جای‌گذاری کنید.",
+    "see_all": "دیدن سایت‌های پشتیبانی‌شده",
+    "download_video": "دانلود ویدیو",
+    "download_audio": "دانلود صدا",
+    "download_image": "دانلود عکس",
+    "download_files_one": "دانلود {{count}} فایل",
+    "download_files_other": "دانلود {{count}} فایل",
+    "download_playlist_one": "دانلود {{count}} ویدیو",
+    "download_playlist_other": "دانلود {{count}} ویدیو",
+    "preparing_first": "در حال راه‌اندازی. اولین دانلود کمی بیشتر طول می‌کشد.",
+    "batch_detected_one": "{{count}} لینک پیدا شد",
+    "batch_detected_other": "{{count}} لینک پیدا شد",
+    "batch_queued_one": "{{count}} دانلود اضافه شد",
+    "batch_queued_other": "{{count}} دانلود اضافه شد",
+    "error_details": "جزئیات",
+    "error_copy": "کپی",
+    "error_copied": "کپی شد",
+    "err": {
+      "login": {
+        "title": "این یکی به ورود شما نیاز دارد.",
+        "body": "اگر می‌توانید آن را در مرورگرتان باز کنید، OmniGet می‌تواند از همان ورود استفاده کند.",
+        "action": "استفاده از ورود مرورگرم"
+      },
+      "age": {
+        "title": "این یکی محدودیت سنی دارد.",
+        "body": "در مرورگرتان وارد سایت شوید و دوباره امتحان کنید.",
+        "action": "استفاده از ورود مرورگرم"
+      },
+      "geo": {
+        "title": "در منطقه شما در دسترس نیست.",
+        "body": "سایت این لینک را در جایی که هستید مسدود می‌کند.",
+        "action": ""
+      },
+      "removed": {
+        "title": "این لینک دیگر وجود ندارد.",
+        "body": "حذف شده یا خصوصی شده است.",
+        "action": "جای‌گذاری لینک دیگر"
+      },
+      "rate": {
+        "title": "سایت از ما خواست آهسته‌تر پیش برویم.",
+        "body": "چند دقیقه صبر کنید و دوباره امتحان کنید.",
+        "action": ""
+      },
+      "network": {
+        "title": "دسترسی به سایت ممکن نشد.",
+        "body": "اتصال خود را بررسی کنید و دوباره امتحان کنید.",
+        "action": ""
+      },
+      "unsupported": {
+        "title": "OmniGet هنوز نمی‌تواند این سایت را باز کند.",
+        "body": "لینک را بررسی کنید یا ببینید کدام سایت‌ها کار می‌کنند.",
+        "action": "دیدن سایت‌های پشتیبانی‌شده"
+      },
+      "ffmpeg": {
+        "title": "ویدیو ذخیره شد، اما ادغام نشد.",
+        "body": "OmniGet برای ترکیب ویدیو و صدا به FFmpeg نیاز دارد.",
+        "action": "نصب FFmpeg"
+      },
+      "generic": {
+        "title": "دانلود این مورد ممکن نشد.",
+        "body": "دوباره امتحان کنید. اگر باز هم خطا داد، جزئیات را کپی و گزارش کنید.",
+        "action": ""
+      }
+    }
   },
   "about": {
     "tab": {
@@ -4677,17 +4754,6 @@
     "plugin_load_failed_hint": "OmniGet couldn't load this plugin. Try reinstalling it from the Marketplace.",
     "plugin_load_error_details": "Details: {{error}}",
     "reinstall": "Reinstall"
-  },
-  "services": {
-    "title": "Supports YouTube, Instagram and 1000+ sites",
-    "title_show": "show supported services",
-    "title_hide": "hide supported services",
-    "disclaimer": "availability depends on each platform and may vary",
-    "and_more": "+1000 more"
-  },
-  "terms_note": {
-    "agreement": "با ادامه دادن، موافقت می‌کنید با",
-    "link": "شرایط و اخلاق استفاده"
   },
   "convert": {
     "title": "Convert",

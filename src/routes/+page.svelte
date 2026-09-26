@@ -1,9 +1,10 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
+  import { open as openExternal } from "@tauri-apps/plugin-shell";
+  import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { goto } from "$app/navigation";
   import { onMount } from "svelte";
-  import SupportedServices from "$components/services/SupportedServices.svelte";
   import BilibiliPreviewExtras from "$components/omnibox/BilibiliPreviewExtras.svelte";
   import DownloadModeSelector from "$components/omnibox/DownloadModeSelector.svelte";
   import QualityPicker from "$components/omnibox/QualityPicker.svelte";
@@ -12,23 +13,23 @@
   import OutputLocationPicker from "$components/omnibox/OutputLocationPicker.svelte";
   import OmniboxAdvanced from "$components/omnibox/OmniboxAdvanced.svelte";
   import MediaPreview from "$components/omnibox/MediaPreview.svelte";
-  import BatchDownload from "$components/omnibox/BatchDownload.svelte";
   import SearchResults from "$components/omnibox/SearchResults.svelte";
   import P2pSendDialog from "$components/p2p/P2pSendDialog.svelte";
   import P2pReceiveDialog from "$components/p2p/P2pReceiveDialog.svelte";
   import HomeHero from "$components/home/HomeHero.svelte";
   import HomeUrlBar from "$components/home/HomeUrlBar.svelte";
   import HomeInspector from "$components/home/HomeInspector.svelte";
+  import HomeDropOverlay from "$components/home/HomeDropOverlay.svelte";
   import {
     type OmniState,
     type PlatformInfo,
     type SearchResult,
     type HomeInputMode,
-    showInspectorForState,
-    showOmniboxForState,
+    type MoreAction,
+    type HomeArt,
     isUrl,
   } from "$lib/home/omnibox-controller";
-  import { getDownloads, formatBytes } from "$lib/stores/download-store.svelte";
+  import { formatBytes } from "$lib/stores/download-store.svelte";
   import { getDownloadStats } from "$lib/stores/download-stats.svelte";
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -39,7 +40,8 @@
   import { t } from "$lib/i18n";
   import { translateBackendError } from "$lib/error-translate";
   import { platformDisplayName } from "$lib/platform-display-names";
-  import { STUDY_MAINTENANCE_NOTICE } from "$lib/study-feature-flags";
+  import { classifyError, type ErrorKind } from "$lib/home/friendly-error";
+  import { pluralKey, splitLink } from "$lib/home/plural";
 
   type DownloadStarted = {
     id: number;
@@ -116,15 +118,36 @@
   let selectedCookieSlug = $state<string | null>(null);
   let cookieHint = $state<"stale" | "expired" | null>(null);
   let advancedMode = $state(false);
-  const STUDY_NOTICE_DISMISS_KEY = "omniget.study_maintenance_notice_dismissed_v1";
-  let studyNoticeDismissed = $state(
-    typeof localStorage !== "undefined"
-      && localStorage.getItem(STUDY_NOTICE_DISMISS_KEY) === "1"
-  );
-  function dismissStudyNotice() {
-    studyNoticeDismissed = true;
-    try { localStorage.setItem(STUDY_NOTICE_DISMISS_KEY, "1"); } catch {}
+
+  // First run = until the first download starts. The terms line and the sites
+  // line live only there (RCD: put friction where it is justified, once).
+  const FIRST_RUN_KEY = "omniget.home.terms_seen_v1";
+  const SITES_URL = "https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md";
+  let firstRun = $state(readFirstRun());
+  function readFirstRun(): boolean {
+    try { return localStorage.getItem(FIRST_RUN_KEY) !== "1"; } catch { return false; }
   }
+  function markStarted() {
+    firstRun = false;
+    try { localStorage.setItem(FIRST_RUN_KEY, "1"); } catch {}
+  }
+  function openSupportedSites() {
+    void openExternal(SITES_URL).catch(() => {});
+  }
+
+  // A short "added" moment after a download starts, instead of snapping back
+  // to an empty page (21st Morph Button idea: the state morphs, then settles).
+  let success = $state<{ first: boolean } | null>(null);
+  let successTimer: ReturnType<typeof setTimeout> | null = null;
+  function flashSuccess(first: boolean) {
+    success = { first };
+    if (successTimer) clearTimeout(successTimer);
+    successTimer = setTimeout(() => { success = null; }, first ? 6000 : 4000);
+  }
+
+  let urlInput = $state<HTMLInputElement | null>(null);
+  let dragging = $state(false);
+  let errorCopied = $state(false);
   let mediaPreview = $derived(getMediaPreview());
   let dlStats = $derived(getDownloadStats());
   let coursesPluginInstalled = $state<boolean | null>(null);
@@ -196,32 +219,6 @@
     }
   });
 
-  const STALL_THRESHOLD = 30_000;
-  let downloads = $derived(getDownloads());
-  let stallTick = $state(0);
-  let lastCompletionAt = $state(0);
-  let firstCompletionOfSession = $state(false);
-  let completionSeenIds = new Set<string | number>();
-
-  $effect(() => {
-    for (const [id, item] of downloads.entries()) {
-      if (item.status === "complete" && !completionSeenIds.has(id)) {
-        completionSeenIds.add(id);
-        lastCompletionAt = Date.now();
-        if (!firstCompletionOfSession) {
-          firstCompletionOfSession = true;
-        }
-        break;
-      }
-    }
-  });
-
-  $effect(() => {
-    const interval = setInterval(() => { stallTick++; }, 5000);
-    return () => clearInterval(interval);
-  });
-
-
   $effect(() => {
     if (mediaPreview) {
       previewImageLoading = true;
@@ -249,81 +246,6 @@
     handleInput();
   });
 
-  let mascotEmotion = $derived.by((): "idle" | "downloading" | "error" | "stalled" | "queue" | "complete" | "amazed" => {
-    void stallTick;
-
-    if (lastCompletionAt > 0 && Date.now() - lastCompletionAt < 5000) {
-      return firstCompletionOfSession && completionSeenIds.size === 1 ? "amazed" : "complete";
-    }
-
-    if (omniState.kind === "preparing") return "downloading";
-    if (omniState.kind === "error") return "error";
-
-    let hasActiveDownloading = false;
-    let hasActiveStalled = false;
-    let hasItems = false;
-    for (const item of downloads.values()) {
-      hasItems = true;
-      if (item.status === "downloading") {
-        hasActiveDownloading = true;
-        const elapsed = Date.now() - item.lastUpdateAt;
-        if (elapsed > STALL_THRESHOLD) {
-          hasActiveStalled = true;
-        }
-      }
-    }
-
-    if (hasActiveStalled) return "stalled";
-    if (hasActiveDownloading) return "downloading";
-    if (hasItems) return "queue";
-    return "idle";
-  });
-
-  let mascotCompact = $derived(omniState.kind !== "idle");
-  let isStage = $derived(omniState.kind === "idle" && !advancedMode);
-
-  function pickRandom(raw: string): string {
-    if (raw.includes("|")) {
-      const opts = raw.split("|");
-      return opts[Math.floor(Math.random() * opts.length)];
-    }
-    return raw;
-  }
-
-  let lastBubbleKey = $state("");
-  let bubbleText = $state("");
-
-  $effect(() => {
-    let key: string;
-    if (mascotEmotion === "amazed") key = "amazed";
-    else if (mascotEmotion === "complete") key = "complete";
-    else if (mascotEmotion === "queue") key = "queue";
-    else if (mascotEmotion === "downloading") key = "downloading";
-    else if (mascotEmotion === "stalled") key = "stalled";
-    else {
-      switch (omniState.kind) {
-        case "idle": key = "idle"; break;
-        case "detecting": key = "detecting"; break;
-        case "detected": key = "detected"; break;
-        case "preparing": key = "preparing"; break;
-        case "searching":
-        case "search-results": key = "search"; break;
-        case "error": key = "error"; break;
-        default: key = ""; break;
-      }
-    }
-    if (key && key !== lastBubbleKey) {
-      lastBubbleKey = key;
-      bubbleText = pickRandom($t(`mascot.${key}`));
-    } else if (!key) {
-      lastBubbleKey = "";
-      bubbleText = "";
-    }
-  });
-
-
-  let showOmnibox = $derived(showOmniboxForState(omniState));
-  let showInspector = $derived(showInspectorForState(omniState));
 
   function isValidTimeBound(v: string): boolean {
     return /^(\d+:)?\d{1,2}:\d{1,2}(\.\d+)?$|^\d+(\.\d+)?$/.test(v.trim());
@@ -384,6 +306,7 @@
 
   function handleInput() {
     if (debounceTimer) clearTimeout(debounceTimer);
+    success = null;
     clearMediaPreview();
     clipStart = "";
     clipEnd = "";
@@ -816,10 +739,15 @@
 
       persistLastDownloadOptions();
       omniState = { kind: "idle" };
+      const first = firstRun;
+      markStarted();
+      flashSuccess(first);
     } catch (e: any) {
       const msg =
         typeof e === "string" ? e : e.message ?? $t("omnibox.error");
 
+    // keep the link in the field so the user can fix or retry it
+    url = currentUrl;
     omniState = {
         kind: "error",
         message: msg,
@@ -895,8 +823,11 @@
 
     const queued = results.filter(r => r.status === "fulfilled").length;
     if (queued > 0) {
-      showToast("info", $t("omnibox.batch_queued", { count: queued }));
+      showToast("info", $t(pluralKey("omnibox.batch_queued", queued), { count: queued }));
       persistLastDownloadOptions();
+      const first = firstRun;
+      markStarted();
+      flashSuccess(first);
     }
   }
 
@@ -939,6 +870,8 @@
         cookieSlug: null,
       });
       omniState = { kind: "idle" };
+      markStarted();
+      flashSuccess(false);
     } catch (e: any) {
       const msg = typeof e === "string" ? e : e.message ?? $t("omnibox.error");
       omniState = { kind: "error", message: msg, originalUrl: currentUrl, platform: "p2p" };
@@ -1011,162 +944,321 @@
     omniState = { kind: "idle" };
     url = "";
   }
+
+  function handleMore(action: MoreAction) {
+    if (action === "advanced") {
+      advancedMode = true;
+      return;
+    }
+    handleHomeModeChange(action);
+  }
+
+  // Enter / the arrow: download when the link is already understood, else
+  // check it right away instead of waiting for the paste debounce.
+  function handleSubmit() {
+    if (omniState.kind === "detected") {
+      void handleAction();
+      return;
+    }
+    if (omniState.kind === "batch") {
+      void handleBatchDownload();
+      return;
+    }
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    if (isUrl(trimmed) && !/[\s\n]/.test(trimmed)) {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      omniState = { kind: "detecting" };
+      pendingAutoDownload = false;
+      void detectPlatform(trimmed);
+      return;
+    }
+    handleAnalyze();
+  }
+
+  async function handleDroppedPaths(paths: string[]) {
+    const path = paths[0];
+    if (!path) return;
+    const lower = path.toLowerCase();
+    if (lower.endsWith(".torrent")) {
+      url = path;
+      handleInput();
+      return;
+    }
+    if (lower.endsWith(".txt")) {
+      try {
+        const urls = await invoke<string[]>("parse_batch_file", { path });
+        if (urls.length === 0) {
+          showToast("info", $t("omnibox.batch_file_empty"));
+        } else if (urls.length === 1) {
+          url = urls[0];
+          handleInput();
+        } else {
+          url = urls.join("\n");
+          omniState = { kind: "batch", urls };
+        }
+      } catch (e: any) {
+        showToast("error", typeof e === "string" ? e : e.message ?? $t("omnibox.error"));
+      }
+      return;
+    }
+    showToast("info", $t("home.drop_unsupported") as string);
+  }
+
+  function handleDroppedText(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    url = trimmed;
+    handleInput();
+    urlInput?.focus();
+  }
+
+  // Files arrive through Tauri (the webview never sees their paths); links
+  // dragged from a browser arrive as HTML5 text drops.
+  onMount(() => {
+    let unlisten: (() => void) | null = null;
+    let disposed = false;
+    try {
+      getCurrentWebview()
+        .onDragDropEvent((event) => {
+          const p = event.payload as { type: string; paths?: string[] };
+          if (p.type === "enter") dragging = true;
+          else if (p.type === "leave") dragging = false;
+          else if (p.type === "drop") {
+            dragging = false;
+            if (p.paths && p.paths.length > 0) void handleDroppedPaths(p.paths);
+          }
+        })
+        .then((fn) => {
+          if (disposed) fn();
+          else unlisten = fn;
+        })
+        .catch(() => {});
+    } catch {
+      // not running inside Tauri (tests, shots): HTML5 handlers below still work
+    }
+
+    let depth = 0;
+    const isTextDrag = (e: DragEvent) =>
+      !!e.dataTransfer && [...e.dataTransfer.types].some((ty) => ty === "text/uri-list" || ty === "text/plain");
+    const onEnter = (e: DragEvent) => {
+      if (!isTextDrag(e)) return;
+      depth++;
+      dragging = true;
+    };
+    const onOver = (e: DragEvent) => {
+      if (!isTextDrag(e)) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    };
+    const onLeave = (e: DragEvent) => {
+      if (!isTextDrag(e)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) dragging = false;
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!isTextDrag(e)) return;
+      e.preventDefault();
+      depth = 0;
+      dragging = false;
+      const text = e.dataTransfer?.getData("text/uri-list") || e.dataTransfer?.getData("text/plain") || "";
+      handleDroppedText(text.split("\n").filter((l) => !l.startsWith("#")).join("\n"));
+    };
+    window.addEventListener("dragenter", onEnter);
+    window.addEventListener("dragover", onOver);
+    window.addEventListener("dragleave", onLeave);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      disposed = true;
+      unlisten?.();
+      window.removeEventListener("dragenter", onEnter);
+      window.removeEventListener("dragover", onOver);
+      window.removeEventListener("dragleave", onLeave);
+      window.removeEventListener("drop", onDrop);
+      if (successTimer) clearTimeout(successTimer);
+    };
+  });
+
+  // Loop stays in one fixed slot through every state, so the input never
+  // jumps when a link is pasted (Shazam: the hero object changes, the page
+  // does not). The pose carries the state; the text next to it says it.
+  let homeArt = $derived.by((): HomeArt | null => {
+    if (advancedMode) return null;
+    if (success) return "success";
+    switch (omniState.kind) {
+      case "detecting":
+      case "preparing":
+      case "searching":
+      case "search-results": return "analyzing";
+      case "error": return "error";
+      case "unsupported":
+      case "search-empty": return "unsupported";
+      default: return "idle";
+    }
+  });
+  let heroSize = $derived(omniState.kind === "idle" && !success ? 136 : 104);
+  let busy = $derived(omniState.kind === "detecting" || omniState.kind === "searching" || omniState.kind === "preparing");
+  let busyLabel = $derived(
+    omniState.kind === "detecting" ? ($t("omnibox.checking") as string)
+    : omniState.kind === "searching" ? ($t("omnibox.searching") as string)
+    : omniState.kind === "preparing" ? ($t(firstRun ? "omnibox.preparing_first" : "omnibox.preparing") as string)
+    : ""
+  );
+  let errorKind = $derived<ErrorKind>(omniState.kind === "error" ? classifyError(omniState.message) : "generic");
+
+  function errorAction(kind: ErrorKind) {
+    if (kind === "login" || kind === "age") goto("/settings?tab=cookies");
+    else if (kind === "ffmpeg") goto("/settings");
+    else if (kind === "unsupported") openSupportedSites();
+    else if (kind === "removed") { handleDismiss(); urlInput?.focus(); }
+  }
+
+  async function copyErrorDetails(message: string) {
+    try {
+      await navigator.clipboard.writeText(message);
+      errorCopied = true;
+      setTimeout(() => { errorCopied = false; }, 1600);
+    } catch {}
+  }
+
+  function downloadLabel(info: PlatformInfo): string {
+    if (info.content_type === "playlist" && playlistEntries.length > 0) {
+      const n = selectedPlaylistItems.size;
+      return $t(pluralKey("omnibox.download_playlist", n), { count: n }) as string;
+    }
+    if (torrentEntries.length > 0) {
+      const n = selectedTorrentFiles.size;
+      return $t(pluralKey("omnibox.download_files", n), { count: n }) as string;
+    }
+    if (downloadMode === "audio" || info.content_type === "audio") return $t("omnibox.download_audio") as string;
+    if (info.content_type === "image" || info.content_type === "post") return $t("omnibox.download_image") as string;
+    if (info.content_type === "video" || info.content_type === "reel" || info.content_type === "short" || info.content_type === "clip") return $t("omnibox.download_video") as string;
+    return $t("omnibox.download") as string;
+  }
 </script>
 
-<div class="home-mac" class:home-mac--stage={isStage}>
-  {#if STUDY_MAINTENANCE_NOTICE && !studyNoticeDismissed}
-    <div class="study-maintenance-banner" role="status">
-      <div class="study-maintenance-text">
-        <strong>{$t("study.maintenance.home_banner_title")}</strong>
-        <span>{$t("study.maintenance.home_banner_body")}</span>
-      </div>
-      <button
-        type="button"
-        class="study-maintenance-dismiss"
-        onclick={dismissStudyNotice}
-        aria-label={$t('common.close')}
-      >
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M18 6L6 18M6 6l12 12" />
-        </svg>
-      </button>
-    </div>
-  {/if}
+<div class="home" class:home--advanced={advancedMode}>
+  <div class="home-backdrop" aria-hidden="true"></div>
+  <h1 class="sr-only">{$t("home.sr_title")}</h1>
 
-  {#if isStage}
-    <div class="home-stage">
-      <HomeHero emotion={mascotEmotion} stage celebrate={mascotEmotion === "amazed"} />
-      <div class="home-stage-head">
-        <h1 class="home-stage-title">{$t('home.hero_title')}</h1>
-        <p class="home-stage-copy">{$t('home.hero_subtitle')}</p>
+  {#if advancedMode}
+    <div class="home-column home-column--wide">
+      <div class="adv-head">
+        <button type="button" class="back-link" onclick={() => { advancedMode = false; }}>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+          {$t("home.action_simple")}
+        </button>
+        <h2 class="adv-title">{$t("home.adv_title")}</h2>
       </div>
-      <HomeUrlBar
-        variant="stage"
-        bind:url
-        bind:mode={homeInputMode}
-        onInput={handleInput}
-        onAnalyze={handleAnalyze}
-        onModeChange={handleHomeModeChange}
-        onAdvanced={() => { advancedMode = true; }}
-      />
-      <p class="home-value">
-        {#if dlStats.totalDownloads > 0}
-          {@html $t('home.value_line', { count: `<strong>${dlStats.totalDownloads.toLocaleString()}</strong>`, size: `<strong>${formatBytes(dlStats.totalBytes)}</strong>` })}
-        {:else}
-          {$t('home.value_first')}
-        {/if}
-      </p>
-      <SupportedServices />
+      <OmniboxAdvanced />
     </div>
   {:else}
-  <div class="home-mac-workspace" class:home-mac-workspace--idle={omniState.kind === "idle"}>
-    <div class="home-mac-hero">
-      <HomeHero
-        emotion={mascotEmotion}
-        compact={mascotCompact}
-        bubbleText={bubbleText || undefined}
-        celebrate={mascotEmotion === "amazed"}
-      />
-    </div>
-    <div class="home-mac-main">
-      {#if advancedMode}
-        <div class="home-secondary home-secondary--start">
-          <button type="button" class="home-secondary-link" onclick={() => { advancedMode = false; }}>
-            {$t('home.action_simple')}
-          </button>
+    <div class="home-column">
+      {#if homeArt}
+        <div class="home-art">
+          <HomeHero art={homeArt} size={heroSize} celebrate={!!success?.first} />
         </div>
-        <OmniboxAdvanced />
-      {:else}
-    {#if externalNotice}
-      <div class="feedback-card feedback-enter external-url-card">
-        <div class="card-row">
-          <svg class="card-status-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 5v14" />
-            <path d="M5 12h14" />
-          </svg>
-          <span class="card-title">{$t('omnibox.external_url_ready')}</span>
-          <button class="dismiss-btn" onclick={() => { externalNotice = null; }} aria-label={$t('common.close')}>
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div class="card-row">
-          <span class="card-subtext external-url-text">{externalNotice.url}</span>
-        </div>
-      </div>
-    {/if}
-
-
-    {#if omniState.kind === "detecting"}
-      <div class="feedback feedback-enter">
-        <span class="feedback-spinner"></span>
-      </div>
-
-    {:else if omniState.kind === "detected"}
-      <div class="feedback feedback-enter" data-supported="true">
-        <span class="feedback-text">
-          {platformDisplayName(omniState.info.platform)}
-          {#if omniState.info.content_type}
-            <span class="feedback-sep">&middot;</span>
-            {getContentTypeLabel(omniState.info.content_type)}
-          {/if}
-        </span>
-      </div>
-    {/if}
-
-    {#if showOmnibox}
-      <HomeUrlBar
-        bind:url
-        bind:mode={homeInputMode}
-        onInput={handleInput}
-        onAnalyze={handleAnalyze}
-        onModeChange={handleHomeModeChange}
-        onAdvanced={() => { advancedMode = true; }}
-      />
-    {/if}
-
-    {#if omniState.kind === "batch"}
-      <div class="batch-options">
-        <DownloadModeSelector bind:downloadMode />
-        <BatchDownload count={omniState.urls.length} onDownload={handleBatchDownload} />
-      </div>
-
-    {:else if omniState.kind === "searching"}
-      <div class="feedback feedback-enter">
-        <span class="feedback-spinner"></span>
-        <span class="feedback-text search-hint">{$t('omnibox.searching')}</span>
-      </div>
-
-    {:else if omniState.kind === "search-results"}
-      <SearchResults results={omniState.results} onSelect={selectSearchResult} />
-
-    {:else if omniState.kind === "search-empty"}
-      <div class="feedback feedback-enter" data-supported="false">
-        <svg class="feedback-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8" />
-          <path d="M21 21l-4.35-4.35" />
-        </svg>
-        <span class="feedback-text">{$t('omnibox.search_empty')}</span>
-      </div>
-
-    {:else if omniState.kind === "unsupported"}
-      <div class="feedback feedback-enter" data-supported="false">
-        <svg class="feedback-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 8v4m0 4h.01" />
-        </svg>
-        <span class="feedback-text">{$t('omnibox.unsupported')}</span>
-      </div>
-    {/if}
-    {/if}
-
-      {#if omniState.kind === "idle"}
-        <SupportedServices />
       {/if}
 
-    <HomeInspector open={showInspector} title={$t('home.inspector_title')}>
+      {#if externalNotice}
+        <div class="external-card">
+          <span class="external-title">{$t('omnibox.external_url_ready')}</span>
+          <span class="external-url">{externalNotice.url}</span>
+          <button class="dismiss-btn" onclick={() => { externalNotice = null; }} aria-label={$t('common.close')}>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </button>
+        </div>
+      {/if}
+
+      <HomeUrlBar
+        bind:url
+        bind:inputEl={urlInput}
+        {busy}
+        {busyLabel}
+        showSubmit={omniState.kind === "idle"}
+        onInput={handleInput}
+        onSubmit={handleSubmit}
+        onMore={handleMore}
+      />
+
       {#if omniState.kind === "detected"}
+        <p class="detected-chip">
+          {platformDisplayName(omniState.info.platform)}
+          {#if omniState.info.content_type && getContentTypeLabel(omniState.info.content_type) !== $t("omnibox.content_type.unknown")}
+            <span class="feedback-sep" aria-hidden="true">&middot;</span>
+            {getContentTypeLabel(omniState.info.content_type)}
+          {/if}
+        </p>
+      {/if}
+
+      {#if success}
+        <div class="state-line state-line--success" role="status">
+          <strong>{success.first ? $t("home.success_first") : $t("home.success_title")}</strong>
+          <a href="/downloads" class="quiet-link">{$t("home.success_open")}</a>
+        </div>
+      {:else if omniState.kind === "idle"}
+        {#if firstRun}
+          {@const sites = splitLink($t("home.first_sites", { count: (1000).toLocaleString() + "+" }) as string)}
+          {@const terms = splitLink($t("home.first_terms") as string)}
+          <div class="first-run">
+            <p>{sites.before}<button type="button" class="inline-link" onclick={openSupportedSites}>{sites.link}</button>{sites.after}</p>
+            <p class="first-terms">{terms.before}<a href="/about/terms" class="inline-link">{terms.link}</a>{terms.after}</p>
+          </div>
+        {:else if dlStats.totalDownloads > 0}
+          <a href="/downloads" class="stats-line">
+            {$t("home.saved_line", {
+              files: $t(pluralKey("home.saved_count", dlStats.totalDownloads), { count: dlStats.totalDownloads.toLocaleString() }) as string,
+              size: formatBytes(dlStats.totalBytes),
+            })}
+          </a>
+        {/if}
+      {:else if omniState.kind === "batch"}
+        <div class="batch-panel">
+          <p class="state-line">{$t(pluralKey("omnibox.batch_detected", omniState.urls.length), { count: omniState.urls.length })}</p>
+          <DownloadModeSelector bind:downloadMode />
+          <button class="download-primary-btn" onclick={handleBatchDownload}>{$t("omnibox.batch_download_all", { count: omniState.urls.length })}</button>
+        </div>
+      {:else if omniState.kind === "search-results"}
+        <p class="state-line">{$t("omnibox.search_results", { query: url.trim() })}</p>
+        <SearchResults results={omniState.results} onSelect={selectSearchResult} />
+      {:else if omniState.kind === "search-empty"}
+        <div class="state-block" role="status">
+          <p class="state-title">{$t("omnibox.search_empty", { query: url.trim() })}</p>
+          <p class="state-body">{$t("omnibox.search_empty_hint")}</p>
+        </div>
+      {:else if omniState.kind === "unsupported"}
+        <div class="state-block" role="status">
+          <p class="state-title">{$t("omnibox.unsupported")}</p>
+          <button type="button" class="secondary-btn" onclick={openSupportedSites}>{$t("omnibox.see_all")}</button>
+        </div>
+      {:else if omniState.kind === "error"}
+        {@const kind = errorKind}
+        {@const action = $t(`omnibox.err.${kind}.action`) as string}
+        <div class="error-card" role="alert">
+          <p class="state-title">{$t(`omnibox.err.${kind}.title`)}</p>
+          <p class="state-body">{$t(`omnibox.err.${kind}.body`)}</p>
+          <div class="error-actions">
+            {#if action}
+              <button type="button" class="download-primary-btn download-primary-btn--auto" onclick={() => errorAction(kind)}>{action}</button>
+              <button type="button" class="secondary-btn" onclick={handleRetry}>{$t("omnibox.retry")}</button>
+            {:else}
+              <button type="button" class="download-primary-btn download-primary-btn--auto" onclick={handleRetry}>{$t("omnibox.retry")}</button>
+            {/if}
+          </div>
+          <details class="error-details">
+            <summary>{$t("omnibox.error_details")}</summary>
+            <div class="error-raw">
+              <code>{omniState.message}</code>
+              <button type="button" class="quiet-link" onclick={() => omniState.kind === "error" && copyErrorDetails(omniState.message)}>
+                {errorCopied ? $t("omnibox.error_copied") : $t("omnibox.error_copy")}
+              </button>
+            </div>
+          </details>
+        </div>
+      {/if}
+
+      <HomeInspector open={omniState.kind === "detected"} title={$t('home.inspector_title')}>
+        {#if omniState.kind === "detected"}
         <MediaPreview bind:mediaPreview bind:imageLoading={previewImageLoading} />
         {#if omniState.info.content_type === "playlist"}
           <div class="playlist-picker">
@@ -1250,7 +1342,7 @@
           {#if omniState.info.platform === "bilibili"}
             <BilibiliPreviewExtras {url} accountSlug={selectedCookieSlug && selectedCookieSlug !== "_anonymous" ? selectedCookieSlug : null} />
           {/if}
-          <button class="download-primary-btn" disabled={playlistBlocked || torrentBlocked} onclick={handleAction}>{$t('omnibox.download')}</button>
+          <button class="download-primary-btn" disabled={playlistBlocked || torrentBlocked} onclick={handleAction}>{downloadLabel(omniState.info)}</button>
           {#if omniState.info.platform !== "direct_file" && omniState.info.platform !== "p2p"}
             <details class="options-panel">
               <summary class="options-toggle">{$t('omnibox.options')}</summary>
@@ -1319,28 +1411,12 @@
             </details>
           {/if}
         {/if}
-      {:else if omniState.kind === "preparing"}
-        <div class="feedback-card feedback-enter">
-          <div class="card-row">
-            <span class="feedback-spinner"></span>
-            <span class="card-text">{$t('omnibox.preparing')}</span>
-          </div>
-        </div>
-      {:else if omniState.kind === "error"}
-        <div class="feedback-card feedback-enter" data-status="error">
-          <div class="card-row">
-            <span class="card-title card-error-text">{omniState.message}</span>
-          </div>
-          <div class="card-row card-actions">
-            <button class="button card-action-btn" onclick={handleRetry}>{$t('omnibox.retry')}</button>
-          </div>
-        </div>
-      {/if}
-    </HomeInspector>
+        {/if}
+      </HomeInspector>
     </div>
-
-  </div>
   {/if}
+
+  <HomeDropOverlay visible={dragging} />
 
   {#if showP2pSendDialog}
     <P2pSendDialog onClose={() => { showP2pSendDialog = false; }} />
@@ -1354,105 +1430,10 @@
     />
   {/if}
 
-  <div class="terms-note">
-    {$t('terms_note.agreement')}
-    <a href="/about/terms" class="terms-link">{$t('terms_note.link')}</a>
-  </div>
 </div>
 
 <style>
-  .home-mac {
-    width: 100%;
-  }
-
-  .study-maintenance-banner {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    width: 100%;
-    max-width: 640px;
-    margin: var(--space-3) auto 0;
-    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
-    background: color-mix(in srgb, var(--warning) 9%, transparent);
-    box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--warning) 22%, transparent);
-    border-radius: var(--radius-lg);
-    color: var(--text-muted);
-    font-size: var(--text-sm);
-    line-height: 1.4;
-  }
-
-  .study-maintenance-text {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .study-maintenance-text strong {
-    font-weight: 600;
-    font-size: var(--text-sm);
-    color: var(--text);
-  }
-
-  .study-maintenance-text span {
-    color: var(--text-dim);
-    font-size: var(--text-sm);
-  }
-
-  .study-maintenance-dismiss {
-    background: transparent;
-    border: none;
-    width: 24px;
-    height: 24px;
-    border-radius: var(--radius-sm);
-    color: var(--text-dim);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
-  }
-
-  .study-maintenance-dismiss:hover {
-    color: var(--text);
-    background: var(--fill-2);
-  }
-
-  .batch-options {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
   /* detection line under the omnibox */
-  .feedback {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 20px;
-    padding: 0 var(--space-1);
-  }
-
-  .feedback-icon {
-    flex-shrink: 0;
-    pointer-events: none;
-  }
-
-  .feedback[data-supported="true"] {
-    color: var(--success);
-  }
-
-  .feedback[data-supported="false"] {
-    color: var(--text-dim);
-  }
-
-  .feedback-text {
-    font-size: var(--text-sm);
-    font-weight: 500;
-  }
-
   .feedback-sep {
     opacity: 0.5;
     margin: 0 2px;
@@ -1469,15 +1450,6 @@
 
   @keyframes spin {
     to { transform: rotate(360deg); }
-  }
-
-  .feedback-enter {
-    animation: feedbackEnter var(--duration-base) var(--ease-out);
-  }
-
-  @keyframes feedbackEnter {
-    from { opacity: 0; transform: translateY(-2px); }
-    to { opacity: 1; transform: translateY(0); }
   }
 
   /* the one primary action on the page */
@@ -1814,89 +1786,6 @@
     text-underline-offset: 2px;
   }
 
-  .feedback-card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-4);
-    background: var(--surface-mut);
-    border-radius: var(--radius-lg);
-    box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
-  }
-
-  .feedback-card[data-status="error"] {
-    background: color-mix(in srgb, var(--error) 10%, var(--surface-mut));
-    box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--error) 30%, transparent);
-  }
-
-  .external-url-card {
-    width: 100%;
-    background: color-mix(in srgb, var(--accent) 10%, var(--surface-mut));
-    box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--accent) 30%, transparent);
-  }
-
-  .card-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-
-  .card-text {
-    font-size: var(--text-base);
-    font-weight: 500;
-    color: var(--text);
-  }
-
-  .card-title {
-    font-size: var(--text-base);
-    font-weight: 600;
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .card-error-text {
-    color: var(--text);
-    white-space: normal;
-    line-height: var(--leading-base);
-  }
-
-  .card-status-icon {
-    flex-shrink: 0;
-    pointer-events: none;
-    color: var(--accent-hi);
-  }
-
-  .card-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: var(--space-2);
-  }
-
-  .card-subtext {
-    font-size: var(--text-sm);
-    font-weight: 400;
-    color: var(--text-dim);
-  }
-
-  .external-url-text {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-  }
-
-  .card-action-btn {
-    height: var(--control-h);
-    padding: 0 var(--space-3);
-    font-size: var(--text-base);
-  }
-
   .dismiss-btn {
     display: flex;
     align-items: center;
@@ -1916,26 +1805,346 @@
     color: var(--text);
   }
 
-  .search-hint {
-    color: var(--text-dim);
+  /* ---------- layout ---------- */
+  .home {
+    position: relative;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: clamp(28px, 17vh, 190px) 20px 48px;
+    isolation: isolate;
   }
 
-  .terms-note {
-    flex-shrink: 0;
-    font-size: var(--text-xs);
-    color: var(--text-faint);
+  .home--advanced {
+    padding-top: clamp(24px, 6vh, 64px);
+  }
+
+  /* warmth that follows any theme: an accent glow + a faint dot grid, both
+     static (21st Radial Glow #7422 + Animated Grid #29376, motion removed) */
+  .home-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .home-backdrop::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: clamp(28px, 17vh, 190px);
+    width: min(820px, 110%);
+    aspect-ratio: 1.5;
+    transform: translate(-50%, -38%);
+    border-radius: 50%;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 17%, transparent), transparent 72%);
+  }
+
+  .home-backdrop::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1.2px);
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(ellipse 55% 42% at 50% 30%, #000 20%, transparent 75%);
+    mask-image: radial-gradient(ellipse 55% 42% at 50% 30%, #000 20%, transparent 75%);
+  }
+
+  .home-column {
+    width: 100%;
+    max-width: 620px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    animation: blur-fade 320ms var(--ease-out);
+  }
+
+  .home-column--wide {
+    max-width: 680px;
+  }
+
+  .home-art {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    height: 136px;
+    margin-bottom: 4px;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* ---------- lines under the input ---------- */
+  .first-run {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
     text-align: center;
-    padding: var(--space-2) var(--space-1) var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
   }
 
-  .terms-link {
+  .first-run p { margin: 0; }
+
+  .first-terms {
+    font-size: 12px;
     color: var(--text-dim);
+  }
+
+  .inline-link {
+    display: inline-block;
+    padding: 3px 0;
+    line-height: 1.2;
+    border: none;
+    background: none;
+    font: inherit;
+    color: inherit;
     text-decoration: underline;
-    text-underline-offset: 2px;
+    text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
+  .inline-link:hover { color: var(--text); text-decoration-color: currentColor; }
+
+  .stats-line {
+    align-self: center;
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+
+  .stats-line:hover { color: var(--text-muted); background: var(--fill-1); }
+
+  .state-line {
+    margin: 0;
+    text-align: center;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+
+  .state-line--success {
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    gap: 10px;
+    animation: blur-fade 240ms var(--ease-out);
+  }
+
+  .state-line--success strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .quiet-link {
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    font-size: var(--text-sm);
+    color: var(--accent-text, var(--accent));
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .quiet-link:hover { text-decoration: underline; }
+
+  .detected-chip {
+    margin: 0 0 -4px;
+    align-self: center;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .state-block,
+  .error-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+  }
+
+  .state-title {
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: 650;
+    color: var(--text);
+  }
+
+  .state-body {
+    margin: 0;
+    max-width: 52ch;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+
+  .error-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .secondary-btn {
+    height: 36px;
+    padding: 0 14px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--fill-1);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .secondary-btn:hover { background: var(--fill-2); }
+
+  .secondary-btn:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .download-primary-btn--auto {
+    width: auto;
+    height: 36px;
+    font-size: var(--text-sm);
+  }
+
+  .error-details {
+    width: 100%;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .error-details summary {
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .error-details summary::-webkit-details-marker { display: none; }
+
+  .error-raw {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    text-align: left;
+    border-radius: var(--radius-md);
+    background: var(--fill-1);
+  }
+
+  .error-raw code {
+    flex: 1;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--text-muted);
+    word-break: break-word;
+  }
+
+  .batch-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .external-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 8px 8px 14px;
+    border-radius: var(--radius-lg);
+    background: var(--accent-soft);
+    font-size: var(--text-sm);
+  }
+
+  .external-title { font-weight: 600; color: var(--text); white-space: nowrap; }
+
+  .external-url {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+  }
+
+  .dismiss-btn {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+
+  .dismiss-btn:hover { color: var(--text); background: var(--fill-2); }
+
+  /* ---------- advanced ---------- */
+  .adv-head {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px 4px 4px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+
+  .back-link:hover { color: var(--text); background: var(--fill-1); }
+
+  .adv-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  /* 21st Blur Fade (#1079), CSS only */
+  @keyframes blur-fade {
+    from { opacity: 0; transform: translateY(6px); filter: blur(4px); }
+    to { opacity: 1; transform: none; filter: none; }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .feedback-enter {
+    .home-column,
+    .state-line--success {
       animation: none;
     }
 

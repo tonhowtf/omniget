@@ -501,17 +501,30 @@
     "action_paste": "Επικόλληση URL από το πρόχειρο"
   },
   "home": {
-    "inspector_title": "Download options",
-    "hero_title": "OmniGet",
-    "hero_subtitle": "Paste a link or search. We'll take it from there.",
-    "action_batch": "Many links at once",
-    "action_torrent": "Open a .torrent file",
-    "action_p2p": "Send a file to someone",
-    "action_advanced": "Advanced options",
-    "action_simple": "Back to the simple view",
-    "value_line": "{{count}} files · {{size}} saved with OmniGet",
-    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies.",
-    "analyze": "Analyze link"
+    "inspector_title": "Επιλογές λήψης",
+    "sr_title": "Λήψη",
+    "more": "Περισσότεροι τρόποι λήψης",
+    "paste": "Επικόλληση",
+    "paste_empty": "Το πρόχειρο δεν έχει σύνδεσμο.",
+    "submit": "Λήψη αυτού του συνδέσμου",
+    "first_sites": "Λειτουργεί με YouTube, Instagram, TikTok και [{{count}} άλλους ιστότοπους].",
+    "first_terms": "Χρησιμοποιώντας το OmniGet αποδέχεστε τους [όρους].",
+    "saved_count_one": "{{count}} αρχείο",
+    "saved_count_other": "{{count}} αρχεία",
+    "saved_line": "{{files}} · {{size}} αποθηκεύτηκαν",
+    "drop_title": "Αφήστε για λήψη",
+    "drop_hint": "Σύνδεσμοι, αρχεία torrent ή λίστα .txt",
+    "drop_unsupported": "Το OmniGet δεν μπορεί να ανοίξει αυτό το αρχείο. Δοκιμάστε σύνδεσμο, torrent ή λίστα .txt.",
+    "action_batch": "Επικόλληση πολλών συνδέσμων…",
+    "action_torrent": "Άνοιγμα αρχείου torrent…",
+    "action_p2p": "Αποστολή αρχείου με κωδικό…",
+    "action_advanced": "Εντολή yt-dlp…",
+    "action_simple": "Πίσω",
+    "adv_title": "Εντολή yt-dlp",
+    "success_title": "Προστέθηκε στις Λήψεις",
+    "success_first": "Η πρώτη σας λήψη!",
+    "success_open": "Άνοιγμα Λήψεων",
+    "batch_hint": "Πολλοί σύνδεσμοι; Επικολλήστε τους όλους μαζί, έναν ανά γραμμή."
   },
   "tools": {
     "tab": "Εργαλεία",
@@ -4449,21 +4462,19 @@
     "cat_world": "World"
   },
   "omnibox": {
-    "placeholder": "Επικόλληση διεύθυνσης URL ή αναζήτηση",
-    "searching": "Αναζήτηση...",
-    "search_empty": "Δεν βρέθηκαν αποτελέσματα",
-    "unsupported": "Η πλατφόρμα αυτή δεν υποστηρίζεται ακόμα",
+    "placeholder": "Επικολλήστε σύνδεσμο ή αναζητήστε",
+    "searching": "Αναζήτηση…",
+    "search_empty": "Δεν βρέθηκε τίποτα για «{{query}}».",
+    "unsupported": "Το OmniGet δεν μπορεί ακόμα να ανοίξει αυτόν τον ιστότοπο.",
     "go_to_hotmart": "Πήγαινε σε Hotmart",
     "go_to_udemy": "Πήγαινε σε Udemy",
     "download": "Λήψη",
-    "options": "Επιλογές",
+    "options": "Ποιότητα και άλλα",
     "advanced": "Προχωρημένα",
-    "preparing": "Προετοιμασία μεταφόρτωσης...",
+    "preparing": "Προετοιμασία…",
     "error": "Αποτυχία λήψης",
-    "retry": "Επανάληψη",
-    "batch_detected": "Ανιχνεύθηκαν {{count}} URLs",
-    "batch_download_all": "Λήψη όλων",
-    "batch_queued": "{{count}} λήψεις προστέθηκαν στην ουρά",
+    "retry": "Δοκιμάστε ξανά",
+    "batch_download_all": "Λήψη και των {{count}}",
     "preflight_stop": "Κανένας από τους {{total}} συνδέσμους δεν μπορεί να ληφθεί — δεν υπάρχει υποστηριζόμενος ιστότοπος.",
     "media_changed": "Αυτός ο σύνδεσμος άλλαξε από την τελευταία λήψη: {{summary}}",
     "rule_applied": "Εφαρμόστηκε ο κανόνας «{{name}}»",
@@ -4472,8 +4483,8 @@
     "batch_file_title": "Επιλέξτε ένα αρχείο .txt με URLs",
     "batch_file_empty": "Δεν βρέθηκαν έγκυρα URLs στο αρχείο",
     "mode_auto": "Αυτόματη",
-    "mode_audio": "Μονο ηχος (MP3)",
-    "mode_mute": "Χωρις ηχο",
+    "mode_audio": "Μόνο ήχος (MP3)",
+    "mode_mute": "Βίντεο χωρίς ήχο",
     "quality": "Ποιότητα",
     "quality_best": "Καλυτερη ποιοτητα",
     "quality_2160p": "4K (2160p)",
@@ -4515,13 +4526,13 @@
     "playlist_loading": "Φόρτωση playlist…",
     "playlist_empty": "Δεν ήταν δυνατή η φόρτωση των στοιχείων της playlist",
     "playlist_none_selected": "Επίλεξε τουλάχιστον ένα στοιχείο για λήψη",
-    "torrent_selected": "{{selected}} από {{total}} αρχεία επιλεγμένα",
+    "torrent_selected": "{{selected}} από {{total}} αρχεία",
     "torrent_loading": "Ανάγνωση περιεχομένου torrent…",
     "torrent_none_selected": "Επίλεξε τουλάχιστον ένα αρχείο για λήψη",
     "cookie_hint_stale": "Το αποθηκευμένο cookie αυτού του ιστότοπου παλιώνει.",
     "cookie_hint_expired": "Το αποθηκευμένο cookie αυτού του ιστότοπου έληξε — οι λήψεις μπορεί να αποτύχουν.",
     "cookie_hint_action": "Ενημέρωση",
-    "external_url_ready": "Το URL λήφθηκε από την επέκταση Chrome",
+    "external_url_ready": "Σύνδεσμος από την επέκταση του προγράμματος περιήγησης",
     "content_type": {
       "video": "Βίντεο",
       "audio": "Ήχος",
@@ -4549,15 +4560,15 @@
     "adv": {
       "url_label": "URL",
       "url_placeholder": "https://...",
-      "args_label": "Ορισματα yt-dlp",
+      "args_label": "Ορίσματα",
       "args_placeholder": "-f bv*+ba/b --merge-output-format mp4 --sub-langs el --embed-subs",
-      "args_hint": "Μια flag ανα token, χωρισμενες με κενα. Χρησιμοποιηστε εισαγωγικα για τιμες με κενα.",
-      "run": "Ληψη",
+      "args_hint": "Χωρίστε τα flags με κενά. Βάλτε σε εισαγωγικά τις τιμές που περιέχουν κενά.",
+      "run": "Λήψη",
       "queuing": "Σε αναμονη...",
       "queued": "Η ληψη μπηκε σε ουρα",
       "url_required": "Πληκτρολογηστε πρωτα ενα URL",
-      "templates_title": "Αποθηκευμενα προτυπα",
-      "templates_empty": "Δεν εχουν αποθηκευτει προτυπα. Πληκτρολογηστε flags και κανετε κλικ στο Αποθηκευση.",
+      "templates_title": "Πρότυπα",
+      "templates_empty": "Αποθηκεύστε τα flags που χρησιμοποιείτε συχνά.",
       "template_new": "+ Νεο",
       "template_name_placeholder": "Ονομα προτυπου",
       "template_name_required": "Δωστε ενα ονομα στο προτυπο",
@@ -4569,7 +4580,73 @@
     },
     "courses_plugin_needed": "This is a course page. The free Courses plugin signs in with your account and downloads every lesson.",
     "courses_plugin_ready": "Course pages are downloaded from the Courses tab with your account signed in.",
-    "install_courses_plugin": "Get the Courses plugin"
+    "install_courses_plugin": "Get the Courses plugin",
+    "checking": "Έλεγχος συνδέσμου…",
+    "search_results": "Αποτελέσματα για «{{query}}»",
+    "search_empty_hint": "Δοκιμάστε άλλες λέξεις ή επικολλήστε τον σύνδεσμο.",
+    "see_all": "Δείτε τους υποστηριζόμενους ιστότοπους",
+    "download_video": "Λήψη βίντεο",
+    "download_audio": "Λήψη ήχου",
+    "download_image": "Λήψη φωτογραφίας",
+    "download_files_one": "Λήψη {{count}} αρχείου",
+    "download_files_other": "Λήψη {{count}} αρχείων",
+    "download_playlist_one": "Λήψη {{count}} βίντεο",
+    "download_playlist_other": "Λήψη {{count}} βίντεο",
+    "preparing_first": "Γίνεται προετοιμασία. Η πρώτη λήψη αργεί λίγο περισσότερο.",
+    "batch_detected_one": "Βρέθηκε {{count}} σύνδεσμος",
+    "batch_detected_other": "Βρέθηκαν {{count}} σύνδεσμοι",
+    "batch_queued_one": "Προστέθηκε {{count}} λήψη",
+    "batch_queued_other": "Προστέθηκαν {{count}} λήψεις",
+    "error_details": "Λεπτομέρειες",
+    "error_copy": "Αντιγραφή",
+    "error_copied": "Αντιγράφηκε",
+    "err": {
+      "login": {
+        "title": "Εδώ χρειάζεται η σύνδεσή σας.",
+        "body": "Αν μπορείτε να το ανοίξετε στο πρόγραμμα περιήγησης, το OmniGet μπορεί να χρησιμοποιήσει αυτή τη σύνδεση.",
+        "action": "Χρήση της σύνδεσης του προγράμματος περιήγησης"
+      },
+      "age": {
+        "title": "Έχει περιορισμό ηλικίας.",
+        "body": "Συνδεθείτε στον ιστότοπο από το πρόγραμμα περιήγησης και δοκιμάστε ξανά.",
+        "action": "Χρήση της σύνδεσης του προγράμματος περιήγησης"
+      },
+      "geo": {
+        "title": "Δεν είναι διαθέσιμο στην περιοχή σας.",
+        "body": "Ο ιστότοπος μπλοκάρει αυτόν τον σύνδεσμο εκεί που βρίσκεστε.",
+        "action": ""
+      },
+      "removed": {
+        "title": "Αυτός ο σύνδεσμος δεν υπάρχει πια.",
+        "body": "Αφαιρέθηκε ή έγινε ιδιωτικός.",
+        "action": "Επικόλληση άλλου συνδέσμου"
+      },
+      "rate": {
+        "title": "Ο ιστότοπος μας ζήτησε να πάμε πιο αργά.",
+        "body": "Περιμένετε λίγα λεπτά και δοκιμάστε ξανά.",
+        "action": ""
+      },
+      "network": {
+        "title": "Δεν ήταν δυνατή η σύνδεση με τον ιστότοπο.",
+        "body": "Ελέγξτε τη σύνδεσή σας και δοκιμάστε ξανά.",
+        "action": ""
+      },
+      "unsupported": {
+        "title": "Το OmniGet δεν μπορεί ακόμα να ανοίξει αυτόν τον ιστότοπο.",
+        "body": "Ελέγξτε τον σύνδεσμο ή δείτε ποιοι ιστότοποι λειτουργούν.",
+        "action": "Δείτε τους υποστηριζόμενους ιστότοπους"
+      },
+      "ffmpeg": {
+        "title": "Το βίντεο αποθηκεύτηκε, αλλά δεν ήταν δυνατή η συνένωση.",
+        "body": "Το OmniGet χρειάζεται το FFmpeg για να ενώσει βίντεο και ήχο.",
+        "action": "Εγκατάσταση FFmpeg"
+      },
+      "generic": {
+        "title": "Δεν ήταν δυνατή η λήψη.",
+        "body": "Δοκιμάστε ξανά. Αν συνεχίσει να αποτυγχάνει, αντιγράψτε τις λεπτομέρειες και αναφέρετέ το.",
+        "action": ""
+      }
+    }
   },
   "about": {
     "tab": {
@@ -4677,17 +4754,6 @@
     "plugin_load_failed_hint": "Το OmniGet δεν μπορεσε να φορτωσει αυτο το plugin. Δοκιμαστε να το επανεγκαταστησετε απο το Marketplace.",
     "plugin_load_error_details": "Λεπτομερειες: {{error}}",
     "reinstall": "Επανεγκατασταση"
-  },
-  "services": {
-    "title": "Υποστηριζει YouTube, Instagram και 1000+ ιστοτοπους",
-    "title_show": "Δείξε ποστηριζόμενες υπηρεσίες",
-    "title_hide": "Απέκρυψε υποστηριζόμενες υπηρεσίες",
-    "disclaimer": "Η διαθεσιμότητα εξαρτάται από κάθε πλατφόρμα και μπορεί να διαφέρει",
-    "and_more": "+1000 περισσότερα"
-  },
-  "terms_note": {
-    "agreement": "συνεχίζοντας, συμφωνείτε με τους",
-    "link": "όρους και δεοντολογία χρήσης"
   },
   "convert": {
     "title": "Μετατροπή",

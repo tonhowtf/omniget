@@ -502,16 +502,29 @@
   },
   "home": {
     "inspector_title": "ຕົວເລືອກການດາວໂຫຼດ",
-    "hero_title": "ວາງລິ້ງ. ຮັບໄຟລ໌.",
-    "hero_subtitle": "ວິດີໂອ, ສຽງ, ຮູບພາບ, ຄອສຮຽນ ແລະ ທໍເຣນຈາກກວ່າ 1,000 ເວັບໄຊ, ບັນທຶກລົງໂຟລເດີຂອງທ່ານໂດຍກົງ. ບໍ່ຕ້ອງມີບັນຊີ, ບໍ່ມີໂຄສະນາ.",
-    "action_batch": "ຫຼາຍລິ້ງພ້ອມກັນ",
-    "action_torrent": "ເປີດໄຟລ໌ .torrent",
-    "action_p2p": "ສົ່ງໄຟລ໌ໃຫ້ຄົນອື່ນ",
-    "action_advanced": "ຕົວເລືອກຂັ້ນສູງ",
-    "action_simple": "ກັບໄປມຸມມອງແບບງ່າຍ",
-    "value_line": "{{count}} ໄຟລ໌ · {{size}} ບັນທຶກດ້ວຍ OmniGet",
-    "value_first": "ການດາວໂຫຼດຄັ້ງທຳອິດໃຊ້ເວລາປະມານໜຶ່ງນາທີ. ເນື້ອຫາສ່ວນຕົວຕ້ອງການພຽງຄຸກກີ້ຂອງບຣາວເຊີທ່ານ.",
-    "analyze": "Analyze link"
+    "sr_title": "ດາວໂຫຼດ",
+    "more": "ວິທີດາວໂຫຼດອື່ນໆ",
+    "paste": "ວາງ",
+    "paste_empty": "ບໍ່ມີລິ້ງໃນຄລິບບອດ.",
+    "submit": "ດາວໂຫຼດລິ້ງນີ້",
+    "first_sites": "ໃຊ້ໄດ້ກັບ YouTube, Instagram, TikTok ແລະ [ເວັບໄຊອື່ນອີກ {{count}} ແຫ່ງ].",
+    "first_terms": "ການໃຊ້ OmniGet ໝາຍຄວາມວ່າທ່ານຍອມຮັບ[ຂໍ້ກຳນົດ].",
+    "saved_count_one": "{{count}} ໄຟລ໌",
+    "saved_count_other": "{{count}} ໄຟລ໌",
+    "saved_line": "ບັນທຶກແລ້ວ {{files}} · {{size}}",
+    "drop_title": "ວາງລົງເພື່ອດາວໂຫຼດ",
+    "drop_hint": "ລິ້ງ, ໄຟລ໌ທໍເຣນ ຫຼື ລາຍການ .txt",
+    "drop_unsupported": "OmniGet ເປີດໄຟລ໌ນີ້ບໍ່ໄດ້. ລອງໃຊ້ລິ້ງ, ທໍເຣນ ຫຼື ລາຍການ .txt.",
+    "action_batch": "ວາງຫຼາຍລິ້ງ…",
+    "action_torrent": "ເປີດໄຟລ໌ທໍເຣນ…",
+    "action_p2p": "ສົ່ງໄຟລ໌ດ້ວຍລະຫັດ…",
+    "action_advanced": "ຄຳສັ່ງ yt-dlp…",
+    "action_simple": "ກັບຄືນ",
+    "adv_title": "ຄຳສັ່ງ yt-dlp",
+    "success_title": "ເພີ່ມໃສ່ການດາວໂຫຼດແລ້ວ",
+    "success_first": "ການດາວໂຫຼດຄັ້ງທຳອິດຂອງທ່ານ!",
+    "success_open": "ເປີດການດາວໂຫຼດ",
+    "batch_hint": "ມີຫຼາຍລິ້ງບໍ? ວາງທັງໝົດພ້ອມກັນ, ແຖວລະໜຶ່ງລິ້ງ."
   },
   "tools": {
     "tab": "ເຄື່ອງມື",
@@ -4449,21 +4462,19 @@
     "cat_world": "World"
   },
   "omnibox": {
-    "placeholder": "ວາງ URL, ລິ້ງ magnet, .torrent ຫຼື ຄົ້ນຫາ",
-    "searching": "ກຳລັງຄົ້ນຫາ...",
-    "search_empty": "ບໍ່ພົບຜົນລັບ",
-    "unsupported": "ຍັງບໍ່ຮອງຮັບແພລດຟອມນີ້",
+    "placeholder": "ວາງລິ້ງ ຫຼື ຄົ້ນຫາ",
+    "searching": "ກຳລັງຄົ້ນຫາ…",
+    "search_empty": "ບໍ່ພົບຫຍັງສຳລັບ “{{query}}”.",
+    "unsupported": "OmniGet ຍັງເປີດເວັບໄຊນີ້ບໍ່ໄດ້.",
     "go_to_hotmart": "ໄປທີ່ Hotmart",
     "go_to_udemy": "ໄປທີ່ Udemy",
     "download": "ດາວໂຫຼດ",
-    "options": "ຕົວເລືອກ",
+    "options": "ຄຸນນະພາບ ແລະ ອື່ນໆ",
     "advanced": "ຂັ້ນສູງ",
-    "preparing": "ກຳລັງກຽມດາວໂຫຼດ...",
+    "preparing": "ກຳລັງກຽມ…",
     "error": "ດາວໂຫຼດບໍ່ສຳເລັດ",
     "retry": "ລອງໃໝ່",
-    "batch_detected": "ກວດພົບ {{count}} URL",
-    "batch_download_all": "ດາວໂຫຼດທັງໝົດ",
-    "batch_queued": "ເພີ່ມ {{count}} ການດາວໂຫຼດເຂົ້າຄິວແລ້ວ",
+    "batch_download_all": "ດາວໂຫຼດທັງໝົດ {{count}}",
     "preflight_stop": "ບໍ່ມີລິ້ງໃດໃນ {{total}} ລິ້ງທີ່ດາວໂຫຼດໄດ້ — ບໍ່ມີເວັບໄຊທີ່ຮອງຮັບເລີຍ.",
     "media_changed": "ລິ້ງນີ້ມີການປ່ຽນແປງຕັ້ງແຕ່ທ່ານດາວໂຫຼດຄັ້ງລ່າສຸດ: {{summary}}",
     "rule_applied": "ນຳໃຊ້ກົດ “{{name}}” ແລ້ວ",
@@ -4473,7 +4484,7 @@
     "batch_file_empty": "ບໍ່ພົບ URL ທີ່ຖືກຕ້ອງໃນໄຟລ໌",
     "mode_auto": "ອັດຕະໂນມັດ",
     "mode_audio": "ສຽງຢ່າງດຽວ (MP3)",
-    "mode_mute": "ບໍ່ມີສຽງ",
+    "mode_mute": "ວິດີໂອບໍ່ມີສຽງ",
     "quality": "ຄຸນນະພາບ",
     "quality_best": "ຄຸນນະພາບດີທີ່ສຸດ",
     "quality_2160p": "4K (2160p)",
@@ -4515,13 +4526,13 @@
     "playlist_loading": "ກຳລັງໂຫຼດເພລລິສ…",
     "playlist_empty": "ບໍ່ສາມາດໂຫຼດລາຍການໃນເພລລິສໄດ້",
     "playlist_none_selected": "ເລືອກຢ່າງໜ້ອຍໜຶ່ງລາຍການເພື່ອດາວໂຫຼດ",
-    "torrent_selected": "ເລືອກ {{selected}} ຈາກ {{total}} ໄຟລ໌",
+    "torrent_selected": "{{selected}} ຈາກ {{total}} ໄຟລ໌",
     "torrent_loading": "ກຳລັງອ່ານເນື້ອຫາ torrent…",
     "torrent_none_selected": "ເລືອກຢ່າງໜ້ອຍໜຶ່ງໄຟລ໌ເພື່ອດາວໂຫຼດ",
     "cookie_hint_stale": "ຄຸກກີ້ທີ່ບັນທຶກໄວ້ຂອງເວັບໄຊນີ້ເລີ່ມເກົ່າແລ້ວ.",
     "cookie_hint_expired": "ຄຸກກີ້ທີ່ບັນທຶກໄວ້ຂອງເວັບໄຊນີ້ໝົດອາຍຸແລ້ວ — ການດາວໂຫຼດອາດລົ້ມເຫຼວ.",
     "cookie_hint_action": "ອັບເດດ",
-    "external_url_ready": "ໄດ້ຮັບ URL ຈາກສ່ວນຂະຫຍາຍ Chrome",
+    "external_url_ready": "ລິ້ງຈາກສ່ວນຂະຫຍາຍບຣາວເຊີ",
     "content_type": {
       "video": "ວິດີໂອ",
       "audio": "ສຽງ",
@@ -4549,15 +4560,15 @@
     "adv": {
       "url_label": "URL",
       "url_placeholder": "https://...",
-      "args_label": "ອາກິວເມັນ yt-dlp",
+      "args_label": "ອາກິວເມັນ",
       "args_placeholder": "-f bv*+ba/b --merge-output-format mp4 --sub-langs en --embed-subs",
-      "args_hint": "ໜຶ່ງ flag ຕໍ່ໜຶ່ງ token, ຂັ້ນດ້ວຍຍະຫວ່າງ. ໃສ່ເຄື່ອງໝາຍວົງຢືມອ້ອມຄ່າທີ່ມີຍະຫວ່າງ.",
-      "run": "ເລີ່ມດາວໂຫຼດ",
+      "args_hint": "ແຍກ flag ດ້ວຍຍະຫວ່າງ. ໃສ່ເຄື່ອງໝາຍວົງຢືມໃຫ້ຄ່າທີ່ມີຍະຫວ່າງ.",
+      "run": "ດາວໂຫຼດ",
       "queuing": "ກຳລັງເພີ່ມເຂົ້າຄິວ...",
       "queued": "ເພີ່ມການດາວໂຫຼດເຂົ້າຄິວແລ້ວ",
       "url_required": "ພິມ URL ກ່ອນ",
-      "templates_title": "ແມ່ແບບທີ່ບັນທຶກໄວ້",
-      "templates_empty": "ຍັງບໍ່ມີແມ່ແບບທີ່ບັນທຶກໄວ້. ພິມ flag ຂ້າງເທິງ ແລ້ວຄລິກ ບັນທຶກ ເພື່ອເກັບໄວ້ໃຊ້ຄັ້ງຕໍ່ໄປ.",
+      "templates_title": "ແມ່ແບບ",
+      "templates_empty": "ບັນທຶກ flag ທີ່ທ່ານໃຊ້ເລື້ອຍໆ.",
       "template_new": "+ ໃໝ່",
       "template_name_placeholder": "ຊື່ແມ່ແບບ",
       "template_name_required": "ຕັ້ງຊື່ໃຫ້ແມ່ແບບ",
@@ -4569,7 +4580,73 @@
     },
     "courses_plugin_needed": "ນີ້ແມ່ນໜ້າຄອສຮຽນ. ປລັກອິນ Courses ຟຣີຈະເຂົ້າສູ່ລະບົບດ້ວຍບັນຊີຂອງທ່ານ ແລະ ດາວໂຫຼດທຸກບົດຮຽນ.",
     "courses_plugin_ready": "ໜ້າຄອສຮຽນຈະຖືກດາວໂຫຼດຈາກແຖບ Courses ໂດຍເຂົ້າສູ່ລະບົບບັນຊີຂອງທ່ານ.",
-    "install_courses_plugin": "ຮັບປລັກອິນ Courses"
+    "install_courses_plugin": "ຮັບປລັກອິນ Courses",
+    "checking": "ກຳລັງກວດລິ້ງ…",
+    "search_results": "ຜົນການຄົ້ນຫາ “{{query}}”",
+    "search_empty_hint": "ລອງໃຊ້ຄຳອື່ນ ຫຼື ວາງລິ້ງ.",
+    "see_all": "ເບິ່ງເວັບໄຊທີ່ຮອງຮັບ",
+    "download_video": "ດາວໂຫຼດວິດີໂອ",
+    "download_audio": "ດາວໂຫຼດສຽງ",
+    "download_image": "ດາວໂຫຼດຮູບ",
+    "download_files_one": "ດາວໂຫຼດ {{count}} ໄຟລ໌",
+    "download_files_other": "ດາວໂຫຼດ {{count}} ໄຟລ໌",
+    "download_playlist_one": "ດາວໂຫຼດ {{count}} ວິດີໂອ",
+    "download_playlist_other": "ດາວໂຫຼດ {{count}} ວິດີໂອ",
+    "preparing_first": "ກຳລັງຕັ້ງຄ່າ. ການດາວໂຫຼດຄັ້ງທຳອິດຈະໃຊ້ເວລາດົນກວ່າໜ້ອຍໜຶ່ງ.",
+    "batch_detected_one": "ພົບ {{count}} ລິ້ງ",
+    "batch_detected_other": "ພົບ {{count}} ລິ້ງ",
+    "batch_queued_one": "ເພີ່ມ {{count}} ການດາວໂຫຼດແລ້ວ",
+    "batch_queued_other": "ເພີ່ມ {{count}} ການດາວໂຫຼດແລ້ວ",
+    "error_details": "ລາຍລະອຽດ",
+    "error_copy": "ສຳເນົາ",
+    "error_copied": "ສຳເນົາແລ້ວ",
+    "err": {
+      "login": {
+        "title": "ອັນນີ້ຕ້ອງເຂົ້າສູ່ລະບົບ.",
+        "body": "ຖ້າທ່ານເປີດມັນໃນບຣາວເຊີໄດ້, OmniGet ກໍໃຊ້ການເຂົ້າສູ່ລະບົບນັ້ນໄດ້.",
+        "action": "ໃຊ້ການເຂົ້າສູ່ລະບົບຂອງບຣາວເຊີ"
+      },
+      "age": {
+        "title": "ອັນນີ້ຈຳກັດອາຍຸ.",
+        "body": "ເຂົ້າສູ່ລະບົບເວັບໄຊໃນບຣາວເຊີ, ແລ້ວລອງໃໝ່.",
+        "action": "ໃຊ້ການເຂົ້າສູ່ລະບົບຂອງບຣາວເຊີ"
+      },
+      "geo": {
+        "title": "ບໍ່ສາມາດໃຊ້ໄດ້ໃນພາກພື້ນຂອງທ່ານ.",
+        "body": "ເວັບໄຊບລັອກລິ້ງນີ້ໃນບ່ອນທີ່ທ່ານຢູ່.",
+        "action": ""
+      },
+      "removed": {
+        "title": "ລິ້ງນີ້ບໍ່ມີແລ້ວ.",
+        "body": "ມັນຖືກລຶບ ຫຼື ຕັ້ງເປັນສ່ວນຕົວ.",
+        "action": "ວາງລິ້ງອື່ນ"
+      },
+      "rate": {
+        "title": "ເວັບໄຊຂໍໃຫ້ພວກເຮົາຊ້າລົງ.",
+        "body": "ລໍຖ້າສອງສາມນາທີ, ແລ້ວລອງໃໝ່.",
+        "action": ""
+      },
+      "network": {
+        "title": "ເຊື່ອມຕໍ່ເວັບໄຊບໍ່ໄດ້.",
+        "body": "ກວດການເຊື່ອມຕໍ່ຂອງທ່ານ ແລ້ວລອງໃໝ່.",
+        "action": ""
+      },
+      "unsupported": {
+        "title": "OmniGet ຍັງເປີດເວັບໄຊນີ້ບໍ່ໄດ້.",
+        "body": "ກວດລິ້ງ, ຫຼື ເບິ່ງວ່າເວັບໄຊໃດໃຊ້ໄດ້.",
+        "action": "ເບິ່ງເວັບໄຊທີ່ຮອງຮັບ"
+      },
+      "ffmpeg": {
+        "title": "ບັນທຶກວິດີໂອແລ້ວ, ແຕ່ລວມບໍ່ໄດ້.",
+        "body": "OmniGet ຕ້ອງການ FFmpeg ເພື່ອລວມວິດີໂອ ແລະ ສຽງ.",
+        "action": "ຕິດຕັ້ງ FFmpeg"
+      },
+      "generic": {
+        "title": "ດາວໂຫຼດອັນນີ້ບໍ່ໄດ້.",
+        "body": "ລອງໃໝ່. ຖ້າຍັງລົ້ມເຫຼວ, ສຳເນົາລາຍລະອຽດ ແລ້ວລາຍງານ.",
+        "action": ""
+      }
+    }
   },
   "about": {
     "tab": {
@@ -4677,17 +4754,6 @@
     "plugin_load_failed_hint": "OmniGet ບໍ່ສາມາດໂຫຼດປລັກອິນນີ້ໄດ້. ລອງຕິດຕັ້ງຄືນຈາກຕະຫຼາດ.",
     "plugin_load_error_details": "ລາຍລະອຽດ: {{error}}",
     "reinstall": "ຕິດຕັ້ງຄືນ"
-  },
-  "services": {
-    "title": "ຮອງຮັບ YouTube, Instagram ແລະ 1000+ ເວັບໄຊ",
-    "title_show": "ສະແດງບໍລິການທີ່ຮອງຮັບ",
-    "title_hide": "ເຊື່ອງບໍລິການທີ່ຮອງຮັບ",
-    "disclaimer": "ການໃຊ້ງານຂຶ້ນກັບແຕ່ລະແພລດຟອມ ແລະ ອາດແຕກຕ່າງກັນ",
-    "and_more": "+1000 ອື່ນໆ"
-  },
-  "terms_note": {
-    "agreement": "ການດຳເນີນຕໍ່ຖືວ່າທ່ານຍອມຮັບ",
-    "link": "ເງື່ອນໄຂ ແລະ ຈັນຍາບັນການນຳໃຊ້"
   },
   "convert": {
     "title": "ແປງໄຟລ໌",

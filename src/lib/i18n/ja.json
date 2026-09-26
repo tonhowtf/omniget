@@ -501,17 +501,30 @@
     "action_paste": "クリップボードから URL を貼り付け"
   },
   "home": {
-    "inspector_title": "Download options",
-    "hero_title": "OmniGet",
-    "hero_subtitle": "Paste a link or search. We'll take it from there.",
-    "action_batch": "Many links at once",
-    "action_torrent": "Open a .torrent file",
-    "action_p2p": "Send a file to someone",
-    "action_advanced": "Advanced options",
-    "action_simple": "Back to the simple view",
-    "value_line": "{{count}} files · {{size}} saved with OmniGet",
-    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies.",
-    "analyze": "Analyze link"
+    "inspector_title": "ダウンロードオプション",
+    "sr_title": "ダウンロード",
+    "more": "その他のダウンロード方法",
+    "paste": "貼り付け",
+    "paste_empty": "クリップボードにリンクがありません。",
+    "submit": "このリンクをダウンロード",
+    "first_sites": "YouTube、Instagram、TikTok ほか[{{count}} のサイト]に対応しています。",
+    "first_terms": "OmniGet を使うと[利用規約]に同意したことになります。",
+    "saved_count_one": "{{count}} 件のファイル",
+    "saved_count_other": "{{count}} 件のファイル",
+    "saved_line": "{{files}} · {{size}} 保存済み",
+    "drop_title": "ドロップしてダウンロード",
+    "drop_hint": "リンク、torrent ファイル、または .txt リスト",
+    "drop_unsupported": "OmniGet ではこのファイルを開けません。リンク、torrent、または .txt リストをお試しください。",
+    "action_batch": "複数のリンクを貼り付け…",
+    "action_torrent": "torrent ファイルを開く…",
+    "action_p2p": "コードでファイルを送る…",
+    "action_advanced": "yt-dlp コマンド…",
+    "action_simple": "戻る",
+    "adv_title": "yt-dlp コマンド",
+    "success_title": "ダウンロードに追加しました",
+    "success_first": "はじめてのダウンロード！",
+    "success_open": "ダウンロードを開く",
+    "batch_hint": "リンクが複数ありますか？1 行に 1 つずつ、まとめて貼り付けられます。"
   },
   "tools": {
     "tab": "ツール",
@@ -4449,21 +4462,19 @@
     "cat_world": "World"
   },
   "omnibox": {
-    "placeholder": "URLを貼り付けるか検索",
-    "searching": "検索中...",
-    "search_empty": "結果が見つかりません",
-    "unsupported": "このプラットフォームはまだサポートされていません",
+    "placeholder": "リンクを貼り付けるか検索",
+    "searching": "検索中…",
+    "search_empty": "「{{query}}」に一致する結果はありません。",
+    "unsupported": "このサイトはまだ OmniGet で開けません。",
     "go_to_hotmart": "Hotmartへ移動",
     "go_to_udemy": "Udemyへ移動",
     "download": "ダウンロード",
-    "options": "オプション",
+    "options": "画質など",
     "advanced": "詳細",
-    "preparing": "ダウンロードを準備中...",
+    "preparing": "準備中…",
     "error": "ダウンロード失敗",
-    "retry": "再試行",
-    "batch_detected": "{{count}} 件のURLを検出しました",
-    "batch_download_all": "すべてダウンロード",
-    "batch_queued": "{{count}} 件のダウンロードをキューに追加しました",
+    "retry": "もう一度試す",
+    "batch_download_all": "{{count}} 件すべてダウンロード",
     "preflight_stop": "{{total}} 件のリンクはどれもダウンロードできません — 対応サイトが含まれていません。",
     "media_changed": "このリンクは前回のダウンロードから変わっています: {{summary}}",
     "rule_applied": "ルール「{{name}}」を適用しました",
@@ -4473,7 +4484,7 @@
     "batch_file_empty": "ファイル内に有効な URL が見つかりません",
     "mode_auto": "自動",
     "mode_audio": "音声のみ (MP3)",
-    "mode_mute": "音声なし",
+    "mode_mute": "音声なしの動画",
     "quality": "画質",
     "quality_best": "最高画質",
     "quality_2160p": "4K (2160p)",
@@ -4515,13 +4526,13 @@
     "playlist_loading": "プレイリストを読み込み中…",
     "playlist_empty": "プレイリストの項目を読み込めませんでした",
     "playlist_none_selected": "ダウンロードする項目を1つ以上選択してください",
-    "torrent_selected": "{{total}} 件中 {{selected}} 件のファイルを選択",
+    "torrent_selected": "{{selected}} / {{total}} ファイル",
     "torrent_loading": "トレントの内容を読み込み中…",
     "torrent_none_selected": "ダウンロードするファイルを1つ以上選択してください",
     "cookie_hint_stale": "このサイトの保存済みクッキーが古くなっています。",
     "cookie_hint_expired": "このサイトの保存済みクッキーは期限切れです — ダウンロードが失敗する可能性があります。",
     "cookie_hint_action": "更新する",
-    "external_url_ready": "Chrome拡張機能からURLを受信しました",
+    "external_url_ready": "ブラウザー拡張機能からのリンク",
     "content_type": {
       "video": "動画",
       "audio": "音声",
@@ -4549,15 +4560,15 @@
     "adv": {
       "url_label": "URL",
       "url_placeholder": "https://...",
-      "args_label": "yt-dlp 引数",
+      "args_label": "引数",
       "args_placeholder": "-f bv*+ba/b --merge-output-format mp4 --sub-langs ja --embed-subs",
-      "args_hint": "スペース区切りで1トークンに1フラグ。スペースを含む値は引用符で囲んでください。",
+      "args_hint": "フラグはスペースで区切ります。スペースを含む値は引用符で囲んでください。",
       "run": "ダウンロード",
       "queuing": "キュー追加中...",
       "queued": "ダウンロードをキューに追加しました",
       "url_required": "先にURLを入力してください",
-      "templates_title": "保存したテンプレート",
-      "templates_empty": "テンプレートがまだありません。上にフラグを入力して「保存」をクリックしてください。",
+      "templates_title": "テンプレート",
+      "templates_empty": "よく使うフラグを保存できます。",
       "template_new": "+ 新規",
       "template_name_placeholder": "テンプレート名",
       "template_name_required": "テンプレート名を入力してください",
@@ -4569,7 +4580,73 @@
     },
     "courses_plugin_needed": "This is a course page. The free Courses plugin signs in with your account and downloads every lesson.",
     "courses_plugin_ready": "Course pages are downloaded from the Courses tab with your account signed in.",
-    "install_courses_plugin": "Get the Courses plugin"
+    "install_courses_plugin": "Get the Courses plugin",
+    "checking": "リンクを確認中…",
+    "search_results": "「{{query}}」の検索結果",
+    "search_empty_hint": "別の言葉を試すか、リンクを貼り付けてください。",
+    "see_all": "対応サイトを見る",
+    "download_video": "動画をダウンロード",
+    "download_audio": "音声をダウンロード",
+    "download_image": "写真をダウンロード",
+    "download_files_one": "{{count}} 件のファイルをダウンロード",
+    "download_files_other": "{{count}} 件のファイルをダウンロード",
+    "download_playlist_one": "{{count}} 本の動画をダウンロード",
+    "download_playlist_other": "{{count}} 本の動画をダウンロード",
+    "preparing_first": "準備しています。初回のダウンロードは少し時間がかかります。",
+    "batch_detected_one": "{{count}} 件のリンクが見つかりました",
+    "batch_detected_other": "{{count}} 件のリンクが見つかりました",
+    "batch_queued_one": "{{count}} 件のダウンロードを追加しました",
+    "batch_queued_other": "{{count}} 件のダウンロードを追加しました",
+    "error_details": "詳細",
+    "error_copy": "コピー",
+    "error_copied": "コピーしました",
+    "err": {
+      "login": {
+        "title": "ログインが必要です。",
+        "body": "ブラウザーで開けるなら、OmniGet はそのログインを使えます。",
+        "action": "ブラウザーのログインを使う"
+      },
+      "age": {
+        "title": "年齢制限があります。",
+        "body": "ブラウザーでサイトにログインしてから、もう一度お試しください。",
+        "action": "ブラウザーのログインを使う"
+      },
+      "geo": {
+        "title": "お住まいの地域では利用できません。",
+        "body": "このサイトはお住まいの地域でこのリンクをブロックしています。",
+        "action": ""
+      },
+      "removed": {
+        "title": "このリンクはもうありません。",
+        "body": "削除されたか、非公開になりました。",
+        "action": "別のリンクを貼り付ける"
+      },
+      "rate": {
+        "title": "サイトから速度を落とすよう求められました。",
+        "body": "数分待ってから、もう一度お試しください。",
+        "action": ""
+      },
+      "network": {
+        "title": "サイトに接続できませんでした。",
+        "body": "接続を確認して、もう一度お試しください。",
+        "action": ""
+      },
+      "unsupported": {
+        "title": "このサイトはまだ OmniGet で開けません。",
+        "body": "リンクを確認するか、対応サイトをご覧ください。",
+        "action": "対応サイトを見る"
+      },
+      "ffmpeg": {
+        "title": "動画は保存されましたが、結合できませんでした。",
+        "body": "動画と音声を結合するには FFmpeg が必要です。",
+        "action": "FFmpeg をインストール"
+      },
+      "generic": {
+        "title": "ダウンロードできませんでした。",
+        "body": "もう一度お試しください。失敗が続く場合は、詳細をコピーして報告してください。",
+        "action": ""
+      }
+    }
   },
   "about": {
     "tab": {
@@ -4677,17 +4754,6 @@
     "plugin_load_failed_hint": "OmniGetはこのプラグインを読み込めませんでした。マーケットプレイスから再インストールしてください。",
     "plugin_load_error_details": "詳細: {{error}}",
     "reinstall": "再インストール"
-  },
-  "services": {
-    "title": "YouTube、Instagram、1000以上のサイトに対応",
-    "title_show": "対応サービスを表示",
-    "title_hide": "対応サービスを隠す",
-    "disclaimer": "利用可否は各プラットフォームに依存し、変動する場合があります",
-    "and_more": "+1000以上"
-  },
-  "terms_note": {
-    "agreement": "続行することで、以下に同意したものとみなします：",
-    "link": "利用規約と倫理規定"
   },
   "convert": {
     "title": "変換",

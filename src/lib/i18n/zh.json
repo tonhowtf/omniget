@@ -502,16 +502,29 @@
   },
   "home": {
     "inspector_title": "下载选项",
-    "hero_title": "OmniGet",
-    "hero_subtitle": "Paste a link or search. We'll take it from there.",
-    "action_batch": "Many links at once",
-    "action_torrent": "Open a .torrent file",
-    "action_p2p": "Send a file to someone",
-    "action_advanced": "Advanced options",
-    "action_simple": "Back to the simple view",
-    "value_line": "{{count}} files · {{size}} saved with OmniGet",
-    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies.",
-    "analyze": "Analyze link"
+    "sr_title": "下载",
+    "more": "更多下载方式",
+    "paste": "粘贴",
+    "paste_empty": "剪贴板里没有链接。",
+    "submit": "下载此链接",
+    "first_sites": "支持 YouTube、Instagram、TikTok 以及[其他 {{count}} 个网站]。",
+    "first_terms": "使用 OmniGet 即表示你接受[条款]。",
+    "saved_count_one": "{{count}} 个文件",
+    "saved_count_other": "{{count}} 个文件",
+    "saved_line": "已保存 {{files}} · {{size}}",
+    "drop_title": "拖放到这里下载",
+    "drop_hint": "链接、torrent 文件或 .txt 列表",
+    "drop_unsupported": "OmniGet 无法打开此文件。试试链接、torrent 或 .txt 列表。",
+    "action_batch": "粘贴多个链接…",
+    "action_torrent": "打开 torrent 文件…",
+    "action_p2p": "用代码发送文件…",
+    "action_advanced": "yt-dlp 命令…",
+    "action_simple": "返回",
+    "adv_title": "yt-dlp 命令",
+    "success_title": "已添加到下载",
+    "success_first": "你的第一个下载！",
+    "success_open": "打开下载",
+    "batch_hint": "有多个链接？一次全部粘贴，每行一个。"
   },
   "tools": {
     "tab": "工具",
@@ -4450,20 +4463,18 @@
   },
   "omnibox": {
     "placeholder": "粘贴链接或搜索",
-    "searching": "搜索中...",
-    "search_empty": "未找到结果",
-    "unsupported": "暂不支持该平台",
+    "searching": "搜索中…",
+    "search_empty": "没有找到“{{query}}”的结果。",
+    "unsupported": "OmniGet 暂时还打不开这个网站。",
     "go_to_hotmart": "前往 Hotmart",
     "go_to_udemy": "前往 Udemy",
     "download": "下载",
-    "options": "选项",
+    "options": "画质及更多",
     "advanced": "高级",
-    "preparing": "正在准备下载...",
+    "preparing": "准备中…",
     "error": "下载失败",
-    "retry": "重试",
-    "batch_detected": "检测到 {{count}} 个链接",
-    "batch_download_all": "全部下载",
-    "batch_queued": "已添加 {{count}} 个下载到队列",
+    "retry": "再试一次",
+    "batch_download_all": "全部下载（{{count}} 个）",
     "preflight_stop": "{{total}} 个链接都无法下载 —— 其中没有受支持的网站。",
     "media_changed": "这个链接自上次下载后有变化：{{summary}}",
     "rule_applied": "已应用规则“{{name}}”",
@@ -4473,7 +4484,7 @@
     "batch_file_empty": "文件中未找到有效的 URL",
     "mode_auto": "自动",
     "mode_audio": "仅音频 (MP3)",
-    "mode_mute": "无声",
+    "mode_mute": "无声视频",
     "quality": "质量",
     "quality_best": "最佳质量",
     "quality_2160p": "4K (2160p)",
@@ -4515,13 +4526,13 @@
     "playlist_loading": "正在加载播放列表…",
     "playlist_empty": "无法加载播放列表项目",
     "playlist_none_selected": "请至少选择一个项目进行下载",
-    "torrent_selected": "已选择 {{total}} 个文件中的 {{selected}} 个",
+    "torrent_selected": "{{selected}} / {{total}} 个文件",
     "torrent_loading": "正在读取种子内容…",
     "torrent_none_selected": "请至少选择一个文件进行下载",
     "cookie_hint_stale": "该网站保存的 Cookie 正在变旧。",
     "cookie_hint_expired": "该网站保存的 Cookie 已过期——下载可能失败。",
     "cookie_hint_action": "更新",
-    "external_url_ready": "已从 Chrome 扩展收到 URL",
+    "external_url_ready": "来自浏览器扩展的链接",
     "content_type": {
       "video": "视频",
       "audio": "音频",
@@ -4549,15 +4560,15 @@
     "adv": {
       "url_label": "URL",
       "url_placeholder": "https://...",
-      "args_label": "yt-dlp 参数",
+      "args_label": "参数",
       "args_placeholder": "-f bv*+ba/b --merge-output-format mp4 --sub-langs zh --embed-subs",
-      "args_hint": "每个 token 一个 flag，用空格分隔。包含空格的值请用引号包裹。",
+      "args_hint": "用空格分隔各个 flag。含空格的值请加引号。",
       "run": "下载",
       "queuing": "排队中...",
       "queued": "已加入下载队列",
       "url_required": "请先输入 URL",
-      "templates_title": "已保存的模板",
-      "templates_empty": "还没有保存的模板。在上面输入 flags 并点击保存以便下次复用。",
+      "templates_title": "模板",
+      "templates_empty": "保存常用的 flags。",
       "template_new": "+ 新建",
       "template_name_placeholder": "模板名称",
       "template_name_required": "请给模板起个名字",
@@ -4569,7 +4580,73 @@
     },
     "courses_plugin_needed": "This is a course page. The free Courses plugin signs in with your account and downloads every lesson.",
     "courses_plugin_ready": "Course pages are downloaded from the Courses tab with your account signed in.",
-    "install_courses_plugin": "Get the Courses plugin"
+    "install_courses_plugin": "Get the Courses plugin",
+    "checking": "正在检查链接…",
+    "search_results": "“{{query}}”的结果",
+    "search_empty_hint": "换个关键词试试，或者粘贴链接。",
+    "see_all": "查看支持的网站",
+    "download_video": "下载视频",
+    "download_audio": "下载音频",
+    "download_image": "下载图片",
+    "download_files_one": "下载 {{count}} 个文件",
+    "download_files_other": "下载 {{count}} 个文件",
+    "download_playlist_one": "下载 {{count}} 个视频",
+    "download_playlist_other": "下载 {{count}} 个视频",
+    "preparing_first": "正在准备。第一次下载会稍慢一些。",
+    "batch_detected_one": "发现 {{count}} 个链接",
+    "batch_detected_other": "发现 {{count}} 个链接",
+    "batch_queued_one": "已添加 {{count}} 个下载",
+    "batch_queued_other": "已添加 {{count}} 个下载",
+    "error_details": "详情",
+    "error_copy": "复制",
+    "error_copied": "已复制",
+    "err": {
+      "login": {
+        "title": "这个需要登录。",
+        "body": "只要你能在浏览器里打开它，OmniGet 就能使用那个登录状态。",
+        "action": "使用浏览器的登录"
+      },
+      "age": {
+        "title": "这个内容有年龄限制。",
+        "body": "请先在浏览器里登录该网站，然后再试一次。",
+        "action": "使用浏览器的登录"
+      },
+      "geo": {
+        "title": "你所在的地区无法使用。",
+        "body": "该网站在你所在的地区屏蔽了这个链接。",
+        "action": ""
+      },
+      "removed": {
+        "title": "这个链接已失效。",
+        "body": "内容已被删除或设为私密。",
+        "action": "粘贴其他链接"
+      },
+      "rate": {
+        "title": "网站要求我们放慢速度。",
+        "body": "请等几分钟后再试。",
+        "action": ""
+      },
+      "network": {
+        "title": "无法连接到该网站。",
+        "body": "请检查网络连接后再试。",
+        "action": ""
+      },
+      "unsupported": {
+        "title": "OmniGet 暂时还打不开这个网站。",
+        "body": "请检查链接，或查看支持哪些网站。",
+        "action": "查看支持的网站"
+      },
+      "ffmpeg": {
+        "title": "视频已保存，但未能合并。",
+        "body": "OmniGet 需要 FFmpeg 来合并视频和音频。",
+        "action": "安装 FFmpeg"
+      },
+      "generic": {
+        "title": "无法下载。",
+        "body": "请再试一次。如果一直失败，请复制详情并反馈问题。",
+        "action": ""
+      }
+    }
   },
   "about": {
     "tab": {
@@ -4677,17 +4754,6 @@
     "plugin_load_failed_hint": "OmniGet 无法加载此插件。请尝试从 Marketplace 重新安装。",
     "plugin_load_error_details": "详情: {{error}}",
     "reinstall": "重新安装"
-  },
-  "services": {
-    "title": "支持 YouTube、Instagram 及 1000+ 网站",
-    "title_show": "显示支持的服务",
-    "title_hide": "隐藏支持的服务",
-    "disclaimer": "可用性取决于各平台，可能有所不同",
-    "and_more": "以及 1000 多个其他平台"
-  },
-  "terms_note": {
-    "agreement": "继续使用即表示你同意",
-    "link": "使用条款和道德规范"
   },
   "convert": {
     "title": "转换",
