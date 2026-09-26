@@ -18,6 +18,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub start_minimized: bool,
     #[serde(default)]
+    pub exit_on_close: bool,
+    #[serde(default)]
     pub portable_mode: bool,
     #[serde(default)]
     pub legal_acknowledged: bool,
@@ -836,6 +838,7 @@ impl Default for AppSettings {
             onboarding_completed: false,
             start_with_system: false,
             start_minimized: false,
+            exit_on_close: false,
             portable_mode: false,
             legal_acknowledged: false,
             last_download_options: LastDownloadOptions::default(),
@@ -994,5 +997,34 @@ mod backcompat_tests {
             back.download.default_output_dir,
             s.download.default_output_dir
         );
+    }
+
+    #[test]
+    fn settings_json_without_exit_on_close_keeps_the_tray() {
+        let current = serde_json::to_value(AppSettings::default()).expect("serialize");
+        let mut previous = current.clone();
+        let removed = previous
+            .as_object_mut()
+            .expect("object")
+            .remove("exit_on_close");
+        assert!(
+            removed.is_some(),
+            "the field has to exist today, or the test proves nothing"
+        );
+
+        let parsed: AppSettings =
+            serde_json::from_value(previous).expect("an old file has to load");
+        assert!(!parsed.exit_on_close);
+    }
+
+    #[test]
+    fn exit_on_close_survives_the_round_trip() {
+        let s = AppSettings {
+            exit_on_close: true,
+            ..AppSettings::default()
+        };
+        let round = serde_json::to_value(&s).expect("serialize");
+        let back: AppSettings = serde_json::from_value(round).expect("deserialize");
+        assert!(back.exit_on_close);
     }
 }

@@ -845,7 +845,11 @@ pub fn run() {
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::CloseRequested { api, .. } if window.label() == "main" => {
                 api.prevent_close();
-                let _ = window.hide();
+                if storage::config::load_settings(window.app_handle()).exit_on_close {
+                    tray::request_quit(window.app_handle());
+                } else {
+                    let _ = window.hide();
+                }
             }
             _ => {}
         })

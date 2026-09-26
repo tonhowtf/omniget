@@ -722,6 +722,8 @@
       "start_with_system_desc": "システム起動時にOmniGetを自動的に起動します",
       "start_minimized": "トレイのみで起動",
       "start_minimized_desc": "ウィンドウを表示せずに OmniGet をシステムトレイで起動します。トレイアイコンをクリックして開きます。",
+      "exit_on_close": "Quit when the window is closed",
+      "exit_on_close_desc": "Closing the window with X quits OmniGet instead of keeping it in the system tray. Active downloads still ask before quitting.",
       "reset_hints": "ヒントをリセット",
       "reset_hints_desc": "非表示にしたヒントをすべて再表示します",
       "restore": "復元",

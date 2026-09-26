@@ -722,6 +722,8 @@
       "start_with_system_desc": "Lancer OmniGet automatiquement au démarrage du système",
       "start_minimized": "Démarrer dans la zone de notification",
       "start_minimized_desc": "Ouvrir OmniGet dans la zone de notification sans afficher la fenêtre. Cliquez sur l'icône pour ouvrir.",
+      "exit_on_close": "Quit when the window is closed",
+      "exit_on_close_desc": "Closing the window with X quits OmniGet instead of keeping it in the system tray. Active downloads still ask before quitting.",
       "reset_hints": "Réinitialiser les conseils",
       "reset_hints_desc": "Afficher à nouveau tous les conseils masqués",
       "restore": "Restaurer",

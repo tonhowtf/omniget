@@ -722,6 +722,8 @@
       "start_with_system_desc": "Launch OmniGet automatically when your computer starts",
       "start_minimized": "Start in tray only",
       "start_minimized_desc": "Open OmniGet to the system tray without showing the window. Click the tray icon to open.",
+      "exit_on_close": "Quit when the window is closed",
+      "exit_on_close_desc": "Closing the window with X quits OmniGet instead of keeping it in the system tray. Active downloads still ask before quitting.",
       "reset_hints": "Reset hints",
       "reset_hints_desc": "Show all dismissed tips again",
       "restore": "Restore",

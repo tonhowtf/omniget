@@ -722,6 +722,8 @@
       "start_with_system_desc": "Abre OmniGet automáticamente al encender el ordenador",
       "start_minimized": "Iniciar solo en la bandeja",
       "start_minimized_desc": "Abre OmniGet en la bandeja del sistema sin mostrar la ventana. Haz clic en el icono para abrir.",
+      "exit_on_close": "Quit when the window is closed",
+      "exit_on_close_desc": "Closing the window with X quits OmniGet instead of keeping it in the system tray. Active downloads still ask before quitting.",
       "reset_hints": "Restablecer sugerencias",
       "reset_hints_desc": "Volver a mostrar todas las sugerencias descartadas",
       "restore": "Restablecer",

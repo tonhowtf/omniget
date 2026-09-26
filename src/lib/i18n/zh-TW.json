@@ -722,6 +722,8 @@
       "start_with_system_desc": "當系統啟動時自動啟動 OmniGet",
       "start_minimized": "僅工作列啟動",
       "start_minimized_desc": "在系統工作列中開啟 OmniGet 而不顯示視窗。點擊工作列圖示開啟。",
+      "exit_on_close": "Quit when the window is closed",
+      "exit_on_close_desc": "Closing the window with X quits OmniGet instead of keeping it in the system tray. Active downloads still ask before quitting.",
       "reset_hints": "重置提示",
       "reset_hints_desc": "重新显示所有已关闭的提示",
       "restore": "恢复",

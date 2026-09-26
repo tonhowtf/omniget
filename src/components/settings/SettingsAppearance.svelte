@@ -67,6 +67,23 @@
           <span class="toggle-knob"></span>
         </button>
       </div>
+      <div class="divider"></div>
+      <div class="setting-row">
+        <div class="setting-col">
+          <span class="setting-label">{$t('settings.general.exit_on_close')}</span>
+          <span class="setting-path">{$t('settings.general.exit_on_close_desc')}</span>
+        </div>
+        <button
+          class="toggle"
+          class:on={settings.exit_on_close}
+          onclick={() => updateSettings({ exit_on_close: !settings.exit_on_close })}
+          role="switch"
+          aria-checked={settings.exit_on_close}
+          aria-label={$t('settings.general.exit_on_close') as string}
+        >
+          <span class="toggle-knob"></span>
+        </button>
+      </div>
     </div>
   </section>
 

@@ -139,6 +139,7 @@ export type AppSettings = {
   onboarding_completed: boolean;
   start_with_system: boolean;
   start_minimized: boolean;
+  exit_on_close: boolean;
   legal_acknowledged?: boolean;
   last_download_options?: {
     mode?: "auto" | "audio" | "mute" | null;

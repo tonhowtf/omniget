@@ -722,6 +722,8 @@
       "start_with_system_desc": "Автоматически запускать OmniGet при старте компьютера",
       "start_minimized": "Запускать только в трей",
       "start_minimized_desc": "Открывать OmniGet в системном трее без показа окна. Нажмите на значок в трее, чтобы открыть.",
+      "exit_on_close": "Quit when the window is closed",
+      "exit_on_close_desc": "Closing the window with X quits OmniGet instead of keeping it in the system tray. Active downloads still ask before quitting.",
       "reset_hints": "Сбросить подсказки",
       "reset_hints_desc": "Показать все скрытые подсказки снова",
       "restore": "Восстановить",

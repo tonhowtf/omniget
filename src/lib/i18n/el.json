@@ -722,6 +722,8 @@
       "start_with_system_desc": "Αυτόματη εκκίνηση του OmniGet όταν ξεκινά το σύστημα",
       "start_minimized": "Εκκίνηση μόνο στην περιοχή ειδοποιήσεων",
       "start_minimized_desc": "Άνοιγμα του OmniGet στην περιοχή ειδοποιήσεων χωρίς εμφάνιση του παραθύρου. Κάντε κλικ στο εικονίδιο για να ανοίξει.",
+      "exit_on_close": "Quit when the window is closed",
+      "exit_on_close_desc": "Closing the window with X quits OmniGet instead of keeping it in the system tray. Active downloads still ask before quitting.",
       "reset_hints": "Επαναφορά υποδείξεων",
       "reset_hints_desc": "Εμφάνιση ξανά όλων των απορριφθέντων συμβουλών",
       "restore": "Επαναφορά",
