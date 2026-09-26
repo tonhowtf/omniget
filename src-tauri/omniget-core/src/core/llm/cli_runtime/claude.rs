@@ -45,6 +45,72 @@ pub struct ClaudeArgs {
     /// `acceptEdits` is the write one. `None` leaves the CLI's own default,
     /// which the runtime never selects: [`super::mod`]'s plan always sets one.
     pub permission_mode: Option<&'static str>,
+    /// `--mcp-config <file>`: OmniGet's scoped projection of the assistant
+    /// tools (a private temp file, deleted after the turn).
+    pub mcp_config: Option<String>,
+    /// `--allowedTools`: pre-approved tools (the projection's server; its
+    /// own grants are checked by OmniGet on every call).
+    pub allowed_tools: Vec<String>,
+    /// `--tools`: the built-in tools available at all. `Some` only for a
+    /// personal (projectless) conversation, which gets web tools and no
+    /// file/shell tools.
+    pub tools: Option<String>,
+    /// `--disallowedTools`, belt and braces with `tools`.
+    pub disallowed_tools: Vec<String>,
+    /// `--permission-prompt-tool`: routes permission prompts to OmniGet (via
+    /// the projection) instead of denying them. Switches
+    /// `--permission-prompts` to `host`.
+    pub permission_prompt_tool: Option<String>,
+    /// `--restricted`: drops code-running built-ins and ignores the user's
+    /// own settings/hooks (external missions).
+    pub restricted: bool,
+    /// `--strict-mcp-config`: only the MCP servers of `--mcp-config` (none
+    /// at all when there is no config).
+    pub strict_mcp: bool,
+    /// `--exclude-dynamic-system-prompt-sections`: cwd, env and git status go
+    /// to the first user message, so the system prefix is the same for every
+    /// job and is read from the prompt cache across jobs.
+    pub exclude_dynamic: bool,
+    /// `--effort` (`low`..`max`), already normalised by [`effort_level`].
+    pub effort: Option<String>,
+}
+
+/// Built-in tools an external (MCP-controlled) mission never gets: every
+/// file, shell, web and agent tool. It acts only through OmniGet's projection,
+/// where the external grant is checked on each call.
+pub const EXTERNAL_DENIED: &str = "Bash,Edit,Write,MultiEdit,NotebookEdit,Read,Glob,Grep,LS,KillShell,BashOutput,WebSearch,WebFetch,Task,Agent,TodoWrite,ExitPlanMode,SlashCommand,Skill";
+
+/// Built-in tools a personal conversation may use: web only.
+pub const PROJECTLESS_TOOLS: &str = "WebSearch,WebFetch";
+/// Built-in tools a personal conversation never gets (file and shell).
+pub const PROJECTLESS_DENIED: &str =
+    "Bash,Edit,Write,MultiEdit,NotebookEdit,Read,Glob,Grep,LS,KillShell,BashOutput";
+
+/// Built-in tools of a project job: the coding set plus web. `ToolSearch`
+/// stays, or Claude Code loads every MCP tool schema up front (82k tokens of
+/// context measured on 2.1.283 against ~13k with it).
+pub const PROJECT_TOOLS: &str = "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,ToolSearch";
+
+/// Appended to a project job's system prompt: fewer turns, fewer resends of
+/// the whole context.
+pub const PROJECT_BATCHING: &str = "Work in as few turns as possible: batch independent tool calls in one message (read every file you need at once), make all the edits, then run the tests once at the end. Do not re-read files you just wrote or re-run checks that already passed. Stop as soon as the result is verified.";
+
+/// `--effort` of a lean project job when the turn does not ask for one.
+/// Measured on 2.1.283 (missions, sonnet, 3 reps): median 152.8 s -> 125.6 s
+/// for the 11 missions, cost unchanged (US$ 0.33-0.41 per round), 33/33 ok.
+pub const PROJECT_EFFORT: &str = "low";
+
+/// Maps a `reasoning_effort` (OpenAI-style or Claude Code's own) to a level
+/// `claude --effort` accepts (2.1.283: low, medium, high, xhigh, max).
+pub fn effort_level(raw: &str) -> Option<&'static str> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "none" | "minimal" | "low" => Some("low"),
+        "medium" => Some("medium"),
+        "high" => Some("high"),
+        "xhigh" => Some("xhigh"),
+        "max" => Some("max"),
+        _ => None,
+    }
 }
 
 /// `--permission-mode` value for a [`super::accounts::SandboxMode`]. Verified
@@ -74,11 +140,22 @@ pub fn argv(args: &ClaudeArgs) -> Vec<String> {
         "--output-format".into(),
         "stream-json".into(),
         "--verbose".into(),
+    ];
+    match &args.permission_prompt_tool {
+        // Prompts go to OmniGet's user through the projection.
+        Some(tool) => {
+            out.push("--permission-prompts".into());
+            out.push("host".into());
+            out.push("--permission-prompt-tool".into());
+            out.push(tool.clone());
+        }
         // Nobody is at the keyboard: anything that would prompt is denied
         // instead of hanging the turn forever.
-        "--permission-prompts".into(),
-        "none".into(),
-    ];
+        None => {
+            out.push("--permission-prompts".into());
+            out.push("none".into());
+        }
+    }
     if let Some(mode) = args.permission_mode {
         out.push("--permission-mode".into());
         out.push(mode.into());
@@ -89,6 +166,10 @@ pub fn argv(args: &ClaudeArgs) -> Vec<String> {
     if let Some(model) = &args.model {
         out.push("--model".into());
         out.push(model.clone());
+    }
+    if let Some(effort) = &args.effort {
+        out.push("--effort".into());
+        out.push(effort.clone());
     }
     if let Some(system) = &args.system_prompt {
         if !system.trim().is_empty() {
@@ -108,7 +189,67 @@ pub fn argv(args: &ClaudeArgs) -> Vec<String> {
         out.push("--settings".into());
         out.push(settings.clone());
     }
+    if args.restricted {
+        out.push("--restricted".into());
+    }
+    if let Some(tools) = &args.tools {
+        out.push("--tools".into());
+        out.push(tools.clone());
+    }
+    if !args.disallowed_tools.is_empty() {
+        out.push("--disallowedTools".into());
+        out.push(args.disallowed_tools.join(","));
+    }
+    if let Some(config) = &args.mcp_config {
+        out.push("--mcp-config".into());
+        out.push(config.clone());
+    }
+    if args.strict_mcp {
+        out.push("--strict-mcp-config".into());
+    }
+    if args.exclude_dynamic {
+        out.push("--exclude-dynamic-system-prompt-sections".into());
+    }
+    if !args.allowed_tools.is_empty() {
+        out.push("--allowedTools".into());
+        out.push(args.allowed_tools.join(","));
+    }
     out
+}
+
+/// The text of every system message, for `--append-system-prompt` when the
+/// provider keeps the history (resume): instructions and this turn's context
+/// still reach the model, the transcript does not travel again.
+pub fn system_text(messages: &[Message]) -> String {
+    messages
+        .iter()
+        .filter(|m| m.role == Role::System)
+        .flat_map(|m| m.parts.iter())
+        .filter_map(|p| match p {
+            ContentPart::Text { text } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+/// Only the newest user message: what a resumed session needs.
+pub fn last_user_text(messages: &[Message]) -> String {
+    messages
+        .iter()
+        .rev()
+        .find(|m| m.role == Role::User)
+        .map(|m| {
+            m.parts
+                .iter()
+                .filter_map(|p| match p {
+                    ContentPart::Text { text } => Some(text.as_str()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default()
 }
 
 /// Flattens a conversation into the single prompt the CLI takes. The CLI owns
@@ -492,8 +633,12 @@ fn tool_uses(message: &Value) -> Vec<(String, String)> {
 fn result_usage(value: &Value) -> Option<Usage> {
     let usage = value.get("usage")?;
     let n = |key: &str| usage.get(key).and_then(Value::as_u64).unwrap_or(0) as u32;
+    // The CLI reports Anthropic's raw shape (input = fresh only); the Usage
+    // contract wants the whole input, cache included, like every runtime.
     Some(Usage {
-        input_tokens: n("input_tokens"),
+        input_tokens: n("input_tokens")
+            .saturating_add(n("cache_read_input_tokens"))
+            .saturating_add(n("cache_creation_input_tokens")),
         output_tokens: n("output_tokens"),
         cache_read_tokens: n("cache_read_input_tokens"),
         cache_write_tokens: n("cache_creation_input_tokens"),
@@ -681,6 +826,85 @@ mod tests {
     }
 
     #[test]
+    fn external_missions_run_claude_with_no_builtin_tools_and_only_the_projection() {
+        let joined = argv(&ClaudeArgs {
+            mcp_config: Some("/tmp/mcp.json".into()),
+            allowed_tools: vec!["mcp__omniget".into()],
+            tools: Some(String::new()),
+            disallowed_tools: vec![EXTERNAL_DENIED.into()],
+            permission_prompt_tool: Some("mcp__omniget__omniget_permission".into()),
+            restricted: true,
+            strict_mcp: true,
+            ..ClaudeArgs::default()
+        });
+        let pos = |f: &str| {
+            joined
+                .iter()
+                .position(|a| a == f)
+                .unwrap_or_else(|| panic!("{f} missing: {joined:?}"))
+        };
+        assert_eq!(joined[pos("--tools") + 1], "", "no built-in tools at all");
+        assert!(
+            joined[pos("--disallowedTools") + 1].contains("Bash")
+                && joined[pos("--disallowedTools") + 1].contains("WebFetch")
+        );
+        pos("--restricted");
+        assert_eq!(joined[pos("--mcp-config") + 2], "--strict-mcp-config");
+        assert_eq!(joined[pos("--allowedTools") + 1], "mcp__omniget");
+    }
+
+    /// A project job drops the user's MCP servers even with no projection,
+    /// keeps `ToolSearch` (without it the CLI loads every MCP schema eagerly:
+    /// 82k tokens measured on 2.1.283) and moves per-machine sections out of
+    /// the system prompt so the prefix is cached across jobs.
+    #[test]
+    fn effort_goes_on_the_argv_only_when_set_and_valid() {
+        let with = |e: Option<&str>| {
+            argv(&ClaudeArgs {
+                model: Some("sonnet".into()),
+                effort: e.map(String::from),
+                ..ClaudeArgs::default()
+            })
+        };
+        let a = with(Some("low"));
+        let i = a.iter().position(|x| x == "--effort").expect("--effort");
+        assert_eq!(a[i + 1], "low");
+        assert!(!with(None).iter().any(|x| x == "--effort"));
+        assert_eq!(effort_level("XHigh"), Some("xhigh"));
+        assert_eq!(effort_level("minimal"), Some("low"));
+        assert_eq!(effort_level("none"), Some("low"));
+        assert_eq!(effort_level("turbo"), None);
+    }
+
+    #[test]
+    fn a_lean_project_job_is_strict_without_a_projection_and_cache_friendly() {
+        let joined = argv(&ClaudeArgs {
+            tools: Some(PROJECT_TOOLS.into()),
+            strict_mcp: true,
+            exclude_dynamic: true,
+            ..ClaudeArgs::default()
+        });
+        assert!(
+            joined.iter().any(|a| a == "--strict-mcp-config"),
+            "{joined:?}"
+        );
+        assert!(joined
+            .iter()
+            .any(|a| a == "--exclude-dynamic-system-prompt-sections"));
+        let pos = joined.iter().position(|a| a == "--tools").unwrap();
+        assert!(joined[pos + 1].split(',').any(|t| t == "ToolSearch"));
+        assert!(!joined[pos + 1].contains("Task"));
+        // Off by default: nothing changes for other launches.
+        let plain = argv(&ClaudeArgs::default());
+        assert!(
+            !plain
+                .iter()
+                .any(|a| a == "--strict-mcp-config"
+                    || a == "--exclude-dynamic-system-prompt-sections")
+        );
+    }
+
+    #[test]
     fn argv_matches_the_installed_2_1_276_flags() {
         let args = ClaudeArgs {
             model: Some("sonnet".into()),
@@ -692,6 +916,7 @@ mod tests {
             permission_mode: Some(permission_mode(
                 crate::core::llm::cli_runtime::accounts::SandboxMode::ReadOnly,
             )),
+            ..ClaudeArgs::default()
         };
         let argv = argv(&args);
         let joined = argv.join(" ");
@@ -734,6 +959,34 @@ mod tests {
             // Nobody is at the keyboard either way.
             assert!(joined.contains("--permission-prompts none"));
         }
+    }
+
+    /// Flags checked against `claude --help` of 2.1.282 (24/09/2026):
+    /// `--resume`, `--mcp-config`, `--allowedTools`, `--tools`,
+    /// `--disallowedTools`, `--permission-prompts host`.
+    #[test]
+    fn argv_for_a_resumed_personal_turn_with_the_projection() {
+        let argv = argv(&ClaudeArgs {
+            resume: Some("sess-1".into()),
+            mcp_config: Some("/tmp/mcp.json".into()),
+            allowed_tools: vec!["mcp__omniget".into()],
+            tools: Some(PROJECTLESS_TOOLS.into()),
+            disallowed_tools: vec![PROJECTLESS_DENIED.into()],
+            permission_prompt_tool: Some("mcp__omniget__omniget_permission".into()),
+            ..ClaudeArgs::default()
+        });
+        let joined = argv.join(" ");
+        assert!(joined.contains("--resume sess-1"));
+        assert!(joined.contains("--mcp-config /tmp/mcp.json"));
+        assert!(joined.contains("--allowedTools mcp__omniget"));
+        assert!(joined.contains("--tools WebSearch,WebFetch"));
+        assert!(joined.contains("--disallowedTools Bash,Edit"));
+        assert!(joined.contains(
+            "--permission-prompts host --permission-prompt-tool mcp__omniget__omniget_permission"
+        ));
+        assert!(!joined.contains("--permission-prompts none"));
+        // Every variadic flag is followed by a flag or nothing: no prompt in argv.
+        assert_eq!(argv.last().map(String::as_str), Some("mcp__omniget"));
     }
 
     #[test]
@@ -796,9 +1049,11 @@ mod tests {
                 _ => None,
             })
             .expect("the result line carries usage");
-        assert_eq!(usage.input_tokens, 4);
+        // One Usage convention: input is the whole input, cache included.
+        assert_eq!(usage.input_tokens, 4 + 12_040);
         assert_eq!(usage.output_tokens, 2);
         assert_eq!(usage.cache_read_tokens, 12_040);
+        assert_eq!(usage.billable_tokens(), 4 + 1_204 + 2);
         assert!(usage.cost_usd.unwrap() > 0.0);
         assert!(matches!(
             events.last(),

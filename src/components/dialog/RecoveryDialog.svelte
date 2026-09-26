@@ -18,6 +18,8 @@
     referer: string | null;
   };
 
+  type RecoveryOutcome = { restored: number; reconciled: number; attention: number };
+
   let isOpen = $state(false);
   let items = $state<RecoveryItem[]>([]);
   let busy = $state(false);
@@ -57,12 +59,22 @@
     }
   }
 
+  function recoverySummary(o: RecoveryOutcome): string {
+    const parts: string[] = [];
+    if (o.restored > 0) parts.push($t("recovery.restored", { count: o.restored }));
+    if (o.reconciled > 0) parts.push($t("recovery.reconciled", { count: o.reconciled }));
+    if (o.attention > 0) parts.push($t("recovery.attention", { count: o.attention }));
+    return parts.length ? parts.join(" · ") : $t("recovery.nothing");
+  }
+
   async function restore() {
     if (busy) return;
     busy = true;
     try {
-      const restored = await invoke<number>("restore_recovery");
-      showToast("info", $t("recovery.restored", { values: { count: restored } }));
+      const outcome = await invoke<RecoveryOutcome>("restore_recovery");
+      // Say what happened: interrupted jobs are settled from their folder,
+      // not downloaded again, and some need the person (N-2).
+      showToast(outcome.attention > 0 ? "error" : "info", recoverySummary(outcome));
       items = [];
       isOpen = false;
     } catch (e: any) {
@@ -79,7 +91,7 @@
     {$t("recovery.title")}
   </h3>
   <p class="dialog-body">
-    {$t("recovery.message", { values: { count: items.length } })}
+    {$t("recovery.message", { count: items.length })}
   </p>
   {#if items.length > 0}
     <ul class="dialog-items">
@@ -91,7 +103,7 @@
       {/each}
       {#if items.length > 5}
         <li class="dialog-item dialog-item-more">
-          {$t("recovery.more", { values: { count: items.length - 5 } })}
+          {$t("recovery.more", { count: items.length - 5 })}
         </li>
       {/if}
     </ul>

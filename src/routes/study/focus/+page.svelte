@@ -1133,7 +1133,7 @@
                   <label class="switch-setting">
                     <span class="setting-copy">
                       <strong>{$t("study.focus.acc_sounds_check_sound")}</strong>
-                      <small>{settings.notify_sound ? $t("study.focus.acc_sounds_sound_on", { n: settings.sound_volume }) : $t("study.focus.acc_sounds_sound_off")}</small>
+                      <small>{settings.notify_sound ? $t("study.focus.acc_sounds_sound_on", { count: settings.sound_volume }) : $t("study.focus.acc_sounds_sound_off")}</small>
                     </span>
                     <input type="checkbox" bind:checked={settings.notify_sound} onchange={saveSettings} />
                     <span class="switch-visual" aria-hidden="true"></span>
@@ -1141,7 +1141,7 @@
 
                   <label class="range-setting">
                     <span class="setting-copy">
-                      <strong>{$t("study.focus.acc_sounds_volume", { n: settings.sound_volume })}</strong>
+                      <strong>{$t("study.focus.acc_sounds_volume", { count: settings.sound_volume })}</strong>
                       <small>{$t("study.focus.notifications.sound_volume")}</small>
                     </span>
                     <div class="range-control">
@@ -1216,7 +1216,7 @@
     {:else if panel === "history"}
       <div class="panel-section">
         <p class="panel-kicker">{$t("study.focus.history")}</p>
-        <h2>{$t("study.focus.today_session", { n: cyclesToday, min: history.today_minutes })}</h2>
+        <h2>{$t("study.focus.today_session", { count: cyclesToday, min: history.today_minutes })}</h2>
         <div class="stat-row">
           <span>{$t("study.focus.this_week")}</span>
           <strong>{history.week_minutes}{$t("study.focus.min")}</strong>

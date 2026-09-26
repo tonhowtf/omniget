@@ -5,6 +5,7 @@ export type AppSettings = {
   appearance: {
     theme: string;
     language: string;
+    sidebar_collapsed?: boolean;
   };
   download: {
     default_output_dir: string;

@@ -73,7 +73,7 @@ pub async fn enqueue_external_inner(
         extra_headers: None,
         page_url: None,
         user_agent: None,
-        percent: 0.0,
+        percent: Some(0.0),
         speed_bytes_per_sec: 0.0,
         downloaded_bytes: 0,
         total_bytes: args.total_bytes,
@@ -161,7 +161,7 @@ pub async fn report_progress_inner(
                 if !it.external {
                     return Err(format!("queue_id {} is not external", args.queue_id));
                 }
-                it.percent = args.percent.clamp(0.0, 100.0);
+                it.percent = Some(args.percent.clamp(0.0, 100.0));
                 it.downloaded_bytes = args.downloaded_bytes;
                 it.speed_bytes_per_sec = args.speed_bytes_per_sec;
                 if !matches!(it.status, QueueStatus::Active) {
@@ -214,7 +214,7 @@ pub async fn report_complete_inner(
                     return Err(format!("queue_id {} is not external", args.queue_id));
                 }
                 if args.success {
-                    it.percent = 100.0;
+                    it.percent = Some(100.0);
                     if let Some(ref p) = args.file_path {
                         it.file_path = Some(p.to_string_lossy().to_string());
                     }

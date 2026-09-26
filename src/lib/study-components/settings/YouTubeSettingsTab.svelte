@@ -175,7 +175,7 @@
     const s = v.expires_in_seconds ?? 0;
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
-    return $t("study.settings.youtube.valid_for", { h, m });
+    return $t("study.settings.youtube.valid_for", { hours: h, minutes: m });
   }
 
   $effect(() => {
@@ -198,7 +198,7 @@
           {#if clientStatus.player_cache_id}
             <code>{clientStatus.player_cache_id}</code>
             {#if clientStatus.player_cache_age_seconds !== null}
-              <span class="muted"> · {$t("study.settings.youtube.cache_age", { n: Math.floor(clientStatus.player_cache_age_seconds / 60) })}</span>
+              <span class="muted"> · {$t("study.settings.youtube.cache_age", { count: Math.floor(clientStatus.player_cache_age_seconds / 60) })}</span>
             {/if}
           {:else}
             <span class="muted">vazio</span>

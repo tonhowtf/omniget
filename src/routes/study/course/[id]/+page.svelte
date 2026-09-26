@@ -223,8 +223,8 @@
         showToast(
           "ok",
           r.probed === 1
-            ? $t("study.course.dur_one", { n: 1 })
-            : $t("study.course.durations_probed", { n: r.probed }),
+            ? $t("study.course.dur_one", { count: 1 })
+            : $t("study.course.durations_probed", { count: r.probed }),
         );
         await load();
       } else if (r.failed > 0 && r.probed === 0) {
@@ -514,10 +514,10 @@
         </div>
         {#if probeReport}
           <p class="report">
-            ✓ {$t("study.course.probe_ok", { n: probeReport.probed })}
-            · {$t("study.course.probe_skipped", { n: probeReport.skipped })}
-            · {$t("study.course.probe_failed", { n: probeReport.failed })}
-            ({$t("study.course.probe_of", { n: probeReport.total_lessons })})
+            ✓ {$t("study.course.probe_ok", { count: probeReport.probed })}
+            · {$t("study.course.probe_skipped", { count: probeReport.skipped })}
+            · {$t("study.course.probe_failed", { count: probeReport.failed })}
+            ({$t("study.course.probe_of", { count: probeReport.total_lessons })})
           </p>
         {/if}
       </section>

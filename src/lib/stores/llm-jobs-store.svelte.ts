@@ -6,7 +6,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { showToast } from "$lib/stores/toast-store.svelte";
 
-export type JobState = "queued" | "running" | "waiting_approval" | "done" | "failed" | "cancelled";
+export type JobState =
+  | "queued"
+  | "running"
+  | "waiting_approval"
+  | "done"
+  | "failed"
+  | "cancelled"
+  /** The app closed while it ran: its result is unknown, a person decides. */
+  | "interrupted";
 
 export type Job = {
   id: string;
@@ -70,7 +78,7 @@ export type LoopDef = {
   max_rounds: number | null;
   max_minutes: number | null;
   check_command: string | null;
-  state: "running" | "done" | "failed" | "cancelled";
+  state: "running" | "done" | "failed" | "cancelled" | "interrupted";
   rounds_done: number;
   conversation_id: string;
   created_ms: number;
@@ -91,6 +99,14 @@ export type Trigger = {
   last_fired_ms: number | null;
   fire_count: number;
   created_ms: number;
+  /** Silenced: runs, never notifies. */
+  muted?: boolean;
+  /** Next run in the user's time zone (computed by the backend). */
+  next_run_ms?: number | null;
+  next_run_local?: string | null;
+  utc_offset?: string;
+  /** Routines only run while OmniGet is open. Always true today. */
+  requires_app_open?: boolean;
 };
 
 export type BridgeInfo = { base_url: string; token: string };
@@ -123,6 +139,261 @@ export type TriggerInput = {
   workspace?: string | null;
   enabled: boolean;
 };
+
+// ── Runs (durable record of every agent turn: `assist::runs`) ──────────
+
+export type RunState =
+  | "queued"
+  | "preparing"
+  | "running"
+  | "waiting_user"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "interrupted"
+  | "unknown";
+
+export type ResumeKind = "native" | "replay" | "new";
+
+export type RunView = {
+  id: string;
+  session_id: string | null;
+  conversation_id: string;
+  bot_id: string;
+  parent_run_id: string | null;
+  state: RunState;
+  resume_kind: ResumeKind | null;
+  runtime: string | null;
+  cwd: string | null;
+  instance_id: string;
+  launch_id: string | null;
+  pid: number | null;
+  input_preview: string;
+  summary: string | null;
+  error: string | null;
+  resolution: string | null;
+  tokens_in: number;
+  tokens_out: number;
+  /** `null` = unknown cost, never shown as free. */
+  cost_usd: number | null;
+  events_dropped: number;
+  created_ms: number;
+  started_ms: number | null;
+  ended_ms: number | null;
+  updated_ms: number;
+  pending_permissions: number;
+  live: boolean;
+  actions: ("cancel" | "continue" | "mark_done" | "discard")[];
+  tool_calls: number;
+};
+
+export type PermissionRequest = {
+  id: string;
+  run_id: string;
+  tool_call_id: string;
+  action: string;
+  scope: string;
+  preview: string;
+  options: string[];
+  deadline_ms: number;
+  state: "pending" | "approved" | "denied" | "expired" | "cancelled";
+  answer: string | null;
+  version: number;
+  created_ms: number;
+  resolved_ms: number | null;
+};
+
+export type RunEvent = {
+  id: string;
+  run_id: string;
+  seq: number;
+  kind: string;
+  provider_id: string | null;
+  payload: Record<string, unknown>;
+  ts_ms: number;
+};
+
+export type CommandRun = { command: string; ok: boolean | null; output: string; is_test: boolean };
+
+export type RuntimeSession = {
+  id: string;
+  runtime: string;
+  account: string | null;
+  exe_version: string | null;
+  cwd: string | null;
+  context_kind: string;
+  provider_handle: string | null;
+  generation: number;
+  native_resume: boolean;
+};
+
+export type RunDetail = RunView & {
+  events: RunEvent[];
+  permissions: PermissionRequest[];
+  commands: CommandRun[];
+  files_touched: string[];
+  session: RuntimeSession | null;
+};
+
+export type FileChange = { path: string; status: string; additions: number | null; deletions: number | null };
+
+export type RunDiff =
+  | { available: true; workspace: string; diff: { files: FileChange[]; patch: string; clipped: boolean; complete: boolean } }
+  | { available: false; reason: "no_workspace" | "no_changes" | "error"; workspace?: string; error?: string };
+
+/** `assist://run` payload. */
+export type RunUpdate = {
+  run_id: string;
+  conversation_id: string;
+  bot_id: string;
+  state: RunState;
+  error?: string;
+  resume_kind?: ResumeKind;
+};
+
+let runs = $state<RunView[]>([]);
+let permissions = $state<PermissionRequest[]>([]);
+/** Bumped on every `assist://run`, so an open detail can refresh. */
+let runTick = $state(0);
+let lastRunUpdate = $state<RunUpdate | null>(null);
+let runsReload: ReturnType<typeof setTimeout> | null = null;
+
+export function getRuns(): RunView[] {
+  return runs;
+}
+export function getPermissions(): PermissionRequest[] {
+  return permissions;
+}
+export function getRunTick(): number {
+  return runTick;
+}
+export function getLastRunUpdate(): RunUpdate | null {
+  return lastRunUpdate;
+}
+
+export async function reloadRuns(): Promise<void> {
+  try {
+    const [list, pending] = await Promise.all([
+      invoke<RunView[]>("assist_runs_list", { limit: 150 }),
+      invoke<PermissionRequest[]>("assist_permissions_pending"),
+    ]);
+    runs = list;
+    permissions = pending;
+  } catch {
+    // The run record may be unavailable (no assistant database): the rest
+    // of the page still works.
+  }
+}
+
+function scheduleRunsReload() {
+  if (runsReload) return;
+  runsReload = setTimeout(() => {
+    runsReload = null;
+    void reloadRuns();
+  }, 250);
+}
+
+export async function fetchRun(id: string): Promise<RunDetail | null> {
+  try {
+    return await invoke<RunDetail>("assist_run_get", { runId: id });
+  } catch (e) {
+    fail(e);
+    return null;
+  }
+}
+
+export async function fetchRunDiff(id: string): Promise<RunDiff | null> {
+  try {
+    return await invoke<RunDiff>("assist_run_diff", { runId: id });
+  } catch (e) {
+    fail(e);
+    return null;
+  }
+}
+
+/** `answer`: once | always | deny. A late answer is refused (expired). */
+export async function answerPermission(id: string, answer: "once" | "always" | "deny"): Promise<boolean> {
+  try {
+    await invoke("assist_permission_answer", { permissionId: id, answer });
+    permissions = permissions.filter((p) => p.id !== id);
+    scheduleRunsReload();
+    return true;
+  } catch (e) {
+    fail(e);
+    scheduleRunsReload();
+    return false;
+  }
+}
+
+export async function cancelRun(id: string): Promise<void> {
+  try {
+    await invoke("assist_run_cancel", { runId: id });
+  } catch (e) {
+    fail(e);
+  }
+  scheduleRunsReload();
+}
+
+export async function resolveRun(id: string, action: "continue" | "mark_done" | "discard"): Promise<boolean> {
+  try {
+    await invoke("assist_run_resolve", { runId: id, action });
+    scheduleRunsReload();
+    return true;
+  } catch (e) {
+    fail(e);
+    return false;
+  }
+}
+
+// ── Recovery of interrupted jobs and Loops (explicit, never automatic) ──
+
+export async function resumeJob(id: string): Promise<void> {
+  try {
+    jobs = upsert(jobs, await invoke<Job>("llm_job_resume", { id }));
+  } catch (e) {
+    fail(e);
+  }
+}
+
+export async function markJobDone(id: string): Promise<void> {
+  try {
+    jobs = upsert(jobs, await invoke<Job>("llm_job_mark_done", { id }));
+  } catch (e) {
+    fail(e);
+  }
+}
+
+export async function discardJob(id: string): Promise<void> {
+  try {
+    jobs = upsert(jobs, await invoke<Job>("llm_job_discard", { id }));
+  } catch (e) {
+    fail(e);
+  }
+}
+
+export async function resumeLoop(id: string): Promise<void> {
+  try {
+    loops = upsert(loops, await invoke<LoopDef>("llm_loop_resume", { id }));
+  } catch (e) {
+    fail(e);
+  }
+}
+
+export async function settleLoop(id: string, done: boolean): Promise<void> {
+  try {
+    loops = upsert(loops, await invoke<LoopDef>("llm_loop_settle", { id, done }));
+  } catch (e) {
+    fail(e);
+  }
+}
+
+export async function muteTrigger(id: string, muted: boolean): Promise<void> {
+  try {
+    triggers = upsert(triggers, await invoke<Trigger>("llm_trigger_mute", { id, muted }));
+  } catch (e) {
+    fail(e);
+  }
+}
 
 let jobs = $state<Job[]>([]);
 let loops = $state<LoopDef[]>([]);
@@ -202,6 +473,23 @@ export function initJobsStore(): void {
   }).catch(() => {});
   void listen<LoopDef>("llm://loop", (ev) => {
     loops = upsert(loops, ev.payload);
+  }).catch(() => {});
+  void reloadRuns();
+  void listen<RunUpdate>("assist://run", (ev) => {
+    lastRunUpdate = ev.payload;
+    runTick += 1;
+    const i = runs.findIndex((r) => r.id === ev.payload.run_id);
+    if (i >= 0) {
+      const next = runs.slice();
+      next[i] = {
+        ...next[i],
+        state: ev.payload.state,
+        error: ev.payload.error ?? next[i].error,
+        resume_kind: ev.payload.resume_kind ?? next[i].resume_kind,
+      };
+      runs = next;
+    }
+    scheduleRunsReload();
   }).catch(() => {});
 }
 
@@ -327,10 +615,15 @@ export async function answerAsk(ask: PendingAsk, allow: boolean, always: boolean
 export function pickState(state: string): string {
   switch (state) {
     case "running":
+    case "preparing":
       return "blue";
     case "waiting_approval":
+    case "waiting_user":
+    case "interrupted":
+    case "unknown":
       return "orange";
     case "done":
+    case "completed":
       return "green";
     case "failed":
       return "red";

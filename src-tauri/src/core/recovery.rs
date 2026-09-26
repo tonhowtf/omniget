@@ -79,6 +79,52 @@ fn append(record: &crate::core::queue_wal::WalRecord) {
     }
 }
 
+/// The recovery log is on disk and listed in the UI: only redacted URLs.
+///
+/// A public link survives unchanged (redaction removes nothing) and is
+/// restored as before. A link that carried a secret (signed query, token) is
+/// kept in its display form; restoring it fails honestly with "link expired,
+/// paste again" instead of sending `[REDACTED]` to the server. The executable
+/// URL is not kept anywhere: by the time the app is back after a crash a
+/// signed link has usually expired anyway.
+fn scrub(mut item: RecoveryItem) -> RecoveryItem {
+    use crate::core::flight_recorder::{redact_url, redact_urls};
+    item.url = redact_url(&item.url);
+    // The placeholder title is the URL (N-3): same redaction, same log.
+    item.title = redact_urls(&item.title);
+    item.referer = item.referer.as_deref().map(redact_url);
+    item
+}
+
+/// True when the item can no longer be restored: its URL lost its secret.
+pub fn is_expired(item: &RecoveryItem) -> bool {
+    crate::core::flight_recorder::is_redacted_url(&item.url)
+}
+
+/// Rewrites the log with the given items (atomic rename). Used once at boot
+/// when older records still held a raw URL.
+fn rewrite(items: &[RecoveryItem]) {
+    let Some(path) = wal_path() else { return };
+    let tmp = path.with_extension("wal.tmp");
+    let mut body = String::new();
+    for (pos, item) in items.iter().enumerate() {
+        if let Some(line) = crate::core::queue_wal::encode(&enqueued_record(item, pos as u32)) {
+            body.push_str(&line);
+            body.push('\n');
+        }
+    }
+    let result = (|| -> std::io::Result<()> {
+        let mut f = std::fs::File::create(&tmp)?;
+        f.write_all(body.as_bytes())?;
+        f.sync_all()?;
+        std::fs::rename(&tmp, &path)
+    })();
+    if let Err(e) = result {
+        let _ = std::fs::remove_file(&tmp);
+        tracing::warn!("[recovery] rewrite failed: {}", e);
+    }
+}
+
 fn enqueued_record(item: &RecoveryItem, position: u32) -> crate::core::queue_wal::WalRecord {
     crate::core::queue_wal::WalRecord::Enqueued {
         id: item.id,
@@ -95,7 +141,7 @@ fn enqueued_record(item: &RecoveryItem, position: u32) -> crate::core::queue_wal
 }
 
 fn recovered_to_item(r: &crate::core::queue_wal::RecoveredItem) -> RecoveryItem {
-    RecoveryItem {
+    scrub(RecoveryItem {
         id: r.id,
         url: r.url.clone(),
         title: r.title.clone(),
@@ -105,7 +151,7 @@ fn recovered_to_item(r: &crate::core::queue_wal::RecoveredItem) -> RecoveryItem 
         quality: r.quality.clone(),
         format_id: r.format_id.clone(),
         referer: r.referer.clone(),
-    }
+    })
 }
 
 /// Converte um `recovery.json` da 0.7.x para o WAL, uma vez so.
@@ -131,7 +177,7 @@ fn json_para_registros(content: &str) -> Vec<crate::core::queue_wal::WalRecord> 
         Ok(v) => v,
         Err(_) => return Vec::new(),
     };
-    ordenar_para_migracao(parsed.items)
+    ordenar_para_migracao(parsed.items.into_iter().map(scrub).collect())
         .iter()
         .enumerate()
         .map(|(pos, item)| enqueued_record(item, pos as u32))
@@ -183,8 +229,19 @@ pub fn init_from_disk() {
                     descartados
                 );
             }
-            for r in crate::core::queue_wal::replay(&records) {
-                guard.insert(r.id, recovered_to_item(&r));
+            let replayed = crate::core::queue_wal::replay(&records);
+            // Records written before redaction held the raw URL: rewrite the
+            // log so the secret leaves the disk, not only the UI.
+            let stale = replayed.iter().any(|r| {
+                let scrubbed = recovered_to_item(r);
+                scrubbed.url != r.url || scrubbed.referer != r.referer || scrubbed.title != r.title
+            });
+            let items: Vec<RecoveryItem> = replayed.iter().map(recovered_to_item).collect();
+            if stale {
+                rewrite(&items);
+            }
+            for item in items {
+                guard.insert(item.id, item);
             }
         }
         None => {
@@ -199,6 +256,7 @@ pub fn init_from_disk() {
 }
 
 pub fn persist(item: RecoveryItem) {
+    let item = scrub(item);
     let mut guard = store().lock().unwrap();
     let position = guard.len() as u32;
     append(&enqueued_record(&item, position));
@@ -310,6 +368,45 @@ mod migracao_tests {
         // ruim, o app que nao abre e pior.
         assert!(json_para_registros("{ isto nao e json").is_empty());
         assert!(json_para_registros("").is_empty());
+    }
+
+    #[test]
+    fn url_assinada_nunca_vai_para_o_log() {
+        // G06/D-11: recovery.json/queue.wal held signed queries in clear.
+        let item = RecoveryItem {
+            id: 9,
+            url: "https://cdn.example.com/v.mp4?X-Amz-Signature=SYNTHETIC_SECRET&token=SYNTHETIC_SECRET".into(),
+            // N-3: before metadata arrives the title is the URL itself.
+            title: "https://cdn.example.com/v.mp4?X-Amz-Signature=SYNTHETIC_SECRET&token=SYNTHETIC_SECRET".into(),
+            platform: "generic".into(),
+            output_dir: "/d".into(),
+            download_mode: None,
+            quality: None,
+            format_id: None,
+            referer: Some("https://example.com/p?access_token=SYNTHETIC_SECRET".into()),
+        };
+        let line = crate::core::queue_wal::encode(&enqueued_record(&scrub(item), 0)).unwrap();
+        assert!(!line.contains("SYNTHETIC_SECRET"), "{line}");
+        let back = replay(&crate::core::queue_wal::decode_log(&line).0);
+        let restored = recovered_to_item(&back[0]);
+        assert!(is_expired(&restored), "a redacted link cannot be restored");
+    }
+
+    #[test]
+    fn link_publico_continua_restauravel() {
+        let itens = replay(&json_para_registros(JSON_0_7_X));
+        let i = recovered_to_item(itens.iter().find(|i| i.id == 7).unwrap());
+        assert_eq!(i.url, "https://exemplo.com/b");
+        assert!(!is_expired(&i));
+    }
+
+    #[test]
+    fn registro_antigo_com_segredo_sai_redigido_no_replay() {
+        let json = r#"{"items":[{"id":1,"url":"https://x.example/v?sig=SYNTHETIC_SECRET","title":"https://x.example/v?sig=SYNTHETIC_SECRET","platform":"generic","output_dir":"/d"}]}"#;
+        let i = recovered_to_item(&replay(&json_para_registros(json))[0]);
+        assert!(!i.url.contains("SYNTHETIC_SECRET"));
+        assert!(!i.title.contains("SYNTHETIC_SECRET"), "N-3: {}", i.title);
+        assert!(is_expired(&i));
     }
 
     #[test]

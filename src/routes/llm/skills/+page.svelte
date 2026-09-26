@@ -39,6 +39,7 @@
   import SkillCatalog from "$components/llm/skills/SkillCatalog.svelte";
   import SkillInstallDialog from "$components/llm/skills/SkillInstallDialog.svelte";
   import SkillScanDialog from "$components/llm/skills/SkillScanDialog.svelte";
+  import PackImport from "$components/llm/skills/PackImport.svelte";
 
   let skills = $derived(getSkills());
   let catalog = $derived(getCatalog());
@@ -187,6 +188,8 @@
     <SkillCatalog entries={catalog} installed={skills} {busy} oninstall={fromCatalog} />
   </section>
   {/if}
+
+  <section class="block"><PackImport /></section>
 </div>
 
 {#if pending}

@@ -107,11 +107,35 @@ struct Source {
     specs: Vec<ToolSpec>,
 }
 
+/// One question waiting for the user. `permission` is the durable
+/// `PermissionRequest` of the run (when a run registry is active): the answer
+/// must resolve that exact request, once and in time, before it releases the
+/// waiting call.
+struct PendingAsk {
+    tx: oneshot::Sender<Answer>,
+    request_id: String,
+    permission: Option<(crate::core::assist::runs::Registry, String)>,
+}
+
+/// Why an answer did not apply.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AnswerRefused {
+    /// No such question is waiting (already answered, never asked).
+    Unknown,
+    /// The question ran out of time; the late answer applies to nothing.
+    Expired,
+    /// The question already had its answer, or its run was cancelled.
+    Resolved,
+}
+
 pub struct ToolBroker {
     sources: RwLock<Vec<Source>>,
     bus: Arc<Bus>,
-    pending: Mutex<HashMap<String, oneshot::Sender<Answer>>>,
+    pending: Mutex<HashMap<String, PendingAsk>>,
     ask_timeout: Duration,
+    /// The run registry of the last durable question, so a late answer can
+    /// still be told apart (expired vs resolved) after its waiter left.
+    last_registry: Mutex<Option<crate::core::assist::runs::Registry>>,
 }
 
 impl std::fmt::Debug for ToolBroker {
@@ -137,6 +161,7 @@ impl ToolBroker {
             bus,
             pending: Mutex::new(HashMap::new()),
             ask_timeout: DEFAULT_ASK_TIMEOUT,
+            last_registry: Mutex::new(None),
         };
         broker.register_internal(specs, executor);
         broker
@@ -178,6 +203,22 @@ impl ToolBroker {
     pub fn register_skills(&self, specs: Vec<ToolSpec>, executor: Arc<dyn ToolExecutor>) -> usize {
         let specs = namespaced(SKILL_PREFIX, specs);
         self.register(SKILL_PREFIX.to_string(), specs, executor)
+    }
+
+    /// Replace the tools of a named source whose names are already final
+    /// (no namespacing): the assistant tools (`assist`), for one.
+    pub fn register_source(
+        &self,
+        prefix: &str,
+        specs: Vec<ToolSpec>,
+        executor: Arc<dyn ToolExecutor>,
+    ) -> usize {
+        self.register(prefix.to_string(), specs, executor)
+    }
+
+    /// Drop a source registered with [`Self::register_source`].
+    pub fn unregister_source(&self, prefix: &str) -> usize {
+        self.unregister(prefix)
     }
 
     /// Drop one MCP server (disabled, removed, or failed to connect). Returns
@@ -299,15 +340,101 @@ impl ToolBroker {
     }
 
     pub fn answer_with(&self, tool_call_id: &str, answer: Answer) -> bool {
-        let allow = answer;
-        let tx = {
+        self.deliver(tool_call_id, answer).is_ok()
+    }
+
+    /// Answers by the durable permission id (the Activity list, the
+    /// projection). A late answer is refused as expired and releases nothing.
+    pub fn answer_permission(
+        &self,
+        permission_id: &str,
+        answer: Answer,
+    ) -> Result<(), AnswerRefused> {
+        let key = {
+            let pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
+            pending
+                .iter()
+                .find(|(_, p)| {
+                    p.permission.as_ref().map(|(_, id)| id.as_str()) == Some(permission_id)
+                })
+                .map(|(k, _)| k.clone())
+        };
+        match key {
+            Some(k) => self.deliver(&k, answer),
+            None => {
+                // Nobody waits: tell expired from resolved if the record knows.
+                let reg = crate::core::assist::runs::active().or_else(|| {
+                    self.last_registry
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .clone()
+                });
+                let state = reg
+                    .and_then(|r| r.permission(permission_id))
+                    .map(|p| p.state);
+                use crate::core::assist::runs::PermissionState as S;
+                Err(match state {
+                    Some(S::Expired) => AnswerRefused::Expired,
+                    Some(S::Pending) | None => AnswerRefused::Unknown,
+                    Some(_) => AnswerRefused::Resolved,
+                })
+            }
+        }
+    }
+
+    fn deliver(&self, tool_call_id: &str, answer: Answer) -> Result<(), AnswerRefused> {
+        let entry = {
             let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
             pending.remove(tool_call_id)
         };
-        match tx {
-            Some(tx) => tx.send(allow).is_ok(),
-            None => false,
+        let Some(entry) = entry else {
+            return Err(AnswerRefused::Unknown);
+        };
+        if let Some((reg, id)) = &entry.permission {
+            let word = match answer {
+                Answer::Deny => "deny",
+                Answer::Once => "once",
+                Answer::Always => "always",
+            };
+            if let Err(e) = reg.answer_permission(id, word) {
+                // Dropping `entry.tx` makes the waiter read "no".
+                return Err(
+                    if e.starts_with(crate::core::assist::runs::ERR_PERMISSION_EXPIRED) {
+                        AnswerRefused::Expired
+                    } else {
+                        AnswerRefused::Resolved
+                    },
+                );
+            }
         }
+        entry.tx.send(answer).map_err(|_| AnswerRefused::Expired)
+    }
+
+    /// Cancels every question of one turn: each resolves as `cancelled` in
+    /// the run record and the waiting calls read "no". Returns how many.
+    pub fn cancel_request(&self, request_id: &str) -> usize {
+        let gone: Vec<PendingAsk> = {
+            let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
+            let keys: Vec<String> = pending
+                .iter()
+                .filter(|(_, p)| p.request_id == request_id)
+                .map(|(k, _)| k.clone())
+                .collect();
+            keys.into_iter()
+                .filter_map(|k| pending.remove(&k))
+                .collect()
+        };
+        let n = gone.len();
+        let mut done = std::collections::HashSet::new();
+        for p in gone {
+            if let Some((reg, _)) = &p.permission {
+                if done.insert(p.request_id.clone()) {
+                    let _ = reg.cancel_permissions(&p.request_id);
+                }
+            }
+            drop(p.tx);
+        }
+        n
     }
 
     pub fn pending_count(&self) -> usize {
@@ -328,6 +455,20 @@ impl ToolBroker {
         input: Value,
     ) -> Result<ToolOutcome, LlmError> {
         let start = Instant::now();
+        let external_context = super::code_tools::current_turn()
+            .filter(|c| crate::core::assist::authority::external(&c.conversation));
+        if let Some(ctx) = super::code_tools::current_turn() {
+            if let Err(reason) =
+                crate::core::assist::authority::check_tool(&ctx.conversation, agent_id, name)
+            {
+                return Err(self.fail(
+                    agent_id,
+                    name,
+                    start,
+                    LlmError::new(ERR_TOOL_DENIED, reason),
+                ));
+            }
+        }
         let Some(executor) = self.executor_for(name) else {
             return Err(self.fail(
                 agent_id,
@@ -347,7 +488,10 @@ impl ToolBroker {
             // A path outside the workspace is its own question, whatever the
             // grant says; a yes covers this one call.
             let path = input.get("path").and_then(Value::as_str).unwrap_or("");
-            if name.starts_with("fs_") && super::code_tools::is_external(path) {
+            if external_context.is_none()
+                && name.starts_with("fs_")
+                && super::code_tools::is_external(path)
+            {
                 let ok = self
                     .ask(
                         agent_id,
@@ -378,7 +522,9 @@ impl ToolBroker {
                 let answer = self
                     .ask(agent_id, request_id, tool_call_id, name, &input)
                     .await;
-                if matches!(answer, Answer::Always) {
+                // An external run's "Always" covers this call only: it never
+                // becomes a permanent local rule of the executor (L2).
+                if matches!(answer, Answer::Always) && external_context.is_none() {
                     super::perm::add_rule(agent_id, super::perm::always_rule(name, &input));
                 }
                 if matches!(answer, Answer::Deny) {
@@ -393,7 +539,26 @@ impl ToolBroker {
             GrantMode::Auto => {}
         }
 
-        if super::code_tools::WRITE_TOOLS.contains(&name) {
+        // A mission attached to this conversation may take a permission
+        // away (a `before_tool` policy), never add one; its round log sees
+        // every result.
+        let mission_conv = super::code_tools::current_turn()
+            .map(|c| c.conversation.clone())
+            .filter(|c| crate::core::assist::missions::hooks::mission_of(c).is_some());
+        let mission_input = mission_conv.as_ref().map(|_| input.clone());
+        if let (Some(conv), Some(inp)) = (&mission_conv, &mission_input) {
+            if let Some(reason) = crate::core::assist::missions::hooks::before_tool(conv, name, inp)
+            {
+                return Err(self.fail(
+                    agent_id,
+                    name,
+                    start,
+                    LlmError::new(ERR_TOOL_DENIED, reason),
+                ));
+            }
+        }
+
+        if external_context.is_none() && super::code_tools::WRITE_TOOLS.contains(&name) {
             if let (Some(ctx), Some(ws)) = (
                 super::code_tools::current_turn(),
                 super::code_tools::workspace(),
@@ -406,9 +571,35 @@ impl ToolBroker {
             }
         }
 
-        let result =
-            super::code_tools::scope_tool_call(tool_call_id, executor.execute(name, input)).await;
+        if let Some(ctx) = super::code_tools::current_turn() {
+            if let Err(reason) =
+                crate::core::assist::authority::check_tool(&ctx.conversation, agent_id, name)
+            {
+                return Err(self.fail(
+                    agent_id,
+                    name,
+                    start,
+                    LlmError::new(ERR_TOOL_DENIED, reason),
+                ));
+            }
+        }
+        let result = if let Some(ctx) = external_context.filter(|_| name.starts_with("fs_")) {
+            let conversation = ctx.conversation.clone();
+            let bot = agent_id.to_owned();
+            let tool = name.to_owned();
+            tokio::task::spawn_blocking(move || {
+                crate::core::assist::authority::execute_files(&conversation, &bot, &tool, &input)
+            })
+            .await
+            .map_err(|_| LlmError::new(ERR_TOOL_DENIED, "external file executor interrupted"))
+            .and_then(|r| r.map_err(|reason| LlmError::new(ERR_TOOL_DENIED, reason)))
+        } else {
+            super::code_tools::scope_tool_call(tool_call_id, executor.execute(name, input)).await
+        };
         let ms = start.elapsed().as_millis() as u32;
+        if let (Some(conv), Some(inp)) = (&mission_conv, &mission_input) {
+            crate::core::assist::missions::hooks::after_tool(conv, name, inp, result.is_ok(), ms);
+        }
         match result {
             Ok(content) => {
                 self.bus.emit(BusEvent::ToolCalled {
@@ -477,27 +668,74 @@ impl ToolBroker {
         input: &Value,
     ) -> Answer {
         let (tx, rx) = oneshot::channel();
+        let preview_text = match input {
+            Value::String(s) => s.clone(),
+            _ => super::code_tools::preview(name, input),
+        };
+        // The durable request, when the turn has a run record: the answer
+        // must resolve exactly this one, in time.
+        let deadline = crate::core::assist::now_ms()
+            + self.ask_timeout.as_millis().min(i64::MAX as u128) as i64;
+        let permission = crate::core::assist::runs::active().and_then(|reg| {
+            reg.run(request_id)?;
+            let req = reg
+                .open_permission(
+                    request_id,
+                    tool_call_id,
+                    name,
+                    &preview_text,
+                    &["once", "always", "deny"],
+                    deadline,
+                )
+                .ok()?;
+            Some((reg, req.id))
+        });
+        let permission_id = permission.as_ref().map(|(_, id)| id.clone());
+        if let Some((reg, _)) = &permission {
+            *self.last_registry.lock().unwrap_or_else(|e| e.into_inner()) = Some(reg.clone());
+        }
         {
             let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
-            pending.insert(tool_call_id.to_string(), tx);
+            pending.insert(
+                tool_call_id.to_string(),
+                PendingAsk {
+                    tx,
+                    request_id: request_id.to_string(),
+                    permission: permission.clone(),
+                },
+            );
         }
         self.bus.emit(BusEvent::ToolAsk {
             agent: agent_id.to_string(),
             request_id: request_id.to_string(),
             tool_call_id: tool_call_id.to_string(),
             tool: name.to_string(),
-            preview: match input {
-                Value::String(s) => s.clone(),
-                _ => super::code_tools::preview(name, input),
-            },
+            preview: preview_text,
         });
         let allowed = match tokio::time::timeout(self.ask_timeout, rx).await {
             Ok(Ok(allow)) => allow,
             // Sender dropped or the wait expired: both mean "no".
             _ => Answer::Deny,
         };
-        let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
-        pending.remove(tool_call_id);
+        {
+            let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
+            // Only our own entry: a newer question under the same id stays.
+            let ours = pending
+                .get(tool_call_id)
+                .map(|p| p.permission.as_ref().map(|(_, id)| id.clone()) == permission_id)
+                .unwrap_or(false);
+            if ours {
+                pending.remove(tool_call_id);
+            }
+        }
+        // Timed out: the record says expired, so a late answer is refused.
+        if let Some((reg, id)) = &permission {
+            if let Some(p) = reg.permission(id) {
+                if p.state == crate::core::assist::runs::PermissionState::Pending {
+                    let _ = reg.expire_permission(id);
+                }
+            }
+        }
         allowed
     }
 
@@ -878,6 +1116,182 @@ mod tests {
         assert_eq!(
             names,
             vec!["dl_add", "dl_pause", "mcp:files:read", "skill:pdf"]
+        );
+    }
+}
+
+/// A11 through the broker: each answer resolves the durable request it
+/// names, once; a late answer after the deadline applies to nothing and never
+/// releases the next tool; cancelling the turn cancels what waits.
+#[cfg(test)]
+mod a11_permission_tests {
+    use super::*;
+    use crate::core::assist::db::AssistDb;
+    use crate::core::assist::runs::{NewRun, PermissionState, Registry, RunState};
+    use serde_json::json;
+
+    struct Echo;
+
+    #[async_trait]
+    impl ToolExecutor for Echo {
+        async fn execute(&self, name: &str, _input: Value) -> Result<String, LlmError> {
+            Ok(format!("ran {name}"))
+        }
+    }
+
+    fn setup(timeout_ms: u64) -> (Arc<ToolBroker>, Registry) {
+        let spec = |n: &str| ToolSpec {
+            name: n.into(),
+            description: n.into(),
+            input_schema: json!({"type":"object"}),
+        };
+        let broker = Arc::new(
+            ToolBroker::new(
+                vec![spec("tool_a"), spec("tool_b")],
+                Arc::new(Echo),
+                Arc::new(Bus::new()),
+            )
+            .with_ask_timeout(Duration::from_millis(timeout_ms)),
+        );
+        let reg =
+            Registry::with_instance(Arc::new(AssistDb::open_in_memory().unwrap()), "boot-a11");
+        reg.open_run(NewRun {
+            id: "run-1".into(),
+            conversation_id: "c".into(),
+            bot_id: "a11-agent".into(),
+            ..Default::default()
+        })
+        .unwrap();
+        reg.transition("run-1", RunState::Running, None).unwrap();
+        (broker, reg)
+    }
+
+    fn ask_grants() -> Vec<ToolGrant> {
+        ["tool_a", "tool_b"]
+            .iter()
+            .map(|n| ToolGrant {
+                source: ToolSource::Internal { name: (*n).into() },
+                mode: GrantMode::Ask,
+            })
+            .collect()
+    }
+
+    fn spawn_call(
+        broker: &Arc<ToolBroker>,
+        reg: &Registry,
+        call: &'static str,
+        tool: &'static str,
+    ) -> tokio::task::JoinHandle<Result<ToolOutcome, LlmError>> {
+        let (b, r) = (broker.clone(), reg.clone());
+        tokio::spawn(async move {
+            crate::core::assist::runs::scope(
+                Some(r),
+                b.call("a11-agent", &ask_grants(), "run-1", call, tool, json!({})),
+            )
+            .await
+        })
+    }
+
+    async fn pending_of(reg: &Registry, call: &str) -> String {
+        for _ in 0..400 {
+            if let Some(p) = reg
+                .permissions(Some("run-1"), true)
+                .into_iter()
+                .find(|p| p.tool_call_id == call)
+            {
+                return p.id;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        panic!("no pending permission for {call}");
+    }
+
+    #[tokio::test]
+    async fn approved_and_denied_apply_once_to_their_own_call() {
+        let (broker, reg) = setup(5_000);
+        let task = spawn_call(&broker, &reg, "call-1", "tool_a");
+        let id = pending_of(&reg, "call-1").await;
+        assert_eq!(reg.run("run-1").unwrap().state, RunState::WaitingUser);
+        broker.answer_permission(&id, Answer::Once).unwrap();
+        assert!(task.await.unwrap().unwrap().ok);
+        assert_eq!(
+            reg.permission(&id).unwrap().state,
+            PermissionState::Approved
+        );
+        assert_eq!(reg.run("run-1").unwrap().state, RunState::Running);
+        // The same answer again applies to nothing.
+        assert_eq!(
+            broker.answer_permission(&id, Answer::Once),
+            Err(AnswerRefused::Resolved)
+        );
+
+        let task = spawn_call(&broker, &reg, "call-2", "tool_b");
+        let id2 = pending_of(&reg, "call-2").await;
+        broker.answer_permission(&id2, Answer::Deny).unwrap();
+        assert_eq!(task.await.unwrap().unwrap_err().code, ERR_TOOL_DENIED);
+        assert_eq!(reg.permission(&id2).unwrap().state, PermissionState::Denied);
+    }
+
+    #[tokio::test]
+    async fn a_late_answer_is_expired_and_never_releases_the_next_tool() {
+        let (broker, reg) = setup(80);
+        let task = spawn_call(&broker, &reg, "call-1", "tool_a");
+        let old = pending_of(&reg, "call-1").await;
+        // Nobody answers in time.
+        assert_eq!(task.await.unwrap().unwrap_err().code, ERR_TOOL_DENIED);
+        assert_eq!(
+            reg.permission(&old).unwrap().state,
+            PermissionState::Expired
+        );
+        assert_eq!(
+            broker.answer_permission(&old, Answer::Once),
+            Err(AnswerRefused::Expired)
+        );
+
+        // The next tool asks; the stale answers (by id and by old call id)
+        // must not release it.
+        let broker2 = Arc::new(
+            ToolBroker::new(vec![], Arc::new(Echo), Arc::new(Bus::new()))
+                .with_ask_timeout(Duration::from_millis(400)),
+        );
+        broker2.register_internal(
+            vec![ToolSpec {
+                name: "tool_b".into(),
+                description: String::new(),
+                input_schema: json!({}),
+            }],
+            Arc::new(Echo),
+        );
+        let next = spawn_call(&broker2, &reg, "call-2", "tool_b");
+        let fresh = pending_of(&reg, "call-2").await;
+        assert!(broker2.answer_permission(&old, Answer::Once).is_err());
+        assert!(!broker2.answer("call-1", true));
+        assert_eq!(
+            reg.permission(&fresh).unwrap().state,
+            PermissionState::Pending
+        );
+        // It runs out on its own: still refused, never approved by the old answer.
+        assert_eq!(next.await.unwrap().unwrap_err().code, ERR_TOOL_DENIED);
+        assert_eq!(
+            reg.permission(&fresh).unwrap().state,
+            PermissionState::Expired
+        );
+    }
+
+    #[tokio::test]
+    async fn cancelling_the_turn_cancels_what_waits() {
+        let (broker, reg) = setup(5_000);
+        let task = spawn_call(&broker, &reg, "call-1", "tool_a");
+        let id = pending_of(&reg, "call-1").await;
+        assert_eq!(broker.cancel_request("run-1"), 1);
+        assert_eq!(task.await.unwrap().unwrap_err().code, ERR_TOOL_DENIED);
+        assert_eq!(
+            reg.permission(&id).unwrap().state,
+            PermissionState::Cancelled
+        );
+        assert_eq!(
+            broker.answer_permission(&id, Answer::Once),
+            Err(AnswerRefused::Resolved)
         );
     }
 }

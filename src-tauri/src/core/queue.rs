@@ -115,13 +115,96 @@ pub enum QueueStatus {
     Error { message: String, retryable: bool },
 }
 
+/// Terminal states carry no live transfer: phase names the outcome and no
+/// speed/ETA survives, so a client polling `phase` always terminates.
+fn settle_terminal_run_state(item: &mut QueueItem, phase: &str) {
+    item.phase = Some(phase.to_string());
+    item.eta_seconds = None;
+    item.speed_bytes_per_sec = 0.0;
+}
+
 pub fn is_retryable_error_message(message: &str) -> bool {
     let lower = message.to_lowercase();
     if lower.contains("cancel") {
         return false;
     }
+    // Fixed worker/finalizer codes carry their own retry class; the generic
+    // classifier would read "FORMAT_UNAVAILABLE" as "not found" and an
+    // unrecognized code as a retryable unknown.
+    if let Some(d) = crate::core::root_cause::diagnose_code(message) {
+        return d.is_retryable();
+    }
     let (category, _) = omniget_core::core::errors::classify_download_error(message);
-    matches!(category, "unknown" | "rate_limited")
+    // A platform IP block is retryable only after its cooldown (never
+    // automatically: see `is_retryable_category`).
+    matches!(
+        category,
+        "unknown" | "rate_limited" | "server_error" | "blocked_by_platform"
+    )
+}
+
+/// Terminal message of a failed metadata fetch, classified like a failed
+/// download: the class hint leads ("The platform blocked access ... (raw)")
+/// so status, retry and diagnosis see the cause instead of an opaque engine
+/// line. Worker failures are fixed codes already classified in the worker.
+fn inspect_failure_message(platform: &str, raw: &str) -> String {
+    let raw = super::flight_recorder::redact(raw);
+    if platform == "mcp_worker" {
+        return raw;
+    }
+    let (category, hint) = omniget_core::core::errors::classify_download_error(&raw);
+    if category == "unknown" {
+        raw.clone()
+    } else {
+        format!("{} ({})", hint, raw)
+    }
+}
+
+/// Percent to show for one progress update, or `None` when nobody knows it.
+/// The engine's own number wins; an indeterminate update (unknown total at
+/// the engine, e.g. the confined worker) falls back to downloaded/total when
+/// the queue learned the total elsewhere. Never a made-up asymptote (D-04).
+fn resolve_percent(
+    update: &omniget_core::models::progress::ProgressUpdate,
+    resolved_total: Option<u64>,
+) -> Option<f64> {
+    update.percent_value().or_else(|| {
+        let downloaded = update.downloaded_bytes?;
+        let total = resolved_total.filter(|t| *t > 0)?;
+        Some((downloaded as f64 / total as f64 * 100.0).clamp(0.0, 99.9))
+    })
+}
+
+/// Terminal message for a retry whose stored URL lost its secret parts to
+/// redaction (items reloaded from history or recovery). The UI maps the
+/// `LINK_EXPIRED` code to `downloads.history_link_expired`.
+pub const LINK_EXPIRED_MESSAGE: &str =
+    "LINK_EXPIRED: This link has expired or had its access key removed for privacy. Paste the original link again.";
+
+/// External (MCP) jobs: one predicate for status, receipt, diagnosis and retry.
+pub fn external_retryable(message: &str) -> bool {
+    !message.to_ascii_lowercase().contains("cancel")
+        && crate::core::root_cause::machine_diagnose(message).is_retryable()
+}
+
+/// A failed history entry is retryable only when its class is and its stored
+/// (redacted) URL is still the executable one.
+fn history_retryable(message: &str, url: &str) -> bool {
+    is_retryable_error_message(message) && !crate::core::flight_recorder::is_redacted_url(url)
+}
+
+/// Settles an item whose stored URL is the redacted display form as a
+/// terminal, non-retryable "link expired" error. `true` = it was redacted.
+fn expire_redacted_link(item: &mut QueueItem) -> bool {
+    if !crate::core::flight_recorder::is_redacted_url(&item.url) {
+        return false;
+    }
+    item.status = QueueStatus::Error {
+        message: LINK_EXPIRED_MESSAGE.to_string(),
+        retryable: false,
+    };
+    item.phase = Some("error".into());
+    true
 }
 
 #[derive(Clone, Serialize)]
@@ -131,7 +214,7 @@ pub struct QueueItemInfo {
     pub platform: String,
     pub title: String,
     pub status: QueueStatus,
-    pub percent: f64,
+    pub percent: Option<f64>,
     pub speed_bytes_per_sec: f64,
     pub downloaded_bytes: u64,
     pub total_bytes: Option<u64>,
@@ -190,7 +273,7 @@ pub struct QueueItem {
     pub extra_headers: Option<std::collections::HashMap<String, String>>,
     pub page_url: Option<String>,
     pub user_agent: Option<String>,
-    pub percent: f64,
+    pub percent: Option<f64>,
     pub speed_bytes_per_sec: f64,
     pub downloaded_bytes: u64,
     pub total_bytes: Option<u64>,
@@ -341,7 +424,9 @@ impl DownloadQueue {
             id,
             url,
             platform,
-            title,
+            // Every title that reaches the queue is display text: a URL in it
+            // (the placeholder before metadata) is the redacted URL (N-3).
+            title: crate::core::flight_recorder::redact_urls(&title),
             status: QueueStatus::Queued,
             cancel_token: CancellationToken::new(),
             output_dir,
@@ -352,7 +437,7 @@ impl DownloadQueue {
             extra_headers,
             page_url,
             user_agent,
-            percent: 0.0,
+            percent: Some(0.0),
             speed_bytes_per_sec: 0.0,
             downloaded_bytes: 0,
             total_bytes,
@@ -401,6 +486,43 @@ impl DownloadQueue {
         self.items.push(item);
     }
 
+    /// A recovery item whose URL lost its secret to redaction: shown in the
+    /// list as a terminal "link expired, paste again" failure instead of a
+    /// download sent with `[REDACTED]` in it. Leaves the recovery log.
+    pub fn push_expired_link(&mut self, r: &crate::core::recovery::RecoveryItem) {
+        if !self.items.iter().any(|i| i.id == r.id) {
+            self.enqueue(
+                r.id,
+                r.url.clone(),
+                r.platform.clone(),
+                r.title.clone(),
+                r.output_dir.clone(),
+                r.download_mode.clone(),
+                r.quality.clone(),
+                r.format_id.clone(),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Arc::new(crate::platforms::noop::NoopDownloader::new()),
+                None,
+                false,
+                None,
+                None,
+                None,
+                None,
+                None,
+            );
+            if let Some(item) = self.items.iter_mut().find(|i| i.id == r.id) {
+                expire_redacted_link(item);
+            }
+        }
+        crate::core::recovery::remove(r.id);
+    }
+
     pub fn hydrate_from_history(&mut self) {
         let entries = crate::core::queue_history::list();
         if entries.is_empty() {
@@ -409,80 +531,105 @@ impl DownloadQueue {
         let placeholder: Arc<dyn PlatformDownloader> =
             Arc::new(crate::platforms::noop::NoopDownloader::new());
         for entry in entries.iter().rev() {
-            if self.items.iter().any(|i| i.id == entry.id) {
-                continue;
-            }
-            let status = if entry.success {
-                QueueStatus::Complete { success: true }
-            } else {
-                let msg = entry.error.clone().unwrap_or_default();
-                let retryable = is_retryable_error_message(&msg);
-                QueueStatus::Error {
-                    message: msg,
-                    retryable,
-                }
-            };
-            let percent = if entry.success { 100.0 } else { 0.0 };
-            let item = QueueItem {
-                id: entry.id,
-                url: entry.url.clone(),
-                platform: entry.platform.clone(),
-                title: entry.title.clone(),
-                status,
-                cancel_token: CancellationToken::new(),
-                output_dir: entry
-                    .file_path
-                    .as_ref()
-                    .and_then(|p| {
-                        std::path::Path::new(p)
-                            .parent()
-                            .map(|x| x.to_string_lossy().to_string())
-                    })
-                    .unwrap_or_default(),
-                download_mode: None,
-                quality: None,
-                format_id: None,
-                referer: None,
-                extra_headers: None,
-                page_url: None,
-                user_agent: None,
-                percent,
-                speed_bytes_per_sec: 0.0,
-                downloaded_bytes: entry.file_size_bytes.unwrap_or(0),
-                total_bytes: entry.total_bytes,
-                file_path: entry.file_path.clone(),
-                file_size_bytes: entry.file_size_bytes,
-                file_count: None,
-                media_info: None,
-                downloader: placeholder.clone(),
-                ytdlp_path: None,
-                from_hotkey: false,
-                torrent_id: None,
-                kind: entry.kind,
-                external: false,
-                thumbnail_url_override: entry.thumbnail_url.clone(),
-                retry_count: 0,
-                max_retries: 0,
-                resume_state: None,
-                concurrent_segments: None,
-                segment_size_bytes: None,
-                eta_seconds: None,
-                cookie_slug: None,
-                custom_ytdlp_args: None,
-                torrent_files: None,
-                scheduled_at_ms: None,
-                stop_at_ms: None,
-                phase: None,
-                current_stream: None,
-                streams_done: Vec::new(),
-                planned_formats: None,
-                fragment_index: None,
-                fragment_count: None,
-                started_at_ms: None,
-                ytdlp_argv_override: None,
-            };
-            self.items.push(item);
+            self.push_history_item(entry, None, &placeholder);
         }
+    }
+
+    /// Puts one settled history entry back into the queue as a finished item
+    /// (a job settled by crash reconciliation, N-2), with the retry verdict of
+    /// its durable receipt. False when the queue already holds that id.
+    pub fn hydrate_entry(
+        &mut self,
+        entry: &crate::core::queue_history::HistoryEntry,
+        retryable: bool,
+    ) -> bool {
+        let placeholder: Arc<dyn PlatformDownloader> =
+            Arc::new(crate::platforms::noop::NoopDownloader::new());
+        self.push_history_item(entry, Some(retryable), &placeholder)
+    }
+
+    fn push_history_item(
+        &mut self,
+        entry: &crate::core::queue_history::HistoryEntry,
+        retryable: Option<bool>,
+        placeholder: &Arc<dyn PlatformDownloader>,
+    ) -> bool {
+        if self.items.iter().any(|i| i.id == entry.id) {
+            return false;
+        }
+        let status = if entry.success {
+            QueueStatus::Complete { success: true }
+        } else {
+            let msg = entry.error.clone().unwrap_or_default();
+            // History keeps only the redacted URL: a retry from it would
+            // send `[REDACTED]` to the server.
+            let retryable = retryable.unwrap_or_else(|| history_retryable(&msg, &entry.url));
+            QueueStatus::Error {
+                message: msg,
+                retryable,
+            }
+        };
+        let percent = Some(if entry.success { 100.0 } else { 0.0 });
+        let item = QueueItem {
+            id: entry.id,
+            url: entry.url.clone(),
+            platform: entry.platform.clone(),
+            title: entry.title.clone(),
+            status,
+            cancel_token: CancellationToken::new(),
+            output_dir: entry
+                .file_path
+                .as_ref()
+                .and_then(|p| {
+                    std::path::Path::new(p)
+                        .parent()
+                        .map(|x| x.to_string_lossy().to_string())
+                })
+                .unwrap_or_default(),
+            download_mode: None,
+            quality: None,
+            format_id: None,
+            referer: None,
+            extra_headers: None,
+            page_url: None,
+            user_agent: None,
+            percent,
+            speed_bytes_per_sec: 0.0,
+            downloaded_bytes: entry.file_size_bytes.unwrap_or(0),
+            total_bytes: entry.total_bytes,
+            file_path: entry.file_path.clone(),
+            file_size_bytes: entry.file_size_bytes,
+            file_count: None,
+            media_info: None,
+            downloader: placeholder.clone(),
+            ytdlp_path: None,
+            from_hotkey: false,
+            torrent_id: None,
+            kind: entry.kind,
+            external: false,
+            thumbnail_url_override: entry.thumbnail_url.clone(),
+            retry_count: 0,
+            max_retries: 0,
+            resume_state: None,
+            concurrent_segments: None,
+            segment_size_bytes: None,
+            eta_seconds: None,
+            cookie_slug: None,
+            custom_ytdlp_args: None,
+            torrent_files: None,
+            scheduled_at_ms: None,
+            stop_at_ms: None,
+            phase: Some(if entry.success { "completed" } else { "error" }.into()),
+            current_stream: None,
+            streams_done: Vec::new(),
+            planned_formats: None,
+            fragment_index: None,
+            fragment_count: None,
+            started_at_ms: None,
+            ytdlp_argv_override: None,
+        };
+        self.items.push(item);
+        true
     }
 
     pub fn active_count(&self) -> u32 {
@@ -526,6 +673,7 @@ impl DownloadQueue {
             item.cancel_token = CancellationToken::new();
             item.reset_run_state();
             item.started_at_ms = Some(now_ms());
+            super::download_journal::begin_attempt(id);
         }
     }
 
@@ -542,6 +690,11 @@ impl DownloadQueue {
         planned: Option<&Vec<String>>,
     ) {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
+            // A late progress event after cancel/pause/finish must not bring
+            // a terminal item back to "running".
+            if item.status != QueueStatus::Active {
+                return;
+            }
             if let Some(p) = phase {
                 item.phase = Some(p.to_string());
             }
@@ -586,17 +739,58 @@ impl DownloadQueue {
             if !can_finish_active_item(&item.status) {
                 return;
             }
+            let error = error.map(|e| super::flight_recorder::redact(&e));
+            let (success, error) = if item.platform == "mcp_worker" {
+                let retryable = error.as_deref().is_some_and(external_retryable);
+                match crate::mcp::download_intents::terminal_receipt(
+                    id,
+                    success,
+                    error.clone(),
+                    file_path.clone(),
+                    file_size_bytes,
+                    retryable,
+                ) {
+                    Ok(()) => (success, error),
+                    Err(e) => {
+                        tracing::warn!("[mcp] terminal receipt unavailable for {}: {}", id, e);
+                        let _ = crate::mcp::download_intents::unknown(id);
+                        (false,Some("OUTCOME_UNKNOWN: terminal receipt unavailable; output evidence retained".into()))
+                    }
+                }
+            } else {
+                (success, error)
+            };
+            super::download_journal::record(
+                id,
+                &format!(
+                    "[finalization] {}: {}",
+                    if success { "completed" } else { "error" },
+                    error.as_deref().unwrap_or("")
+                ),
+            );
             let error_for_history = error.clone();
             if success {
                 item.status = QueueStatus::Complete { success: true };
-                item.percent = 100.0;
+                item.percent = Some(100.0);
+                item.phase = Some("completed".into());
             } else {
                 let msg = error.unwrap_or_default();
-                let retryable = is_retryable_error_message(&msg);
+                let retryable = if item.platform == "mcp_worker" {
+                    // Same predicate as the durable receipt: status never
+                    // advertises a retry that download_retry would refuse.
+                    external_retryable(&msg)
+                        && crate::mcp::download_intents::receipt(id)
+                            .ok()
+                            .flatten()
+                            .is_some_and(|r| r.retryable)
+                } else {
+                    is_retryable_error_message(&msg)
+                };
                 item.status = QueueStatus::Error {
                     message: msg,
                     retryable,
                 };
+                item.phase = Some("error".into());
             }
             item.file_path = file_path;
             item.file_size_bytes = file_size_bytes;
@@ -640,7 +834,7 @@ impl DownloadQueue {
                 return;
             }
             item.status = QueueStatus::Seeding;
-            item.percent = 100.0;
+            item.percent = Some(100.0);
             item.file_path = file_path;
             item.file_size_bytes = file_size_bytes;
             item.speed_bytes_per_sec = 0.0;
@@ -652,7 +846,7 @@ impl DownloadQueue {
     pub fn update_progress(
         &mut self,
         id: u64,
-        percent: f64,
+        percent: Option<f64>,
         speed: f64,
         downloaded: u64,
         total: Option<u64>,
@@ -682,6 +876,14 @@ impl DownloadQueue {
     pub fn pause(&mut self, id: u64) -> bool {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
             if item.status == QueueStatus::Active {
+                if item.platform == "mcp_worker" {
+                    item.cancel_token.cancel();
+                    item.status = QueueStatus::Paused;
+                    item.phase = Some("paused".into());
+                    item.speed_bytes_per_sec = 0.0;
+                    item.eta_seconds = None;
+                    return true;
+                }
                 if item.platform != "magnet"
                     && !omniget_core::core::ytdlp::pause_download_process(id)
                 {
@@ -699,6 +901,9 @@ impl DownloadQueue {
     pub fn resume(&mut self, id: u64) -> bool {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
             if item.status == QueueStatus::Paused {
+                if item.platform == "mcp_worker" {
+                    return false;
+                }
                 if item.platform != "magnet"
                     && !omniget_core::core::ytdlp::resume_download_process(id)
                 {
@@ -810,6 +1015,9 @@ impl DownloadQueue {
         let result = self.cancel_inner(id);
         if result.0 {
             crate::core::recovery::remove(id);
+            if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
+                settle_terminal_run_state(item, "cancelled");
+            }
         }
         result
     }
@@ -853,6 +1061,20 @@ impl DownloadQueue {
                     return (true, tid);
                 }
                 QueueStatus::Queued => {
+                    if item.platform == "mcp_worker" {
+                        if let Ok(Some(intent)) = crate::mcp::download_intents::load(id) {
+                            if let Err(e) = crate::mcp::download_intents::settled(
+                                id,
+                                intent.attempt,
+                                Some("cancelled"),
+                            ) {
+                                tracing::warn!(
+                                    "[mcp] queued cancellation receipt unavailable: {}",
+                                    e
+                                );
+                            }
+                        }
+                    }
                     item.status = QueueStatus::Error {
                         message: "Cancelled".to_string(),
                         retryable: false,
@@ -865,12 +1087,21 @@ impl DownloadQueue {
         (false, None)
     }
 
-    pub fn retry(&mut self, id: u64) -> bool {
+    /// Re-queues a failed item. An item whose URL is the redacted display
+    /// form (reloaded from history/recovery) fails for good with
+    /// [`LINK_EXPIRED_MESSAGE`] instead of sending `[REDACTED]` to a server.
+    pub fn retry(&mut self, id: u64) -> Result<(), String> {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
+            if item.platform == "mcp_worker" {
+                return Err("Download cannot be retried".into());
+            }
             if matches!(item.status, QueueStatus::Error { .. }) {
+                if expire_redacted_link(item) {
+                    return Err(LINK_EXPIRED_MESSAGE.into());
+                }
                 item.status = QueueStatus::Queued;
                 item.cancel_token = CancellationToken::new();
-                item.percent = 0.0;
+                item.percent = Some(0.0);
                 item.speed_bytes_per_sec = 0.0;
                 item.downloaded_bytes = 0;
                 item.file_path = None;
@@ -878,10 +1109,10 @@ impl DownloadQueue {
                 item.retry_count = 0;
                 item.ytdlp_argv_override = None;
                 item.reset_run_state();
-                return true;
+                return Ok(());
             }
         }
-        false
+        Err("Download cannot be retried".into())
     }
 
     /// Re-enfileira com o comando escrito pelo usuário. Só faz sentido para
@@ -893,11 +1124,27 @@ impl DownloadQueue {
             .iter_mut()
             .find(|i| i.id == id)
             .ok_or_else(|| "Download not found".to_string())?;
+        if item.platform == "mcp_worker" {
+            return Err("EXPLICIT_EXTERNAL_ATTEMPT_REQUIRED".into());
+        }
         if !matches!(
             item.status,
             QueueStatus::Error { .. } | QueueStatus::Complete { .. }
         ) {
             return Err("Download is still running".to_string());
+        }
+        // A completed history entry stays completed; only a failure is
+        // settled as expired.
+        if crate::core::flight_recorder::is_redacted_url(&item.url) {
+            if matches!(item.status, QueueStatus::Error { .. }) {
+                expire_redacted_link(item);
+            }
+            return Err(LINK_EXPIRED_MESSAGE.into());
+        }
+        // The command shown for editing is redacted; a `[REDACTED]` left in
+        // the edited argv would reach the server as a literal.
+        if argv.iter().any(|a| a.contains("[REDACTED]")) {
+            return Err(LINK_EXPIRED_MESSAGE.into());
         }
         if omniget_core::core::ytdlp::get_command(id).is_none() {
             return Err(
@@ -906,7 +1153,7 @@ impl DownloadQueue {
         }
         item.status = QueueStatus::Queued;
         item.cancel_token = CancellationToken::new();
-        item.percent = 0.0;
+        item.percent = Some(0.0);
         item.speed_bytes_per_sec = 0.0;
         item.downloaded_bytes = 0;
         item.file_path = None;
@@ -1009,12 +1256,19 @@ impl ProgressThrottle {
     }
 }
 
+/// Progress events reach the webview and its listeners: a URL inside a title
+/// goes out redacted whatever built the event (N-3).
+fn serialize_display_title<S: serde::Serializer>(title: &str, s: S) -> Result<S::Ok, S::Error> {
+    s.serialize_str(&crate::core::flight_recorder::redact_urls(title))
+}
+
 #[derive(Clone, Serialize, Default)]
 pub struct QueueItemProgress {
     pub id: u64,
+    #[serde(serialize_with = "serialize_display_title")]
     pub title: String,
     pub platform: String,
-    pub percent: f64,
+    pub percent: Option<f64>,
     pub speed_bytes_per_sec: f64,
     pub downloaded_bytes: u64,
     pub total_bytes: Option<u64>,
@@ -1031,7 +1285,34 @@ pub struct QueueItemProgress {
     pub planned_formats: Option<Vec<String>>,
 }
 
+/// Queue snapshot for anything outside the process (webview event, extension
+/// bridge): URLs by allowlist redaction. The executable URL stays on the
+/// in-memory `QueueItem`, which is what the download actually uses.
+pub fn redacted_for_display(mut state: Vec<QueueItemInfo>) -> Vec<QueueItemInfo> {
+    use crate::core::flight_recorder::{redact_url, redact_urls};
+    for item in &mut state {
+        item.url = redact_url(&item.url);
+        // The title is the URL until metadata arrives, and stays the URL
+        // when extraction fails (N-3).
+        item.title = redact_urls(&item.title);
+        if let Some(t) = item.thumbnail_url.as_mut() {
+            *t = redact_url(t);
+        }
+        if let QueueStatus::Error { message, .. } = &mut item.status {
+            *message = redact_urls(message);
+        }
+        if let Some(cmd) = item.command.as_mut() {
+            for a in &mut cmd.args {
+                *a = redact_urls(a);
+            }
+            cmd.display = redact_urls(&cmd.display);
+        }
+    }
+    state
+}
+
 pub fn emit_queue_state_from_state(app: &tauri::AppHandle, state: Vec<QueueItemInfo>) {
+    let state = redacted_for_display(state);
     let n = EMIT_COUNT.fetch_add(1, Ordering::Relaxed);
     if n.is_multiple_of(10) {
         tracing::debug!("[perf] emit_queue_state called {} times", n);
@@ -1045,9 +1326,12 @@ pub fn emit_queue_state_from_state(app: &tauri::AppHandle, state: Vec<QueueItemI
         .iter()
         .filter(|i| i.status == QueueStatus::Active)
         .collect();
-    let avg_percent = if !active_items.is_empty() {
-        let sum: f64 = active_items.iter().map(|i| i.percent).sum();
-        sum / active_items.len() as f64 / 100.0
+    // Items with an unknown total have no percent; they do not pull the
+    // average toward a made-up number.
+    let known: Vec<f64> = active_items.iter().filter_map(|i| i.percent).collect();
+    let avg_percent = if !known.is_empty() {
+        let sum: f64 = known.iter().sum();
+        sum / known.len() as f64 / 100.0
     } else {
         0.0
     };
@@ -1152,7 +1436,69 @@ pub fn spawn_download(
     Box::pin(async move {
         let _timer_start = std::time::Instant::now();
         let slot = ActiveJobSlot::new(app.clone(), queue.clone(), item_id);
-        spawn_download_inner(app, queue, item_id).await;
+        let external_attempt = {
+            let q = queue.lock().await;
+            q.items
+                .iter()
+                .find(|i| i.id == item_id && i.platform == "mcp_worker")
+                .and_then(|_| crate::mcp::download_intents::load(item_id).ok().flatten())
+                .map(|i| i.attempt)
+        };
+        spawn_download_inner(app.clone(), queue.clone(), item_id).await;
+        if let Some(attempt) = external_attempt {
+            let q = queue.lock().await;
+            let cancelled = q.items.iter().find(|i| i.id == item_id).and_then(|item| {
+                if item.status == QueueStatus::Paused {
+                    Some("paused")
+                } else if item.cancel_token.is_cancelled() {
+                    Some("cancelled")
+                } else {
+                    None
+                }
+            });
+            let settled = crate::mcp::download_intents::settled(item_id, attempt, cancelled);
+            if let Err(e) = &settled {
+                tracing::warn!("[mcp] worker settlement not durable: {}", e);
+            }
+            let failed = q.items.iter().any(|i| {
+                i.id == item_id
+                    && matches!(
+                        i.status,
+                        QueueStatus::Error { .. } | QueueStatus::Complete { success: false }
+                    )
+            });
+            drop(q);
+            // Worker teardown is acknowledged and the attempt is durably
+            // terminal: remove its leftovers from the job's exclusive folder.
+            if settled.is_ok() && failed {
+                match tokio::task::spawn_blocking(move || {
+                    crate::mcp::download_intents::cleanup_failed_attempt(item_id)
+                })
+                .await
+                {
+                    Ok(Ok(removed)) if !removed.is_empty() => append_download_log(
+                        &app,
+                        item_id,
+                        format!(
+                            "[cleanup] removed {} leftover file(s) from the job folder: {}",
+                            removed.len(),
+                            removed.join(", ")
+                        ),
+                    ),
+                    Ok(Ok(_)) => {}
+                    Ok(Err(e)) => append_download_log(
+                        &app,
+                        item_id,
+                        format!("[cleanup] job folder not cleaned: {e}"),
+                    ),
+                    Err(_) => append_download_log(
+                        &app,
+                        item_id,
+                        "[cleanup] job folder not cleaned: CLEANUP_UNAVAILABLE",
+                    ),
+                }
+            }
+        }
         slot.disarm();
         tracing::debug!(
             "[perf] spawn_download {} took {:?}",
@@ -1175,7 +1521,7 @@ async fn spawn_download_inner(
             id: item_id,
             title: "".to_string(),
             platform: "".to_string(),
-            percent: 0.0,
+            percent: Some(0.0),
             speed_bytes_per_sec: 0.0,
             downloaded_bytes: 0,
             total_bytes: None,
@@ -1246,7 +1592,44 @@ async fn spawn_download_inner(
         )
     };
 
-    {
+    let external_intent = if platform_name == "mcp_worker" {
+        loop {
+            match crate::mcp::download_intents::before_execute(item_id) {
+                Ok(intent) if intent.options.url == url => break Some(intent),
+                Err(error) if error.starts_with("RETRY_COOLDOWN_UNTIL:") => {
+                    let until = error
+                        .split(':')
+                        .nth(1)
+                        .and_then(|v| v.parse::<u64>().ok())
+                        .unwrap_or(u64::MAX);
+                    let wait = until.saturating_sub(now_ms()).clamp(1, 60_000);
+                    tokio::select! {
+                        _=cancel_token.cancelled()=>return,
+                        _=tokio::time::sleep(std::time::Duration::from_millis(wait))=>{},
+                    }
+                    // Re-read authority and the durable host deadline before
+                    // any effect; another job may have extended Retry-After.
+                }
+                result => {
+                    let error = result
+                        .err()
+                        .unwrap_or_else(|| "DOWNLOAD_INTENT_MISMATCH".into());
+                    let snapshot = {
+                        let mut q = queue.lock().await;
+                        q.mark_complete(item_id, false, Some(error), None, None);
+                        q.get_state()
+                    };
+                    emit_queue_state_from_state(&app, snapshot);
+                    try_start_next(app, queue).await;
+                    return;
+                }
+            }
+        }
+    } else {
+        None
+    };
+
+    if platform_name != "mcp_worker" {
         let settings = crate::storage::config::load_settings(&app);
         let proxy = settings.proxy.clone();
         crate::core::http_client::init_proxy(proxy.clone());
@@ -1264,6 +1647,12 @@ async fn spawn_download_inner(
             &app,
             item_id,
             format!("[network] proxy setting: {}", proxy_status),
+        );
+    } else {
+        append_download_log(
+            &app,
+            item_id,
+            "[network] isolated worker; mediated egress policy applies",
         );
     }
 
@@ -1309,9 +1698,9 @@ async fn spawn_download_inner(
                 "queue-item-progress",
                 &QueueItemProgress {
                     id: item_id,
-                    title: url.clone(),
+                    title: crate::core::flight_recorder::redact_url(&url),
                     platform: platform_name.clone(),
-                    percent: 0.0,
+                    percent: Some(0.0),
                     speed_bytes_per_sec: 0.0,
                     downloaded_bytes: 0,
                     total_bytes: None,
@@ -1337,12 +1726,41 @@ async fn spawn_download_inner(
             } else {
                 omniget_core::core::ytdlp::DEFAULT_VIDEO_INFO_TOTAL_TIMEOUT_SECS
             };
-            let info_result = tokio::time::timeout(
-                std::time::Duration::from_secs(info_timeout_secs),
-                scoped_info_future,
-            )
-            .await;
+            let info_result = if platform_name == "mcp_worker" {
+                let worker_future = crate::mcp::worker::INSPECT_CANCEL
+                    .scope(cancel_token.clone(), scoped_info_future);
+                tokio::pin!(worker_future);
+                tokio::select! {
+                    result=&mut worker_future=>Ok(result),
+                    _=tokio::time::sleep(std::time::Duration::from_secs(info_timeout_secs))=>{
+                        cancel_token.cancel();
+                        let cleanup=worker_future.await; // teardown acknowledgement, never drop-and-retry
+                        if cleanup.as_ref().err().is_some_and(|e|e.to_string().contains("WORKER_TERMINATION_UNCONFIRMED")) {let _=crate::mcp::download_intents::unknown(item_id);}
+                        Err(())
+                    }
+                }
+            } else {
+                tokio::select! {
+                    biased;
+                    // Dropping metadata extraction also drops the confined worker's
+                    // process guard. Preserve the pause/cancel state set by the
+                    // queue instead of turning it into an extraction failure.
+                    _ = cancel_token.cancelled() => {
+                        try_start_next(app, queue).await;
+                        return;
+                    }
+                    result = tokio::time::timeout(
+                        std::time::Duration::from_secs(info_timeout_secs),
+                        scoped_info_future,
+                    ) => result.map_err(|_|()),
+                }
+            };
 
+            if platform_name == "mcp_worker"
+                && matches!(&info_result,Ok(Err(e)) if e.to_string().contains("WORKER_TERMINATION_UNCONFIRMED"))
+            {
+                let _ = crate::mcp::download_intents::unknown(item_id);
+            }
             match info_result {
                 Ok(Ok(i)) => {
                     append_download_log(
@@ -1366,9 +1784,10 @@ async fn spawn_download_inner(
                             e
                         ),
                     );
+                    let message = inspect_failure_message(&platform_name, &e.to_string());
                     let state = {
                         let mut q = queue.lock().await;
-                        q.mark_complete(item_id, false, Some(e.to_string()), None, None);
+                        q.mark_complete(item_id, false, Some(message), None, None);
                         q.get_state()
                     };
                     emit_queue_state_from_state(&app, state);
@@ -1407,6 +1826,9 @@ async fn spawn_download_inner(
             }
         }
     };
+    if platform_name == "mcp_worker" && cancel_token.is_cancelled() {
+        return;
+    }
     tracing::info!(
         "[queue] info fetch for {} took {:?}",
         item_id,
@@ -1422,7 +1844,7 @@ async fn spawn_download_inner(
     let state = {
         let mut q = queue.lock().await;
         if let Some(item) = q.items.iter_mut().find(|i| i.id == item_id) {
-            item.title = info.title.clone();
+            item.title = crate::core::flight_recorder::redact_urls(&info.title);
             item.total_bytes = info.file_size_bytes;
             let fc = if info.media_type == crate::models::media::MediaType::Carousel
                 || info.media_type == crate::models::media::MediaType::Playlist
@@ -1444,7 +1866,7 @@ async fn spawn_download_inner(
             id: item_id,
             title: info.title.clone(),
             platform: platform_name.clone(),
-            percent: 0.5,
+            percent: Some(0.5),
             speed_bytes_per_sec: 0.0,
             downloaded_bytes: 0,
             total_bytes: info.file_size_bytes,
@@ -1476,10 +1898,14 @@ async fn spawn_download_inner(
         }
         args
     };
-    let opts = crate::models::media::DownloadOptions {
+    let mut opts = crate::models::media::DownloadOptions {
         quality: quality.or_else(|| Some(settings.download.video_quality.clone())),
         output_dir: final_output_dir,
-        filename_template: Some(tmpl),
+        filename_template: if platform_name == "mcp_worker" {
+            None
+        } else {
+            Some(tmpl)
+        },
         download_subtitles: settings.download.download_subtitles,
         include_auto_subtitles: settings.download.include_auto_subtitles,
         download_mode,
@@ -1494,11 +1920,29 @@ async fn spawn_download_inner(
         ytdlp_path,
         torrent_listen_port: Some(settings.advanced.torrent_listen_port),
         torrent_id_slot: Some(torrent_id_slot.clone()),
-        custom_ytdlp_args: custom_ytdlp_args.clone(),
+        custom_ytdlp_args: if platform_name == "mcp_worker" {
+            None
+        } else {
+            custom_ytdlp_args.clone()
+        },
         torrent_files: torrent_files.clone(),
         torrent_auto_trackers: settings.advanced.torrent_auto_trackers,
         torrent_upnp: settings.advanced.torrent_upnp,
     };
+
+    if let Some(intent) = external_intent.as_ref() {
+        opts.output_dir = intent.destination.clone().into();
+        opts.quality = intent.options.quality.clone();
+        opts.download_mode = intent.options.mode.clone();
+        opts.format_id = intent.options.format_id.clone();
+        opts.audio_format = intent.options.audio_format.clone();
+        opts.download_subtitles = intent.options.subtitles;
+        opts.include_auto_subtitles = intent.options.auto_subtitles;
+        opts.concurrent_fragments = intent
+            .options
+            .fragments
+            .clamp(1, crate::mcp::download_intents::WORKER_MAX_FRAGMENTS);
+    }
 
     let total_bytes = info.file_size_bytes;
     let item_title = info.title.clone();
@@ -1517,6 +1961,7 @@ async fn spawn_download_inner(
         let mut throttle = ProgressThrottle::new(250);
         let mut current_speed: f64 = 0.0;
         let mut last_percent: f64 = 0.0;
+        let mut last_known = true;
         let mut last_advance = std::time::Instant::now();
         let mut stalled = false;
         let mut current_stream: Option<StreamInfo> = None;
@@ -1536,7 +1981,7 @@ async fn spawn_download_inner(
                             let mut q = queue_progress.lock().await;
                             let tid = { *torrent_id_slot_progress.lock().await };
                             q.update_progress(
-                                item_id, last_percent, 0.0, last_bytes, total_bytes, tid, None,
+                                item_id, last_known.then_some(last_percent), 0.0, last_bytes, total_bytes, tid, None,
                             );
                         }
                         let _ = app_progress.emit(
@@ -1545,7 +1990,7 @@ async fn spawn_download_inner(
                                 id: item_id,
                                 title: item_title.clone(),
                                 platform: item_platform.clone(),
-                                percent: last_percent,
+                                percent: last_known.then_some(last_percent),
                                 speed_bytes_per_sec: 0.0,
                                 downloaded_bytes: last_bytes,
                                 total_bytes,
@@ -1559,7 +2004,13 @@ async fn spawn_download_inner(
                 }
             };
 
-            let percent = update.percent;
+            let now = std::time::Instant::now();
+            let resolved_total = update.total_bytes.or(total_bytes);
+            // Unknown total (D-04): no number is invented. The byte count
+            // against a total known from inspect is still a real percent.
+            let reported = resolve_percent(&update, resolved_total);
+            let known = reported.is_some();
+            let percent = reported.unwrap_or(0.0);
             if !throttle.should_emit()
                 && percent < 100.0
                 && !update.has_real_metrics()
@@ -1580,8 +2031,6 @@ async fn spawn_download_inner(
                 current_fragment = Some((i, c));
             }
 
-            let now = std::time::Instant::now();
-            let resolved_total = update.total_bytes.or(total_bytes);
             let mut clamped = percent.clamp(0.0, 100.0);
             if percent >= 0.0 && percent < 100.0 {
                 if clamped < last_percent {
@@ -1610,6 +2059,7 @@ async fn spawn_download_inner(
 
             let mut downloaded_bytes = update.downloaded_bytes.unwrap_or_else(|| {
                 resolved_total
+                    .filter(|_| known)
                     .map(|total| (clamped / 100.0 * total as f64) as u64)
                     .unwrap_or(last_bytes)
             });
@@ -1639,8 +2089,16 @@ async fn spawn_download_inner(
             last_bytes = downloaded_bytes;
             last_time = now;
             last_percent = clamped;
+            last_known = known;
 
-            let phase_value = if percent < 0.0 { percent } else { clamped };
+            let phase_value = if percent < 0.0 {
+                percent
+            } else if !known && downloaded_bytes > 0 {
+                // Bytes are moving: downloading, whatever the percent.
+                50.0
+            } else {
+                clamped
+            };
             let stream_phase = match current_stream.as_ref() {
                 Some(s) if s.has_video() => "downloading_video",
                 Some(s) if s.has_audio() => "downloading_audio",
@@ -1677,7 +2135,7 @@ async fn spawn_download_inner(
                 let tid = { *torrent_id_slot_progress.lock().await };
                 q.update_progress(
                     item_id,
-                    clamped,
+                    known.then_some(clamped),
                     current_speed,
                     downloaded_bytes,
                     resolved_total,
@@ -1699,7 +2157,7 @@ async fn spawn_download_inner(
                     id: item_id,
                     title: item_title.clone(),
                     platform: item_platform.clone(),
-                    percent: clamped,
+                    percent: known.then_some(clamped),
                     speed_bytes_per_sec: current_speed,
                     downloaded_bytes,
                     total_bytes: resolved_total,
@@ -1732,10 +2190,14 @@ async fn spawn_download_inner(
         ),
     );
     let dl_future = async {
-        tokio::select! {
-            r = downloader.download(&info, &opts, tx) => r,
-            _ = cancel_token.cancelled() => {
-                Err(anyhow::anyhow!("Download cancelado"))
+        if platform_name == "mcp_worker" {
+            downloader.download(&info, &opts, tx).await
+        } else {
+            tokio::select! {
+                r = downloader.download(&info, &opts, tx) => r,
+                _ = cancel_token.cancelled() => {
+                    Err(anyhow::anyhow!("Download cancelado"))
+                }
             }
         }
     };
@@ -1787,6 +2249,14 @@ async fn spawn_download_inner(
         return;
     }
 
+    if platform_name == "mcp_worker"
+        && result
+            .as_ref()
+            .err()
+            .is_some_and(|e| e.to_string().contains("WORKER_TERMINATION_UNCONFIRMED"))
+    {
+        let _ = crate::mcp::download_intents::unknown(item_id);
+    }
     match result {
         Ok(dl) => {
             append_download_log(
@@ -1826,6 +2296,7 @@ async fn spawn_download_inner(
             }
 
             if settings.download.embed_metadata
+                && platform_name != "mcp_worker"
                 && platform_name != "magnet"
                 && ffmpeg::is_ffmpeg_available().await
             {
@@ -1847,7 +2318,58 @@ async fn spawn_download_inner(
                 }
             }
 
+            // Explicit MCP ceilings must also hold for native engines, which
+            // may return an original format rather than use yt-dlp's selector.
+            let ceiling = opts
+                .format_id
+                .as_deref()
+                .and_then(|f| f.strip_prefix("bv*[height<="))
+                .and_then(|f| f.split(']').next())
+                .and_then(|h| h.parse::<u64>().ok());
+            let audio_only = opts.download_mode.as_deref() == Some("audio");
+            if ceiling.is_some() || audio_only || external_intent.is_some() {
+                let probe = if let Some(intent) = external_intent.as_ref() {
+                    match intent.destination_identity.as_ref() {
+                        Some(identity) => {
+                            super::artifact_validation::probe_authorized(
+                                std::path::Path::new(&intent.destination),
+                                identity,
+                                &dl.file_path,
+                            )
+                            .await
+                        }
+                        None => Err("ARTIFACT_ROOT_IDENTITY_MISSING".into()),
+                    }
+                } else {
+                    super::artifact_validation::probe(&dl.file_path).await
+                };
+                let validation = match probe {
+                    Ok(probe) => {
+                        if audio_only {
+                            super::artifact_validation::check_audio(&probe)
+                        } else if ceiling.is_some() {
+                            super::artifact_validation::check_height(&probe, ceiling.unwrap())
+                        } else {
+                            Ok(())
+                        }
+                    }
+                    Err(error) => Err(error),
+                };
+                if let Err(error) = validation {
+                    append_download_log(&app, item_id, &error);
+                    let state = {
+                        let mut q = queue.lock().await;
+                        q.mark_complete(item_id, false, Some(error), None, None);
+                        q.get_state()
+                    };
+                    emit_queue_state_from_state(&app, state);
+                    try_start_next(app, queue).await;
+                    return;
+                }
+            }
+
             if settings.download.write_nfo_sidecar
+                && platform_name != "mcp_worker"
                 && !is_seeding
                 && crate::core::nfo_sidecar::applies(&info)
             {
@@ -1880,6 +2402,10 @@ async fn spawn_download_inner(
                 }
             }
 
+            let final_size = tokio::fs::metadata(&dl.file_path)
+                .await
+                .map(|m| m.len())
+                .unwrap_or(dl.file_size_bytes);
             let state = {
                 let mut q = queue.lock().await;
                 if platform_name == "magnet" && dl.torrent_id.is_some() {
@@ -1895,7 +2421,7 @@ async fn spawn_download_inner(
                         true,
                         None,
                         Some(dl.file_path.to_string_lossy().to_string()),
-                        Some(dl.file_size_bytes),
+                        Some(final_size),
                     );
                 }
                 q.get_state()
@@ -1903,14 +2429,19 @@ async fn spawn_download_inner(
             emit_queue_state_from_state(&app, state);
         }
         Err(e) => {
-            let raw_err = e.to_string();
+            let raw_err = super::flight_recorder::redact(&e.to_string());
             append_download_log(
                 &app,
                 item_id,
                 format!("[omniget] download failed: {}", raw_err),
             );
             let (category, hint) = omniget_core::core::errors::classify_download_error(&raw_err);
-            let user_msg = if category != "unknown" {
+            // Worker failures are fixed machine labels already classified in
+            // the worker; wrapping them in a desktop hint mislabels them
+            // ("FORMAT_UNAVAILABLE" read as "Content not found").
+            let user_msg = if platform_name == "mcp_worker" {
+                raw_err.clone()
+            } else if category != "unknown" {
                 format!("{} ({})", hint, raw_err)
             } else {
                 raw_err.clone()
@@ -1932,9 +2463,6 @@ async fn spawn_download_inner(
                     if !can_auto_retry_item(&item.status, &item.cancel_token, category) {
                         None
                     } else {
-                        if item.downloaded_bytes > 5 * 1024 * 1024 {
-                            item.retry_count = 0;
-                        }
                         let attempt = item.retry_count;
                         let max = item.max_retries;
                         if attempt < max {
@@ -1964,7 +2492,7 @@ async fn spawn_download_inner(
                     if let Some(item) = q.items.iter_mut().find(|i| i.id == item_id) {
                         item.status = QueueStatus::Queued;
                         item.cancel_token = CancellationToken::new();
-                        item.percent = 0.0;
+                        item.percent = Some(0.0);
                         item.speed_bytes_per_sec = 0.0;
                         item.downloaded_bytes = 0;
                     }
@@ -1993,7 +2521,7 @@ async fn spawn_download_inner(
 }
 
 fn is_retryable_category(category: &str) -> bool {
-    matches!(category, "unknown" | "rate_limited")
+    matches!(category, "unknown" | "rate_limited" | "server_error")
 }
 
 fn can_auto_retry_item(
@@ -2039,6 +2567,12 @@ async fn fetch_and_cache_info(
     platform: &str,
     ytdlp_path: Option<&std::path::Path>,
 ) -> anyhow::Result<MediaInfo> {
+    // A private cached URL may have been authenticated by another principal.
+    // Confined executors must resolve in their own worker, without this cache
+    // or the desktop's special direct yt-dlp optimization.
+    if downloader.name() == "mcp_worker" {
+        return downloader.get_media_info(url).await;
+    }
     {
         let cache = info_cache().lock().await;
         if let Some(entry) = cache.get(url) {
@@ -2217,7 +2751,7 @@ pub async fn try_start_next(app: tauri::AppHandle, queue: Arc<tokio::sync::Mutex
                 id: nid,
                 title: String::new(),
                 platform: String::new(),
-                percent: 0.0,
+                percent: Some(0.0),
                 speed_bytes_per_sec: 0.0,
                 downloaded_bytes: 0,
                 total_bytes: None,
@@ -2425,6 +2959,45 @@ mod kind_tests {
 }
 
 #[cfg(test)]
+mod inspect_failure_tests {
+    use super::{inspect_failure_message, is_retryable_error_message};
+
+    #[test]
+    fn d16_inspect_failure_carries_the_platform_block_class() {
+        let raw = "ERROR: [TikTok] 6748451240264420610: Your IP address is blocked from accessing this post";
+        let m = inspect_failure_message("tiktok", raw);
+        assert!(m.starts_with("The platform blocked access"), "{m}");
+        assert!(m.contains("IP address is blocked"));
+        // Retryable only after a cooldown, never a terminal unknown.
+        assert!(is_retryable_error_message(&m));
+        assert_eq!(
+            crate::core::root_cause::machine_diagnose(&m).code,
+            "BLOCKED_BY_PLATFORM"
+        );
+        // Worker failures are already fixed codes and pass through.
+        assert_eq!(
+            inspect_failure_message("mcp_worker", "BLOCKED_BY_PLATFORM: x"),
+            "BLOCKED_BY_PLATFORM: x"
+        );
+        // An unrecognized cause stays the raw line.
+        assert_eq!(
+            inspect_failure_message("generic", "something odd"),
+            "something odd"
+        );
+    }
+
+    #[test]
+    fn d05_server_errors_retry_and_d09_401_does_not() {
+        assert!(is_retryable_error_message(
+            "HTTP 503 Service Unavailable downloading x"
+        ));
+        assert!(!is_retryable_error_message(
+            "HTTP 401 Unauthorized downloading x"
+        ));
+    }
+}
+
+#[cfg(test)]
 mod id_tests {
     use super::DownloadQueue;
 
@@ -2449,5 +3022,247 @@ mod id_tests {
         let b = q.next_available_id(1_700_000_005_000);
         assert_eq!(a, 1_700_000_000_000);
         assert_eq!(b, 1_700_000_005_000);
+    }
+}
+
+#[cfg(test)]
+mod terminal_state_tests {
+    use super::{
+        external_retryable, history_retryable, is_retryable_error_message, redacted_for_display,
+        resolve_percent, DownloadQueue, QueueStatus, LINK_EXPIRED_MESSAGE,
+    };
+    use std::sync::Arc;
+
+    fn queue_with_active_item(id: u64) -> DownloadQueue {
+        let mut q = DownloadQueue::new(3);
+        q.enqueue(
+            id,
+            "https://example.com/v".into(),
+            "generic".into(),
+            "t".into(),
+            "/tmp".into(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Arc::new(crate::platforms::noop::NoopDownloader),
+            None,
+            false,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        q.items[0].status = QueueStatus::Active;
+        q
+    }
+
+    // Bench D6: after cancel the status was Error/Cancelled while phase stayed
+    // "running" with an ETA forever; a client polling phase never finished.
+    #[test]
+    fn cancel_settles_phase_and_eta_and_late_progress_cannot_revive_it() {
+        let mut q = queue_with_active_item(7);
+        q.update_progress(7, Some(18.0), 1000.0, 10, Some(100), None, Some(6));
+        q.update_run_state(7, Some("running"), None, None, None);
+        assert_eq!(q.items[0].phase.as_deref(), Some("running"));
+        assert!(q.cancel(7).0);
+        let info = &q.get_state()[0];
+        assert!(matches!(info.status, QueueStatus::Error { .. }));
+        assert_eq!(info.phase.as_deref(), Some("cancelled"));
+        assert_eq!(info.eta_seconds, None);
+        assert_eq!(info.speed_bytes_per_sec, 0.0);
+        // A progress event already in flight when the worker was killed.
+        q.update_progress(7, Some(19.0), 1000.0, 11, Some(100), None, Some(5));
+        q.update_run_state(7, Some("running"), None, None, None);
+        let info = &q.get_state()[0];
+        assert_eq!(info.phase.as_deref(), Some("cancelled"));
+        assert_eq!(info.eta_seconds, None);
+    }
+
+    fn failed(q: &mut DownloadQueue, message: &str) {
+        q.items[0].status = QueueStatus::Error {
+            message: message.into(),
+            retryable: true,
+        };
+    }
+
+    // G06 follow-up: items reloaded from history/recovery hold the redacted
+    // URL; a retry must not send `[REDACTED]` to the server.
+    #[test]
+    fn retry_from_a_redacted_url_fails_as_link_expired_and_not_retryable() {
+        use crate::core::flight_recorder::redact_url;
+        let mut q = queue_with_active_item(8);
+        q.items[0].url = redact_url("https://cdn.example.com/v.mp4?token=SYNTHETIC_SECRET");
+        failed(&mut q, "HTTP Error 503: Service Unavailable");
+        assert_eq!(q.retry(8).unwrap_err(), LINK_EXPIRED_MESSAGE);
+        match &q.items[0].status {
+            QueueStatus::Error { message, retryable } => {
+                assert!(!retryable);
+                assert!(message.starts_with("LINK_EXPIRED"));
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(!is_retryable_error_message(LINK_EXPIRED_MESSAGE));
+        assert!(!external_retryable(LINK_EXPIRED_MESSAGE));
+        // Edit-and-retry refuses it too.
+        assert_eq!(
+            q.retry_with_command(8, vec!["yt-dlp".into()]).unwrap_err(),
+            LINK_EXPIRED_MESSAGE
+        );
+        // A completed history entry stays completed.
+        q.items[0].status = QueueStatus::Complete { success: true };
+        assert_eq!(
+            q.retry_with_command(8, vec!["yt-dlp".into()]).unwrap_err(),
+            LINK_EXPIRED_MESSAGE
+        );
+        assert!(matches!(
+            q.items[0].status,
+            QueueStatus::Complete { success: true }
+        ));
+        // History hydration marks such a failure not retryable.
+        assert!(!history_retryable(
+            "HTTP Error 503: Service Unavailable",
+            &q.items[0].url
+        ));
+        assert!(history_retryable(
+            "HTTP Error 503: Service Unavailable",
+            "https://example.com/v"
+        ));
+    }
+
+    #[test]
+    fn retry_from_an_executable_url_still_works() {
+        let mut q = queue_with_active_item(9);
+        failed(&mut q, "HTTP Error 503: Service Unavailable");
+        assert!(q.retry(9).is_ok());
+        assert_eq!(q.items[0].status, QueueStatus::Queued);
+        // A `[REDACTED]` left in an edited command is refused without
+        // touching the item (the plain retry stays possible).
+        failed(&mut q, "HTTP Error 503: Service Unavailable");
+        let argv = vec![
+            "yt-dlp".into(),
+            "https://example.com/v?token=[REDACTED]".into(),
+        ];
+        assert_eq!(
+            q.retry_with_command(9, argv).unwrap_err(),
+            LINK_EXPIRED_MESSAGE
+        );
+        assert!(matches!(
+            q.items[0].status,
+            QueueStatus::Error {
+                retryable: true,
+                ..
+            }
+        ));
+    }
+
+    // D-04: an unknown total yields no percent instead of a fake asymptote.
+    #[test]
+    fn unknown_total_has_no_percent_end_to_end() {
+        use omniget_core::models::progress::ProgressUpdate;
+        let u = ProgressUpdate::rich(0.0, Some(2_400_000), None, None, None).indeterminate();
+        assert_eq!(resolve_percent(&u, None), None);
+        // The queue learned the total from inspect: bytes/total is real.
+        let p = resolve_percent(&u, Some(102_521_139)).unwrap();
+        assert!(p > 2.0 && p < 3.0, "{p}");
+        assert_eq!(
+            resolve_percent(&ProgressUpdate::percent(40.0), None),
+            Some(40.0)
+        );
+
+        let mut q = queue_with_active_item(11);
+        q.update_progress(11, None, 1000.0, 2_400_000, None, None, None);
+        let info = &q.get_state()[0];
+        assert_eq!(info.percent, None);
+        assert_eq!(info.downloaded_bytes, 2_400_000);
+        let json = serde_json::to_value(info).unwrap();
+        assert!(json["percent"].is_null());
+    }
+
+    #[test]
+    fn display_snapshot_never_carries_the_raw_signed_url() {
+        let mut q = queue_with_active_item(12);
+        q.items[0].url =
+            "https://cdn.example.com/v.mp4?X-Amz-Signature=SYNTHETIC_SECRET&igsh=SYNTHETIC_SECRET"
+                .into();
+        let shown = redacted_for_display(q.get_state());
+        let text = serde_json::to_string(&shown).unwrap();
+        assert!(!text.contains("SYNTHETIC_SECRET"), "{text}");
+        // The in-memory item keeps the executable URL for the download.
+        assert!(q.items[0].url.contains("SYNTHETIC_SECRET"));
+    }
+
+    // N-3: the title placeholder is the URL until metadata arrives (and for
+    // good when extraction fails); no copy of it may carry the secret.
+    #[test]
+    fn url_titles_never_carry_the_secret() {
+        let raw = "https://cdn.example.com/v.mp4?access_token=SYNTHETIC_SECRET&signature=SYNTHETIC_SECRET";
+        let mut q = DownloadQueue::new(3);
+        q.enqueue(
+            13,
+            raw.into(),
+            "generic".into(),
+            raw.into(),
+            "/tmp".into(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Arc::new(crate::platforms::noop::NoopDownloader),
+            None,
+            false,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert!(
+            !q.items[0].title.contains("SYNTHETIC_SECRET"),
+            "{}",
+            q.items[0].title
+        );
+        assert!(q.items[0]
+            .title
+            .starts_with("https://cdn.example.com/v.mp4?access_token="));
+        assert!(
+            q.items[0].url.contains("SYNTHETIC_SECRET"),
+            "the executable URL stays in memory"
+        );
+        // A title set behind the queue's back is still redacted on display.
+        q.items[0].title = format!("from {raw}");
+        let text = serde_json::to_string(&redacted_for_display(q.get_state())).unwrap();
+        assert!(!text.contains("SYNTHETIC_SECRET"), "{text}");
+        // Progress events redact whatever title they were built with.
+        let event = super::QueueItemProgress {
+            id: 13,
+            title: raw.into(),
+            ..Default::default()
+        };
+        let text = serde_json::to_string(&event).unwrap();
+        assert!(!text.contains("SYNTHETIC_SECRET"), "{text}");
+        // A real title is left alone.
+        let event = super::QueueItemProgress {
+            id: 13,
+            title: "Cats: the movie".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            serde_json::to_value(&event).unwrap()["title"],
+            "Cats: the movie"
+        );
     }
 }

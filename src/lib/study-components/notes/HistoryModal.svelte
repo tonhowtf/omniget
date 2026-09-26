@@ -172,7 +172,7 @@ import { t } from "$lib/i18n";
             onclick={() => (confirmClearOpen = true)}
             disabled={restoring}
           >
-            {$t("study.notes.history_modal.clear_count", { n: snapshots.length })}
+            {$t("study.notes.history_modal.clear_count", { count: snapshots.length })}
           </button>
         {/if}
         <span class="spacer"></span>
@@ -205,7 +205,7 @@ import { t } from "$lib/i18n";
       <p class="warn">
         {snapshots.length === 1
           ? $t("study.notes.history_modal.clear_warn")
-          : $t("study.notes.history_modal.clear_warn_multi", { n: snapshots.length })}
+          : $t("study.notes.history_modal.clear_warn_multi", { count: snapshots.length })}
       </p>
       <footer class="foot">
         <span class="spacer"></span>

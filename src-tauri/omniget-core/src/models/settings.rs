@@ -345,6 +345,9 @@ pub struct LastDownloadOptions {
 pub struct AppearanceSettings {
     pub theme: String,
     pub language: String,
+    /// Sidebar shown as an icon-only rail.
+    #[serde(default)]
+    pub sidebar_collapsed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -752,6 +755,7 @@ impl Default for AppSettings {
             appearance: AppearanceSettings {
                 theme: "system".into(),
                 language: "en".into(),
+                sidebar_collapsed: false,
             },
             download: DownloadSettings {
                 default_output_dir: dirs::download_dir().unwrap_or_else(|| PathBuf::from(".")),

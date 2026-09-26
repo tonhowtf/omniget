@@ -55,7 +55,7 @@
         { keys: ["/page /tag /block"], desc: $t("study.notes.shortcuts.slash_page_tag_block") },
         { keys: ["/code"], desc: $t("study.notes.shortcuts.slash_code") },
         { keys: ["/query"], desc: $t("study.notes.shortcuts.slash_query", { skeleton: "{{query (and (todo TODO))}}" }) },
-        { keys: ["/embed page", "/embed block"], desc: $t("study.notes.shortcuts.slash_embed", { a: "{{embed [[…]]}}", b: "{{embed ((…))}}" }) },
+        { keys: ["/embed page", "/embed block"], desc: $t("study.notes.shortcuts.slash_embed", { first: "{{embed [[…]]}}", second: "{{embed ((…))}}" }) },
       ],
     },
     {

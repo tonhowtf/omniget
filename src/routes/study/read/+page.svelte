@@ -397,7 +397,7 @@
         found: res?.books_found ?? 0,
       });
       if (removed > 0) {
-        scanMsg += " · " + $t("study.read.scan_removed", { n: removed });
+        scanMsg += " · " + $t("study.read.scan_removed", { count: removed });
       }
       await loadBooks();
     } catch (e) {

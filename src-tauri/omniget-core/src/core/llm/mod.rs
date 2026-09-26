@@ -9,6 +9,7 @@ pub mod agent;
 pub mod brain;
 pub mod broker;
 pub mod budget;
+pub mod caps;
 pub mod cli_runtime;
 pub mod cli_usage;
 pub mod code_tools;

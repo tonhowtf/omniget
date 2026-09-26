@@ -1,5 +1,7 @@
 <script lang="ts">
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
+  import RunsPanel from "$components/llm/activity/RunsPanel.svelte";
+  import { promptTitle } from "$components/llm/activity/run-status";
   /**
    * Jobs: background agent runs. A form to start one, the list with live
    * state, the pending permission ask inline, and the triggers (cron and
@@ -14,6 +16,10 @@
     cancelJob,
     deleteJob,
     deleteTrigger,
+    discardJob,
+    markJobDone,
+    muteTrigger,
+    resumeJob,
     duration,
     usageLabel,
     fetchJob,
@@ -40,7 +46,8 @@
   const filters = ["all", "active", "attention", "done"];
   function matches(job: Job, key: string) {
     if (key === "active") return isActive(job);
-    if (key === "attention") return job.state === "waiting_approval" || job.state === "failed";
+    if (key === "attention")
+      return job.state === "waiting_approval" || job.state === "failed" || job.state === "interrupted";
     if (key === "done") return !isActive(job);
     return true;
   }
@@ -193,6 +200,8 @@
   </header>
   <SurfaceGuide text={$t("llm.surface.jobs_hint")} href="/help?article=tasks#guide" />
 
+  <RunsPanel />
+
   <details class="creation-panel"><summary>{$t("llm.surface.create")}</summary>
   <section class="surface-card form">
     <h2 class="section-header-title">{$t("llm.jobs.new_title")}</h2>
@@ -245,10 +254,10 @@
           {@const ask = job.state === "waiting_approval" ? asks.find((a) => a.request_id === job.request_id) : undefined}
           <div class="row" class:open={openId === job.id}>
             <button type="button" class="row-head" aria-expanded={openId === job.id} onclick={() => toggle(job)}>
-              <span class="pill {pickState(job.state)}">{$t(`llm.jobs.state.${job.state}`)}</span>
+              <span class="pill {pickState(job.state)}">{job.state === "interrupted" ? $t("assist.runs.job_interrupted") : $t(`llm.jobs.state.${job.state}`)}</span>
               <span class="kind">{$t(`llm.jobs.kind.${job.kind}`)}</span>
               <span class="agent">{agentName(job.agent_id)}</span>
-              <span class="line">{firstLine(job.prompt)}</span>
+              <span class="line">{promptTitle(job.prompt).title}</span>
               <span class="time">
                 {shortTime(job.created_ms)}
                 {#if job.finished_ms}· {duration(job.started_ms ?? job.created_ms, job.finished_ms)}{/if}
@@ -293,8 +302,21 @@
                 {/if}
                 <div class="field-label">{$t("llm.jobs.log")}</div>
                 <pre class="pre log">{full.log || $t("llm.jobs.log_empty")}</pre>
+                {#if job.state === "interrupted"}
+                  <p class="hint">{$t("assist.runs.job_interrupted_hint")}</p>
+                {/if}
                 <div class="actions">
-                  {#if isActive(job)}
+                  {#if job.state === "interrupted"}
+                    <button type="button" class="button active" onclick={() => void resumeJob(job.id)}>
+                      {$t("assist.runs.action_resume")}
+                    </button>
+                    <button type="button" class="button" onclick={() => void markJobDone(job.id)}>
+                      {$t("assist.runs.action_mark_done")}
+                    </button>
+                    <button type="button" class="button" onclick={() => void discardJob(job.id)}>
+                      {$t("assist.runs.action_discard")}
+                    </button>
+                  {:else if isActive(job)}
                     <button type="button" class="button" onclick={() => void cancelJob(job.id)}>
                       {$t("llm.jobs.cancel")}
                     </button>
@@ -334,6 +356,14 @@
                 <input class="checkbox" type="checkbox" checked={tr.enabled} onchange={() => toggleTrigger(tr)} />
                 <span>{$t("llm.jobs.trigger.enabled")}</span>
               </label>
+              <button
+                type="button"
+                class="button"
+                aria-pressed={!!tr.muted}
+                onclick={() => void muteTrigger(tr.id, !tr.muted)}
+              >
+                {tr.muted ? $t("assist.runs.routine_unmute") : $t("assist.runs.routine_mute")}
+              </button>
               <button type="button" class="button" onclick={() => void fire(tr)}>{$t("llm.jobs.trigger.fire")}</button>
               <button type="button" class="button" onclick={() => void deleteTrigger(tr.id)}>
                 {$t("llm.jobs.delete")}
@@ -341,6 +371,13 @@
             </div>
             {#if tr.kind === "cron"}
               <code class="path">{tr.cron}</code>
+              <p class="hint">
+                {#if tr.enabled && tr.next_run_local}
+                  {$t("assist.runs.routine_next", { when: tr.next_run_local, offset: tr.utc_offset ?? "" })}
+                {/if}
+                {#if tr.requires_app_open}· {$t("assist.runs.routine_app_open")}{/if}
+                {#if tr.muted}· {$t("assist.runs.routine_muted")}{/if}
+              </p>
             {:else}
               <div class="copyline">
                 <code class="path">{hookUrl(tr)}</code>

@@ -209,7 +209,8 @@ jobs:
           test -x "$BIN"
           "$BIN" --version
           OUT="omniget-cli-${VERSION}-${{ matrix.target }}.tar.gz"
-          tar -czf "$OUT" -C "$(dirname "$BIN")" omniget-cli
+          test -x "$(dirname "$BIN")/omniget-mcp"
+          tar -czf "$OUT" -C "$(dirname "$BIN")" omniget-cli omniget-mcp omniget-gateway omniget-worker
           gh release upload "$TAG" "$OUT" --repo "${{ github.repository }}" --clobber
 
       - name: Package and upload (windows)
@@ -224,7 +225,13 @@ jobs:
           if (-not (Test-Path $BIN)) { throw "binario nao encontrado: $BIN" }
           & $BIN --version
           $OUT = "omniget-cli-${VERSION}-${{ matrix.target }}.zip"
-          Compress-Archive -Path $BIN -DestinationPath $OUT -Force
+          $MCP = "src-tauri/target/${{ matrix.target }}/release/omniget-mcp.exe"
+          if (-not (Test-Path $MCP)) { throw "MCP adapter not found" }
+          $GATEWAY = "src-tauri/target/${{ matrix.target }}/release/omniget-gateway.exe"
+          if (-not (Test-Path $GATEWAY)) { throw "OAuth gateway not found" }
+          $WORKER = "src-tauri/target/${{ matrix.target }}/release/omniget-worker.exe"
+          if (-not (Test-Path $WORKER)) { throw "MCP worker not found" }
+          Compress-Archive -Path $BIN, $MCP, $GATEWAY, $WORKER -DestinationPath $OUT -Force
           gh release upload $TAG $OUT --repo ${{ github.repository }} --clobber
         shell: pwsh
 

@@ -11,13 +11,17 @@
    */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
-  import type { AgentDef } from "$lib/llm/types";
+  import type { AgentDef, Room } from "$lib/llm/types";
   import {
-    getActiveAgentId,
+    getActiveConversation,
     getConversations,
+    getRooms,
     isDemoRoster,
     lastSpokenBy,
+    selectConversation,
   } from "$lib/stores/llm-store.svelte";
+  import RoomEditor from "./groups/RoomEditor.svelte";
+  import RoomRailItem from "./groups/RoomRailItem.svelte";
   import { getProfile, isProfileAvailable } from "$lib/stores/profile-store.svelte";
   import RailItem from "./RailItem.svelte";
 
@@ -39,7 +43,8 @@
 
   type Row =
     | { kind: "header"; key: string; label: string }
-    | { kind: "agent"; key: string; agent: AgentDef };
+    | { kind: "agent"; key: string; agent: AgentDef }
+    | { kind: "room"; key: string; room: Room };
 
   let viewport = $state<HTMLDivElement | null>(null);
   let scrollTop = $state(0);
@@ -47,7 +52,13 @@
   let query = $state("");
 
   let conversations = $derived(getConversations());
-  let activeAgentId = $derived(getActiveAgentId());
+  let active = $derived(getActiveConversation());
+  // A room's answerer is not "the selected agent": only a direct chat highlights one.
+  let activeAgentId = $derived(active && active.kind !== "group" ? active.agentId : null);
+  let activeRoomId = $derived(active?.kind === "group" ? active.id : null);
+  let rooms = $derived(getRooms());
+  let creatingRoom = $state(false);
+  let newRoomButton = $state<HTMLButtonElement | null>(null);
 
   let filtered = $derived(
     query.trim()
@@ -57,10 +68,16 @@
 
   /** Agents with at least one conversation are "in the team"; the rest are unassigned. */
   let rows = $derived.by<Row[]>(() => {
-    const assigned = new Set(conversations.map((c) => c.agentId));
+    const assigned = new Set(conversations.filter((c) => c.kind !== "group").map((c) => c.agentId));
     const team = filtered.filter((a) => assigned.has(a.id));
     const unassigned = filtered.filter((a) => !assigned.has(a.id));
     const out: Row[] = [];
+    const q = query.trim().toLowerCase();
+    const shownRooms = q ? rooms.filter((r) => r.title.toLowerCase().includes(q)) : rooms;
+    if (shownRooms.length > 0) {
+      out.push({ kind: "header", key: "h-rooms", label: $t("assist.groups.rail_title") });
+      for (const room of shownRooms) out.push({ kind: "room", key: `room-${room.id}`, room });
+    }
     if (team.length > 0) {
       out.push({ kind: "header", key: "h-team", label: $t("llm.rail.team") });
       for (const agent of team) out.push({ kind: "agent", key: agent.id, agent });
@@ -133,9 +150,21 @@
       placeholder={$t("llm.rail.search")}
       aria-label={$t("llm.rail.search")}
     />
-    <button type="button" class="button primary rail-new" disabled={!agents.length} onclick={onnew}>
-      {$t("llm.rail.new_chat")}
-    </button>
+    <div class="rail-actions">
+      <button type="button" class="button primary rail-new" disabled={!agents.length} onclick={onnew}>
+        {$t("llm.rail.new_chat")}
+      </button>
+      <button
+        type="button"
+        class="button rail-new"
+        bind:this={newRoomButton}
+        disabled={agents.length === 0}
+        onclick={() => (creatingRoom = true)}
+        title={$t("assist.groups.new_hint") as string}
+      >
+        {$t("assist.groups.new")}
+      </button>
+    </div>
   </div>
 
   {#if isDemoRoster()}
@@ -150,6 +179,8 @@
         {#each visible as row (row.key)}
           {#if row.kind === "header"}
             <div class="rail-group">{row.label}</div>
+          {:else if row.kind === "room"}
+            <RoomRailItem room={row.room} active={row.room.id === activeRoomId} onselect={selectConversation} />
           {:else}
             <RailItem
               agent={row.agent}
@@ -166,7 +197,6 @@
 
   <footer class="rail-foot">
     <a class="rail-foot-link" href="/llm/roster">{$t("llm.roster.new")}</a>
-    <a class="rail-foot-link" href="/marketplace">{$t("llm.rail.marketplace")}</a>
     {#if profile}
       <div class="rail-profile">
         <span class="rail-profile-dot" style:background={`rgb(${profile.skin.tint.join(",")})`}></span>
@@ -177,6 +207,16 @@
     {/if}
   </footer>
 </aside>
+
+{#if creatingRoom}
+  <RoomEditor
+    {agents}
+    onclose={() => {
+      creatingRoom = false;
+      queueMicrotask(() => newRoomButton?.focus());
+    }}
+  />
+{/if}
 
 <style>
   .llm-rail {
@@ -200,8 +240,14 @@
     width: 100%;
   }
 
+  .rail-actions {
+    display: flex;
+    gap: var(--space-2);
+  }
+
   .rail-new {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
   }
 
   .rail-demo {

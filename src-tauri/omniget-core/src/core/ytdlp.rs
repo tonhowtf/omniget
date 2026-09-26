@@ -78,6 +78,84 @@ pub(crate) const ARIA2C_ALLOWED_PROTOCOLS: &str = "http,ftp";
 /// intermitente (comentário em `youtube/_base.py`).
 pub(crate) const SABR_CLIENT_CASCADE: [&str; 4] = ["tv_downgraded", "ios", "android", "web_safari"];
 
+/// Um `format_id` com `/` já é um seletor completo com as próprias
+/// alternativas (o worker MCP manda assim); um id simples (`137`) não.
+pub(crate) fn is_full_format_selector(format_id: &str) -> bool {
+    format_id.contains('/')
+}
+
+/// Seletor `-f` do download. Um seletor completo passa intacto.
+pub(crate) fn download_format_selector(
+    format_id: Option<&str>,
+    quality_height: Option<u32>,
+    mode: &str,
+    ffmpeg_available: bool,
+) -> String {
+    if let Some(fid) = format_id {
+        if is_full_format_selector(fid) {
+            // Seletor completo (o worker MCP manda o seu, com teto em toda
+            // alternativa): anexar o fallback daqui punha um `/b` sem teto no
+            // fim (benchmark 26/09, youtube-2).
+            fid.to_string()
+        } else if let Some(h) = quality_height.filter(|h| *h > 0) {
+            let fallback = match mode {
+                "audio" => "ba/b".to_string(),
+                "mute" => format!("bv*[height<={}]/bv*/b", h),
+                _ => {
+                    if ffmpeg_available {
+                        format!(
+                            "bv*[height<={}]+ba[ext=m4a]/bv*[height<={}]+ba/b[height<={}]/b",
+                            h, h, h
+                        )
+                    } else {
+                        format!("b[height<={}]/bv*[height<={}]/b", h, h)
+                    }
+                }
+            };
+            format!("{}/{}", fid, fallback)
+        } else {
+            fid.to_string()
+        }
+    } else {
+        match mode {
+            "audio" => "ba/b".to_string(),
+            "mute" => match quality_height {
+                Some(h) if h > 0 => format!("bv*[height<={}]/bv*/b", h),
+                _ => "bv*/b".to_string(),
+            },
+            _ => {
+                if ffmpeg_available {
+                    match quality_height {
+                        Some(h) if h > 0 => format!(
+                            "bv*[height<={}]+ba[ext=m4a]/bv*[height<={}]+ba/b[height<={}]/b",
+                            h, h, h
+                        ),
+                        _ => "bv*+ba[ext=m4a]/bv*+ba/b".to_string(),
+                    }
+                } else {
+                    tracing::warn!("[yt-dlp] ffmpeg not available, using fallback format selector");
+                    match quality_height {
+                        Some(h) if h > 0 => format!("b[height<={}]/bv*[height<={}]/b", h, h),
+                        _ => "b/bv*".to_string(),
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// `formats=dashy` rebaixa os formatos `https` do YouTube a
+/// `http_dash_segments`, que o yt-dlp ordena abaixo de `m3u8`: na mesma
+/// resolução o HLS (MPEG-TS) passava a ganhar do DASH, e a fusão falhava
+/// (benchmark 26/09, youtube-2 pegou 232 em vez de 136). Resolução e fps
+/// continuam na frente; o protocolo só desempata.
+pub(crate) fn dashy_format_sort_args() -> Vec<String> {
+    vec![
+        "-S".to_string(),
+        "res,fps,hdr:12,proto:http_dash_segments".to_string(),
+    ]
+}
+
 /// `Some(arg)` quando o stderr indica formato SABR-only e ainda resta client na
 /// cascata; `None` quando nao e SABR ou a cascata se esgotou.
 ///
@@ -238,6 +316,83 @@ pub fn clear_command(download_id: u64) {
     }
 }
 
+/// Operator-only receiver for every yt-dlp command a process without a
+/// download id runs (the MCP worker). Before this, a worker failure left no
+/// trace of the argv that produced it (benchmark 26/09, open problem 4).
+pub type CommandSink = Arc<dyn Fn(&str) + Send + Sync + 'static>;
+
+static COMMAND_SINK: Mutex<Option<CommandSink>> = Mutex::new(None);
+
+/// Installs (or clears) the operator command sink. The worker installs one
+/// that emits a `diagnostic` event; the desktop keeps the per-download log.
+pub fn set_command_sink(sink: Option<CommandSink>) {
+    if let Ok(mut s) = COMMAND_SINK.lock() {
+        *s = sink;
+    }
+}
+
+/// Redacted one-line form of an argv for the operator log: no cookies, auth
+/// or CSRF headers, passwords, usernames, proxy credentials or PO tokens.
+/// In worker mode the fixed worker flags are appended as they are run.
+pub(crate) fn operator_command_line(program: &Path, args: &[String], stage: &str) -> String {
+    let program_name = program
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .map(|n| n.trim_end_matches(".pyz").to_string())
+        .unwrap_or_else(|| "yt-dlp".to_string());
+    let mut argv: Vec<String> = args.to_vec();
+    argv.extend(
+        worker_retry_args(crate::core::dependencies::worker_mode())
+            .into_iter()
+            .map(String::from),
+    );
+    let mut parts = vec![program_name];
+    parts.extend(super::shell_words::redact_for_log(&operator_order(&argv)));
+    format!("[{stage}] $ {}", super::shell_words::join(&parts))
+}
+
+/// Flags whose value the operator-log redactor (flight_recorder) treats as the
+/// start of a secret and cuts to the end of the line. Moving them last keeps the
+/// rest of the command (extractor-args, URL) readable in the diagnostic.
+const LOG_TRAILING_FLAGS: &[&str] = &[
+    "--proxy",
+    "--all-proxy",
+    "--cookies",
+    "--add-header",
+    "--username",
+    "--password",
+];
+
+fn operator_order(argv: &[String]) -> Vec<String> {
+    let (mut head, mut tail) = (Vec::new(), Vec::new());
+    let mut i = 0;
+    while i < argv.len() {
+        if LOG_TRAILING_FLAGS.contains(&argv[i].as_str()) {
+            tail.push(argv[i].clone());
+            if let Some(v) = argv.get(i + 1) {
+                tail.push(v.clone());
+            }
+            i += 2;
+        } else {
+            head.push(argv[i].clone());
+            i += 1;
+        }
+    }
+    head.extend(tail);
+    head
+}
+
+/// Sends the command to the operator sink when no per-download log owns it.
+fn note_operator_command(program: &Path, args: &[String], stage: &str) {
+    if log_hook::current_download_id().is_some() {
+        return;
+    }
+    let sink = COMMAND_SINK.lock().ok().and_then(|s| s.clone());
+    if let Some(sink) = sink {
+        sink(&operator_command_line(program, args, stage));
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn record_command(
     program: &Path,
@@ -250,6 +405,7 @@ fn record_command(
     overridden: bool,
 ) {
     let Some(id) = log_hook::current_download_id() else {
+        note_operator_command(program, args, engine);
         return;
     };
     let program_name = program
@@ -673,6 +829,18 @@ pub fn set_embed_thumbnail_fn(f: impl Fn() -> bool + Send + Sync + 'static) {
 
 fn embed_thumbnail_enabled() -> bool {
     EMBED_THUMBNAIL_FN.get().map(|f| f()).unwrap_or(true)
+}
+
+/// Whether any cosmetic post-processing (metadata/thumbnail embedding,
+/// SponsorBlock, chapter splitting) would be added to a download. The
+/// confined worker must answer false: those steps need extra network or
+/// conversions and a failed thumbnail conversion fails the whole download.
+pub fn cosmetic_postprocessing_enabled() -> bool {
+    embed_metadata_enabled()
+        || embed_thumbnail_enabled()
+        || sponsorblock_enabled()
+        || split_chapters_enabled()
+        || live_from_start_enabled()
 }
 
 pub fn set_speed_limit_fn(f: impl Fn() -> Option<String> + Send + Sync + 'static) {
@@ -1345,6 +1513,9 @@ pub const YOUTUBE_VIDEO_INFO_TOTAL_TIMEOUT_SECS: u64 = 190;
 pub const DEFAULT_VIDEO_INFO_TOTAL_TIMEOUT_SECS: u64 = 110;
 
 pub async fn find_ytdlp() -> Option<PathBuf> {
+    if crate::core::dependencies::worker_mode() {
+        return crate::core::dependencies::worker_tool("yt-dlp");
+    }
     let _timer_start = std::time::Instant::now();
     let bin_name = if cfg!(target_os = "windows") {
         "yt-dlp.exe"
@@ -1361,19 +1532,26 @@ pub async fn find_ytdlp() -> Option<PathBuf> {
         }
     }
 
-    if let Some(zip) = usable_zipapp().await {
-        tracing::debug!("[perf] find_ytdlp took {:?}", _timer_start.elapsed());
-        return Some(zip);
+    // Managed builds first — they bundle yt-dlp-ejs (required for the
+    // YouTube nsig challenge) and curl_cffi. System-installed yt-dlp (dnf,
+    // apt, brew) often lacks both. Order and reasons: impersonation::pick_ytdlp.
+    let onedir = managed_ytdlp_onedir_exe();
+    if onedir.is_none() {
+        spawn_onedir_install_if_missing();
     }
-    spawn_zipapp_download_if_missing().await;
-
-    // Prefer the managed binary — it bundles yt-dlp-ejs (required for
-    // YouTube nsig challenge). System-installed yt-dlp (dnf, apt) often
-    // lacks this plugin, causing "Requested format is not available".
-    let managed = managed_ytdlp_path()?;
-    if managed.exists() {
+    let zipapp = zipapp_with_python().await;
+    if zipapp.is_none() && !cfg!(target_os = "macos") {
+        // macOS usa o onedir; o pyz no Python do brew vem sem curl_cffi.
+        spawn_zipapp_download_if_missing().await;
+    }
+    let onefile = managed_ytdlp_path().filter(|p| p.exists());
+    let zipapp_imp = match (&onedir, &zipapp, &onefile) {
+        (None, Some(zip), Some(_)) => zipapp_impersonates(zip).await,
+        _ => false,
+    };
+    if let Some(picked) = super::impersonation::pick_ytdlp(onedir, zipapp, onefile, zipapp_imp) {
         tracing::debug!("[perf] find_ytdlp took {:?}", _timer_start.elapsed());
-        return Some(managed);
+        return Some(picked);
     }
 
     // Fall back to system PATH. Resolve to an absolute path so the cache
@@ -1487,6 +1665,29 @@ pub fn managed_ytdlp_zipapp_path() -> Option<PathBuf> {
     Some(data.join("bin").join("yt-dlp.pyz"))
 }
 
+/// Diretorio do yt-dlp onedir gerido (`bin/yt-dlp_onedir/`). `None` fora do
+/// macOS ou quando o usuario apontou um binario proprio.
+pub fn managed_ytdlp_onedir_dir() -> Option<PathBuf> {
+    crate::core::dependencies::ytdlp_onedir::asset_name()?;
+    if crate::core::binary_overrides::get("yt-dlp").is_some() {
+        return None;
+    }
+    let data = crate::core::paths::app_data_dir()?;
+    Some(
+        data.join("bin")
+            .join(crate::core::dependencies::ytdlp_onedir::DIR_NAME),
+    )
+}
+
+/// Executavel do onedir gerido, so quando a extracao esta completa. Os
+/// chamadores que passam o yt-dlp a um processo confinado (worker MCP) precisam
+/// liberar leitura do diretorio inteiro: `_internal/` e carregado sob demanda.
+pub fn managed_ytdlp_onedir_exe() -> Option<PathBuf> {
+    let dir = managed_ytdlp_onedir_dir()?;
+    crate::core::dependencies::ytdlp_onedir::is_complete(&dir)
+        .then(|| crate::core::dependencies::ytdlp_onedir::exe_in(&dir))
+}
+
 pub fn is_ytdlp_zipapp(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
@@ -1595,6 +1796,44 @@ fn python_cached() -> Option<PathBuf> {
 }
 
 /// Comando para lançar este yt-dlp: o zipapp vai via Python, o binário direto.
+// Appended after all regular arguments so engine defaults cannot override the
+// external intent's single-attempt policy. Existing UI invocations are unchanged.
+// Transport retries stay inside the one attempt: they resume the same file
+// (a dropped connection read "6270964 bytes read, 2639932 more expected" and
+// failed a Bilibili job, benchmark 26/09), bounded with exponential sleep.
+// Extractor retries stay at 0: metadata requests are what trip rate limits,
+// and a repeated attempt is the intent's decision, not the engine's.
+fn worker_retry_args(worker: bool) -> Vec<&'static str> {
+    if !worker {
+        return Vec::new();
+    }
+    vec![
+        "--ignore-config",
+        "--no-plugin-dirs",
+        "--downloader",
+        "native",
+        "--retries",
+        "3",
+        "--fragment-retries",
+        "3",
+        "--retry-sleep",
+        "exp=1:8",
+        "--extractor-retries",
+        "0",
+        "--file-access-retries",
+        "0",
+        "--abort-on-unavailable-fragments",
+    ]
+}
+
+/// Removes `--http-chunk-size <value>` from an argument list.
+fn strip_chunk_size(args: &mut Vec<String>) {
+    if let Some(at) = args.iter().position(|a| a == "--http-chunk-size") {
+        let end = (at + 2).min(args.len());
+        args.drain(at..end);
+    }
+}
+
 pub fn ytdlp_command(ytdlp: &Path) -> tokio::process::Command {
     if is_ytdlp_zipapp(ytdlp) {
         if let Some(py) = python_cached() {
@@ -1655,8 +1894,8 @@ async fn spawn_zipapp_download_if_missing() {
         .ok();
 }
 
-/// Zipapp gerido pronto para uso: existe e há Python para ele.
-async fn usable_zipapp() -> Option<PathBuf> {
+/// Zipapp gerido que existe e tem Python para rodar.
+async fn zipapp_with_python() -> Option<PathBuf> {
     let zip = managed_ytdlp_zipapp_path()?;
     if !zip.exists() {
         return None;
@@ -1664,12 +1903,137 @@ async fn usable_zipapp() -> Option<PathBuf> {
     find_python().await.map(|_| zip)
 }
 
+/// Zipapp gerido pronto para uso: existe, há Python e o Python tem curl_cffi.
+/// Sem impersonate o pyz não substitui o binário (Bilibili 412, Vimeo 401).
+async fn usable_zipapp() -> Option<PathBuf> {
+    let zip = zipapp_with_python().await?;
+    zipapp_impersonates(&zip).await.then_some(zip)
+}
+
+/// O zipapp tem alvos de `--impersonate` no Python que vai rodá-lo? Consulta
+/// `--list-impersonate-targets` uma vez por processo (0,6 s); depende do
+/// Python, não da versão do pyz.
+static ZIPAPP_IMPERSONATES: OnceLock<bool> = OnceLock::new();
+
+async fn zipapp_impersonates(zip: &Path) -> bool {
+    if let Some(v) = ZIPAPP_IMPERSONATES.get() {
+        return *v;
+    }
+    let zip = zip.to_path_buf();
+    let found = tokio::task::spawn_blocking(move || {
+        ytdlp_std_command(&zip)
+            .arg("--list-impersonate-targets")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output()
+            .map(|o| {
+                !super::impersonation::parse_targets(&String::from_utf8_lossy(&o.stdout)).is_empty()
+            })
+            .unwrap_or(false)
+    })
+    .await
+    .unwrap_or(false);
+    if !found {
+        tracing::info!("[yt-dlp] zipapp python has no curl_cffi; preferring a managed binary");
+    }
+    *ZIPAPP_IMPERSONATES.get_or_init(|| found)
+}
+
+static ONEDIR_INSTALL_STARTED: AtomicBool = AtomicBool::new(false);
+
+/// Instala o onedir em segundo plano (uma vez por sessão). Quem chamou segue
+/// com o binário atual; o próximo `find_ytdlp` já pega o onedir.
+fn spawn_onedir_install_if_missing() {
+    if crate::core::dependencies::is_flatpak() || crate::core::dependencies::worker_mode() {
+        return;
+    }
+    let Some(dir) = managed_ytdlp_onedir_dir() else {
+        return;
+    };
+    if crate::core::dependencies::ytdlp_onedir::is_complete(&dir) {
+        return;
+    }
+    if ONEDIR_INSTALL_STARTED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::Builder::new()
+        .name("ytdlp-onedir".into())
+        .spawn(|| {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("ytdlp-onedir runtime");
+            rt.block_on(async {
+                match download_ytdlp_onedir().await {
+                    Ok(p) => {
+                        tracing::info!("[ytdlp] onedir ready at {}", p.display());
+                        reset_ytdlp_cache();
+                    }
+                    Err(e) => tracing::warn!("[ytdlp] onedir install failed: {}", e),
+                }
+            });
+        })
+        .ok();
+}
+
+/// Primeira execução do onedir: o macOS varre `_internal/` (~20-33 s). Feita
+/// no diretório em preparo, antes da troca, para nenhum download pagar isso.
+fn warm_ytdlp_onedir(exe: &Path) -> anyhow::Result<()> {
+    let out = crate::core::process::std_command(exe)
+        .arg("--version")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()
+        .map_err(|e| anyhow!("yt-dlp onedir nao executa: {e}"))?;
+    if !out.status.success() || parse_ytdlp_version(&String::from_utf8_lossy(&out.stdout)).is_none()
+    {
+        return Err(anyhow!("yt-dlp onedir: --version falhou"));
+    }
+    Ok(())
+}
+
 pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
+    if crate::core::dependencies::worker_mode() {
+        return crate::core::dependencies::worker_tool("yt-dlp")
+            .ok_or_else(|| anyhow!("WORKER_DEPENDENCY_UNAVAILABLE"));
+    }
     let _timer_start = std::time::Instant::now();
 
-    // Zipapp primeiro: sem bootstrap de 72 MB por processo. Se não há Python
-    // ou o download falha, o onefile abaixo continua valendo.
+    // macOS: onedir primeiro (0,4 s por processo contra 13-25 s do onefile).
+    // Sem nenhum binário gerido, instala agora; havendo um, instala em segundo
+    // plano e o atual segue valendo até lá.
     if !crate::core::dependencies::is_flatpak() {
+        if let Some(dir) = managed_ytdlp_onedir_dir() {
+            if !crate::core::dependencies::ytdlp_onedir::is_complete(&dir) {
+                let has_other = managed_ytdlp_path().is_some_and(|p| p.exists())
+                    || usable_zipapp().await.is_some();
+                if has_other {
+                    spawn_onedir_install_if_missing();
+                } else {
+                    tracing::info!("[ytdlp] managed onedir missing, downloading...");
+                    match download_ytdlp_onedir().await {
+                        Ok(path) => {
+                            reset_ytdlp_cache();
+                            tracing::debug!(
+                                "[perf] ensure_ytdlp took {:?}",
+                                _timer_start.elapsed()
+                            );
+                            return Ok(path);
+                        }
+                        Err(e) => tracing::warn!(
+                            "[ytdlp] failed to install onedir, falling back to onefile: {}",
+                            e
+                        ),
+                    }
+                }
+            }
+        }
+    }
+
+    // Zipapp: sem bootstrap de 72 MB por processo. Se não há Python ou o
+    // download falha, o onefile abaixo continua valendo. No macOS o onedir
+    // ocupa esse papel (o Python do brew vem sem curl_cffi).
+    if !crate::core::dependencies::is_flatpak() && !cfg!(target_os = "macos") {
         if let Some(zip) = managed_ytdlp_zipapp_path() {
             if find_python().await.is_some() && !zip.exists() {
                 tracing::info!("[ytdlp] managed zipapp missing, downloading...");
@@ -1690,7 +2054,10 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
 
     // Always ensure the managed binary exists — it bundles yt-dlp-ejs and
     // works reliably with --js-runtimes and --ffmpeg-location.
-    if !crate::core::dependencies::is_flatpak() && usable_zipapp().await.is_none() {
+    if !crate::core::dependencies::is_flatpak()
+        && managed_ytdlp_onedir_exe().is_none()
+        && usable_zipapp().await.is_none()
+    {
         let managed = managed_ytdlp_path();
         if managed.as_ref().map_or(true, |p| !p.exists()) {
             tracing::info!("[ytdlp] managed binary missing, downloading...");
@@ -1781,6 +2148,11 @@ pub async fn update_ytdlp() -> anyhow::Result<PathBuf> {
             "yt-dlp is provided by the Flatpak runtime and cannot be updated from inside the app"
         ));
     }
+    if managed_ytdlp_onedir_exe().is_some() {
+        let path = download_ytdlp_onedir().await?;
+        reset_ytdlp_cache();
+        return Ok(path);
+    }
     let path = download_ytdlp_binary().await?;
     reset_ytdlp_cache();
     Ok(path)
@@ -1835,6 +2207,52 @@ async fn download_ytdlp_zipapp() -> anyhow::Result<PathBuf> {
     let target =
         managed_ytdlp_zipapp_path().ok_or_else(|| anyhow!("Could not determine data directory"))?;
     download_ytdlp_asset(YTDLP_ZIPAPP_ASSET, target).await
+}
+
+/// Baixa o onedir oficial (`yt-dlp_macos.zip`), confere o SHA2-256SUMS da
+/// release como os outros assets, extrai, aquece e troca.
+async fn download_ytdlp_onedir() -> anyhow::Result<PathBuf> {
+    let asset = crate::core::dependencies::ytdlp_onedir::asset_name()
+        .ok_or_else(|| anyhow!("yt-dlp onedir is not published for this platform"))?;
+    let dir =
+        managed_ytdlp_onedir_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
+    if let Some(parent) = dir.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let bytes = fetch_verified_ytdlp_asset(asset, 300).await?;
+    tokio::task::spawn_blocking(move || {
+        crate::core::dependencies::ytdlp_onedir::install_from_zip(&bytes, &dir, warm_ytdlp_onedir)
+    })
+    .await
+    .map_err(|e| anyhow!("spawn_blocking failed: {}", e))?
+}
+
+/// Bytes de um asset da release do canal, conferidos contra o SHA2-256SUMS.
+async fn fetch_verified_ytdlp_asset(asset: &str, timeout_secs: u64) -> anyhow::Result<Vec<u8>> {
+    let channel = ytdlp_channel();
+    let base = ytdlp_release_base(channel);
+    let download_url = format!("{}/{}", base, asset);
+    let sums_url = format!("{}/SHA2-256SUMS", base);
+
+    let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .build()?;
+
+    let response = client.get(&download_url).send().await?;
+
+    if !response.status().is_success() {
+        return Err(anyhow!(
+            "Failed to download yt-dlp: HTTP {}",
+            response.status()
+        ));
+    }
+
+    let bytes = response.bytes().await?;
+    let expected = integrity::expected_from_sums_url(&client, &sums_url, asset)
+        .await
+        .map_err(|e| anyhow!("yt-dlp: verificacao de integridade impossivel — {}", e))?;
+    integrity::verify_sha256(&bytes, &expected, &format!("yt-dlp ({:?})", channel))?;
+    Ok(bytes.to_vec())
 }
 
 async fn download_ytdlp_asset(asset: &str, target: PathBuf) -> anyhow::Result<PathBuf> {
@@ -1960,7 +2378,8 @@ pub(crate) fn newer_release_available(
 
 async fn check_ytdlp_freshness(path: &Path) {
     let is_managed = managed_ytdlp_path().is_some_and(|m| path == m.as_path())
-        || managed_ytdlp_zipapp_path().is_some_and(|z| path == z.as_path());
+        || managed_ytdlp_zipapp_path().is_some_and(|z| path == z.as_path())
+        || managed_ytdlp_onedir_exe().is_some_and(|o| path == o.as_path());
     if !is_managed {
         return;
     }
@@ -2015,6 +2434,8 @@ async fn check_ytdlp_freshness(path: &Path) {
                     );
                     let result = if is_ytdlp_zipapp(&path_owned) {
                         download_ytdlp_zipapp().await
+                    } else if managed_ytdlp_onedir_exe().is_some_and(|o| o == path_owned) {
+                        download_ytdlp_onedir().await
                     } else {
                         download_ytdlp_binary().await
                     };
@@ -2238,6 +2659,274 @@ fn extract_error_message(stderr: &str) -> String {
     stderr.trim().to_string()
 }
 
+/// `--user-agent` padrão do app, só para build sem impersonate. Com curl_cffi
+/// o yt-dlp casa UA e TLS sozinho; o nosso Chrome/131 de Windows junto do TLS
+/// do Chrome 146/macOS é uma incoerência que Instagram/TikTok/Reddit veem.
+fn default_user_agent_args(can_impersonate: bool) -> Vec<String> {
+    if can_impersonate {
+        Vec::new()
+    } else {
+        vec!["--user-agent".to_string(), CHROME_UA.to_string()]
+    }
+}
+
+/// Com `--impersonate` no comando, o UA padrão sai (o da extensão/config fica).
+fn strip_default_user_agent(args: &mut Vec<String>) {
+    super::impersonation::strip_default_user_agent(args, CHROME_UA);
+}
+
+/// Este yt-dlp imita navegador (tem curl_cffi)? Sem processo novo: usa a
+/// lista já consultada, a sondagem do zipapp, ou reconhece o build
+/// standalone oficial (PyInstaller, traz curl_cffi). yt-dlp de pacote (brew,
+/// pip) é script Python (`#!`) e fica com o UA padrão.
+fn ytdlp_can_impersonate(ytdlp: &Path) -> bool {
+    if let Some(cached) = IMPERSONATE_TARGETS.get() {
+        return cached.is_some();
+    }
+    if is_ytdlp_zipapp(ytdlp) {
+        return ZIPAPP_IMPERSONATES.get().copied().unwrap_or(false);
+    }
+    is_standalone_ytdlp_build(ytdlp)
+}
+
+fn is_standalone_ytdlp_build(path: &Path) -> bool {
+    use std::io::Read;
+    let mut head = [0u8; 2];
+    std::fs::File::open(path)
+        .and_then(|mut f| f.read_exact(&mut head))
+        .is_ok()
+        && &head != b"#!"
+}
+
+/// Validade do info JSON salvo. URLs assinadas (YouTube ~6 h, TikTok/Instagram
+/// CDN menos) e cookies de CDN envelhecem; 5 min cobre inspeção → download.
+pub const INFO_JSON_MAX_AGE: std::time::Duration = std::time::Duration::from_secs(5 * 60);
+
+/// Onde o info JSON fica. `OMNIGET_INFO_JSON_DIR` deixa o host apontar um
+/// diretório que sobrevive entre o worker de inspeção e o de download.
+fn info_json_dir() -> Option<PathBuf> {
+    if let Some(dir) = std::env::var_os("OMNIGET_INFO_JSON_DIR").map(PathBuf::from) {
+        if dir.is_absolute() {
+            return Some(dir);
+        }
+    }
+    Some(
+        crate::core::paths::app_data_dir()?
+            .join("cache")
+            .join("info-json"),
+    )
+}
+
+fn info_json_file(dir: &Path, url: &str) -> PathBuf {
+    let hash = crate::core::dependencies::integrity::sha256_hex(url.trim().as_bytes());
+    dir.join(format!("{}.info.json", &hash[..32]))
+}
+
+/// O JSON serve para `--load-info-json`? Só vídeo único com formatos (um
+/// playlist ou um resultado `url` obrigaria outra extração de qualquer jeito).
+fn info_json_is_loadable(info: &serde_json::Value) -> bool {
+    let kind = info
+        .get("_type")
+        .and_then(|t| t.as_str())
+        .unwrap_or("video");
+    kind == "video"
+        && info
+            .get("formats")
+            .and_then(|f| f.as_array())
+            .is_some_and(|f| !f.is_empty())
+}
+
+fn info_json_fresh(path: &Path, now: std::time::SystemTime) -> bool {
+    std::fs::metadata(path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|m| now.duration_since(m).ok())
+        .is_some_and(|age| age <= INFO_JSON_MAX_AGE)
+}
+
+fn prune_info_json_dir(dir: &Path, now: std::time::SystemTime) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.to_string_lossy().ends_with(".info.json") && !info_json_fresh(&path, now) {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+}
+
+/// Grava o JSON cru do `--dump-single-json` para o download reaproveitar a
+/// extração. Chave: o URL pedido e o `webpage_url` (é o que o download recebe).
+/// Arquivo 0600: o JSON pode trazer cookies de CDN dos formatos.
+pub fn save_info_json(url: &str, raw: &[u8], info: &serde_json::Value) {
+    if !info_json_is_loadable(info) {
+        return;
+    }
+    let Some(dir) = info_json_dir() else {
+        return;
+    };
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    prune_info_json_dir(&dir, std::time::SystemTime::now());
+    let mut keys = vec![url.to_string()];
+    if let Some(page) = info.get("webpage_url").and_then(|u| u.as_str()) {
+        if page != url {
+            keys.push(page.to_string());
+        }
+    }
+    for key in keys {
+        let path = info_json_file(&dir, &key);
+        let tmp = path.with_extension("tmp");
+        let written = (|| {
+            use std::io::Write;
+            let mut opts = std::fs::OpenOptions::new();
+            opts.write(true).create(true).truncate(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                opts.mode(0o600);
+            }
+            let mut f = opts.open(&tmp)?;
+            f.write_all(raw)?;
+            std::fs::rename(&tmp, &path)
+        })();
+        if written.is_err() {
+            let _ = std::fs::remove_file(&tmp);
+        }
+    }
+}
+
+/// Info JSON salvo para este URL, se ainda dentro da validade.
+pub fn fresh_info_json(url: &str) -> Option<PathBuf> {
+    let path = info_json_file(&info_json_dir()?, url);
+    if info_json_fresh(&path, std::time::SystemTime::now()) {
+        return Some(path);
+    }
+    let _ = std::fs::remove_file(&path);
+    None
+}
+
+/// Descarta o info JSON deste URL (falhou ao baixar dele).
+pub fn forget_info_json(url: &str) {
+    if let Some(dir) = info_json_dir() {
+        let _ = std::fs::remove_file(info_json_file(&dir, url));
+    }
+}
+
+/// Fim do comando: `--load-info-json <arq>` quando há JSON válido, senão o URL.
+fn url_or_info_json_args(url: &str, info_json: Option<&Path>) -> Vec<String> {
+    match info_json {
+        Some(path) => vec![
+            "--load-info-json".to_string(),
+            path.to_string_lossy().into_owned(),
+        ],
+        None => vec![url.to_string()],
+    }
+}
+
+#[cfg(test)]
+mod single_extraction_tests {
+    use super::*;
+
+    #[test]
+    fn ua_padrao_so_sem_impersonate() {
+        assert!(default_user_agent_args(true).is_empty());
+        assert_eq!(
+            default_user_agent_args(false),
+            vec!["--user-agent".to_string(), CHROME_UA.to_string()]
+        );
+    }
+
+    #[test]
+    fn script_de_pacote_nao_conta_como_build_com_curl_cffi() {
+        let tmp = tempfile::tempdir().unwrap();
+        let script = tmp.path().join("yt-dlp");
+        std::fs::write(&script, "#!/opt/homebrew/bin/python3\nimport yt_dlp\n").unwrap();
+        assert!(!is_standalone_ytdlp_build(&script));
+        let macho = tmp.path().join("yt-dlp_macos");
+        std::fs::write(&macho, [0xcf, 0xfa, 0xed, 0xfe, 0, 0]).unwrap();
+        assert!(is_standalone_ytdlp_build(&macho));
+        assert!(!is_standalone_ytdlp_build(&tmp.path().join("nao-existe")));
+    }
+
+    #[test]
+    fn download_usa_o_json_e_cai_para_o_url() {
+        let p = Path::new("/tmp/x.info.json");
+        assert_eq!(
+            url_or_info_json_args("https://a/b", Some(p)),
+            vec![
+                "--load-info-json".to_string(),
+                "/tmp/x.info.json".to_string()
+            ]
+        );
+        assert_eq!(
+            url_or_info_json_args("https://a/b", None),
+            vec!["https://a/b".to_string()]
+        );
+    }
+
+    #[test]
+    fn so_video_com_formatos_e_reaproveitavel() {
+        let ok = serde_json::json!({"id":"1","formats":[{"format_id":"18"}]});
+        assert!(info_json_is_loadable(&ok));
+        assert!(!info_json_is_loadable(
+            &serde_json::json!({"_type":"playlist","entries":[]})
+        ));
+        assert!(!info_json_is_loadable(
+            &serde_json::json!({"id":"1","formats":[]})
+        ));
+        assert!(!info_json_is_loadable(
+            &serde_json::json!({"_type":"url","url":"https://x"})
+        ));
+    }
+
+    #[test]
+    fn validade_de_cinco_minutos() {
+        let tmp = tempfile::tempdir().unwrap();
+        let f = tmp.path().join("a.info.json");
+        std::fs::write(&f, "{}").unwrap();
+        let now = std::time::SystemTime::now();
+        assert!(info_json_fresh(&f, now));
+        assert!(info_json_fresh(
+            &f,
+            now + std::time::Duration::from_secs(299)
+        ));
+        assert!(!info_json_fresh(
+            &f,
+            now + std::time::Duration::from_secs(301)
+        ));
+        assert!(!info_json_fresh(&tmp.path().join("sumiu.info.json"), now));
+        prune_info_json_dir(tmp.path(), now + std::time::Duration::from_secs(600));
+        assert!(!f.exists(), "expirado sai na poda");
+    }
+
+    #[test]
+    fn grava_pelo_url_e_pelo_webpage_url_e_esquece() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::env::set_var("OMNIGET_INFO_JSON_DIR", tmp.path());
+        let info = serde_json::json!({
+            "id":"1","webpage_url":"https://site/v/1","formats":[{"format_id":"b"}]
+        });
+        let raw = serde_json::to_vec(&info).unwrap();
+        save_info_json("https://site/v/1?utm=x", &raw, &info);
+        let a = fresh_info_json("https://site/v/1?utm=x").expect("pelo URL pedido");
+        let b = fresh_info_json("https://site/v/1").expect("pelo webpage_url");
+        assert_ne!(a, b);
+        assert_eq!(std::fs::read(&a).unwrap(), raw);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&a).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600);
+        }
+        forget_info_json("https://site/v/1");
+        assert!(fresh_info_json("https://site/v/1").is_none());
+        std::env::remove_var("OMNIGET_INFO_JSON_DIR");
+    }
+}
+
 pub async fn get_video_info(
     ytdlp: &Path,
     url: &str,
@@ -2250,7 +2939,7 @@ pub async fn get_video_info(
     }
 
     let is_yt = is_youtube_url(url);
-    let clients: &[Option<&str>] = if is_yt {
+    let clients: &[Option<&str>] = if is_yt && !crate::core::dependencies::worker_mode() {
         &[None, Some("youtube:player_client=default,mweb")]
     } else {
         &[None]
@@ -2279,10 +2968,9 @@ pub async fn get_video_info(
             "2".to_string(),
             "--retry-sleep".to_string(),
             "exp=1:30".to_string(),
-            "--user-agent".to_string(),
-            CHROME_UA.to_string(),
             "--skip-download".to_string(),
         ];
+        args.extend(default_user_agent_args(ytdlp_can_impersonate(ytdlp)));
         args.extend(js_runtime_args());
 
         if let Some(extractor_args) = client {
@@ -2309,9 +2997,11 @@ pub async fn get_video_info(
         args.extend(extra_flags.iter().cloned());
         args.push(url.to_string());
 
+        note_operator_command(ytdlp, &args, "metadata");
         let _slot = acquire_ytdlp_slot("video info").await;
         let child = ytdlp_command(ytdlp)
             .args(&args)
+            .args(worker_retry_args(crate::core::dependencies::worker_mode()))
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
@@ -2349,6 +3039,7 @@ pub async fn get_video_info(
         if result.status.success() {
             let json: serde_json::Value = serde_json::from_slice(&result.stdout)
                 .map_err(|e| anyhow!("yt-dlp returned invalid JSON: {}", e))?;
+            save_info_json(url, &result.stdout, &json);
             tracing::debug!("[perf] get_video_info took {:?}", _timer_start.elapsed());
             return Ok(json);
         }
@@ -2573,11 +3264,13 @@ pub async fn get_playlist_info(
     args.extend(extra_flags.iter().cloned());
     args.push(url.to_string());
 
+    note_operator_command(ytdlp, &args, "playlist");
     let _slot = acquire_ytdlp_slot("playlist info").await;
     let output = tokio::time::timeout(
         std::time::Duration::from_secs(120),
         ytdlp_command(ytdlp)
             .args(&args)
+            .args(worker_retry_args(crate::core::dependencies::worker_mode()))
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output(),
@@ -2774,11 +3467,13 @@ pub async fn get_playlist_info_incremental(
     args.extend(proxy_args());
     args.push(url.to_string());
 
+    note_operator_command(ytdlp, &args, "playlist");
     let _slot = acquire_ytdlp_slot("playlist info").await;
     let output = tokio::time::timeout(
         std::time::Duration::from_secs(120),
         ytdlp_command(ytdlp)
             .args(&args)
+            .args(worker_retry_args(crate::core::dependencies::worker_mode()))
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output(),
@@ -2931,52 +3626,9 @@ pub async fn download_video(
         crate::core::dependencies::ensure_aria2c(),
     );
 
-    let format_selector = if let Some(fid) = format_id {
-        if let Some(h) = quality_height.filter(|h| *h > 0) {
-            let fallback = match mode {
-                "audio" => "ba/b".to_string(),
-                "mute" => format!("bv*[height<={}]/bv*/b", h),
-                _ => {
-                    if ffmpeg_available {
-                        format!(
-                            "bv*[height<={}]+ba[ext=m4a]/bv*[height<={}]+ba/b[height<={}]/b",
-                            h, h, h
-                        )
-                    } else {
-                        format!("b[height<={}]/bv*[height<={}]/b", h, h)
-                    }
-                }
-            };
-            format!("{}/{}", fid, fallback)
-        } else {
-            fid.to_string()
-        }
-    } else {
-        match mode {
-            "audio" => "ba/b".to_string(),
-            "mute" => match quality_height {
-                Some(h) if h > 0 => format!("bv*[height<={}]/bv*/b", h),
-                _ => "bv*/b".to_string(),
-            },
-            _ => {
-                if ffmpeg_available {
-                    match quality_height {
-                        Some(h) if h > 0 => format!(
-                            "bv*[height<={}]+ba[ext=m4a]/bv*[height<={}]+ba/b[height<={}]/b",
-                            h, h, h
-                        ),
-                        _ => "bv*+ba[ext=m4a]/bv*+ba/b".to_string(),
-                    }
-                } else {
-                    tracing::warn!("[yt-dlp] ffmpeg not available, using fallback format selector");
-                    match quality_height {
-                        Some(h) if h > 0 => format!("b[height<={}]/bv*[height<={}]/b", h, h),
-                        _ => "b/bv*".to_string(),
-                    }
-                }
-            }
-        }
-    };
+    let full_selector = format_id.is_some_and(is_full_format_selector);
+    let format_selector =
+        download_format_selector(format_id, quality_height, mode, ffmpeg_available);
 
     let dir_len = output_dir.to_string_lossy().len();
     let max_name = if cfg!(target_os = "windows") {
@@ -3122,7 +3774,10 @@ pub async fn download_video(
         }
     }
 
-    if format_id.is_none() && mode != "audio" && ffmpeg_available {
+    // Seletor completo também funde em mp4: sem isso h264+opus caía em mkv, e
+    // o muxer mkv do ffmpeg 9 recusa pacote MPEG-TS (HLS) sem timestamp
+    // ("Conversion failed!", benchmark 26/09, youtube-2).
+    if (format_id.is_none() || full_selector) && mode != "audio" && ffmpeg_available {
         base_args.push("--merge-output-format".to_string());
         base_args.push("mp4".to_string());
     }
@@ -3191,6 +3846,9 @@ pub async fn download_video(
     if is_youtube {
         yt_args.player_client = Some("default".to_string());
         yt_args.formats_dashy = effective_fragments > 1;
+        if yt_args.formats_dashy && mode != "audio" {
+            base_args.extend(dashy_format_sort_args());
+        }
         yt_args.lang = translate_metadata_lang().map(|l| normalize_youtube_lang(&l));
 
         base_args.push("--throttled-rate".to_string());
@@ -3215,7 +3873,10 @@ pub async fn download_video(
     }
 
     base_args.extend(["--buffer-size".to_string(), "16M".to_string()]);
-    if !is_youtube_url(url) {
+    // Chunked range requests break some HLS fragment servers ("Conflicting
+    // range. (start=66361 > end=66360)", Pinterest, benchmark 26/09); the
+    // worker never uses them and the app drops them on retry (below).
+    if !is_youtube_url(url) && !crate::core::dependencies::worker_mode() {
         base_args.extend(["--http-chunk-size".to_string(), "10M".to_string()]);
     }
 
@@ -3226,15 +3887,14 @@ pub async fn download_video(
         && !manual_cookie_enabled
         && !explicit_cookie_header;
 
-    let effective_ua = ext_user_agent_for_url(url)
-        .or_else(user_agent_setting)
-        .unwrap_or_else(|| CHROME_UA.to_string());
+    match ext_user_agent_for_url(url).or_else(user_agent_setting) {
+        Some(ua) => base_args.extend(["--user-agent".to_string(), ua]),
+        None => base_args.extend(default_user_agent_args(ytdlp_can_impersonate(ytdlp))),
+    }
     base_args.extend(insecure_tls_args());
     base_args.extend([
         "--no-warnings".to_string(),
         "--no-mtime".to_string(),
-        "--user-agent".to_string(),
-        effective_ua,
         "--socket-timeout".to_string(),
         "30".to_string(),
         "--retries".to_string(),
@@ -3357,12 +4017,21 @@ pub async fn download_video(
         Vec::new()
     };
 
-    let max_attempts: usize = 3;
+    // Extração única: se o get_video_info deste URL acabou de gravar o JSON,
+    // a primeira tentativa baixa dele (--load-info-json) e a seguinte, se
+    // precisar, volta ao URL. A tentativa extra não conta no orçamento.
+    let mut info_json = fresh_info_json(url);
+    let max_attempts: usize = if crate::core::dependencies::worker_mode() {
+        1
+    } else {
+        3
+    } + usize::from(info_json.is_some());
     let mut extra_args: Vec<String> = Vec::new();
     let mut last_error = String::new();
     let mut use_subtitles = should_download_subs;
     let mut use_cfb = !cfb_setting.is_empty() && !explicit_cookie_header && !manual_cookie_enabled;
     let mut format_already_simplified = false;
+    let mut drop_chunk_size = false;
     let mut last_was_429 = false;
 
     for attempt in 0..max_attempts {
@@ -3394,6 +4063,9 @@ pub async fn download_video(
         }
 
         let mut args = base_args.clone();
+        if drop_chunk_size {
+            strip_chunk_size(&mut args);
+        }
         if is_youtube {
             args.extend(yt_args.to_flags());
         }
@@ -3427,7 +4099,13 @@ pub async fn download_video(
         }
 
         args.extend(extra_args.iter().cloned());
-        args.push(url.to_string());
+        let from_info = if attempt == 0 {
+            info_json.as_deref()
+        } else {
+            None
+        };
+        args.extend(url_or_info_json_args(url, from_info));
+        strip_default_user_agent(&mut args);
 
         let engine = if use_aria2c && !use_cfb && aria2c_path.is_some() {
             "aria2c"
@@ -3449,6 +4127,7 @@ pub async fn download_video(
         let boot_slot = hold_boot_slot("download").await;
         let mut cmd = ytdlp_command(ytdlp);
         cmd.args(&args)
+            .args(worker_retry_args(crate::core::dependencies::worker_mode()))
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
@@ -3605,6 +4284,14 @@ pub async fn download_video(
         last_error = stderr_content;
         let stderr_lower = last_error.to_lowercase();
 
+        // O JSON salvo falhou (URL assinada expirou, 403, formato sumiu): a
+        // próxima tentativa extrai pelo URL, sem julgar este erro terminal.
+        if attempt == 0 && info_json.take().is_some() {
+            forget_info_json(url);
+            tracing::warn!("[yt-dlp] download from saved info JSON failed, retrying with the URL");
+            continue;
+        }
+
         if is_terminal_ytdlp_error(&stderr_lower) {
             let last_line = last_error.lines().last().unwrap_or("unknown error").trim();
             tracing::warn!(
@@ -3704,6 +4391,11 @@ pub async fn download_video(
                         client
                     );
                 }
+            }
+
+            if stderr_lower.contains("conflicting range") && !drop_chunk_size {
+                drop_chunk_size = true;
+                tracing::warn!("[yt-dlp] conflicting range, retrying without --http-chunk-size");
             }
 
             if (stderr_lower.contains("http error 403") || stderr_lower.contains("forbidden"))
@@ -4079,6 +4771,7 @@ async fn run_override_command(
     let boot_slot = hold_boot_slot("download (custom command)").await;
     let mut cmd = ytdlp_command(ytdlp);
     cmd.args(&args)
+        .args(worker_retry_args(crate::core::dependencies::worker_mode()))
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
@@ -4412,7 +5105,43 @@ pub(crate) fn is_terminal_ytdlp_error(stderr_lower: &str) -> bool {
     PATTERNS.iter().any(|p| stderr_lower.contains(p))
 }
 
+/// Status in yt-dlp's "HTTP Error NNN:" wording, if any.
+fn stated_http_error(lower: &str) -> Option<u16> {
+    let at = lower.find("http error ")? + "http error ".len();
+    let digits: String = lower[at..]
+        .chars()
+        .take_while(|c| c.is_ascii_digit())
+        .collect();
+    (digits.len() == 3).then(|| digits.parse().ok()).flatten()
+}
+
+/// Last `ERROR:` line of yt-dlp's stderr, redacted (signed URLs, tokens,
+/// cookies, home paths) and bounded. Kept as the anyhow source under the
+/// friendly message: `{:#}` (worker classifier, operator diagnostic) sees it,
+/// `to_string()` (what the user reads) does not.
+fn raw_error_line(stderr: &str) -> Option<String> {
+    let line = stderr.lines().rev().map(str::trim).find(|l| {
+        let t = l.to_lowercase();
+        t.starts_with("error:") || t.starts_with("error ")
+    })?;
+    let line = line
+        .strip_prefix("ERROR: ")
+        .or_else(|| line.strip_prefix("ERROR:"))
+        .unwrap_or(line);
+    let bounded: String = line.chars().take(600).collect();
+    let red = super::assist::missions::diag::redact(&bounded);
+    (!red.trim().is_empty()).then_some(red)
+}
+
 fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
+    let friendly = friendly_ytdlp_error(stderr).to_string();
+    match raw_error_line(stderr) {
+        Some(raw) if !friendly.contains(raw.as_str()) => anyhow!(raw).context(friendly),
+        _ => anyhow!(friendly),
+    }
+}
+
+fn friendly_ytdlp_error(stderr: &str) -> anyhow::Error {
     let lower = stderr.to_lowercase();
 
     if lower.contains("errno 22")
@@ -4422,6 +5151,45 @@ fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
     {
         return anyhow!(
             "Console encoding error (non-UTF-8 locale). Update yt-dlp in Settings → Dependencies, or run `chcp 65001` in a terminal and reopen the app."
+        );
+    }
+    // The path out (proxy, TLS, DNS) failed before the site answered. yt-dlp
+    // adds "please report this issue" to some of these, which used to become
+    // "extractor is broken" and EXTRACTOR_FAILURE; a proxy's "Tunnel
+    // connection failed: 403" is not the site's 403 either.
+    // Only ERROR lines count: a WARNING about a side request (subtitles,
+    // thumbnail) that hit a DNS hiccup does not explain the failure.
+    let error_lines: String = lower
+        .lines()
+        .filter(|l| l.trim_start().starts_with("error"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let egress_scope = if error_lines.is_empty() {
+        lower.as_str()
+    } else {
+        error_lines.as_str()
+    };
+    if crate::core::errors::is_egress_failure(egress_scope) {
+        return anyhow!(
+            "Network egress failed (proxy, TLS or DNS) before the site answered. Retry; check the connection if it persists."
+        );
+    }
+    // Instagram's logged-out media answer is empty: the post needs a login.
+    // Its stderr also says "please report this issue", which used to become
+    // "extractor is broken" and then an unclassified ENGINE_FAILED (bench 26/09,
+    // /tv/BkfuX9UB-eK). Keep the phrase errors.rs classifies as auth_required.
+    if lower.contains("empty media response") {
+        return anyhow!(
+            "Instagram sent an empty media response: this post requires login. Import cookies for this site in Settings → Cookies, then retry."
+        );
+    }
+    // HTTP 412 on a page or API fetch is an anti-crawler refusal (Bilibili's
+    // risk control answers 412 to a network it flagged; the same URL
+    // downloads from another network or later). yt-dlp words its own 412 as
+    // "Request is blocked by server (412)" (extractor/bilibili.py).
+    if lower.contains("http error 412") || lower.contains("blocked by server") {
+        return anyhow!(
+            "The platform blocked access from this network (HTTP 412 Precondition Failed, anti-crawler risk control). Wait or change network, then retry."
         );
     }
 
@@ -4486,7 +5254,14 @@ fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
         return anyhow!("Unsupported URL. Check that the link is correct.");
     }
     if lower.contains("unable to download") && lower.contains("webpage") {
-        return anyhow!("Failed to access the page. Check the link and your connection.");
+        // Keep the status: without it the classifier had nothing but "page"
+        // to go on (a Twitter 500 and a Bilibili 412 became "restricted").
+        return match stated_http_error(&lower) {
+            Some(status) => anyhow!(
+                "Failed to access the page (HTTP {status}). Check the link and your connection."
+            ),
+            None => anyhow!("Failed to access the page. Check the link and your connection."),
+        };
     }
     if lower.contains("is not a valid url") || lower.contains("no video formats") {
         return anyhow!("No video formats found for this link.");
@@ -5181,6 +5956,71 @@ mod tests {
 
     use super::*;
 
+    /// Benchmark 26/09, youtube-2: o worker manda um seletor com teto em toda
+    /// alternativa; o download anexava "/bv*...+ba[ext=m4a]/.../b" (um `b` sem
+    /// teto no fim) e fundia h264 (HLS/TS) + opus em mkv -> "Conversion failed!".
+    #[test]
+    fn operator_command_keeps_args_after_the_proxy() {
+        let argv: Vec<String> = [
+            "-f",
+            "b",
+            "--proxy",
+            "http://127.0.0.1:9",
+            "--extractor-args",
+            "youtube:formats=dashy",
+            "https://www.youtube.com/watch?v=abc",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let ordered = operator_order(&argv);
+        assert_eq!(
+            &ordered[ordered.len() - 2..],
+            ["--proxy", "http://127.0.0.1:9"]
+        );
+        assert!(
+            ordered
+                .iter()
+                .position(|a| a == "--extractor-args")
+                .unwrap()
+                < ordered.len() - 2
+        );
+        assert_eq!(ordered.len(), argv.len());
+    }
+
+    #[test]
+    fn full_selector_passes_intact_and_dashy_prefers_dash() {
+        let worker = "bv*[height<=720]+ba/b[height<=720]/bv*[height<=?720]+ba/b[height<=?720]/ba";
+        assert!(is_full_format_selector(worker));
+        assert!(!is_full_format_selector("137"));
+        let s = download_format_selector(Some(worker), Some(720), "auto", true);
+        assert_eq!(s, worker);
+        assert!(!s.split('/').any(|alt| alt == "b" || alt == "bv*"));
+        assert_eq!(
+            download_format_selector(Some(worker), Some(720), "auto", false),
+            worker
+        );
+        // Id simples mantém o fallback do app.
+        assert_eq!(
+            download_format_selector(Some("137"), Some(720), "auto", true),
+            "137/bv*[height<=720]+ba[ext=m4a]/bv*[height<=720]+ba/b[height<=720]/b"
+        );
+        assert_eq!(
+            download_format_selector(None, Some(720), "auto", true),
+            "bv*[height<=720]+ba[ext=m4a]/bv*[height<=720]+ba/b[height<=720]/b"
+        );
+        assert_eq!(download_format_selector(None, None, "audio", true), "ba/b");
+        // Resolução continua na frente; o protocolo DASH só desempata do HLS.
+        let sort = dashy_format_sort_args();
+        assert_eq!(sort[0], "-S");
+        let fields: Vec<&str> = sort[1].split(',').collect();
+        assert_eq!(fields[0], "res");
+        assert!(fields.contains(&"proto:http_dash_segments"));
+        let res = fields.iter().position(|f| *f == "res").unwrap();
+        let proto = fields.iter().position(|f| f.starts_with("proto")).unwrap();
+        assert!(res < proto);
+    }
+
     #[test]
     fn playlist_dump_uses_top_level_url() {
         let dump = r#"{"id":"abc","title":"Video A","url":"https://example.com/video/abc","playlist_title":"My List"}"#;
@@ -5571,6 +6411,154 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  yt-dlp.exe\n\
     }
 
     #[test]
+    fn bilibili_412_is_a_platform_block_not_a_restriction() {
+        // Benchmark 26/09 (av114868162141203 -> bangumi ep1933368): the
+        // download's extraction got 412 and the app said "private or age-restricted".
+        let stderr = "ERROR: [BiliBiliBangumi] 1933368: Unable to download webpage: HTTP Error 412: Precondition Failed (caused by <HTTPError 412: Precondition Failed>)";
+        let msg = translate_ytdlp_error(stderr).to_string();
+        assert!(msg.contains("412"), "{msg}");
+        let (category, _) = crate::core::errors::classify_download_error(&msg);
+        assert_eq!(category, "blocked_by_platform", "{msg}");
+        assert!(!crate::core::errors::is_terminal_category(category));
+        let own = translate_ytdlp_error("ERROR: [BilibiliSpaceVideo] 1: Request is blocked by server (412), please wait and try later.").to_string();
+        assert_eq!(
+            crate::core::errors::classify_download_error(&own).0,
+            "blocked_by_platform",
+            "{own}"
+        );
+    }
+
+    #[test]
+    fn webpage_failures_keep_their_status() {
+        let msg = translate_ytdlp_error(
+            "ERROR: [x] 1: Unable to download webpage: HTTP Error 404: Not Found",
+        )
+        .to_string();
+        assert!(msg.contains("HTTP 404"), "{msg}");
+        assert_eq!(
+            crate::core::errors::classify_download_error(&msg).0,
+            "not_found"
+        );
+        let msg = translate_ytdlp_error(
+            "ERROR: [x] 1: Unable to download webpage: HTTP Error 502: Bad Gateway",
+        )
+        .to_string();
+        assert_eq!(
+            crate::core::errors::classify_download_error(&msg).0,
+            "server_error"
+        );
+    }
+
+    #[test]
+    fn twitter_500_is_a_retryable_server_error() {
+        // Bench 26/09 twitter-2 (amplify): yt-dlp says HTTP 500; the page
+        // wording lost the status and "page" matched "age" -> SOURCE_RESTRICTED.
+        let stderr = "ERROR: [twitter:amplify] 665052190608723968: Unable to download webpage: HTTP Error 500: Domain Not Found (caused by <HTTPError 500: Domain Not Found>)";
+        let err = translate_ytdlp_error(stderr);
+        for text in [err.to_string(), format!("{err:#}")] {
+            let (cat, _) = crate::core::errors::classify_download_error(&text);
+            assert_eq!(cat, "server_error", "{text}");
+            assert!(!crate::core::errors::is_terminal_category(cat));
+        }
+    }
+
+    #[test]
+    fn translate_error_instagram_empty_media_is_login_not_broken_extractor() {
+        let stderr = "ERROR: [Instagram] BkfuX9UB-eK: Instagram sent an empty media response. Check if this post is accessible in your browser without being logged-in. If it is not, then use --cookies-from-browser or --cookies for the authentication. Otherwise, if the post is accessible in browser without being logged-in, please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U";
+        let err = translate_ytdlp_error(stderr);
+        let msg = err.to_string();
+        assert!(!msg.contains("extractor is broken"), "{msg}");
+        assert_eq!(
+            crate::core::errors::classify_download_error(&msg).0,
+            "auth_required",
+            "{msg}"
+        );
+        assert_eq!(
+            crate::core::errors::classify_download_error(&format!("{err:#}")).0,
+            "auth_required"
+        );
+    }
+
+    #[test]
+    fn translate_error_broken_extractor_stays_classifiable() {
+        let msg = translate_ytdlp_error(
+            "ERROR: [BiliBili] 1: Unable to extract initial state; please report this issue",
+        )
+        .to_string();
+        assert_eq!(
+            crate::core::errors::classify_download_error(&msg).0,
+            "extractor_failure",
+            "{msg}"
+        );
+    }
+
+    #[test]
+    fn egress_failures_are_egress_not_broken_extractor() {
+        for stderr in [
+            "ERROR: [generic] x: Unable to download webpage: ('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')) (caused by ProxyError(...)); please report this issue on https://github.com/yt-dlp/yt-dlp/issues",
+            "ERROR: [Bluesky] x: Unable to download JSON metadata: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate (_ssl.c:1006)>",
+            "ERROR: [generic] x: Unable to download webpage: <urlopen error [Errno 8] nodename nor servname provided, or not known>",
+        ] {
+            let err = translate_ytdlp_error(stderr);
+            let msg = err.to_string();
+            assert!(!msg.contains("extractor is broken"), "{msg}");
+            assert_eq!(crate::core::errors::classify_download_error(&msg).0, "egress_failed", "{msg}");
+            assert_eq!(crate::core::errors::classify_download_error(&format!("{err:#}")).0, "egress_failed");
+        }
+    }
+
+    #[test]
+    fn worker_commands_reach_the_operator_sink_redacted() {
+        use std::sync::{Arc, Mutex};
+        let seen: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink_seen = seen.clone();
+        super::set_command_sink(Some(Arc::new(move |line: &str| {
+            sink_seen.lock().unwrap().push(line.to_string())
+        })));
+        let args: Vec<String> = [
+            "-f", "bv*[height<=720]+ba/b[height<=720]/ba",
+            "--proxy", "http://omniget:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef@127.0.0.1:4242/",
+            "--add-headers", "Cookie:SESSDATA=SYNTHETIC_SECRET",
+            "--add-headers", "Authorization:Bearer SYNTHETIC_SECRET",
+            "--add-headers", "X-CSRFToken:SYNTHETIC_SECRET",
+            "--add-headers", "Referer:https://www.bilibili.com",
+            "--username", "SYNTHETIC_SECRET",
+            "--extractor-args", "youtube:po_token=web.gvs+SYNTHETIC_SECRET",
+            "https://www.bilibili.com/video/av114868162141203",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        // No download id in scope: this is the worker path.
+        super::note_operator_command(std::path::Path::new("/bin/yt-dlp.pyz"), &args, "native");
+        super::set_command_sink(None);
+        let lines = seen.lock().unwrap().clone();
+        let line = lines
+            .iter()
+            .find(|l| l.contains("av114868162141203"))
+            .expect("command reached the sink");
+        assert!(line.starts_with("[native] $ yt-dlp "), "{line}");
+        assert!(line.contains("height<=720"), "{line}");
+        assert!(line.contains("Referer:https://www.bilibili.com"), "{line}");
+        assert!(!line.contains("SYNTHETIC_SECRET"), "{line}");
+        assert!(!line.contains("0123456789abcdef"), "{line}");
+    }
+
+    #[test]
+    fn raw_error_line_is_context_redacted_and_not_in_summary() {
+        let stderr = "WARNING: x\nERROR: [x] 1: Unable to download webpage: HTTP Error 404: Not Found (https://cdn.example.com/a.m4s?token=SYNTHETIC_SECRET&sig=SYNTHETIC_SECRET)";
+        let err = translate_ytdlp_error(stderr);
+        let summary = err.to_string();
+        let full = format!("{err:#}");
+        assert!(!summary.contains("cdn.example.com"), "{summary}");
+        assert!(
+            full.contains("Unable to download webpage: HTTP Error 404"),
+            "{full}"
+        );
+        assert!(!full.contains("SYNTHETIC_SECRET"), "{full}");
+    }
+
+    #[test]
     fn translate_error_unknown_falls_through() {
         let err = translate_ytdlp_error("ERROR: some unknown thing happened");
         assert!(err.to_string().contains("yt-dlp"));
@@ -5910,5 +6898,42 @@ mod e2e {
         assert!(!planned.is_empty(), "planned formats parsed");
         assert!(!uniq.is_empty(), "stream info parsed");
         let _ = std::fs::remove_dir_all(&out);
+    }
+}
+
+#[cfg(test)]
+mod worker_retry_tests {
+    #[test]
+    fn worker_bounds_transport_retries_and_disables_extractor_retries() {
+        assert!(super::worker_retry_args(false).is_empty());
+        let args = super::worker_retry_args(true);
+        let value = |key: &str| {
+            let at = args.iter().position(|v| *v == key).unwrap();
+            args[at + 1]
+        };
+        assert_eq!(value("--retries"), "3");
+        assert_eq!(value("--fragment-retries"), "3");
+        assert_eq!(value("--extractor-retries"), "0");
+        assert_eq!(value("--file-access-retries"), "0");
+        assert!(args.contains(&"--ignore-config"));
+        assert!(args.contains(&"--no-plugin-dirs"));
+    }
+    #[test]
+    fn a_conflicting_range_retry_drops_the_chunk_size() {
+        let mut args: Vec<String> = [
+            "-N",
+            "4",
+            "--http-chunk-size",
+            "10M",
+            "--buffer-size",
+            "16M",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        super::strip_chunk_size(&mut args);
+        assert_eq!(args, ["-N", "4", "--buffer-size", "16M"]);
+        super::strip_chunk_size(&mut args);
+        assert_eq!(args.len(), 4);
     }
 }

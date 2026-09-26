@@ -12,7 +12,36 @@ export interface Placement {
   dir?: number;
   /** The world object id, for published placements only. */
   object_id?: number;
+  /** A `picture/frame`'s image (SHA-256 of an uploaded asset). */
+  picture?: string | null;
 }
+
+/** A house finish (`house_variant`): the workshop palette over the house sprite. */
+export interface HouseFinish {
+  id: number;
+  key: string;
+  tint: string;
+}
+
+/**
+ * The enumeration the server publishes with `GET /homes/{id}/objects`
+ * (`house_variants`); kept here only for a server that predates it. Same
+ * order and colours as the workshop's `PALETTES`.
+ */
+export const HOUSE_FINISHES: HouseFinish[] = [
+  { id: 0, key: 'terracotta', tint: '#ffffff' },
+  { id: 1, key: 'breeze', tint: '#cddfee' },
+  { id: 2, key: 'sand', tint: '#efd3b8' },
+];
+
+export function finishTint(finishes: HouseFinish[], variant: number | null | undefined): number {
+  const f = finishes.find((x) => x.id === variant);
+  const n = f ? parseInt(f.tint.replace('#', ''), 16) : NaN;
+  return Number.isFinite(n) ? n : 0xffffff;
+}
+
+/** What an asset does in the world today (server `uses`): decoration unless listed. */
+export type AssetUse = 'sit' | 'work' | 'picture';
 
 /** What the server told us is published (from `GET /api/world/homes/{id}/objects`). */
 export interface Published {
@@ -21,6 +50,8 @@ export interface Published {
   houseVariant: number;
   objects: Placement[];
   catalogue: Record<Space, string[]>;
+  finishes: HouseFinish[];
+  uses: Record<string, AssetUse>;
 }
 
 export interface Draft {
@@ -44,7 +75,7 @@ export function footprintOf(asset: string): [number, number] {
 
 /** What the renderer draws for a catalogue asset in a space. */
 export function runtimeKind(space: Space, asset: string): string {
-  if (space === 'outside') return asset;
+  if (space === 'outside' || asset.startsWith('picture/')) return asset;
   const leaf = asset.split('/').pop() ?? '';
   return leaf === 'shelf' ? 'object/bookshelf' : `object/${leaf}`;
 }
@@ -80,7 +111,7 @@ export function publishBody(pub: Published, d: Draft, key: string) {
     package_hash: pub.packageHash,
     idempotency_key: key,
     house_variant: d.houseVariant ?? undefined,
-    placed: Object.values(d.placed).map((p) => ({ id: p.id, asset: p.asset, xy: p.xy, space: p.space, dir: p.dir ?? 0 })),
+    placed: Object.values(d.placed).map((p) => ({ id: p.id, asset: p.asset, xy: p.xy, space: p.space, dir: p.dir ?? 0, ...(p.picture ? { picture: p.picture } : {}) })),
     removed: d.removed,
   };
 }
@@ -104,12 +135,19 @@ export class Editor {
     this.onchange();
   }
 
-  place(asset: string, xy: [number, number], space: Space): string {
+  place(asset: string, xy: [number, number], space: Space, picture?: string | null): string {
     const id = newId();
     this.edit((d) => {
-      d.placed[id] = { id, asset, xy, space, dir: 0 };
+      d.placed[id] = { id, asset, xy, space, dir: 0, ...(picture ? { picture } : {}) };
     });
     return id;
+  }
+
+  /** Change the image of a draft frame. */
+  setPicture(id: string, picture: string): void {
+    this.edit((d) => {
+      if (d.placed[id]) d.placed[id] = { ...d.placed[id], picture };
+    });
   }
 
   move(id: string, xy: [number, number]): void {

@@ -477,9 +477,9 @@
                 <span class="row-title">{s.name}</span>
               </div>
               <div class="row-meta">
-                <span>{$t("study.anki.notetypes.fields_count", { n: s.field_count })}</span>
+                <span>{$t("study.anki.notetypes.fields_count", { count: s.field_count })}</span>
                 <span>·</span>
-                <span>{$t("study.anki.notetypes.templates_count", { n: s.template_count })}</span>
+                <span>{$t("study.anki.notetypes.templates_count", { count: s.template_count })}</span>
               </div>
             </button>
           </li>
@@ -553,12 +553,12 @@
           {#if editMode && selectedNoteCount !== null && selectedNoteCount > 0}
             <div class="info-banner warn">
               <strong>{selectedNoteCount}</strong>
-              {$t("study.anki.notetypes.edit_warn", { n: selectedNoteCount })}
+              {$t("study.anki.notetypes.edit_warn", { count: selectedNoteCount })}
             </div>
           {:else if !editMode && selectedNoteCount !== null && selectedNoteCount > 0}
             <div class="info-banner">
               <strong>{selectedNoteCount}</strong>
-              {$t("study.anki.notetypes.notes_use", { n: selectedNoteCount })}
+              {$t("study.anki.notetypes.notes_use", { count: selectedNoteCount })}
             </div>
           {:else}
             <div class="info-banner subtle">
@@ -570,25 +570,25 @@
             <div class="info-banner ok">
               {$t("study.anki.notetypes.saved_summary")}
               {#if saveSummary.fields_added}
-                {$t("study.anki.notetypes.fields_added", { n: saveSummary.fields_added })}
+                {$t("study.anki.notetypes.fields_added", { count: saveSummary.fields_added })}
               {/if}
               {#if saveSummary.fields_removed}
-                {$t("study.anki.notetypes.fields_removed", { n: saveSummary.fields_removed })}
+                {$t("study.anki.notetypes.fields_removed", { count: saveSummary.fields_removed })}
               {/if}
               {#if saveSummary.templates_added}
-                {$t("study.anki.notetypes.templates_added", { n: saveSummary.templates_added })}
+                {$t("study.anki.notetypes.templates_added", { count: saveSummary.templates_added })}
               {/if}
               {#if saveSummary.templates_removed}
-                {$t("study.anki.notetypes.templates_removed", { n: saveSummary.templates_removed })}
+                {$t("study.anki.notetypes.templates_removed", { count: saveSummary.templates_removed })}
               {/if}
               {#if saveSummary.cards_added}
-                {$t("study.anki.notetypes.cards_added", { n: saveSummary.cards_added })}
+                {$t("study.anki.notetypes.cards_added", { count: saveSummary.cards_added })}
               {/if}
               {#if saveSummary.cards_removed}
-                {$t("study.anki.notetypes.cards_removed", { n: saveSummary.cards_removed })}
+                {$t("study.anki.notetypes.cards_removed", { count: saveSummary.cards_removed })}
               {/if}
               {#if saveSummary.notes_rewritten}
-                · {$t("study.anki.notetypes.notes_adjusted", { n: saveSummary.notes_rewritten })}
+                · {$t("study.anki.notetypes.notes_adjusted", { count: saveSummary.notes_rewritten })}
               {/if}
             </div>
           {/if}

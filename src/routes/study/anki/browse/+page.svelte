@@ -560,7 +560,7 @@
       placeholder={$t("study.anki.browse.search_placeholder")}
       aria-label="Search query"
     />
-    <span class="total">{$t("study.anki.browse.cards_total", { n: total })}</span>
+    <span class="total">{$t("study.anki.browse.cards_total", { count: total })}</span>
   </div>
 
   <div class="presets">
@@ -573,7 +573,7 @@
 
   {#if selected.size > 0}
     <div class="bulk-bar" role="toolbar" aria-label={$t("study.anki.browse.bulk_aria")}>
-      <span class="bulk-count">{$t("study.anki.browse.n_selected", { n: selected.size })}</span>
+      <span class="bulk-count">{$t("study.anki.browse.n_selected", { count: selected.size })}</span>
       <button type="button" class="bulk-btn" onclick={bulkSuspend} disabled={busy}>
         {$t("study.anki.browse.suspend")}
       </button>
@@ -749,7 +749,7 @@
 <ConfirmDialog
   bind:open={confirmOpen}
   title={$t("study.anki.browse.delete_cards_title")}
-  message={$t("study.anki.browse.delete_cards_confirm", { n: selected.size })}
+  message={$t("study.anki.browse.delete_cards_confirm", { count: selected.size })}
   confirmLabel={$t("study.common.delete")}
   variant="danger"
   onConfirm={confirmAndDo}
@@ -804,7 +804,7 @@
       <h3>
         {bulkTagMode === "add" ? $t("study.anki.browse.add_tag") : $t("study.anki.browse.remove_tag")}
         em {selectedNoteIds().length}
-        {$t("study.anki.browse.notes_count", { n: selectedNoteIds().length })}
+        {$t("study.anki.browse.notes_count", { count: selectedNoteIds().length })}
       </h3>
       <label>
         <span>{$t("study.anki.browse.tags_input_hint")}</span>
@@ -1052,7 +1052,7 @@
 
         {#if drawerStats.revlog.length > 0}
           <section class="drawer-section">
-            <h4>{$t("study.anki.browse.history", { n: drawerStats.revlog.length })}</h4>
+            <h4>{$t("study.anki.browse.history", { count: drawerStats.revlog.length })}</h4>
             <ul class="revlog-list">
               {#each [...drawerStats.revlog].reverse().slice(0, 30) as r (r.id)}
                 <li>

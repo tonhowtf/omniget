@@ -17,10 +17,15 @@ export const CORE_NAV_ITEMS: NavItem[] = [
   { href: "/help", labelKey: "nav.help", icon: "help", group: "primary", order: 25 },
   { href: "/world", labelKey: "nav.world", icon: "world", group: "primary", order: 26 },
   { href: "/tools", labelKey: "nav.tools", icon: "tools", group: "primary", order: 27 },
-  { href: "/marketplace", labelKey: "nav.marketplace", icon: "marketplace", group: "app", order: 30 },
+  { href: "/superpowers", labelKey: "nav.superpowers", icon: "superpowers", group: "app", order: 30 },
   { href: "/settings", labelKey: "nav.settings", icon: "settings", group: "app", order: 40 },
   { href: "/about", labelKey: "nav.about", icon: "about", group: "app", order: 50 },
 ];
+
+/** Routes that live inside a hub keep the hub's sidebar item lit. */
+export const NAV_ALIASES: Record<string, string[]> = {
+  "/superpowers": ["/league"],
+};
 
 export function pluginIconForRoute(route: string): string {
   if (route.startsWith("/courses")) return "courses";

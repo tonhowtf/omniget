@@ -17,6 +17,8 @@
     initJobsStore,
     pickFolder,
     pickState,
+    resumeLoop,
+    settleLoop,
     shortTime,
     type LoopDef,
   } from "$lib/stores/llm-jobs-store.svelte";
@@ -172,7 +174,7 @@
               aria-expanded={openId === loop.id}
               onclick={() => (openId = openId === loop.id ? null : loop.id)}
             >
-              <span class="pill {pickState(loop.state)}">{$t(`llm.loops.state.${loop.state}`)}</span>
+              <span class="pill {pickState(loop.state)}">{loop.state === "interrupted" ? $t("assist.runs.job_interrupted") : $t(`llm.loops.state.${loop.state}`)}</span>
               <span class="name">{loop.name || loop.id}</span>
               <span class="dim">{agentName(loop.agent_id)}</span>
               <span class="dim">{$t("llm.loops.rounds", { done: loop.rounds_done, max: loop.max_rounds ?? "∞" })}</span>
@@ -210,13 +212,26 @@
                     {#each rounds as job, i (job.id)}
                       <a class="round" href="/llm/jobs">
                         <span class="dim">#{rounds.length - i}</span>
-                        <span class="pill {pickState(job.state)}">{$t(`llm.jobs.state.${job.state}`)}</span>
+                        <span class="pill {pickState(job.state)}">{job.state === "interrupted" ? $t("assist.runs.job_interrupted") : $t(`llm.jobs.state.${job.state}`)}</span>
                       </a>
                     {/each}
                   </div>
                 {/if}
+                {#if loop.state === "interrupted"}
+                  <p class="hint">{$t("assist.runs.loop_interrupted_hint")}</p>
+                {/if}
                 <div class="actions">
-                  {#if loop.state === "running"}
+                  {#if loop.state === "interrupted"}
+                    <button type="button" class="button active" onclick={() => void resumeLoop(loop.id)}>
+                      {$t("assist.runs.action_resume")}
+                    </button>
+                    <button type="button" class="button" onclick={() => void settleLoop(loop.id, true)}>
+                      {$t("assist.runs.action_mark_done")}
+                    </button>
+                    <button type="button" class="button" onclick={() => void settleLoop(loop.id, false)}>
+                      {$t("assist.runs.action_discard")}
+                    </button>
+                  {:else if loop.state === "running"}
                     <button type="button" class="button" onclick={() => void cancelLoop(loop.id)}>
                       {$t("llm.loops.cancel")}
                     </button>

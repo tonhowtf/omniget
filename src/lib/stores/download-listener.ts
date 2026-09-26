@@ -94,7 +94,8 @@ type QueueItemProgressPayload = {
   id: number;
   title: string;
   platform: string;
-  percent: number;
+  /** `null` when the engine does not know the total. */
+  percent: number | null;
   speed_bytes_per_sec: number;
   downloaded_bytes: number;
   total_bytes: number | null;

@@ -11,6 +11,7 @@
     type SkillManifest,
   } from "$lib/stores/llm-skills-store.svelte";
   import SkillScanBadge from "./SkillScanBadge.svelte";
+  import SkillVersionStatus from "./SkillVersionStatus.svelte";
 
   let {
     skill,
@@ -57,6 +58,7 @@
       </button>
     {/if}
   </header>
+  <SkillVersionStatus name={skill.name} />
 
   <a href="/llm/roster">{$t("llm.skills.assign")} →</a>
   <p class="description">{skill.description}</p>

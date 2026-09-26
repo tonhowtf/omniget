@@ -168,7 +168,7 @@
     </svg>
     <h2>{$t("marketplace.plugin_not_installed")}</h2>
     <p>{$t("marketplace.plugin_install_hint")}</p>
-    <a href="/marketplace" class="guard-link">{$t("marketplace.go_to_marketplace")}</a>
+    <a href="/settings?tab=plugins" class="guard-link">{$t("marketplace.go_to_marketplace")}</a>
   </div>
 {:else if pluginStatus === "needs-restart"}
   <div class="plugin-guard">
@@ -179,7 +179,7 @@
   <div class="plugin-guard">
     <h2>{$t("marketplace.plugin_incompatible_title")}</h2>
     <p>{$t("marketplace.plugin_incompatible_hint")}</p>
-    <a href="/marketplace" class="guard-link">{$t("marketplace.go_to_marketplace")}</a>
+    <a href="/settings?tab=plugins" class="guard-link">{$t("marketplace.go_to_marketplace")}</a>
     {#if loadError}
       <p class="guard-detail"><code>{loadError.message}</code></p>
     {/if}
@@ -188,7 +188,7 @@
   <div class="plugin-guard">
     <h2>{$t("marketplace.plugin_load_failed_title")}</h2>
     <p>{$t("marketplace.plugin_load_failed_hint")}</p>
-    <a href="/marketplace" class="guard-link">{$t("marketplace.go_to_marketplace")}</a>
+    <a href="/settings?tab=plugins" class="guard-link">{$t("marketplace.go_to_marketplace")}</a>
     {#if loadError}
       <p class="guard-detail"><code>{loadError.message}</code></p>
     {/if}

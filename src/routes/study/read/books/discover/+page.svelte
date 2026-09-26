@@ -188,7 +188,7 @@
     <p class="muted">{$t("study.read.discover_empty")}</p>
   {:else}
     {#if count != null}
-      <p class="muted small">{$t("study.read.book_results_count", { n: count })}</p>
+      <p class="muted small">{$t("study.read.book_results_count", { count: count })}</p>
     {/if}
     <div class="grid">
       {#each items as b (b.id)}

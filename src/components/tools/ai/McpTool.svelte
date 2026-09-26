@@ -1,5 +1,6 @@
 <script lang="ts">
   /** Servidor MCP embutido (estudos 22 e 23): liga/desliga, endereço, trechos de configuração e a lista de tools. */
+  import ServerConnections from "../../llm/mcp/ServerConnections.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
@@ -48,15 +49,13 @@
         <div class="group-row-content"><div class="group-row-title">{$t("tools.mcp.endpoint")}</div><div class="group-row-sub mono">{status?.url || "…"}</div></div>
         <div class="group-row-trailing btn-row">{#if status?.url}<button class="btn btn-ghost btn-sm" type="button" onclick={() => copy(status!.url)}>{$t("tools.common.copy")}</button>{/if}<button class="btn btn-secondary btn-sm" type="button" disabled={busy || !status?.enabled} onclick={test}>{$t("tools.mcp.test")}</button></div>
       </div>
-      <div class="group-row">
-        <div class="group-row-content"><div class="group-row-title">{$t("tools.mcp.token")}</div><div class="group-row-sub mono">{status ? (showToken ? status.token : mask(status.token)) : "…"}</div><div class="group-row-sub">{$t("tools.mcp.token_hint")}</div></div>
-        <div class="group-row-trailing btn-row"><button class="btn btn-ghost btn-sm" type="button" onclick={() => (showToken = !showToken)}>{showToken ? $t("tools.mcp.hide") : $t("tools.mcp.show")}</button>{#if status}<button class="btn btn-ghost btn-sm" type="button" onclick={() => copy(status!.token)}>{$t("tools.common.copy")}</button>{/if}</div>
-      </div>
       {#if selftest}<div class="group-row"><div class="group-row-sub mono">{selftest}</div></div>{/if}
     </div>
   </section>
 
-  {#if status}
+  {#if status}<ServerConnections url={status.url} />{/if}
+
+  {#if status && status.snippets.length > 0}
     <section>
       <div class="group">
         <div class="group-row">
@@ -67,10 +66,12 @@
             {/each}
           </div>
         </div>
-        <div class="group-row"><div class="group-row-content"><pre class="code">{snippetMasked(status.snippets[client]?.[1] ?? "")}</pre></div><div class="group-row-trailing"><button class="btn btn-ghost btn-sm" type="button" onclick={() => copy(status!.snippets[client][1])}>{$t("tools.common.copy")}</button></div></div>
+        <div class="group-row"><div class="group-row-content"><pre class="code">{snippetMasked(status.snippets[client]?.[1] ?? "")}</pre>{#if status.snippets[client]?.[0] === "Claude Code"}<div class="group-row-sub">{$t("mcp_connections.claude_code_hint")}</div>{/if}</div><div class="group-row-trailing btn-row"><button class="btn btn-ghost btn-sm" type="button" onclick={() => copy(status!.snippets[client][1])}>{$t("tools.common.copy")}</button>{#if status.snippets[client]?.[0] === "Claude Code"}<button class="btn btn-ghost btn-sm" type="button" onclick={() => copy(status!.token)}>{$t("mcp_connections.copy_token")}</button>{/if}</div></div>
       </div>
     </section>
 
+  {/if}
+  {#if status}
     <section>
       <h3 class="group-title">{status.tools.length} {$t("tools.mcp.tools")}</h3>
       <div class="group">

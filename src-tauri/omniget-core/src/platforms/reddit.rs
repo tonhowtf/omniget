@@ -239,6 +239,18 @@ impl RedditDownloader {
     }
 
     fn parse_media(data: &serde_json::Value) -> Option<RedditMedia> {
+        // A crosspost carries no media of its own; the original post is the
+        // last entry of crosspost_parent_list (gallery-dl reddit.py:67-72).
+        if let Some(parent) = data
+            .get("crosspost_parent_list")
+            .and_then(|l| l.as_array())
+            .and_then(|l| l.last())
+        {
+            if let Some(media) = Self::parse_media(parent) {
+                return Some(media);
+            }
+        }
+
         let is_gallery = data
             .get("is_gallery")
             .and_then(|v| v.as_bool())
@@ -257,15 +269,15 @@ impl RedditDownloader {
             }
         }
 
-        if let Some(reddit_video) = data.pointer("/secure_media/reddit_video") {
-            let fallback = reddit_video.get("fallback_url").and_then(|v| v.as_str())?;
-            let duration = reddit_video.get("duration").and_then(|v| v.as_f64());
-            let video_url = fallback.split('?').next().unwrap_or(fallback).to_string();
-
-            return Some(RedditMedia::Video {
-                video_url,
-                duration,
-            });
+        if let Some(video) = data
+            .pointer("/secure_media/reddit_video")
+            .and_then(Self::reddit_video)
+            .or_else(|| {
+                data.pointer("/media/reddit_video")
+                    .and_then(Self::reddit_video)
+            })
+        {
+            return Some(video);
         }
 
         if let Some(url) = data.get("url").and_then(|v| v.as_str()) {
@@ -285,7 +297,20 @@ impl RedditDownloader {
             }
         }
 
-        None
+        // Link posts to external GIF/video hosts: Reddit keeps its own MP4
+        // in preview.reddit_video_preview (gallery-dl reddit.py:250-259).
+        data.pointer("/preview/reddit_video_preview")
+            .and_then(Self::reddit_video)
+    }
+
+    fn reddit_video(video: &serde_json::Value) -> Option<RedditMedia> {
+        let fallback = video.get("fallback_url").and_then(|v| v.as_str())?;
+        let duration = video.get("duration").and_then(|v| v.as_f64());
+        let video_url = fallback.split('?').next().unwrap_or(fallback).to_string();
+        Some(RedditMedia::Video {
+            video_url,
+            duration,
+        })
     }
 
     fn parse_gallery(data: &serde_json::Value) -> Option<RedditMedia> {
@@ -355,16 +380,11 @@ impl PlatformDownloader for RedditDownloader {
     }
 
     async fn get_media_info(&self, url: &str) -> anyhow::Result<MediaInfo> {
-        match self.native_get_media_info(url).await {
-            Ok(info) => Ok(info),
-            Err(native_err) => {
-                tracing::warn!(
-                    "[reddit] native failed: {}, trying yt-dlp fallback",
-                    native_err
-                );
-                self.fallback_ytdlp(url).await.map_err(|_| native_err)
-            }
-        }
+        let native = self.native_get_media_info(url).await;
+        crate::platforms::generic_ytdlp::native_then_ytdlp("reddit", native, || {
+            self.fallback_ytdlp(url)
+        })
+        .await
     }
 
     async fn download(
@@ -766,5 +786,96 @@ impl RedditDownloader {
             }
             _ => Err(anyhow!("Unsupported media type")),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn video_url(m: Option<RedditMedia>) -> String {
+        match m {
+            Some(RedditMedia::Video { video_url, .. }) => video_url,
+            _ => panic!("expected a video"),
+        }
+    }
+
+    // Crosspost: the outer post links to the original thread and has no media
+    // of its own; the video lives in crosspost_parent_list[-1]
+    // (gallery-dl reddit.py:67-72). Trimmed .json shape.
+    #[test]
+    fn crosspost_uses_the_parent_video() {
+        let data = serde_json::json!({
+            "id": "xpost1",
+            "url": "/r/aww/comments/90bu6w/heat_index_was_110_degrees/",
+            "secure_media": null,
+            "is_video": false,
+            "crosspost_parent": "t3_90bu6w",
+            "crosspost_parent_list": [{
+                "id": "90bu6w",
+                "url": "https://v.redd.it/gyh95hiqc0b11",
+                "secure_media": {"reddit_video": {
+                    "fallback_url": "https://v.redd.it/gyh95hiqc0b11/DASH_720.mp4?source=fallback",
+                    "duration": 16
+                }}
+            }]
+        });
+        assert_eq!(
+            video_url(RedditDownloader::parse_media(&data)),
+            "https://v.redd.it/gyh95hiqc0b11/DASH_720.mp4"
+        );
+    }
+
+    // Link post to an external GIF host: no secure_media, but Reddit keeps an
+    // MP4 in preview.reddit_video_preview (gallery-dl reddit.py:250-259).
+    #[test]
+    fn preview_video_is_the_fallback_without_secure_media() {
+        let data = serde_json::json!({
+            "url": "https://i.imgur.com/abcd.gifv",
+            "secure_media": null,
+            "preview": {
+                "images": [{"source": {"url": "https://external-preview.redd.it/x.jpg"}}],
+                "reddit_video_preview": {
+                    "fallback_url": "https://v.redd.it/prev123/DASH_480.mp4",
+                    "duration": 7,
+                    "is_gif": true
+                }
+            }
+        });
+        assert_eq!(
+            video_url(RedditDownloader::parse_media(&data)),
+            "https://v.redd.it/prev123/DASH_480.mp4"
+        );
+    }
+
+    #[test]
+    fn media_reddit_video_counts_when_secure_media_is_missing() {
+        let data = serde_json::json!({
+            "url": "https://v.redd.it/abc",
+            "media": {"reddit_video": {"fallback_url": "https://v.redd.it/abc/DASH_360.mp4?x=1"}}
+        });
+        assert_eq!(
+            video_url(RedditDownloader::parse_media(&data)),
+            "https://v.redd.it/abc/DASH_360.mp4"
+        );
+    }
+
+    #[test]
+    fn own_video_wins_over_preview() {
+        let data = serde_json::json!({
+            "url": "https://v.redd.it/own",
+            "secure_media": {"reddit_video": {"fallback_url": "https://v.redd.it/own/DASH_720.mp4"}},
+            "preview": {"reddit_video_preview": {"fallback_url": "https://v.redd.it/p/DASH_96.mp4"}}
+        });
+        assert_eq!(
+            video_url(RedditDownloader::parse_media(&data)),
+            "https://v.redd.it/own/DASH_720.mp4"
+        );
+    }
+
+    #[test]
+    fn text_post_has_no_media() {
+        let data = serde_json::json!({"url": "https://www.reddit.com/r/x/comments/1/t/", "secure_media": null});
+        assert!(RedditDownloader::parse_media(&data).is_none());
     }
 }
