@@ -423,6 +423,14 @@ async fn enqueue(
         );
     }
 
+    if omniget_core::core::platform_optout::is_opted_out(&payload.url) {
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "PLATFORM_OPTED_OUT",
+            omniget_core::core::platform_optout::OPTED_OUT_ERROR.to_string(),
+        );
+    }
+
     if let Some(ref cookies) = payload.cookies {
         if cookies.len() > cookie_limit() {
             return error_response(

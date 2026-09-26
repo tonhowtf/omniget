@@ -4917,6 +4917,7 @@
     "drm_protected": "جریان‌ها با DRM محافظت شده‌اند و قابل ادغام نیستند. این محتوا پشتیبانی نمی‌شود.",
     "output_missing": "دانلود تمام شد اما فایلی در پوشه ظاهر نشد (یا خالی است). فضای دیسک و استثناهای آنتی‌ویروس را بررسی کنید و دوباره تلاش کنید.",
     "course_platform_url": "پلتفرم‌های دوره را نمی‌توان از آدرس دانلود کرد. صفحه دوره‌ها را باز کنید (به افزونه دوره‌ها و حساب واردشده نیاز دارد).",
+    "platform_opted_out": "مالک این سایت از OmniGet خواسته است که از آن پشتیبانی نکند.",
     "plugin_outdated": "این افزونه قدیمی است و از این عملیات پشتیبانی نمی‌کند. آن را در فروشگاه به‌روزرسانی کنید و سپس OmniGet را دوباره باز کنید."
   },
   "debug": {
@@ -5044,7 +5045,7 @@
     "refresh": "Refresh",
     "unknown_error": "Unknown error",
     "captcha_detected": "Captcha detected — please solve it in the login window.",
-    "external_platform_hint": "This course is delivered outside Hotmart Club, so OmniGet cannot download it from here. Open it on the creator's platform; if that platform is Udemy or Kiwify, sign in to it in Courses.",
+    "external_platform_hint": "This course is delivered outside Hotmart Club, so OmniGet cannot download it from here. Open it on the creator's platform; if that platform is Udemy, sign in to it in Courses.",
     "open_external": "Open on the platform"
   },
   "torrent": {

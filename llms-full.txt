@@ -218,9 +218,9 @@ Copy a link anywhere on your system and press **Ctrl+Shift+D** (**Cmd+Shift+D** 
 
 OmniGet has native extractors for the platforms people use most, and hands everything else to [yt-dlp](https://github.com/yt-dlp/yt-dlp), which covers roughly 1,800 sites.
 
-### Udemy downloader and Hotmart downloader, plus Kiwify and Rocketseat
+### Udemy downloader and Hotmart downloader, plus Rocketseat
 
-OmniGet downloads the courses you bought on Udemy, Hotmart, Kiwify, Rocketseat and Meta-Analysis Academy. Sign in inside the app, tick the sections you want, and every lesson and attachment lands in a folder per course, numbered in order, resuming where it stopped. The course then opens in the built-in player with timestamped notes. Details in [Courses](https://github.com/tonhowtf/omniget#courses).
+OmniGet downloads the courses you bought on Udemy, Hotmart, Rocketseat and Meta-Analysis Academy. Sign in inside the app, tick the sections you want, and every lesson and attachment lands in a folder per course, numbered in order, resuming where it stopped. The course then opens in the built-in player with timestamped notes. Details in [Courses](https://github.com/tonhowtf/omniget#courses).
 
 ### YouTube downloader with a GUI for yt-dlp
 
@@ -234,7 +234,7 @@ Reels, posts, carousels, stories and highlights from Instagram; TikTok and Douyi
 
 | Category | Sites and formats |
 |---|---|
-| Online courses | Hotmart, Udemy, Kiwify, Rocketseat and Meta-Analysis Academy through the Courses plugin. Every lesson, section selection, attachments, resume where you stopped. |
+| Online courses | Hotmart, Udemy, Rocketseat and Meta-Analysis Academy through the Courses plugin. Every lesson, section selection, attachments, resume where you stopped. |
 | Video and audio | YouTube (videos, playlists, channels, live from start, chapters, SponsorBlock), Instagram, TikTok, X/Twitter, Reddit, Twitch (VODs, clips, live), Vimeo, Bluesky, Threads, Pinterest, Douyin |
 | Bilibili, signed in | 4K, HDR, Dolby Vision, Hi-Res lossless and Dolby Atmos according to your subscription. Danmaku comments as XML, ASS or JSON, NFO files for Kodi and Jellyfin, custom naming templates, 11 URL types including bangumi, courses, favorites, watch later and history |
 | Image galleries | Whole galleries and profiles from 250+ sites through gallery-dl (DeviantArt, Pixiv, ArtStation, Flickr, Tumblr, Imgur, Kemono and more) |
@@ -557,7 +557,7 @@ Plugins are separate Rust libraries loaded at startup. OmniGet installs its offi
 
 ### Courses
 
-Sign in to **Hotmart**, **Udemy**, **Kiwify**, **Rocketseat** or **Meta-Analysis Academy** through a browser window inside the app, with saved cookies from the extension, or with email and password where the platform allows it. OmniGet lists your purchases, opens the course outline so you can tick the sections you want (it tells you how many lectures are DRM-protected and will be skipped), and downloads every lesson and attachment with continuous lecture numbers if you want them. Hotmart uses the current OIDC login flow, so it keeps working after Hotmart's 2026 auth change, and free courses and courses delivered outside Hotmart Club are listed too. Downloaded courses appear in Study automatically.
+Sign in to **Hotmart**, **Udemy**, **Rocketseat** or **Meta-Analysis Academy** through a browser window inside the app, with saved cookies from the extension, or with email and password where the platform allows it. OmniGet lists your purchases, opens the course outline so you can tick the sections you want (it tells you how many lectures are DRM-protected and will be skipped), and downloads every lesson and attachment with continuous lecture numbers if you want them. Hotmart uses the current OIDC login flow, so it keeps working after Hotmart's 2026 auth change, and free courses and courses delivered outside Hotmart Club are listed too. Downloaded courses appear in Study automatically.
 
 ### Study
 
@@ -627,7 +627,7 @@ Yes. OmniGet bundles yt-dlp, verifies it, keeps it updated and puts its options 
 
 ### Can OmniGet download a Udemy or Hotmart course I bought?
 
-Yes. The Courses plugin comes preinstalled: sign in through the app, pick the course and its sections, and download. Lessons and attachments land in a folder per course and appear in Study. Kiwify, Rocketseat and Meta-Analysis Academy work the same way.
+Yes. The Courses plugin comes preinstalled: sign in through the app, pick the course and its sections, and download. Lessons and attachments land in a folder per course and appear in Study. Rocketseat and Meta-Analysis Academy work the same way.
 
 ### How do I download a YouTube video or playlist without a terminal?
 

@@ -58,6 +58,7 @@ pub fn validate_output_path(output_dir: String) -> PathLimitInfo {
 
 #[tauri::command]
 pub async fn detect_platform(url: String) -> Result<PlatformInfo, String> {
+    omniget_core::core::platform_optout::ensure_allowed(&url)?;
     let _timer_start = std::time::Instant::now();
     match Platform::from_url(&url) {
         Some(platform) => {
@@ -113,6 +114,7 @@ pub async fn detect_platform(url: String) -> Result<PlatformInfo, String> {
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn get_media_formats(url: String) -> Result<Vec<FormatInfo>, String> {
+    omniget_core::core::platform_optout::ensure_allowed(&url)?;
     let _timer_start = std::time::Instant::now();
     let ytdlp_path = ytdlp::ensure_ytdlp()
         .await
@@ -133,6 +135,7 @@ pub async fn prefetch_media_info(
     state: tauri::State<'_, AppState>,
     url: String,
 ) -> Result<(), String> {
+    omniget_core::core::platform_optout::ensure_allowed(&url)?;
     let settings = config::load_settings(&app);
     crate::core::http_client::init_proxy(settings.proxy);
 
@@ -872,6 +875,7 @@ pub async fn download_from_url(
     scheduled_at: Option<u64>,
     stop_at: Option<u64>,
 ) -> Result<DownloadStarted, String> {
+    omniget_core::core::platform_optout::ensure_allowed(&url)?;
     let _timer_start = std::time::Instant::now();
     let platform = Platform::from_url(&url);
 
@@ -1041,6 +1045,7 @@ pub async fn download_with_custom_args(
     if url.trim().is_empty() {
         return Err("URL is required".to_string());
     }
+    omniget_core::core::platform_optout::ensure_allowed(&url)?;
     if let Err(err) = crate::core::path_limits::validate_output_dir(&output_dir) {
         return Err(format!(
             "PathTooLong|{}|{}|{}",

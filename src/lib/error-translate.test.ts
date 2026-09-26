@@ -23,6 +23,15 @@ describe("translateBackendError", () => {
     ).toBe("T[errors.rate_limited]");
   });
 
+  it("maps the platform opt-out refusal", () => {
+    expect(
+      translateBackendError(
+        "The owner of this site asked OmniGet not to support it.",
+        mockT,
+      ),
+    ).toBe("T[errors.platform_opted_out]");
+  });
+
   it("strips the 'Failed to get formats:' prefix before matching", () => {
     expect(
       translateBackendError(

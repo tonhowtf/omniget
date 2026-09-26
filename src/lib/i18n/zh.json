@@ -4917,6 +4917,7 @@
     "drm_protected": "下载的流受 DRM 保护，无法合并。不支持此内容。",
     "output_missing": "下载已完成，但文件夹中没有出现文件（或文件为空）。请检查磁盘空间和杀毒软件设置后重试。",
     "course_platform_url": "课程平台无法通过 URL 下载。请打开课程页面（需要课程插件并登录账号）。",
+    "platform_opted_out": "该网站的所有者要求 OmniGet 不支持该网站。",
     "plugin_outdated": "This plugin is outdated and doesn't support this action. Update it in the Marketplace, then restart OmniGet."
   },
   "debug": {
@@ -5044,7 +5045,7 @@
     "refresh": "刷新",
     "unknown_error": "未知错误",
     "captcha_detected": "检测到验证码 — 请在登录窗口中完成验证。",
-    "external_platform_hint": "This course is delivered outside Hotmart Club, so OmniGet cannot download it from here. Open it on the creator's platform; if that platform is Udemy or Kiwify, sign in to it in Courses.",
+    "external_platform_hint": "This course is delivered outside Hotmart Club, so OmniGet cannot download it from here. Open it on the creator's platform; if that platform is Udemy, sign in to it in Courses.",
     "open_external": "Open on the platform"
   },
   "torrent": {

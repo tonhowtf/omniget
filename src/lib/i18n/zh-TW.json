@@ -4917,6 +4917,7 @@
     "drm_protected": "下載的串流受 DRM 保護，無法合併。不支援此內容。",
     "output_missing": "下載已完成，但資料夾中沒有出現檔案（或檔案為空）。請檢查磁碟空間與防毒軟體設定後重試。",
     "course_platform_url": "課程平台無法透過 URL 下載。請開啟課程頁面（需要課程外掛並登入帳號）。",
+    "platform_opted_out": "此網站的擁有者要求 OmniGet 不支援該網站。",
     "plugin_outdated": "This plugin is outdated and doesn't support this action. Update it in the Marketplace, then restart OmniGet."
   },
   "debug": {
@@ -5044,7 +5045,7 @@
     "refresh": "重新整理",
     "unknown_error": "未知錯誤",
     "captcha_detected": "偵測到 Captcha — 請在登入視窗中完成驗證。",
-    "external_platform_hint": "This course is delivered outside Hotmart Club, so OmniGet cannot download it from here. Open it on the creator's platform; if that platform is Udemy or Kiwify, sign in to it in Courses.",
+    "external_platform_hint": "This course is delivered outside Hotmart Club, so OmniGet cannot download it from here. Open it on the creator's platform; if that platform is Udemy, sign in to it in Courses.",
     "open_external": "Open on the platform"
   },
   "torrent": {

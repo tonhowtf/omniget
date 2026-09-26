@@ -1155,6 +1155,7 @@ export type TranslationKeys =
   | 'errors.output_missing'
   | 'errors.page_access_failed'
   | 'errors.path_too_long'
+  | 'errors.platform_opted_out'
   | 'errors.plugin_outdated'
   | 'errors.rate_limited'
   | 'errors.size_mismatch'

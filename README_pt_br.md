@@ -1,7 +1,7 @@
 <!--
 Palavras-chave de busca (ficam aqui para a busca do GitHub, o Google e os assistentes de IA acharem o projeto):
 OmniGet é um downloader e caixa de ferramentas de mídia, gratuito e open source, para Windows, macOS e Linux.
-baixar curso udemy, baixar curso hotmart, baixar curso kiwify, downloader de cursos, baixar video youtube,
+baixar curso udemy, baixar curso hotmart, downloader de cursos, baixar video youtube,
 yt-dlp gui, baixar instagram, baixar story instagram, baixar reels, baixar video twitter, baixar video x,
 baixar pinterest, backup de board pinterest, baixar tiktok, baixar reddit, baixar vod twitch, baixar bilibili,
 baixar telegram, cliente torrent, magnet, baixar legendas, transcrição whisper, texto para fala, leitor epub,
@@ -71,6 +71,7 @@ leitor pdf, flashcards anki, repetição espaçada, player de música, spicetify
 - [Perguntas frequentes](#perguntas-frequentes)
 - [Linha de comando](#linha-de-comando)
 - [Compilar do código-fonte](#compilar-do-código-fonte)
+- [Aviso aos donos de plataformas](#aviso-aos-donos-de-plataformas)
 - [Contribuir e traduzir](#contribuir-e-traduzir)
 
 ---
@@ -193,7 +194,7 @@ O OmniGet tem extratores nativos para as plataformas que as pessoas mais usam e 
 
 | Categoria | Sites e formatos |
 |---|---|
-| Cursos online | Hotmart, Udemy, Kiwify, Rocketseat e Meta-Analysis Academy pelo plugin Courses. Todas as aulas, escolha de seções, anexos, continuar de onde parou. |
+| Cursos online | Hotmart, Udemy, Rocketseat e Meta-Analysis Academy pelo plugin Courses. Todas as aulas, escolha de seções, anexos, continuar de onde parou. |
 | Vídeo e áudio | YouTube (vídeos, playlists, canais, live desde o início, capítulos, SponsorBlock), Instagram, TikTok, X/Twitter, Reddit, Twitch (VODs, clipes, ao vivo), Vimeo, Bluesky, Threads, Pinterest, Douyin |
 | Bilibili, logado | 4K, HDR, Dolby Vision, Hi-Res sem perdas e Dolby Atmos conforme sua assinatura. Danmaku em XML, ASS ou JSON, arquivos NFO para Kodi e Jellyfin, modelos de nome, 11 tipos de URL incluindo bangumi, cursos, favoritos, assistir depois e histórico |
 | Galerias de imagens | Galerias e perfis inteiros de mais de 250 sites via gallery-dl (DeviantArt, Pixiv, ArtStation, Flickr, Tumblr, Imgur, Kemono e outros) |
@@ -439,7 +440,7 @@ Plugins são bibliotecas Rust separadas, carregadas na inicialização. O OmniGe
 
 ### Courses
 
-Entre na **Hotmart**, **Udemy**, **Kiwify**, **Rocketseat** ou **Meta-Analysis Academy** por uma janela de navegador dentro do app, com cookies salvos pela extensão, ou com e-mail e senha onde a plataforma permite. O OmniGet lista suas compras, abre o sumário do curso para você marcar as seções que quer (avisando quantas aulas têm DRM e serão puladas) e baixa todas as aulas e anexos, com numeração contínua se quiser. A Hotmart usa o fluxo de login OIDC atual, então continua funcionando depois da mudança de autenticação de 2026, e cursos gratuitos e cursos entregues fora do Hotmart Club também aparecem na lista. Cursos baixados aparecem no Study automaticamente.
+Entre na **Hotmart**, **Udemy**, **Rocketseat** ou **Meta-Analysis Academy** por uma janela de navegador dentro do app, com cookies salvos pela extensão, ou com e-mail e senha onde a plataforma permite. O OmniGet lista suas compras, abre o sumário do curso para você marcar as seções que quer (avisando quantas aulas têm DRM e serão puladas) e baixa todas as aulas e anexos, com numeração contínua se quiser. A Hotmart usa o fluxo de login OIDC atual, então continua funcionando depois da mudança de autenticação de 2026, e cursos gratuitos e cursos entregues fora do Hotmart Club também aparecem na lista. Cursos baixados aparecem no Study automaticamente.
 
 ### Study
 
@@ -514,7 +515,7 @@ Sim. GPL-3.0, sem plano pago, sem anúncios, sem conta.
 Em parte. O yt-dlp cuida da cauda longa de sites e o OmniGet o embute, verifica e atualiza. Em cima disso ficam extratores nativos para cursos, Instagram, X, Pinterest, Bilibili, Telegram e torrents, uma fila com retomada e repetição, a seção Tools e a biblioteca do Study.
 
 **Dá para baixar um curso da Udemy ou da Hotmart que eu comprei?**
-Sim. Instale o plugin Courses (já vem instalado), entre pelo app, escolha o curso e as seções e baixe. Aulas e anexos caem numa pasta por curso e aparecem no Study. Kiwify, Rocketseat e Meta-Analysis Academy funcionam do mesmo jeito.
+Sim. Instale o plugin Courses (já vem instalado), entre pelo app, escolha o curso e as seções e baixe. Aulas e anexos caem numa pasta por curso e aparecem no Study. Rocketseat e Meta-Analysis Academy funcionam do mesmo jeito.
 
 **Dá para baixar stories, melhores amigos ou destaques do Instagram?**
 Sim, usando a sua própria sessão capturada pela extensão. Stories são baixados sem marcar como vistos.
@@ -596,6 +597,10 @@ Os plugins ficam em repositórios próprios: [omniget-plugin-courses](https://gi
 Stack: Tauri 2, Rust, SvelteKit com Svelte 5, SQLite, yt-dlp, FFmpeg, librqbit para torrents, whisper.cpp, aria2, gallery-dl.
 
 ---
+
+## Aviso aos donos de plataformas
+
+Se você é dono de uma plataforma e quer que o OmniGet deixe de dar suporte a ela, mande um e-mail para **tonhowtf@gmail.com** a partir de um endereço da empresa. O site sai da documentação e do código mantido pelo projeto, e os domínios dele entram numa lista de opt-out que o próprio app aplica. O processo e a lista atual estão em [PLATFORM-OWNERS.md](PLATFORM-OWNERS.md).
 
 ## Contribuir e traduzir
 

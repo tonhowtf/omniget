@@ -22,7 +22,7 @@
     </p>
     <p>Features include:</p>
     <ul>
-      <li>Udemy, Hotmart, Kiwify and Rocketseat course downloader with a course player</li>
+      <li>Udemy, Hotmart and Rocketseat course downloader with a course player</li>
       <li>YouTube downloader and yt-dlp GUI with queue, resume and subtitles</li>
       <li>Instagram, TikTok, X, Reddit, Pinterest, Twitch, Bilibili and Telegram downloads</li>
       <li>156 tools in 24 categories: transcription, PDF, video, images and more</li>
@@ -235,7 +235,7 @@
     </release>
     <release version="0.3.7" date="2026-03-18">
       <description>
-        <p>35+ course platforms (Kiwify, Teachable, Kajabi, Skool, Pluralsight, MasterClass, Rocketseat, Estratégia, and more), Chinese platform support (Bilibili, Douyin, Xiaohongshu), P2P file transfer with iroh relay, TikTok quality fix, torrent file picker, cookie JSON import, and numerous bug fixes.</p>
+        <p>35+ course platforms (Teachable, Kajabi, Skool, Pluralsight, MasterClass, Rocketseat, Estratégia, and more), Chinese platform support (Bilibili, Douyin, Xiaohongshu), P2P file transfer with iroh relay, TikTok quality fix, torrent file picker, cookie JSON import, and numerous bug fixes.</p>
       </description>
     </release>
     <release version="0.3.6" date="2026-03-08">

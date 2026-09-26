@@ -180,8 +180,6 @@ impl Platform {
             Some(Platform::Udemy)
         } else if matches("bilibili.com") || matches("bilibili.tv") || host == "b23.tv" {
             Some(Platform::Bilibili)
-        } else if matches("kiwify.com.br") {
-            Some(Platform::Other("kiwify".to_string()))
         } else if matches("gumroad.com") {
             Some(Platform::Other("gumroad".to_string()))
         } else if matches("teachable.com") {

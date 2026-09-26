@@ -4917,6 +4917,7 @@
     "drm_protected": "ダウンロードしたストリームはDRMで保護されているため結合できません。このコンテンツはサポートされていません。",
     "output_missing": "ダウンロードは完了しましたが、フォルダにファイルが見つからないか空です。ディスク容量とウイルス対策ソフトの設定を確認して、もう一度お試しください。",
     "course_platform_url": "コースプラットフォームはURLからダウンロードできません。コースページを開いてください（コースプラグインとログイン済みアカウントが必要です）。",
+    "platform_opted_out": "このサイトの運営者から、OmniGet で対応しないよう依頼がありました。",
     "plugin_outdated": "This plugin is outdated and doesn't support this action. Update it in the Marketplace, then restart OmniGet."
   },
   "debug": {
@@ -5044,7 +5045,7 @@
     "refresh": "更新",
     "unknown_error": "不明なエラー",
     "captcha_detected": "Captchaが検出されました — ログインウィンドウで解決してください。",
-    "external_platform_hint": "This course is delivered outside Hotmart Club, so OmniGet cannot download it from here. Open it on the creator's platform; if that platform is Udemy or Kiwify, sign in to it in Courses.",
+    "external_platform_hint": "This course is delivered outside Hotmart Club, so OmniGet cannot download it from here. Open it on the creator's platform; if that platform is Udemy, sign in to it in Courses.",
     "open_external": "Open on the platform"
   },
   "torrent": {

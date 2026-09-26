@@ -44,6 +44,8 @@ const BACKEND_ERROR_MAP: Record<string, string> = {
     "errors.drm_protected",
   "Course platforms can't be downloaded from a URL. Open the Courses page (requires the Courses plugin and a logged-in account).":
     "errors.course_platform_url",
+  "The owner of this site asked OmniGet not to support it.":
+    "errors.platform_opted_out",
   "OmniDisc: invalid instance URL. Use http:// or https:// without a username or password.":
     "omnidisc.error.invalid_url",
   "OmniDisc: the server did not respond. Check the address or ask the owner for a new link.":

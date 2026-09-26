@@ -4917,6 +4917,7 @@
     "drm_protected": "Οι ροές που κατέβηκαν προστατεύονται από DRM και δεν μπορούν να συγχωνευθούν. Αυτό το περιεχόμενο δεν υποστηρίζεται.",
     "output_missing": "Η λήψη ολοκληρώθηκε, αλλά δεν εμφανίστηκε αρχείο στον φάκελο (ή είναι κενό). Ελέγξτε τον χώρο στον δίσκο και το antivirus και δοκιμάστε ξανά.",
     "course_platform_url": "Οι πλατφόρμες μαθημάτων δεν μπορούν να ληφθούν από URL. Ανοίξτε τη σελίδα «Μαθήματα» (απαιτείται το πρόσθετο μαθημάτων και συνδεδεμένος λογαριασμός).",
+    "platform_opted_out": "Ο ιδιοκτήτης αυτού του ιστότοπου ζήτησε από το OmniGet να μην τον υποστηρίζει.",
     "plugin_outdated": "This plugin is outdated and doesn't support this action. Update it in the Marketplace, then restart OmniGet."
   },
   "debug": {
@@ -5044,7 +5045,7 @@
     "refresh": "Ανανέωση",
     "unknown_error": "Άγνωστο σφάλμα",
     "captcha_detected": "Ανιχνεύθηκε captcha — Παρακαλώ επιλύστε το στην σελίδα εισόδου.",
-    "external_platform_hint": "This course is delivered outside Hotmart Club, so OmniGet cannot download it from here. Open it on the creator's platform; if that platform is Udemy or Kiwify, sign in to it in Courses.",
+    "external_platform_hint": "This course is delivered outside Hotmart Club, so OmniGet cannot download it from here. Open it on the creator's platform; if that platform is Udemy, sign in to it in Courses.",
     "open_external": "Open on the platform"
   },
   "torrent": {
