@@ -1,10 +1,10 @@
 import { expect, it } from 'vitest';
 import { LLM_DESTINATIONS, llmDestination } from './workspace-navigation';
 import { CORE_NAV_ITEMS } from '../nav-config';
-it('keeps all eleven legacy routes in exactly four destinations', () => {
+it('keeps the legacy routes plus memory and reading in exactly four destinations', () => {
   expect(LLM_DESTINATIONS).toHaveLength(4);
   const routes = LLM_DESTINATIONS.flatMap(d => [...d.routes]);
-  expect(new Set(routes).size).toBe(11);
+  expect(new Set(routes).size).toBe(14);
   for (const path of routes) expect(llmDestination(`${path}/`).routes).toContain(path);
 });
 it('places Help immediately after LLM in primary navigation', () => {

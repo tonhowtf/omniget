@@ -357,7 +357,6 @@
   const PLATFORM_LABELS: Record<string, string> = {
     udemy: "Udemy",
     hotmart: "Hotmart",
-    kiwify: "Kiwify",
     gumroad: "Gumroad",
     teachable: "Teachable",
     kajabi: "Kajabi",

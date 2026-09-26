@@ -17,7 +17,6 @@
   const FALLBACK_PLATFORMS: PlatformConfig[] = [
     { id: "hotmart", name: "Hotmart", color: "#F04E23", icon: "hotmart", commands: { check_session: "hotmart_check_session" } },
     { id: "udemy", name: "Udemy", color: "#A435F0", icon: "udemy", commands: { check_session: "udemy_check_session" } },
-    { id: "kiwify", name: "Kiwify", color: "#22C55E", icon: "kiwify", commands: { check_session: "kiwify_check_session" } },
     { id: "rocketseat", name: "Rocketseat", color: "#8257E5", icon: "rocketseat", commands: { check_session: "rocketseat_check_session" } },
     { id: "metaanalysis", name: "Meta-Analysis Academy", color: "#4338CA", icon: "metaanalysis", commands: { check_session: "metaanalysis_check_session" } },
   ];
@@ -169,7 +168,7 @@
     </svg>
     <h2>{$t("marketplace.plugin_not_installed")}</h2>
     <p>{$t("marketplace.plugin_install_hint")}</p>
-    <a href="/marketplace" class="guard-link">{$t("marketplace.go_to_marketplace")}</a>
+    <a href="/settings?tab=plugins" class="guard-link">{$t("marketplace.go_to_marketplace")}</a>
   </div>
 {:else if pluginStatus === "needs-restart"}
   <div class="plugin-guard">
@@ -180,7 +179,7 @@
   <div class="plugin-guard">
     <h2>{$t("marketplace.plugin_incompatible_title")}</h2>
     <p>{$t("marketplace.plugin_incompatible_hint")}</p>
-    <a href="/marketplace" class="guard-link">{$t("marketplace.go_to_marketplace")}</a>
+    <a href="/settings?tab=plugins" class="guard-link">{$t("marketplace.go_to_marketplace")}</a>
     {#if loadError}
       <p class="guard-detail"><code>{loadError.message}</code></p>
     {/if}
@@ -189,7 +188,7 @@
   <div class="plugin-guard">
     <h2>{$t("marketplace.plugin_load_failed_title")}</h2>
     <p>{$t("marketplace.plugin_load_failed_hint")}</p>
-    <a href="/marketplace" class="guard-link">{$t("marketplace.go_to_marketplace")}</a>
+    <a href="/settings?tab=plugins" class="guard-link">{$t("marketplace.go_to_marketplace")}</a>
     {#if loadError}
       <p class="guard-detail"><code>{loadError.message}</code></p>
     {/if}

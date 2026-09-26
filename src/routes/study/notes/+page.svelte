@@ -184,7 +184,7 @@
           ? $t("study.notes.page_renamed")
           : r.blocks_updated === 1
             ? $t("study.notes.page_renamed_block")
-            : $t("study.notes.page_renamed_blocks", { n: r.blocks_updated }),
+            : $t("study.notes.page_renamed_blocks", { count: r.blocks_updated }),
       );
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));

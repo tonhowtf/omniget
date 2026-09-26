@@ -46,7 +46,7 @@
     <header class="head">
       <span class="eyebrow">{$t("study.player.seek_eyebrow")}</span>
       <h3>{$t("study.player.seek_dist_title")}</h3>
-      <span class="count">{$t("study.player.seek_count", { n: heatmap.total_seeks })}</span>
+      <span class="count">{$t("study.player.seek_count", { count: heatmap.total_seeks })}</span>
     </header>
     <p class="hint">
       {$t("study.player.seek_dist_hint")}

@@ -1011,3 +1011,27 @@ impl TwitterDownloader {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Live timing of the native steps (bench twitter-1), 3 requests:
+    /// `cargo test --lib -p omniget-core twitter_live_step_timing -- --ignored --nocapture`.
+    #[tokio::test]
+    #[ignore]
+    async fn twitter_live_step_timing() {
+        let d = TwitterDownloader::new();
+        let id = "1349794411333394432";
+        let t = std::time::Instant::now();
+        let g = d.try_graphql(id).await;
+        eprintln!(
+            "graphql: {:?} in {:?}",
+            g.as_ref().map(|v| v.len()).map_err(|e| e.to_string()),
+            t.elapsed()
+        );
+        let t = std::time::Instant::now();
+        let s = d.request_syndication(id).await;
+        eprintln!("syndication: ok={} in {:?}", s.is_ok(), t.elapsed());
+    }
+}

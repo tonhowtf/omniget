@@ -44,6 +44,8 @@ const BACKEND_ERROR_MAP: Record<string, string> = {
     "errors.drm_protected",
   "Course platforms can't be downloaded from a URL. Open the Courses page (requires the Courses plugin and a logged-in account).":
     "errors.course_platform_url",
+  "The owner of this site asked OmniGet not to support it.":
+    "errors.platform_opted_out",
   "OmniDisc: invalid instance URL. Use http:// or https:// without a username or password.":
     "omnidisc.error.invalid_url",
   "OmniDisc: the server did not respond. Check the address or ask the owner for a new link.":
@@ -128,7 +130,7 @@ const OMNIDISC_PREFIX_MAP: Record<string, string> = {
 export function translateBackendError(
   msg: string,
   t: (key: string) => string,
-  tWithValues?: (key: string, opts: { values: Record<string, string | number> }) => string
+  tWithValues?: (key: string, vars: Record<string, string | number>) => string
 ): string {
   if (!msg) return t("common.unknown_error");
 
@@ -137,9 +139,8 @@ export function translateBackendError(
     const limit = Number(parts[1] ?? 0);
     const current = Number(parts[2] ?? 0);
     if (tWithValues) {
-      return tWithValues("errors.path_too_long", {
-        values: { limit, current },
-      });
+      // sveltekit-i18n reads the payload itself: {{limit}}, {{current}}.
+      return tWithValues("errors.path_too_long", { limit, current });
     }
     return t("errors.path_too_long");
   }

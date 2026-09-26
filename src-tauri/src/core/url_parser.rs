@@ -24,6 +24,9 @@ pub enum ParsedContentType {
 }
 
 pub fn parse_url(url_str: &str) -> Option<ParsedUrl> {
+    if omniget_core::core::platform_optout::is_opted_out(url_str) {
+        return None;
+    }
     let platform = Platform::from_url(url_str)?;
     let parsed = url::Url::parse(url_str).ok()?;
     let path = parsed.path();

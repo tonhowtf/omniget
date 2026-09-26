@@ -93,15 +93,62 @@ pub async fn queue_url_with_defaults(
     from_hotkey: bool,
     download_mode: Option<String>,
 ) -> Result<QueueUrlOutcome, String> {
+    queue_url_with_quality(app, url, from_hotkey, download_mode, None).await
+}
+
+pub async fn queue_url_with_quality(
+    app: &AppHandle,
+    url: String,
+    from_hotkey: bool,
+    download_mode: Option<String>,
+    quality: Option<String>,
+) -> Result<QueueUrlOutcome, String> {
+    queue_url_with_executor(app, url, from_hotkey, download_mode, quality, None).await
+}
+
+/// Internal injection point for the queue-owned confined worker. This uses
+/// the same queue state and events as UI/extension downloads.
+pub async fn queue_url_with_executor(
+    app: &AppHandle,
+    url: String,
+    from_hotkey: bool,
+    download_mode: Option<String>,
+    quality: Option<String>,
+    external: Option<(
+        crate::mcp::policy::Principal,
+        std::sync::Arc<dyn crate::platforms::traits::PlatformDownloader>,
+        crate::mcp::download_intents::Intent,
+    )>,
+) -> Result<QueueUrlOutcome, String> {
+    omniget_core::core::platform_optout::ensure_allowed(&url)?;
     let state = app.state::<AppState>();
     let settings = config::load_settings(app);
     let download_queue = state.download_queue.clone();
+    let download_mode = external
+        .as_ref()
+        .map(|(_, _, i)| i.options.mode.clone())
+        .unwrap_or(download_mode);
+    let quality = external
+        .as_ref()
+        .map(|(_, _, i)| i.options.quality.clone())
+        .unwrap_or(quality);
 
     {
         let mut q = download_queue.lock().await;
         q.max_concurrent = settings.advanced.max_concurrent_downloads.max(1);
         q.stagger_delay_ms = settings.advanced.stagger_delay_ms;
-        if q.has_url(&url) {
+        if let Some((principal, _, intent)) = &external {
+            if let Some(item) = q.items.iter().find(|item| item.id == intent.job_id) {
+                crate::mcp::policy::own(principal, item.id)?;
+                if item.url != url {
+                    return Err("DOWNLOAD_ID_CONFLICT".into());
+                }
+                return Ok(QueueUrlOutcome::AlreadyQueued);
+            }
+            if q.has_url(&url) {
+                return Err("URL_ALREADY_MANAGED".into());
+            }
+        } else if q.has_url(&url) {
             return Ok(QueueUrlOutcome::AlreadyQueued);
         }
     }
@@ -112,20 +159,31 @@ pub async fn queue_url_with_defaults(
         return Err("Course platforms can't be downloaded from a URL. Open the Courses page (requires the Courses plugin and a logged-in account).".to_string());
     }
 
-    let resolved = crate::core::url_resolver::resolve_downloader(&state.registry, &url)
-        .await
-        .ok_or_else(|| "No downloader available for this URL".to_string())?;
-    let downloader = resolved.downloader;
-    let platform_name = resolved.platform_name;
+    let (downloader, platform_name) = if let Some((_, worker, _)) = &external {
+        (worker.clone(), "mcp_worker".to_string())
+    } else {
+        let resolved = crate::core::url_resolver::resolve_downloader(&state.registry, &url)
+            .await
+            .ok_or("No downloader available for this URL")?;
+        (resolved.downloader, resolved.platform_name)
+    };
 
     let mut download_id = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64;
 
-    let ytdlp_path = crate::core::ytdlp::find_ytdlp_cached().await;
+    let ytdlp_path = if external.is_some() {
+        None
+    } else {
+        crate::core::ytdlp::find_ytdlp_cached().await
+    };
 
-    let ext_meta = crate::extension_storage::read_extension_metadata(&url);
+    let ext_meta = if external.is_some() {
+        None
+    } else {
+        crate::extension_storage::read_extension_metadata(&url)
+    };
 
     let has_ext_media = ext_meta
         .as_ref()
@@ -148,7 +206,7 @@ pub async fn queue_url_with_defaults(
         });
     }
 
-    let output_dir = settings
+    let mut output_dir = settings
         .download
         .default_output_dir
         .to_string_lossy()
@@ -225,7 +283,11 @@ pub async fn queue_url_with_defaults(
             return None;
         }
         Some(crate::models::media::MediaInfo {
-            title: ext_title.clone().unwrap_or_else(|| url.clone()),
+            // A title derived from the URL is the redacted URL (N-3); the
+            // real title replaces it once metadata arrives.
+            title: ext_title
+                .clone()
+                .unwrap_or_else(|| crate::core::flight_recorder::redact_url(&url)),
             author: String::new(),
             platform: "generic".to_string(),
             duration_seconds: None,
@@ -236,11 +298,34 @@ pub async fn queue_url_with_defaults(
         })
     });
 
-    let queue_title = ext_title.clone().unwrap_or_else(|| url.clone());
+    let queue_title = ext_title
+        .clone()
+        .unwrap_or_else(|| crate::core::flight_recorder::redact_url(&url));
+    let format_id = quality
+        .as_ref()
+        .filter(|_| download_mode.as_deref() != Some("audio"))
+        .and_then(|h| h.trim_end_matches('p').parse::<u32>().ok())
+        .map(|h| {
+            format!("bv*[height<={h}]+ba/b[height<={h}]/bv*[height<=?{h}]+ba/b[height<=?{h}]/ba")
+        });
 
     {
         let mut q = download_queue.lock().await;
-        download_id = q.next_available_id(download_id);
+        if let Some((principal, _, intent)) = &external {
+            crate::mcp::policy::active(principal)?;
+            if intent.principal != principal.id || intent.options.url != url {
+                return Err("DOWNLOAD_INTENT_MISMATCH".into());
+            }
+            download_id = intent.job_id;
+            if q.items.iter().any(|i| i.id == download_id) {
+                return Err("DOWNLOAD_ID_CONFLICT".into());
+            }
+            output_dir = intent.destination.clone();
+            crate::mcp::policy::own(principal, download_id)?;
+            crate::mcp::download_intents::admitting(download_id)?;
+        } else {
+            download_id = q.next_available_id(download_id);
+        }
         q.enqueue(
             download_id,
             url.clone(),
@@ -248,8 +333,8 @@ pub async fn queue_url_with_defaults(
             queue_title,
             output_dir,
             download_mode,
-            None,
-            None,
+            quality,
+            format_id,
             ext_referer,
             ext_headers,
             ext_page_url,
@@ -266,6 +351,12 @@ pub async fn queue_url_with_defaults(
             None,
             None,
         );
+        if external.is_some() {
+            if let Some(item) = q.items.iter_mut().find(|i| i.id == download_id) {
+                item.max_retries = 0;
+            }
+            crate::mcp::download_intents::enqueued(download_id)?;
+        }
 
         let next_ids = q.next_queued_ids();
         for nid in &next_ids {
@@ -319,6 +410,7 @@ pub async fn handle_external_url(
     if !is_external_url(&url) {
         return Err("Invalid external URL".to_string());
     }
+    omniget_core::core::platform_optout::ensure_allowed(&url)?;
 
     let settings = config::load_settings(app);
     let can_queue_directly = (!settings.download.always_ask_path

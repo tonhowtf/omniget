@@ -103,7 +103,7 @@
         "study",
         "study:read:series:clear_orphans",
       );
-      scanMsg = $t("study.read.manga_orphans_cleared", { n: res?.removed ?? 0 });
+      scanMsg = $t("study.read.manga_orphans_cleared", { count: res?.removed ?? 0 });
       await loadSeries();
     } catch (e) {
       scanMsg = e instanceof Error ? e.message : String(e);
@@ -123,7 +123,7 @@
         "study",
         "study:read:series:clear_remote",
       );
-      scanMsg = $t("study.read.manga_remote_cleared", { n: res?.removed ?? 0 });
+      scanMsg = $t("study.read.manga_remote_cleared", { count: res?.removed ?? 0 });
       await loadSeries();
     } catch (e) {
       scanMsg = e instanceof Error ? e.message : String(e);
@@ -143,7 +143,7 @@
         "study",
         "study:read:series:clear_all",
       );
-      scanMsg = $t("study.read.manga_all_cleared", { n: res?.removed ?? 0 });
+      scanMsg = $t("study.read.manga_all_cleared", { count: res?.removed ?? 0 });
       await loadSeries();
     } catch (e) {
       scanMsg = e instanceof Error ? e.message : String(e);

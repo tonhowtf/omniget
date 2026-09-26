@@ -150,7 +150,7 @@
           ? $t("study.anki.filtered.was_empty")
           : r.returned === 1
             ? $t("study.anki.filtered.returned_one")
-            : $t("study.anki.filtered.returned_many", { n: r.returned }),
+            : $t("study.anki.filtered.returned_many", { count: r.returned }),
       );
       await load();
     } catch (e) {
@@ -236,9 +236,9 @@
           <div class="filtered-info">
             <h3>{deck.name}</h3>
             <p class="meta">
-              <span class="pill new">{$t("study.anki.filtered.n_new", { n: deck.new_count })}</span>
-              <span class="pill learn">{$t("study.anki.filtered.n_learning", { n: deck.learn_count })}</span>
-              <span class="pill review">{$t("study.anki.filtered.n_review", { n: deck.review_count })}</span>
+              <span class="pill new">{$t("study.anki.filtered.n_new", { count: deck.new_count })}</span>
+              <span class="pill learn">{$t("study.anki.filtered.n_learning", { count: deck.learn_count })}</span>
+              <span class="pill review">{$t("study.anki.filtered.n_review", { count: deck.review_count })}</span>
             </p>
           </div>
           <div class="filtered-actions">

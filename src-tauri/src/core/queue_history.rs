@@ -58,7 +58,25 @@ fn schema(conn: &Connection) -> rusqlite::Result<()> {
     )
 }
 
+/// History is disk + UI + MCP + extension bridge: only the redacted URL ever
+/// lives here. A signed link is expired by the time anyone re-downloads from
+/// history anyway, and the UI tells the user to paste it again.
+fn safe_url(url: &str) -> String {
+    crate::core::flight_recorder::redact_url(url)
+}
+
+/// The title is the URL until metadata arrives (and stays the URL when the
+/// extraction fails): any URL inside it is redacted too (N-3). A real title
+/// passes through byte-identical.
+fn safe_title(title: &str) -> String {
+    crate::core::flight_recorder::redact_urls(title)
+}
+
 fn db_upsert(conn: &Connection, e: &HistoryEntry) -> rusqlite::Result<()> {
+    let url = safe_url(&e.url);
+    let title = safe_title(&e.title);
+    let error = e.error.as_deref().map(crate::core::flight_recorder::redact);
+    let thumbnail_url = e.thumbnail_url.as_deref().map(safe_url);
     let kind = e.kind.as_ref().and_then(|k| serde_json::to_string(k).ok());
     conn.execute(
         "INSERT OR REPLACE INTO history
@@ -67,16 +85,16 @@ fn db_upsert(conn: &Connection, e: &HistoryEntry) -> rusqlite::Result<()> {
          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
         params![
             e.id as i64,
-            e.url,
+            url,
             e.platform,
-            e.title,
+            title,
             e.file_path,
             e.file_size_bytes.map(|v| v as i64),
             e.total_bytes.map(|v| v as i64),
             e.success as i64,
-            e.error,
+            error,
             e.completed_at,
-            e.thumbnail_url,
+            thumbnail_url,
             kind,
         ],
     )?;
@@ -94,18 +112,20 @@ fn row_to_entry(row: &rusqlite::Row) -> rusqlite::Result<HistoryEntry> {
     let total: Option<i64> = row.get(6)?;
     let success: i64 = row.get(7)?;
     let kind_text: Option<String> = row.get(11)?;
+    let url: String = row.get(1)?;
     Ok(HistoryEntry {
         id: id as u64,
-        url: row.get(1)?,
+        // Rows written before redaction existed are scrubbed on read too.
+        url: safe_url(&url),
         platform: row.get(2)?,
-        title: row.get(3)?,
+        title: safe_title(&row.get::<_, String>(3)?),
         file_path: row.get(4)?,
         file_size_bytes: file_size.map(|v| v as u64),
         total_bytes: total.map(|v| v as u64),
         success: success != 0,
         error: row.get(8)?,
         completed_at: row.get(9)?,
-        thumbnail_url: row.get(10)?,
+        thumbnail_url: row.get::<_, Option<String>>(10)?.as_deref().map(safe_url),
         kind: kind_text.and_then(|t| serde_json::from_str(&t).ok()),
     })
 }
@@ -150,6 +170,33 @@ pub fn init_from_disk() {
         import_legacy_json(c);
         Ok(())
     });
+    db::with_conn(scrub_existing_rows);
+}
+
+/// Rewrites rows persisted before URL redaction, so the secret leaves the
+/// disk instead of merely being hidden on read.
+fn scrub_existing_rows(conn: &Connection) -> rusqlite::Result<()> {
+    type Row = (i64, String, String, Option<String>, Option<String>);
+    let rows: Vec<Row> = {
+        let mut stmt = conn.prepare("SELECT id, url, title, thumbnail_url, error FROM history")?;
+        let mapped = stmt.query_map([], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
+        })?;
+        mapped.collect::<rusqlite::Result<_>>()?
+    };
+    for (id, url, title, thumb, error) in rows {
+        let new_url = safe_url(&url);
+        let new_title = safe_title(&title);
+        let new_thumb = thumb.as_deref().map(safe_url);
+        let new_error = error.as_deref().map(crate::core::flight_recorder::redact);
+        if new_url != url || new_title != title || new_thumb != thumb || new_error != error {
+            conn.execute(
+                "UPDATE history SET url = ?1, title = ?2, thumbnail_url = ?3, error = ?4 WHERE id = ?5",
+                params![new_url, new_title, new_thumb, new_error, id],
+            )?;
+        }
+    }
+    Ok(())
 }
 
 pub fn record(entry: HistoryEntry) {
@@ -241,6 +288,87 @@ mod tests {
         let list = db_list(&c).unwrap();
         assert_eq!(list.len(), MAX_HISTORY_ENTRIES);
         assert_eq!(list[0].id, MAX_HISTORY_ENTRIES as u64 + 25);
+    }
+
+    const SECRET: &str = "SYNTHETIC_SECRET_7f3a";
+
+    fn secret_urls() -> Vec<String> {
+        vec![
+            format!("https://cdn.test/v.mp4?token={SECRET}&sig={SECRET}"),
+            format!("https://s3.test/o.mp4?X-Amz-Signature={SECRET}&X-Amz-Credential={SECRET}&Policy={SECRET}"),
+            format!("https://www.instagram.com/reel/Cabc123/?igsh={SECRET}"),
+            format!("https://user:{SECRET}@host.test/file.mp4"),
+            format!("https://host.test/cb#access_token={SECRET}"),
+        ]
+    }
+
+    #[test]
+    fn persisted_history_never_holds_secrets() {
+        let c = conn();
+        for (i, url) in secret_urls().into_iter().enumerate() {
+            let mut e = mk(i as u64 + 1, i as i64);
+            e.url = url.clone();
+            // N-3: the placeholder title is the URL itself.
+            e.title = url.clone();
+            e.thumbnail_url = Some(url.clone());
+            e.error = Some(format!("HTTP 403 downloading {url}"));
+            db_upsert(&c, &e).unwrap();
+        }
+        let raw: Vec<String> = c
+            .prepare("SELECT url || ' ' || title || ' ' || IFNULL(thumbnail_url,'') || ' ' || IFNULL(error,'') FROM history")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(raw.len(), 5);
+        for row in &raw {
+            assert!(!row.contains(SECRET), "leaked on disk: {row}");
+        }
+        let json = serde_json::to_string(&db_list(&c).unwrap()).unwrap();
+        assert!(!json.contains(SECRET), "leaked in list: {json}");
+        assert!(json.contains("instagram.com/reel/Cabc123"), "{json}");
+    }
+
+    #[test]
+    fn real_titles_pass_through_unchanged() {
+        let c = conn();
+        let mut e = mk(1, 1);
+        e.title = "Cats: the movie (2024) [4K] token=abc".into();
+        db_upsert(&c, &e).unwrap();
+        assert_eq!(db_list(&c).unwrap()[0].title, e.title);
+    }
+
+    #[test]
+    fn legacy_rows_are_scrubbed_on_disk() {
+        let c = conn();
+        let url = format!("https://cdn.test/v.mp4?token={SECRET}");
+        c.execute(
+            "INSERT INTO history (id, url, platform, title, success, completed_at)
+             VALUES (1, ?1, 'generic', ?1, 1, 1)",
+            params![url],
+        )
+        .unwrap();
+        let listed = &db_list(&c).unwrap()[0];
+        assert!(!listed.url.contains(SECRET));
+        assert!(
+            !listed.title.contains(SECRET),
+            "N-3 title on read: {}",
+            listed.title
+        );
+        scrub_existing_rows(&c).unwrap();
+        let (stored, title): (String, String) = c
+            .query_row("SELECT url, title FROM history WHERE id = 1", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .unwrap();
+        assert!(!stored.contains(SECRET), "{stored}");
+        assert!(
+            stored.starts_with("https://cdn.test/v.mp4?token="),
+            "{stored}"
+        );
+        assert!(!title.contains(SECRET), "N-3 title on disk: {title}");
+        assert_eq!(title, stored);
     }
 
     #[test]

@@ -23,7 +23,7 @@
   import WorldCanvas from "$components/world/WorldCanvas.svelte";
   import HousePanel from "$components/world/HousePanel.svelte";
   import CityCanvas from "$components/world/CityCanvas.svelte";
-  import CityPanel from "$components/world/CityPanel.svelte";
+  import CityPanel, { type EditorHandoff } from "$components/world/CityPanel.svelte";
   import ActivityPanel from "$components/world/ActivityPanel.svelte";
   import type { AgentRow } from "$lib/world/activity";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -42,9 +42,32 @@
   // the house on screen; the house keeps ticking in the backend meanwhile.
   let cityMode = $state<{ city: string; server: string | null } | null>(null);
   let cityState = $state<{ region: string; ent: number; tick: number; interior: boolean } | null>(null);
-  let cityRef = $state<{ say: (ent: number, text: string) => void; goTo: (tile: [number, number]) => Promise<void> } | null>(null);
-  let cityPanelRef = $state<{ refreshHome: () => void } | null>(null);
+  let cityRef = $state<{ say: (ent: number, text: string) => void; goTo: (tile: [number, number]) => Promise<void>; refreshFinishes: () => void } | null>(null);
+  let cityDiag = $state<{ fps: number; tier: number; backend: string; connection: string; error: string }>({ fps: 0, tier: 0, backend: "", connection: "online", error: "" });
+
+  // Two places, one route: the house that runs on this machine, and the city
+  // on the server. The last one chosen comes back; nothing connects until the
+  // user presses a button in the city tab.
+  const PLACE_KEY = "omniget.world.place";
+  function readPlace(): "home" | "city" {
+    try {
+      return localStorage.getItem(PLACE_KEY) === "city" ? "city" : "home";
+    } catch {
+      return "home";
+    }
+  }
+  let place = $state<"home" | "city">(readPlace());
+  function choosePlace(next: "home" | "city"): void {
+    place = next;
+    try {
+      localStorage.setItem(PLACE_KEY, next);
+    } catch {
+      // storage unavailable
+    }
+  }
+  let cityPanelRef = $state<{ refreshHome: () => void; clearTool: () => void; selectionChanged: (id: string | null) => void; editorChanged: () => void; inspect: (ent: number | null) => void } | null>(null);
   let cityCrop = $state("carrot");
+  let cityEdit = $state<EditorHandoff | null>(null);
   let canvasRef = $state<{ say: (ent: number, text: string) => void; focus: (ent: number) => void; frameHouse: () => void } | null>(null);
   let residents = $state<AgentRow[]>([]);
   let demoBusy = $state(false);
@@ -110,7 +133,16 @@
   <header class="world-head">
     <h1>{$t("world.title")}</h1>
     <p class="world-sub">{$t("world.subtitle")}</p>
-    <a class="yard-link" href="/world/yard">{$t("world.yard.title")} →</a>
+    {#if mode === "world" && enabled && !cityMode}
+      <div class="places" role="tablist" aria-label={$t("world.places") as string}>
+        <button type="button" role="tab" id="tab-home" aria-controls="panel-place" aria-selected={place === "home"} class:active={place === "home"} onclick={() => choosePlace("home")}>
+          <strong>{$t("world.place_home")}</strong><span>{$t("world.place_home_hint")}</span>
+        </button>
+        <button type="button" role="tab" id="tab-city" aria-controls="panel-place" aria-selected={place === "city"} class:active={place === "city"} onclick={() => choosePlace("city")}>
+          <strong>{$t("world.place_city")}</strong><span>{$t("world.place_city_hint")}</span>
+        </button>
+      </div>
+    {/if}
   </header>
 
   {#if mode === "bench"}
@@ -123,13 +155,28 @@
       {/if}
     </div>
   {:else if enabled && cityMode}
-    <div class="world-main">
+    <div class="world-main city-main">
       {#key cityMode.city + (cityMode.server ?? "")}
         <CityCanvas
           bind:this={cityRef}
           city={cityMode.city}
           server={cityMode.server}
           crop={cityCrop}
+          editor={cityEdit?.editor ?? null}
+          tool={cityEdit?.tool ?? null}
+          published={cityEdit?.published ?? null}
+          plotRect={cityEdit?.plotRect ?? null}
+          picture={cityEdit?.picture ?? null}
+          finishPreview={cityEdit?.finishPreview ?? null}
+          onconnection={(c) => (cityDiag = { ...cityDiag, connection: c })}
+          onpick={(e) => cityPanelRef?.inspect(e)}
+          onstats={(_s, fps, tier, backend) => {
+            // Coarse: the panel shows it in its diagnostics area only.
+            if (Math.abs(fps - cityDiag.fps) >= 1 || tier !== cityDiag.tier || backend !== cityDiag.backend) cityDiag = { ...cityDiag, fps, tier, backend };
+          }}
+          onedit={() => cityPanelRef?.editorChanged()}
+          onselect={(id) => cityPanelRef?.selectionChanged(id)}
+          oncleartool={() => cityPanelRef?.clearTool()}
           onfarm={(r) => {
             if (r.ok) cityPanelRef?.refreshHome();
             else showToast("error", $t(`world.city.farm_${r.code.toLowerCase().replace(/^err_world_(farm_)?/, "")}`) as string);
@@ -149,53 +196,63 @@
       where={cityState}
       crop={cityCrop}
       oncrop={(c) => (cityCrop = c)}
+      oneditor={(s) => (cityEdit = s)}
+      onfinish={() => cityRef?.refreshFinishes()}
+      diag={cityDiag}
       onenter={(c) => (cityMode = c)}
       onleave={() => {
         cityMode = null;
         cityState = null;
+        cityEdit = null;
       }}
       onsay={(ent, text) => cityRef?.say(ent, text)}
       ongoto={(tile) => void cityRef?.goTo(tile)}
     />
-  {:else if enabled}
-    <div class="world-main">
-      {#key visit?.code ?? "home"}
-        <WorldCanvas
-          bind:this={canvasRef}
-          {visit}
-          followAll={demoBusy}
-          onagents={(list) => (residents = list)}
-          onready={onCanvasReady}
-          onvisitfailed={(error) => {
-            showToast("error", error);
-            visit = null;
-          }}
-        />
-      {/key}
-      {#if !visit}
-        <ActivityPanel
-          agents={residents}
-          {demoBusy}
-          onfocus={(ent) => canvasRef?.focus(ent)}
-          ondemo={() => void runDemo()}
-        />
-      {/if}
+  {:else if enabled && place === "city"}
+    <div id="panel-place" role="tabpanel" aria-labelledby="tab-city">
+      <CityPanel
+        city={null}
+        where={null}
+        onenter={(c) => {
+          visit = null;
+          cityMode = c;
+        }}
+        onleave={() => (cityMode = null)}
+      />
     </div>
-    <HousePanel
-      visiting={visit !== null}
-      onvisit={(v) => (visit = v)}
-      onleave={() => (visit = null)}
-      onsay={(ent, text) => canvasRef?.say(ent, text)}
-    />
-    <CityPanel
-      city={null}
-      where={null}
-      onenter={(c) => {
-        visit = null;
-        cityMode = c;
-      }}
-      onleave={() => (cityMode = null)}
-    />
+  {:else if enabled}
+    <div id="panel-place" role="tabpanel" aria-labelledby="tab-home" class="place-home">
+      <div class="world-main">
+        {#key visit?.code ?? "home"}
+          <WorldCanvas
+            bind:this={canvasRef}
+            {visit}
+            followAll={demoBusy}
+            onagents={(list) => (residents = list)}
+            onready={onCanvasReady}
+            onvisitfailed={(error) => {
+              showToast("error", error);
+              visit = null;
+            }}
+          />
+        {/key}
+        {#if !visit}
+          <ActivityPanel
+            agents={residents}
+            {demoBusy}
+            onfocus={(ent) => canvasRef?.focus(ent)}
+            ondemo={() => void runDemo()}
+          />
+        {/if}
+      </div>
+      <HousePanel
+        visiting={visit !== null}
+        onvisit={(v) => (visit = v)}
+        onleave={() => (visit = null)}
+        onsay={(ent, text) => canvasRef?.say(ent, text)}
+      />
+      <a class="yard-link" href="/world/yard">{$t("world.yard.title")} →</a>
+    </div>
   {:else}
     <p class="world-off">{$t("world.disabled")}</p>
   {/if}
@@ -213,6 +270,46 @@
     align-items: flex-start;
     gap: 1rem;
   }
+  .place-home {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .places {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.8rem;
+    flex-wrap: wrap;
+  }
+  .places button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    min-width: 12rem;
+    flex: 1 1 12rem;
+    max-width: 22rem;
+    padding: 0.55rem 0.8rem;
+    border-radius: 12px;
+    border: 1px solid rgba(127, 127, 127, 0.3);
+    background: rgba(127, 127, 127, 0.08);
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .places button span {
+    font-size: 0.78rem;
+    opacity: 0.7;
+  }
+  .places button.active {
+    border-color: var(--accent, #0a84ff);
+    background: color-mix(in srgb, var(--accent, #0a84ff) 14%, transparent);
+  }
+  .places button:focus-visible {
+    outline: 2px solid var(--accent, #0a84ff);
+    outline-offset: 2px;
+  }
   .world-main > :global(.stage) {
     flex: 1;
     min-width: 0;
@@ -220,7 +317,24 @@
   @media (max-width: 900px) {
     .world-main {
       flex-direction: column;
+      align-items: stretch;
     }
+    .world-main.city-main > :global(.stage) {
+      max-height: 42vh;
+    }
+  }
+  /* In the city the panel sits under the canvas at every width: the canvas
+     stays on screen while the editor scrolls, so the selected object and the
+     tile being clicked never leave the view. */
+  .world-main.city-main {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg, #1c1c1e);
+    padding-bottom: 0.5rem;
+  }
+  .world-main.city-main > :global(.stage) {
+    max-height: 58vh;
   }
   .world-head h1 {
     margin: 0;

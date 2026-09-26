@@ -8,8 +8,12 @@
 //! from `compozy/compozy` (durable sessions), `compozy/codex-loop` and
 //! `compozy/cc-loop` (loop until the check passes). The cron parser is ours.
 //!
-//! State changes go out as `llm://job` and `llm://loop`; on boot whatever was
-//! `queued` or `running` is picked up again.
+//! State changes go out as `llm://job` and `llm://loop`. On boot nothing
+//! whose outcome is unknown is re-sent: a job or Loop that was running
+//! becomes `interrupted` and waits for a person (resume, mark done,
+//! discard); only a job that never left the queue starts by itself. There is
+//! one scheduler (the cron ticker here), and a routine says plainly that it
+//! needs the app open.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -46,7 +50,7 @@ pub struct Job {
     pub conversation_id: String,
     pub prompt: String,
     pub workspace: Option<String>,
-    /// `queued|running|waiting_approval|done|failed|cancelled`
+    /// `queued|running|waiting_approval|done|failed|cancelled|interrupted`
     pub state: String,
     pub loop_id: Option<String>,
     pub trigger_id: Option<String>,
@@ -74,13 +78,14 @@ pub fn fold_receipt(total: &mut Option<serde_json::Value>, model: &str, event: &
         est_tokens_before,
         est_tokens_after,
         input_tokens,
+        ..
     } = event
     else {
         return;
     };
     let t = total.get_or_insert_with(|| {
         serde_json::json!({
-            "model": model, "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cost_usd": null, "calls": 0
+            "model": model, "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0, "cost_usd": null, "calls": 0
         })
     });
     if !t["prune"].is_object() {
@@ -99,6 +104,17 @@ pub fn fold_receipt(total: &mut Option<serde_json::Value>, model: &str, event: &
     }
 }
 
+/// Tokens a cap counts for a job's folded usage: input weighted by price
+/// (cache read 0.1x, cache write 1.25x) plus output.
+pub fn billable_of(u: &serde_json::Value) -> u64 {
+    let n = |k: &str| u[k].as_u64().unwrap_or(0);
+    omniget_core::core::llm::types::billable_input(
+        n("input_tokens"),
+        n("cache_read_tokens"),
+        n("cache_write_tokens"),
+    ) + n("output_tokens")
+}
+
 /// Folds one `TurnEvent::Usage` into the running total of a job.
 fn fold_usage(
     total: &mut Option<serde_json::Value>,
@@ -106,7 +122,7 @@ fn fold_usage(
     u: &omniget_core::core::llm::types::Usage,
 ) {
     let t = total.get_or_insert_with(|| serde_json::json!({
-        "model": model, "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cost_usd": null, "calls": 0
+        "model": model, "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0, "cost_usd": null, "calls": 0
     }));
     let add = |t: &mut serde_json::Value, k: &str, n: u64| {
         t[k] = serde_json::json!(t[k].as_u64().unwrap_or(0) + n)
@@ -114,6 +130,7 @@ fn fold_usage(
     add(t, "input_tokens", u.input_tokens as u64);
     add(t, "output_tokens", u.output_tokens as u64);
     add(t, "cache_read_tokens", u.cache_read_tokens as u64);
+    add(t, "cache_write_tokens", u.cache_write_tokens as u64);
     add(t, "calls", 1);
     if let Some(c) = u.cost_usd {
         t["cost_usd"] = serde_json::json!(t["cost_usd"].as_f64().unwrap_or(0.0) + c);
@@ -136,7 +153,7 @@ pub struct LoopDef {
     pub max_minutes: Option<u32>,
     #[serde(default)]
     pub check_command: Option<String>,
-    /// `running|done|failed|cancelled`
+    /// `running|done|failed|cancelled|interrupted`
     #[serde(default)]
     pub state: String,
     #[serde(default)]
@@ -176,6 +193,20 @@ pub struct Trigger {
     pub fire_count: u32,
     #[serde(default)]
     pub created_ms: u64,
+    /// Silenced: runs, but never notifies.
+    #[serde(default)]
+    pub muted: bool,
+    /// Digest of the last result that was notified: the same result again
+    /// does not notify again.
+    #[serde(default)]
+    pub last_digest: Option<String>,
+    #[serde(default)]
+    pub last_notified_ms: Option<u64>,
+    /// When set, firing starts a mission with these criteria (the prompt is
+    /// its objective) instead of a plain job: the one scheduler starts
+    /// missions too, there is no second queue.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mission: Option<Value>,
 }
 
 fn yes() -> bool {
@@ -189,6 +220,23 @@ pub struct Jobs {
     slots: tokio::sync::Semaphore,
     cancels: Mutex<HashMap<String, CancellationToken>>,
     cron_running: AtomicBool,
+    guards: Mutex<HashMap<String, JobGuard>>,
+}
+
+/// Per-request usage check of a job: `(tokens so far, known usd so far)`;
+/// `Err(reason)` stops the job.
+pub type UsageCheck = Arc<dyn Fn(u64, Option<f64>) -> Result<(), String> + Send + Sync>;
+
+/// Limits a mission puts on one of its jobs while it runs (F7): a caller
+/// check after every model request, and a wall-clock deadline. A job that
+/// hits either ends `failed` with the reason (never `done`).
+#[derive(Clone, Default)]
+pub struct JobGuard {
+    /// Epoch milliseconds after which the job is stopped.
+    pub deadline_ms: Option<u64>,
+    pub check: Option<UsageCheck>,
+    /// Text of the error when the deadline is reached.
+    pub deadline_reason: String,
 }
 
 static JOBS: OnceLock<Arc<Jobs>> = OnceLock::new();
@@ -244,6 +292,7 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
         slots: tokio::sync::Semaphore::new(MAX_PARALLEL_JOBS),
         cancels: Mutex::new(HashMap::new()),
         cron_running: AtomicBool::new(false),
+        guards: Mutex::new(HashMap::new()),
     });
     if JOBS.set(jobs.clone()).is_ok() {
         jobs.clone().resume();
@@ -255,11 +304,17 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
 /// Called from the app setup so a Loop left running comes back without anyone
 /// opening `/llm`.
 pub fn boot(app: &AppHandle) {
+    // The durable run record first: reconcile what the last session left in
+    // flight before anything new can start.
+    crate::commands::assist::runs::install(app);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
         if let Err(e) = get(&app) {
             tracing::warn!("[jobs] boot: {e}");
+        } else {
+            // Missions after jobs: their reconciliation reads job outcomes.
+            crate::missions::boot(&app);
         }
     });
 }
@@ -297,7 +352,7 @@ impl Jobs {
 
     // ── jobs ─────────────────────────────────────────────────────────
 
-    fn save_job(&self, job: &Job) {
+    fn save_job_checked(&self, job: &Job) -> Result<(), String> {
         let r = self.db().execute(
             &format!("INSERT OR REPLACE INTO jobs ({JOB_COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)"),
             params![
@@ -307,13 +362,18 @@ impl Jobs {
                 job.result, job.error, job.log, job.usage.as_ref().map(|u| u.to_string())
             ],
         );
-        if let Err(e) = r {
-            tracing::warn!("[jobs] save {}: {e}", job.id);
-        }
+        r.map_err(|_| "JOB_STORAGE_UNAVAILABLE".to_owned())?;
         // The list view does not need the log on every event.
         let mut light = job.clone();
         light.log = clip(&light.log, 4096);
         let _ = self.app.emit(EVENT_JOB, &light);
+        Ok(())
+    }
+
+    fn save_job(&self, job: &Job) {
+        if let Err(error) = self.save_job_checked(job) {
+            tracing::warn!("[jobs] save {}: {error}", job.id);
+        }
     }
 
     pub fn job(&self, id: &str) -> Option<Job> {
@@ -400,10 +460,51 @@ impl Jobs {
         Ok(job)
     }
 
+    /// Creates a job without running it, so a mission can record the job id
+    /// (its effect key) before anything is dispatched.
+    pub fn prepare(
+        &self,
+        kind: &str,
+        agent_id: &str,
+        prompt: &str,
+        workspace: Option<String>,
+        conversation_id: Option<String>,
+    ) -> Result<Job, String> {
+        let job = self.new_job(kind, agent_id, prompt, workspace, conversation_id)?;
+        self.save_job_checked(&job)?;
+        Ok(job)
+    }
+
+    /// Runs a prepared job to the end and returns it (missions await it).
+    pub async fn run_prepared(self: &Arc<Self>, id: &str) -> Option<Job> {
+        self.run_job(id, None).await
+    }
+
+    /// [`Self::run_prepared`] under a mission's [`JobGuard`].
+    pub async fn run_prepared_guarded(self: &Arc<Self>, id: &str, guard: JobGuard) -> Option<Job> {
+        self.guards
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(id.to_string(), guard);
+        let out = self.run_job(id, None).await;
+        self.guards
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(id);
+        out
+    }
+
     pub fn cancel(&self, id: &str) -> Result<Job, String> {
         let mut job = self
             .job(id)
             .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))?;
+        // Persist before consulting the token. The runner either sees this
+        // cancelled row on its re-read or has already registered its token.
+        if job.state == "queued" {
+            job.state = "cancelled".into();
+            job.finished_ms = Some(now_ms());
+            self.save_job_checked(&job)?;
+        }
         if let Some(token) = self
             .cancels
             .lock()
@@ -415,11 +516,6 @@ impl Jobs {
         // Also through the manager, which drops the turn's pending questions.
         if let Some(request) = job.request_id.as_deref() {
             let _ = self.llm.cancel(request);
-        }
-        if job.state == "queued" {
-            job.state = "cancelled".into();
-            job.finished_ms = Some(now_ms());
-            self.save_job(&job);
         }
         Ok(job)
     }
@@ -505,35 +601,98 @@ impl Jobs {
                 job.state = "failed".into();
                 job.error = Some(e);
                 job.finished_ms = Some(now_ms());
-                self.save_job(&job);
+                self.save_job_checked(&job).ok()?;
                 return Some(job);
             }
         }
+        let cancel = CancellationToken::new();
+        self.cancels
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(job.id.clone(), cancel.clone());
+        // Cancellation may have arrived after the initial read but before
+        // registration. Re-read its durable state before dispatching anything.
+        if self
+            .job(id)
+            .is_none_or(|current| current.state == "cancelled")
+        {
+            cancel.cancel();
+            self.cancels
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&job.id);
+            return self.job(id);
+        }
         job.state = "running".into();
         job.started_ms = Some(now_ms());
-        self.save_job(&job);
-
+        if self.save_job_checked(&job).is_err() {
+            cancel.cancel();
+            self.cancels
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&job.id);
+            return None;
+        }
         let input = resume_note.unwrap_or_else(|| job.prompt.clone());
-        let (request_id, cancel, mut stream) =
-            match self.llm.turn_stream(&conv, &job.agent_id, &input).await {
-                Ok(v) => v,
-                Err(e) => {
-                    job.state = "failed".into();
-                    job.error = Some(e);
-                    job.finished_ms = Some(now_ms());
-                    self.save_job(&job);
-                    return Some(job);
+        let (request_id, cancel, mut stream) = match self
+            .llm
+            .turn_stream_with_cancel(&conv, &job.agent_id, &input, cancel.clone())
+            .await
+        {
+            Ok(v) => v,
+            Err(e) => {
+                self.cancels
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .remove(&job.id);
+                job.state = if cancel.is_cancelled() {
+                    "cancelled"
+                } else {
+                    "failed"
                 }
-            };
+                .into();
+                job.error = Some(e);
+                job.finished_ms = Some(now_ms());
+                self.save_job_checked(&job).ok()?;
+                return Some(job);
+            }
+        };
         job.request_id = Some(request_id.clone());
         self.cancels
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .insert(job.id.clone(), cancel.clone());
-        self.save_job(&job);
+        let mut storage_failed = self.save_job_checked(&job).is_err();
+        if storage_failed {
+            cancel.cancel();
+        }
 
         let mut text = String::new();
+        let mut saw_finished = false;
         let mut error: Option<String> = None;
+        let guard = self
+            .guards
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(id)
+            .cloned();
+        // Set when the mission's guard stopped the job (cap or deadline).
+        let mut limit_hit: Option<String> = None;
+        // Input tokens of the model requests so far (prune receipts), for the
+        // guard's check between requests; the exact total arrives as `Usage`.
+        let mut est_input: u64 = 0;
+        let check = guard.as_ref().and_then(|g| g.check.clone());
+        // The guard's view of the job so far: the reported usage when there is
+        // one, else the request inputs plus the text streamed (chars / 4).
+        let spent_so_far =
+            |usage: &Option<serde_json::Value>, est_input: u64, text: &str| -> (u64, Option<f64>) {
+                let u = usage.clone().unwrap_or_default();
+                let reported = billable_of(&u);
+                (
+                    reported.max(est_input + text.len() as u64 / 4),
+                    u["cost_usd"].as_f64(),
+                )
+            };
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(1));
         loop {
             tokio::select! {
@@ -541,19 +700,53 @@ impl Jobs {
                     let Some(event) = event else { break };
                     self.llm.note_event(&job.agent_id, &event);
                     match event {
+                        TurnEvent::Finished { .. } => saw_finished = true,
                         TurnEvent::TextDelta { text: t } => text.push_str(&t),
                         TurnEvent::ToolCallStart { name, .. } => {
                             job.log.push_str(&format!("→ {name}\n"));
                             job.log = clip(&job.log, LOG_MAX);
-                            self.save_job(&job);
+                            if self.save_job_checked(&job).is_err() { storage_failed = true; cancel.cancel(); }
+                            // A tool call ends a model request: check the cap
+                            // before the next one is sent (F7).
+                            if let (Some(check), None) = (&check, &limit_hit) {
+                                let (tokens, usd) = spent_so_far(&job.usage, est_input, &text);
+                                if let Err(why) = check(tokens, usd) {
+                                    job.log.push_str(&format!("! {why}\n"));
+                                    limit_hit = Some(why);
+                                    cancel.cancel();
+                                }
+                            }
                         }
                         receipt @ TurnEvent::PruneReceipt { .. } => {
+                            if let TurnEvent::PruneReceipt { input_tokens, billable_input_tokens, est_tokens_after, .. } = &receipt {
+                                // Weighted input when the receipt has it (cache 0.1x/1.25x).
+                                est_input += billable_input_tokens.or(*input_tokens).unwrap_or(*est_tokens_after) as u64;
+                            }
                             let model = self.llm.model_label(&job.agent_id);
                             fold_receipt(&mut job.usage, &model, &receipt);
+                            if let (Some(check), None) = (&check, &limit_hit) {
+                                let (tokens, usd) = spent_so_far(&job.usage, est_input, &text);
+                                if let Err(why) = check(tokens, usd) {
+                                    job.log.push_str(&format!("! {why}\n"));
+                                    limit_hit = Some(why);
+                                    cancel.cancel();
+                                }
+                            }
                         }
                         TurnEvent::Usage { usage } => {
                             let model = self.llm.model_label(&job.agent_id);
                             fold_usage(&mut job.usage, &model, &usage);
+                            // Per model request: the mission's cap holds
+                            // during the job, not only before it (F7).
+                            if let (Some(check), None) = (&check, &limit_hit) {
+                                let u = job.usage.clone().unwrap_or_default();
+                                let tokens = billable_of(&u);
+                                if let Err(why) = check(tokens, u["cost_usd"].as_f64()) {
+                                    job.log.push_str(&format!("! {why}\n"));
+                                    limit_hit = Some(why);
+                                    cancel.cancel();
+                                }
+                            }
                         }
                         TurnEvent::Error { error: e } => {
                             job.log.push_str(&format!("! {}: {}\n", e.code, e.message));
@@ -563,11 +756,19 @@ impl Jobs {
                     }
                 }
                 _ = tick.tick() => {
+                    if let (Some(deadline), None) = (guard.as_ref().and_then(|g| g.deadline_ms), &limit_hit) {
+                        if now_ms() > deadline {
+                            let why = guard.as_ref().map(|g| g.deadline_reason.clone()).filter(|r| !r.is_empty()).unwrap_or_else(|| "the time limit was reached".into());
+                            job.log.push_str(&format!("! {why}\n"));
+                            limit_hit = Some(why);
+                            cancel.cancel();
+                        }
+                    }
                     let waiting = self.llm.pending_ask_list().iter().any(|a| a["request_id"] == request_id.as_str());
                     let want = if waiting { "waiting_approval" } else { "running" };
                     if job.state != want {
                         job.state = want.into();
-                        self.save_job(&job);
+                        if self.save_job_checked(&job).is_err() { storage_failed = true; cancel.cancel(); }
                     }
                 }
             }
@@ -578,7 +779,13 @@ impl Jobs {
             .unwrap_or_else(|e| e.into_inner())
             .remove(&job.id);
 
-        job.state = if cancel.is_cancelled() {
+        if storage_failed || !saw_finished {
+            cancel.cancel();
+            return None;
+        }
+        job.state = if limit_hit.is_some() {
+            "failed"
+        } else if cancel.is_cancelled() {
             "cancelled"
         } else if error.is_some() && text.trim().is_empty() {
             "failed"
@@ -587,10 +794,45 @@ impl Jobs {
         }
         .into();
         job.result = Some(clip(&text, RESULT_MAX));
-        job.error = error;
+        job.error = limit_hit.or(error);
         job.finished_ms = Some(now_ms());
-        self.save_job(&job);
+        self.save_job_checked(&job).ok()?;
+        if let Some(tid) = job.trigger_id.clone() {
+            self.notify_routine(&tid, &job);
+        }
         Some(job)
+    }
+
+    /// A routine's result reaches the user only when it changed and the
+    /// routine is not silenced.
+    fn notify_routine(&self, trigger_id: &str, job: &Job) {
+        let Some(mut t) = self.trigger(trigger_id) else {
+            return;
+        };
+        let body = match job.state.as_str() {
+            "done" => job.result.clone().unwrap_or_default(),
+            "cancelled" => return,
+            _ => format!("error: {}", job.error.clone().unwrap_or_default()),
+        };
+        let Some(digest) = routine_digest(&t, &body) else {
+            return;
+        };
+        t.last_digest = Some(digest);
+        t.last_notified_ms = Some(now_ms());
+        self.store_trigger(&t);
+        use tauri_plugin_notification::NotificationExt;
+        let text: String = body.trim().chars().take(180).collect();
+        let _ = self
+            .app
+            .notification()
+            .builder()
+            .title(format!("OmniGet · {}", t.name))
+            .body(if text.is_empty() {
+                "(empty)".to_string()
+            } else {
+                text
+            })
+            .show();
     }
 
     // ── loops ────────────────────────────────────────────────────────
@@ -852,26 +1094,135 @@ impl Jobs {
             let Some(mut job) = self.job(&stale.id) else {
                 continue;
             };
-            if job.kind == "chat" || job.loop_id.is_some() {
-                // The Loop itself resumes below with a fresh round.
-                job.state = "failed".into();
-                job.error = Some("interrupted: the app closed during this turn".into());
-                job.finished_ms = Some(now_ms());
-                self.save_job(&job);
+            let never_sent =
+                job.state == "queued" && job.request_id.is_none() && job.started_ms.is_none();
+            // Mission jobs are driven (and reconciled) by the mission driver.
+            if never_sent && job.loop_id.is_none() && job.kind != "chat" && job.kind != "mission" {
+                // Provably never dispatched: safe to start now.
+                let this = self.clone();
+                tauri::async_runtime::spawn(async move {
+                    this.run_job(&job.id, None).await;
+                });
                 continue;
             }
-            let note = (job.state != "queued").then(|| {
-                format!("The app restarted in the middle of this task. Check what is already done and finish it. Task: {}", job.prompt)
-            });
-            let this = self.clone();
-            tauri::async_runtime::spawn(async move {
-                this.run_job(&job.id, note).await;
-            });
+            // Dispatched (or part of a Loop): the result is unknown. Never
+            // re-sent by itself; a person resumes, marks done or discards.
+            job.state = "interrupted".into();
+            job.error =
+                Some("interrupted: the app closed during this task; its result is unknown".into());
+            job.finished_ms = Some(now_ms());
+            self.save_job(&job);
         }
-        for l in self.loops().into_iter().filter(|l| l.state == "running") {
-            let this = self.clone();
-            tauri::async_runtime::spawn(async move { this.run_loop(l.id).await });
+        for mut l in self.loops().into_iter().filter(|l| l.state == "running") {
+            l.state = "interrupted".into();
+            l.stop_reason = Some("app_closed".into());
+            self.save_loop(&l);
         }
+    }
+
+    // ── explicit recovery ────────────────────────────────────────────
+
+    /// Runs an interrupted job again, telling the agent to check what was
+    /// already done first. Only a person calls this.
+    pub fn job_resume(self: &Arc<Self>, id: &str) -> Result<Job, String> {
+        let mut job = self
+            .job(id)
+            .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))?;
+        if job.state != "interrupted" {
+            return Err(format!(
+                "{ERR_JOBS}: job {id} is {}, not interrupted",
+                job.state
+            ));
+        }
+        job.state = "queued".into();
+        job.error = None;
+        job.finished_ms = None;
+        self.save_job(&job);
+        let note = format!(
+            "The app closed in the middle of this task and its result is unknown. Check what is already done before changing anything, and do not repeat an action that already happened. Task: {}",
+            job.prompt
+        );
+        let this = self.clone();
+        let jid = job.id.clone();
+        tauri::async_runtime::spawn(async move {
+            this.run_job(&jid, Some(note)).await;
+        });
+        Ok(job)
+    }
+
+    pub fn job_mark_done(&self, id: &str) -> Result<Job, String> {
+        let mut job = self
+            .job(id)
+            .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))?;
+        if job.state != "interrupted" {
+            return Err(format!(
+                "{ERR_JOBS}: job {id} is {}, not interrupted",
+                job.state
+            ));
+        }
+        job.state = "done".into();
+        job.error = Some("marked done by you after an interruption".into());
+        job.finished_ms = Some(now_ms());
+        self.save_job(&job);
+        Ok(job)
+    }
+
+    pub fn job_discard(&self, id: &str) -> Result<Job, String> {
+        let mut job = self
+            .job(id)
+            .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))?;
+        if job.state != "interrupted" {
+            return Err(format!(
+                "{ERR_JOBS}: job {id} is {}, not interrupted",
+                job.state
+            ));
+        }
+        job.state = "cancelled".into();
+        job.error = Some("discarded after an interruption".into());
+        job.finished_ms = Some(now_ms());
+        self.save_job(&job);
+        Ok(job)
+    }
+
+    pub fn loop_resume(self: &Arc<Self>, id: &str) -> Result<LoopDef, String> {
+        let mut l = self
+            .loop_get(id)
+            .ok_or_else(|| format!("{ERR_JOBS}: no loop {id}"))?;
+        if l.state != "interrupted" {
+            return Err(format!(
+                "{ERR_JOBS}: loop {id} is {}, not interrupted",
+                l.state
+            ));
+        }
+        l.state = "running".into();
+        l.stop_reason = None;
+        self.save_loop(&l);
+        let this = self.clone();
+        let lid = l.id.clone();
+        tauri::async_runtime::spawn(async move { this.run_loop(lid).await });
+        Ok(l)
+    }
+
+    pub fn loop_settle(&self, id: &str, done: bool) -> Result<LoopDef, String> {
+        let mut l = self
+            .loop_get(id)
+            .ok_or_else(|| format!("{ERR_JOBS}: no loop {id}"))?;
+        if l.state != "interrupted" {
+            return Err(format!(
+                "{ERR_JOBS}: loop {id} is {}, not interrupted",
+                l.state
+            ));
+        }
+        if done {
+            l.state = "done".into();
+            l.stop_reason = Some("marked_done".into());
+        } else {
+            l.state = "cancelled".into();
+            l.stop_reason = Some("discarded".into());
+        }
+        l.finished_ms = Some(now_ms());
+        self.save_loop(&l);
+        Ok(l)
     }
 
     // ── triggers ─────────────────────────────────────────────────────
@@ -924,12 +1275,24 @@ impl Jobs {
             t.created_ms = old.created_ms;
             t.fire_count = old.fire_count;
             t.last_fired_ms = old.last_fired_ms;
+            t.last_digest = old.last_digest;
+            t.last_notified_ms = old.last_notified_ms;
         }
         if t.name.trim().is_empty() {
             t.name = t.prompt.chars().take(48).collect();
         }
         self.store_trigger(&t);
         self.clone().ensure_cron();
+        Ok(t)
+    }
+
+    /// Silence (or unsilence) a routine without touching its schedule.
+    pub fn trigger_mute(&self, id: &str, muted: bool) -> Result<Trigger, String> {
+        let mut t = self
+            .trigger(id)
+            .ok_or_else(|| format!("{ERR_JOBS}: no trigger {id}"))?;
+        t.muted = muted;
+        self.store_trigger(&t);
         Ok(t)
     }
 
@@ -955,6 +1318,22 @@ impl Jobs {
         } else {
             format!("{}\n\nPayload:\n{body}", t.prompt)
         };
+        if let Some(template) = t.mission.clone() {
+            let mission_id = crate::missions::start_from_trigger(&self.app, &t, &prompt, template)?;
+            t.last_fired_ms = Some(now_ms());
+            t.fire_count += 1;
+            self.store_trigger(&t);
+            return Ok(Job {
+                id: mission_id,
+                kind: "mission".into(),
+                agent_id: t.agent_id.clone(),
+                prompt,
+                state: "queued".into(),
+                trigger_id: Some(t.id.clone()),
+                created_ms: now_ms(),
+                ..Default::default()
+            });
+        }
         let job = self.submit(
             "trigger",
             &t.agent_id,
@@ -1102,6 +1481,59 @@ impl Cron {
     }
 }
 
+impl Cron {
+    /// The next minute this line fires, strictly after `from`, in `from`'s
+    /// time zone (the user's, `chrono::Local`, for the UI). `None` when it
+    /// never fires within a year (e.g. `0 0 31 2 *`).
+    pub fn next_after<Tz: chrono::TimeZone>(
+        &self,
+        from: &chrono::DateTime<Tz>,
+    ) -> Option<chrono::DateTime<Tz>> {
+        let mut t = from.clone() + chrono::Duration::minutes(1);
+        t = t.with_second(0)?.with_nanosecond(0)?;
+        for _ in 0..(366 * 24 * 60) {
+            if self.matches(&t) {
+                return Some(t);
+            }
+            t = t + chrono::Duration::minutes(1);
+        }
+        None
+    }
+}
+
+/// `Some(new digest)` when a routine result should notify: not silenced and
+/// different from the last one notified.
+pub fn routine_digest(t: &Trigger, body: &str) -> Option<String> {
+    if t.muted {
+        return None;
+    }
+    use sha2::{Digest, Sha256};
+    let digest = hex::encode(Sha256::digest(body.trim().as_bytes()));
+    if t.last_digest.as_deref() == Some(digest.as_str()) {
+        return None;
+    }
+    Some(digest)
+}
+
+/// A trigger as the UI shows it: next run in the user's zone, and the plain
+/// fact that a routine only runs while OmniGet is open.
+pub fn trigger_view(t: &Trigger) -> Value {
+    let now = chrono::Local::now();
+    let next = if t.enabled && t.kind == "cron" {
+        Cron::parse(t.cron.as_deref().unwrap_or(""))
+            .ok()
+            .and_then(|c| c.next_after(&now))
+    } else {
+        None
+    };
+    let mut v = serde_json::to_value(t).unwrap_or(Value::Null);
+    v["next_run_ms"] = json!(next.map(|d| d.timestamp_millis()));
+    v["next_run_local"] = json!(next.map(|d| d.format("%Y-%m-%d %H:%M").to_string()));
+    v["utc_offset"] = json!(now.format("%:z").to_string());
+    v["requires_app_open"] = json!(true);
+    v
+}
+
 /// `{ base_url, token }` of the local bridge, for the webhook URL in the UI.
 pub fn bridge_info(app: &AppHandle) -> Value {
     let settings = crate::storage::config::load_settings(app);
@@ -1109,4 +1541,99 @@ pub fn bridge_info(app: &AppHandle) -> Value {
         "base_url": format!("http://127.0.0.1:{}", settings.bridge.port),
         "token": settings.bridge.token,
     })
+}
+
+#[cfg(test)]
+mod routine_tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    #[test]
+    fn the_next_run_is_computed_in_the_given_zone() {
+        // 09:30 every weekday, from Friday 2026-09-25 18:00 at UTC-3.
+        let tz = chrono::FixedOffset::west_opt(3 * 3600).unwrap();
+        let from = tz.with_ymd_and_hms(2026, 9, 25, 18, 0, 0).unwrap();
+        let c = Cron::parse("30 9 * * 1-5").unwrap();
+        let next = c.next_after(&from).unwrap();
+        assert_eq!(
+            next,
+            tz.with_ymd_and_hms(2026, 9, 28, 9, 30, 0).unwrap(),
+            "Monday"
+        );
+        // The wall clock of the zone, not UTC.
+        assert_eq!(next.hour(), 9);
+        assert!(Cron::parse("0 0 31 2 *")
+            .unwrap()
+            .next_after(&from)
+            .is_none());
+    }
+
+    #[test]
+    fn a_silenced_or_unchanged_routine_does_not_notify() {
+        let mut t = Trigger {
+            name: "r".into(),
+            kind: "cron".into(),
+            agent_id: "a".into(),
+            prompt: "p".into(),
+            ..Default::default()
+        };
+        let d1 = routine_digest(&t, "3 new chapters").expect("first result notifies");
+        t.last_digest = Some(d1);
+        assert!(
+            routine_digest(&t, "3 new chapters  ").is_none(),
+            "same result, no repeat"
+        );
+        assert!(
+            routine_digest(&t, "4 new chapters").is_some(),
+            "a change notifies"
+        );
+        t.muted = true;
+        assert!(routine_digest(&t, "5 new chapters").is_none(), "silenced");
+    }
+
+    #[test]
+    fn a_trigger_view_says_it_needs_the_app_open() {
+        let t = Trigger {
+            name: "r".into(),
+            kind: "cron".into(),
+            cron: Some("0 8 * * *".into()),
+            agent_id: "a".into(),
+            prompt: "p".into(),
+            enabled: true,
+            ..Default::default()
+        };
+        let v = trigger_view(&t);
+        assert_eq!(v["requires_app_open"], true);
+        assert!(v["next_run_ms"].as_i64().is_some());
+        assert!(v["next_run_local"].as_str().unwrap().ends_with("08:00"));
+    }
+}
+
+#[cfg(test)]
+mod billing_tests {
+    use super::*;
+    use omniget_core::core::llm::types::Usage;
+
+    #[test]
+    fn folded_usage_keeps_cache_writes_and_bills_weighted_tokens() {
+        let mut total = None;
+        for _ in 0..2 {
+            fold_usage(
+                &mut total,
+                "m",
+                &Usage {
+                    input_tokens: 50_000,
+                    cache_read_tokens: 40_000,
+                    cache_write_tokens: 4_000,
+                    output_tokens: 100,
+                    ..Usage::default()
+                },
+            );
+        }
+        let t = total.unwrap();
+        assert_eq!(t["cache_write_tokens"].as_u64(), Some(8_000));
+        assert_eq!(t["cache_read_tokens"].as_u64(), Some(80_000));
+        // 2 x (6k fresh + 4k read-weighted + 5k write-weighted + 100 out).
+        assert_eq!(billable_of(&t), 30_200);
+    }
 }

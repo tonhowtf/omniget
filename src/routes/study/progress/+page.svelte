@@ -82,10 +82,10 @@
     const days = Math.floor((Date.now() / 1000 - secs) / 86400);
     if (days <= 0) return $t("study.progress.time_today") as string;
     if (days === 1) return $t("study.progress.time_yesterday") as string;
-    if (days < 30) return $t("study.progress.time_days_ago", { n: days }) as string;
+    if (days < 30) return $t("study.progress.time_days_ago", { count: days }) as string;
     if (days < 365)
-      return $t("study.progress.time_months_ago", { n: Math.floor(days / 30) }) as string;
-    return $t("study.progress.time_years_ago", { n: Math.floor(days / 365) }) as string;
+      return $t("study.progress.time_months_ago", { count: Math.floor(days / 30) }) as string;
+    return $t("study.progress.time_years_ago", { count: Math.floor(days / 365) }) as string;
   }
 
   function tierColor(tier: string): string {
@@ -397,7 +397,7 @@
     <section class="card heatmap">
       <header class="card-head">
         <h2>{$t("study.progress.heatmap_title")}</h2>
-        <small class="card-hint">{$t("study.progress.heatmap_hint", { n: days })}</small>
+        <small class="card-hint">{$t("study.progress.heatmap_hint", { count: days })}</small>
       </header>
       <div class="grid" role="img" aria-label={$t("study.progress.heatmap_title")}>
         {#each weeks as week, wi (wi)}
@@ -426,7 +426,7 @@
       <article class="card chart-card">
         <header class="card-head">
           <h2>{$t("study.progress.chart_time_per_course")}</h2>
-          <small class="card-hint">{$t("study.progress.chart_time_period_days", { n: days })}</small>
+          <small class="card-hint">{$t("study.progress.chart_time_period_days", { count: days })}</small>
         </header>
         <div class="chart-body">
           {#if timePerCourse && timePerCourse.items.length > 0}
@@ -481,7 +481,7 @@
               <span>24h</span>
             </div>
           {:else}
-            <p class="chart-empty">{$t("study.progress.chart_activity_empty", { n: days })}</p>
+            <p class="chart-empty">{$t("study.progress.chart_activity_empty", { count: days })}</p>
           {/if}
         </div>
       </article>

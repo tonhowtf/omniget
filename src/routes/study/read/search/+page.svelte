@@ -144,7 +144,7 @@
     </div>
   {:else if results.length === 0}
     <div class="empty">
-      <p>{$t("study.read.search.no_results", { q: query })}</p>
+      <p>{$t("study.read.search.no_results", { query: query })}</p>
       <p class="hint">
         {$t("study.read.search.reindex_hint")}
         <button type="button" class="btn-link" onclick={rebuildIndex}>

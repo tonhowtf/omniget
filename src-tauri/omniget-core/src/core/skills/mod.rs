@@ -26,12 +26,16 @@ use std::borrow::Cow;
 use serde::{Deserialize, Serialize};
 
 pub mod catalog;
+pub mod deps;
+pub mod hash;
 pub mod inject;
 pub mod install;
 pub mod manifest;
 pub mod scan;
 
-pub use inject::{index_prompt, open, tool_specs};
+pub use deps::{dependencies, DepKind, Dependency};
+pub use hash::dir_hash;
+pub use inject::{exposed_tool_name, index_prompt, index_prompt_named, open, tool_specs};
 pub use install::{
     confirm_install, discard_install, install_from_dir, install_from_git, install_from_zip, list,
     remove, skills_dir, InstallOutcome,
@@ -57,6 +61,12 @@ pub const ERR_SKILL_GIT: &str = "ERR_SKILL_GIT";
 /// The skill is over one of the install limits (file count, total bytes,
 /// `SKILL.md` size).
 pub const ERR_SKILL_TOO_BIG: &str = "ERR_SKILL_TOO_BIG";
+/// The skill changed (updated, edited or removed) after the turn that is
+/// asking for it started; nothing was read.
+pub const ERR_SKILL_CHANGED: &str = "ERR_SKILL_CHANGED";
+/// The bot asking for this skill is not bound to it, or the binding does not
+/// allow reading it.
+pub const ERR_SKILL_NOT_BOUND: &str = "ERR_SKILL_NOT_BOUND";
 /// A path argument pointed outside the directory it had to stay in.
 pub const ERR_SKILL_PATH: &str = "ERR_SKILL_PATH";
 /// The confirm/discard token does not name a quarantined install. Either it was

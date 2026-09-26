@@ -100,6 +100,7 @@ fn big_map(chunks: i32) -> MapDef {
                 wall,
                 object: vec![],
                 height,
+                tint: Vec::new(),
             });
         }
     }

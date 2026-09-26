@@ -56,6 +56,8 @@ export interface ChunkDef {
   wall: number[];
   object: number[];
   height: number[];
+  /** Per-cell floor colour, 0xRRGGBB (sRGB), multiplied over the floor sprite; 0 or absent = white. */
+  tint?: number[];
 }
 
 export interface SlotDef {
@@ -208,11 +210,13 @@ export function buildChunkTiles(map: MapDef, atlas: AtlasData): Map<ChunkId, Chu
         if (idx === undefined || idx === EMPTY_TILE) continue;
         const frame = frameOf(idx);
         if (!frame) continue;
+        const tint = layer === 'floor' ? chunk.tint?.[i] : undefined;
         tiles.push({
           frame,
           lx: i % CHUNK_TILES,
           ly: Math.floor(i / CHUNK_TILES),
           z: layer === 'floor' ? 0 : zFromHeight(map.palette[idx]?.height ?? 0),
+          tint: tint && tint !== 0xffffff ? tint : undefined,
         });
       }
     }

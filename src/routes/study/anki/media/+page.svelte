@@ -157,7 +157,7 @@
       );
       showToast(
         "ok",
-        r.moved === 1 ? $t("study.anki.media.trashed_one") : $t("study.anki.media.trashed_many", { n: r.moved }),
+        r.moved === 1 ? $t("study.anki.media.trashed_one") : $t("study.anki.media.trashed_many", { count: r.moved }),
       );
       if (r.moved > 0) {
         recentTrash = [
@@ -187,7 +187,7 @@
       );
       showToast(
         "ok",
-        r.moved === 1 ? $t("study.anki.media.unused_trashed_one") : $t("study.anki.media.unused_trashed_many", { n: r.moved }),
+        r.moved === 1 ? $t("study.anki.media.unused_trashed_one") : $t("study.anki.media.unused_trashed_many", { count: r.moved }),
       );
       if (r.moved > 0) {
         recentTrash = [
@@ -215,7 +215,7 @@
       );
       showToast(
         "ok",
-        r.restored === 1 ? $t("study.anki.media.restored_one") : $t("study.anki.media.restored_many", { n: r.restored }),
+        r.restored === 1 ? $t("study.anki.media.restored_one") : $t("study.anki.media.restored_many", { count: r.restored }),
       );
       recentTrash = recentTrash.filter((g) => g.id !== group.id);
       await load();
@@ -239,7 +239,7 @@
         "ok",
         r.removed === 0 ? $t("study.anki.media.trash_was_empty") :
         r.removed === 1 ? $t("study.anki.media.deleted_forever_one") :
-        $t("study.anki.media.deleted_forever_many", { n: r.removed }),
+        $t("study.anki.media.deleted_forever_many", { count: r.removed }),
       );
       recentTrash = [];
     } catch (e) {
@@ -270,9 +270,9 @@
     const diff = Date.now() - ms;
     const min = Math.floor(diff / 60000);
     if (min < 1) return $t("study.anki.media.relative_now");
-    if (min < 60) return $t("study.anki.media.relative_min", { n: min });
+    if (min < 60) return $t("study.anki.media.relative_min", { count: min });
     const h = Math.floor(min / 60);
-    if (h < 24) return $t("study.anki.media.relative_h", { n: h });
+    if (h < 24) return $t("study.anki.media.relative_h", { count: h });
     return new Date(ms).toLocaleDateString();
   }
 
@@ -288,7 +288,7 @@
         ? $t("study.anki.media.subtitle_empty")
         : entries.length === 1
           ? $t("study.anki.media.one_file")
-          : $t("study.anki.media.n_files", { n: entries.length })}
+          : $t("study.anki.media.n_files", { count: entries.length })}
   />
 
   {#if toast}
@@ -362,7 +362,7 @@
 
   {#if report && view === "unused" && report.unused.length > 0}
     <div class="unused-banner">
-      <span>{report.unused.length === 1 ? $t("study.anki.media.unused_banner_one", { n: 1 }) : $t("study.anki.media.unused_banner_many", { n: report.unused.length })}</span>
+      <span>{report.unused.length === 1 ? $t("study.anki.media.unused_banner_one", { count: 1 }) : $t("study.anki.media.unused_banner_many", { count: report.unused.length })}</span>
       <button
         type="button"
         class="btn ghost sm"
@@ -384,7 +384,7 @@
       />
       {#if selected.size > 0}
         <span class="sel-count">
-          {$t("study.anki.media.selected_count", { n: selected.size })}
+          {$t("study.anki.media.selected_count", { count: selected.size })}
         </span>
         <button
           type="button"
@@ -496,7 +496,7 @@
               <span class="trash-count">
                 {group.fnames.length === 1
                   ? $t("study.anki.media.one_file")
-                  : $t("study.anki.media.n_files", { n: group.fnames.length })}
+                  : $t("study.anki.media.n_files", { count: group.fnames.length })}
               </span>
               <span class="trash-when">{fmtRelative(group.timestamp)}</span>
               <details class="trash-detail">
@@ -506,7 +506,7 @@
                     <li>{f}</li>
                   {/each}
                   {#if group.fnames.length > 20}
-                    <li class="muted">{$t("study.anki.media.more_n", { n: group.fnames.length - 20 })}</li>
+                    <li class="muted">{$t("study.anki.media.more_n", { count: group.fnames.length - 20 })}</li>
                   {/if}
                 </ul>
               </details>

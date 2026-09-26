@@ -284,7 +284,7 @@
             <span class="header-meta">
               {$t(isChannel ? "study.telegram.drawer.kind_channel" : isGroup ? "study.telegram.drawer.kind_group" : "study.telegram.drawer.kind_private")}
               {#if info?.participants_count}
-                · {$t("study.telegram.drawer.members_count", { n: info.participants_count.toLocaleString() })}
+                · {$t("study.telegram.drawer.members_count", { count: info.participants_count.toLocaleString() })}
               {/if}
               {#if info?.username}
                 · @{info.username}
@@ -438,7 +438,7 @@
               <p class="empty-text">{$t("study.telegram.drawer.no_members")}</p>
             {:else}
               <div class="members-meta">
-                {$t("study.telegram.drawer.total_count", { n: participantsCount.toLocaleString() })}
+                {$t("study.telegram.drawer.total_count", { count: participantsCount.toLocaleString() })}
               </div>
               <ul class="members-list">
                 {#each participants as p (p.user_id)}

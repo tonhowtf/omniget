@@ -46,7 +46,7 @@
     busy = true;
     try {
       const r = await telegramSyncNow();
-      showToast("info", $t("study.tg_sync.updated_channels", { n: r.updated }));
+      showToast("info", $t("study.tg_sync.updated_channels", { count: r.updated }));
       await refresh();
     } catch (e: any) {
       showToast("error", typeof e === "string" ? e : (e?.message ?? $t("study.tg_sync.failed")));
@@ -60,10 +60,10 @@
     const delta = Math.max(0, current - ts);
     if (delta < 60) return $t("study.tg_sync.just_now");
     const min = Math.floor(delta / 60);
-    if (min < 60) return $t("study.tg_sync.min_ago", { n: min });
+    if (min < 60) return $t("study.tg_sync.min_ago", { count: min });
     const hr = Math.floor(min / 60);
-    if (hr < 24) return $t("study.tg_sync.hours_ago", { n: hr });
-    return $t("study.tg_sync.days_ago", { n: Math.floor(hr / 24) });
+    if (hr < 24) return $t("study.tg_sync.hours_ago", { count: hr });
+    return $t("study.tg_sync.days_ago", { count: Math.floor(hr / 24) });
   }
 
   let label = $derived(
@@ -96,7 +96,7 @@
   onclick={syncNow}
   disabled={busy}
   title={syncSnap?.enabled
-    ? $t("study.tg_sync.auto_hint", { n: syncSnap.interval_min ?? 30 })
+    ? $t("study.tg_sync.auto_hint", { count: syncSnap.interval_min ?? 30 })
     : $t("study.tg_sync.disabled_hint")}
   aria-label={$t("study.tg_sync.status_aria")}
 >

@@ -30,7 +30,20 @@ fn enhanced_path() -> Option<String> {
 }
 
 pub fn command<S: AsRef<std::ffi::OsStr>>(program: S) -> tokio::process::Command {
-    let mut cmd = tokio::process::Command::new(program);
+    let pinned = if crate::core::dependencies::worker_mode() {
+        program
+            .as_ref()
+            .to_str()
+            .and_then(crate::core::dependencies::worker_tool)
+    } else {
+        None
+    };
+    let mut cmd = tokio::process::Command::new(
+        pinned
+            .as_deref()
+            .map(|p| p.as_os_str())
+            .unwrap_or(program.as_ref()),
+    );
     #[cfg(target_os = "windows")]
     cmd.creation_flags(0x08000000);
     if let Some(path) = enhanced_path() {
@@ -45,7 +58,20 @@ pub fn command<S: AsRef<std::ffi::OsStr>>(program: S) -> tokio::process::Command
 }
 
 pub fn std_command<S: AsRef<std::ffi::OsStr>>(program: S) -> std::process::Command {
-    let mut cmd = std::process::Command::new(program);
+    let pinned = if crate::core::dependencies::worker_mode() {
+        program
+            .as_ref()
+            .to_str()
+            .and_then(crate::core::dependencies::worker_tool)
+    } else {
+        None
+    };
+    let mut cmd = std::process::Command::new(
+        pinned
+            .as_deref()
+            .map(|p| p.as_os_str())
+            .unwrap_or(program.as_ref()),
+    );
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;

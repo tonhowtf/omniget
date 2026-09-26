@@ -65,11 +65,11 @@ impl TwitchClipsDownloader {
 
         let clip_title = clip.title.trim().to_string();
 
-        let available_qualities: Vec<VideoQuality> = clip
+        let mut available_qualities: Vec<VideoQuality> = clip
             .video_qualities
             .iter()
             .map(|q| {
-                let height: u32 = q.quality.parse().unwrap_or(0);
+                let height = clip_height(&q.quality, &q.source_url);
                 let authenticated_url = Self::build_authenticated_url(&q.source_url, &token);
                 VideoQuality {
                     label: format!("{}p", q.quality),
@@ -80,6 +80,11 @@ impl TwitchClipsDownloader {
                 }
             })
             .collect();
+        // Unsized renditions cannot prove a height ceiling; the MCP worker
+        // then takes this yt-dlp alternative on the page URL instead.
+        if available_qualities.iter().any(|q| q.height == 0) {
+            available_qualities.push(ytdlp_alternative(url));
+        }
 
         Ok(MediaInfo {
             title: sanitize_filename::sanitize(&clip_title),
@@ -326,14 +331,8 @@ impl PlatformDownloader for TwitchClipsDownloader {
             .first()
             .ok_or_else(|| anyhow!("No media URL available"))?;
 
-        let selected = if let Some(ref wanted) = opts.quality {
-            info.available_qualities
-                .iter()
-                .find(|q| q.label == *wanted)
-                .unwrap_or(first)
-        } else {
-            first
-        };
+        let selected =
+            select_quality(&info.available_qualities, opts.quality.as_deref()).unwrap_or(first);
 
         let filename = format!(
             "{}_{}.mp4",
@@ -357,5 +356,97 @@ impl PlatformDownloader for TwitchClipsDownloader {
             duration_seconds: info.duration_seconds.unwrap_or(0.0),
             torrent_id: None,
         })
+    }
+}
+
+fn ytdlp_alternative(page_url: &str) -> VideoQuality {
+    VideoQuality {
+        label: "auto".to_string(),
+        width: 0,
+        height: 0,
+        url: page_url.to_string(),
+        format: "ytdlp".to_string(),
+    }
+}
+
+/// `videoQualities.quality` is the frame height of landscape renditions
+/// (clip GQL 26/09: 1080/720/480/360 under `/landscape/avc/<q>/`). Portrait
+/// renditions name the short side, so their height is left unknown.
+fn clip_height(quality: &str, source_url: &str) -> u32 {
+    if source_url.contains("/portrait/") {
+        return 0;
+    }
+    quality.parse().unwrap_or(0)
+}
+
+/// The requested quality is a height ceiling (`"720"` from the MCP worker, or
+/// a `"720p"` label): the tallest variant of known height within it, else an
+/// exact label match. The first variant is 1080 on clips, so matching labels
+/// alone ignored a `"720"` ceiling (round-1 regression twitch-1).
+fn select_quality<'a>(
+    qualities: &'a [VideoQuality],
+    wanted: Option<&str>,
+) -> Option<&'a VideoQuality> {
+    let wanted = wanted?;
+    if let Ok(ceiling) = wanted.trim_end_matches('p').parse::<u32>() {
+        if let Some(q) = qualities
+            .iter()
+            .filter(|q| q.height > 0 && q.height <= ceiling)
+            .max_by_key(|q| q.height)
+        {
+            return Some(q);
+        }
+    }
+    qualities
+        .iter()
+        .find(|q| q.label == wanted && q.format != "ytdlp")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Fixture: clip GQL `videoQualities` of corpus twitch-1 (26/09).
+    const GQL: &str = r#"[{"quality":"1080","sourceURL":"https://production.assets.clips.twitchcdn.net/v2/media/x/landscape/avc/1080/index.mp4"},{"quality":"720","sourceURL":"https://production.assets.clips.twitchcdn.net/v2/media/x/landscape/avc/720/index.mp4"},{"quality":"480","sourceURL":"https://production.assets.clips.twitchcdn.net/v2/media/x/landscape/avc/480/index.mp4"},{"quality":"360","sourceURL":"https://production.assets.clips.twitchcdn.net/v2/media/x/landscape/avc/360/index.mp4"}]"#;
+
+    fn qualities() -> Vec<VideoQuality> {
+        let v: Vec<serde_json::Value> = serde_json::from_str(GQL).unwrap();
+        v.iter()
+            .map(|q| {
+                let quality = q["quality"].as_str().unwrap();
+                let url = q["sourceURL"].as_str().unwrap();
+                VideoQuality {
+                    label: format!("{quality}p"),
+                    width: 0,
+                    height: clip_height(quality, url),
+                    url: url.into(),
+                    format: "mp4".into(),
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn ceiling_picks_tallest_variant_within_it() {
+        let q = qualities();
+        assert_eq!(select_quality(&q, Some("720")).unwrap().height, 720);
+        assert_eq!(select_quality(&q, Some("720p")).unwrap().height, 720);
+        assert_eq!(select_quality(&q, Some("600")).unwrap().height, 480);
+        assert_eq!(select_quality(&q, Some("2160")).unwrap().height, 1080);
+        assert!(select_quality(&q, Some("240")).is_none());
+        assert!(select_quality(&q, None).is_none());
+    }
+
+    #[test]
+    fn portrait_rendition_height_is_unknown() {
+        assert_eq!(
+            clip_height("1080", "https://x/portrait/avc/1080/index.mp4"),
+            0
+        );
+        assert_eq!(
+            clip_height("720", "https://x/landscape/avc/720/index.mp4"),
+            720
+        );
+        assert_eq!(clip_height("source", "https://x/y.mp4"), 0);
     }
 }

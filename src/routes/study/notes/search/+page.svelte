@@ -85,7 +85,7 @@
         "study",
         "study:notes:search:rebuild",
       );
-      showToast("ok", $t("study.notes.index_rebuilt", { n: r.indexed }));
+      showToast("ok", $t("study.notes.index_rebuilt", { count: r.indexed }));
     } catch (e) {
       showToast("err", e instanceof Error ? e.message : String(e));
     }

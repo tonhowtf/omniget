@@ -14,7 +14,8 @@ export type QueueKind =
 type BaseItem = {
   id: number;
   name: string;
-  percent: number;
+  /** `null` = total unknown: show bytes and an indeterminate bar, never a number. */
+  percent: number | null;
   status: DownloadStatus;
   error?: string;
   startedAt: number;
@@ -308,7 +309,7 @@ export function getAggregate(): DownloadAggregate {
     hasFailed ||= item.status === "error";
     const reportedPercent = finished
       ? 100
-      : Number.isFinite(item.percent) ? Math.min(100, Math.max(0, item.percent)) : null;
+      : knownPercent(item.percent);
     if (reportedPercent === null) allPercentsKnown = false;
     else reportedPercentTotal += reportedPercent;
     const bytes = finiteBytes(item.kind === "generic" ? item.downloadedBytes : item.bytesDownloaded);
@@ -450,7 +451,7 @@ type QueueItemInfo = {
   platform: string;
   title: string;
   status: { type: string; data?: unknown };
-  percent: number;
+  percent: number | null;
   speed_bytes_per_sec: number;
   downloaded_bytes: number;
   total_bytes: number | null;
@@ -474,6 +475,11 @@ type QueueItemInfo = {
   started_at_ms?: number | null;
   command?: CommandRecord | null;
 };
+
+/** Backend percent, or `null` when the engine does not know the total. */
+export function knownPercent(value: number | null | undefined): number | null {
+  return value != null && Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : null;
+}
 
 function queueStatusToDownloadStatus(status: { type: string; data?: unknown }): DownloadStatus {
   switch (status.type) {
@@ -526,7 +532,7 @@ export function syncQueueState(items: QueueItemInfo[]) {
       id: qi.id,
       name: qi.title,
       platform: qi.platform,
-      percent: Math.max(0, qi.percent),
+      percent: knownPercent(qi.percent),
       speed: effectiveSpeed,
       downloadedBytes: qi.downloaded_bytes,
       totalBytes: qi.total_bytes,
@@ -599,7 +605,7 @@ export function upsertGenericProgress(
   id: number,
   title: string,
   platform: string,
-  percent: number,
+  percent: number | null,
   speedBytesPerSec: number,
   downloadedBytes: number,
   totalBytes: number | null,
@@ -640,7 +646,7 @@ export function upsertGenericProgress(
     id,
     name: title || prev?.name || "",
     platform: platform || prev?.platform || "",
-    percent: Math.max(0, percent),
+    percent: knownPercent(percent),
     speed: effectiveSpeed,
     downloadedBytes,
     totalBytes: totalBytes ?? prev?.totalBytes ?? null,

@@ -193,7 +193,7 @@ OmniGet 为最常用的平台写了原生提取器，其余的交给 [yt-dlp](ht
 
 | 类别 | 网站与格式 |
 |---|---|
-| 在线课程 | 通过 Courses 插件支持 Hotmart、Udemy、Kiwify、Rocketseat 和 Meta-Analysis Academy。全部课时、章节选择、附件、从上次位置继续。 |
+| 在线课程 | 通过 Courses 插件支持 Hotmart、Udemy、Rocketseat 和 Meta-Analysis Academy。全部课时、章节选择、附件、从上次位置继续。 |
 | 视频与音频 | YouTube（视频、播放列表、频道、从头录直播、章节、SponsorBlock）、Instagram、TikTok、X/Twitter、Reddit、Twitch（录像、剪辑、直播）、Vimeo、Bluesky、Threads、Pinterest、抖音 |
 | 哔哩哔哩，登录后 | 按你的会员等级提供 4K、HDR、杜比视界、Hi-Res 无损和杜比全景声。弹幕导出为 XML、ASS 或 JSON，为 Kodi 和 Jellyfin 生成 NFO，自定义命名模板，支持 11 种链接类型，包括番剧、课程、收藏夹、稍后再看和历史记录 |
 | 图片画廊 | 通过 gallery-dl 下载 250+ 网站的整个画廊和主页（DeviantArt、Pixiv、ArtStation、Flickr、Tumblr、Imgur、Kemono 等） |
@@ -439,7 +439,7 @@ Tools 是 OmniGet 里长到下载之外的那部分。每个方块是一项工�
 
 ### Courses
 
-通过应用内的浏览器窗口登录 **Hotmart**、**Udemy**、**Kiwify**、**Rocketseat** 或 **Meta-Analysis Academy**，也可以使用扩展保存的 Cookie，或在平台允许时直接用邮箱和密码。OmniGet 列出你购买的课程，打开课程大纲让你勾选想要的章节（并告诉你有多少课时受 DRM 保护、会被跳过），然后下载全部课时和附件，需要的话可以连续编号。Hotmart 使用当前的 OIDC 登录流程，所以在 Hotmart 2026 年更换认证方式之后仍然可用，免费课程和在 Hotmart Club 之外交付的课程也会列出来。下载好的课程自动出现在 Study 里。
+通过应用内的浏览器窗口登录 **Hotmart**、**Udemy**、**Rocketseat** 或 **Meta-Analysis Academy**，也可以使用扩展保存的 Cookie，或在平台允许时直接用邮箱和密码。OmniGet 列出你购买的课程，打开课程大纲让你勾选想要的章节（并告诉你有多少课时受 DRM 保护、会被跳过），然后下载全部课时和附件，需要的话可以连续编号。Hotmart 使用当前的 OIDC 登录流程，所以在 Hotmart 2026 年更换认证方式之后仍然可用，免费课程和在 Hotmart Club 之外交付的课程也会列出来。下载好的课程自动出现在 Study 里。
 
 ### Study
 
@@ -514,7 +514,7 @@ OmniGet 只下载你自己已登录的会话本来就能打开的内容。它不
 一部分是。yt-dlp 负责长尾网站，OmniGet 把它打包、校验并自动更新。在此之上还有课程、Instagram、X、Pinterest、哔哩哔哩、Telegram 和种子的原生提取器，带续传和重试的队列，Tools 工具区，以及 Study 学习库。
 
 **能下载我买过的 Udemy 或 Hotmart 课程吗？**
-能。安装 Courses 插件（已预装），在应用里登录，选择课程和章节，下载。课时和附件按课程分文件夹保存，并出现在 Study 里。Kiwify、Rocketseat 和 Meta-Analysis Academy 的用法相同。
+能。安装 Courses 插件（已预装），在应用里登录，选择课程和章节，下载。课时和附件按课程分文件夹保存，并出现在 Study 里。Rocketseat 和 Meta-Analysis Academy 的用法相同。
 
 **能下载 Instagram 快拍、密友快拍或精选吗？**
 能，使用扩展捕获的你自己的会话。下载快拍不会标记为已看。
@@ -596,6 +596,10 @@ pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
 技术栈：Tauri 2、Rust、SvelteKit（Svelte 5）、SQLite、yt-dlp、FFmpeg、librqbit（种子）、whisper.cpp、aria2、gallery-dl。
 
 ---
+
+## 致平台所有者
+
+如果你是某个平台的所有者，希望 OmniGet 不再支持该平台，请用公司邮箱发送邮件至 **tonhowtf@gmail.com**。该网站会从文档和本项目维护的代码中移除，其域名会加入应用强制执行的退出名单。流程和当前名单见 [PLATFORM-OWNERS.md](PLATFORM-OWNERS.md)。
 
 ## 参与贡献与翻译
 

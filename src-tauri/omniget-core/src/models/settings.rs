@@ -88,6 +88,9 @@ pub struct WorldSettings {
     pub enabled: bool,
     #[serde(default)]
     pub tier_override: Option<u8>,
+    /// Pins the renderer backend (`gl2`, `gl1`, `canvas2d`); None picks by tier.
+    #[serde(default)]
+    pub backend_override: Option<String>,
     #[serde(default)]
     pub tier_measured: Option<u8>,
     #[serde(default)]
@@ -124,6 +127,7 @@ impl Default for WorldSettings {
         Self {
             enabled: default_world_enabled(),
             tier_override: None,
+            backend_override: None,
             tier_measured: None,
             measured_median_ms: None,
             measured_app_version: None,
@@ -341,6 +345,9 @@ pub struct LastDownloadOptions {
 pub struct AppearanceSettings {
     pub theme: String,
     pub language: String,
+    /// Sidebar shown as an icon-only rail.
+    #[serde(default)]
+    pub sidebar_collapsed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -748,6 +755,7 @@ impl Default for AppSettings {
             appearance: AppearanceSettings {
                 theme: "system".into(),
                 language: "en".into(),
+                sidebar_collapsed: false,
             },
             download: DownloadSettings {
                 default_output_dir: dirs::download_dir().unwrap_or_else(|| PathBuf::from(".")),

@@ -12,6 +12,7 @@ import {
   type Caps,
   type ChunkId,
   type ChunkTile,
+  type DynamicFrame,
   type FrameStats,
   type InitOpts,
   type Renderer,
@@ -124,6 +125,12 @@ export function createRenderer(): Renderer {
     },
     invalidateChunk(id: ChunkId): void {
       need().invalidateChunk(id);
+    },
+    setDynamicPage(page: ImageBitmap | null, frames: Record<string, DynamicFrame>): void {
+      need().setDynamicPage(page, frames);
+    },
+    memory() {
+      return impl ? impl.memory() : { textures: 0, bytes: 0, dynamicPage: 0 };
     },
     text(str: string, style?: TextStyle): TextHandle {
       return need().text(str, style);

@@ -18,6 +18,9 @@ pub struct Resolved {
 }
 
 pub async fn resolve_downloader(registry: &PlatformRegistry, url: &str) -> Option<Resolved> {
+    if omniget_core::core::platform_optout::is_opted_out(url) {
+        return None;
+    }
     let platform = Platform::from_url(url);
     if platform.is_none() && direct_file::looks_like_direct_file(url).await {
         if let Some(downloader) = registry.find_by_name("direct_file") {

@@ -172,6 +172,22 @@ fn with_project_kb(conversation_id: &str, history: &[Message]) -> Vec<Message> {
     messages
 }
 
+/// The augments' context for this request, folded into the system message
+/// the same way as the KB index: fresh every request, never persisted.
+fn with_turn_context(mut messages: Vec<Message>, extra: &[String]) -> Vec<Message> {
+    if extra.is_empty() {
+        return messages;
+    }
+    let text = extra.join("\n\n");
+    match messages.iter_mut().find(|m| m.role == Role::System) {
+        Some(system) => system.parts.push(ContentPart::Text {
+            text: format!("\n\n{text}"),
+        }),
+        None => messages.insert(0, Message::text(Role::System, text)),
+    }
+    messages
+}
+
 /// Ceiling for one tool result of a CLI agent kept in the transcript.
 const CLI_RESULT_MAX_CHARS: usize = 12_000;
 
@@ -219,8 +235,25 @@ impl PendingCall {
     }
 }
 
+/// A per-turn hook: adjusts the agent the turn runs with (extra grants, a
+/// skill binding) and returns context for this request only. The text goes
+/// into the system message of the request and is never persisted in the
+/// transcript, so memory and skill indexes are read fresh every turn.
+///
+/// Implementations: `assist::bots` (skills + capability grants),
+/// `assist::memory` (recalled profile), `assist::reading`, `assist::groups`.
+pub trait TurnAugment: Send + Sync {
+    fn augment(
+        &self,
+        agent: &mut AgentDef,
+        conversation_id: &str,
+        user_input: &str,
+    ) -> Option<String>;
+}
+
 pub struct Coordinator {
     runtime: Arc<dyn AgentRuntime>,
+    augments: std::sync::RwLock<Vec<Arc<dyn TurnAugment>>>,
     broker: Arc<ToolBroker>,
     budget: Arc<BudgetStore>,
     bus: Arc<Bus>,
@@ -232,6 +265,9 @@ pub struct Coordinator {
     /// change swaps it without rebuilding the coordinator; a turn in flight
     /// keeps the one it started with.
     pruner: std::sync::RwLock<Arc<ContextPruner>>,
+    /// Durable run record. `None` falls back to `assist::runs::active()`
+    /// (the app's, once enabled at boot).
+    runs: std::sync::RwLock<Option<crate::core::assist::runs::Registry>>,
 }
 
 impl std::fmt::Debug for Coordinator {
@@ -251,6 +287,7 @@ impl Coordinator {
     ) -> Self {
         Self {
             runtime,
+            augments: std::sync::RwLock::new(Vec::new()),
             broker,
             budget,
             bus,
@@ -258,7 +295,26 @@ impl Coordinator {
             dir: default_conversations_dir(),
             params: GenParams::default(),
             pruner: std::sync::RwLock::new(Arc::new(ContextPruner::disabled())),
+            runs: std::sync::RwLock::new(None),
         }
+    }
+
+    /// Records runs in this registry (tests; the app uses the global one).
+    pub fn with_runs(self, registry: crate::core::assist::runs::Registry) -> Self {
+        *self.runs.write().unwrap_or_else(|e| e.into_inner()) = Some(registry);
+        self
+    }
+
+    fn runs(&self) -> Option<crate::core::assist::runs::Registry> {
+        self.runs
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+            .or_else(crate::core::assist::runs::active)
+    }
+
+    pub fn budget(&self) -> &Arc<BudgetStore> {
+        &self.budget
     }
 
     pub fn with_router(mut self, router: Arc<Router>) -> Self {
@@ -298,6 +354,53 @@ impl Coordinator {
     pub fn with_params(mut self, params: GenParams) -> Self {
         self.params = params;
         self
+    }
+
+    /// Adds a per-turn hook; hooks run in the order they were added.
+    pub fn add_augment(&self, augment: Arc<dyn TurnAugment>) {
+        self.augments
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(augment);
+    }
+
+    /// Runs every hook over a copy of `agent`. Public so the app can show
+    /// the effective agent (grants, skills) without starting a turn.
+    pub fn effective_agent(
+        &self,
+        agent: &AgentDef,
+        conversation_id: &str,
+        user_input: &str,
+    ) -> (AgentDef, Vec<String>) {
+        let mut agent = agent.clone();
+        // Personal overlays, room context and reading data have local-only
+        // legacy stores. External runs receive only the explicitly pinned
+        // executor prompt until each augment has principal-aware queries.
+        if crate::core::assist::authority::external(conversation_id) {
+            // Grant ∩ the executor's own modes: Deny stays out, Ask stays Ask.
+            let own = std::mem::take(&mut agent.tools);
+            if let Ok(ceiling) = crate::core::assist::db::global().and_then(|db| {
+                crate::core::assist::authority::resolve(&db, conversation_id, &agent.id)
+            }) {
+                agent.tools =
+                    crate::core::assist::authority::external_tool_grants(&own, &ceiling.tools);
+            }
+            return (agent, Vec::new());
+        }
+        let hooks = self
+            .augments
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        let mut extra = Vec::new();
+        for h in hooks {
+            if let Some(text) = h.augment(&mut agent, conversation_id, user_input) {
+                if !text.trim().is_empty() {
+                    extra.push(text);
+                }
+            }
+        }
+        (agent, extra)
     }
 
     pub fn bus(&self) -> &Arc<Bus> {
@@ -422,6 +525,52 @@ impl Coordinator {
         mut tx: mpsc::Sender<TurnEvent>,
     ) {
         let started = Instant::now();
+        if let Err(reason) = crate::core::assist::authority::check_agent(&conversation_id, &agent) {
+            let _ = tx
+                .send(TurnEvent::Error {
+                    error: LlmError::new("EXTERNAL_EXECUTION_DENIED", reason),
+                })
+                .await;
+            return;
+        }
+        let authority_agent = agent.clone();
+        let (agent, turn_context) = self.effective_agent(&agent, &conversation_id, &user_input);
+        // The run is on disk before anything reaches the provider or the UI.
+        let runs = self.runs();
+        if crate::core::assist::authority::external(&conversation_id) && runs.is_none() {
+            let _ = tx
+                .send(TurnEvent::Error {
+                    error: LlmError::new(
+                        "RUN_STORAGE_REQUIRED",
+                        "External execution requires durable run records",
+                    ),
+                })
+                .await;
+            return;
+        }
+        let runtime_label = match &agent.runtime {
+            super::agent::RuntimeKind::Native => "native".to_string(),
+            super::agent::RuntimeKind::Cli { cli, .. } => format!("cli:{cli}"),
+            super::agent::RuntimeKind::Acp { command, .. } => format!("acp:{command}"),
+        };
+        if let Some(reg) = &runs {
+            if let Err(e) = reg.open_run(crate::core::assist::runs::NewRun {
+                id: request_id.clone(),
+                conversation_id: conversation_id.clone(),
+                bot_id: agent.id.clone(),
+                parent_run_id: None,
+                runtime: Some(runtime_label.clone()),
+                input_preview: user_input.clone(),
+            }) {
+                tracing::warn!("[runs] {e}");
+            }
+            let _ = reg.transition(
+                &request_id,
+                crate::core::assist::runs::RunState::Preparing,
+                None,
+            );
+        }
+        let mut turn_error: Option<String> = None;
         let mut history = self.history(&conversation_id).unwrap_or_default();
         super::snapshot::mark_turn(&request_id, history.len());
         // Replay the decisions a previous turn already froze. This is a map
@@ -445,18 +594,102 @@ impl Coordinator {
 
         // Gate before anything reaches the network.
         let estimate = estimate_tokens(&history);
-        if let Err(err) = self.budget.check(&agent.id, &agent.budget, estimate) {
-            self.bus.emit(BusEvent::BudgetHit {
-                agent: agent.id.clone(),
+        // The per-turn token ceiling, then a reservation against the day:
+        // two turns of the same agent cannot both slip under the cap.
+        let reservation = self
+            .budget
+            .check(&agent.id, &agent.budget, estimate)
+            .and_then(|_| {
+                self.budget.reserve(
+                    &agent.id,
+                    &super::budget::PoolLimits {
+                        usd: agent.budget.usd_per_day,
+                        tokens: None,
+                        turns: None,
+                        strict_unknown: false,
+                    },
+                    super::budget::Estimate {
+                        usd: None,
+                        tokens: estimate as u64,
+                    },
+                )
             });
-            let _ = tx.send(TurnEvent::Error { error: err }).await;
-            let _ = tx
-                .send(TurnEvent::Finished {
-                    reason: FinishReason::Other,
-                })
-                .await;
-            return;
+        let reservation = match reservation {
+            Ok(id) => id,
+            Err(err) => {
+                if let Some(reg) = &runs {
+                    let _ = reg.transition(
+                        &request_id,
+                        crate::core::assist::runs::RunState::Failed,
+                        Some(&format!("{}: {}", err.code, err.message)),
+                    );
+                }
+                self.bus.emit(BusEvent::BudgetHit {
+                    agent: agent.id.clone(),
+                });
+                let _ = tx.send(TurnEvent::Error { error: err }).await;
+                let _ = tx
+                    .send(TurnEvent::Finished {
+                        reason: FinishReason::Other,
+                    })
+                    .await;
+                return;
+            }
+        };
+
+        // Running: persisted before the frontend hears `Started`.
+        if let Some(reg) = &runs {
+            let _ = reg.transition(
+                &request_id,
+                crate::core::assist::runs::RunState::Running,
+                None,
+            );
         }
+        // A CLI agent runs its own tool loop: it reaches the assistant tools
+        // through a scoped MCP projection with this turn's grants.
+        let projection = match (
+            &agent.runtime,
+            &runs,
+            crate::core::assist::projection::endpoint(),
+        ) {
+            (super::agent::RuntimeKind::Cli { .. }, Some(reg), Some(url)) => {
+                let tools = if crate::core::assist::authority::external(&conversation_id) {
+                    crate::core::assist::projection::granted_tools_external(
+                        &self.broker,
+                        &agent.tools,
+                    )
+                } else {
+                    crate::core::assist::projection::granted_tools(&self.broker, &agent.tools)
+                };
+                match crate::core::assist::projection::issue(
+                    reg.db(),
+                    &agent.id,
+                    &conversation_id,
+                    Some(&request_id),
+                    &tools,
+                    true,
+                    crate::core::assist::projection::DEFAULT_TTL_MS,
+                ) {
+                    Ok(issued) => {
+                        crate::core::assist::projection::attach_broker(
+                            &issued.id,
+                            self.broker.clone(),
+                        );
+                        Some(crate::core::assist::projection::TurnProjection {
+                            grant_id: issued.id,
+                            url,
+                            token: issued.token,
+                        })
+                    }
+                    Err(e) => {
+                        tracing::warn!("[projection] {e}");
+                        None
+                    }
+                }
+            }
+            _ => None,
+        };
+        let mut last_text = String::new();
 
         self.bus.emit(BusEvent::TurnStarted {
             agent: agent.id.clone(),
@@ -469,10 +702,44 @@ impl Coordinator {
             .await
             .is_err()
         {
+            // Nobody listens any more: nothing was sent, free everything.
+            self.budget.release(&reservation);
+            if let Some(reg) = &runs {
+                let _ = reg.transition(
+                    &request_id,
+                    crate::core::assist::runs::RunState::Cancelled,
+                    None,
+                );
+                if let Some(p) = &projection {
+                    crate::core::assist::projection::revoke(reg.db(), &p.grant_id);
+                }
+            }
             return;
         }
 
-        let specs = self.broker.specs_for(&agent.tools);
+        let mut specs = self.broker.specs_for(&agent.tools);
+        if crate::core::assist::authority::external(&conversation_id) {
+            specs.retain(|s| {
+                crate::core::assist::authority::check_tool(&conversation_id, &agent.id, &s.name)
+                    .is_ok()
+            });
+            for spec in &mut specs {
+                if spec.name == "fs_read" {
+                    spec.description="Read a bounded text file relative to the granted workspace. Directories and protected paths are denied.".into();
+                }
+                if spec.name == "fs_glob" {
+                    spec.description="Find paths relative to the granted workspace using *, ** or ?. Braces, character classes and protected paths are unsupported.".into();
+                }
+                // External missions get the external file tools' own schemas
+                // (revision-bound edits, create-only writes).
+                if let Some((d, schema)) =
+                    crate::core::assist::external_files::external_spec(&spec.name)
+                {
+                    spec.description = d.into();
+                    spec.input_schema = schema;
+                }
+            }
+        }
         let max_tool_calls = match agent.budget.max_tool_calls_per_turn {
             0 => DEFAULT_MAX_TOOL_CALLS,
             n => n,
@@ -494,6 +761,7 @@ impl Coordinator {
             let (model, key) = match self.resolve(&agent, &tried) {
                 Ok(v) => v,
                 Err(err) => {
+                    turn_error = Some(format!("{}: {}", err.code, err.message));
                     let _ = tx.send(TurnEvent::Error { error: err }).await;
                     break 'turn FinishReason::Other;
                 }
@@ -508,14 +776,48 @@ impl Coordinator {
                 )
             });
             requests += 1;
-            let req = TurnRequest {
+            let mut external_debit: Option<String> = None;
+            let mut req = TurnRequest {
                 model,
-                messages: with_project_kb(&conversation_id, &sent),
+                messages: with_turn_context(
+                    if crate::core::assist::authority::external(&conversation_id) {
+                        sent.clone()
+                    } else {
+                        with_project_kb(&conversation_id, &sent)
+                    },
+                    &turn_context,
+                ),
                 tools: specs.clone(),
                 params: self.params.clone(),
                 cancel: cancel.clone(),
                 agent_id: Some(agent.id.clone()),
             };
+            if crate::core::assist::authority::external(&conversation_id) {
+                let output = req.params.max_tokens.unwrap_or(4096).min(4096);
+                req.params.max_tokens = Some(output);
+                req.params.extra.clear();
+                let bound = serde_json::to_vec(&(&req.messages, &req.tools))
+                    .map(|v| v.len() as u64)
+                    .unwrap_or(u64::MAX)
+                    .saturating_add(output as u64)
+                    .saturating_add(4096);
+                match crate::core::assist::authority::reserve_model_id(
+                    &conversation_id,
+                    &agent.id,
+                    bound,
+                ) {
+                    Ok(id) => external_debit = Some(id),
+                    Err(reason) => {
+                        turn_error = Some(reason.clone());
+                        let _ = tx
+                            .send(TurnEvent::Error {
+                                error: LlmError::new("EXTERNAL_EXECUTION_DENIED", reason),
+                            })
+                            .await;
+                        break 'turn FinishReason::Other;
+                    }
+                }
+            }
             // A CLI or ACP agent edits files with its own tools, which never
             // pass through the broker: the undo snapshot is taken up front.
             if !matches!(agent.runtime, super::agent::RuntimeKind::Native) {
@@ -527,14 +829,33 @@ impl Coordinator {
                     }
                 }
             }
-            let stream = match super::code_tools::scope(
+            let opening = super::code_tools::scope(
                 &conversation_id,
                 &agent.id,
                 &request_id,
-                self.runtime.turn(&agent, req),
-            )
-            .await
-            {
+                crate::core::assist::runs::scope(
+                    runs.clone(),
+                    crate::core::assist::projection::scope_turn(
+                        projection.clone(),
+                        self.runtime.turn(&agent, req),
+                    ),
+                ),
+            );
+            tokio::pin!(opening);
+            let mut opening_tick = tokio::time::interval(std::time::Duration::from_millis(250));
+            let opened = loop {
+                tokio::select! {
+                    biased;
+                    _=cancel.cancelled()=>break Err(LlmError::new("EXTERNAL_EXECUTION_CANCELLED","request cancelled before stream")),
+                    _=opening_tick.tick(),if crate::core::assist::authority::external(&conversation_id)=>{
+                        if let Err(reason)=crate::core::assist::authority::check_agent(&conversation_id,&authority_agent) {
+                            cancel.cancel();break Err(LlmError::new("EXTERNAL_EXECUTION_DENIED",reason));
+                        }
+                    },
+                    result=&mut opening=>break result,
+                }
+            };
+            let stream = match opened {
                 Ok(s) => Some(s),
                 Err(err) => {
                     match self.maybe_reroute(
@@ -547,6 +868,7 @@ impl Coordinator {
                     ) {
                         true => continue 'turn,
                         false => {
+                            turn_error = Some(format!("{}: {}", err.code, err.message));
                             let _ = tx.send(TurnEvent::Error { error: err }).await;
                             break 'turn FinishReason::Other;
                         }
@@ -561,7 +883,10 @@ impl Coordinator {
             let mut reason: Option<FinishReason> = None;
             let mut cancelled = false;
             let mut request_input: Option<u32> = None;
+            let mut request_billable_input: u64 = 0;
+            let mut request_output: u32 = 0;
             let mut cli_results: Vec<(String, String, bool)> = Vec::new();
+            let mut authority_tick = tokio::time::interval(std::time::Duration::from_millis(250));
 
             loop {
                 let next = tokio::select! {
@@ -569,6 +894,11 @@ impl Coordinator {
                     _ = cancel.cancelled() => {
                         cancelled = true;
                         None
+                    }
+                    _ = authority_tick.tick(), if crate::core::assist::authority::external(&conversation_id) => {
+                        if crate::core::assist::authority::check_agent(&conversation_id,&authority_agent).is_err() {
+                            cancel.cancel();cancelled=true;None
+                        } else {continue;}
                     }
                     ev = stream.next() => ev,
                 };
@@ -624,12 +954,16 @@ impl Coordinator {
                     // Only the Coordinator writes receipts.
                     TurnEvent::PruneReceipt { .. } => {}
                     TurnEvent::Usage { usage } => {
+                        // `input_tokens` already holds the cache (one
+                        // Usage convention); caps count the weighted input.
                         request_input = Some(
-                            request_input.unwrap_or(0)
-                                + usage.input_tokens
-                                + usage.cache_read_tokens
-                                + usage.cache_write_tokens,
+                            request_input
+                                .unwrap_or(0)
+                                .saturating_add(usage.input_tokens),
                         );
+                        request_billable_input =
+                            request_billable_input.saturating_add(usage.billable_input_tokens());
+                        request_output += usage.output_tokens;
                         total.input_tokens += usage.input_tokens;
                         total.output_tokens += usage.output_tokens;
                         total.cache_read_tokens += usage.cache_read_tokens;
@@ -652,6 +986,16 @@ impl Coordinator {
                 }
             }
 
+            // External budget: settle the conservative debit with the usage
+            // the provider reported for this request (unknown keeps the bound).
+            if let (Some(debit), Some(_)) = (external_debit.take(), request_input) {
+                let used = request_billable_input + request_output as u64;
+                let _ = if matches!(agent.runtime, super::agent::RuntimeKind::Native) {
+                    crate::core::assist::authority::settle_model(&debit, used)
+                } else {
+                    crate::core::assist::authority::settle_model_actual(&debit, used)
+                };
+            }
             if let Some((omitted, before, after)) = receipt {
                 let _ = tx
                     .send(TurnEvent::PruneReceipt {
@@ -660,6 +1004,8 @@ impl Coordinator {
                         est_tokens_before: before,
                         est_tokens_after: after,
                         input_tokens: request_input,
+                        billable_input_tokens: request_input
+                            .map(|_| request_billable_input.min(u32::MAX as u64) as u32),
                     })
                     .await;
             }
@@ -672,6 +1018,7 @@ impl Coordinator {
                 if self.maybe_reroute(&agent, &err, &key, &mut tried, &mut reroutes, max_reroutes) {
                     continue 'turn;
                 }
+                turn_error = Some(format!("{}: {}", err.code, err.message));
                 let _ = tx.send(TurnEvent::Error { error: err }).await;
                 break 'turn FinishReason::Other;
             }
@@ -691,6 +1038,23 @@ impl Coordinator {
                     .iter()
                     .filter_map(|c| cli_results.iter().find(|r| r.0 == c.id).map(|r| (c, r)))
                     .collect();
+                if let Some(reg) = &runs {
+                    for c in &calls {
+                        let result = cli_results.iter().find(|r| r.0 == c.id);
+                        let _ = reg.add_event(
+                            &request_id,
+                            "tool_call",
+                            Some(&c.id),
+                            serde_json::json!({
+                                "name": c.name,
+                                "input": c.input(),
+                                "ok": result.map(|r| !r.2),
+                                "output": result.map(|r| clip_cli_result(&r.1).chars().take(1500).collect::<String>()),
+                                "runtime": "own",
+                            }),
+                        );
+                    }
+                }
                 if !pairs.is_empty() {
                     let asked = Message {
                         role: Role::Assistant,
@@ -722,6 +1086,9 @@ impl Coordinator {
                 calls.clear();
             }
 
+            if !text.trim().is_empty() {
+                last_text = text.clone();
+            }
             if calls.is_empty() {
                 if !text.is_empty() {
                     let msg = Message::text(Role::Assistant, text);
@@ -771,24 +1138,64 @@ impl Coordinator {
                 if cancel.is_cancelled() {
                     break 'turn FinishReason::Cancelled;
                 }
-                let outcome = super::code_tools::scope(
+                let tool_future = super::code_tools::scope(
                     &conversation_id,
                     &agent.id,
                     &request_id,
-                    self.broker.call(
-                        &agent.id,
-                        &agent.tools,
-                        &request_id,
-                        &c.id,
-                        &c.name,
-                        c.input(),
+                    crate::core::assist::runs::scope(
+                        runs.clone(),
+                        self.broker.call(
+                            &agent.id,
+                            &agent.tools,
+                            &request_id,
+                            &c.id,
+                            &c.name,
+                            c.input(),
+                        ),
                     ),
-                )
-                .await;
+                );
+                tokio::pin!(tool_future);
+                let mut tool_tick = tokio::time::interval(std::time::Duration::from_millis(250));
+                let outcome = loop {
+                    tokio::select! {
+                        biased;
+                        _=cancel.cancelled()=>{self.broker.cancel_request(&request_id);break 'turn FinishReason::Cancelled;},
+                        _=tool_tick.tick(),if crate::core::assist::authority::external(&conversation_id)=>{
+                            if crate::core::assist::authority::check_agent(&conversation_id,&authority_agent).is_err(){cancel.cancel();self.broker.cancel_request(&request_id);break 'turn FinishReason::Cancelled;}
+                        },
+                        result=&mut tool_future=>break result,
+                    }
+                };
                 let (content, is_error) = match outcome {
                     Ok(o) => (super::compress::tool_output(&c.name, &o.content), false),
-                    Err(e) => (format!("{}: {}", e.code, e.message), true),
+                    // No path inside the app's profile reaches the model
+                    // (the turn's own workspace stays readable).
+                    Err(e) => (
+                        format!(
+                            "{}: {}",
+                            e.code,
+                            crate::core::paths::redact_private_paths(
+                                &e.message,
+                                super::code_tools::workspace_of(&conversation_id).as_deref()
+                            )
+                        ),
+                        true,
+                    ),
                 };
+                if let Some(reg) = &runs {
+                    let _ = reg.add_event(
+                        &request_id,
+                        "tool_call",
+                        Some(&c.id),
+                        serde_json::json!({
+                            "name": c.name,
+                            "input": c.input(),
+                            "ok": !is_error,
+                            "output": content.chars().take(1500).collect::<String>(),
+                            "runtime": "broker",
+                        }),
+                    );
+                }
                 let msg = Message {
                     role: Role::Tool,
                     parts: vec![ContentPart::ToolResult {
@@ -805,7 +1212,7 @@ impl Coordinator {
             // A long turn is many requests. The judge looks at what is already
             // old inside this same turn, in its own task; whatever it freezes
             // is applied to the next request above. Never awaited here.
-            if pruner.is_active() {
+            if !crate::core::assist::authority::external(&conversation_id) && pruner.is_active() {
                 let (pruner, id, snapshot) =
                     (pruner.clone(), conversation_id.clone(), history.clone());
                 tokio::spawn(async move {
@@ -822,13 +1229,77 @@ impl Coordinator {
                 })
                 .await;
         }
+        // Close the record before the stream says `Finished`: whoever reads
+        // the run after the turn sees its final state.
+        let used_anything =
+            total.input_tokens + total.output_tokens > 0 || total.cost_usd.is_some();
+        if matches!(finish, FinishReason::Cancelled) && !used_anything {
+            // Cancelled before the provider billed anything: free the room.
+            self.budget.release(&reservation);
+        } else {
+            self.budget.settle(
+                &reservation,
+                total.cost_usd,
+                total.billable_input_tokens().min(u32::MAX as u64) as u32,
+                total.output_tokens,
+            );
+        }
+        if let Some(p) = &projection {
+            if let Some(reg) = &runs {
+                crate::core::assist::projection::revoke(reg.db(), &p.grant_id);
+            }
+        }
+        if matches!(finish, FinishReason::Cancelled) {
+            // Questions of this turn resolve as cancelled, never later.
+            self.broker.cancel_request(&request_id);
+        }
+        if let Some(ws) = super::code_tools::workspace_of(&conversation_id)
+            .filter(|_| !crate::core::assist::authority::external(&conversation_id))
+        {
+            if let Err(e) = super::snapshot::after_turn(&ws, &conversation_id, &request_id).await {
+                tracing::debug!("[snapshot] after turn: {e}");
+            }
+        }
+        if let Some(reg) = &runs {
+            use crate::core::assist::runs::RunState;
+            let (state, error) = match finish {
+                FinishReason::Cancelled => (RunState::Cancelled, None),
+                FinishReason::Stop | FinishReason::Length if turn_error.is_none() => {
+                    (RunState::Completed, None)
+                }
+                _ => (
+                    RunState::Failed,
+                    Some(
+                        turn_error
+                            .clone()
+                            .unwrap_or_else(|| "the turn ended abnormally".into()),
+                    ),
+                ),
+            };
+            let outcome = reg.set_outcome(
+                &request_id,
+                (!last_text.is_empty()).then_some(last_text.as_str()),
+                total.input_tokens as u64,
+                total.output_tokens as u64,
+                total.cost_usd,
+            );
+            // A run a person already moved (cancelled from elsewhere) stays.
+            let terminal = reg.transition(&request_id, state, error.as_deref());
+            if crate::core::assist::authority::external(&conversation_id)
+                && (outcome.is_err() || terminal.is_err())
+            {
+                let _ = tx
+                    .send(TurnEvent::Error {
+                        error: LlmError::new(
+                            "RUN_OUTCOME_UNKNOWN",
+                            "The final run receipt could not be persisted",
+                        ),
+                    })
+                    .await;
+                return;
+            }
+        }
         let _ = tx.send(TurnEvent::Finished { reason: finish }).await;
-        self.budget.record(
-            &agent.id,
-            total.cost_usd,
-            total.input_tokens,
-            total.output_tokens,
-        );
         self.bus.emit(BusEvent::TurnEnded {
             agent: agent.id.clone(),
             usage: total,
@@ -839,7 +1310,7 @@ impl Coordinator {
         // its own task so nothing in the SSE path ever awaits it. The verdicts
         // land in the sticky store and take effect on the next turn.
         let pruner = self.pruner();
-        if pruner.is_active() {
+        if !crate::core::assist::authority::external(&conversation_id) && pruner.is_active() {
             let id = conversation_id;
             tokio::spawn(async move {
                 pruner.judge_turn(&id, &history).await;
@@ -1194,5 +1665,106 @@ mod prune_hook_tests {
             })
         ));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// Budget billing of a turn: the cache is weighted, never counted twice.
+#[cfg(test)]
+mod billing_tests {
+    use std::sync::Mutex;
+
+    use async_trait::async_trait;
+
+    use super::*;
+    use crate::core::llm::agent::{AgentRole, Budget, RuntimeKind};
+    use crate::core::llm::broker::ToolExecutor;
+    use crate::core::llm::providers::fake::FakeProvider;
+    use crate::core::llm::providers::Provider;
+    use crate::core::llm::types::{ProviderId, ToolSpec, Usage};
+    use crate::core::omni::bus::Bus;
+
+    /// Answers with the usage a native Anthropic request reports: whole
+    /// input 50k, 40k of it read from the cache.
+    struct CachedRuntime {
+        calls: Mutex<u32>,
+    }
+
+    #[async_trait]
+    impl AgentRuntime for CachedRuntime {
+        async fn turn(
+            &self,
+            _agent: &AgentDef,
+            req: TurnRequest,
+        ) -> Result<BoxStream<'static, TurnEvent>, LlmError> {
+            *self.calls.lock().unwrap() += 1;
+            FakeProvider::new(vec![
+                TurnEvent::TextDelta { text: "ok".into() },
+                TurnEvent::Usage {
+                    usage: Usage {
+                        input_tokens: 50_000,
+                        cache_read_tokens: 40_000,
+                        output_tokens: 100,
+                        ..Usage::default()
+                    },
+                },
+                TurnEvent::Finished {
+                    reason: FinishReason::Stop,
+                },
+            ])
+            .turn(req)
+            .await
+        }
+    }
+
+    struct NoTools;
+
+    #[async_trait]
+    impl ToolExecutor for NoTools {
+        async fn execute(&self, name: &str, _input: Value) -> Result<String, LlmError> {
+            Ok(name.to_string())
+        }
+    }
+
+    #[tokio::test]
+    async fn a_cached_native_turn_bills_weighted_tokens_not_the_raw_sum() {
+        let bus = Arc::new(Bus::new());
+        let budget = Arc::new(BudgetStore::memory());
+        let coordinator = Arc::new(Coordinator::new(
+            Arc::new(CachedRuntime {
+                calls: Mutex::new(0),
+            }) as Arc<dyn AgentRuntime>,
+            Arc::new(ToolBroker::new(
+                Vec::<ToolSpec>::new(),
+                Arc::new(NoTools),
+                bus.clone(),
+            )),
+            budget.clone(),
+            bus,
+        ));
+        let agent = AgentDef {
+            id: "billing-worker".into(),
+            name: "Worker".into(),
+            role: AgentRole::Worker,
+            system_prompt: "you are a test".into(),
+            model: ModelPolicy::Fixed {
+                model: ModelRef {
+                    provider: ProviderId::new("fake"),
+                    model: "m".into(),
+                },
+            },
+            tools: vec![],
+            skills: vec![],
+            budget: Budget::default(),
+            runtime: RuntimeKind::Native,
+            skin: None,
+        };
+        let conv = format!("billing-{}", uuid::Uuid::new_v4());
+        let events: Vec<TurnEvent> = coordinator
+            .run_turn(&conv, &agent, "oi", CancellationToken::new())
+            .collect()
+            .await;
+        assert!(events.iter().any(|e| matches!(e, TurnEvent::Usage { .. })));
+        // 10k fresh + 4k (40k read at 0.1x) + 100 output.
+        assert_eq!(budget.spent_today("billing-worker").tokens(), 14_100);
     }
 }

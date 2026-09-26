@@ -172,7 +172,7 @@ import { t } from "$lib/i18n";
     }
     if (nb.page_count > 0) {
       const ok = window.confirm(
-        $t("study.notes.files.delete_confirm", { name: nb.name, n: nb.page_count }),
+        $t("study.notes.files.delete_confirm", { name: nb.name, count: nb.page_count }),
       );
       if (!ok) return;
       const r = await notebooksStore.delete(notebookId, true);

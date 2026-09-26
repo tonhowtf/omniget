@@ -27,7 +27,7 @@
     type SlotDef,
   } from "$lib/world/assets";
   import { buildHud, capAgents, gameClockLabel, type AgentFrame } from "$lib/world/hud";
-  import { attachInput, type Pickable } from "$lib/world/input";
+  import { attachInput, followCanvas, type Pickable } from "$lib/world/input";
   import { sample } from "$lib/world/interp";
   import { STATE_ERR, WorldState } from "$lib/world/state";
   import { VISITOR_ENT_BASE, type AgentRow } from "$lib/world/activity";
@@ -148,6 +148,23 @@
   let tier = $state<Tier>(1);
   let fps = $state(0);
   let stats = $state<FrameStats>({ cpuMs: 0, drawCalls: 0, sprites: 0, chunksBaked: 0 });
+  // Engine counters are for diagnosing, not for living in the house: off
+  // until asked for, remembered on this device.
+  let showDiag = $state((() => {
+    try {
+      return localStorage.getItem("omniget.world.diagnostics") === "1";
+    } catch {
+      return false;
+    }
+  })());
+  function toggleDiag(): void {
+    showDiag = !showDiag;
+    try {
+      localStorage.setItem("omniget.world.diagnostics", showDiag ? "1" : "0");
+    } catch {
+      // storage unavailable
+    }
+  }
   let paused = $state(false);
   let hovered = $state<number | null>(null);
   let selected = $state<number | null>(null);
@@ -374,8 +391,10 @@
       },
       onTierChanged: (next) => (tier = next),
     });
-    detachInput = attachInput(
-      canvas!,
+    // The renderer may swap the canvas on wake (lost GL context): input and
+    // the probes follow it to the new element.
+    detachInput = followCanvas(canvas!, (el) => attachInput(
+      el,
       { camera, pickables: () => pickables, dpr: () => (canvas!.width || 1) / (canvas!.getBoundingClientRect().width || 1) },
       {
         onTile: (tile) => {
@@ -403,7 +422,7 @@
         onHover: (id) => (hovered = id),
         onEscape: () => (picker = null),
       },
-    );
+    ), (next) => (canvas = next));
     loop.start();
   }
 
@@ -672,7 +691,7 @@
   ></canvas>
 
   {#if status === "ready"}
-    {#if !previewMap}
+    {#if !previewMap && showDiag}
     <div class="overlay" aria-live="off">
       <span>{$t("world.stats.tier")}: {tier}</span>
       <span>{$t("world.stats.fps")}: {fps.toFixed(0)}</span>
@@ -687,6 +706,9 @@
 
     <div class="actions">
       <button class="btn" onclick={recentre}>{$t("world.actions.recentre")}</button>
+      {#if !previewMap}
+        <button class="btn" aria-pressed={showDiag} onclick={toggleDiag}>{$t("world.city.diagnostics")}</button>
+      {/if}
       {#if !previewMap}
         <button class="btn" onclick={() => (paused ? wakeUp() : goToSleep())}>
           {paused ? $t("world.actions.resume") : $t("world.actions.pause")}

@@ -52,6 +52,9 @@ pub fn parse_targets(stdout: &str) -> Vec<ImpersonateTarget> {
         .filter(|l| !l.starts_with('[')) // linha de [info]
         .filter(|l| !l.starts_with('-')) // separador
         .filter(|l| !l.starts_with("Client")) // cabecalho
+        // Build sem curl_cffi lista os clientes com "(unavailable)": nao sao
+        // alvos, e passar `--impersonate` a esse build so gera outro erro.
+        .filter(|l| !l.contains("(unavailable)"))
         .filter_map(|line| {
             let mut cols = line.split_whitespace();
             let client = cols.next()?.to_string();
@@ -59,6 +62,51 @@ pub fn parse_targets(stdout: &str) -> Vec<ImpersonateTarget> {
             Some(ImpersonateTarget { client, os })
         })
         .collect()
+}
+
+/// Qual yt-dlp gerido usar, dado o que existe em disco.
+///
+/// Ordem medida em 26/09 (macOS, `--version`): onedir 0,34-0,46 s; zipapp no
+/// Python do sistema 0,6 s; onefile 13-25 s (o PyInstaller desempacota 72 MB e
+/// o Gatekeeper varre tudo a cada processo). O zipapp so vale se o Python dele
+/// tiver curl_cffi: sem isso Instagram perde o caminho graphql e Bilibili,
+/// Vimeo, TikTok e Reddit caem em 412/401. Um pyz sem impersonate so e usado
+/// quando nao ha outro binario gerido.
+pub fn pick_ytdlp(
+    onedir: Option<std::path::PathBuf>,
+    zipapp: Option<std::path::PathBuf>,
+    onefile: Option<std::path::PathBuf>,
+    zipapp_impersonates: bool,
+) -> Option<std::path::PathBuf> {
+    if onedir.is_some() {
+        return onedir;
+    }
+    match (zipapp, onefile) {
+        (Some(zip), Some(_)) if zipapp_impersonates => Some(zip),
+        (_, Some(onefile)) => Some(onefile),
+        (zip, None) => zip,
+    }
+}
+
+/// Tira o `--user-agent` padrao do app quando o comando usa `--impersonate`.
+///
+/// O yt-dlp manda o `--user-agent` como header fixo e so remove os headers
+/// iguais aos seus padroes ao imitar um navegador (networking/impersonate.py
+/// 137-143): o nosso Chrome/131 de Windows ia junto com o TLS do Chrome
+/// 146/macOS, uma incoerencia detectavel. UA vindo da extensao ou da
+/// configuracao fica: e escolha de quem configurou.
+pub fn strip_default_user_agent(args: &mut Vec<String>, default_ua: &str) {
+    if !args.iter().any(|a| a == "--impersonate") {
+        return;
+    }
+    let mut i = 0;
+    while i + 1 < args.len() {
+        if args[i] == "--user-agent" && args[i + 1] == default_ua {
+            args.drain(i..i + 2);
+        } else {
+            i += 1;
+        }
+    }
 }
 
 /// O stderr indica recusa por fingerprint de TLS?
@@ -94,6 +142,7 @@ pub fn preferred_target(targets: &[ImpersonateTarget]) -> Option<&ImpersonateTar
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     /// Saida real do yt-dlp 2026.07.23 empacotado pelo app, com a ordem
     /// embaralhada de proposito: com o Chrome de desktop em primeiro, o teste
@@ -171,6 +220,109 @@ Tor-14.5        Macos-14     curl_cffi\n";
             os: None,
         };
         assert_eq!(sem_os.as_flag_value(), "Chrome");
+    }
+
+    /// Saida real do zipapp `yt-dlp.pyz` no python3.14 do Homebrew (sem
+    /// curl_cffi), 26/09. As linhas "(unavailable)" nao sao alvos: contar como
+    /// alvo fazia o retry passar `--impersonate Chrome` a um build que recusa.
+    #[test]
+    fn linhas_unavailable_do_pyz_sem_curl_cffi_nao_sao_alvos() {
+        let pyz = "[info] Available impersonate targets\n\
+Client    OS   Source\n\
+--------------------------------------------\n\
+Tor       -    curl_cffi>=0.11 (unavailable)\n\
+Edge      -    curl_cffi (unavailable)\n\
+Firefox   -    curl_cffi>=0.10 (unavailable)\n\
+Safari    -    curl_cffi (unavailable)\n\
+Chrome    -    curl_cffi (unavailable)\n";
+        assert!(parse_targets(pyz).is_empty(), "{:?}", parse_targets(pyz));
+    }
+
+    #[test]
+    fn onedir_ganha_de_tudo() {
+        let pick = pick_ytdlp(
+            Some(PathBuf::from("/b/yt-dlp_onedir/yt-dlp_macos")),
+            Some(PathBuf::from("/b/yt-dlp.pyz")),
+            Some(PathBuf::from("/b/yt-dlp")),
+            true,
+        );
+        assert_eq!(pick, Some(PathBuf::from("/b/yt-dlp_onedir/yt-dlp_macos")));
+    }
+
+    #[test]
+    fn pyz_sem_curl_cffi_perde_para_binario_com_impersonate() {
+        let pick = pick_ytdlp(
+            None,
+            Some(PathBuf::from("/b/yt-dlp.pyz")),
+            Some(PathBuf::from("/b/yt-dlp")),
+            false,
+        );
+        assert_eq!(pick, Some(PathBuf::from("/b/yt-dlp")));
+    }
+
+    #[test]
+    fn pyz_com_curl_cffi_ganha_do_onefile() {
+        let pick = pick_ytdlp(
+            None,
+            Some(PathBuf::from("/b/yt-dlp.pyz")),
+            Some(PathBuf::from("/b/yt-dlp")),
+            true,
+        );
+        assert_eq!(pick, Some(PathBuf::from("/b/yt-dlp.pyz")));
+    }
+
+    #[test]
+    fn pyz_sem_curl_cffi_so_quando_nao_ha_outro() {
+        assert_eq!(
+            pick_ytdlp(None, Some(PathBuf::from("/b/yt-dlp.pyz")), None, false),
+            Some(PathBuf::from("/b/yt-dlp.pyz"))
+        );
+        assert_eq!(pick_ytdlp(None, None, None, true), None);
+    }
+
+    #[test]
+    fn user_agent_padrao_sai_quando_ha_impersonate() {
+        let ua = "Mozilla/5.0 (Windows NT 10.0) Chrome/131.0.0.0";
+        let mut args: Vec<String> = [
+            "--no-warnings",
+            "--user-agent",
+            ua,
+            "--impersonate",
+            "Chrome-146:Macos-26",
+            "https://x",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        strip_default_user_agent(&mut args, ua);
+        assert!(
+            !args.iter().any(|a| a == "--user-agent" || a == ua),
+            "{args:?}"
+        );
+        assert_eq!(args.len(), 4);
+    }
+
+    #[test]
+    fn user_agent_fica_sem_impersonate_ou_quando_e_do_usuario() {
+        let ua = "Mozilla/5.0 (Windows NT 10.0) Chrome/131.0.0.0";
+        let mut sem: Vec<String> = ["--user-agent", ua, "https://x"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        strip_default_user_agent(&mut sem, ua);
+        assert_eq!(sem.len(), 3, "sem --impersonate o UA fica");
+        let mut do_usuario: Vec<String> = [
+            "--user-agent",
+            "MeuNavegador/1",
+            "--impersonate",
+            "Chrome",
+            "u",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        strip_default_user_agent(&mut do_usuario, ua);
+        assert_eq!(do_usuario.len(), 5, "UA da extensao/config nao e o padrao");
     }
 
     #[test]

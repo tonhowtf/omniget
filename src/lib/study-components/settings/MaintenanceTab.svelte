@@ -233,7 +233,7 @@
   <div class="modal-bg" role="dialog" aria-modal="true" aria-label={$t("study.notes.maintenance.import_aria")}>
     <button type="button" class="bg-btn" aria-label="Fechar" onclick={cancelImport}></button>
     <div class="modal" role="document">
-      <h3>{$t("study.settings.maintenance.import_confirm", { n: importPreview.courses.length })}</h3>
+      <h3>{$t("study.settings.maintenance.import_confirm", { count: importPreview.courses.length })}</h3>
       <p class="hint">Backup exportado em {fmtExportedAt(importPreview.exported_at)}</p>
 
       <fieldset class="modes">

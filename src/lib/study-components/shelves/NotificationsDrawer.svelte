@@ -39,9 +39,9 @@
   function fmtAgo(secs: number): string {
     const diff = Math.floor(Date.now() / 1000) - secs;
     if (diff < 60) return $t("notifications.time_now");
-    if (diff < 3600) return $t("notifications.time_min", { n: String(Math.floor(diff / 60)) });
-    if (diff < 86400) return $t("notifications.time_hour", { n: String(Math.floor(diff / 3600)) });
-    if (diff < 30 * 86400) return $t("notifications.time_day", { n: String(Math.floor(diff / 86400)) });
+    if (diff < 3600) return $t("notifications.time_min", { count: String(Math.floor(diff / 60)) });
+    if (diff < 86400) return $t("notifications.time_hour", { count: String(Math.floor(diff / 3600)) });
+    if (diff < 30 * 86400) return $t("notifications.time_day", { count: String(Math.floor(diff / 86400)) });
     return new Date(secs * 1000).toLocaleDateString();
   }
 

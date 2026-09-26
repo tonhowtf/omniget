@@ -9,6 +9,12 @@
   import { effectiveModelLabel } from "$lib/llm/types";
   import { getActiveConversation, getActiveTurn } from "$lib/stores/llm-store.svelte";
   import PermissionRules from "./PermissionRules.svelte";
+  import { invoke } from "@tauri-apps/api/core";
+
+  // Tools that need a project folder: absent in a personal conversation
+  // (the backend removes them from the effective agent; this only says so).
+  const PROJECT_TOOLS = new Set(["fs_read", "fs_list", "fs_glob", "fs_grep", "todo_write", "fs_edit", "fs_write", "fs_apply_patch", "shell_exec", "kb_search", "kb_write"]);
+  let personal = $state(false);
 
   let { agent = null }: { agent?: AgentDef | null } = $props();
 
@@ -33,6 +39,14 @@
   }
 
   let usage = $derived(turn?.usage ?? null);
+
+  $effect(() => {
+    const id = conversation?.id;
+    if (!id) { personal = false; return; }
+    invoke<{ kind?: string } | null>("assist_conversation_context", { conversationId: id })
+      .then((ctx) => { if (conversation?.id === id) personal = ctx?.kind === "projectless"; })
+      .catch(() => { personal = false; });
+  });
 </script>
 
 <aside class="inspector" aria-label={$t("llm.inspector.title")}>
@@ -51,6 +65,9 @@
           <li>
             <span class="mono">{grantName(grant)}</span>
             <span class="tag">{$t(`llm.inspector.grant_${grant.mode}`)}</span>
+            {#if personal && grant.source === "internal" && PROJECT_TOOLS.has(grant.name)}
+              <span class="tag off">{$t("assist.conversation.tool_needs_project")}</span>
+            {/if}
           </li>
         {/each}
       </ul>

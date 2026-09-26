@@ -1,9 +1,10 @@
 <script lang="ts">
   /**
-   * Sidebar icon tile in the macOS System Settings idiom: a small rounded
-   * square with a colour of its own and a chunky white glyph (Phosphor Fill,
-   * MIT, shipped in static/icons). Plugins that provide their own SVG path
-   * still get a tile; the path is drawn white inside it.
+   * Sidebar icon. Core sections use the Loop sticker art in
+   * static/icons/menu (32/64/128 px WebP, see assets/icons/menu for the
+   * masters); everything else — plugins, ids without art — falls back to the
+   * macOS System Settings tile: a rounded square with a colour of its own and
+   * a chunky white glyph (Phosphor Fill, MIT, shipped in static/icons).
    */
   let {
     icon,
@@ -21,7 +22,7 @@
     llm: { glyph: "sparkle", from: "#C77DFF", to: "#7B3FE4" },
     help: { glyph: "book-open-text", from: "var(--accent)", to: "var(--accent)" },
     world: { glyph: "globe-hemisphere-west", from: "#67D27E", to: "#2F9E52" },
-    marketplace: { glyph: "storefront", from: "#6E8CFF", to: "#3D5BF0" },
+    superpowers: { glyph: "lightning", from: "#F06CB8", to: "#C42F86" },
     settings: { glyph: "gear-six", from: "#A3A3A8", to: "#6F6F75" },
     about: { glyph: "info", from: "#5AA9FF", to: "#1E6FE8" },
     league: { glyph: "sword", from: "#E8B84A", to: "#B8860B" },
@@ -37,10 +38,38 @@
     plugin: { glyph: "puzzle-piece", from: "#8E8E93", to: "#5C5C60" },
   };
 
+  const ART = new Set([
+    "home", "downloads", "llm", "help", "world", "tools",
+    "superpowers", "settings", "about", "league",
+  ]);
+
   let tile = $derived(TILES[icon] ?? TILES.plugin);
+  let art = $derived(!iconSvg && ART.has(icon));
+  // 1x/2x pair picked from the rendered size: the 32 px file covers the rail
+  // and the list at 1x, 64/128 cover retina and the Superpowers cards.
+  let artSrc = $derived(size > 32 ? `/icons/menu/${icon}-64.webp` : `/icons/menu/${icon}-32.webp`);
+  let artSrcset = $derived(
+    size > 32
+      ? `/icons/menu/${icon}-64.webp 1x, /icons/menu/${icon}-128.webp 2x`
+      : `/icons/menu/${icon}-32.webp 1x, /icons/menu/${icon}-64.webp 2x`,
+  );
   let glyphSize = $derived(Math.round(size * 0.64));
 </script>
 
+{#if art}
+<img
+  class="nav-icon nav-art"
+  class:nav-icon-active={active}
+  src={artSrc}
+  srcset={artSrcset}
+  width={size}
+  height={size}
+  alt=""
+  aria-hidden="true"
+  draggable="false"
+  decoding="async"
+/>
+{:else}
 <span
   class="nav-icon nav-tile"
   class:nav-icon-active={active}
@@ -59,8 +88,27 @@
     <span class="nav-glyph" style:--glyph="url(/icons/{tile.glyph}.svg)" style:width="{glyphSize}px" style:height="{glyphSize}px"></span>
   {/if}
 </span>
+{/if}
 
 <style>
+  .nav-art {
+    display: block;
+    flex-shrink: 0;
+    object-fit: contain;
+    user-select: none;
+    -webkit-user-drag: none;
+    transition: transform var(--duration-fast, 120ms) var(--ease-out, ease-out);
+  }
+
+  :global(.mac-nav-item:hover) .nav-art:not(.nav-icon-active) {
+    transform: scale(1.06) rotate(-3deg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .nav-art { transition: none; }
+    :global(.mac-nav-item:hover) .nav-art:not(.nav-icon-active) { transform: none; }
+  }
+
   .nav-tile {
     display: inline-flex;
     align-items: center;
