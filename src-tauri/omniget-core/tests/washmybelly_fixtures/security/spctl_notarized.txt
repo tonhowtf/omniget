@@ -1,0 +1,3 @@
+/Applications/OrbStack.app: accepted
+source=Notarized Developer ID
+origin=Developer ID Application: Orbital Labs, LLC (U.S.) (HUAQ24HBR6)

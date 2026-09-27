@@ -299,7 +299,7 @@ mod live {
     const WOW_RUN_ONCE: &str = r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce";
 
     fn query(sys: &dyn Sys, key: &str) -> Vec<RegValue> {
-        match sys.run(&argv!["reg", "query", key]) {
+        match sys.run(&argv_array!["reg", "query", key]) {
             Ok(o) if o.ok => reg_query(&o.stdout),
             _ => Vec::new(),
         }
@@ -452,7 +452,9 @@ mod live {
         let me = std::env::var("USERNAME")
             .unwrap_or_default()
             .to_ascii_lowercase();
-        match sys.run(&argv!["schtasks", "/query", "/fo", "csv", "/v", "/nh"]) {
+        match sys.run(&argv_array![
+            "schtasks", "/query", "/fo", "csv", "/v", "/nh"
+        ]) {
             Ok(o) if o.ok => {
                 for t in parse_schtasks(&o.stdout) {
                     let run_as = t.run_as.to_ascii_lowercase();
@@ -505,13 +507,13 @@ mod live {
         ]
         .iter()
         .filter_map(|v| {
-            sys.run(&argv!["reg", "query", svc_key, "/s", "/v", *v])
+            sys.run(&argv_array!["reg", "query", svc_key, "/s", "/v", *v])
                 .ok()
                 .map(|o| o.stdout)
         })
         .collect();
         let running = sys
-            .run(&argv![
+            .run(&argv_array![
                 "sc.exe", "query", "type=", "service", "state=", "all"
             ])
             .map(|o| parse_sc_query(&o.stdout))
@@ -595,7 +597,7 @@ mod live {
             return;
         }
         let Ok(o) = sys.run_env(
-            &argv![
+            &argv_array![
                 "powershell",
                 "-NoProfile",
                 "-NonInteractive",
@@ -642,10 +644,10 @@ mod tests {
         assert_eq!(on(""), None);
         let values = crate::core::washmybelly::parse::reg_query(&fx("reg_startup_approved.txt"));
         let m = approved_map(&values);
-        assert_eq!(m["onedrive"], true);
-        assert_eq!(m["discord"], false);
-        assert_eq!(m["steam"], true);
-        assert_eq!(m["spotify"], false);
+        assert!(m["onedrive"]);
+        assert!(!m["discord"]);
+        assert!(m["steam"]);
+        assert!(!m["spotify"]);
         let run = crate::core::washmybelly::parse::reg_query(&fx("reg_run_hkcu.txt"));
         assert_eq!(run.len(), 4);
         assert_eq!(
@@ -687,7 +689,7 @@ mod tests {
     fn sc_query_and_qc() {
         let m = parse_sc_query(&fx("sc_query.txt"));
         assert_eq!(m["Appinfo"], ("Application Information".into(), true));
-        assert_eq!(m["AdobeARMservice"].1, false);
+        assert!(!m["AdobeARMservice"].1);
         assert_eq!(
             super::super::windows_start_mode(&fx("sc_qc.txt")).as_deref(),
             Some("delayed")

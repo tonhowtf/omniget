@@ -591,6 +591,7 @@ impl Jobs {
     /// was already running when the app died.
     async fn run_job(self: &Arc<Self>, id: &str, resume_note: Option<String>) -> Option<Job> {
         let _slot = self.slots.acquire().await.ok()?;
+        let _power_hold = omniget_core::core::washmybelly::power::auto_hold_begin("agent job");
         let mut job = self.job(id)?;
         if job.state == "cancelled" {
             return Some(job);
@@ -975,6 +976,7 @@ impl Jobs {
         let Some(mut l) = self.loop_get(&id) else {
             return;
         };
+        let _power_hold = omniget_core::core::washmybelly::power::auto_hold_begin("agent loop");
         let deadline = l.max_minutes.map(|m| l.created_ms + u64::from(m) * 60_000);
         // Already green? Then there is nothing to do.
         if l.rounds_done == 0 {

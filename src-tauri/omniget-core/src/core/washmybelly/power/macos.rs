@@ -12,7 +12,10 @@ fn pmset(args: &[&str]) -> Result<String, String> {
         .output()
         .map_err(|e| format!("pmset: {e}"))?;
     if !out.status.success() {
-        return Err(format!("pmset: {}", String::from_utf8_lossy(&out.stderr).trim()));
+        return Err(format!(
+            "pmset: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }

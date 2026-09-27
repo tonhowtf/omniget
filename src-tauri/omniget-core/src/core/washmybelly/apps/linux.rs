@@ -111,15 +111,12 @@ pub fn orphan_target(e: &DesktopEntry, exists: &dyn Fn(&Path) -> bool) -> Option
     if e.kind != "Application" {
         return None;
     }
-    for p in [
+    [
         e.try_exec.clone(),
         exec_program(&e.exec).unwrap_or_default(),
-    ] {
-        if p.starts_with('/') && !exists(Path::new(&p)) {
-            return Some(p);
-        }
-    }
-    None
+    ]
+    .into_iter()
+    .find(|p| p.starts_with('/') && !exists(Path::new(p)))
 }
 
 fn desktop_files(dir: &Path) -> Vec<(PathBuf, DesktopEntry)> {
@@ -795,11 +792,11 @@ struct Built {
     preview: Option<RemovePreview>,
 }
 
-fn build(
-    app: &App,
-    home: &Path,
-    preview: &dyn Fn(&str, &str, &[String]) -> Result<RemovePreview, String>,
-) -> Built {
+/// Asks a package manager what removing a package would take:
+/// (manager, installation, names).
+type PreviewFn<'a> = dyn Fn(&str, &str, &[String]) -> Result<RemovePreview, String> + 'a;
+
+fn build(app: &App, home: &Path, preview: &PreviewFn<'_>) -> Built {
     let mut b = Built {
         ticked: Vec::new(),
         unticked: Vec::new(),

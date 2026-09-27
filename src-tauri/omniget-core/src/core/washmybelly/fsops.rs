@@ -126,7 +126,11 @@ pub fn fingerprint(path: &Path) -> Result<Fingerprint, String> {
     let m = std::fs::symlink_metadata(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let (dev, ino) = dev_ino(&m);
     let is_dir = m.is_dir() && !is_link(&m);
-    let size = if is_dir { measure(path).0 } else { allocated(&m) };
+    let size = if is_dir {
+        measure(path).0
+    } else {
+        allocated(&m)
+    };
     Ok(Fingerprint {
         dev,
         ino,
@@ -252,7 +256,11 @@ pub fn expand_vars(pattern: &str, lookup: &dyn Fn(&str) -> Option<String>) -> Op
         } else if c == b'%' {
             if let Some(end) = rest[i + 1..].find('%') {
                 let name = &rest[i + 1..i + 1 + end];
-                if !name.is_empty() && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'(' || b == b')') {
+                if !name.is_empty()
+                    && name
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'(' || b == b')')
+                {
                     out.push_str(&lookup(name)?);
                     i += end + 2;
                     continue;

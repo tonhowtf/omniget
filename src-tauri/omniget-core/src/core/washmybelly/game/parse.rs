@@ -42,7 +42,11 @@ pub fn gamepolicyctl_status(text: &str) -> MacGameMode {
         let l = line.trim();
         let lower = l.to_ascii_lowercase();
         if let Some(rest) = lower.strip_prefix("game mode is ") {
-            let word = rest.trim_end_matches('.').split_whitespace().next().unwrap_or("");
+            let word = rest
+                .trim_end_matches('.')
+                .split_whitespace()
+                .next()
+                .unwrap_or("");
             on = match word {
                 "on" => Some(true),
                 "off" => Some(false),
@@ -50,7 +54,10 @@ pub fn gamepolicyctl_status(text: &str) -> MacGameMode {
             };
         } else if let Some(i) = lower.find("policy is currently ") {
             let rest = &lower[i + "policy is currently ".len()..];
-            let word = rest.split(|c: char| c == '.' || c.is_whitespace()).next().unwrap_or("");
+            let word = rest
+                .split(|c: char| c == '.' || c.is_whitespace())
+                .next()
+                .unwrap_or("");
             if matches!(word, "automatic" | "on" | "off") {
                 policy = Some(word.to_string());
             }
@@ -67,7 +74,10 @@ pub fn auto_game_mode(reg: &str) -> Option<bool> {
         .find(|v| v.name.eq_ignore_ascii_case("AutoGameModeEnabled"))
         .and_then(|v| {
             let d = v.data.trim();
-            let n = d.strip_prefix("0x").map(|h| u32::from_str_radix(h, 16).ok()).unwrap_or_else(|| d.parse().ok())?;
+            let n = d
+                .strip_prefix("0x")
+                .map(|h| u32::from_str_radix(h, 16).ok())
+                .unwrap_or_else(|| d.parse().ok())?;
             Some(n != 0)
         })
 }
@@ -84,7 +94,9 @@ pub fn install_command(managers: &[String]) -> Option<(String, Vec<String>)> {
             _ => return None,
         })
     };
-    managers.iter().find_map(|m| pick(m).map(|argv| (m.clone(), argv.into_iter().map(String::from).collect())))
+    managers
+        .iter()
+        .find_map(|m| pick(m).map(|argv| (m.clone(), argv.into_iter().map(String::from).collect())))
 }
 
 /// A GUID as `8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c` (lower case).
@@ -99,7 +111,13 @@ pub fn guid_string(d1: u32, d2: u16, d3: u16, d4: [u8; 8]) -> String {
 pub fn parse_guid(s: &str) -> Option<(u32, u16, u16, [u8; 8])> {
     let s = s.trim().trim_start_matches('{').trim_end_matches('}');
     let parts: Vec<&str> = s.split('-').collect();
-    if parts.len() != 5 || parts[0].len() != 8 || parts[1].len() != 4 || parts[2].len() != 4 || parts[3].len() != 4 || parts[4].len() != 12 {
+    if parts.len() != 5
+        || parts[0].len() != 8
+        || parts[1].len() != 4
+        || parts[2].len() != 4
+        || parts[3].len() != 4
+        || parts[4].len() != 12
+    {
         return None;
     }
     let d1 = u32::from_str_radix(parts[0], 16).ok()?;
@@ -121,10 +139,15 @@ pub const SCHEME_ULTIMATE: &str = "e9a42b02-d5df-448d-aa00-03f14749eb61";
 mod tests {
     use super::*;
 
-    const OFF: &str = include_str!("../../../../tests/washmybelly_fixtures/game/gamepolicyctl_status_off.txt");
-    const FORCED: &str = include_str!("../../../../tests/washmybelly_fixtures/game/gamepolicyctl_status_forced_on.txt");
-    const REG_OFF: &str = include_str!("../../../../tests/washmybelly_fixtures/game/reg_gamebar_off.txt");
-    const REG_ON: &str = include_str!("../../../../tests/washmybelly_fixtures/game/reg_gamebar_on.txt");
+    const OFF: &str =
+        include_str!("../../../../tests/washmybelly_fixtures/game/gamepolicyctl_status_off.txt");
+    const FORCED: &str = include_str!(
+        "../../../../tests/washmybelly_fixtures/game/gamepolicyctl_status_forced_on.txt"
+    );
+    const REG_OFF: &str =
+        include_str!("../../../../tests/washmybelly_fixtures/game/reg_gamebar_off.txt");
+    const REG_ON: &str =
+        include_str!("../../../../tests/washmybelly_fixtures/game/reg_gamebar_on.txt");
 
     #[test]
     fn mac_status_real_output_is_off_and_automatic() {
@@ -143,7 +166,13 @@ mod tests {
     #[test]
     fn mac_status_unknown_text_says_unknown() {
         let s = gamepolicyctl_status("something else\n");
-        assert_eq!(s, MacGameMode { on: None, policy: None });
+        assert_eq!(
+            s,
+            MacGameMode {
+                on: None,
+                policy: None
+            }
+        );
     }
 
     #[test]

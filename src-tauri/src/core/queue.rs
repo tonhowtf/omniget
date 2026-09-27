@@ -1422,6 +1422,9 @@ pub fn spawn_download(
     Box::pin(async move {
         let _timer_start = std::time::Instant::now();
         let slot = ActiveJobSlot::new(app.clone(), queue.clone(), item_id);
+        // washmybelly: hold the performance profile while it downloads
+        // (only when the setting is on; shared and released on drop).
+        let _power_hold = omniget_core::core::washmybelly::power::auto_hold_begin("download");
         let external_attempt = {
             let q = queue.lock().await;
             q.items

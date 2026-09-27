@@ -473,14 +473,20 @@ mod tests {
     #[test]
     fn tools_of_another_system_are_never_listed() {
         let names = names();
-        let win_only = table().iter().find(|e| e.name == "wmb_tweaks_list").unwrap();
+        let win_only = table()
+            .iter()
+            .find(|e| e.name == "wmb_tweaks_list")
+            .unwrap();
         assert_eq!(
             names.contains(&"wmb_tweaks_list"),
             cfg!(windows),
             "{:?}",
             win_only.platforms
         );
-        assert_eq!(names.contains(&"wmb_persistence_list"), cfg!(target_os = "macos"));
+        assert_eq!(
+            names.contains(&"wmb_persistence_list"),
+            cfg!(target_os = "macos")
+        );
     }
 
     #[tokio::test]

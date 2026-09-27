@@ -114,6 +114,7 @@ fn remove_item(
     })
 }
 
+#[allow(clippy::too_many_arguments)] // private builder with two callers; a struct would only rename the fields
 fn module_item(
     id: String,
     label: String,

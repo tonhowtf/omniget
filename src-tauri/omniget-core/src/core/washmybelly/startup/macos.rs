@@ -309,7 +309,7 @@ mod live {
 
     fn plist_info(sys: &dyn Sys, path: &Path) -> Option<PlistInfo> {
         let out = sys
-            .run(&argv![
+            .run(&argv_array![
                 "plutil",
                 "-convert",
                 "xml1",
@@ -326,7 +326,13 @@ mod live {
         if !program.starts_with('/') {
             return Signature::default();
         }
-        match sys.run(&argv!["codesign", "-dv", "--verbose=2", "--", program]) {
+        match sys.run(&argv_array![
+            "codesign",
+            "-dv",
+            "--verbose=2",
+            "--",
+            program
+        ]) {
             Ok(o) => parse_codesign(&format!("{}{}", o.stderr, o.stdout)),
             Err(_) => Signature::default(),
         }
@@ -434,16 +440,20 @@ mod live {
         let mut notes = Vec::new();
         let user_domain = format!("gui/{}", env.uid);
         let disabled_user = sys
-            .run(&argv!["launchctl", "print-disabled", user_domain.clone()])
+            .run(&argv_array![
+                "launchctl",
+                "print-disabled",
+                user_domain.clone()
+            ])
             .map(|o| print_disabled(&o.stdout))
             .unwrap_or_default();
         let disabled_system = sys
-            .run(&argv!["launchctl", "print-disabled", "system"])
+            .run(&argv_array!["launchctl", "print-disabled", "system"])
             .map(|o| print_disabled(&o.stdout))
             .unwrap_or_default();
         // `sfltool dumpbtm` takes seconds: it runs while the plists are read.
         let (btm_out, mut items) = std::thread::scope(|s| {
-            let h = s.spawn(|| sys.run(&argv!["sfltool", "dumpbtm"]));
+            let h = s.spawn(|| sys.run(&argv_array!["sfltool", "dumpbtm"]));
             let items = plist_items(sys, env, &disabled_user, &disabled_system);
             (
                 h.join().unwrap_or_else(|_| Err("sfltool stopped".into())),
@@ -500,7 +510,7 @@ mod live {
                         } else {
                             user_domain.clone()
                         };
-                        if let Ok(o) = sys.run(&argv![
+                        if let Ok(o) = sys.run(&argv_array![
                             "launchctl",
                             "print",
                             format!("{domain}/{}", label_of(it))
@@ -550,7 +560,7 @@ mod live {
 
         // Legacy login items (System Events).
         let mut login_names: Vec<String> = Vec::new();
-        match sys.run(&argv!["osascript", "-e", LOGIN_ITEMS_SCRIPT]) {
+        match sys.run(&argv_array!["osascript", "-e", LOGIN_ITEMS_SCRIPT]) {
             Ok(o) if o.ok => {
                 for (name, path) in parse_login_items(&o.stdout) {
                     // A path System Events does not know: take it from BTM.

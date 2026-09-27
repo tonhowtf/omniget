@@ -16,7 +16,15 @@ fn powercfg(args: &[&str]) -> Result<String, String> {
     let text = String::from_utf8_lossy(&out.stdout).into_owned();
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr);
-        return Err(format!("powercfg {}: {}", args.first().unwrap_or(&""), if err.trim().is_empty() { text.trim() } else { err.trim() }));
+        return Err(format!(
+            "powercfg {}: {}",
+            args.first().unwrap_or(&""),
+            if err.trim().is_empty() {
+                text.trim()
+            } else {
+                err.trim()
+            }
+        ));
     }
     Ok(text)
 }
@@ -32,12 +40,22 @@ pub fn schemes() -> Result<Vec<parse::Scheme>, String> {
 /// `(ac, dc)` overlay names of the Settings "power mode" slider.
 pub fn overlay() -> (Option<&'static str>, Option<&'static str>) {
     let out = crate::core::process::std_command("reg")
-        .args(["query", r"HKLM\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes"])
+        .args([
+            "query",
+            r"HKLM\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes",
+        ])
         .output();
     let Ok(out) = out else { return (None, None) };
     let vals = super::super::parse::reg_query(&String::from_utf8_lossy(&out.stdout));
-    let get = |n: &str| vals.iter().find(|v| v.name == n).map(|v| parse::overlay_name(&v.data));
-    (get("ActiveOverlayAcPowerScheme"), get("ActiveOverlayDcPowerScheme"))
+    let get = |n: &str| {
+        vals.iter()
+            .find(|v| v.name == n)
+            .map(|v| parse::overlay_name(&v.data))
+    };
+    (
+        get("ActiveOverlayAcPowerScheme"),
+        get("ActiveOverlayDcPowerScheme"),
+    )
 }
 
 /// `powercfg /requests` needs an administrator; `Err` says so.
@@ -95,12 +113,20 @@ impl Backend for PowerRequestBackend {
 
     fn acquire(&self, reason: &str, max_secs: Option<u64>) -> Result<Box<dyn Send>, String> {
         use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
-        use windows_sys::Win32::System::Power::{PowerClearRequest, PowerCreateRequest, PowerRequestSystemRequired, PowerSetRequest};
-        use windows_sys::Win32::System::Threading::{POWER_REQUEST_CONTEXT_SIMPLE_STRING, REASON_CONTEXT};
+        use windows_sys::Win32::System::Power::{
+            PowerClearRequest, PowerCreateRequest, PowerRequestSystemRequired, PowerSetRequest,
+        };
+        use windows_sys::Win32::System::Threading::{
+            POWER_REQUEST_CONTEXT_SIMPLE_STRING, REASON_CONTEXT,
+        };
 
         let (stop_tx, stop_rx) = mpsc::channel::<()>();
         let (ready_tx, ready_rx) = mpsc::channel::<Result<(), String>>();
-        let text = if reason.is_empty() { "OmniGet is working".to_string() } else { format!("OmniGet: {reason}") };
+        let text = if reason.is_empty() {
+            "OmniGet is working".to_string()
+        } else {
+            format!("OmniGet: {reason}")
+        };
         std::thread::Builder::new()
             .name("wmb-power-hold-win".into())
             .spawn(move || {

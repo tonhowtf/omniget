@@ -55,22 +55,13 @@ pub enum ElevatedOp {
         mode: String,
     },
     /// Windows scheduled task state.
-    TaskState {
-        path: String,
-        enabled: bool,
-    },
+    TaskState { path: String, enabled: bool },
     /// Remove packages through the system manager (apt, dnf, pacman, zypper,
     /// snap, flatpak --system, winget machine scope).
-    PackageRemove {
-        manager: String,
-        names: Vec<String>,
-    },
+    PackageRemove { manager: String, names: Vec<String> },
     /// Upgrade packages through the system manager (apt, dnf, pacman whole
     /// system, zypper, snap, flatpak --system).
-    PackageUpgrade {
-        manager: String,
-        names: Vec<String>,
-    },
+    PackageUpgrade { manager: String, names: Vec<String> },
     /// Windows: run an app's own uninstaller as administrator. The helper
     /// rebuilds the command from the registry entry named by `app_id` and
     /// refuses when `program`/`args`/`kind` differ.
@@ -80,15 +71,13 @@ pub enum ElevatedOp {
         program: String,
         args: Vec<String>,
     },
+    /// Windows one-time setup for frame capture: join (or leave) the
+    /// Performance Log Users group (S-1-5-32-559). The user must sign out.
+    PerfLogUsers { user_sid: String, join: bool },
     /// macOS: forget a `.pkg` receipt after its files are gone.
-    PkgForget {
-        id: String,
-    },
+    PkgForget { id: String },
     /// macOS: stop a LaunchDaemon before its plist leaves.
-    LaunchctlBootout {
-        domain: String,
-        label: String,
-    },
+    LaunchctlBootout { domain: String, label: String },
     /// macOS: `launchctl disable|enable <domain>/<label>` (survives restarts).
     LaunchctlState {
         domain: String,
@@ -96,33 +85,20 @@ pub enum ElevatedOp {
         enabled: bool,
     },
     /// macOS: thin local Time Machine snapshots.
-    TmutilThin {
-        bytes: u64,
-    },
+    TmutilThin { bytes: u64 },
     /// Linux: `journalctl --vacuum-size`.
-    JournalVacuum {
-        max_mb: u64,
-    },
+    JournalVacuum { max_mb: u64 },
     /// Replace the hosts file with the content of a file we staged.
-    WriteHosts {
-        staged: PathBuf,
-    },
+    WriteHosts { staged: PathBuf },
     /// Windows power setting, macOS `pmset` key, Linux sysfs knob.
-    PowerSetting {
-        key: String,
-        value: String,
-    },
+    PowerSetting { key: String, value: String },
     /// macOS/Linux maintenance with a fixed argv chosen by the module
     /// (`id` picks it from the module's own table; the helper re-derives
     /// the argv from the id and never trusts one from the plan).
-    Maintenance {
-        id: String,
-    },
+    Maintenance { id: String },
     /// Linux package-cache and snap-revision cleanup; the helper rebuilds
     /// the argv from `id` with `clean::native_argv` (closed table).
-    CleanNative {
-        id: String,
-    },
+    CleanNative { id: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -172,7 +148,11 @@ pub fn key(dir: &Path) -> Result<Vec<u8>, String> {
 
 fn mac_of(key: &[u8], ops: &[ElevatedOp], expires: i64, nonce: &str) -> Result<String, String> {
     let mut m = Hmac::<Sha256>::new_from_slice(key).map_err(|e| e.to_string())?;
-    m.update(serde_json::to_string(ops).map_err(|e| e.to_string())?.as_bytes());
+    m.update(
+        serde_json::to_string(ops)
+            .map_err(|e| e.to_string())?
+            .as_bytes(),
+    );
     m.update(format!("|{expires}|{nonce}").as_bytes());
     Ok(hex::encode(m.finalize().into_bytes()))
 }
@@ -181,7 +161,12 @@ pub fn sign(key: &[u8], ops: Vec<ElevatedOp>) -> Result<SignedBatch, String> {
     let expires = now() + 300;
     let nonce = uuid::Uuid::new_v4().simple().to_string();
     let mac = mac_of(key, &ops, expires, &nonce)?;
-    Ok(SignedBatch { ops, expires, nonce, mac })
+    Ok(SignedBatch {
+        ops,
+        expires,
+        nonce,
+        mac,
+    })
 }
 
 pub fn verify(key: &[u8], b: &SignedBatch) -> Result<(), String> {
@@ -189,17 +174,26 @@ pub fn verify(key: &[u8], b: &SignedBatch) -> Result<(), String> {
         return Err("EXPIRED: the plan is too old".into());
     }
     let mut m = Hmac::<Sha256>::new_from_slice(key).map_err(|e| e.to_string())?;
-    m.update(serde_json::to_string(&b.ops).map_err(|e| e.to_string())?.as_bytes());
+    m.update(
+        serde_json::to_string(&b.ops)
+            .map_err(|e| e.to_string())?
+            .as_bytes(),
+    );
     m.update(format!("|{}|{}", b.expires, b.nonce).as_bytes());
     let want = hex::decode(&b.mac).map_err(|_| "BAD_SIGNATURE")?;
-    m.verify_slice(&want).map_err(|_| "BAD_SIGNATURE".to_string())
+    m.verify_slice(&want)
+        .map_err(|_| "BAD_SIGNATURE".to_string())
 }
 
 /// Path of the helper next to the running binary (bundle or `target/`).
 pub fn helper_path() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
-    let name = if cfg!(windows) { "omniget-elevate.exe" } else { "omniget-elevate" };
+    let name = if cfg!(windows) {
+        "omniget-elevate.exe"
+    } else {
+        "omniget-elevate"
+    };
     let p = dir.join(name);
     p.is_file().then_some(p)
 }
@@ -208,20 +202,28 @@ pub fn helper_path() -> Option<PathBuf> {
 /// result per operation, in order.
 pub fn run(ctx: &Ctx, ops: &[ElevatedOp]) -> Result<Vec<OpResult>, String> {
     if crate::core::dependencies::is_flatpak() {
-        return Err("NO_ELEVATION: administrator actions are not available inside the Flatpak sandbox".into());
+        return Err(
+            "NO_ELEVATION: administrator actions are not available inside the Flatpak sandbox"
+                .into(),
+        );
     }
-    let helper = helper_path().ok_or("NO_HELPER: omniget-elevate is not installed next to OmniGet")?;
+    let helper =
+        helper_path().ok_or("NO_HELPER: omniget-elevate is not installed next to OmniGet")?;
     let batch = sign(&key(&ctx.dir)?, ops.to_vec())?;
     let dir = ctx.dir.join("elevate");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let plan_file = dir.join(format!("{}.json", batch.nonce));
     let out_file = dir.join(format!("{}.out.json", batch.nonce));
-    std::fs::write(&plan_file, serde_json::to_vec(&batch).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+    std::fs::write(
+        &plan_file,
+        serde_json::to_vec(&batch).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     let status = launch_elevated(&helper, &plan_file, &out_file);
     let _ = std::fs::remove_file(&plan_file);
     status?;
-    let text = std::fs::read_to_string(&out_file).map_err(|_| "CANCELLED: the administrator prompt was closed".to_string())?;
+    let text = std::fs::read_to_string(&out_file)
+        .map_err(|_| "CANCELLED: the administrator prompt was closed".to_string())?;
     let _ = std::fs::remove_file(&out_file);
     let results: Vec<OpResult> = serde_json::from_str(&text).map_err(|e| e.to_string())?;
     if results.len() != ops.len() {
@@ -274,8 +276,12 @@ fn launch_elevated(helper: &Path, plan: &Path, out: &Path) -> Result<(), String>
 fn launch_elevated(helper: &Path, plan: &Path, out: &Path) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Foundation::CloseHandle;
-    use windows_sys::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject, INFINITE};
-    use windows_sys::Win32::UI::Shell::{ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW};
+    use windows_sys::Win32::System::Threading::{
+        GetExitCodeProcess, WaitForSingleObject, INFINITE,
+    };
+    use windows_sys::Win32::UI::Shell::{
+        ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW,
+    };
     fn wide(s: &std::ffi::OsStr) -> Vec<u16> {
         s.encode_wide().chain(std::iter::once(0)).collect()
     }
@@ -316,33 +322,82 @@ fn launch_elevated(helper: &Path, plan: &Path, out: &Path) -> Result<(), String>
 /// this (as admin); tests call it on temporary folders.
 pub fn execute_local(op: &ElevatedOp) -> OpResult {
     let r: Result<(String, u64), String> = match op {
-        ElevatedOp::RemovePath { path, root, guard, fp, contents_only } => (|| {
+        ElevatedOp::RemovePath {
+            path,
+            root,
+            guard,
+            fp,
+            contents_only,
+        } => (|| {
             super::protect::check(path, *guard, root.as_deref())?;
             super::fsops::unchanged(path, fp)?;
             let freed = super::fsops::remove_tree(path, *contents_only)?;
             Ok(("removed".to_string(), freed))
         })(),
-        ElevatedOp::RegSet { key, name, kind, data } => super::tweaks::elevated_reg_set(key, name, kind, data).map(|d| (d, 0)),
-        ElevatedOp::RegDelete { key, name } => super::tweaks::elevated_reg_delete(key, name.as_deref()).map(|d| (d, 0)),
-        ElevatedOp::ServiceStartup { name, mode } => super::startup::elevated_service_startup(name, mode).map(|d| (d, 0)),
-        ElevatedOp::TaskState { path, enabled } => super::startup::elevated_task_state(path, *enabled).map(|d| (d, 0)),
-        ElevatedOp::PackageRemove { manager, names } => super::packages::elevated_remove(manager, names).map(|d| (d, 0)),
-        ElevatedOp::PackageUpgrade { manager, names } => super::packages::elevated_upgrade(manager, names).map(|d| (d, 0)),
-        ElevatedOp::WinUninstall { app_id, kind, program, args } => super::apps::windows::elevated_win_uninstall(app_id, kind, program, args).map(|d| (d, 0)),
+        ElevatedOp::RegSet {
+            key,
+            name,
+            kind,
+            data,
+        } => super::tweaks::elevated_reg_set(key, name, kind, data).map(|d| (d, 0)),
+        ElevatedOp::RegDelete { key, name } => {
+            super::tweaks::elevated_reg_delete(key, name.as_deref()).map(|d| (d, 0))
+        }
+        ElevatedOp::ServiceStartup { name, mode } => {
+            super::startup::elevated_service_startup(name, mode).map(|d| (d, 0))
+        }
+        ElevatedOp::TaskState { path, enabled } => {
+            super::startup::elevated_task_state(path, *enabled).map(|d| (d, 0))
+        }
+        ElevatedOp::PackageRemove { manager, names } => {
+            super::packages::elevated_remove(manager, names).map(|d| (d, 0))
+        }
+        ElevatedOp::PackageUpgrade { manager, names } => {
+            super::packages::elevated_upgrade(manager, names).map(|d| (d, 0))
+        }
+        ElevatedOp::WinUninstall {
+            app_id,
+            kind,
+            program,
+            args,
+        } => super::apps::windows::elevated_win_uninstall(app_id, kind, program, args)
+            .map(|d| (d, 0)),
+        ElevatedOp::PerfLogUsers { user_sid, join } => {
+            super::perf::presentmon::elevated_perf_log_users(user_sid, *join).map(|d| (d, 0))
+        }
         ElevatedOp::PkgForget { id } => super::apps::elevated_pkg_forget(id).map(|d| (d, 0)),
-        ElevatedOp::LaunchctlBootout { domain, label } => super::startup::elevated_bootout(domain, label).map(|d| (d, 0)),
-        ElevatedOp::LaunchctlState { domain, label, enabled } => super::startup::elevated_launchctl_state(domain, label, *enabled).map(|d| (d, 0)),
+        ElevatedOp::LaunchctlBootout { domain, label } => {
+            super::startup::elevated_bootout(domain, label).map(|d| (d, 0))
+        }
+        ElevatedOp::LaunchctlState {
+            domain,
+            label,
+            enabled,
+        } => super::startup::elevated_launchctl_state(domain, label, *enabled).map(|d| (d, 0)),
         ElevatedOp::TmutilThin { bytes } => super::clean::elevated_tmutil_thin(*bytes),
         ElevatedOp::JournalVacuum { max_mb } => super::clean::elevated_journal_vacuum(*max_mb),
         ElevatedOp::WriteHosts { staged } => super::hosts::elevated_write(staged).map(|d| (d, 0)),
-        ElevatedOp::PowerSetting { key, value } => super::power::elevated_setting(key, value).map(|d| (d, 0)),
+        ElevatedOp::PowerSetting { key, value } => {
+            super::power::elevated_setting(key, value).map(|d| (d, 0))
+        }
+        ElevatedOp::Maintenance { id } if id == super::tweaks::RESTORE_POINT_ID => {
+            super::tweaks::elevated_restore_point().map(|d| (d, 0))
+        }
         ElevatedOp::Maintenance { id } if id.starts_with("win_") => windows_maintenance(id),
         ElevatedOp::Maintenance { id } => super::maintenance::elevated_run(id).map(|d| (d, 0)),
         ElevatedOp::CleanNative { id } => super::clean::elevated_native(id),
     };
     match r {
-        Ok((detail, bytes)) => OpResult { ok: true, detail, bytes },
-        Err(detail) => OpResult { ok: false, detail, bytes: 0 },
+        Ok((detail, bytes)) => OpResult {
+            ok: true,
+            detail,
+            bytes,
+        },
+        Err(detail) => OpResult {
+            ok: false,
+            detail,
+            bytes: 0,
+        },
     }
 }
 
@@ -361,7 +416,10 @@ fn windows_maintenance(id: &str) -> Result<(String, u64), String> {
             .map_err(|e| format!("{prog}: {e}"))?;
         // `net stop` of a service that is not running is not a failure.
         if !out.status.success() && !String::from_utf8_lossy(&out.stdout).contains("not started") {
-            return Err(format!("{id}: {}", String::from_utf8_lossy(&out.stderr).trim()));
+            return Err(format!(
+                "{id}: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            ));
         }
     }
     Ok((format!("{id} done"), 0))
@@ -379,7 +437,11 @@ pub fn helper_main(plan: &Path, out: &Path) -> Result<(), String> {
     let k = std::fs::read(key_path(data)).map_err(|_| "NO_KEY")?;
     verify(&k, &batch)?;
     let results: Vec<OpResult> = batch.ops.iter().map(execute_local).collect();
-    std::fs::write(out, serde_json::to_vec(&results).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    std::fs::write(
+        out,
+        serde_json::to_vec(&results).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     // The result file must stay readable by the user that asked.
     #[cfg(unix)]
     {
@@ -412,6 +474,7 @@ pub fn copy_command(ops: &[ElevatedOp]) -> Vec<String> {
                     format!("{sudo}rm -rf -- {}", q(&p))
                 }
             }
+            ElevatedOp::RegSet { key, kind, .. } if kind == "KEY" => format!("reg add {} /f", q(key)),
             ElevatedOp::RegSet { key, name, kind, data } => format!("reg add {} /v {} /t {} /d {} /f", q(key), q(name), kind, q(data)),
             ElevatedOp::RegDelete { key, name: Some(n) } => format!("reg delete {} /v {} /f", q(key), q(n)),
             ElevatedOp::RegDelete { key, name: None } => format!("reg delete {} /f", q(key)),
@@ -422,6 +485,7 @@ pub fn copy_command(ops: &[ElevatedOp]) -> Vec<String> {
             ElevatedOp::PackageUpgrade { manager, .. } if manager == "pacman" => format!("{sudo}{}", super::packages::upgrade_command(manager)),
             ElevatedOp::PackageUpgrade { manager, names } => format!("{sudo}{} {}", super::packages::upgrade_command(manager), names.iter().map(|n| q(n)).collect::<Vec<_>>().join(" ")),
             ElevatedOp::WinUninstall { program, args, .. } => std::iter::once(q(program)).chain(args.iter().map(|a| q(a))).collect::<Vec<_>>().join(" "),
+            ElevatedOp::PerfLogUsers { user_sid, join } => format!("net localgroup \"Performance Log Users\" <user {user_sid}> /{}", if *join { "add" } else { "delete" }),
             ElevatedOp::PkgForget { id } => format!("{sudo}pkgutil --forget {}", q(id)),
             ElevatedOp::LaunchctlBootout { domain, label } => format!("{sudo}launchctl bootout {}/{}", domain, q(label)),
             ElevatedOp::LaunchctlState { domain, label, enabled } => format!("{sudo}launchctl {} {}/{}", if *enabled { "enable" } else { "disable" }, domain, q(label)),
@@ -434,7 +498,8 @@ pub fn copy_command(ops: &[ElevatedOp]) -> Vec<String> {
                     format!("{sudo}cp {} /etc/hosts", q(&staged.to_string_lossy()))
                 }
             }
-            ElevatedOp::PowerSetting { key, value } => format!("# power setting {key} = {value}"),
+            ElevatedOp::PowerSetting { key, value } => super::power::command_line(key, value),
+            ElevatedOp::Maintenance { id } if id == super::tweaks::RESTORE_POINT_ID => super::tweaks::restore_point_argv().join(" "),
             ElevatedOp::Maintenance { id } if id.starts_with("win_") => {
                 let root = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into());
                 super::clean::rules_windows::maintenance_argv(id, &root)
@@ -477,11 +542,23 @@ mod tests {
         let f = root.join("x.tmp");
         std::fs::write(&f, "1").unwrap();
         let fp = super::super::fsops::fingerprint(&f).unwrap();
-        let op = ElevatedOp::RemovePath { path: f.clone(), root: Some(root.clone()), guard: Guard::Picked, fp, contents_only: false };
+        let op = ElevatedOp::RemovePath {
+            path: f.clone(),
+            root: Some(root.clone()),
+            guard: Guard::Picked,
+            fp,
+            contents_only: false,
+        };
         std::fs::write(&f, "changed!").unwrap();
         assert!(!execute_local(&op).ok, "a changed file is not removed");
         let fp = super::super::fsops::fingerprint(&f).unwrap();
-        let op = ElevatedOp::RemovePath { path: f.clone(), root: Some(root), guard: Guard::Picked, fp, contents_only: false };
+        let op = ElevatedOp::RemovePath {
+            path: f.clone(),
+            root: Some(root),
+            guard: Guard::Picked,
+            fp,
+            contents_only: false,
+        };
         assert!(execute_local(&op).ok);
         assert!(!f.exists());
     }

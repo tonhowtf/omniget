@@ -25,8 +25,8 @@ pub mod llm_manager;
 pub mod local_bridge;
 pub mod local_bridge_debug;
 pub mod local_bridge_jobs;
-pub mod local_bridge_wmb;
 pub mod local_bridge_llm;
+pub mod local_bridge_wmb;
 pub mod mcp;
 pub mod missions;
 pub mod models;
@@ -1310,6 +1310,9 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app_handle, event| {
             if let tauri::RunEvent::ExitRequested { .. } = &event {
+                // Game mode never outlives OmniGet (Windows power plan,
+                // priorities, screen kept awake).
+                omniget_core::core::washmybelly::game::shutdown();
                 // The managed llama-server dies with the app (phase 2).
                 tauri::async_runtime::block_on(omniget_core::core::llm::local_servers::stop());
                 let state = app_handle.state::<AppState>();

@@ -240,7 +240,7 @@ pub fn score(r: &Readings) -> (u32, Vec<Factor>) {
     }
 
     let lost: u32 = f.iter().map(|x| x.penalty).sum();
-    f.sort_by(|a, b| b.penalty.cmp(&a.penalty));
+    f.sort_by_key(|x| std::cmp::Reverse(x.penalty));
     (100u32.saturating_sub(lost), f)
 }
 

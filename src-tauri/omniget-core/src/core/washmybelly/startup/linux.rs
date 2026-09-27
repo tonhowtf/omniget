@@ -287,12 +287,17 @@ mod live {
 
         // systemd --user units that start with the session.
         let blame = sys
-            .run(&argv!["systemd-analyze", "--user", "blame", "--no-pager"])
+            .run(&argv_array![
+                "systemd-analyze",
+                "--user",
+                "blame",
+                "--no-pager"
+            ])
             .ok()
             .filter(|o| o.ok)
             .map(|o| parse_blame(&o.stdout))
             .unwrap_or_default();
-        match sys.run(&argv![
+        match sys.run(&argv_array![
             "systemctl",
             "--user",
             "list-unit-files",
@@ -313,7 +318,7 @@ mod live {
                         continue;
                     }
                     let active = sys
-                        .run(&argv![
+                        .run(&argv_array![
                             "systemctl",
                             "--user",
                             "is-active",

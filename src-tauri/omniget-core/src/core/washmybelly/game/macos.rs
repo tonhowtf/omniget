@@ -18,16 +18,26 @@ use super::{Active, Applied, ApplyFn, Exec, ExitWaiter, PollWaiter, Target, Undo
 const PRIO_DARWIN_PROCESS: libc::c_int = 4;
 const PRIO_DARWIN_BG: libc::c_int = 0x1000;
 
+// <sys/proc_info.h>: `pbi_flags` bits of `PROC_PIDTBSDINFO`.
+const PROC_FLAG_DARWINBG: u32 = 0x8000;
+const PROC_FLAG_EXT_DARWINBG: u32 = 0x10000;
+
 /// Whether `pid` is in the background band. `None` when it cannot be read.
+/// `getpriority(PRIO_DARWIN_PROCESS)` only answers for the caller itself,
+/// so the state of another process comes from `proc_pidinfo`.
 pub fn get_bg(pid: u32) -> Option<bool> {
-    unsafe {
-        *libc::__error() = 0;
-        let r = libc::getpriority(PRIO_DARWIN_PROCESS, pid as libc::id_t);
-        if r == -1 && *libc::__error() != 0 {
-            return None;
-        }
-        Some(r != 0)
-    }
+    let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
+    let size = std::mem::size_of::<libc::proc_bsdinfo>() as libc::c_int;
+    let n = unsafe {
+        libc::proc_pidinfo(
+            pid as libc::c_int,
+            libc::PROC_PIDTBSDINFO,
+            0,
+            &mut info as *mut _ as *mut libc::c_void,
+            size,
+        )
+    };
+    (n == size).then_some(info.pbi_flags & (PROC_FLAG_DARWINBG | PROC_FLAG_EXT_DARWINBG) != 0)
 }
 
 pub fn set_bg(pid: u32, on: bool) -> Result<(), String> {
@@ -36,7 +46,10 @@ pub fn set_bg(pid: u32, on: bool) -> Result<(), String> {
     if r == 0 {
         Ok(())
     } else {
-        Err(format!("setpriority {pid}: {}", std::io::Error::last_os_error()))
+        Err(format!(
+            "setpriority {pid}: {}",
+            std::io::Error::last_os_error()
+        ))
     }
 }
 
@@ -61,7 +74,14 @@ fn lower_children(game: u32, known: &[u32]) -> Vec<UndoStep> {
 impl Exec for Sys {
     fn undo(&self, step: &UndoStep) -> Result<String, String> {
         match step {
-            UndoStep::DarwinBg { pid, restore, .. } => set_bg(*pid, *restore).map(|_| if *restore { "back in the background band" } else { "normal priority again" }.to_string()),
+            UndoStep::DarwinBg { pid, restore, .. } => set_bg(*pid, *restore).map(|_| {
+                if *restore {
+                    "back in the background band"
+                } else {
+                    "normal priority again"
+                }
+                .to_string()
+            }),
             other => Err(format!("not a macOS step: {other:?}")),
         }
     }
@@ -112,7 +132,11 @@ impl KqWaiter {
         let fallback = PollWaiter { pid, started };
         let kq = unsafe { libc::kqueue() };
         if kq < 0 {
-            return KqWaiter { kq: -1, exited: false, fallback };
+            return KqWaiter {
+                kq: -1,
+                exited: false,
+                fallback,
+            };
         }
         let ev = libc::kevent {
             ident: pid as libc::uintptr_t,
@@ -127,9 +151,17 @@ impl KqWaiter {
         let exited = r < 0 && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH);
         if r < 0 && !exited {
             unsafe { libc::close(kq) };
-            return KqWaiter { kq: -1, exited: false, fallback };
+            return KqWaiter {
+                kq: -1,
+                exited: false,
+                fallback,
+            };
         }
-        KqWaiter { kq, exited, fallback }
+        KqWaiter {
+            kq,
+            exited,
+            fallback,
+        }
     }
 }
 
@@ -172,25 +204,36 @@ impl Drop for KqWaiter {
 pub fn plan(target: &Target) -> (ApplyFn, WaiterFn) {
     let t = target.clone();
     let (pid, started) = (target.pid, target.started);
-    (Box::new(move || apply(&t)), Box::new(move || Box::new(KqWaiter::new(pid, started)) as Box<dyn ExitWaiter>))
+    (
+        Box::new(move || apply(&t)),
+        Box::new(move || Box::new(KqWaiter::new(pid, started)) as Box<dyn ExitWaiter>),
+    )
 }
 
 /// Xcode's `gamepolicyctl`, the only reader of the Game Mode state. Found
 /// through `xcode-select -p` (never `xcrun`, which may open an installer).
 fn gamepolicyctl() -> Option<PathBuf> {
     let mut dirs = Vec::new();
-    if let Ok(o) = crate::core::process::std_command("xcode-select").arg("-p").output() {
+    if let Ok(o) = crate::core::process::std_command("xcode-select")
+        .arg("-p")
+        .output()
+    {
         if o.status.success() {
             dirs.push(PathBuf::from(String::from_utf8_lossy(&o.stdout).trim()));
         }
     }
     dirs.push(PathBuf::from("/Applications/Xcode.app/Contents/Developer"));
-    dirs.into_iter().map(|d| d.join("usr/bin/gamepolicyctl")).find(|p| p.is_file())
+    dirs.into_iter()
+        .map(|d| d.join("usr/bin/gamepolicyctl"))
+        .find(|p| p.is_file())
 }
 
 pub fn status(pid: Option<u32>) -> Value {
     let (detectable, on, policy) = match gamepolicyctl() {
-        Some(bin) => match crate::core::process::std_command(&bin).args(["game-mode", "status"]).output() {
+        Some(bin) => match crate::core::process::std_command(&bin)
+            .args(["game-mode", "status"])
+            .output()
+        {
             Ok(o) if o.status.success() => {
                 let s = super::parse::gamepolicyctl_status(&String::from_utf8_lossy(&o.stdout));
                 (s.on.is_some(), s.on, s.policy)
@@ -225,7 +268,10 @@ mod tests {
 
     #[test]
     fn kqueue_sees_the_exit_of_our_test_child() {
-        let mut child = std::process::Command::new("sleep").arg("1").spawn().unwrap();
+        let mut child = std::process::Command::new("sleep")
+            .arg("1")
+            .spawn()
+            .unwrap();
         let mut w = KqWaiter::new(child.id(), 0);
         assert!(w.kq >= 0);
         let t0 = Instant::now();
@@ -243,7 +289,10 @@ mod tests {
 
     #[test]
     fn background_band_round_trip_on_our_test_child() {
-        let mut child = std::process::Command::new("sleep").arg("5").spawn().unwrap();
+        let mut child = std::process::Command::new("sleep")
+            .arg("5")
+            .spawn()
+            .unwrap();
         let pid = child.id();
         let before = get_bg(pid);
         set_bg(pid, true).unwrap();

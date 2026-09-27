@@ -168,7 +168,9 @@ fn num(v: Option<f64>) -> String {
 }
 
 fn clean_text(s: &str) -> String {
-    s.chars().filter(|c| !matches!(c, ',' | '\n' | '\r' | '"')).collect()
+    s.chars()
+        .filter(|c| !matches!(c, ',' | '\n' | '\r' | '"'))
+        .collect()
 }
 
 pub fn frames_csv(frames: &[Frame]) -> String {
@@ -195,13 +197,20 @@ pub fn frames_csv(frames: &[Frame]) -> String {
 }
 
 fn opt(s: Option<&str>) -> Option<f64> {
-    s.and_then(|x| x.trim().parse::<f64>().ok()).filter(|x| x.is_finite())
+    s.and_then(|x| x.trim().parse::<f64>().ok())
+        .filter(|x| x.is_finite())
 }
 
 pub fn parse_frames_csv(text: &str) -> Vec<Frame> {
     let mut lines = text.lines();
-    let Some(head) = lines.next() else { return vec![] };
-    let idx: BTreeMap<&str, usize> = head.split(',').enumerate().map(|(i, h)| (h.trim(), i)).collect();
+    let Some(head) = lines.next() else {
+        return vec![];
+    };
+    let idx: BTreeMap<&str, usize> = head
+        .split(',')
+        .enumerate()
+        .map(|(i, h)| (h.trim(), i))
+        .collect();
     lines
         .filter_map(|l| {
             let c: Vec<&str> = l.split(',').collect();
@@ -215,7 +224,10 @@ pub fn parse_frames_csv(text: &str) -> Vec<Frame> {
                 cpu_busy_ms: opt(get("cpu_busy_ms")),
                 gpu_busy_ms: opt(get("gpu_busy_ms")),
                 dropped: get("dropped").map(str::trim) == Some("1"),
-                frame_type: get("frame_type").map(str::trim).filter(|s| !s.is_empty()).map(String::from),
+                frame_type: get("frame_type")
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(String::from),
                 latency_ms: opt(get("latency_ms")),
             })
         })
@@ -247,8 +259,14 @@ pub fn sensors_csv(rows: &[SensorRow]) -> String {
 
 pub fn parse_sensors_csv(text: &str) -> Vec<SensorRow> {
     let mut lines = text.lines();
-    let Some(head) = lines.next() else { return vec![] };
-    let idx: BTreeMap<&str, usize> = head.split(',').enumerate().map(|(i, h)| (h.trim(), i)).collect();
+    let Some(head) = lines.next() else {
+        return vec![];
+    };
+    let idx: BTreeMap<&str, usize> = head
+        .split(',')
+        .enumerate()
+        .map(|(i, h)| (h.trim(), i))
+        .collect();
     lines
         .filter_map(|l| {
             let c: Vec<&str> = l.split(',').collect();
@@ -299,7 +317,13 @@ fn is_app_frame(t: &Option<String>) -> bool {
 /// to present. Returns (source, frametimes, times) plus the other sequence
 /// when both exist.
 #[allow(clippy::type_complexity)]
-pub fn pick_source(frames: &[Frame]) -> ((&'static str, Vec<f64>, Vec<f64>), Option<(Vec<f64>, Vec<f64>)>, bool) {
+pub fn pick_source(
+    frames: &[Frame],
+) -> (
+    (&'static str, Vec<f64>, Vec<f64>),
+    Option<(Vec<f64>, Vec<f64>)>,
+    bool,
+) {
     let present: (Vec<f64>, Vec<f64>) = (
         frames.iter().map(|f| f.frametime_ms).collect(),
         frames.iter().map(|f| f.t_ms).collect(),
@@ -310,7 +334,10 @@ pub fn pick_source(frames: &[Frame]) -> ((&'static str, Vec<f64>, Vec<f64>), Opt
         .collect();
     let display = (shown.len() * 2 >= frames.len() && !shown.is_empty()).then(|| {
         (
-            shown.iter().filter_map(|f| f.display_ms).collect::<Vec<f64>>(),
+            shown
+                .iter()
+                .filter_map(|f| f.display_ms)
+                .collect::<Vec<f64>>(),
             shown.iter().map(|f| f.t_ms).collect::<Vec<f64>>(),
         )
     });
@@ -366,7 +393,8 @@ pub fn correlate(stutters: &[Event], rows: &[SensorRow], frames: usize) -> Corre
     for e in stutters {
         let Some(r) = near(e.t_ms) else { continue };
         c.stutters_checked += 1;
-        if r.cpu_temp.is_some_and(|x| x >= HOT_CPU_C) || r.gpu_temp.is_some_and(|x| x >= HOT_GPU_C) {
+        if r.cpu_temp.is_some_and(|x| x >= HOT_CPU_C) || r.gpu_temp.is_some_and(|x| x >= HOT_GPU_C)
+        {
             c.stutters_hot += 1;
         }
         if r.gpu_load.is_some_and(|x| x >= FULL_GPU) {
@@ -388,9 +416,10 @@ pub fn correlate(stutters: &[Event], rows: &[SensorRow], frames: usize) -> Corre
     if cpu.is_some_and(|x| x >= 85.0) {
         c.findings.push("cpu_busy".into());
     }
-    let hot = rows
-        .iter()
-        .any(|r| r.cpu_temp.is_some_and(|x| x >= HOT_CPU_C + 5.0) || r.gpu_temp.is_some_and(|x| x >= HOT_GPU_C + 5.0));
+    let hot = rows.iter().any(|r| {
+        r.cpu_temp.is_some_and(|x| x >= HOT_CPU_C + 5.0)
+            || r.gpu_temp.is_some_and(|x| x >= HOT_GPU_C + 5.0)
+    });
     if hot {
         c.findings.push("hot".into());
     }
@@ -416,7 +445,10 @@ pub fn summarize(session: &Session, frames: &[Frame], rows: &[SensorRow]) -> Sum
         warnings.push("frame_generation_without_display_times".into());
     }
     let correlation = correlate(&stutters, rows, st.frames);
-    let noise = stats::half_spread(&ft).into_iter().map(|(k, v)| (k.to_string(), v)).collect();
+    let noise = stats::half_spread(&ft)
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v))
+        .collect();
     Summary {
         format: FORMAT.into(),
         session_id: session.id.clone(),
@@ -438,7 +470,11 @@ pub fn summarize(session: &Session, frames: &[Frame], rows: &[SensorRow]) -> Sum
 
 pub fn write_json<T: Serialize>(path: &Path, v: &T) -> Result<(), String> {
     let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, serde_json::to_vec_pretty(v).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    std::fs::write(
+        &tmp,
+        serde_json::to_vec_pretty(v).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     std::fs::rename(&tmp, path).map_err(|e| e.to_string())
 }
 
@@ -452,7 +488,11 @@ mod tests {
     use super::*;
 
     fn frame(t: f64, ft: f64) -> Frame {
-        Frame { t_ms: t, frametime_ms: ft, ..Default::default() }
+        Frame {
+            t_ms: t,
+            frametime_ms: ft,
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -466,7 +506,12 @@ mod tests {
                 frame_type: Some("Application".into()),
                 ..Default::default()
             },
-            Frame { t_ms: 16.6667, frametime_ms: 33.0, dropped: true, ..Default::default() },
+            Frame {
+                t_ms: 16.6667,
+                frametime_ms: 33.0,
+                dropped: true,
+                ..Default::default()
+            },
         ];
         let text = frames_csv(&frames);
         assert!(text.starts_with(FRAMES_HEADER));
@@ -480,7 +525,10 @@ mod tests {
         assert_eq!(r.cpu_load, Some(41.5));
         assert_eq!(r.gpu_temp, None);
         assert_eq!(r.ram_used_mb, Some(8000.0));
-        assert_eq!(parse_sensors_csv(&sensors_csv(std::slice::from_ref(&r))), vec![r]);
+        assert_eq!(
+            parse_sensors_csv(&sensors_csv(std::slice::from_ref(&r))),
+            vec![r]
+        );
     }
 
     #[test]
@@ -491,7 +539,14 @@ mod tests {
                 t_ms: i as f64 * 8.0,
                 frametime_ms: if i % 2 == 0 { 2.0 } else { 14.0 },
                 display_ms: Some(8.0),
-                frame_type: Some(if i % 2 == 0 { "Application" } else { "AMD_AFMF" }.into()),
+                frame_type: Some(
+                    if i % 2 == 0 {
+                        "Application"
+                    } else {
+                        "AMD_AFMF"
+                    }
+                    .into(),
+                ),
                 ..Default::default()
             })
             .collect();
@@ -506,7 +561,13 @@ mod tests {
 
     #[test]
     fn correlation_finds_hot_stutters() {
-        let stutters: Vec<Event> = [1000.0, 2000.0, 3000.0].iter().map(|t| Event { t_ms: *t, frametime_ms: 60.0 }).collect();
+        let stutters: Vec<Event> = [1000.0, 2000.0, 3000.0]
+            .iter()
+            .map(|t| Event {
+                t_ms: *t,
+                frametime_ms: 60.0,
+            })
+            .collect();
         let rows: Vec<SensorRow> = (0..5)
             .map(|i| SensorRow {
                 t_ms: i as f64 * 1000.0,
@@ -522,12 +583,19 @@ mod tests {
         assert!(c.findings.contains(&"gpu_bound".to_string()));
         assert!(c.findings.contains(&"hot".to_string()));
         assert!(!c.findings.contains(&"cpu_busy".to_string()));
-        assert_eq!(correlate(&stutters, &[], 100).findings, vec!["no_sensors".to_string()]);
+        assert_eq!(
+            correlate(&stutters, &[], 100).findings,
+            vec!["no_sensors".to_string()]
+        );
     }
 
     #[test]
     fn summary_serialises_the_tool_fields_at_top_level() {
-        let s = Session { id: "x".into(), method: "presentmon".into(), ..Default::default() };
+        let s = Session {
+            id: "x".into(),
+            method: "presentmon".into(),
+            ..Default::default()
+        };
         let frames: Vec<Frame> = (0..300).map(|i| frame(i as f64 * 10.0, 10.0)).collect();
         let sum = summarize(&s, &frames, &[]);
         let v = serde_json::to_value(&sum).unwrap();

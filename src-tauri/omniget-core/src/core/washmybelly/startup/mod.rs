@@ -22,6 +22,11 @@ macro_rules! argv {
     ($($x:expr),* $(,)?) => { vec![$(String::from($x)),*] };
 }
 
+/// The same argv as a fixed array, for commands that are only borrowed.
+macro_rules! argv_array {
+    ($($x:expr),* $(,)?) => { [$(String::from($x)),*] };
+}
+
 pub mod actions;
 #[cfg(any(target_os = "linux", test))]
 pub mod linux;

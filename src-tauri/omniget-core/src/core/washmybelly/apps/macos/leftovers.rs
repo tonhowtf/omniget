@@ -377,7 +377,7 @@ pub fn find(roots: &Roots, subj: &Subject, others: &[Other]) -> (Vec<Found>, Vec
                         group: "launch",
                         admin,
                         root: dir.clone(),
-                        launchd: parse::valid_label(&label).then(|| (kind, label)),
+                        launchd: parse::valid_label(&label).then_some((kind, label)),
                     },
                 );
             }

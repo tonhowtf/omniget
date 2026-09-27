@@ -113,7 +113,9 @@ pub async fn tool_list(a: Value) -> Result<Value, String> {
     super::tools::blocking(move || {
         let mut apps = list()?;
         apps.retain(|app| {
-            (query.is_empty() || app.name.to_lowercase().contains(&query) || app.id.to_lowercase().contains(&query))
+            (query.is_empty()
+                || app.name.to_lowercase().contains(&query)
+                || app.id.to_lowercase().contains(&query))
                 && (source.is_empty() || app.source == source)
         });
         apps.sort_by_key(|a| a.name.to_lowercase());
@@ -167,7 +169,12 @@ pub async fn tool_leftovers(a: Value) -> Result<Value, String> {
 
 // ── Plan hooks: actions are `<os>.<action>` and go to that system's file ──
 
-pub fn plan_execute(ctx: &Ctx, receipt_id: &str, action: &str, args: &Value) -> Result<Outcome, String> {
+pub fn plan_execute(
+    ctx: &Ctx,
+    receipt_id: &str,
+    action: &str,
+    args: &Value,
+) -> Result<Outcome, String> {
     match action.split_once('.') {
         Some(("mac", a)) => macos::plan_execute(ctx, receipt_id, a, args),
         Some(("win", a)) => windows::plan_execute(ctx, receipt_id, a, args),
@@ -176,7 +183,12 @@ pub fn plan_execute(ctx: &Ctx, receipt_id: &str, action: &str, args: &Value) -> 
     }
 }
 
-pub fn plan_elevated(ctx: &Ctx, receipt_id: &str, action: &str, args: &Value) -> Result<(Vec<ElevatedOp>, Option<Undo>), String> {
+pub fn plan_elevated(
+    ctx: &Ctx,
+    receipt_id: &str,
+    action: &str,
+    args: &Value,
+) -> Result<(Vec<ElevatedOp>, Option<Undo>), String> {
     match action.split_once('.') {
         Some(("mac", a)) => macos::plan_elevated(ctx, receipt_id, a, args),
         Some(("win", a)) => windows::plan_elevated(ctx, receipt_id, a, args),

@@ -21,7 +21,7 @@ pub fn decode(bytes: &[u8]) -> Result<String, String> {
 }
 
 fn utf16(bytes: &[u8], f: fn([u8; 2]) -> u16) -> Result<String, String> {
-    if bytes.len() % 2 != 0 {
+    if !bytes.len().is_multiple_of(2) {
         return Err(".reg: odd UTF-16 length".into());
     }
     let units: Vec<u16> = bytes.chunks_exact(2).map(|c| f([c[0], c[1]])).collect();
@@ -30,7 +30,9 @@ fn utf16(bytes: &[u8], f: fn([u8; 2]) -> u16) -> Result<String, String> {
 
 /// `HKEY_*\rest` → our hive and the key under it.
 pub fn split_key(full: &str) -> Result<(Hive, String), String> {
-    let (root, rest) = full.split_once('\\').ok_or_else(|| format!(".reg: key without hive: {full}"))?;
+    let (root, rest) = full
+        .split_once('\\')
+        .ok_or_else(|| format!(".reg: key without hive: {full}"))?;
     let rest = rest.trim_end_matches('\\').to_string();
     match root.to_ascii_uppercase().as_str() {
         "HKEY_CURRENT_USER" | "HKCU" => Ok((Hive::Hkcu, rest)),
@@ -117,7 +119,10 @@ fn value(rhs: &str) -> Result<Option<(String, String)>, String> {
     }
     if let Some(h) = rhs.strip_prefix("hex:") {
         let b = hex_bytes(h)?;
-        return Ok(Some(("REG_BINARY".into(), b.iter().map(|x| format!("{x:02X}")).collect())));
+        return Ok(Some((
+            "REG_BINARY".into(),
+            b.iter().map(|x| format!("{x:02X}")).collect(),
+        )));
     }
     if let Some(rest) = rhs.strip_prefix("hex(") {
         let (t, list) = rest.split_once("):").ok_or(".reg: bad hex() value")?;
@@ -135,13 +140,19 @@ fn value(rhs: &str) -> Result<Option<(String, String)>, String> {
                 }
                 let mut a = [0u8; 8];
                 a.copy_from_slice(&b);
-                Ok(Some(("REG_QWORD".into(), u64::from_le_bytes(a).to_string())))
+                Ok(Some((
+                    "REG_QWORD".into(),
+                    u64::from_le_bytes(a).to_string(),
+                )))
             }
             "4" => {
                 if b.len() != 4 {
                     return Err(".reg: dword needs 4 bytes".into());
                 }
-                Ok(Some(("REG_DWORD".into(), u32::from_le_bytes([b[0], b[1], b[2], b[3]]).to_string())))
+                Ok(Some((
+                    "REG_DWORD".into(),
+                    u32::from_le_bytes([b[0], b[1], b[2], b[3]]).to_string(),
+                )))
             }
             other => Err(format!(".reg: unsupported value type hex({other})")),
         };
@@ -160,23 +171,50 @@ pub fn parse(text: &str) -> Result<Vec<TweakOp>, String> {
         if let Some(inner) = l.strip_prefix('[').and_then(|x| x.strip_suffix(']')) {
             if let Some(del) = inner.strip_prefix('-') {
                 let (hive, key) = split_key(del)?;
-                ops.push(TweakOp::RegDelete { hive, key, name: None });
+                ops.push(TweakOp::RegDelete {
+                    hive,
+                    key,
+                    name: None,
+                });
                 current = None;
             } else {
                 current = Some(split_key(inner)?);
             }
             continue;
         }
-        let (hive, key) = current.clone().ok_or_else(|| format!(".reg: value outside a key: {l}"))?;
+        let (hive, key) = current
+            .clone()
+            .ok_or_else(|| format!(".reg: value outside a key: {l}"))?;
         let (name, rhs) = if let Some(rest) = l.strip_prefix('@') {
-            (String::new(), rest.trim_start().strip_prefix('=').ok_or(".reg: expected = after @")?)
+            (
+                String::new(),
+                rest.trim_start()
+                    .strip_prefix('=')
+                    .ok_or(".reg: expected = after @")?,
+            )
         } else {
             let (n, rest) = quoted(&l)?;
-            (n, rest.trim_start().strip_prefix('=').ok_or(".reg: expected = after a name")?)
+            (
+                n,
+                rest.trim_start()
+                    .strip_prefix('=')
+                    .ok_or(".reg: expected = after a name")?,
+            )
         };
         match value(rhs)? {
-            None => ops.push(TweakOp::RegDelete { hive, key, name: Some(name) }),
-            Some((kind, data)) => ops.push(TweakOp::RegSet { hive, key, name, kind, data, absent_means: None }),
+            None => ops.push(TweakOp::RegDelete {
+                hive,
+                key,
+                name: Some(name),
+            }),
+            Some((kind, data)) => ops.push(TweakOp::RegSet {
+                hive,
+                key,
+                name,
+                kind,
+                data,
+                absent_means: None,
+            }),
         }
     }
     Ok(ops)
@@ -186,7 +224,10 @@ pub fn parse(text: &str) -> Result<Vec<TweakOp>, String> {
 mod tests {
     use super::*;
 
-    const FIX: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/washmybelly_fixtures/tweaks/");
+    const FIX: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/washmybelly_fixtures/tweaks/"
+    );
 
     fn fixture(name: &str) -> Vec<u8> {
         std::fs::read(format!("{FIX}{name}")).unwrap()
@@ -206,13 +247,27 @@ mod tests {
     #[test]
     fn every_value_form_becomes_a_typed_op() {
         let ops = parse(&decode(&fixture("all_forms.reg")).unwrap()).unwrap();
-        let find = |n: &str| ops.iter().find(|o| matches!(o, TweakOp::RegSet { name, .. } | TweakOp::RegDelete { name: Some(name), .. } if name == n)).cloned();
-        assert!(matches!(find("Dw"), Some(TweakOp::RegSet { kind, data, .. }) if kind == "REG_DWORD" && data == "4294967295"));
-        assert!(matches!(find("Bin"), Some(TweakOp::RegSet { kind, data, .. }) if kind == "REG_BINARY" && data == "9012078010000000"));
-        assert!(matches!(find("Exp"), Some(TweakOp::RegSet { kind, data, .. }) if kind == "REG_EXPAND_SZ" && data == "%SystemRoot%"));
-        assert!(matches!(find("Multi"), Some(TweakOp::RegSet { kind, data, .. }) if kind == "REG_MULTI_SZ" && data == "a\\0b"));
-        assert!(matches!(find("Q"), Some(TweakOp::RegSet { kind, data, .. }) if kind == "REG_QWORD" && data == "1"));
-        assert!(matches!(find("Quote"), Some(TweakOp::RegSet { data, .. }) if data == "say \"hi\" C:\\x"));
+        let find = |n: &str| {
+            ops.iter().find(|o| matches!(o, TweakOp::RegSet { name, .. } | TweakOp::RegDelete { name: Some(name), .. } if name == n)).cloned()
+        };
+        assert!(
+            matches!(find("Dw"), Some(TweakOp::RegSet { kind, data, .. }) if kind == "REG_DWORD" && data == "4294967295")
+        );
+        assert!(
+            matches!(find("Bin"), Some(TweakOp::RegSet { kind, data, .. }) if kind == "REG_BINARY" && data == "9012078010000000")
+        );
+        assert!(
+            matches!(find("Exp"), Some(TweakOp::RegSet { kind, data, .. }) if kind == "REG_EXPAND_SZ" && data == "%SystemRoot%")
+        );
+        assert!(
+            matches!(find("Multi"), Some(TweakOp::RegSet { kind, data, .. }) if kind == "REG_MULTI_SZ" && data == "a\\0b")
+        );
+        assert!(
+            matches!(find("Q"), Some(TweakOp::RegSet { kind, data, .. }) if kind == "REG_QWORD" && data == "1")
+        );
+        assert!(
+            matches!(find("Quote"), Some(TweakOp::RegSet { data, .. }) if data == "say \"hi\" C:\\x")
+        );
         assert!(matches!(find("Gone"), Some(TweakOp::RegDelete { .. })));
         // The default value, and a key delete of HKCR mapped under HKLM.
         assert!(ops.iter().any(|o| matches!(o, TweakOp::RegSet { name, data, .. } if name.is_empty() && data == "{f81e9010-6ea4-11ce-a7ff-00aa003ca9f6}")));
@@ -221,9 +276,15 @@ mod tests {
 
     #[test]
     fn broken_files_are_errors() {
-        assert!(parse("Windows Registry Editor Version 5.00\n\"x\"=dword:1\n").is_err(), "value outside a key");
+        assert!(
+            parse("Windows Registry Editor Version 5.00\n\"x\"=dword:1\n").is_err(),
+            "value outside a key"
+        );
         assert!(parse("[HKEY_FOO\\x]\n").is_err(), "unknown hive");
-        assert!(parse("[HKEY_CURRENT_USER\\x]\n\"a\"=hex(0):00\n").is_err(), "REG_NONE is not supported");
+        assert!(
+            parse("[HKEY_CURRENT_USER\\x]\n\"a\"=hex(0):00\n").is_err(),
+            "REG_NONE is not supported"
+        );
         assert!(decode(&[0xFF, 0xFE, 0x41]).is_err(), "odd UTF-16");
     }
 }

@@ -11,10 +11,16 @@ use std::time::Duration;
 use serde_json::{json, Value};
 use windows_sys::core::GUID;
 use windows_sys::Win32::Foundation::{CloseHandle, LocalFree, HANDLE, WAIT_OBJECT_0};
-use windows_sys::Win32::System::Power::{PowerGetActiveScheme, PowerSetActiveScheme, SetThreadExecutionState, ES_CONTINUOUS, ES_DISPLAY_REQUIRED, ES_SYSTEM_REQUIRED};
+use windows_sys::Win32::System::Power::{
+    PowerGetActiveScheme, PowerSetActiveScheme, SetThreadExecutionState, ES_CONTINUOUS,
+    ES_DISPLAY_REQUIRED, ES_SYSTEM_REQUIRED,
+};
 use windows_sys::Win32::System::Threading::{
-    GetPriorityClass, GetProcessInformation, OpenProcess, ProcessPowerThrottling, SetPriorityClass, SetProcessInformation, WaitForSingleObject, ABOVE_NORMAL_PRIORITY_CLASS, NORMAL_PRIORITY_CLASS, PROCESS_POWER_THROTTLING_CURRENT_VERSION,
-    PROCESS_POWER_THROTTLING_EXECUTION_SPEED, PROCESS_POWER_THROTTLING_STATE, PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_INFORMATION, PROCESS_SYNCHRONIZE,
+    GetPriorityClass, GetProcessInformation, OpenProcess, ProcessPowerThrottling, SetPriorityClass,
+    SetProcessInformation, WaitForSingleObject, ABOVE_NORMAL_PRIORITY_CLASS, NORMAL_PRIORITY_CLASS,
+    PROCESS_POWER_THROTTLING_CURRENT_VERSION, PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
+    PROCESS_POWER_THROTTLING_STATE, PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION,
+    PROCESS_SET_INFORMATION, PROCESS_SYNCHRONIZE,
 };
 
 use super::parse::{guid_string, parse_guid, SCHEME_HIGH_PERFORMANCE, SCHEME_ULTIMATE};
@@ -22,7 +28,12 @@ use super::{Applied, ApplyFn, Exec, ExitWaiter, PollWaiter, Target, UndoStep, Wa
 
 fn to_guid(s: &str) -> Option<GUID> {
     let (data1, data2, data3, data4) = parse_guid(s)?;
-    Some(GUID { data1, data2, data3, data4 })
+    Some(GUID {
+        data1,
+        data2,
+        data3,
+        data4,
+    })
 }
 
 fn active_scheme() -> Option<String> {
@@ -53,7 +64,10 @@ impl Proc {
     fn open(pid: u32, access: u32) -> Result<Proc, String> {
         let h = unsafe { OpenProcess(access, 0, pid) };
         if h.is_null() {
-            Err(format!("open process {pid}: {}", std::io::Error::last_os_error()))
+            Err(format!(
+                "open process {pid}: {}",
+                std::io::Error::last_os_error()
+            ))
         } else {
             Ok(Proc(h))
         }
@@ -72,7 +86,14 @@ fn get_throttling(p: &Proc) -> (u32, u32) {
         ControlMask: 0,
         StateMask: 0,
     };
-    let ok = unsafe { GetProcessInformation(p.0, ProcessPowerThrottling, &mut st as *mut _ as *mut _, std::mem::size_of::<PROCESS_POWER_THROTTLING_STATE>() as u32) };
+    let ok = unsafe {
+        GetProcessInformation(
+            p.0,
+            ProcessPowerThrottling,
+            &mut st as *mut _ as *mut _,
+            std::mem::size_of::<PROCESS_POWER_THROTTLING_STATE>() as u32,
+        )
+    };
     // Not readable: treat as "the system decides" (both masks 0).
     if ok == 0 {
         (0, 0)
@@ -87,7 +108,14 @@ fn set_throttling(p: &Proc, control: u32, state: u32) -> Result<(), String> {
         ControlMask: control,
         StateMask: state,
     };
-    let ok = unsafe { SetProcessInformation(p.0, ProcessPowerThrottling, &st as *const _ as *const _, std::mem::size_of::<PROCESS_POWER_THROTTLING_STATE>() as u32) };
+    let ok = unsafe {
+        SetProcessInformation(
+            p.0,
+            ProcessPowerThrottling,
+            &st as *const _ as *const _,
+            std::mem::size_of::<PROCESS_POWER_THROTTLING_STATE>() as u32,
+        )
+    };
     if ok == 0 {
         Err(format!("EcoQoS: {}", std::io::Error::last_os_error()))
     } else {
@@ -114,7 +142,12 @@ impl Exec for Sys {
                 }
                 Ok("priority restored".into())
             }
-            UndoStep::PowerThrottling { pid, control, state, .. } => {
+            UndoStep::PowerThrottling {
+                pid,
+                control,
+                state,
+                ..
+            } => {
                 let p = Proc::open(*pid, PROCESS_SET_INFORMATION)?;
                 set_throttling(&p, *control, *state).map(|_| "EcoQoS restored".into())
             }
@@ -135,7 +168,9 @@ fn apply(target: &Target) -> Result<Applied, String> {
     };
     // Power plan.
     match active_scheme() {
-        Some(prev) if prev == SCHEME_HIGH_PERFORMANCE || prev == SCHEME_ULTIMATE => out.notes.push("power_plan_already_performance".into()),
+        Some(prev) if prev == SCHEME_HIGH_PERFORMANCE || prev == SCHEME_ULTIMATE => {
+            out.notes.push("power_plan_already_performance".into())
+        }
         Some(prev) => match set_scheme(SCHEME_HIGH_PERFORMANCE) {
             Ok(()) => {
                 out.applied.push("power_plan".into());
@@ -149,7 +184,10 @@ fn apply(target: &Target) -> Result<Applied, String> {
         None => out.notes.push("power_plan_unreadable".into()),
     }
     // Priority and EcoQoS of the game only.
-    match Proc::open(target.pid, PROCESS_SET_INFORMATION | PROCESS_QUERY_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION) {
+    match Proc::open(
+        target.pid,
+        PROCESS_SET_INFORMATION | PROCESS_QUERY_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION,
+    ) {
         Ok(p) => {
             let prev = unsafe { GetPriorityClass(p.0) };
             if prev == NORMAL_PRIORITY_CLASS {
@@ -182,7 +220,9 @@ fn apply(target: &Target) -> Result<Applied, String> {
         Err(_) => out.notes.push("game_not_accessible".into()),
     }
     // Display awake, owned by this thread.
-    if unsafe { SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED) } != 0 {
+    if unsafe { SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED) }
+        != 0
+    {
         out.applied.push("display_awake".into());
         out.undo.push(UndoStep::ExecutionState);
     }
@@ -205,7 +245,10 @@ unsafe impl Send for HandleWaiter {}
 impl ExitWaiter for HandleWaiter {
     fn wait(&mut self, timeout: Duration) -> bool {
         match &self.h {
-            Some(p) => unsafe { WaitForSingleObject(p.0, timeout.as_millis().min(u32::MAX as u128) as u32) == WAIT_OBJECT_0 },
+            Some(p) => unsafe {
+                WaitForSingleObject(p.0, timeout.as_millis().min(u32::MAX as u128) as u32)
+                    == WAIT_OBJECT_0
+            },
             None => self.fallback.wait(timeout),
         }
     }
@@ -227,7 +270,12 @@ pub fn plan(target: &Target) -> (ApplyFn, WaiterFn) {
 
 pub fn status(_pid: Option<u32>) -> Value {
     let reg = crate::core::process::std_command("reg")
-        .args(["query", r"HKCU\Software\Microsoft\GameBar", "/v", "AutoGameModeEnabled"])
+        .args([
+            "query",
+            r"HKCU\Software\Microsoft\GameBar",
+            "/v",
+            "AutoGameModeEnabled",
+        ])
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
         .unwrap_or_default();

@@ -89,12 +89,22 @@ pub const MODULES: &[(&str, &[Os], &str)] = &[
 
 fn on_path(program: &str) -> bool {
     let path = crate::core::process::enhanced_path().unwrap_or_default();
-    let exts: &[&str] = if cfg!(windows) { &[".exe", ".cmd", ".bat", ""] } else { &[""] };
-    std::env::split_paths(&path).any(|d| exts.iter().any(|e| d.join(format!("{program}{e}")).is_file()))
+    let exts: &[&str] = if cfg!(windows) {
+        &[".exe", ".cmd", ".bat", ""]
+    } else {
+        &[""]
+    };
+    std::env::split_paths(&path).any(|d| {
+        exts.iter()
+            .any(|e| d.join(format!("{program}{e}")).is_file())
+    })
 }
 
 fn output(program: &str, args: &[&str]) -> Option<String> {
-    let out = crate::core::process::std_command(program).args(args).output().ok()?;
+    let out = crate::core::process::std_command(program)
+        .args(args)
+        .output()
+        .ok()?;
     out.status
         .success()
         .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
@@ -127,10 +137,19 @@ fn has_battery() -> bool {
                 })
             })
             .unwrap_or(false),
-        Os::Macos => output("pmset", &["-g", "batt"]).is_some_and(|t| t.contains("InternalBattery")),
-        Os::Windows => output("powershell", &["-NoProfile", "-Command", "(Get-CimInstance Win32_Battery | Measure-Object).Count"])
-            .and_then(|t| t.trim().parse::<u32>().ok())
-            .is_some_and(|n| n > 0),
+        Os::Macos => {
+            output("pmset", &["-g", "batt"]).is_some_and(|t| t.contains("InternalBattery"))
+        }
+        Os::Windows => output(
+            "powershell",
+            &[
+                "-NoProfile",
+                "-Command",
+                "(Get-CimInstance Win32_Battery | Measure-Object).Count",
+            ],
+        )
+        .and_then(|t| t.trim().parse::<u32>().ok())
+        .is_some_and(|n| n > 0),
     }
 }
 
@@ -142,7 +161,13 @@ fn detect_linux() -> Linux {
     let managers = ["apt-get", "dnf", "pacman", "zypper", "snap", "flatpak"]
         .into_iter()
         .filter(|p| on_path(p))
-        .map(|p| if p == "apt-get" { "apt".to_string() } else { p.to_string() })
+        .map(|p| {
+            if p == "apt-get" {
+                "apt".to_string()
+            } else {
+                p.to_string()
+            }
+        })
         .collect();
     let systemd = Path::new("/run/systemd/system").exists();
     let active = |unit: &str| {
@@ -153,11 +178,16 @@ fn detect_linux() -> Linux {
                 .map(|s| s.success())
                 .unwrap_or(false)
     };
-    let power_managers = [("power-profiles-daemon", "power-profiles-daemon.service"), ("tlp", "tlp.service"), ("auto-cpufreq", "auto-cpufreq.service"), ("tuned", "tuned.service")]
-        .into_iter()
-        .filter(|(_, unit)| active(unit))
-        .map(|(n, _)| n.to_string())
-        .collect();
+    let power_managers = [
+        ("power-profiles-daemon", "power-profiles-daemon.service"),
+        ("tlp", "tlp.service"),
+        ("auto-cpufreq", "auto-cpufreq.service"),
+        ("tuned", "tuned.service"),
+    ]
+    .into_iter()
+    .filter(|(_, unit)| active(unit))
+    .map(|(n, _)| n.to_string())
+    .collect();
     Linux {
         distro_id: m.get("ID").cloned().unwrap_or_default(),
         distro_like: m
@@ -168,16 +198,30 @@ fn detect_linux() -> Linux {
         package_managers: managers,
         flatpak_sandbox: crate::core::dependencies::is_flatpak(),
         power_managers,
-        gamemode: on_path("gamemoded") || Path::new("/usr/share/dbus-1/services/com.feralinteractive.GameMode.service").exists(),
+        gamemode: on_path("gamemoded")
+            || Path::new("/usr/share/dbus-1/services/com.feralinteractive.GameMode.service")
+                .exists(),
         mangohud: on_path("mangohud"),
         systemd,
     }
 }
 
 fn detect_windows() -> Windows {
-    let reg = output("reg", &["query", r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion"]).unwrap_or_default();
+    let reg = output(
+        "reg",
+        &[
+            "query",
+            r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion",
+        ],
+    )
+    .unwrap_or_default();
     let vals = super::parse::reg_query(&reg);
-    let get = |n: &str| vals.iter().find(|v| v.name == n).map(|v| v.data.clone()).unwrap_or_default();
+    let get = |n: &str| {
+        vals.iter()
+            .find(|v| v.name == n)
+            .map(|v| v.data.clone())
+            .unwrap_or_default()
+    };
     let groups = output("whoami", &["/groups", "/fo", "csv"]).unwrap_or_default();
     Windows {
         edition: get("EditionID"),
@@ -191,7 +235,9 @@ fn detect_windows() -> Windows {
 /// Full Disk Access is only known by reading a protected file (the TCC
 /// database of the user), as PureMac does.
 fn full_disk_access() -> bool {
-    let Some(home) = dirs::home_dir() else { return false };
+    let Some(home) = dirs::home_dir() else {
+        return false;
+    };
     std::fs::File::open(home.join("Library/Application Support/com.apple.TCC/TCC.db")).is_ok()
 }
 
@@ -200,20 +246,39 @@ fn detect_macos() -> Macos {
         apple_silicon: cfg!(target_arch = "aarch64"),
         full_disk_access: full_disk_access(),
         homebrew: on_path("brew"),
-        xcode: Path::new("/Applications/Xcode.app").exists() || output("xcode-select", &["-p"]).is_some(),
+        xcode: Path::new("/Applications/Xcode.app").exists()
+            || output("xcode-select", &["-p"]).is_some(),
     }
 }
 
 fn os_version() -> String {
     match current_os() {
-        Os::Macos => output("sw_vers", &["-productVersion"]).unwrap_or_default().trim().to_string(),
+        Os::Macos => output("sw_vers", &["-productVersion"])
+            .unwrap_or_default()
+            .trim()
+            .to_string(),
         Os::Linux => {
             let rel = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
-            super::parse::os_release(&rel).get("VERSION_ID").cloned().unwrap_or_default()
+            super::parse::os_release(&rel)
+                .get("VERSION_ID")
+                .cloned()
+                .unwrap_or_default()
         }
         Os::Windows => {
-            let reg = output("reg", &["query", r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "/v", "DisplayVersion"]).unwrap_or_default();
-            super::parse::reg_query(&reg).first().map(|v| v.data.clone()).unwrap_or_default()
+            let reg = output(
+                "reg",
+                &[
+                    "query",
+                    r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion",
+                    "/v",
+                    "DisplayVersion",
+                ],
+            )
+            .unwrap_or_default();
+            super::parse::reg_query(&reg)
+                .first()
+                .map(|v| v.data.clone())
+                .unwrap_or_default()
         }
     }
 }
@@ -227,8 +292,14 @@ pub fn modules_for(os: Os, linux: Option<&Linux>, macos: Option<&Macos>) -> Vec<
         .map(|(id, _, state)| {
             let mut reason = None;
             match (*id, os) {
-                ("uninstall" | "packages", Os::Linux) if linux.is_some_and(|l| l.flatpak_sandbox) => reason = Some("washmybelly.reason.flatpak_sandbox"),
-                ("packages", Os::Linux) if linux.is_some_and(|l| l.package_managers.is_empty()) => reason = Some("washmybelly.reason.no_package_manager"),
+                ("uninstall" | "packages", Os::Linux)
+                    if linux.is_some_and(|l| l.flatpak_sandbox) =>
+                {
+                    reason = Some("washmybelly.reason.flatpak_sandbox")
+                }
+                ("packages", Os::Linux) if linux.is_some_and(|l| l.package_managers.is_empty()) => {
+                    reason = Some("washmybelly.reason.no_package_manager")
+                }
                 ("clean", Os::Macos) if macos.is_some_and(|m| !m.full_disk_access) => {
                     // Still available: most caches do not need Full Disk
                     // Access; the screen shows the hint for the rest.
@@ -315,9 +386,18 @@ mod tests {
 
     #[test]
     fn a_mac_never_gets_windows_tweaks_and_windows_never_gets_the_mac_inventory() {
-        let mac: Vec<_> = modules_for(Os::Macos, None, None).into_iter().map(|m| m.id).collect();
-        let win: Vec<_> = modules_for(Os::Windows, None, None).into_iter().map(|m| m.id).collect();
-        let lin: Vec<_> = modules_for(Os::Linux, None, None).into_iter().map(|m| m.id).collect();
+        let mac: Vec<_> = modules_for(Os::Macos, None, None)
+            .into_iter()
+            .map(|m| m.id)
+            .collect();
+        let win: Vec<_> = modules_for(Os::Windows, None, None)
+            .into_iter()
+            .map(|m| m.id)
+            .collect();
+        let lin: Vec<_> = modules_for(Os::Linux, None, None)
+            .into_iter()
+            .map(|m| m.id)
+            .collect();
         assert!(!mac.contains(&"tweaks") && mac.contains(&"security"));
         assert!(win.contains(&"tweaks") && !win.contains(&"security"));
         assert!(!lin.contains(&"tweaks") && !lin.contains(&"security"));

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <URI>\Microsoft\Windows\Application Experience\ProgramDataUpdater</URI>
+  </RegistrationInfo>
+  <Settings>
+    <DisallowStartIfOnBatteries>true</DisallowStartIfOnBatteries>
+    <Enabled>false</Enabled>
+    <Hidden>false</Hidden>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>%windir%\system32\compattelrunner.exe</Command>
+    </Exec>
+  </Actions>
+</Task>

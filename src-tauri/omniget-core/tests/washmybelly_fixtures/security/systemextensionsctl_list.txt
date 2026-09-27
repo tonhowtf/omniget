@@ -1,0 +1,11 @@
+4 extension(s)
+--- com.apple.system_extension.network_extension (Go to 'System Settings > General > Login Items & Extensions > Network Extensions' to modify these system extension(s))
+enabled	active	teamID	bundleID (version)	name	[state]
+*	*	CKG9MXH72F	net.mullvad.MullvadVPN.PacketTunnel (2025.14/2025.14)	Mullvad VPN Tunnel	[activated enabled]
+		AB12CD34EF	com.example.filter (1.0/1)	Example Content Filter	[terminated waiting to uninstall on reboot]
+--- com.apple.system_extension.endpoint_security
+enabled	active	teamID	bundleID (version)	name	[state]
+*	*	EQHXZ8M8AV	com.example.edr.extension (7.3.1/731)	Example Endpoint Agent	[activated enabled]
+--- com.apple.system_extension.driver_extension (Go to 'System Settings > General > Login Items & Extensions > Driver Extensions' to modify these system extension(s))
+enabled	active	teamID	bundleID (version)	name	[state]
+	*	QED4VVPZWA	com.logi.ghub.hidfilter (1.1.23.830163/1.1.23)	Logitech G HUB HID Driver Extension	[activated waiting for user]

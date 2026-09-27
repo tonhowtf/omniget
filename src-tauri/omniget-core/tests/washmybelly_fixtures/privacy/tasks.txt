@@ -1,0 +1,3 @@
+\Microsoft\Windows\Customer Experience Improvement Program\|Consolidator|Disabled
+\Microsoft\Windows\Customer Experience Improvement Program\|UsbCeip|Ready
+\Microsoft\Windows\Application Experience\|ProgramDataUpdater|Running

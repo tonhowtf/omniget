@@ -1,0 +1,2 @@
+/Library/LaunchDaemons/com.bjango.istatmenus.daemon.plist: rejected
+source=no usable signature

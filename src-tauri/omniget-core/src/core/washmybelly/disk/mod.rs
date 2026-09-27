@@ -282,7 +282,7 @@ mod tests {
         std::fs::write(root.join("movie.mov"), vec![1u8; 2_100_000]).unwrap();
         std::fs::write(root.join("small.txt"), vec![1u8; 10]).unwrap();
         let ctx = Ctx::at(&d.path().join("state"));
-        let v = large_files(&ctx, &[root.clone()], 1, 10, Source::Ui).unwrap();
+        let v = large_files(&ctx, std::slice::from_ref(&root), 1, 10, Source::Ui).unwrap();
         assert_eq!(v["items"].as_array().unwrap().len(), 1);
         assert!(v["plan_id"].is_string());
         assert_eq!(v["items"][0]["group"], "video");

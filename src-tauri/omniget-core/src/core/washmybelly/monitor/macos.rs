@@ -109,13 +109,16 @@ fn key_str(k: u32) -> String {
     String::from_utf8_lossy(&k.to_be_bytes()).into_owned()
 }
 
+/// (key, name, group, kind, average).
+type MatchedKey = (u32, String, &'static str, &'static str, bool);
+
 struct Smc {
     conn: IoObject,
     info: HashMap<u32, Option<(u32, [u8; 4])>>,
     keys: Option<Vec<u32>>,
     /// Table entries of this chip matched against the enumerated keys:
     /// (key, name, group, kind, average).
-    matched: Option<Vec<(u32, String, &'static str, &'static str, bool)>>,
+    matched: Option<Vec<MatchedKey>>,
 }
 
 // The connection is a mach port number; the struct is only touched under the mutex.
@@ -212,7 +215,7 @@ impl Smc {
         self.keys.as_deref().unwrap_or(&[])
     }
 
-    fn matched(&mut self, family: u16) -> Vec<(u32, String, &'static str, &'static str, bool)> {
+    fn matched(&mut self, family: u16) -> Vec<MatchedKey> {
         if let Some(m) = &self.matched {
             return m.clone();
         }
@@ -365,8 +368,11 @@ pub fn main_temps() -> (Option<f64>, Option<f64>) {
     .unwrap_or((None, None))
 }
 
+/// Temperatures, fans and power readings (name, watts).
+type SmcSensors = (Vec<Temp>, Vec<Fan>, Vec<(String, f64)>);
+
 /// Every temperature and power key of this chip, and the fans.
-pub fn smc_sensors() -> Result<(Vec<Temp>, Vec<Fan>, Vec<(String, f64)>), String> {
+pub fn smc_sensors() -> Result<SmcSensors, String> {
     let fam = family();
     with_smc(|smc| {
         let mut temps = Vec::new();

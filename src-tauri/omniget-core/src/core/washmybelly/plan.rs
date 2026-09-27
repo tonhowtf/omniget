@@ -31,10 +31,41 @@ const CANDIDATE_TTL: Duration = Duration::from_secs(1800);
 /// `npm cache clean`). Always argv, never a shell; the arguments come from
 /// the rule catalog, not from the caller.
 pub const NATIVE_PROGRAMS: &[&str] = &[
-    "brew", "npm", "pnpm", "yarn", "pip", "pip3", "go", "gradle", "xcrun", "docker", "flatpak",
-    "snap", "journalctl", "tmutil", "qlmanage", "dscacheutil", "killall", "mdutil", "diskutil",
-    "lsregister", "fstrim", "sfc", "DISM", "dism", "ipconfig", "winget", "apt-get", "dnf",
-    "pacman", "paccache", "zypper", "conda", "composer", "dotnet", "nix-collect-garbage",
+    "brew",
+    "npm",
+    "pnpm",
+    "yarn",
+    "pip",
+    "pip3",
+    "go",
+    "gradle",
+    "xcrun",
+    "docker",
+    "flatpak",
+    "snap",
+    "journalctl",
+    "tmutil",
+    "qlmanage",
+    "dscacheutil",
+    "killall",
+    "mdutil",
+    "diskutil",
+    "lsregister",
+    "fstrim",
+    "sfc",
+    "DISM",
+    "dism",
+    "ipconfig",
+    "winget",
+    "apt-get",
+    "dnf",
+    "pacman",
+    "paccache",
+    "zypper",
+    "conda",
+    "composer",
+    "dotnet",
+    "nix-collect-garbage",
 ];
 
 /// Where a plan came from. Only the screen may carry `extreme` items.
@@ -193,11 +224,20 @@ impl Plan {
 
 fn op_summary(op: &Op) -> Value {
     match op {
-        Op::RemovePath { path, destination, contents_only, .. } => json!({
+        Op::RemovePath {
+            path,
+            destination,
+            contents_only,
+            ..
+        } => json!({
             "type": "remove", "path": path, "destination": destination, "contents_only": contents_only,
         }),
-        Op::Command { program, args, .. } => json!({ "type": "command", "argv": std::iter::once(program.clone()).chain(args.iter().cloned()).collect::<Vec<_>>() }),
-        Op::Module { module, action, .. } => json!({ "type": "module", "module": module, "action": action }),
+        Op::Command { program, args, .. } => {
+            json!({ "type": "command", "argv": std::iter::once(program.clone()).chain(args.iter().cloned()).collect::<Vec<_>>() })
+        }
+        Op::Module { module, action, .. } => {
+            json!({ "type": "module", "module": module, "action": action })
+        }
     }
 }
 
@@ -208,7 +248,9 @@ type Candidates = HashMap<String, (Instant, String, PlanItem)>;
 static CANDIDATES: Mutex<Option<Candidates>> = Mutex::new(None);
 
 fn remember(kind: &str, items: &[PlanItem]) {
-    let Ok(mut guard) = CANDIDATES.lock() else { return };
+    let Ok(mut guard) = CANDIDATES.lock() else {
+        return;
+    };
     let map = guard.get_or_insert_with(HashMap::new);
     map.retain(|_, (at, _, _)| at.elapsed() < CANDIDATE_TTL);
     let now = Instant::now();
@@ -250,7 +292,9 @@ pub fn from_ids(ctx: &Ctx, kind: &str, ids: &[String], source: Source) -> Result
     for id in ids {
         match candidate(kind, id) {
             Some(it) if it.risk == Risk::Extreme && source != Source::Ui => {
-                return Err(format!("EXTREME_ITEM: {id} can only be chosen on the OmniGet screen"))
+                return Err(format!(
+                    "EXTREME_ITEM: {id} can only be chosen on the OmniGet screen"
+                ))
             }
             Some(it) => items.push(it),
             None => missing.push(id.clone()),
@@ -260,7 +304,12 @@ pub fn from_ids(ctx: &Ctx, kind: &str, ids: &[String], source: Source) -> Result
         return Err(format!(
             "UNKNOWN_ITEMS: {} id(s) were not offered by a recent {kind} scan (scan again): {}",
             missing.len(),
-            missing.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+            missing
+                .iter()
+                .take(5)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
     build(ctx, kind, items, source)
@@ -290,14 +339,16 @@ fn build(ctx: &Ctx, kind: &str, items: Vec<PlanItem>, source: Source) -> Result<
 
 fn validate_item(it: &PlanItem) -> Result<(), String> {
     match &it.op {
-        Op::RemovePath { path, root, guard, .. } => {
-            protect::check(path, *guard, root.as_deref())
-        }
+        Op::RemovePath {
+            path, root, guard, ..
+        } => protect::check(path, *guard, root.as_deref()),
         Op::Command { program, .. } => {
             if NATIVE_PROGRAMS.contains(&program.as_str()) {
                 Ok(())
             } else {
-                Err(format!("PROTECTED: {program} is not an allowed cleanup program"))
+                Err(format!(
+                    "PROTECTED: {program} is not an allowed cleanup program"
+                ))
             }
         }
         Op::Module { module, .. } => {
@@ -326,12 +377,19 @@ pub fn save(ctx: &Ctx, plan: &Plan) -> Result<(), String> {
 pub fn load(ctx: &Ctx, plan_id: &str) -> Result<Plan, String> {
     let body: Option<String> = ctx
         .open()?
-        .query_row("SELECT body FROM plans WHERE id=?1", params![plan_id], |r| r.get(0))
+        .query_row(
+            "SELECT body FROM plans WHERE id=?1",
+            params![plan_id],
+            |r| r.get(0),
+        )
         .optional()
         .map_err(|e| e.to_string())?;
-    let mut plan: Plan = serde_json::from_str(&body.ok_or_else(|| format!("PLAN_NOT_FOUND: {plan_id}"))?)
-        .map_err(|e| e.to_string())?;
-    if matches!(plan.status, PlanStatus::Ready | PlanStatus::PendingApproval) && now() > plan.expires {
+    let mut plan: Plan =
+        serde_json::from_str(&body.ok_or_else(|| format!("PLAN_NOT_FOUND: {plan_id}"))?)
+            .map_err(|e| e.to_string())?;
+    if matches!(plan.status, PlanStatus::Ready | PlanStatus::PendingApproval)
+        && now() > plan.expires
+    {
         plan.status = PlanStatus::Expired;
         save(ctx, &plan)?;
     }
@@ -349,7 +407,15 @@ pub fn set_status(ctx: &Ctx, plan_id: &str, status: PlanStatus) -> Result<Plan, 
 
 /// Modules that execute plan items of kind [`Op::Module`].
 pub const MODULES: &[&str] = &[
-    "clean", "apps", "startup", "privacy", "tweaks", "packages", "hosts", "maintenance", "power",
+    "clean",
+    "apps",
+    "startup",
+    "privacy",
+    "tweaks",
+    "packages",
+    "hosts",
+    "maintenance",
+    "power",
 ];
 
 /// What a module reports for one item it ran.
@@ -360,7 +426,13 @@ pub struct Outcome {
     pub undo: Option<Undo>,
 }
 
-fn module_execute(ctx: &Ctx, receipt_id: &str, module: &str, action: &str, args: &Value) -> Result<Outcome, String> {
+fn module_execute(
+    ctx: &Ctx,
+    receipt_id: &str,
+    module: &str,
+    action: &str,
+    args: &Value,
+) -> Result<Outcome, String> {
     use super::*;
     match module {
         "clean" => clean::plan_execute(ctx, receipt_id, action, args),
@@ -378,7 +450,13 @@ fn module_execute(ctx: &Ctx, receipt_id: &str, module: &str, action: &str, args:
 
 /// The admin half of a module item: the module snapshots what it will
 /// change, then hands back typed operations for the helper.
-fn module_elevated(ctx: &Ctx, receipt_id: &str, module: &str, action: &str, args: &Value) -> Result<(Vec<ElevatedOp>, Option<Undo>), String> {
+fn module_elevated(
+    ctx: &Ctx,
+    receipt_id: &str,
+    module: &str,
+    action: &str,
+    args: &Value,
+) -> Result<(Vec<ElevatedOp>, Option<Undo>), String> {
     use super::*;
     match module {
         "clean" => clean::plan_elevated(ctx, receipt_id, action, args),
@@ -418,7 +496,12 @@ pub fn execute(ctx: &Ctx, plan_id: &str) -> Result<Receipt, String> {
     match plan.status {
         PlanStatus::Ready | PlanStatus::PendingApproval => {}
         PlanStatus::Expired => return Err("PLAN_EXPIRED: scan again".into()),
-        PlanStatus::Executed => return Err(format!("PLAN_ALREADY_EXECUTED: receipt {}", plan.receipt_id.clone().unwrap_or_default())),
+        PlanStatus::Executed => {
+            return Err(format!(
+                "PLAN_ALREADY_EXECUTED: receipt {}",
+                plan.receipt_id.clone().unwrap_or_default()
+            ))
+        }
         PlanStatus::Denied => return Err("PLAN_DENIED: the person refused this plan".into()),
         PlanStatus::Executing => return Err("PLAN_RUNNING".into()),
     }
@@ -448,7 +531,13 @@ pub fn execute(ctx: &Ctx, plan_id: &str) -> Result<Receipt, String> {
     }
 
     if !batch.is_empty() {
-        super::progress("execute", "admin", 0, batch.len() as u64, "waiting for the administrator password");
+        super::progress(
+            "execute",
+            "admin",
+            0,
+            batch.len() as u64,
+            "waiting for the administrator password",
+        );
         let outcome = elevate::run(ctx, &batch);
         let mut cursor = 0;
         for (i, n, undo) in batch_owner {
@@ -459,9 +548,28 @@ pub fn execute(ctx: &Ctx, plan_id: &str) -> Result<Receipt, String> {
                     let failed: Vec<_> = mine.iter().filter(|r| !r.ok).collect();
                     let bytes = mine.iter().map(|r| r.bytes).sum();
                     if failed.is_empty() {
-                        result(it, ItemStatus::Done, "done as administrator".into(), bytes, undo)
+                        // The helper's own summary (sfc, DISM, fstrim...)
+                        // goes into the receipt.
+                        let detail = mine
+                            .iter()
+                            .map(|r| r.detail.trim())
+                            .filter(|d| !d.is_empty())
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        let detail = if detail.is_empty() {
+                            "done as administrator".to_string()
+                        } else {
+                            detail
+                        };
+                        result(it, ItemStatus::Done, detail, bytes, undo)
                     } else {
-                        result(it, ItemStatus::Failed, failed[0].detail.clone(), bytes, None)
+                        result(
+                            it,
+                            ItemStatus::Failed,
+                            failed[0].detail.clone(),
+                            bytes,
+                            None,
+                        )
                     }
                 }
                 Err(e) => result(it, ItemStatus::Failed, e.clone(), 0, None),
@@ -477,11 +585,23 @@ pub fn execute(ctx: &Ctx, plan_id: &str) -> Result<Receipt, String> {
     plan.status = PlanStatus::Executed;
     plan.receipt_id = Some(receipt.id.clone());
     save(ctx, &plan)?;
-    super::progress("execute", "done", total, total, format!("{} bytes freed", receipt.bytes_freed));
+    super::progress(
+        "execute",
+        "done",
+        total,
+        total,
+        format!("{} bytes freed", receipt.bytes_freed),
+    );
     Ok(receipt)
 }
 
-fn result(it: &PlanItem, status: ItemStatus, detail: String, bytes: u64, undo: Option<Undo>) -> ItemResult {
+fn result(
+    it: &PlanItem,
+    status: ItemStatus,
+    detail: String,
+    bytes: u64,
+    undo: Option<Undo>,
+) -> ItemResult {
     ItemResult {
         item_id: it.id.clone(),
         label: it.label.clone(),
@@ -492,9 +612,20 @@ fn result(it: &PlanItem, status: ItemStatus, detail: String, bytes: u64, undo: O
     }
 }
 
-fn elevated_ops(ctx: &Ctx, receipt_id: &str, it: &PlanItem) -> Result<(Vec<ElevatedOp>, Option<Undo>), String> {
+fn elevated_ops(
+    ctx: &Ctx,
+    receipt_id: &str,
+    it: &PlanItem,
+) -> Result<(Vec<ElevatedOp>, Option<Undo>), String> {
     match &it.op {
-        Op::RemovePath { path, fp, root, guard, contents_only, .. } => {
+        Op::RemovePath {
+            path,
+            fp,
+            root,
+            guard,
+            contents_only,
+            ..
+        } => {
             protect::check(path, *guard, root.as_deref())?;
             fsops::unchanged(path, fp)?;
             Ok((
@@ -509,36 +640,77 @@ fn elevated_ops(ctx: &Ctx, receipt_id: &str, it: &PlanItem) -> Result<(Vec<Eleva
             ))
         }
         Op::Command { .. } => Err("a native command never runs as administrator".into()),
-        Op::Module { module, action, args } => module_elevated(ctx, receipt_id, module, action, args),
+        Op::Module {
+            module,
+            action,
+            args,
+        } => module_elevated(ctx, receipt_id, module, action, args),
     }
 }
 
 fn run_item(ctx: &Ctx, receipt_id: &str, index: usize, it: &PlanItem) -> ItemResult {
     match &it.op {
-        Op::RemovePath { path, destination, fp, root, guard, contents_only } => {
+        Op::RemovePath {
+            path,
+            destination,
+            fp,
+            root,
+            guard,
+            contents_only,
+        } => {
             if let Err(e) = protect::check(path, *guard, root.as_deref()) {
                 return result(it, ItemStatus::Skipped, e, 0, None);
             }
             if let Err(e) = fsops::unchanged(path, fp) {
                 return result(it, ItemStatus::Skipped, e, 0, None);
             }
-            remove(ctx, receipt_id, index, it, path, *destination, *contents_only)
+            remove(
+                ctx,
+                receipt_id,
+                index,
+                it,
+                path,
+                *destination,
+                *contents_only,
+            )
         }
-        Op::Command { program, args, measure } => {
+        Op::Command {
+            program,
+            args,
+            measure,
+        } => {
             if !NATIVE_PROGRAMS.contains(&program.as_str()) {
-                return result(it, ItemStatus::Skipped, format!("{program} is not allowed"), 0, None);
+                return result(
+                    it,
+                    ItemStatus::Skipped,
+                    format!("{program} is not allowed"),
+                    0,
+                    None,
+                );
             }
             let before: u64 = measure.iter().map(|p| fsops::measure(p).0).sum();
-            let out = crate::core::process::std_command(program).args(args).output();
+            let out = crate::core::process::std_command(program)
+                .args(args)
+                .output();
             let after: u64 = measure.iter().map(|p| fsops::measure(p).0).sum();
             let freed = before.saturating_sub(after);
             match out {
-                Ok(o) if o.status.success() => result(it, ItemStatus::Done, format!("{program} finished"), freed, None),
+                Ok(o) if o.status.success() => result(
+                    it,
+                    ItemStatus::Done,
+                    format!("{program} finished"),
+                    freed,
+                    None,
+                ),
                 Ok(o) => result(it, ItemStatus::Failed, tail(&o.stderr), freed, None),
                 Err(e) => result(it, ItemStatus::Failed, format!("{program}: {e}"), 0, None),
             }
         }
-        Op::Module { module, action, args } => match module_execute(ctx, receipt_id, module, action, args) {
+        Op::Module {
+            module,
+            action,
+            args,
+        } => match module_execute(ctx, receipt_id, module, action, args) {
             Ok(o) => result(it, ItemStatus::Done, o.detail, o.bytes, o.undo),
             Err(e) => result(it, ItemStatus::Failed, e, 0, None),
         },
@@ -552,7 +724,15 @@ fn tail(bytes: &[u8]) -> String {
     s.get(start..).unwrap_or(s).to_string()
 }
 
-fn remove(ctx: &Ctx, receipt_id: &str, index: usize, it: &PlanItem, path: &std::path::Path, dest: Destination, contents_only: bool) -> ItemResult {
+fn remove(
+    ctx: &Ctx,
+    receipt_id: &str,
+    index: usize,
+    it: &PlanItem,
+    path: &std::path::Path,
+    dest: Destination,
+    contents_only: bool,
+) -> ItemResult {
     let bytes = fsops::measure(path).0;
     match dest {
         Destination::Unlink => match fsops::remove_tree(path, contents_only) {
@@ -561,7 +741,16 @@ fn remove(ctx: &Ctx, receipt_id: &str, index: usize, it: &PlanItem, path: &std::
         },
         Destination::Quarantine if !contents_only && quarantine_ok(ctx, path) => {
             match super::quarantine::move_in(ctx, receipt_id, index, path) {
-                Ok(q) => result(it, ItemStatus::Done, "moved to quarantine".into(), bytes, Some(Undo::Quarantine { from: q, to: path.to_path_buf() })),
+                Ok(q) => result(
+                    it,
+                    ItemStatus::Done,
+                    "moved to quarantine".into(),
+                    bytes,
+                    Some(Undo::Quarantine {
+                        from: q,
+                        to: path.to_path_buf(),
+                    }),
+                ),
                 Err(e) => result(it, ItemStatus::Failed, e, 0, None),
             }
         }
@@ -580,10 +769,24 @@ fn remove(ctx: &Ctx, receipt_id: &str, index: usize, it: &PlanItem, path: &std::
                         }
                     }
                 }
-                return result(it, ItemStatus::Done, "moved to the Trash".into(), freed, Some(Undo::TrashMany { originals: undo }));
+                return result(
+                    it,
+                    ItemStatus::Done,
+                    "moved to the Trash".into(),
+                    freed,
+                    Some(Undo::TrashMany { originals: undo }),
+                );
             }
             match fsops::to_trash(path) {
-                Ok(()) => result(it, ItemStatus::Done, "moved to the Trash".into(), bytes, Some(Undo::Trash { original: path.to_path_buf() })),
+                Ok(()) => result(
+                    it,
+                    ItemStatus::Done,
+                    "moved to the Trash".into(),
+                    bytes,
+                    Some(Undo::Trash {
+                        original: path.to_path_buf(),
+                    }),
+                ),
                 Err(e) => result(it, ItemStatus::Failed, e, 0, None),
             }
         }
@@ -609,14 +812,25 @@ pub fn copy_commands(ctx: &Ctx, plan_id: &str) -> Result<Vec<String>, String> {
     let mut notes = Vec::new();
     for it in plan.items.iter().filter(|i| i.admin) {
         match &it.op {
-            Op::RemovePath { path, fp, root, guard, contents_only, .. } => ops.push(ElevatedOp::RemovePath {
+            Op::RemovePath {
+                path,
+                fp,
+                root,
+                guard,
+                contents_only,
+                ..
+            } => ops.push(ElevatedOp::RemovePath {
                 path: path.clone(),
                 root: root.clone(),
                 guard: *guard,
                 fp: *fp,
                 contents_only: *contents_only,
             }),
-            Op::Module { module, action, args } => match module_elevated(&dry, "preview", module, action, args) {
+            Op::Module {
+                module,
+                action,
+                args,
+            } => match module_elevated(&dry, "preview", module, action, args) {
                 Ok((more, _)) => ops.extend(more),
                 Err(e) => notes.push(format!("# {}: {e}", it.label)),
             },
@@ -732,9 +946,13 @@ mod tests {
         let b = root.join("b.cache");
         std::fs::write(&a, vec![1u8; 10_000]).unwrap();
         std::fs::write(&b, vec![1u8; 10_000]).unwrap();
-        let items = vec![file_item(&a, &root, Destination::Quarantine), file_item(&b, &root, Destination::Unlink)];
+        let items = vec![
+            file_item(&a, &root, Destination::Quarantine),
+            file_item(&b, &root, Destination::Unlink),
+        ];
         let plan = offer(&ctx, "cleanup", items, Source::Agent).unwrap();
-        let narrowed = from_ids(&ctx, "cleanup", &[plan.items[0].id.clone()], Source::Agent).unwrap();
+        let narrowed =
+            from_ids(&ctx, "cleanup", &[plan.items[0].id.clone()], Source::Agent).unwrap();
         assert_eq!(narrowed.items.len(), 1);
         let receipt = execute(&ctx, &plan.id).unwrap();
         assert!(!a.exists() && !b.exists());
@@ -752,7 +970,13 @@ mod tests {
         std::fs::create_dir_all(&root).unwrap();
         let a = root.join("a.log");
         std::fs::write(&a, "1").unwrap();
-        let plan = offer(&ctx, "cleanup", vec![file_item(&a, &root, Destination::Unlink)], Source::Agent).unwrap();
+        let plan = offer(
+            &ctx,
+            "cleanup",
+            vec![file_item(&a, &root, Destination::Unlink)],
+            Source::Agent,
+        )
+        .unwrap();
         std::thread::sleep(Duration::from_millis(20));
         std::fs::write(&a, vec![2u8; 9000]).unwrap();
         let receipt = execute(&ctx, &plan.id).unwrap();
@@ -780,7 +1004,11 @@ mod tests {
             bytes: 0,
             risk: Risk::Destructive,
             admin: false,
-            op: Op::Command { program: "sh".into(), args: vec!["-c".into(), "rm -rf ~".into()], measure: vec![] },
+            op: Op::Command {
+                program: "sh".into(),
+                args: vec!["-c".into(), "rm -rf ~".into()],
+                measure: vec![],
+            },
         };
         assert!(offer(&ctx, "cleanup", vec![item], Source::Agent).is_err());
     }
@@ -820,11 +1048,21 @@ mod tests {
             },
         }];
         let through = root.join("top-link").join("precious.txt");
-        assert!(protect::check(&through, Guard::Picked, Some(&root)).is_err(), "a path through a link is refused");
-        items.push(file_item(&root.join("top-link"), &root, Destination::Unlink));
+        assert!(
+            protect::check(&through, Guard::Picked, Some(&root)).is_err(),
+            "a path through a link is refused"
+        );
+        items.push(file_item(
+            &root.join("top-link"),
+            &root,
+            Destination::Unlink,
+        ));
         let plan = offer(&ctx, "cleanup", items, Source::Ui).unwrap();
         let _ = execute(&ctx, &plan.id).unwrap();
-        assert_eq!(std::fs::read_to_string(outside.join("precious.txt")).unwrap(), "keep me");
+        assert_eq!(
+            std::fs::read_to_string(outside.join("precious.txt")).unwrap(),
+            "keep me"
+        );
         assert!(!root.join("sub/trash.tmp").exists());
     }
 

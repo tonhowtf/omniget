@@ -146,7 +146,7 @@ pub fn list() -> Vec<Value> {
         }
         let device = d.name().to_string_lossy().into_owned();
         let key = (device.clone(), d.total_space(), d.available_space());
-        if os == Os::Linux && !device.is_empty() && seen.iter().any(|s| *s == key) {
+        if os == Os::Linux && !device.is_empty() && seen.contains(&key) {
             continue;
         }
         seen.push(key);

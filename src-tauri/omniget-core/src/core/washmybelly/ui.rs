@@ -6,7 +6,9 @@ use serde_json::Value;
 
 pub async fn call(action: &str, a: Value) -> Result<Value, String> {
     use super::*;
-    let (module, rest) = action.split_once('.').ok_or("action must be <module>.<name>")?;
+    let (module, rest) = action
+        .split_once('.')
+        .ok_or("action must be <module>.<name>")?;
     match module {
         "plan" => plan::ui_action(rest, a).await,
         "monitor" => monitor::ui_action(rest, a).await,

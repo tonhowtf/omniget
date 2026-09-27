@@ -21,10 +21,16 @@ pub fn owner_manager(comm: Option<&str>, version: Option<&str>) -> Option<Manage
 
 /// Write `value` to `name` in every cpufreq folder, after checking it is
 /// one of the values the kernel lists as available.
-pub fn write_cpu_knob(sys: &Path, name: &str, available: &str, value: &str) -> Result<String, String> {
+pub fn write_cpu_knob(
+    sys: &Path,
+    name: &str,
+    available: &str,
+    value: &str,
+) -> Result<String, String> {
     let dirs = parse::cpufreq_dirs(sys);
     let first = dirs.first().ok_or("no cpufreq on this machine")?;
-    let allowed = std::fs::read_to_string(first.join(available)).map_err(|e| format!("{available}: {e}"))?;
+    let allowed =
+        std::fs::read_to_string(first.join(available)).map_err(|e| format!("{available}: {e}"))?;
     if !allowed.split_whitespace().any(|v| v == value) {
         return Err(format!("{value} is not one of: {}", allowed.trim()));
     }
@@ -41,11 +47,15 @@ pub fn write_cpu_knob(sys: &Path, name: &str, available: &str, value: &str) -> R
 
 /// `BAT0:80`.
 pub fn write_charge_limit(sys: &Path, value: &str) -> Result<String, String> {
-    let (bat, pct) = value.split_once(':').ok_or("charge_limit: expected BATTERY:PERCENT")?;
+    let (bat, pct) = value
+        .split_once(':')
+        .ok_or("charge_limit: expected BATTERY:PERCENT")?;
     if !parse::valid_battery_name(bat) {
         return Err(format!("charge_limit: invalid battery {bat:?}"));
     }
-    let pct: u8 = pct.parse().map_err(|_| "charge_limit: percent must be a number")?;
+    let pct: u8 = pct
+        .parse()
+        .map_err(|_| "charge_limit: percent must be a number")?;
     if !(20..=100).contains(&pct) {
         return Err("charge_limit: percent must be 20-100".into());
     }
@@ -61,7 +71,10 @@ pub fn write_charge_limit(sys: &Path, value: &str) -> Result<String, String> {
     // A start threshold above the new end is refused by most drivers.
     for start in ["charge_control_start_threshold", "charge_start_threshold"] {
         let sp = dir.join(start);
-        if let Some(cur) = std::fs::read_to_string(&sp).ok().and_then(|s| s.trim().parse::<u8>().ok()) {
+        if let Some(cur) = std::fs::read_to_string(&sp)
+            .ok()
+            .and_then(|s| s.trim().parse::<u8>().ok())
+        {
             if cur >= pct {
                 let _ = std::fs::write(&sp, pct.saturating_sub(5).to_string());
             }
@@ -77,9 +90,18 @@ mod tests {
 
     #[test]
     fn owner_from_process_or_version() {
-        assert_eq!(owner_manager(Some("power-profiles-"), None), Some(Manager::PowerProfilesDaemon));
-        assert_eq!(owner_manager(Some("python3"), Some("tlp-pd 1.11.0")), Some(Manager::TlpPd));
-        assert_eq!(owner_manager(Some("tuned-ppd"), None), Some(Manager::TunedPpd));
+        assert_eq!(
+            owner_manager(Some("power-profiles-"), None),
+            Some(Manager::PowerProfilesDaemon)
+        );
+        assert_eq!(
+            owner_manager(Some("python3"), Some("tlp-pd 1.11.0")),
+            Some(Manager::TlpPd)
+        );
+        assert_eq!(
+            owner_manager(Some("tuned-ppd"), None),
+            Some(Manager::TunedPpd)
+        );
         assert_eq!(owner_manager(None, None), None);
     }
 
@@ -98,7 +120,8 @@ mod tests {
 
     fn fake_sys() -> tempfile::TempDir {
         let d = tempfile::tempdir().unwrap();
-        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/washmybelly_fixtures/power/sysfs_intel");
+        let src = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/washmybelly_fixtures/power/sysfs_intel");
         copy_tree(&src, d.path());
         d
     }
@@ -107,13 +130,40 @@ mod tests {
     fn cpu_knob_only_takes_listed_values() {
         let d = fake_sys();
         let sys = d.path();
-        assert!(write_cpu_knob(sys, "energy_performance_preference", "energy_performance_available_preferences", "turbo").is_err());
-        write_cpu_knob(sys, "energy_performance_preference", "energy_performance_available_preferences", "power").unwrap();
+        assert!(write_cpu_knob(
+            sys,
+            "energy_performance_preference",
+            "energy_performance_available_preferences",
+            "turbo"
+        )
+        .is_err());
+        write_cpu_knob(
+            sys,
+            "energy_performance_preference",
+            "energy_performance_available_preferences",
+            "power",
+        )
+        .unwrap();
         assert_eq!(parse::cpu_knobs(sys).epp.as_deref(), Some("power"));
-        let c1 = std::fs::read_to_string(sys.join("devices/system/cpu/cpu1/cpufreq/energy_performance_preference")).unwrap();
+        let c1 = std::fs::read_to_string(
+            sys.join("devices/system/cpu/cpu1/cpufreq/energy_performance_preference"),
+        )
+        .unwrap();
         assert_eq!(c1, "power");
-        write_cpu_knob(sys, "scaling_governor", "scaling_available_governors", "performance").unwrap();
-        assert!(write_cpu_knob(sys, "scaling_governor", "scaling_available_governors", "performance; rm").is_err());
+        write_cpu_knob(
+            sys,
+            "scaling_governor",
+            "scaling_available_governors",
+            "performance",
+        )
+        .unwrap();
+        assert!(write_cpu_knob(
+            sys,
+            "scaling_governor",
+            "scaling_available_governors",
+            "performance; rm"
+        )
+        .is_err());
     }
 
     #[test]
@@ -129,5 +179,4 @@ mod tests {
         assert_eq!(c.end, 60);
         assert_eq!(c.start, Some(55), "start moved below the new end");
     }
-
 }

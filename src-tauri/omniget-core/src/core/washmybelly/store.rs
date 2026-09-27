@@ -52,7 +52,9 @@ impl Ctx {
     pub fn kv_get<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
         let db = self.open().ok()?;
         let body: Option<String> = db
-            .query_row("SELECT body FROM kv WHERE key=?1", params![key], |r| r.get(0))
+            .query_row("SELECT body FROM kv WHERE key=?1", params![key], |r| {
+                r.get(0)
+            })
             .optional()
             .ok()?;
         body.and_then(|b| serde_json::from_str(&b).ok())
@@ -91,7 +93,9 @@ impl Ctx {
     pub fn snapshot_get<T: DeserializeOwned>(&self, id: &str) -> Result<T, String> {
         let body: String = self
             .open()?
-            .query_row("SELECT body FROM snapshots WHERE id=?1", params![id], |r| r.get(0))
+            .query_row("SELECT body FROM snapshots WHERE id=?1", params![id], |r| {
+                r.get(0)
+            })
             .map_err(|_| format!("snapshot {id} not found"))?;
         serde_json::from_str(&body).map_err(|e| e.to_string())
     }

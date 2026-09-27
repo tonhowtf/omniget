@@ -21,6 +21,12 @@
       Codex, Gemini CLI and local Ollama models, with permissions, undo, background
       jobs and loops that repeat until your tests pass.
     </p>
+    <p>
+      The washmybelly superpower cleans caches, logs, build folders and duplicates,
+      uninstalls apps with their leftovers, controls what opens at login, adjusts
+      privacy settings and measures FPS honestly. It shows only what exists on your
+      system, changes nothing until you approve a plan, and most changes can be undone.
+    </p>
     <p>Features include:</p>
     <ul>
       <li>YouTube downloader and yt-dlp GUI with queue, resume and subtitles</li>
@@ -30,6 +36,7 @@
       <li>MCP server for Claude Code, Cursor and VS Code</li>
       <li>AI agents with per-folder permissions, undo, jobs, loops and triggers</li>
       <li>The World: an isometric house where your agents are seen working</li>
+      <li>washmybelly: cleanup, uninstaller, startup items, privacy, power and FPS with undo</li>
     </ul>
   </description>
   <categories>

@@ -47,7 +47,9 @@ pub fn reg_query(text: &str) -> Vec<RegValue> {
         }
         let t = line.trim_start();
         // Split on the first run of 4 spaces around the REG_ type.
-        let Some(pos) = t.find("    REG_") else { continue };
+        let Some(pos) = t.find("    REG_") else {
+            continue;
+        };
         let name = t[..pos].trim_end().to_string();
         let rest = t[pos..].trim_start();
         let (kind, data) = match rest.find("    ") {
@@ -56,7 +58,11 @@ pub fn reg_query(text: &str) -> Vec<RegValue> {
         };
         out.push(RegValue {
             key: key.clone(),
-            name: if name == "(Default)" || name == "(Padrão)" { String::new() } else { name },
+            name: if name == "(Default)" || name == "(Padrão)" {
+                String::new()
+            } else {
+                name
+            },
             kind,
             data,
         });
@@ -66,7 +72,8 @@ pub fn reg_query(text: &str) -> Vec<RegValue> {
 
 /// Whether `whoami /groups /fo csv` lists a SID.
 pub fn whoami_has_sid(csv: &str, sid: &str) -> bool {
-    csv.lines().any(|l| l.split(',').any(|c| c.trim_matches('"') == sid))
+    csv.lines()
+        .any(|l| l.split(',').any(|c| c.trim_matches('"') == sid))
 }
 
 /// `key: value` lines (`sw_vers`, `pmset -g batt` details, `diskutil info`).
@@ -86,7 +93,8 @@ mod tests {
 
     #[test]
     fn os_release_reads_quoted_and_bare_values() {
-        let m = os_release("NAME=\"Ubuntu\"\nID=ubuntu\nID_LIKE=debian\nVERSION_ID=\"24.04\"\n# c\n");
+        let m =
+            os_release("NAME=\"Ubuntu\"\nID=ubuntu\nID_LIKE=debian\nVERSION_ID=\"24.04\"\n# c\n");
         assert_eq!(m["ID"], "ubuntu");
         assert_eq!(m["ID_LIKE"], "debian");
         assert_eq!(m["VERSION_ID"], "24.04");

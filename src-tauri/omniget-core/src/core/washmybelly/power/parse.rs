@@ -27,7 +27,9 @@ pub fn pmset_settings(text: &str) -> PmsetSettings {
     for line in text.lines() {
         let t = line.trim();
         let mut parts = t.split_whitespace();
-        let (Some(key), Some(val)) = (parts.next(), parts.next()) else { continue };
+        let (Some(key), Some(val)) = (parts.next(), parts.next()) else {
+            continue;
+        };
         match key {
             "lowpowermode" => s.low_power_mode = val.parse::<u8>().ok().map(|v| v != 0),
             "powermode" => s.power_mode = val.parse().ok(),
@@ -94,7 +96,9 @@ pub fn pmset_assertions(text: &str) -> Vec<SleepBlocker> {
         if !in_list {
             continue;
         }
-        let Some(c) = ASSERTION.captures(line) else { continue };
+        let Some(c) = ASSERTION.captures(line) else {
+            continue;
+        };
         let kind = c[3].to_string();
         if !BLOCKING.contains(&kind.as_str()) {
             continue;
@@ -113,7 +117,10 @@ pub fn pmset_assertions(text: &str) -> Vec<SleepBlocker> {
 // ── Windows ──────────────────────────────────────────────────────────
 
 static SCHEME: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?i)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s+\(([^)]*)\)(\s*\*)?").unwrap()
+    Regex::new(
+        r"(?i)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s+\(([^)]*)\)(\s*\*)?",
+    )
+    .unwrap()
 });
 
 /// A power plan from `powercfg`. The labels around the GUID are localized;
@@ -128,7 +135,11 @@ pub struct Scheme {
 /// `powercfg /getactivescheme` (and `-duplicatescheme`, same line shape).
 pub fn powercfg_active(text: &str) -> Option<Scheme> {
     let c = SCHEME.captures(text)?;
-    Some(Scheme { guid: c[1].to_ascii_lowercase(), name: c[2].trim().to_string(), active: true })
+    Some(Scheme {
+        guid: c[1].to_ascii_lowercase(),
+        name: c[2].trim().to_string(),
+        active: true,
+    })
 }
 
 /// `powercfg /list`.
@@ -164,7 +175,9 @@ pub fn powercfg_requests(text: &str) -> Vec<SleepBlocker> {
             continue;
         }
         if let Some(rest) = l.strip_prefix('[') {
-            let Some((ty, name)) = rest.split_once(']') else { continue };
+            let Some((ty, name)) = rest.split_once(']') else {
+                continue;
+            };
             let name = name.trim();
             // Processes are NT device paths: keep the file name.
             let process = if ty == "PROCESS" {
@@ -208,7 +221,9 @@ pub fn overlay_name(guid: &str) -> &'static str {
 }
 
 pub fn is_guid(s: &str) -> bool {
-    static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$").unwrap());
+    static RE: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$").unwrap()
+    });
     RE.is_match(s)
 }
 
@@ -232,7 +247,9 @@ pub fn tlp_stat(text: &str) -> TlpStat {
             s.version = rest.split_whitespace().next().map(String::from);
             continue;
         }
-        let Some((k, v)) = l.split_once('=') else { continue };
+        let Some((k, v)) = l.split_once('=') else {
+            continue;
+        };
         let v = v.trim().to_string();
         match k.trim() {
             "State" => s.enabled = Some(v == "enabled"),
@@ -260,11 +277,16 @@ pub struct CpuKnobs {
 }
 
 fn read_trim(p: &Path) -> Option<String> {
-    std::fs::read_to_string(p).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+    std::fs::read_to_string(p)
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
 }
 
 fn words(p: &Path) -> Vec<String> {
-    read_trim(p).map(|s| s.split_whitespace().map(String::from).collect()).unwrap_or_default()
+    read_trim(p)
+        .map(|s| s.split_whitespace().map(String::from).collect())
+        .unwrap_or_default()
 }
 
 /// The cpufreq folders of `<sys>/devices/system/cpu/cpuN/cpufreq`.
@@ -288,7 +310,10 @@ pub fn cpufreq_dirs(sys: &Path) -> Vec<std::path::PathBuf> {
 /// Read the knobs from a sysfs root (`/sys` in production).
 pub fn cpu_knobs(sys: &Path) -> CpuKnobs {
     let dirs = cpufreq_dirs(sys);
-    let mut k = CpuKnobs { cpus: dirs.len(), ..Default::default() };
+    let mut k = CpuKnobs {
+        cpus: dirs.len(),
+        ..Default::default()
+    };
     if let Some(c0) = dirs.first() {
         k.driver = read_trim(&c0.join("scaling_driver"));
         k.governor = read_trim(&c0.join("scaling_governor"));
@@ -326,7 +351,11 @@ pub fn valid_battery_name(n: &str) -> bool {
 pub fn charge_limits(sys: &Path) -> Vec<ChargeLimit> {
     let root = sys.join("class/power_supply");
     let mut out = Vec::new();
-    let mut entries: Vec<_> = std::fs::read_dir(&root).into_iter().flatten().flatten().collect();
+    let mut entries: Vec<_> = std::fs::read_dir(&root)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .collect();
     entries.sort_by_key(|e| e.file_name());
     for e in entries {
         let name = e.file_name().to_string_lossy().to_string();
@@ -344,7 +373,11 @@ pub fn charge_limits(sys: &Path) -> Vec<ChargeLimit> {
             .or_else(|| read_trim(&p.join("charge_start_threshold")))
             .and_then(|v| v.parse().ok());
         if let Some(end) = end {
-            out.push(ChargeLimit { battery: name, end, start });
+            out.push(ChargeLimit {
+                battery: name,
+                end,
+                start,
+            });
         }
     }
     out
@@ -355,12 +388,16 @@ mod tests {
     use super::*;
 
     fn fx(name: &str) -> String {
-        let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/washmybelly_fixtures/power").join(name);
+        let p = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/washmybelly_fixtures/power")
+            .join(name);
         std::fs::read_to_string(p).unwrap()
     }
 
     fn fx_dir(name: &str) -> std::path::PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/washmybelly_fixtures/power").join(name)
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/washmybelly_fixtures/power")
+            .join(name)
     }
 
     #[test]
@@ -372,7 +409,13 @@ mod tests {
         assert_eq!(s.display_sleep_minutes, Some(10));
         assert_eq!(
             s.sleep_prevented_by,
-            ["native-core", "caffeinate", "Claude", "coreaudiod", "powerd"]
+            [
+                "native-core",
+                "caffeinate",
+                "Claude",
+                "coreaudiod",
+                "powerd"
+            ]
         );
         let s = pmset_settings(&fx("pmset_g_battery_lpm.txt"));
         assert_eq!(s.low_power_mode, Some(true));
@@ -387,7 +430,10 @@ mod tests {
         assert!(names.contains(&"caffeinate"));
         assert!(names.contains(&"coreaudiod"));
         assert!(names.contains(&"Claude"));
-        assert!(!names.contains(&"WindowServer"), "UserIsActive is not a blocker");
+        assert!(
+            !names.contains(&"WindowServer"),
+            "UserIsActive is not a blocker"
+        );
         let ca = b.iter().find(|x| x.process == "caffeinate").unwrap();
         assert_eq!(ca.pid, Some(1253));
         assert_eq!(ca.reason, "caffeinate command-line tool");
@@ -438,8 +484,14 @@ mod tests {
 
     #[test]
     fn overlays_and_guids() {
-        assert_eq!(overlay_name("DED574B5-45A0-4F42-8737-46345C09C238"), "best_performance");
-        assert_eq!(overlay_name("00000000-0000-0000-0000-000000000000"), "balanced");
+        assert_eq!(
+            overlay_name("DED574B5-45A0-4F42-8737-46345C09C238"),
+            "best_performance"
+        );
+        assert_eq!(
+            overlay_name("00000000-0000-0000-0000-000000000000"),
+            "balanced"
+        );
         assert!(is_guid(BALANCED));
         assert!(!is_guid("381b4222-f694-41f0-9685-ff5bb260df2e; del"));
     }
@@ -450,7 +502,10 @@ mod tests {
         assert_eq!(s.version.as_deref(), Some("1.6.1"));
         assert_eq!(s.enabled, Some(true));
         assert_eq!(s.mode.as_deref(), Some("battery"));
-        assert_eq!(tlp_stat("Error: missing root privilege."), TlpStat::default());
+        assert_eq!(
+            tlp_stat("Error: missing root privilege."),
+            TlpStat::default()
+        );
     }
 
     #[test]
@@ -464,9 +519,19 @@ mod tests {
         assert_eq!(k.epps.len(), 5);
         assert_eq!(k.turbo, Some(true));
         assert_eq!(k.platform_profile.as_deref(), Some("balanced"));
-        assert_eq!(k.platform_profiles, ["low-power", "balanced", "performance"]);
+        assert_eq!(
+            k.platform_profiles,
+            ["low-power", "balanced", "performance"]
+        );
         let c = charge_limits(&fx_dir("sysfs_intel"));
-        assert_eq!(c, vec![ChargeLimit { battery: "BAT0".into(), end: 80, start: Some(75) }]);
+        assert_eq!(
+            c,
+            vec![ChargeLimit {
+                battery: "BAT0".into(),
+                end: 80,
+                start: Some(75)
+            }]
+        );
     }
 
     #[test]
@@ -478,6 +543,9 @@ mod tests {
         assert!(k.epp.is_none() && k.epps.is_empty());
         assert_eq!(k.turbo, Some(true));
         assert!(k.platform_profile.is_none());
-        assert!(charge_limits(&root).is_empty(), "a Logitech mouse has no charge limit to offer");
+        assert!(
+            charge_limits(&root).is_empty(),
+            "a Logitech mouse has no charge limit to offer"
+        );
     }
 }

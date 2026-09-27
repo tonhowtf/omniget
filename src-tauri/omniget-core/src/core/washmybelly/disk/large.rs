@@ -120,7 +120,7 @@ pub fn find(roots: &[PathBuf], min_bytes: u64, limit: usize) -> (Vec<Found>, u64
             .filter_entry(|e| !(e.depth() > 0 && e.file_type().is_dir() && skip_dir(e.path())));
         for e in walker.flatten() {
             scanned += 1;
-            if scanned % 4096 == 0 && last.elapsed() >= Duration::from_millis(250) {
+            if scanned.is_multiple_of(4096) && last.elapsed() >= Duration::from_millis(250) {
                 last = Instant::now();
                 super::super::progress(
                     "large_files",

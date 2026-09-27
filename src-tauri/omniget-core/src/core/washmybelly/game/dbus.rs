@@ -90,7 +90,13 @@ pub enum Verb {
     Query,
 }
 
-fn session(dest: &'static str, path: &'static str, iface: &'static str, method: &'static str, args: Vec<Arg>) -> Call {
+fn session(
+    dest: &'static str,
+    path: &'static str,
+    iface: &'static str,
+    method: &'static str,
+    args: Vec<Arg>,
+) -> Call {
     Call {
         bus: Bus::Session,
         dest,
@@ -109,7 +115,13 @@ pub fn daemon_by_pid(verb: Verb, caller: i32, game: i32) -> Call {
         Verb::Unregister => "UnregisterGameByPID",
         Verb::Query => "QueryStatusByPID",
     };
-    session(GAMEMODE_NAME, GAMEMODE_PATH, GAMEMODE_IFACE, method, vec![Arg::I32(caller), Arg::I32(game)])
+    session(
+        GAMEMODE_NAME,
+        GAMEMODE_PATH,
+        GAMEMODE_IFACE,
+        method,
+        vec![Arg::I32(caller), Arg::I32(game)],
+    )
 }
 
 /// The daemon, one pid used as client and requester.
@@ -119,7 +131,13 @@ pub fn daemon_single(verb: Verb, pid: i32) -> Call {
         Verb::Unregister => "UnregisterGame",
         Verb::Query => "QueryStatus",
     };
-    session(GAMEMODE_NAME, GAMEMODE_PATH, GAMEMODE_IFACE, method, vec![Arg::I32(pid)])
+    session(
+        GAMEMODE_NAME,
+        GAMEMODE_PATH,
+        GAMEMODE_IFACE,
+        method,
+        vec![Arg::I32(pid)],
+    )
 }
 
 /// The portal (inside Flatpak). The pid is the one this sandbox sees; the
@@ -130,7 +148,13 @@ pub fn portal(verb: Verb, pid: i32) -> Call {
         Verb::Unregister => "UnregisterGame",
         Verb::Query => "QueryStatus",
     };
-    session(PORTAL_NAME, PORTAL_PATH, PORTAL_GAMEMODE_IFACE, method, vec![Arg::I32(pid)])
+    session(
+        PORTAL_NAME,
+        PORTAL_PATH,
+        PORTAL_GAMEMODE_IFACE,
+        method,
+        vec![Arg::I32(pid)],
+    )
 }
 
 /// The portal's two-pid form: `(target, requester)`, the reverse of the
@@ -141,11 +165,23 @@ pub fn portal_by_pid(verb: Verb, game: i32, requester: i32) -> Call {
         Verb::Unregister => "UnregisterGameByPid",
         Verb::Query => "QueryStatusByPid",
     };
-    session(PORTAL_NAME, PORTAL_PATH, PORTAL_GAMEMODE_IFACE, method, vec![Arg::I32(game), Arg::I32(requester)])
+    session(
+        PORTAL_NAME,
+        PORTAL_PATH,
+        PORTAL_GAMEMODE_IFACE,
+        method,
+        vec![Arg::I32(game), Arg::I32(requester)],
+    )
 }
 
 pub fn list_games() -> Call {
-    session(GAMEMODE_NAME, GAMEMODE_PATH, GAMEMODE_IFACE, "ListGames", vec![])
+    session(
+        GAMEMODE_NAME,
+        GAMEMODE_PATH,
+        GAMEMODE_IFACE,
+        "ListGames",
+        vec![],
+    )
 }
 
 /// power-profiles-daemon: hold `performance` until released or until this
@@ -157,7 +193,11 @@ pub fn hold_profile() -> Call {
         path: PROFILES_PATH,
         iface: PROFILES_IFACE,
         method: "HoldProfile",
-        args: vec![Arg::Str("performance".into()), Arg::Str(REASON.into()), Arg::Str(APP_ID.into())],
+        args: vec![
+            Arg::Str("performance".into()),
+            Arg::Str(REASON.into()),
+            Arg::Str(APP_ID.into()),
+        ],
     }
 }
 
@@ -175,11 +215,23 @@ pub fn release_profile(cookie: u32) -> Call {
 /// `org.freedesktop.ScreenSaver.Inhibit(application, reason) -> cookie`,
 /// the same call gamemode makes.
 pub fn screensaver_inhibit() -> Call {
-    session(SCREENSAVER_NAME, SCREENSAVER_PATH, SCREENSAVER_IFACE, "Inhibit", vec![Arg::Str("OmniGet".into()), Arg::Str(REASON.into())])
+    session(
+        SCREENSAVER_NAME,
+        SCREENSAVER_PATH,
+        SCREENSAVER_IFACE,
+        "Inhibit",
+        vec![Arg::Str("OmniGet".into()), Arg::Str(REASON.into())],
+    )
 }
 
 pub fn screensaver_uninhibit(cookie: u32) -> Call {
-    session(SCREENSAVER_NAME, SCREENSAVER_PATH, SCREENSAVER_IFACE, "UnInhibit", vec![Arg::U32(cookie)])
+    session(
+        SCREENSAVER_NAME,
+        SCREENSAVER_PATH,
+        SCREENSAVER_IFACE,
+        "UnInhibit",
+        vec![Arg::U32(cookie)],
+    )
 }
 
 /// What a gamemode reply code means (`gamemode-context.c`).
@@ -204,9 +256,15 @@ mod tests {
         assert_eq!(c.method, "RegisterGameByPID");
         assert_eq!(c.args, vec![Arg::I32(100), Arg::I32(4242)]);
         assert_eq!(c.signature(), "ii");
-        assert_eq!((c.dest, c.path, c.iface), (GAMEMODE_NAME, GAMEMODE_PATH, GAMEMODE_IFACE));
+        assert_eq!(
+            (c.dest, c.path, c.iface),
+            (GAMEMODE_NAME, GAMEMODE_PATH, GAMEMODE_IFACE)
+        );
         assert_eq!(c.bus, Bus::Session);
-        assert_eq!(daemon_by_pid(Verb::Unregister, 1, 2).method, "UnregisterGameByPID");
+        assert_eq!(
+            daemon_by_pid(Verb::Unregister, 1, 2).method,
+            "UnregisterGameByPID"
+        );
         assert_eq!(daemon_by_pid(Verb::Query, 1, 2).method, "QueryStatusByPID");
     }
 
@@ -215,7 +273,10 @@ mod tests {
         let c = portal_by_pid(Verb::Register, 4242, 100);
         assert_eq!(c.method, "RegisterGameByPid");
         assert_eq!(c.args, vec![Arg::I32(4242), Arg::I32(100)]);
-        assert_eq!((c.dest, c.path, c.iface), (PORTAL_NAME, PORTAL_PATH, PORTAL_GAMEMODE_IFACE));
+        assert_eq!(
+            (c.dest, c.path, c.iface),
+            (PORTAL_NAME, PORTAL_PATH, PORTAL_GAMEMODE_IFACE)
+        );
         let d = daemon_by_pid(Verb::Register, 100, 4242);
         // Same request, opposite order: the trap the study warned about.
         assert_eq!(c.args.iter().rev().cloned().collect::<Vec<_>>(), d.args);
@@ -238,7 +299,10 @@ mod tests {
         assert_eq!(h.args[0], Arg::Str("performance".into()));
         assert_eq!(release_profile(9).args, vec![Arg::U32(9)]);
         let s = screensaver_inhibit();
-        assert_eq!((s.bus, s.method, s.signature().as_str()), (Bus::Session, "Inhibit", "ss"));
+        assert_eq!(
+            (s.bus, s.method, s.signature().as_str()),
+            (Bus::Session, "Inhibit", "ss")
+        );
         assert_eq!(screensaver_uninhibit(3).signature(), "u");
     }
 

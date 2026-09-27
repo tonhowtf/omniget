@@ -43,7 +43,10 @@ pub fn config(output_folder: &Path, max_seconds: u64) -> String {
 /// POSIX single-quote for display. These strings are shown to be copied
 /// into a terminal or Steam's launch options; OmniGet never runs them.
 pub fn sh_quote(s: &str) -> String {
-    if !s.is_empty() && s.bytes().all(|b| b.is_ascii_alphanumeric() || b"/._-+=:@%".contains(&b)) {
+    if !s.is_empty()
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"/._-+=:@%".contains(&b))
+    {
         s.to_string()
     } else {
         format!("'{}'", s.replace('\'', "'\\''"))
@@ -56,9 +59,18 @@ pub fn sh_quote(s: &str) -> String {
 pub fn launch_commands(config_file: &Path) -> Vec<LaunchCommand> {
     let cfg = sh_quote(&config_file.display().to_string());
     vec![
-        LaunchCommand { kind: "vulkan".into(), command: format!("MANGOHUD=1 MANGOHUD_CONFIGFILE={cfg} <game>") },
-        LaunchCommand { kind: "opengl".into(), command: format!("MANGOHUD_CONFIGFILE={cfg} mangohud --dlsym <game>") },
-        LaunchCommand { kind: "steam".into(), command: format!("MANGOHUD_CONFIGFILE={cfg} mangohud %command%") },
+        LaunchCommand {
+            kind: "vulkan".into(),
+            command: format!("MANGOHUD=1 MANGOHUD_CONFIGFILE={cfg} <game>"),
+        },
+        LaunchCommand {
+            kind: "opengl".into(),
+            command: format!("MANGOHUD_CONFIGFILE={cfg} mangohud --dlsym <game>"),
+        },
+        LaunchCommand {
+            kind: "steam".into(),
+            command: format!("MANGOHUD_CONFIGFILE={cfg} mangohud %command%"),
+        },
     ]
 }
 
@@ -70,7 +82,9 @@ pub fn newest_log(dir: &Path) -> Option<PathBuf> {
         .map(|e| e.path())
         .filter(|p| {
             let n = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            n.ends_with(".csv") && !n.ends_with("_summary.csv") && !matches!(n, "frames.csv" | "sensors.csv")
+            n.ends_with(".csv")
+                && !n.ends_with("_summary.csv")
+                && !matches!(n, "frames.csv" | "sensors.csv")
         })
         .max_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok())
 }
@@ -92,11 +106,20 @@ pub struct Row {
 
 impl Columns {
     pub fn from_header(line: &str) -> Option<Columns> {
-        let names: Vec<String> = line.trim().split(',').map(|s| s.trim().to_ascii_lowercase()).collect();
-        if names.first().map(String::as_str) != Some("fps") || !names.iter().any(|n| n == "frametime") {
+        let names: Vec<String> = line
+            .trim()
+            .split(',')
+            .map(|s| s.trim().to_ascii_lowercase())
+            .collect();
+        if names.first().map(String::as_str) != Some("fps")
+            || !names.iter().any(|n| n == "frametime")
+        {
             return None;
         }
-        Some(Columns { n: names.len(), idx: names.into_iter().enumerate().map(|(i, n)| (n, i)).collect() })
+        Some(Columns {
+            n: names.len(),
+            idx: names.into_iter().enumerate().map(|(i, n)| (n, i)).collect(),
+        })
     }
 
     pub fn row(&self, line: &str) -> Option<Row> {
@@ -152,7 +175,11 @@ pub fn parse_csv(text: &str) -> Parsed {
                 let keys: Vec<&str> = l.split(',').collect();
                 let vals: Vec<&str> = values.split(',').collect();
                 if vals.len() == keys.len() {
-                    out.system = keys.iter().zip(vals).map(|(k, v)| (k.trim().to_string(), v.trim().to_string())).collect();
+                    out.system = keys
+                        .iter()
+                        .zip(vals)
+                        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+                        .collect();
                     lines.next();
                 }
             }
@@ -192,7 +219,10 @@ pub fn parse_csv(text: &str) -> Parsed {
         .collect();
     let mut buckets: BTreeMap<u64, Vec<&SensorRow>> = BTreeMap::new();
     for r in &rows {
-        buckets.entry(((r.elapsed_ms - t0).max(0.0) / 1000.0) as u64).or_default().push(&r.sensors);
+        buckets
+            .entry(((r.elapsed_ms - t0).max(0.0) / 1000.0) as u64)
+            .or_default()
+            .push(&r.sensors);
     }
     let mean = |v: &[&SensorRow], f: fn(&SensorRow) -> Option<f64>| {
         let xs: Vec<f64> = v.iter().filter_map(|r| f(r)).collect();
@@ -218,12 +248,16 @@ mod tests {
     use super::*;
 
     const LOG: &str = include_str!("../../../../tests/washmybelly_fixtures/perf/mangohud.csv");
-    const LOG_V: &str = include_str!("../../../../tests/washmybelly_fixtures/perf/mangohud_versioned.csv");
+    const LOG_V: &str =
+        include_str!("../../../../tests/washmybelly_fixtures/perf/mangohud_versioned.csv");
 
     #[test]
     fn reads_system_frames_and_sensors() {
         let p = parse_csv(LOG);
-        assert_eq!(p.system.get("gpu").map(String::as_str), Some("AMD Radeon RX 6700 XT"));
+        assert_eq!(
+            p.system.get("gpu").map(String::as_str),
+            Some("AMD Radeon RX 6700 XT")
+        );
         assert_eq!(p.frames.len(), 8);
         assert_eq!(p.frames[0].frametime_ms, 6.94);
         // t of the first frame is its own frametime after the start.
@@ -239,26 +273,39 @@ mod tests {
     fn versioned_log_is_read_the_same_way() {
         let p = parse_csv(LOG_V);
         assert_eq!(p.frames.len(), 3);
-        assert_eq!(p.system.get("kernel").map(String::as_str), Some("6.10.3-arch1-1"));
+        assert_eq!(
+            p.system.get("kernel").map(String::as_str),
+            Some("6.10.3-arch1-1")
+        );
     }
 
     #[test]
     fn garbage_is_reported() {
-        assert_eq!(parse_csv("hello\nworld\n").warnings, vec!["unknown_csv_header"]);
+        assert_eq!(
+            parse_csv("hello\nworld\n").warnings,
+            vec!["unknown_csv_header"]
+        );
     }
 
     #[test]
     fn config_is_the_session_only_and_never_uploads() {
         let c = config(Path::new("/home/a/.local/share/omniget/perf/x"), 90);
         assert!(c.contains("output_folder=/home/a/.local/share/omniget/perf/x\n"));
-        assert!(c.contains("log_interval=0\n") && c.contains("log_duration=90\n") && c.contains("autostart_log=1\n"));
+        assert!(
+            c.contains("log_interval=0\n")
+                && c.contains("log_duration=90\n")
+                && c.contains("autostart_log=1\n")
+        );
         assert!(!c.contains("upload"));
     }
 
     #[test]
     fn launch_commands_quote_the_config_path() {
         let cmds = launch_commands(Path::new("/home/a b/it's/MangoHud.conf"));
-        assert_eq!(cmds[0].command, "MANGOHUD=1 MANGOHUD_CONFIGFILE='/home/a b/it'\\''s/MangoHud.conf' <game>");
+        assert_eq!(
+            cmds[0].command,
+            "MANGOHUD=1 MANGOHUD_CONFIGFILE='/home/a b/it'\\''s/MangoHud.conf' <game>"
+        );
         assert!(cmds[2].command.ends_with("mangohud %command%"));
         assert_eq!(sh_quote("/plain/path.conf"), "/plain/path.conf");
     }

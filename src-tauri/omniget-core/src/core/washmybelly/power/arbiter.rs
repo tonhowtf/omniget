@@ -68,7 +68,10 @@ impl Manager {
     /// Speaks `org.freedesktop.UPower.PowerProfiles` (profile switch and
     /// `HoldProfile` without a password).
     pub fn has_profiles_api(self) -> bool {
-        matches!(self, Manager::PowerProfilesDaemon | Manager::TlpPd | Manager::TunedPpd)
+        matches!(
+            self,
+            Manager::PowerProfilesDaemon | Manager::TlpPd | Manager::TunedPpd
+        )
     }
 }
 
@@ -124,7 +127,12 @@ pub fn arbitrate(running: &[Manager]) -> Verdict {
     fams.dedup();
     let families = fams.iter().map(|f| f.id()).collect();
     match fams.len() {
-        0 => Verdict { manager: None, families, conflicts: vec![], suggestion: Some("power-profiles-daemon") },
+        0 => Verdict {
+            manager: None,
+            families,
+            conflicts: vec![],
+            suggestion: Some("power-profiles-daemon"),
+        },
         1 => {
             // Prefer naming the front end the person sees (tlp-pd over tlp).
             let fam = fams[0];
@@ -134,7 +142,12 @@ pub fn arbitrate(running: &[Manager]) -> Verdict {
                 .min_by_key(|m| !m.has_profiles_api())
                 .copied()
                 .unwrap();
-            Verdict { manager: Some(m.id()), families, conflicts: vec![], suggestion: None }
+            Verdict {
+                manager: Some(m.id()),
+                families,
+                conflicts: vec![],
+                suggestion: None,
+            }
         }
         _ => {
             // `fams` is sorted by priority: the first is kept.
@@ -156,14 +169,23 @@ pub fn arbitrate(running: &[Manager]) -> Verdict {
                     });
                 }
             }
-            Verdict { manager: None, families, conflicts, suggestion: None }
+            Verdict {
+                manager: None,
+                families,
+                conflicts,
+                suggestion: None,
+            }
         }
     }
 }
 
 /// Units to turn off to keep only `keep` running.
 pub fn units_to_disable(running: &[Manager], keep: &str) -> Vec<&'static str> {
-    running.iter().filter(|m| m.family().id() != keep).map(|m| m.unit()).collect()
+    running
+        .iter()
+        .filter(|m| m.family().id() != keep)
+        .map(|m| m.unit())
+        .collect()
 }
 
 #[cfg(test)]
@@ -174,18 +196,43 @@ mod tests {
     #[test]
     fn table_of_cases() {
         // (running, manager, conflict count, kept family, suggestion)
-        let cases: &[(&[Manager], Option<&str>, usize, Option<&str>, Option<&str>)] = &[
+        type Case<'a> = (
+            &'a [Manager],
+            Option<&'a str>,
+            usize,
+            Option<&'a str>,
+            Option<&'a str>,
+        );
+        let cases: &[Case<'_>] = &[
             (&[], None, 0, None, Some("power-profiles-daemon")),
-            (&[PowerProfilesDaemon], Some("power-profiles-daemon"), 0, None, None),
+            (
+                &[PowerProfilesDaemon],
+                Some("power-profiles-daemon"),
+                0,
+                None,
+                None,
+            ),
             (&[Tlp], Some("tlp"), 0, None, None),
             (&[Tlp, TlpPd], Some("tlp-pd"), 0, None, None),
             (&[Tuned, TunedPpd], Some("tuned-ppd"), 0, None, None),
             (&[AutoCpufreq], Some("auto-cpufreq"), 0, None, None),
             (&[Tlp, PowerProfilesDaemon], None, 1, Some("tlp"), None),
-            (&[AutoCpufreq, PowerProfilesDaemon], None, 1, Some("auto-cpufreq"), None),
+            (
+                &[AutoCpufreq, PowerProfilesDaemon],
+                None,
+                1,
+                Some("auto-cpufreq"),
+                None,
+            ),
             (&[AutoCpufreq, Tlp], None, 1, Some("auto-cpufreq"), None),
             (&[Tuned, PowerProfilesDaemon], None, 1, Some("tuned"), None),
-            (&[AutoCpufreq, Tlp, PowerProfilesDaemon], None, 3, Some("auto-cpufreq"), None),
+            (
+                &[AutoCpufreq, Tlp, PowerProfilesDaemon],
+                None,
+                3,
+                Some("auto-cpufreq"),
+                None,
+            ),
         ];
         for (running, manager, n, keep, suggestion) in cases {
             let v = arbitrate(running);
@@ -193,8 +240,16 @@ mod tests {
             assert_eq!(v.conflicts.len(), *n, "{running:?}");
             assert_eq!(v.suggestion, *suggestion, "{running:?}");
             if let Some(k) = keep {
-                assert!(v.conflicts.iter().all(|c| c.action == format!("resolve_conflict:{k}")), "{running:?}");
-                assert!(v.conflicts.iter().all(|c| !c.disable.is_empty()), "{running:?}");
+                assert!(
+                    v.conflicts
+                        .iter()
+                        .all(|c| c.action == format!("resolve_conflict:{k}")),
+                    "{running:?}"
+                );
+                assert!(
+                    v.conflicts.iter().all(|c| !c.disable.is_empty()),
+                    "{running:?}"
+                );
             }
         }
     }
@@ -202,8 +257,14 @@ mod tests {
     #[test]
     fn disabling_keeps_the_whole_family() {
         let running = [Tlp, TlpPd, PowerProfilesDaemon];
-        assert_eq!(units_to_disable(&running, "tlp"), ["power-profiles-daemon.service"]);
-        assert_eq!(units_to_disable(&running, "power-profiles-daemon"), ["tlp.service", "tlp-pd.service"]);
+        assert_eq!(
+            units_to_disable(&running, "tlp"),
+            ["power-profiles-daemon.service"]
+        );
+        assert_eq!(
+            units_to_disable(&running, "power-profiles-daemon"),
+            ["tlp.service", "tlp-pd.service"]
+        );
         let v = arbitrate(&running);
         assert_eq!(v.conflicts[0].disable, ["power-profiles-daemon.service"]);
         assert_eq!(v.conflicts[0].keep, "tlp");

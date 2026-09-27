@@ -53,7 +53,13 @@ fn system() -> Result<zbus::blocking::Connection, String> {
 fn pp_endpoint(conn: &zbus::blocking::Connection) -> Option<(&'static str, &'static str)> {
     for (name, path) in [(PP_NAME, PP_PATH), (PP_LEGACY, PP_LEGACY_PATH)] {
         let has: Result<bool, _> = conn
-            .call_method(Some("org.freedesktop.DBus"), "/org/freedesktop/DBus", Some("org.freedesktop.DBus"), "NameHasOwner", &(name,))
+            .call_method(
+                Some("org.freedesktop.DBus"),
+                "/org/freedesktop/DBus",
+                Some("org.freedesktop.DBus"),
+                "NameHasOwner",
+                &(name,),
+            )
             .and_then(|m| m.body().deserialize::<bool>());
         if has.unwrap_or(false) {
             return Some((name, path));
@@ -66,16 +72,30 @@ fn pp_endpoint(conn: &zbus::blocking::Connection) -> Option<(&'static str, &'sta
 /// process that owns the name.
 pub fn profiles() -> Result<Option<Value>, String> {
     let conn = system()?;
-    let Some((name, path)) = pp_endpoint(&conn) else { return Ok(None) };
+    let Some((name, path)) = pp_endpoint(&conn) else {
+        return Ok(None);
+    };
     let props: HashMap<String, OwnedValue> = conn
-        .call_method(Some(name), path, Some("org.freedesktop.DBus.Properties"), "GetAll", &(name,))
+        .call_method(
+            Some(name),
+            path,
+            Some("org.freedesktop.DBus.Properties"),
+            "GetAll",
+            &(name,),
+        )
         .map_err(|e| format!("PowerProfiles: {e}"))?
         .body()
         .deserialize()
         .map_err(|e| format!("PowerProfiles reply: {e}"))?;
     let get = |k: &str| props.get(k).map(|v| conv(v)).unwrap_or(Value::Null);
     let owner = conn
-        .call_method(Some("org.freedesktop.DBus"), "/org/freedesktop/DBus", Some("org.freedesktop.DBus"), "GetConnectionUnixProcessID", &(name,))
+        .call_method(
+            Some("org.freedesktop.DBus"),
+            "/org/freedesktop/DBus",
+            Some("org.freedesktop.DBus"),
+            "GetConnectionUnixProcessID",
+            &(name,),
+        )
         .ok()
         .and_then(|m| m.body().deserialize::<u32>().ok())
         .and_then(|pid| std::fs::read_to_string(format!("/proc/{pid}/comm")).ok())
@@ -84,7 +104,11 @@ pub fn profiles() -> Result<Option<Value>, String> {
     let daemon = super::sysfs::owner_manager(owner.as_deref(), version.as_str());
     let list: Vec<String> = get("Profiles")
         .as_array()
-        .map(|a| a.iter().filter_map(|p| p["Profile"].as_str().map(String::from)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|p| p["Profile"].as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
     let holds: Vec<Value> = get("ActiveProfileHolds")
         .as_array()
@@ -139,7 +163,12 @@ fn comms() -> Vec<String> {
         .into_iter()
         .flatten()
         .flatten()
-        .filter(|e| e.file_name().to_string_lossy().chars().all(|c| c.is_ascii_digit()))
+        .filter(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .chars()
+                .all(|c| c.is_ascii_digit())
+        })
         .filter_map(|e| std::fs::read_to_string(e.path().join("comm")).ok())
         .map(|s| s.trim().to_string())
         .collect()
@@ -148,7 +177,10 @@ fn comms() -> Vec<String> {
 /// Managers running now: systemd units, or processes without systemd.
 pub fn running_managers() -> Vec<Manager> {
     if systemd() {
-        return Manager::ALL.into_iter().filter(|m| unit_active(m.unit())).collect();
+        return Manager::ALL
+            .into_iter()
+            .filter(|m| unit_active(m.unit()))
+            .collect();
     }
     let c = comms();
     let has = |p: &str| c.iter().any(|x| x.starts_with(p));
@@ -168,7 +200,10 @@ pub fn running_managers() -> Vec<Manager> {
 
 /// `tlp-stat -s` when it answers without root (older versions refuse).
 pub fn tlp_stat() -> Option<parse::TlpStat> {
-    let out = crate::core::process::std_command("tlp-stat").arg("-s").output().ok()?;
+    let out = crate::core::process::std_command("tlp-stat")
+        .arg("-s")
+        .output()
+        .ok()?;
     if !out.status.success() {
         return None;
     }
@@ -180,14 +215,22 @@ pub fn tlp_stat() -> Option<parse::TlpStat> {
 pub fn sleep_blockers() -> Result<Vec<parse::SleepBlocker>, String> {
     let conn = system()?;
     let list: Vec<(String, String, String, String, u32, u32)> = conn
-        .call_method(Some("org.freedesktop.login1"), "/org/freedesktop/login1", Some("org.freedesktop.login1.Manager"), "ListInhibitors", &())
+        .call_method(
+            Some("org.freedesktop.login1"),
+            "/org/freedesktop/login1",
+            Some("org.freedesktop.login1.Manager"),
+            "ListInhibitors",
+            &(),
+        )
         .map_err(|e| format!("logind: {e}"))?
         .body()
         .deserialize()
         .map_err(|e| format!("logind reply: {e}"))?;
     Ok(list
         .into_iter()
-        .filter(|(what, _, _, mode, _, _)| mode == "block" && (what.contains("sleep") || what.contains("idle")))
+        .filter(|(what, _, _, mode, _, _)| {
+            mode == "block" && (what.contains("sleep") || what.contains("idle"))
+        })
         .map(|(what, who, why, _, _, pid)| parse::SleepBlocker {
             process: who,
             pid: Some(pid),
@@ -221,15 +264,26 @@ impl Backend for DbusBackend {
                         return;
                     }
                 };
-                let why = if reason.is_empty() { "OmniGet is working".to_string() } else { reason };
+                let why = if reason.is_empty() {
+                    "OmniGet is working".to_string()
+                } else {
+                    reason
+                };
                 // The daemon drops the hold when this connection closes, so
                 // the thread keeps it open until release or the deadline.
-                let cookie: Option<(&str, &str, u32)> = pp_endpoint(&conn).and_then(|(name, path)| {
-                    conn.call_method(Some(name), path, Some(name), "HoldProfile", &("performance", why.as_str(), "OmniGet"))
+                let cookie: Option<(&str, &str, u32)> =
+                    pp_endpoint(&conn).and_then(|(name, path)| {
+                        conn.call_method(
+                            Some(name),
+                            path,
+                            Some(name),
+                            "HoldProfile",
+                            &("performance", why.as_str(), "OmniGet"),
+                        )
                         .ok()
                         .and_then(|m| m.body().deserialize::<u32>().ok())
                         .map(|c| (name, path, c))
-                });
+                    });
                 let fd: Option<OwnedFd> = conn
                     .call_method(
                         Some("org.freedesktop.login1"),
@@ -241,7 +295,9 @@ impl Backend for DbusBackend {
                     .ok()
                     .and_then(|m| m.body().deserialize::<OwnedFd>().ok());
                 if cookie.is_none() && fd.is_none() {
-                    let _ = ready_tx.send(Err("neither a power profile daemon nor logind answered".into()));
+                    let _ = ready_tx.send(Err(
+                        "neither a power profile daemon nor logind answered".into(),
+                    ));
                     return;
                 }
                 let _ = ready_tx.send(Ok(()));
@@ -272,9 +328,15 @@ impl Backend for DbusBackend {
 pub fn manager_unit(unit: &str, on: bool) -> Result<String, String> {
     Manager::from_unit(unit).ok_or_else(|| format!("{unit} is not a power manager unit"))?;
     let steps: Vec<Vec<&str>> = if on {
-        vec![vec!["unmask", "--", unit], vec!["enable", "--now", "--", unit]]
+        vec![
+            vec!["unmask", "--", unit],
+            vec!["enable", "--now", "--", unit],
+        ]
     } else {
-        vec![vec!["disable", "--now", "--", unit], vec!["mask", "--", unit]]
+        vec![
+            vec!["disable", "--now", "--", unit],
+            vec!["mask", "--", unit],
+        ]
     };
     for args in steps {
         let out = crate::core::process::std_command("systemctl")
@@ -282,10 +344,17 @@ pub fn manager_unit(unit: &str, on: bool) -> Result<String, String> {
             .output()
             .map_err(|e| format!("systemctl: {e}"))?;
         if !out.status.success() {
-            return Err(format!("systemctl {}: {}", args[0], String::from_utf8_lossy(&out.stderr).trim()));
+            return Err(format!(
+                "systemctl {}: {}",
+                args[0],
+                String::from_utf8_lossy(&out.stderr).trim()
+            ));
         }
     }
-    Ok(format!("{unit}: {}", if on { "enabled" } else { "stopped and masked" }))
+    Ok(format!(
+        "{unit}: {}",
+        if on { "enabled" } else { "stopped and masked" }
+    ))
 }
 
 #[cfg(test)]

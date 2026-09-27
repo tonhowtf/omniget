@@ -71,7 +71,7 @@ or export a GIF/WebP to assets/readme/hero.webp and use an <img>.
 4. [The World: watch your agents work](#the-world)
 5. [Tools: coming back](#tools-coming-back)
 
-Also: [Download and install](#download-and-install) · [Superpowers](#superpowers) · [Everything else](#everything-else-in-the-box) · [Privacy](#privacy-and-what-omniget-refuses-to-do) · [Support OmniGet](#support-omniget) · [FAQ](#frequently-asked-questions) · [Command line](#command-line) · [Build from source](#build-from-source) · [Platform owners](#notice-to-platform-owners) · [Contributing](#contributing-and-translations)
+Also: [Download and install](#download-and-install) · [Superpowers](#superpowers) · [washmybelly](#washmybelly) · [Everything else](#everything-else-in-the-box) · [Privacy](#privacy-and-what-omniget-refuses-to-do) · [Support OmniGet](#support-omniget) · [FAQ](#frequently-asked-questions) · [Command line](#command-line) · [Build from source](#build-from-source) · [Platform owners](#notice-to-platform-owners) · [Contributing](#contributing-and-translations)
 
 ---
 
@@ -128,6 +128,7 @@ The token never goes on the command line, so it stays out of your shell history.
 | When something fails | Read cleaned-up engine logs, get a diagnosis from what the download left behind, get recovery options |
 | After downloading | Read the finished files' details and get temporary access to them |
 | Your agents | List agents and folders, start, pause, resume or cancel a mission, read its events and results, see pending approvals |
+| Your computer (washmybelly) | Read the system status, scan for junk, apps, startup items and privacy settings, build a plan; running or undoing a plan asks you in the OmniGet window |
 
 ### It stays under your control
 
@@ -417,7 +418,44 @@ sudo pacman -S gst-plugins-good gst-plugins-bad gst-libav   # Arch
 
 ## Superpowers
 
-Extra abilities you switch on when you need them, in **Superpowers** in the sidebar. Today there is one: a **League of Legends** helper that reads your running client locally, with match scouting, live gold and levels, runes applied in one click and opt-in automation such as accepting matches. Nothing runs until you turn it on in **Settings → Advanced**.
+Extra abilities in **Superpowers** in the sidebar. Each one can be switched off in **Settings → Advanced**.
+
+### League of Legends
+
+A helper that reads your running League client on your own computer: match scouting, live gold and levels, and runes applied in one click. It only does something while the client is open, and every automation, such as accepting matches, stays off until you turn it on.
+
+<a id="washmybelly"></a>
+
+### washmybelly: clean up, uninstall, privacy and performance
+
+<p align="center">
+  <img src="assets/readme/washmybelly-clean-up.webp" alt="The washmybelly Clean up screen on macOS: 39.2 GB of junk found, split into Developer, Apps, Browsers, Privacy, Packages, System, Logs and Your files, with the module list on the left" width="900" />
+</p>
+
+The jobs that usually take a dozen separate apps, in one screen. It only shows what exists on your computer: Mac items on a Mac, Windows items on Windows, Linux items on Linux, and no Steam cleanup if there is no Steam.
+
+- **Clean up**: caches, logs, browser and package manager leftovers, project build folders such as `node_modules` and `target`, duplicate files and empty folders. Files of apps that are open are left alone.
+- **Disk**: what takes the space, as a map you can drill into, and the health of each drive.
+- **Uninstall**: remove an app together with what it leaves behind (settings, caches, login helpers), each leftover marked by how sure OmniGet is that it belongs to the app. It also finds the leftovers of apps you already deleted, and knows Homebrew, winget, MSI, Steam, Flatpak, Snap and the Linux package managers.
+- **Startup**: what opens at login or runs in the background, turned off without being deleted.
+- **Privacy**: the [privacy.sexy](https://privacy.sexy) catalog for your system, with each setting's current state read from the system and a way back; app permissions on the Mac; and a tracker block through the hosts file.
+- **Windows tweaks**: debloat and settings from Win11Debloat, winutil and Sophia Script, each with "Back to the Windows default".
+- **Updates**: pending updates from your package managers, in one list.
+- **Power & battery**: the power profile, what keeps the computer awake, and battery health.
+- **Game mode** and **FPS & frametime**: a game mode that turns itself off when the game closes, and honest FPS, 1% low and stutter numbers from PresentMon on Windows or MangoHud on Linux, with a before and after comparison.
+- **Persistence** (Mac): an inventory of what is set to run in the background.
+- **Maintenance** and **History**: system chores that have a real effect, and every change washmybelly made, with Undo.
+
+How it keeps you safe:
+
+- **Nothing runs by itself.** It scans, shows the plan (what goes, how much space, how risky), you approve, it runs and gives you a receipt. Most changes can be undone from **History**: files go to a quarantine or the Trash, and settings are saved before they change.
+- **Nothing leaves your computer.** The rule lists ship inside the app and no script is downloaded and run. The one download is PresentMon, fetched from its official release the first time you measure FPS on Windows and checked against a fixed hash.
+- **Administrator rights go through a small helper** that accepts only a closed list of operations, one password prompt per batch. You can always copy the exact commands and run them yourself instead.
+- **No placebo.** No "RAM booster" and no registry "cleaner": what it reports is measured. Modules still being tested are marked **Beta** in the sidebar.
+
+For agents, the same scans and plans are `wmb_*` tools, for the agent in **LLM** and for MCP clients such as Claude Code and Codex. Reading and building a plan is free; running or undoing one always asks you in the OmniGet window. An external client needs the `system_read` or `system_change` permission on its token. From a terminal: `omniget-cli wmb status|caps|scan|plan|show|execute|restore|receipts`.
+
+washmybelly is on by default because nothing happens until you open it. Switch it off in **Settings → Advanced → washmybelly**. Its mascot, the Pibble, is an original drawing made for OmniGet and inspired by the "Pibble" meme. <!-- TODO(owner): creator credit (name and link of the Pibble meme's creator) --> The projects whose data and ideas it uses, with their licenses, are listed in [THIRD_PARTY.md](THIRD_PARTY.md).
 
 ## Everything else in the box
 
@@ -530,6 +568,9 @@ omniget-cli usage                          # usage windows and spend per account
 omniget-cli agent run "<prompt>"           # the current folder is the workspace
 omniget-cli agent loop "<prompt>" --check "npm test" --minutes 30
 omniget-cli agent jobs                     # also: agent loops, agent agents
+omniget-cli wmb status                     # health score and a snapshot of this computer
+omniget-cli wmb scan junk                  # also: artifacts, large, duplicates, empty, apps, startup, privacy, updates
+omniget-cli wmb execute <plan_id> --wait   # asks for your approval in the OmniGet window
 ```
 
 Add `--json` to any command for machine-readable output.
@@ -587,7 +628,7 @@ Loop is OmniGet's mascot. Fan art is welcome; the original artwork may not be us
 
 ## Standing on open source
 
-OmniGet is built on [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [SponsorBlock](https://sponsor.ajay.app/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [cat-catch](https://github.com/xifangczy/cat-catch) (parts of the extension's media sniffer), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (in the Claude Code plugin), [Tauri](https://tauri.app) and [Svelte](https://svelte.dev). The agents, jobs and the World borrowed ideas from [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), the [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [ai-town](https://github.com/a16z-infra/ai-town) and the [generative agents](https://github.com/joonspk-research/generative_agents) paper. Thank you to everyone who maintains them.
+OmniGet is built on [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [SponsorBlock](https://sponsor.ajay.app/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [cat-catch](https://github.com/xifangczy/cat-catch) (parts of the extension's media sniffer), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (in the Claude Code plugin), [Tauri](https://tauri.app) and [Svelte](https://svelte.dev). The agents, jobs and the World borrowed ideas from [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), the [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [ai-town](https://github.com/a16z-infra/ai-town) and the [generative agents](https://github.com/joonspk-research/generative_agents) paper. Thank you to everyone who maintains them. washmybelly uses data and ideas from [privacy.sexy](https://github.com/undergroundwires/privacy.sexy), [BleachBit](https://github.com/bleachbit/bleachbit), [Win11Debloat](https://github.com/Raphire/Win11Debloat), [winutil](https://github.com/ChrisTitusTech/winutil), [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows), [Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller), [Kudu](https://github.com/AdventDevInc/kudu), [kondo](https://github.com/tbillington/kondo), [czkawka](https://github.com/qarmin/czkawka), [Stats](https://github.com/exelban/stats), [CapFrameX](https://github.com/CXWorld/CapFrameX) and others; the full list with licenses is in [THIRD_PARTY.md](THIRD_PARTY.md).
 
 <p align="center">
   <a href="https://github.com/tonhowtf/omniget/releases/latest"><b>Download OmniGet</b></a> · <a href="LICENSE">GPL-3.0</a>

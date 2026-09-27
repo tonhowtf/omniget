@@ -55,11 +55,51 @@ fn roots_never_removed(home: &Path) -> Vec<PathBuf> {
         v.push(home.join(d));
     }
     if cfg!(windows) {
-        for d in ["C:/", "C:/Windows", "C:/Windows/Temp", "C:/Program Files", "C:/Program Files (x86)", "C:/ProgramData", "C:/Users"] {
+        for d in [
+            "C:/",
+            "C:/Windows",
+            "C:/Windows/Temp",
+            "C:/Program Files",
+            "C:/Program Files (x86)",
+            "C:/ProgramData",
+            "C:/Users",
+        ] {
             v.push(PathBuf::from(d));
         }
     } else {
-        for d in ["/", "/Applications", "/Library", "/Library/Caches", "/Library/Logs", "/System", "/Users", "/Volumes", "/home", "/tmp", "/private", "/private/tmp", "/private/var", "/var", "/var/tmp", "/var/log", "/var/cache", "/opt", "/usr", "/etc", "/bin", "/sbin", "/boot", "/root", "/snap", "/mnt", "/media", "/run", "/proc", "/sys", "/dev"] {
+        for d in [
+            "/",
+            "/Applications",
+            "/Library",
+            "/Library/Caches",
+            "/Library/Logs",
+            "/System",
+            "/Users",
+            "/Volumes",
+            "/home",
+            "/tmp",
+            "/private",
+            "/private/tmp",
+            "/private/var",
+            "/var",
+            "/var/tmp",
+            "/var/log",
+            "/var/cache",
+            "/opt",
+            "/usr",
+            "/etc",
+            "/bin",
+            "/sbin",
+            "/boot",
+            "/root",
+            "/snap",
+            "/mnt",
+            "/media",
+            "/run",
+            "/proc",
+            "/sys",
+            "/dev",
+        ] {
             v.push(PathBuf::from(d));
         }
     }
@@ -90,11 +130,35 @@ fn never_enter(home: &Path) -> Vec<PathBuf> {
     .map(|d| home.join(d))
     .collect();
     if cfg!(windows) {
-        for d in ["C:/Windows/System32", "C:/Windows/SysWOW64", "C:/Windows/WinSxS", "C:/Windows/Boot", "C:/Boot", "C:/Recovery", "C:/System Volume Information"] {
+        for d in [
+            "C:/Windows/System32",
+            "C:/Windows/SysWOW64",
+            "C:/Windows/WinSxS",
+            "C:/Windows/Boot",
+            "C:/Boot",
+            "C:/Recovery",
+            "C:/System Volume Information",
+        ] {
             v.push(PathBuf::from(d));
         }
     } else {
-        for d in ["/System", "/usr", "/bin", "/sbin", "/boot", "/etc", "/proc", "/sys", "/dev", "/private/etc", "/private/var/db", "/Library/Keychains", "/var/lib/dpkg", "/var/lib/rpm", "/var/lib/pacman"] {
+        for d in [
+            "/System",
+            "/usr",
+            "/bin",
+            "/sbin",
+            "/boot",
+            "/etc",
+            "/proc",
+            "/sys",
+            "/dev",
+            "/private/etc",
+            "/private/var/db",
+            "/Library/Keychains",
+            "/var/lib/dpkg",
+            "/var/lib/rpm",
+            "/var/lib/pacman",
+        ] {
             v.push(PathBuf::from(d));
         }
     }
@@ -175,7 +239,12 @@ pub fn check(path: &Path, guard: Guard, root: Option<&Path>) -> Result<(), Strin
     check_with(path, guard, root, &home())
 }
 
-pub fn check_with(path: &Path, guard: Guard, root: Option<&Path>, home: &Path) -> Result<(), String> {
+pub fn check_with(
+    path: &Path,
+    guard: Guard,
+    root: Option<&Path>,
+    home: &Path,
+) -> Result<(), String> {
     if !path.is_absolute() {
         return Err("PROTECTED: relative path".into());
     }
@@ -187,13 +256,21 @@ pub fn check_with(path: &Path, guard: Guard, root: Option<&Path>, home: &Path) -
     }
     for t in never_enter(home) {
         if inside(&path, &t) {
-            return Err(format!("PROTECTED: {} is inside {}", path.display(), t.display()));
+            return Err(format!(
+                "PROTECTED: {} is inside {}",
+                path.display(),
+                t.display()
+            ));
         }
     }
     if guard == Guard::Rule {
         for t in rule_never_enters(home) {
             if inside(&path, &t) {
-                return Err(format!("PROTECTED: {} is inside {}", path.display(), t.display()));
+                return Err(format!(
+                    "PROTECTED: {} is inside {}",
+                    path.display(),
+                    t.display()
+                ));
             }
         }
         if let Some(pattern) = super::clean::protection_match(&path) {
@@ -203,7 +280,11 @@ pub fn check_with(path: &Path, guard: Guard, root: Option<&Path>, home: &Path) -
     if let Some(root) = root {
         let root = normalize(root).ok_or("PROTECTED: root with ..")?;
         if !inside(&path, &root) {
-            return Err(format!("PROTECTED: {} is outside {}", path.display(), root.display()));
+            return Err(format!(
+                "PROTECTED: {} is outside {}",
+                path.display(),
+                root.display()
+            ));
         }
     }
     // No component of the path may be a link: a symlinked parent would move

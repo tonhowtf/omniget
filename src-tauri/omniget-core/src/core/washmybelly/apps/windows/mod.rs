@@ -713,23 +713,49 @@ pub fn plan_elevated(
                 }
             }
             Ok((
-                vec![ElevatedOp::RegDelete { key: key.to_string(), name: None }],
-                Some(Undo::Module { module: "apps".into(), action: "win.reg_import".into(), args: json!({ "file": file, "key": key }) }),
+                vec![ElevatedOp::RegDelete {
+                    key: key.to_string(),
+                    name: None,
+                }],
+                Some(Undo::Module {
+                    module: "apps".into(),
+                    action: "win.reg_import".into(),
+                    args: json!({ "file": file, "key": key }),
+                }),
             ))
         }
         "service_disable" => {
             let name = run::arg(args, "name").ok_or("service name missing")?;
-            if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | ' ')) {
+            if name.is_empty()
+                || !name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | ' '))
+            {
                 return Err(format!("not a service name: {name}"));
             }
-            Ok((vec![ElevatedOp::ServiceStartup { name: name.to_string(), mode: "disabled".into() }], None))
+            Ok((
+                vec![ElevatedOp::ServiceStartup {
+                    name: name.to_string(),
+                    mode: "disabled".into(),
+                }],
+                None,
+            ))
         }
         "task_disable" => {
             let path = run::arg(args, "path").ok_or("task path missing")?;
-            if !path.starts_with('\\') || path.to_ascii_lowercase().starts_with(r"\microsoft\") || path.contains(['"', '\0']) {
+            if !path.starts_with('\\')
+                || path.to_ascii_lowercase().starts_with(r"\microsoft\")
+                || path.contains(['"', '\0'])
+            {
                 return Err(format!("PROTECTED: {path}"));
             }
-            Ok((vec![ElevatedOp::TaskState { path: path.to_string(), enabled: false }], None))
+            Ok((
+                vec![ElevatedOp::TaskState {
+                    path: path.to_string(),
+                    enabled: false,
+                }],
+                None,
+            ))
         }
         "uninstall" => {
             // The helper reads the Uninstall entry again and refuses any
@@ -759,7 +785,9 @@ pub fn plan_elevated(
                 elevated_command(args).unwrap_or_else(|| "Settings > Apps > Installed apps".into())
             ))
         }
-        _ => Err(format!("apps.windows: action {action} has no administrator form")),
+        _ => Err(format!(
+            "apps.windows: action {action} has no administrator form"
+        )),
     }
 }
 

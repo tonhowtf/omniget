@@ -219,7 +219,7 @@ export function reviewTitleKey(kind: string): string {
 
 /// Does this kind free space (so "N freed" makes sense), or change settings?
 export function freesSpace(kind: string): boolean {
-  return ["cleanup", "dev_artifacts", "duplicates", "empty_folders", "large_files", "uninstall", "packages", "maintenance"].includes(kind);
+  return ["cleanup", "dev_artifacts", "duplicates", "empty_folders", "large_files", "uninstall", "packages"].includes(kind);
 }
 
 // ── Execution progress ───────────────────────────────────────────────

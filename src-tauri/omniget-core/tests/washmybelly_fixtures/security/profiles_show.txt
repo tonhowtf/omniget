@@ -1,0 +1,23 @@
+There are 2 configuration profiles installed
+
+_computerlevel[1] attribute: name: Acme Device Management
+_computerlevel[1] attribute: configurationDescription: Wi-Fi and VPN settings for Acme laptops
+_computerlevel[1] attribute: installationDate: 2026-03-02 14:23:11 +0000
+_computerlevel[1] attribute: organization: Acme Corp
+_computerlevel[1] attribute: profileIdentifier: com.acme.mdm.enrollment
+_computerlevel[1] attribute: profileUUID: 3C1F2E0A-5B6C-4D7E-8F90-A1B2C3D4E5F6
+_computerlevel[1] attribute: profileType: Configuration
+_computerlevel[1] attribute: removalDisallowed: TRUE
+_computerlevel[1] attribute: version: 1
+_computerlevel[1] attribute: profileVerificationState: verified
+_computerlevel[1] attribute: containedPayloads:
+_computerlevel[1] payload count = 2
+_computerlevel[1] 	payload[1] payloadType	= com.apple.wifi.managed
+_computerlevel[1] 	payload[2] payloadType	= com.apple.vpn.managed
+tonho[2] attribute: name: Browser Settings
+tonho[2] attribute: installationDate: 2026-08-19 09:01:44 +0000
+tonho[2] attribute: profileIdentifier: com.example.browser
+tonho[2] attribute: profileUUID: 9A8B7C6D-0000-1111-2222-333344445555
+tonho[2] attribute: profileType: Configuration
+tonho[2] attribute: removalDisallowed: FALSE
+tonho[2] attribute: profileVerificationState: unsigned

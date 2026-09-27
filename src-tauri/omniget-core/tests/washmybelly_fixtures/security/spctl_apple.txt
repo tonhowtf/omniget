@@ -1,0 +1,3 @@
+/Applications/Safari.app: accepted
+source=Apple System
+origin=Software Signing

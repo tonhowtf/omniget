@@ -1,0 +1,4 @@
+1 extension(s)
+--- com.apple.system_extension.driver_extension (Go to 'System Settings > General > Login Items & Extensions > Driver Extensions' to modify these system extension(s))
+enabled	active	teamID	bundleID (version)	name	[state]
+	*	QED4VVPZWA	com.logi.ghub.hidfilter (1.1.23.830163/1.1.23)	Logitech G HUB HID Driver Extension	[activated waiting for user]

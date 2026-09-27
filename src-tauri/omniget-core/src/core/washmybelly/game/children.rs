@@ -72,13 +72,13 @@ mod tests {
     fn walks_the_whole_tree_and_nothing_else() {
         let table = [
             (1, None),
-            (10, Some(1)),     // OmniGet
-            (11, Some(10)),    // yt-dlp
-            (12, Some(11)),    // ffmpeg under yt-dlp
-            (13, Some(10)),    // agent
-            (20, Some(1)),     // someone else's
-            (21, Some(20)),    // their child
-            (30, Some(30)),    // self-parented garbage
+            (10, Some(1)),  // OmniGet
+            (11, Some(10)), // yt-dlp
+            (12, Some(11)), // ffmpeg under yt-dlp
+            (13, Some(10)), // agent
+            (20, Some(1)),  // someone else's
+            (21, Some(20)), // their child
+            (30, Some(30)), // self-parented garbage
         ];
         assert_eq!(descendants(10, &table), vec![11, 12, 13]);
         assert!(descendants(21, &table).is_empty());
@@ -93,7 +93,11 @@ mod tests {
     #[test]
     fn a_spawned_child_is_found() {
         let mut child = std::process::Command::new(if cfg!(windows) { "cmd" } else { "sleep" })
-            .args(if cfg!(windows) { vec!["/C", "timeout", "/T", "3"] } else { vec!["3"] })
+            .args(if cfg!(windows) {
+                vec!["/C", "timeout", "/T", "3"]
+            } else {
+                vec!["3"]
+            })
             .spawn()
             .expect("spawn test child");
         let pid = child.id();

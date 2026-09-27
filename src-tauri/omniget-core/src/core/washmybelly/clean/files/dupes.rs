@@ -397,7 +397,11 @@ pub fn find_duplicates(ctx: &Ctx, a: &Value) -> Result<Value, String> {
                     if let Ok(fp) = fsops::fingerprint(&f.path) {
                         kept_items.push(PlanItem {
                             id: format!("duplicates:trash:{}", f.path.display()),
-                            label: f.path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+                            label: f
+                                .path
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_default(),
                             detail: Some(format!("{} · kept copy", f.path.display())),
                             group: "duplicates".into(),
                             bytes: f.alloc,

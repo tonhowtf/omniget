@@ -39,8 +39,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
-use super::store::{now, Ctx};
 use super::current_os;
+use super::store::{now, Ctx};
 
 pub const KV_KEY: &str = "game_mode_active";
 
@@ -50,7 +50,11 @@ pub const KV_KEY: &str = "game_mode_active";
 pub enum UndoStep {
     /// gamemode (or the portal) registration. The daemon also drops it by
     /// itself when the game exits.
-    GamemodeUnregister { portal: bool, caller: i32, game: i32 },
+    GamemodeUnregister {
+        portal: bool,
+        caller: i32,
+        game: i32,
+    },
     /// power-profiles-daemon hold; also released when OmniGet's bus
     /// connection closes.
     ReleaseProfile { cookie: u32 },
@@ -61,13 +65,22 @@ pub enum UndoStep {
     /// Linux I/O priority of one of OmniGet's own children, before idle.
     IoPrio { pid: u32, started: u64, prev: i32 },
     /// macOS background band (`PRIO_DARWIN_BG`) to put back.
-    DarwinBg { pid: u32, started: u64, restore: bool },
+    DarwinBg {
+        pid: u32,
+        started: u64,
+        restore: bool,
+    },
     /// Windows power scheme active before, and the one we set.
     PowerScheme { prev: String, set: String },
     /// Windows priority class of the game before.
     PriorityClass { pid: u32, started: u64, prev: u32 },
     /// Windows EcoQoS state of the game before (`ControlMask`, `StateMask`).
-    PowerThrottling { pid: u32, started: u64, control: u32, state: u32 },
+    PowerThrottling {
+        pid: u32,
+        started: u64,
+        control: u32,
+        state: u32,
+    },
     /// Windows `SetThreadExecutionState` held by the watcher thread.
     ExecutionState,
 }
@@ -88,7 +101,11 @@ impl UndoStep {
     pub fn child_pid(&self) -> Option<u32> {
         match *self {
             UndoStep::Nice { pid, .. } | UndoStep::IoPrio { pid, .. } => Some(pid),
-            UndoStep::DarwinBg { pid, restore: false, .. } => Some(pid),
+            UndoStep::DarwinBg {
+                pid,
+                restore: false,
+                ..
+            } => Some(pid),
             _ => None,
         }
     }
@@ -167,11 +184,18 @@ impl ExitWaiter for PollWaiter {
 pub fn alive(pid: u32, started: u64) -> bool {
     let mut sys = System::new();
     let p = Pid::from_u32(pid);
-    sys.refresh_processes_specifics(ProcessesToUpdate::Some(&[p]), true, ProcessRefreshKind::nothing());
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[p]),
+        true,
+        ProcessRefreshKind::nothing(),
+    );
     match sys.process(p) {
         Some(proc_) => {
             // A zombie waiting to be reaped has already exited.
-            if matches!(proc_.status(), sysinfo::ProcessStatus::Zombie | sysinfo::ProcessStatus::Dead) {
+            if matches!(
+                proc_.status(),
+                sysinfo::ProcessStatus::Zombie | sysinfo::ProcessStatus::Dead
+            ) {
                 return false;
             }
             started == 0 || proc_.start_time() == started
@@ -191,7 +215,23 @@ pub struct Target {
 }
 
 const SESSION_NAMES: &[&str] = &[
-    "launchd", "loginwindow", "windowserver", "kernel_task", "systemd", "init", "kthreadd", "csrss.exe", "wininit.exe", "winlogon.exe", "smss.exe", "lsass.exe", "services.exe", "dwm.exe", "explorer.exe", "system", "registry",
+    "launchd",
+    "loginwindow",
+    "windowserver",
+    "kernel_task",
+    "systemd",
+    "init",
+    "kthreadd",
+    "csrss.exe",
+    "wininit.exe",
+    "winlogon.exe",
+    "smss.exe",
+    "lsass.exe",
+    "services.exe",
+    "dwm.exe",
+    "explorer.exe",
+    "system",
+    "registry",
 ];
 
 /// Why a pid is refused, or `None`. Pure, so the rules are tested alone.
@@ -218,8 +258,14 @@ pub fn check_pid(pid: u32) -> Result<Target, String> {
     let target = Pid::from_u32(pid);
     let own = Pid::from_u32(std::process::id());
     let mut sys = System::new();
-    sys.refresh_processes_specifics(ProcessesToUpdate::Some(&[target, own]), true, ProcessRefreshKind::nothing().with_user(UpdateKind::Always));
-    let p = sys.process(target).ok_or("NOT_FOUND: no process with that pid")?;
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[target, own]),
+        true,
+        ProcessRefreshKind::nothing().with_user(UpdateKind::Always),
+    );
+    let p = sys
+        .process(target)
+        .ok_or("NOT_FOUND: no process with that pid")?;
     let me = sys.process(own).and_then(|p| p.user_id()).cloned();
     let same = matches!((p.user_id(), me), (Some(a), Some(b)) if *a == b);
     let name = p.name().to_string_lossy().to_string();
@@ -283,7 +329,9 @@ pub fn undo_all(exec: &dyn Exec, steps: &[UndoStep]) -> Vec<Value> {
         .rev()
         .map(|s| {
             let r = match s.target() {
-                Some((pid, started)) if !exec.alive(pid, started) => Ok("process already ended".to_string()),
+                Some((pid, started)) if !exec.alive(pid, started) => {
+                    Ok("process already ended".to_string())
+                }
                 _ => exec.undo(s),
             };
             match r {
@@ -301,7 +349,13 @@ const TICK: Duration = Duration::from_secs(1);
 
 /// Start a session: a thread applies, watches and undoes. Returns once the
 /// apply step has finished.
-pub fn start(target: &Target, ctx: Option<Ctx>, exec: Arc<dyn Exec>, apply: ApplyFn, waiter: WaiterFn) -> Result<Active, String> {
+pub fn start(
+    target: &Target,
+    ctx: Option<Ctx>,
+    exec: Arc<dyn Exec>,
+    apply: ApplyFn,
+    waiter: WaiterFn,
+) -> Result<Active, String> {
     {
         let live = LIVE.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(l) = live.get(&target.pid) {
@@ -356,7 +410,7 @@ pub fn start(target: &Target, ctx: Option<Ctx>, exec: Arc<dyn Exec>, apply: Appl
                     break;
                 }
                 n += 1;
-                if n % 3 == 0 && !t_stop.load(Ordering::SeqCst) {
+                if n.is_multiple_of(3) && !t_stop.load(Ordering::SeqCst) {
                     let cur = t_active.lock().unwrap_or_else(|e| e.into_inner()).clone();
                     let more = exec.tick(&cur);
                     if !more.is_empty() {
@@ -414,9 +468,15 @@ pub fn start(target: &Target, ctx: Option<Ctx>, exec: Arc<dyn Exec>, apply: Appl
 
 /// Stop one session now and wait for its undo report.
 pub fn stop(pid: u32) -> Option<Vec<Value>> {
-    let l = LIVE.lock().unwrap_or_else(|e| e.into_inner()).remove(&pid)?;
+    let l = LIVE
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .remove(&pid)?;
     l.stop.store(true, Ordering::SeqCst);
-    let report = l.done.recv_timeout(Duration::from_secs(15)).unwrap_or_default();
+    let report = l
+        .done
+        .recv_timeout(Duration::from_secs(15))
+        .unwrap_or_default();
     let _ = l.handle.join();
     Some(report)
 }
@@ -434,7 +494,12 @@ pub fn active_list() -> Vec<Active> {
 /// Undo every session now (OmniGet is closing). Bounded: never blocks the
 /// exit for more than a few seconds.
 pub fn shutdown() {
-    let all: Vec<Live> = LIVE.lock().unwrap_or_else(|e| e.into_inner()).drain().map(|(_, l)| l).collect();
+    let all: Vec<Live> = LIVE
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .drain()
+        .map(|(_, l)| l)
+        .collect();
     for l in &all {
         l.stop.store(true, Ordering::SeqCst);
     }
@@ -465,7 +530,9 @@ pub fn recover_with(ctx: &Ctx, exec: &dyn Exec) -> Vec<Value> {
     let stale: Vec<Active> = {
         let _g = KV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let all = kv_read(ctx);
-        let (keep, stale): (Vec<Active>, Vec<Active>) = all.into_iter().partition(|a| live.contains(&(a.pid, a.since)));
+        let (keep, stale): (Vec<Active>, Vec<Active>) = all
+            .into_iter()
+            .partition(|a| live.contains(&(a.pid, a.since)));
         let _ = ctx.kv_set(KV_KEY, &keep);
         stale
     };
@@ -579,7 +646,10 @@ pub async fn ui_action(action: &str, _a: Value) -> Result<Value, String> {
         "disable_all" => {
             super::tools::blocking(|| {
                 let pids: Vec<u32> = active_list().iter().map(|a| a.pid).collect();
-                let undone: Vec<Value> = pids.into_iter().map(|p| json!({ "pid": p, "undone": stop(p).unwrap_or_default() })).collect();
+                let undone: Vec<Value> = pids
+                    .into_iter()
+                    .map(|p| json!({ "pid": p, "undone": stop(p).unwrap_or_default() }))
+                    .collect();
                 Ok(json!({ "ok": true, "sessions": undone }))
             })
             .await
@@ -617,7 +687,10 @@ mod tests {
 
     fn spawn_sleep(secs: u32) -> Child {
         if cfg!(windows) {
-            Command::new("cmd").args(["/C", "timeout", "/T", &secs.to_string(), "/NOBREAK"]).spawn().unwrap()
+            Command::new("cmd")
+                .args(["/C", "timeout", "/T", &secs.to_string(), "/NOBREAK"])
+                .spawn()
+                .unwrap()
         } else {
             Command::new("sleep").arg(secs.to_string()).spawn().unwrap()
         }
@@ -626,15 +699,33 @@ mod tests {
     fn target_of(child: &Child) -> Target {
         let pid = child.id();
         let mut sys = System::new();
-        sys.refresh_processes_specifics(ProcessesToUpdate::Some(&[Pid::from_u32(pid)]), true, ProcessRefreshKind::nothing());
-        let started = sys.process(Pid::from_u32(pid)).map(|p| p.start_time()).unwrap_or(0);
-        Target { pid, name: "sleep".into(), started }
+        sys.refresh_processes_specifics(
+            ProcessesToUpdate::Some(&[Pid::from_u32(pid)]),
+            true,
+            ProcessRefreshKind::nothing(),
+        );
+        let started = sys
+            .process(Pid::from_u32(pid))
+            .map(|p| p.start_time())
+            .unwrap_or(0);
+        Target {
+            pid,
+            name: "sleep".into(),
+            started,
+        }
     }
 
     fn fake_steps(pid: u32) -> Vec<UndoStep> {
         vec![
-            UndoStep::PowerScheme { prev: "a".into(), set: "b".into() },
-            UndoStep::PriorityClass { pid, started: 0, prev: 32 },
+            UndoStep::PowerScheme {
+                prev: "a".into(),
+                set: "b".into(),
+            },
+            UndoStep::PriorityClass {
+                pid,
+                started: 0,
+                prev: 32,
+            },
             UndoStep::ExecutionState,
         ]
     }
@@ -654,24 +745,37 @@ mod tests {
     fn refuses_pid_0_1_self_session_and_other_users() {
         assert!(refuse_reason(0, 50, "x", true).is_some());
         assert!(refuse_reason(1, 50, "x", true).is_some());
-        assert!(refuse_reason(50, 50, "x", true).unwrap().contains("OmniGet"));
+        assert!(refuse_reason(50, 50, "x", true)
+            .unwrap()
+            .contains("OmniGet"));
         assert!(refuse_reason(60, 50, "WindowServer", true).is_some());
-        assert!(refuse_reason(60, 50, "game", false).unwrap().contains("another user"));
+        assert!(refuse_reason(60, 50, "game", false)
+            .unwrap()
+            .contains("another user"));
         assert_eq!(refuse_reason(60, 50, "game", true), None);
     }
 
     #[test]
     fn check_pid_refuses_the_real_pid_1_and_omniget() {
         assert!(check_pid(1).is_err());
-        assert!(check_pid(std::process::id()).unwrap_err().contains("OmniGet"));
+        assert!(check_pid(std::process::id())
+            .unwrap_err()
+            .contains("OmniGet"));
         assert!(check_pid(0).is_err());
     }
 
     #[test]
     fn check_pid_refuses_a_process_of_another_user() {
         let mut sys = System::new();
-        sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().with_user(UpdateKind::Always));
-        let me = sys.process(Pid::from_u32(std::process::id())).and_then(|p| p.user_id()).cloned();
+        sys.refresh_processes_specifics(
+            ProcessesToUpdate::All,
+            true,
+            ProcessRefreshKind::nothing().with_user(UpdateKind::Always),
+        );
+        let me = sys
+            .process(Pid::from_u32(std::process::id()))
+            .and_then(|p| p.user_id())
+            .cloned();
         let other = sys
             .processes()
             .values()
@@ -709,7 +813,16 @@ mod tests {
         assert_eq!(report.len(), 3);
         // Priority of a gone game is not touched; the plan and the awake
         // state are put back, last done first.
-        assert_eq!(*e.0.lock().unwrap(), vec![UndoStep::ExecutionState, UndoStep::PowerScheme { prev: "a".into(), set: "b".into() }]);
+        assert_eq!(
+            *e.0.lock().unwrap(),
+            vec![
+                UndoStep::ExecutionState,
+                UndoStep::PowerScheme {
+                    prev: "a".into(),
+                    set: "b".into()
+                }
+            ]
+        );
         assert_eq!(report[1]["detail"], "process already ended");
     }
 
@@ -721,7 +834,14 @@ mod tests {
         let t = target_of(&child);
         let fake = Arc::new(Fake::default());
         let (pid, started) = (t.pid, t.started);
-        let a = start(&t, Some(ctx.clone()), fake.clone(), apply_with(fake_steps(t.pid)), Box::new(move || Box::new(PollWaiter { pid, started }) as Box<dyn ExitWaiter>)).unwrap();
+        let a = start(
+            &t,
+            Some(ctx.clone()),
+            fake.clone(),
+            apply_with(fake_steps(t.pid)),
+            Box::new(move || Box::new(PollWaiter { pid, started }) as Box<dyn ExitWaiter>),
+        )
+        .unwrap();
         assert_eq!(a.method, "test");
         assert_eq!(kv_read(&ctx).len(), 1, "state is in kv while the game runs");
         let mut child = child;
@@ -745,9 +865,23 @@ mod tests {
         let t = target_of(&child);
         let fake = Arc::new(Fake::default());
         let (pid, started) = (t.pid, t.started);
-        start(&t, Some(ctx.clone()), fake.clone(), apply_with(fake_steps(t.pid)), Box::new(move || Box::new(PollWaiter { pid, started }) as Box<dyn ExitWaiter>)).unwrap();
+        start(
+            &t,
+            Some(ctx.clone()),
+            fake.clone(),
+            apply_with(fake_steps(t.pid)),
+            Box::new(move || Box::new(PollWaiter { pid, started }) as Box<dyn ExitWaiter>),
+        )
+        .unwrap();
         // Starting twice returns the same session.
-        let again = start(&t, None, fake.clone(), apply_with(vec![]), Box::new(move || Box::new(PollWaiter { pid, started }) as Box<dyn ExitWaiter>)).unwrap();
+        let again = start(
+            &t,
+            None,
+            fake.clone(),
+            apply_with(vec![]),
+            Box::new(move || Box::new(PollWaiter { pid, started }) as Box<dyn ExitWaiter>),
+        )
+        .unwrap();
         assert_eq!(again.undo.len(), 3);
         let report = stop(t.pid).expect("was active");
         assert_eq!(report.len(), 3);
@@ -764,7 +898,13 @@ mod tests {
         let t = target_of(&child);
         let fake = Arc::new(Fake::default());
         let (pid, started) = (t.pid, t.started);
-        let r = start(&t, None, fake.clone(), Box::new(|| Err("NOTHING_APPLIED".into())), Box::new(move || Box::new(PollWaiter { pid, started }) as Box<dyn ExitWaiter>));
+        let r = start(
+            &t,
+            None,
+            fake.clone(),
+            Box::new(|| Err("NOTHING_APPLIED".into())),
+            Box::new(move || Box::new(PollWaiter { pid, started }) as Box<dyn ExitWaiter>),
+        );
         assert!(r.is_err());
         assert!(!active_list().iter().any(|x| x.pid == t.pid));
         let _ = child.kill();
@@ -783,7 +923,17 @@ mod tests {
             since: 5,
             applied: vec![],
             notes: vec![],
-            undo: vec![UndoStep::PowerScheme { prev: "p".into(), set: "s".into() }, UndoStep::Nice { pid: 999_999, started: 1, prev: 0 }],
+            undo: vec![
+                UndoStep::PowerScheme {
+                    prev: "p".into(),
+                    set: "s".into(),
+                },
+                UndoStep::Nice {
+                    pid: 999_999,
+                    started: 1,
+                    prev: 0,
+                },
+            ],
         };
         ctx.kv_set(KV_KEY, &vec![left]).unwrap();
         let fake = Fake::default();
@@ -796,9 +946,22 @@ mod tests {
     #[test]
     fn undo_steps_round_trip_through_kv_json() {
         let s = vec![
-            UndoStep::GamemodeUnregister { portal: false, caller: 1, game: 2 },
-            UndoStep::DarwinBg { pid: 3, started: 4, restore: true },
-            UndoStep::PowerThrottling { pid: 3, started: 4, control: 4, state: 4 },
+            UndoStep::GamemodeUnregister {
+                portal: false,
+                caller: 1,
+                game: 2,
+            },
+            UndoStep::DarwinBg {
+                pid: 3,
+                started: 4,
+                restore: true,
+            },
+            UndoStep::PowerThrottling {
+                pid: 3,
+                started: 4,
+                control: 4,
+                state: 4,
+            },
         ];
         let j = serde_json::to_string(&s).unwrap();
         assert!(j.contains("\"step\":\"gamemode_unregister\""));
@@ -816,7 +979,23 @@ mod tests {
             since: 0,
             applied: vec![],
             notes: vec![],
-            undo: vec![UndoStep::Nice { pid: 9, started: 0, prev: 0 }, UndoStep::IoPrio { pid: 9, started: 0, prev: 0 }, UndoStep::DarwinBg { pid: 8, started: 0, restore: false }],
+            undo: vec![
+                UndoStep::Nice {
+                    pid: 9,
+                    started: 0,
+                    prev: 0,
+                },
+                UndoStep::IoPrio {
+                    pid: 9,
+                    started: 0,
+                    prev: 0,
+                },
+                UndoStep::DarwinBg {
+                    pid: 8,
+                    started: 0,
+                    restore: false,
+                },
+            ],
         };
         assert_eq!(public(&a)["children_lowered"], 2);
     }
@@ -827,7 +1006,14 @@ mod tests {
         let t = target_of(&child);
         let fake = Arc::new(Fake::default());
         let (pid, started) = (t.pid, t.started);
-        start(&t, None, fake.clone(), apply_with(vec![]), Box::new(move || Box::new(PollWaiter { pid, started }) as Box<dyn ExitWaiter>)).unwrap();
+        start(
+            &t,
+            None,
+            fake.clone(),
+            apply_with(vec![]),
+            Box::new(move || Box::new(PollWaiter { pid, started }) as Box<dyn ExitWaiter>),
+        )
+        .unwrap();
         std::thread::sleep(Duration::from_millis(3600));
         stop(t.pid);
         let _ = child.kill();

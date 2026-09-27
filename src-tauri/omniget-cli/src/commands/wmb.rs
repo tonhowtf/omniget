@@ -103,11 +103,19 @@ pub async fn execute(cmd: WmbCommand, json_out: bool) -> anyhow::Result<()> {
         WmbCommand::Status => call("wmb_system_status", json!({})).await?,
         WmbCommand::Caps => call("wmb_capabilities", json!({ "refresh": true })).await?,
         WmbCommand::Scan { kind, roots } => {
-            let input = if roots.is_empty() { json!({}) } else { json!({ "roots": roots }) };
+            let input = if roots.is_empty() {
+                json!({})
+            } else {
+                json!({ "roots": roots })
+            };
             call(scan_tool(&kind)?, input).await?
         }
-        WmbCommand::Plan { kind, ids } => call("wmb_plan", json!({ "kind": kind, "item_ids": ids })).await?,
-        WmbCommand::Show { plan_id } => call("wmb_plan_show", json!({ "plan_id": plan_id })).await?,
+        WmbCommand::Plan { kind, ids } => {
+            call("wmb_plan", json!({ "kind": kind, "item_ids": ids })).await?
+        }
+        WmbCommand::Show { plan_id } => {
+            call("wmb_plan_show", json!({ "plan_id": plan_id })).await?
+        }
         WmbCommand::Execute { plan_id, wait } => {
             let asked = call("wmb_execute", json!({ "plan_id": plan_id })).await?;
             if !json_out {
@@ -120,14 +128,19 @@ pub async fn execute(cmd: WmbCommand, json_out: bool) -> anyhow::Result<()> {
                 for _ in 0..300 {
                     tokio::time::sleep(Duration::from_secs(2)).await;
                     last = call("wmb_plan_show", json!({ "plan_id": plan_id })).await?;
-                    if matches!(last["status"].as_str(), Some("executed" | "denied" | "expired")) {
+                    if matches!(
+                        last["status"].as_str(),
+                        Some("executed" | "denied" | "expired")
+                    ) {
                         break;
                     }
                 }
                 last
             }
         }
-        WmbCommand::Restore { receipt_id } => call("wmb_restore", json!({ "receipt_id": receipt_id })).await?,
+        WmbCommand::Restore { receipt_id } => {
+            call("wmb_restore", json!({ "receipt_id": receipt_id })).await?
+        }
         WmbCommand::Receipts => call("wmb_receipts", json!({})).await?,
     };
     print(&out, json_out);

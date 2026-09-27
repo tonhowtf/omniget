@@ -1,7 +1,7 @@
 {
   "name": "omniget",
   "version": "0.10.1",
-  "description": "Free desktop downloader for YouTube, Instagram, TikTok, X, Reddit, torrents and the sites yt-dlp supports, with an MCP server for Claude Code, Cursor and VS Code, and a window for AI agents (Claude Code, Codex, Gemini CLI, Ollama). Open source for Windows, macOS and Linux.",
+  "description": "Free desktop downloader for YouTube, Instagram, TikTok, X, Reddit, torrents and the sites yt-dlp supports, with an MCP server for Claude Code, Cursor and VS Code, a window for AI agents (Claude Code, Codex, Gemini CLI, Ollama), and washmybelly to clean junk, uninstall apps and tune privacy and performance. Open source for Windows, macOS and Linux.",
   "keywords": [
     "downloader",
     "yt-dlp",
@@ -21,6 +21,9 @@
     "agent-client-protocol",
     "coding-agent",
     "desktop-app",
+    "system-cleaner",
+    "uninstaller",
+    "fps-counter",
     "tauri"
   ],
   "homepage": "https://getomniget.com/",

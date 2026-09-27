@@ -110,8 +110,12 @@ pub fn pending(ctx: &Ctx) -> Result<Vec<Value>, String> {
         .into_iter()
         .map(|a| {
             let detail = match a.target.split_once(':') {
-                Some(("execute", pid)) => plan::load(ctx, pid).map(|p| p.preview()).unwrap_or(Value::Null),
-                Some(("restore", rid)) => super::receipt::load(ctx, rid).map(|r| r.summary()).unwrap_or(Value::Null),
+                Some(("execute", pid)) => plan::load(ctx, pid)
+                    .map(|p| p.preview())
+                    .unwrap_or(Value::Null),
+                Some(("restore", rid)) => super::receipt::load(ctx, rid)
+                    .map(|r| r.summary())
+                    .unwrap_or(Value::Null),
                 _ => Value::Null,
             };
             json!({ "approval": a, "detail": detail })
@@ -148,7 +152,9 @@ pub fn answer(ctx: &Ctx, id: &str, allow: bool) -> Result<Value, String> {
         "restore" => {
             let items = super::receipt::restore(ctx, target)?;
             set(ctx, id, "executed", Some(target))?;
-            Ok(json!({ "approval_id": id, "status": "executed", "receipt_id": target, "items": items }))
+            Ok(
+                json!({ "approval_id": id, "status": "executed", "receipt_id": target, "items": items }),
+            )
         }
         _ => Err("bad approval target".into()),
     }
@@ -194,7 +200,12 @@ mod tests {
                 contents_only: false,
             },
         };
-        (plan::offer(ctx, "cleanup", vec![item], Source::External).unwrap().id, f)
+        (
+            plan::offer(ctx, "cleanup", vec![item], Source::External)
+                .unwrap()
+                .id,
+            f,
+        )
     }
 
     #[test]
@@ -204,14 +215,20 @@ mod tests {
         let (plan_id, f) = one_file_plan(&ctx, dir.path());
         let a = request_execute(&ctx, &plan_id, "Codex").unwrap();
         assert!(f.exists());
-        assert_eq!(plan::load(&ctx, &plan_id).unwrap().status, PlanStatus::PendingApproval);
+        assert_eq!(
+            plan::load(&ctx, &plan_id).unwrap().status,
+            PlanStatus::PendingApproval
+        );
         // A second ask does not stack a second prompt.
         assert_eq!(request_execute(&ctx, &plan_id, "Codex").unwrap().id, a.id);
         assert_eq!(pending(&ctx).unwrap().len(), 1);
         let out = answer(&ctx, &a.id, true).unwrap();
         assert_eq!(out["status"], "executed");
         assert!(!f.exists());
-        assert_eq!(plan::load(&ctx, &plan_id).unwrap().status, PlanStatus::Executed);
+        assert_eq!(
+            plan::load(&ctx, &plan_id).unwrap().status,
+            PlanStatus::Executed
+        );
         assert!(answer(&ctx, &a.id, true).is_err(), "an answer counts once");
     }
 

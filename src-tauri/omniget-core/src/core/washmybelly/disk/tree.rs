@@ -22,6 +22,8 @@ use super::super::fsops;
 
 /// Files kept by name per folder; the rest fold into `rest_*`.
 const KEEP_FILES: usize = 24;
+/// Folder entries with their metadata.
+type Entries = Vec<(OsString, Metadata)>;
 /// Levels listed on the calling thread before the rest splits into jobs.
 const SPLIT_DEPTH: usize = 2;
 /// Children shown per folder in the output, whatever the fraction.
@@ -76,7 +78,7 @@ impl Node {
 
     /// Keep the largest files by name; fold the others.
     fn fold_files(&mut self, mut files: Vec<Node>) {
-        files.sort_by(|a, b| b.bytes.cmp(&a.bytes));
+        files.sort_by_key(|f| std::cmp::Reverse(f.bytes));
         for (i, f) in files.into_iter().enumerate() {
             if i < KEEP_FILES {
                 self.children.push(f);
@@ -169,7 +171,7 @@ impl Walk {
 
     fn tick(&self, path: &Path) {
         let n = self.entries.fetch_add(1, Ordering::Relaxed) + 1;
-        if n % 2048 != 0 {
+        if !n.is_multiple_of(2048) {
             return;
         }
         if let Ok(mut last) = self.last_tick.try_lock() {
@@ -190,7 +192,7 @@ impl Walk {
 
     /// The entries of a folder, links and other volumes already dropped.
     /// Returns (subfolders, files) with their metadata.
-    fn list(&self, path: &Path) -> (Vec<(OsString, Metadata)>, Vec<(OsString, Metadata)>) {
+    fn list(&self, path: &Path) -> (Entries, Entries) {
         let mut dirs = Vec::new();
         let mut files = Vec::new();
         let rd = match std::fs::read_dir(path) {

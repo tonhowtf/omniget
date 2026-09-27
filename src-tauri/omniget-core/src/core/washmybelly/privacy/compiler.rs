@@ -213,7 +213,8 @@ impl<'a> Compiler<'a> {
             });
         };
         let calls = parse_calls(calls).map_err(|e| format!("{}: {e}", s.name))?;
-        self.compile_calls(&calls).map_err(|e| format!("{}: {e}", s.name))
+        self.compile_calls(&calls)
+            .map_err(|e| format!("{}: {e}", s.name))
     }
 
     pub fn compile_calls(&self, calls: &[Call]) -> Result<Compiled, String> {
@@ -255,7 +256,12 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile_call(&self, call: &Call, depth: usize, out: &mut Vec<Compiled>) -> Result<(), String> {
+    fn compile_call(
+        &self,
+        call: &Call,
+        depth: usize,
+        out: &mut Vec<Compiled>,
+    ) -> Result<(), String> {
         if depth > MAX_DEPTH {
             return Err(format!("calls nested too deep at {}", call.function));
         }
@@ -278,7 +284,10 @@ impl<'a> Compiler<'a> {
             .ok_or_else(|| format!("function {} has neither code nor call", f.name))?;
         for n in parse_calls(nested)? {
             let compiled = self.nested_call(&n, &call.args).map_err(|e| {
-                format!("Failed to call '{}' (callee function) from '{}' (caller function): {e}", n.function, call.function)
+                format!(
+                    "Failed to call '{}' (callee function) from '{}' (caller function): {e}",
+                    n.function, call.function
+                )
             })?;
             self.compile_call(&compiled, depth + 1, out)?;
         }
@@ -291,11 +300,14 @@ impl<'a> Compiler<'a> {
         let f = self.function(&nested.function)?;
         let mut args = Args::new();
         for (k, v) in &nested.args {
-            let value = expand(v, parent).map_err(|e| format!("Error when compiling argument for \"{k}\": {e}"))?;
+            let value = expand(v, parent)
+                .map_err(|e| format!("Error when compiling argument for \"{k}\": {e}"))?;
             if value.is_empty() {
                 let required = f.parameters.iter().any(|p| &p.name == k && !p.optional);
                 if required {
-                    return Err(format!("Compilation resulted in empty value for required parameter: \"{k}\""));
+                    return Err(format!(
+                        "Compilation resulted in empty value for required parameter: \"{k}\""
+                    ));
                 }
                 continue;
             }
@@ -310,14 +322,23 @@ impl<'a> Compiler<'a> {
     /// Walk a call sequence the way the compiler would, letting the visitor
     /// stop at the functions it understands. `inline` tells the visitor the
     /// function is code, not calls (nothing to descend into).
-    pub fn walk(&self, calls: &[Call], visit: &mut dyn FnMut(&Call, bool) -> Visit) -> Result<(), String> {
+    pub fn walk(
+        &self,
+        calls: &[Call],
+        visit: &mut dyn FnMut(&Call, bool) -> Visit,
+    ) -> Result<(), String> {
         for c in calls {
             self.walk_one(c, 0, visit)?;
         }
         Ok(())
     }
 
-    fn walk_one(&self, call: &Call, depth: usize, visit: &mut dyn FnMut(&Call, bool) -> Visit) -> Result<(), String> {
+    fn walk_one(
+        &self,
+        call: &Call,
+        depth: usize,
+        visit: &mut dyn FnMut(&Call, bool) -> Visit,
+    ) -> Result<(), String> {
         if depth > MAX_DEPTH {
             return Err(format!("calls nested too deep at {}", call.function));
         }
@@ -343,10 +364,13 @@ impl<'a> Compiler<'a> {
 
 const PIPELINE: &str = r"((?:\|\s*\b[a-zA-Z]+\b\s*)*)";
 
-static SUBST: Lazy<Regex> = Lazy::new(|| Regex::new(&format!(r"\{{\{{\s*\$([^|\s]+)\s*{PIPELINE}\s*\}}\}}")).unwrap());
-static WITH_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{\{\s*with\s+\$([^|\s]+)\s*\}\}\s*").unwrap());
+static SUBST: Lazy<Regex> =
+    Lazy::new(|| Regex::new(&format!(r"\{{\{{\s*\$([^|\s]+)\s*{PIPELINE}\s*\}}\}}")).unwrap());
+static WITH_START: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\{\{\s*with\s+\$([^|\s]+)\s*\}\}\s*").unwrap());
 static WITH_END: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*\{\{\s*end\s*\}\}").unwrap());
-static CONTEXT_VAR: Lazy<Regex> = Lazy::new(|| Regex::new(&format!(r"\{{\{{\s*\.\s*{PIPELINE}\s*\}}\}}")).unwrap());
+static CONTEXT_VAR: Lazy<Regex> =
+    Lazy::new(|| Regex::new(&format!(r"\{{\{{\s*\.\s*{PIPELINE}\s*\}}\}}")).unwrap());
 
 #[derive(Debug, Clone)]
 enum Kind {
@@ -372,11 +396,14 @@ struct Expr {
 
 impl Expr {
     fn inside_of(&self, other: &Expr) -> bool {
-        !(self.start == other.start && self.end == other.end) && other.start <= self.start && other.end >= self.end
+        !(self.start == other.start && self.end == other.end)
+            && other.start <= self.start
+            && other.end >= self.end
     }
 
     fn intersects(&self, other: &Expr) -> bool {
-        (other.start < self.end && other.end > self.start) || (self.end > other.start && other.start >= self.start)
+        (other.start < self.end && other.end > self.start)
+            || (self.end > other.start && other.start >= self.start)
     }
 }
 
@@ -416,7 +443,11 @@ fn find_with(code: &str) -> Result<Vec<Expr>, String> {
     }
     for c in CONTEXT_VAR.captures_iter(code) {
         let m = c.get(0).unwrap();
-        tokens.push((m.start(), m.end(), WithToken::Var(c.get(1).map_or("", |p| p.as_str()).to_string())));
+        tokens.push((
+            m.start(),
+            m.end(),
+            WithToken::Var(c.get(1).map_or("", |p| p.as_str()).to_string()),
+        ));
     }
     tokens.sort_by_key(|t| t.0);
     // Open `with` blocks: (start, end of the start statement, name, vars).
@@ -427,11 +458,15 @@ fn find_with(code: &str) -> Result<Vec<Expr>, String> {
         match tok {
             WithToken::Start(name) => open.push((start, end, name, Vec::new())),
             WithToken::Var(pipeline) => {
-                let top = open.last_mut().ok_or("Context variable before `with` statement.")?;
+                let top = open
+                    .last_mut()
+                    .ok_or("Context variable before `with` statement.")?;
                 top.3.push((start, end, pipeline));
             }
             WithToken::End => {
-                let (s, scope_start, name, vars) = open.pop().ok_or("Redundant `end` statement, missing `with`?")?;
+                let (s, scope_start, name, vars) = open
+                    .pop()
+                    .ok_or("Redundant `end` statement, missing `with`?")?;
                 out.push(Expr {
                     start: s,
                     end,
@@ -479,7 +514,10 @@ fn evaluate_pass(code: &str, exprs: &[Expr], args: &Args) -> Result<String, Stri
                 return Err("Instructions at same position".into());
             }
             if a.intersects(b) && !a.inside_of(b) && !b.inside_of(a) {
-                return Err(format!("Instructions intersecting unexpectedly: {}", &code[a.start.min(b.start)..a.end.max(b.end)]));
+                return Err(format!(
+                    "Instructions intersecting unexpectedly: {}",
+                    &code[a.start.min(b.start)..a.end.max(b.end)]
+                ));
             }
         }
     }
@@ -503,7 +541,9 @@ fn evaluate(code: &str, e: &Expr, args: &Args) -> Result<String, String> {
     match &e.kind {
         Kind::Subst { name, pipeline } => {
             let value = args.get(name).ok_or_else(|| {
-                format!("Some parameters are used in code, but their values are not provided: {name}")
+                format!(
+                    "Some parameters are used in code, but their values are not provided: {name}"
+                )
             })?;
             if pipeline.is_empty() {
                 Ok(value.clone())
@@ -633,7 +673,12 @@ fn merge_brackets(code: &str) -> String {
     let s = OPEN.replace_all(code, " { ").into_owned();
     // Closing bracket followed by a continuation keyword.
     static CLOSE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*\}[\r\n][\s\r\n]*").unwrap());
-    let s = replace_with_lookahead(&s, &CLOSE, &["elseif", "else", "catch", "finally", "until"], None);
+    let s = replace_with_lookahead(
+        &s,
+        &CLOSE,
+        &["elseif", "else", "catch", "finally", "until"],
+        None,
+    );
     // `do { ... }` + newline + `while`.
     static DO_CLOSE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[\r\n\s]*\}[\r\n][\r\n\s]*").unwrap());
     replace_with_lookahead(&s, &DO_CLOSE, &["while"], Some(do_block_before))
@@ -643,30 +688,45 @@ fn merge_brackets(code: &str) -> String {
 /// whitespace between it and a preceding `do`.
 fn do_block_before(text: &str, pos: usize) -> bool {
     let before = &text[..pos];
-    let line_start = before.rfind(['\n', '\r', '\u{2028}', '\u{2029}']).map_or(0, |i| i + 1);
+    let line_start = before
+        .rfind(['\n', '\r', '\u{2028}', '\u{2029}'])
+        .map_or(0, |i| i + 1);
     before[line_start..]
         .char_indices()
         .filter(|(_, c)| *c == '{')
-        .any(|(i, _)| before[..line_start + i].trim_end_matches(is_js_space).ends_with("do"))
+        .any(|(i, _)| {
+            before[..line_start + i]
+                .trim_end_matches(is_js_space)
+                .ends_with("do")
+        })
 }
 
 /// `re` followed by one of `ahead` (a lookahead the regex crate lacks),
 /// optionally with a lookbehind test at the match start. A failed candidate
 /// resumes the search just after its `}` so a later match can still start
 /// inside the whitespace the candidate covered, as a backtracking engine does.
-fn replace_with_lookahead(text: &str, re: &Regex, ahead: &[&str], behind: Option<fn(&str, usize) -> bool>) -> String {
+fn replace_with_lookahead(
+    text: &str,
+    re: &Regex,
+    ahead: &[&str],
+    behind: Option<fn(&str, usize) -> bool>,
+) -> String {
     let mut out = String::with_capacity(text.len());
     let mut copied = 0;
     let mut pos = 0;
     while pos <= text.len() {
-        let Some(m) = re.find_at(text, pos) else { break };
+        let Some(m) = re.find_at(text, pos) else {
+            break;
+        };
         let brace = m.start() + m.as_str().find('}').unwrap_or(0);
         let rest = &text[m.end()..];
         let ok_ahead = ahead.iter().any(|w| rest.starts_with(w));
         let start = match behind {
             None => Some(m.start()),
             // Leftmost start inside the leading whitespace where the lookbehind holds.
-            Some(test) => (m.start()..=brace).filter(|i| text.is_char_boundary(*i)).find(|i| test(text, *i)),
+            Some(test) => (m.start()..=brace)
+                .filter(|i| text.is_char_boundary(*i))
+                .find(|i| test(text, *i)),
         };
         match start {
             Some(s) if ok_ahead => {
@@ -708,7 +768,10 @@ mod tests {
     use super::*;
 
     fn args(pairs: &[(&str, &str)]) -> Args {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
 
     #[test]
@@ -727,24 +790,36 @@ mod tests {
     fn pipes_apply_in_order() {
         let a = args(&[("c", "Write-Host \"hi\"\n# note\nexit")]);
         assert_eq!(
-            expand("-Command \"{{ $c | inlinePowerShell | escapeDoubleQuotes }}\"", &a).unwrap(),
+            expand(
+                "-Command \"{{ $c | inlinePowerShell | escapeDoubleQuotes }}\"",
+                &a
+            )
+            .unwrap(),
             "-Command \"Write-Host \"^\"\"hi\"^\"\"; <# note #>; exit\""
         );
-        assert!(expand("{{ $c | nothing }}", &a).unwrap_err().contains("Unknown pipe"));
+        assert!(expand("{{ $c | nothing }}", &a)
+            .unwrap_err()
+            .contains("Unknown pipe"));
     }
 
     #[test]
     fn with_renders_only_when_the_argument_is_given() {
         let t = "start {{ with $opt }}\n  value={{ . }} and {{ $req }}\n{{ end }} stop";
         assert_eq!(expand(t, &args(&[("req", "r")])).unwrap(), "start  stop");
-        assert_eq!(expand(t, &args(&[("req", "r"), ("opt", "o")])).unwrap(), "start value=o and r stop");
+        assert_eq!(
+            expand(t, &args(&[("req", "r"), ("opt", "o")])).unwrap(),
+            "start value=o and r stop"
+        );
     }
 
     #[test]
     fn nested_with_blocks_bind_the_innermost_dot() {
         let t = "{{ with $a }}A={{ . }} {{ with $b }}B={{ . }}{{ end }}{{ end }}";
-        assert_eq!(expand(t, &args(&[("a", "1"), ("b", "2")])).unwrap(), "A=1 B=2");
-        assert_eq!(expand(t, &args(&[("a", "1")])).unwrap(), "A=1");
+        assert_eq!(
+            expand(t, &args(&[("a", "1"), ("b", "2")])).unwrap(),
+            "A=1 B=2"
+        );
+        assert_eq!(expand(t, &args(&[("a", "1")])).unwrap(), "A=1 ");
     }
 
     #[test]
@@ -759,15 +834,21 @@ mod tests {
         let code = "$x = @'\nline 'one'\nline two\n'@\nGet-Thing `\n   -Flag\nif ($a) {\n  b\n}\nelse {\n  c\n}";
         assert_eq!(
             inline_powershell(code),
-            "$x = 'line ''one'''+\"`r`n\"+'line two'; Get-Thing -Flag; if ($a) { b } else { c }"
+            "$x = 'line ''one'''+\"`r`n\"+'line two'; Get-Thing -Flag; if ($a) { b } else { c; }"
         );
         assert_eq!(inline_powershell("one line # c"), "one line # c");
-        assert_eq!(inline_powershell("a\n#\nb <# keep #>"), "a; <##>; b <# keep #>");
+        assert_eq!(
+            inline_powershell("a\n#\nb <# keep #>"),
+            "a; <##>; b <# keep #>"
+        );
     }
 
     #[test]
     fn do_while_brackets_merge() {
-        assert_eq!(inline_powershell("do {\n  x\n}\nwhile ($y)"), "do { x } while ($y)");
+        assert_eq!(
+            inline_powershell("do {\n  x\n}\nwhile ($y)"),
+            "do { x } while ($y)"
+        );
     }
 
     const MINI: &str = r#"
@@ -814,7 +895,9 @@ functions:
     fn calls_compile_recursively_and_drop_empty_optionals() {
         let c = parse_collection(MINI).unwrap();
         let comp = Compiler::new(&c);
-        let Node::Script(s) = &c.actions[0].children[1] else { panic!() };
+        let Node::Script(s) = &c.actions[0].children[1] else {
+            panic!()
+        };
         let out = comp.compile_script(s).unwrap();
         assert_eq!(out.code, "echo outer v1\necho second");
         assert_eq!(out.revert, "");
@@ -845,8 +928,16 @@ functions:
     #[test]
     fn inline_scripts_pass_through() {
         let c = parse_collection(MINI).unwrap();
-        let Node::Script(s) = &c.actions[0].children[0] else { panic!() };
+        let Node::Script(s) = &c.actions[0].children[0] else {
+            panic!()
+        };
         let out = Compiler::new(&c).compile_script(s).unwrap();
-        assert_eq!(out, Compiled { code: "echo 1".into(), revert: "echo 0".into() });
+        assert_eq!(
+            out,
+            Compiled {
+                code: "echo 1".into(),
+                revert: "echo 0".into()
+            }
+        );
     }
 }

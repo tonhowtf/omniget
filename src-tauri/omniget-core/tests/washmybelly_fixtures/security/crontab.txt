@@ -1,0 +1,4 @@
+# m h dom mon dow command
+MAILTO=""
+*/15 * * * * /Users/someone/bin/backup.sh --quiet
+@reboot /usr/local/bin/sync-daemon

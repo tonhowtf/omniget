@@ -21,12 +21,23 @@ pub enum ItemStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Undo {
-    Quarantine { from: PathBuf, to: PathBuf },
-    Trash { original: PathBuf },
-    TrashMany { originals: Vec<PathBuf> },
+    Quarantine {
+        from: PathBuf,
+        to: PathBuf,
+    },
+    Trash {
+        original: PathBuf,
+    },
+    TrashMany {
+        originals: Vec<PathBuf>,
+    },
     /// The module restores its snapshot (registry value, service state,
     /// startup item, privacy setting...). `args` usually holds a snapshot id.
-    Module { module: String, action: String, args: Value },
+    Module {
+        module: String,
+        action: String,
+        args: Value,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,10 +126,13 @@ pub fn save(ctx: &Ctx, r: &Receipt) -> Result<(), String> {
 pub fn load(ctx: &Ctx, id: &str) -> Result<Receipt, String> {
     let body: Option<String> = ctx
         .open()?
-        .query_row("SELECT body FROM receipts WHERE id=?1", params![id], |r| r.get(0))
+        .query_row("SELECT body FROM receipts WHERE id=?1", params![id], |r| {
+            r.get(0)
+        })
         .optional()
         .map_err(|e| e.to_string())?;
-    serde_json::from_str(&body.ok_or_else(|| format!("RECEIPT_NOT_FOUND: {id}"))?).map_err(|e| e.to_string())
+    serde_json::from_str(&body.ok_or_else(|| format!("RECEIPT_NOT_FOUND: {id}"))?)
+        .map_err(|e| e.to_string())
 }
 
 pub fn list(ctx: &Ctx, limit: usize) -> Result<Vec<Receipt>, String> {
@@ -145,13 +159,21 @@ pub fn restore(ctx: &Ctx, id: &str) -> Result<Vec<Value>, String> {
     for it in r.items.iter().rev() {
         let Some(undo) = &it.undo else { continue };
         let res = match undo {
-            Undo::Quarantine { from, to } => super::quarantine::restore(from, to).map(|_| "back from quarantine".to_string()),
+            Undo::Quarantine { from, to } => {
+                super::quarantine::restore(from, to).map(|_| "back from quarantine".to_string())
+            }
             Undo::Trash { original } => restore_from_trash(std::slice::from_ref(original)),
             Undo::TrashMany { originals } => restore_from_trash(originals),
-            Undo::Module { module, action, args } => super::plan::module_undo(ctx, module, action, args),
+            Undo::Module {
+                module,
+                action,
+                args,
+            } => super::plan::module_undo(ctx, module, action, args),
         };
         out.push(match res {
-            Ok(detail) => json!({ "item_id": it.item_id, "label": it.label, "ok": true, "detail": detail }),
+            Ok(detail) => {
+                json!({ "item_id": it.item_id, "label": it.label, "ok": true, "detail": detail })
+            }
             Err(e) => json!({ "item_id": it.item_id, "label": it.label, "ok": false, "detail": e }),
         });
     }
@@ -163,7 +185,15 @@ pub fn restore(ctx: &Ctx, id: &str) -> Result<Vec<Value>, String> {
 /// The Trash can put items back on Windows and Linux. macOS offers no API
 /// for it, so the person uses "Put Back" in Finder.
 fn restore_from_trash(originals: &[PathBuf]) -> Result<String, String> {
-    #[cfg(any(windows, all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))))]
+    #[cfg(any(
+        windows,
+        all(
+            unix,
+            not(target_os = "macos"),
+            not(target_os = "ios"),
+            not(target_os = "android")
+        )
+    ))]
     {
         let items = trash::os_limited::list().map_err(|e| e.to_string())?;
         let wanted: Vec<_> = items
@@ -185,7 +215,9 @@ fn restore_from_trash(originals: &[PathBuf]) -> Result<String, String> {
 }
 
 pub async fn tool_list(a: Value) -> Result<Value, String> {
-    let limit = crate::core::llm::tool_table::num(&a, "limit").unwrap_or(20).min(100) as usize;
+    let limit = crate::core::llm::tool_table::num(&a, "limit")
+        .unwrap_or(20)
+        .min(100) as usize;
     let one = crate::core::llm::tool_table::s(&a, "receipt_id");
     super::tools::blocking(move || {
         let ctx = Ctx::app()?;

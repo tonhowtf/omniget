@@ -1702,4 +1702,16 @@ mod tests {
                 >= 18
         );
     }
+
+    #[test]
+    fn kinds_and_averages_are_documented() {
+        for s in SENSORS {
+            assert!(
+                ["temperature", "voltage", "current", "power"].contains(&s.kind),
+                "{}",
+                s.key
+            );
+            assert!(!s.average || ["CPU", "GPU"].contains(&s.group), "{}", s.key);
+        }
+    }
 }
