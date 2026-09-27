@@ -574,7 +574,7 @@
                 <code class="path">{hookUrl(tr)}</code>
                 <button type="button" class="button" onclick={() => void copy(hookUrl(tr))}>{$t("llm.jobs.copy")}</button>
               </div>
-              <div class="copyline">
+              <div class="copyline" data-agent-sensitive>
                 <code class="path">{hookCurl(tr)}</code>
                 <button type="button" class="button" onclick={() => void copy(hookCurl(tr))}>
                   {$t("llm.jobs.trigger.copy_curl")}

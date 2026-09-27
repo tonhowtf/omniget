@@ -6399,7 +6399,12 @@
     "derived_external": "External · {{name}}",
     "derived_retired": "Revoked",
     "derived_from": "Bot derived from {{name}}",
-    "derived_read_only": "read-only here"
+    "derived_read_only": "read-only here",
+    "app_observe": "Observe native app",
+    "app_control": "Control presentation and navigation",
+    "app_capture": "Capture and record native app (also select file transfer)",
+    "native_active": "Native access",
+    "native_revoke": "Revoke access"
   },
   "mcp_auth": {
     "title": "An AI client asks you to sign in",

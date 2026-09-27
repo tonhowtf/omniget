@@ -32,6 +32,7 @@
   let detailsOpen = $state(false);
   let creatingRoom = $state(false);
   let rosterReady = $state(false);
+  let rosterError = $state(false);
   let agents = $derived(getAgents());
   let activeAgent = $derived(getAgent(getActiveAgentId()));
   let active = $derived(getActiveConversation());
@@ -50,7 +51,7 @@
     void Promise.all([loadRoster(), loadConversations(), loadRooms()]).then(() => {
       seedDemoConversation();
       rosterReady = true;
-    });
+    }).catch(() => { rosterError = true; });
     void loadProfile();
   });
 
@@ -96,7 +97,7 @@
   </div>
   <button type="button" class="button details-toggle" aria-expanded={detailsOpen} aria-controls="agent-details" onclick={() => detailsOpen = !detailsOpen}>{$t("llm.chat.details")}</button>
 </div>
-<div class="llm-chat" class:with-details={detailsOpen}>
+<div class="llm-chat" class:with-details={detailsOpen} data-agent-readiness={rosterError ? "error" : !rosterReady ? "loading" : turn ? "streaming" : "ready"}>
   <div class="agent-rail"><Rail {agents} speakingAgentId={turn?.agentId ?? null} onselect={selectAgent} onnew={onNew} /></div>
   <Conversation agent={activeAgent} />
   {#if detailsOpen}<div id="agent-details" class="agent-details"><Inspector agent={activeAgent} /></div>{/if}

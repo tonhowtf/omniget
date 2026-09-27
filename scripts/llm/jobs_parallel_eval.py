@@ -38,6 +38,7 @@ and of the B0 harness); `missions_eval.py --real` is not run.
 Usage: python3 scripts/llm/jobs_parallel_eval.py [--fake] [--reps 20]
        [--read-s 10.4] [--out FILE]
 """
+from prepared import run_tests as run_prepared_tests
 import argparse
 import datetime as dt
 import json
@@ -53,8 +54,7 @@ TAURI = ROOT / "src-tauri"
 
 def run_tests(filter_, env_extra, out_file):
     env = dict(os.environ, OMNIGET_BENCH_OUT=str(out_file), **env_extra)
-    cmd = ["cargo", "test", "-p", "omniget-core", "--lib", filter_, "--", "--test-threads=1"]
-    p = subprocess.run(cmd, cwd=TAURI, env=env, capture_output=True, text=True)
+    cmd, p = run_prepared_tests("omniget-core", filter_, env)
     summary = [l for l in p.stdout.splitlines() if l.startswith("test result") or l.startswith("test ")]
     return {"cmd": " ".join(f"{k}={v}" for k, v in env_extra.items()) + " " + " ".join(cmd),
             "exit": p.returncode, "summary": summary,

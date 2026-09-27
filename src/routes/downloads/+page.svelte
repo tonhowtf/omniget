@@ -523,7 +523,7 @@
 </script>
 
 {#if hasDownloads || viewMode !== "active"}
-  <div class="downloads-page downloads-mac">
+  <div class="downloads-page downloads-mac" data-agent-readiness={historyLoading ? "loading" : "ready"}>
     {#if viewMode === "active"}
     <div class="downloads-header">
       {#if dlStats.totalDownloads > 0}

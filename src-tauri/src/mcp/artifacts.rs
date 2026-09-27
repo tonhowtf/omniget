@@ -30,8 +30,9 @@ fn db() -> Result<rusqlite::Connection, String> {
     Ok(c)
 }
 
-/// Trusted local UI only. Canonicalization is a local user's selection;
-/// subsequent opens pin and check the selected directory's device/inode.
+/// Roots chosen by trusted app code: a local user's selection or the owned
+/// native-capture directory. Remote callers never supply this path. Opens pin
+/// and check the directory's device/inode.
 pub fn grant_root(principal: &str, path: &Path) -> Result<String, String> {
     let c = db()?;
     let valid: bool = c
@@ -46,6 +47,16 @@ pub fn grant_root(principal: &str, path: &Path) -> Result<String, String> {
     }
     let path = path.canonicalize().map_err(|_| "INVALID_ROOT")?;
     let root = Root::open(&path, None).map_err(|_| "INVALID_ROOT")?;
+    let identity = serde_json::to_string(root.identity()).map_err(|_| "INVALID_ROOT")?;
+    use rusqlite::OptionalExtension;
+    let existing: Option<String> = c.query_row(
+        "SELECT id FROM file_roots WHERE principal=?1 AND path=?2 AND identity=?3 AND revoked=0 LIMIT 1",
+        params![principal,path.to_str().ok_or("INVALID_ROOT")?,identity],
+        |row|row.get(0),
+    ).optional().map_err(|_|"ROOT_GRANT_FAILED")?;
+    if let Some(id) = existing {
+        return Ok(id);
+    }
     let id = uuid::Uuid::new_v4().to_string();
     c.execute(
         "INSERT INTO file_roots(id,principal,path,identity) VALUES(?1,?2,?3,?4)",
@@ -344,6 +355,7 @@ mod tests {
         let b = policy::create("B".into(), vec!["transfer".into()]).unwrap();
         assert!(register(&a.principal, &file).is_err());
         let rid = grant_root(&a.principal.id, &root).unwrap();
+        assert_eq!(grant_root(&a.principal.id, &root).unwrap(), rid);
         let grant = register(&a.principal, &file.canonicalize().unwrap()).unwrap();
         assert!(open(&b.principal, &grant.artifact_id, &grant.digest).is_err());
         assert!(open(&a.principal, &grant.artifact_id, "wrong").is_err());

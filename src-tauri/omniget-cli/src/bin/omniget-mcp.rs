@@ -82,12 +82,27 @@ where
                 continue;
             }
         };
-        let value = match token.as_deref() {
+        // An isolated development instance (OMNIGET_DEV_ENDPOINT) is resolved
+        // again on every call; it never falls back to the personal app.
+        let target = match std::env::var("OMNIGET_DEV_ENDPOINT") {
+            Ok(file) => match development_endpoint(&client, &file).await {
+                Ok((dev_url, dev_token)) => Some((dev_url, Some(dev_token))),
+                Err(_) => None,
+            },
+            Err(_) => Some((url.clone(), token.clone())),
+        };
+        let Some((request_url, request_token)) = target else {
+            if let Some(value) = local_reply(&msg, Failure::NotRunning, &version) {
+                write(&mut output, &value).await?;
+            }
+            continue;
+        };
+        let value = match request_token.as_deref() {
             // Without a token the desktop could only answer 401: stay local.
             None => local_reply(&msg, Failure::TokenMissing, &version),
             Some(token) => {
                 let reply = client
-                    .post(url.clone())
+                    .post(request_url)
                     .bearer_auth(token)
                     .header("Accept", "application/json, text/event-stream")
                     .header("MCP-Protocol-Version", &version)
@@ -136,6 +151,53 @@ where
         write(&mut output, &value).await?;
     }
     Ok(())
+}
+/// Re-read an explicit isolated session descriptor on every call. Never fall back
+/// to the personal app, and never retry mutations with an unknown outcome.
+async fn development_endpoint(
+    client: &reqwest::Client,
+    file: &str,
+) -> Result<(reqwest::Url, String)> {
+    let path = std::path::Path::new(file);
+    if !path.is_absolute() {
+        bail!("INVALID_DEV_ENDPOINT");
+    }
+    let descriptor: Value = serde_json::from_slice(&std::fs::read(path)?)?;
+    let state: Value = serde_json::from_slice(&std::fs::read(path.with_file_name("state.json"))?)?;
+    if state["phase"] != "ready"
+        || state["stale"] != false
+        || state["bootId"] != descriptor["bootId"]
+    {
+        bail!("DEV_REVISION_NOT_READY");
+    }
+    let url = reqwest::Url::parse(descriptor["url"].as_str().context("INVALID_DEV_ENDPOINT")?)?;
+    if url.scheme() != "http"
+        || url.host_str() != Some("127.0.0.1")
+        || url.path() != "/mcp"
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        bail!("INVALID_DEV_ENDPOINT");
+    }
+    let token = descriptor["token"]
+        .as_str()
+        .context("MISSING_DEV_TOKEN")?
+        .to_string();
+    let status: Value = client.post(url.clone()).bearer_auth(&token)
+        .header("Accept", "application/json, text/event-stream")
+        .json(&json!({"jsonrpc":"2.0","id":"dev-identity","method":"tools/call","params":{"name":"omniget_app_status","arguments":{}}}))
+        .send().await?.error_for_status()?.json().await?;
+    let identity = &status["result"]["structuredContent"]["devIdentity"];
+    if identity["sessionId"] != descriptor["sessionId"]
+        || identity["bootId"] != descriptor["bootId"]
+        || identity["sessionId"].is_null()
+        || identity["bootId"].is_null()
+    {
+        bail!("DEV_INSTANCE_MISMATCH");
+    }
+    Ok((url, token))
 }
 /// Why the desktop produced no JSON-RPC answer.
 #[derive(Clone, Copy)]

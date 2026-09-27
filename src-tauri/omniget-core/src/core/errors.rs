@@ -159,6 +159,20 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
     // Antes de tudo que casa com "yt-dlp"/"ffmpeg": a mensagem do Reddit era
     // "yt-dlp: Preprocessing: Conversion failed!" e caía em `ytdlp_needed`,
     // que mandava instalar o yt-dlp que já estava instalado.
+    // A 403 on the media data, after the page opened and bytes came, is the
+    // site refusing that download URL (expired signature, throttling), not
+    // missing content: it fell under broken_source ("probably gone") before
+    // (bench 27/09, public Blender films on YouTube). A new try usually works.
+    if (lower.contains("unable to download video data")
+        || lower.contains("refused part of the download"))
+        && (lower.contains("403") || lower.contains("forbidden"))
+    {
+        return (
+            "rate_limited",
+            "The site refused the media download midway (HTTP 403). It is usually temporary: retry in a moment.",
+        );
+    }
+
     if lower.contains("fragment") && (lower.contains("not found") || lower.contains("404"))
         || lower.contains("downloaded file is empty")
         || lower.contains("conflicting range")
@@ -321,6 +335,25 @@ mod tests {
         assert_eq!(
             classify_download_error("HTTP 403: login required").0,
             "auth_required"
+        );
+    }
+
+    // Bench 27/09: a public YouTube film failed with a 403 on the media data
+    // and was reported as missing content, with no retry.
+    #[test]
+    fn a_403_midway_through_the_media_is_temporary() {
+        for msg in [
+            "ERROR: unable to download video data: HTTP Error 403: Forbidden",
+            "The site refused part of the download (HTTP 403 on the media data, not on the page).",
+        ] {
+            let (cat, _) = classify_download_error(msg);
+            assert_eq!(cat, "rate_limited", "{msg}");
+            assert!(!is_terminal_category(cat), "{msg}");
+        }
+        // Without a 403 the missing media data stays a broken source.
+        assert_eq!(
+            classify_download_error("ERROR: unable to download video data: <urlopen error>").0,
+            "broken_source"
         );
     }
 

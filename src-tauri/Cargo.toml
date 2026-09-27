@@ -22,6 +22,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+zip = { version = "4.6", default-features = false }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-shell = "2"
 tauri-plugin-store = "2"
@@ -86,8 +88,9 @@ windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Media_Audio
 keyring = { version = "3", features = ["apple-native"] }
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSHTTPCookie", "NSArray", "NSString"] }
-objc2-web-kit = { version = "0.3", features = ["WKWebView", "WKWebViewConfiguration", "WKWebsiteDataStore", "WKHTTPCookieStore"] }
+objc2-web-kit = { version = "0.3", features = ["WKWebView", "WKWebViewConfiguration", "WKWebsiteDataStore", "WKHTTPCookieStore", "WKSnapshotConfiguration"] }
 block2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSImage", "NSBitmapImageRep"] }
 
 # Same idea for WebKitGTK (#288). Pinned to the exact version wry resolves so
 # it is the same compiled crate, not a second copy.

@@ -6407,7 +6407,12 @@
     "derived_external": "Externo · {{name}}",
     "derived_retired": "Revocado",
     "derived_from": "Bot derivado de {{name}}",
-    "derived_read_only": "solo lectura aquí"
+    "derived_read_only": "solo lectura aquí",
+    "app_observe": "Observe native app",
+    "app_control": "Control presentation and navigation",
+    "app_capture": "Capture and record native app (also select file transfer)",
+    "native_active": "Native access",
+    "native_revoke": "Revoke access"
   },
   "mcp_auth": {
     "title": "Un cliente de IA te pide iniciar sesión",

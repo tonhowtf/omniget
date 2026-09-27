@@ -35,6 +35,11 @@ pub mod local_bridge_remote;
 pub mod mcp;
 pub mod missions;
 pub mod models;
+mod native_agent;
+mod native_agent_export;
+mod native_agent_media;
+mod native_agent_record;
+mod native_capture;
 pub mod platforms;
 pub mod preview;
 pub mod profile;
@@ -1000,6 +1005,7 @@ pub fn run() {
             commands::downloads::discard_recovery,
             commands::downloads::restore_recovery,
             commands::downloads::get_download_history,
+            commands::downloads::get_download_queue,
             commands::downloads::clear_download_history,
             commands::downloads::reveal_file,
             commands::downloads::open_path_default,
@@ -1285,7 +1291,10 @@ pub fn run() {
             commands::llm::chat::llm_workspace_set,
             commands::llm::chat::llm_workspace_get,
             commands::llm::chat::llm_turn_undo,
+            native_agent::native_agent_register,
+            native_agent::native_agent_reply,
             local_bridge_debug::debug_report,
+            local_bridge_debug::debug_native_snapshot,
             commands::llm::skills::llm_skills_install_repo,
             commands::llm::roster::llm_acp_detect,
             commands::llm::roster::llm_acp_agent_create,

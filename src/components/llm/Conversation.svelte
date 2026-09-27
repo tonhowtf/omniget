@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { agentActions } from "$lib/native-agent/actions";
   // Presentation follows 21st Agent Chat by Serafim (12402): a bounded reading column, contextual empty state and an in-flow composer. Original Svelte implementation; backend contracts stay local.
   import WorkspaceChip from "./WorkspaceChip.svelte";
   import MissionChatBar from "./missions/MissionChatBar.svelte";
@@ -212,7 +213,7 @@
     </div>
   {/if}
 
-  <div class="conv-scroll" bind:this={scroller}>
+  <div data-agent-actions="scroll" use:agentActions={["scroll"]} data-agent-region="conversation-messages" class="conv-scroll" bind:this={scroller}>
     <div class="reading-column">
     {#if messages.length === 0 && !streamingMessage && roomLive.length === 0}
       <div class="empty-state">

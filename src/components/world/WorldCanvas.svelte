@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { agentActions } from "$lib/native-agent/actions";
   /**
    * The world, drawn.
    *
@@ -12,6 +13,22 @@
    *     the only DOM over it is the slot menu, which is a menu, not a HUD.
    */
   import { onMount } from "svelte";
+  import { registerSemantic } from "$lib/native-agent/semantic";
+  onMount(() => registerSemantic("world", () => {
+    // WebKit can suspend rAF before the first frame of an occluded window.
+    // Paint the actual replica on demand, without advancing the simulation,
+    // starting a timer, or waking a renderer explicitly put to sleep.
+    if (status === "ready" && !paused && renderer && document.hidden) {
+      stats = renderer.frame(buildScene(0), 0);
+      renderedFrames++;
+      agentCount = world.agents.size;
+      tickShown = world.tick;
+      onagents?.(world.list().filter(a => a.id < VISITOR_ENT_BASE).map(a => ({
+        id: a.id, name: a.name, activity: a.activity.name, energy: a.energy,
+      })));
+    }
+    return { readiness: status === "ready" && (paused || renderedFrames === 0) ? "loading" : status, renderedFrames, paused, selection: selected, camera: {...camera}, tick: world.tick, entities: world.list().map(a => ({id:a.id,name:a.name,activity:a.activity.name,energy:a.energy})), coordinateSpace: "world tiles", interaction: "presentation controls only" };
+  }));
   import { t } from "$lib/i18n";
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { codecErrorCode, type Blob as WorldBlob } from "$lib/world/codec";
@@ -180,6 +197,7 @@
 
   const world = new WorldState();
   let renderer: Renderer | null = null;
+  let renderedFrames = 0;
   let loop: { start(): void; stop(): void; readonly running: boolean } | null = null;
   let session: WorldSession | null = null;
   let atlas: AtlasData | null = null;
@@ -359,6 +377,7 @@
     loop = mod.createLoop(r, (dt) => buildScene(dt), {
       watchdog: !isTier(getSettings()?.world?.tier_override),
       onStats: (s, f) => {
+        renderedFrames++;
         stats = s;
         fps = f;
         agentCount = world.agents.size;
@@ -632,6 +651,7 @@
   function goToSleep(): void {
     if (paused) return;
     paused = true;
+    renderedFrames = 0;
     loop?.stop();
     renderer?.sleep();
     void session?.setVisible(false);
@@ -682,6 +702,7 @@
 <div class="stage">
   <!-- The canvas takes focus so the arrow keys pan without a DOM overlay. -->
   <canvas
+    data-agent-renderer="world"
     bind:this={canvas}
     class="canvas"
     width="960"
@@ -705,7 +726,7 @@
     {/if}
 
     <div class="actions">
-      <button class="btn" onclick={recentre}>{$t("world.actions.recentre")}</button>
+      <button class="btn" data-agent-actions="click" use:agentActions={["click"]} onclick={recentre}>{$t("world.actions.recentre")}</button>
       {#if !previewMap}
         <button class="btn" aria-pressed={showDiag} onclick={toggleDiag}>{$t("world.city.diagnostics")}</button>
       {/if}

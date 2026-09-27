@@ -5,6 +5,8 @@ import { readFileSync, existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
+import { devRevisionPlugin } from './scripts/dev/vite-plugin.mjs';
+
 const host = process.env.TAURI_DEV_HOST;
 const configDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -59,6 +61,7 @@ export default defineConfig(({ command }) => {
 
   return {
     plugins: [
+      devRevisionPlugin(configDir),
       i18nKeysPlugin({ strict: strictI18n }),
       sveltekit(),
     ],

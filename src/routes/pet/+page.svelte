@@ -13,6 +13,7 @@
    * built in Rust by `commands::pet`; this file only draws and offers the menu.
    */
   import { onMount } from "svelte";
+  import { registerSemantic } from "$lib/native-agent/semantic";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -300,6 +301,10 @@
   }
 
   onMount(() => {
+    const stopSemantics = registerSemantic("pet", () => ({
+      readiness: failed ? "error" : ready ? "ready" : "loading",
+      skin: SKIN, mood, corner, pendingPermission: asks.length > 0,
+    }));
     const root = document.documentElement;
     const prevHtml = root.style.background;
     const prevBody = document.body.style.background;
@@ -367,14 +372,15 @@
         setupCanvas();
         await loadArt();
         if (disposed) return;
-        ready = true;
         draw();
+        ready = true;
       } catch (e) {
         failed = e instanceof Error ? e.message : String(e);
       }
     })();
 
     return () => {
+      stopSemantics();
       disposed = true;
       if (frameTimer !== null) clearTimeout(frameTimer);
       if (bubbleTimer !== null) clearTimeout(bubbleTimer);
@@ -446,6 +452,7 @@
   <canvas
     bind:this={canvas}
     class="sprite"
+    data-agent-renderer="pet"
     style="width: {BOX}px; height: {BOX}px"
     aria-label={$t("pet.a11y.canvas") as string}
     onclick={() => (ask ? (askOpen = !askOpen) : play("wave"))}

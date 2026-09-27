@@ -1,6 +1,7 @@
 // Tauri sidecar preparation. No install, signing, upload or publication.
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, copyFileSync, renameSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { copyChanged } from '../dev/artifacts.mjs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -22,7 +23,5 @@ const ext = triple.includes('windows') ? '.exe' : '';
 const source = path.join(target, triple, release ? 'release' : 'debug', `omniget-worker${ext}`);
 const dest = path.join(root, 'src-tauri/binaries', `omniget-worker-${triple}${ext}`);
 mkdirSync(path.dirname(dest), { recursive: true });
-const pending = `${dest}.${process.pid}.pending`;
-copyFileSync(source, pending);
-renameSync(pending, dest);
-console.log(`Prepared OmniGet worker for ${triple}`);
+const resultCopy = copyChanged(source, dest);
+console.log(JSON.stringify({target: triple, ...resultCopy}));

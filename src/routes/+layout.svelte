@@ -1,5 +1,14 @@
 <script lang="ts">
   import "../app.css";
+  import { startNativeAgentBridge } from "$lib/native-agent/bridge";
+  onMount(() => {
+    let disposed = false;
+    let stop: (() => void) | undefined;
+    startNativeAgentBridge().then(cleanup => {
+      if (disposed) cleanup(); else stop = cleanup;
+    }).catch(() => {});
+    return () => { disposed = true; stop?.(); };
+  });
   import "$lib/style/workspace-design.css";
   import { getWorkspaceDesign, initWorkspaceDesign } from "$lib/stores/workspace-design.svelte";
   let workspaceDesign = $derived(getWorkspaceDesign());
@@ -34,6 +43,7 @@
   import { getSettings, loadSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { queueExternalPrefill, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
+  import NativeAgentActivity from "$components/llm/mcp/NativeAgentActivity.svelte";
   import McpAuthPrompt from "$components/llm/mcp/McpAuthPrompt.svelte";
   import AppSidebar from "$components/shell/AppSidebar.svelte";
   import AppToolbar from "$components/shell/AppToolbar.svelte";
@@ -170,7 +180,11 @@
 
   onMount(() => {
     if (bareWindow) return;
-    initDownloadListener();
+    let disposed = false;
+    let stopDownloads: (() => void) | undefined;
+    initDownloadListener().then(stop => {
+      if (disposed) stop(); else stopDownloads = stop;
+    }).catch(() => {});
     // If `get_settings` failed while the shell was booting, the sidebar has no
     // League entry and Settings spins forever. Retry a few times instead of
     // leaving the app half-configured until the next restart.
@@ -218,6 +232,7 @@
     listen<Omit<ExternalUrlEvent, "id">>("external-url", (event) => {
       handleExternalUrlEvent(event.payload);
     }).then((un) => {
+      if (disposed) { un(); return; }
       unlistenExternalUrl = un;
       // Only now is it safe to flip Rust into emit mode: links that arrived
       // while the webview was booting were parked in a queue and come back here.
@@ -229,6 +244,8 @@
     });
 
     return () => {
+      disposed = true;
+      stopDownloads?.();
       if (unlistenExternalUrl) unlistenExternalUrl();
     };
   });
@@ -418,6 +435,7 @@
 {#if !bareWindow}
 <Toast />
 <McpAuthPrompt />
+<NativeAgentActivity />
 <CommandPalette />
 
 {#if showOnboarding && OnboardingWizard}

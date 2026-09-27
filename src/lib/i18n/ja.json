@@ -6407,7 +6407,12 @@
     "derived_external": "外部 · {{name}}",
     "derived_retired": "取り消し済み",
     "derived_from": "{{name}} から派生したボット",
-    "derived_read_only": "ここでは読み取り専用"
+    "derived_read_only": "ここでは読み取り専用",
+    "app_observe": "Observe native app",
+    "app_control": "Control presentation and navigation",
+    "app_capture": "Capture and record native app (also select file transfer)",
+    "native_active": "Native access",
+    "native_revoke": "Revoke access"
   },
   "mcp_auth": {
     "title": "AI クライアントがサインインを求めています",

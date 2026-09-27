@@ -2804,6 +2804,12 @@ pub fn forget_info_json(url: &str) {
     }
 }
 
+/// O JSON fresco deste URL já lido, quando existe.
+fn cached_video_info(url: &str) -> Option<serde_json::Value> {
+    let raw = std::fs::read(fresh_info_json(url)?).ok()?;
+    serde_json::from_slice(&raw).ok()
+}
+
 /// Fim do comando: `--load-info-json <arq>` quando há JSON válido, senão o URL.
 fn url_or_info_json_args(url: &str, info_json: Option<&Path>) -> Vec<String> {
     match info_json {
@@ -2904,6 +2910,11 @@ mod single_extraction_tests {
         let b = fresh_info_json("https://site/v/1").expect("pelo webpage_url");
         assert_ne!(a, b);
         assert_eq!(std::fs::read(&a).unwrap(), raw);
+        // A checagem de legendas lê este mesmo JSON em vez de extrair de novo.
+        assert_eq!(
+            cached_video_info("https://site/v/1?utm=x"),
+            Some(info.clone())
+        );
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -2912,6 +2923,7 @@ mod single_extraction_tests {
         }
         forget_info_json("https://site/v/1");
         assert!(fresh_info_json("https://site/v/1").is_none());
+        assert!(cached_video_info("https://site/v/1").is_none());
         std::env::remove_var("OMNIGET_INFO_JSON_DIR");
     }
 }
@@ -3087,7 +3099,12 @@ async fn select_available_subtitle_lang(
     include_auto: bool,
 ) -> anyhow::Result<Option<String>> {
     let requested = requested_caption_locales();
-    let json = get_video_info(ytdlp, url, extra_flags).await?;
+    // O JSON que o get_video_info acabou de gravar já lista as legendas: sem
+    // ele, esta checagem era uma extração inteira a mais por download.
+    let json = match cached_video_info(url) {
+        Some(json) => json,
+        None => get_video_info(ytdlp, url, extra_flags).await?,
+    };
     let (manual, auto) = subtitle_languages_from_json(&json);
     let available: Vec<String> = if include_auto {
         manual.iter().chain(auto.iter()).cloned().collect()
@@ -5169,6 +5186,14 @@ fn friendly_ytdlp_error(stderr: &str) -> anyhow::Error {
     if lower.contains("http error 429") {
         return anyhow!("Server returned error 429 (too many requests). Try again later.");
     }
+    // A 403 in the middle of the media transfer is the site refusing the
+    // download URL (expired or throttled), not a private video: the page
+    // opened and the first bytes came (bench 27/09, public Blender films).
+    if lower.contains("unable to download video data") && lower.contains("http error 403") {
+        return anyhow!(
+            "The site refused part of the download (HTTP 403 on the media data, not on the page). It is usually temporary: retry; if it keeps happening, update yt-dlp in Settings."
+        );
+    }
     if lower.contains("http error 403") || lower.contains("forbidden") {
         return anyhow!("Access denied (403). The video may be private or region-restricted.");
     }
@@ -6340,6 +6365,16 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  yt-dlp.exe\n\
     fn translate_error_403() {
         let err = translate_ytdlp_error("HTTP Error 403: Forbidden");
         assert!(err.to_string().contains("403"));
+    }
+
+    #[test]
+    fn translate_error_403_midway_is_not_a_private_video() {
+        let err = translate_ytdlp_error(
+            "ERROR: unable to download video data: HTTP Error 403: Forbidden",
+        )
+        .to_string();
+        assert!(err.contains("403"));
+        assert!(!err.contains("private"), "{err}");
     }
 
     #[test]

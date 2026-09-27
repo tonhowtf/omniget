@@ -8,6 +8,603 @@
     {
       "annotations": {
         "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Export up to 20 owned PNG/MP4 artifacts as a local ZIP with manifest, storyboard and contact sheet. No remote upload.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactIds": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "storyboard": {
+            "maxLength": 20000,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactIds",
+          "storyboard"
+        ],
+        "type": "object"
+      },
+      "name": "omniget_app_export",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "schemaVersion",
+              "sessionId",
+              "observedAt"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "observedAt": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "integer"
+          },
+          "sessionId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Record native WebView snapshots asynchronously at a target of 5 fps, maximum 60 seconds. Requires FFmpeg, app_capture and transfer. No audio/cursor. Start requires a unique requestId. Stop returns immediately; poll status until complete.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "start",
+              "status",
+              "stop",
+              "cancel"
+            ],
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "requestId": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "windowId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
+      "name": "omniget_app_record",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "schemaVersion",
+              "sessionId",
+              "observedAt"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "observedAt": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "integer"
+          },
+          "sessionId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Discover all native screens, windows and blocked surfaces.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "name": "omniget_app_catalog",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "schemaVersion",
+              "sessionId",
+              "observedAt"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "observedAt": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "integer"
+          },
+          "sessionId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Navigate the real main window to a catalog screen. Sensitive screens remain blocked for inspection and control.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "requestId": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "screenId": {
+            "type": "string"
+          },
+          "windowId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "screenId",
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "omniget_app_navigate",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "schemaVersion",
+              "sessionId",
+              "observedAt"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "observedAt": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "integer"
+          },
+          "sessionId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Use explicitly allowed presentation actions. Never sends messages or grants permissions. Reinspect after every mutation.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "click",
+              "fill",
+              "scroll"
+            ],
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "requestId": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "stateRevision": {
+            "type": "string"
+          },
+          "value": {},
+          "windowId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "stateRevision",
+          "ref",
+          "action",
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "omniget_app_interact",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "schemaVersion",
+              "sessionId",
+              "observedAt"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "observedAt": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "integer"
+          },
+          "sessionId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Capture native WebView pixels and return an inline preview plus transferable original. Requires app_capture and transfer. Crop coordinates use CSS pixels.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "region": {
+            "additionalProperties": false,
+            "properties": {
+              "height": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number"
+              },
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "width",
+              "height"
+            ],
+            "type": "object"
+          },
+          "windowId": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "omniget_app_capture",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "schemaVersion",
+              "sessionId",
+              "observedAt"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "observedAt": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "integer"
+          },
+          "sessionId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Inspect native app windows and available capabilities. Requires an authenticated connection with app_observe.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "name": "omniget_app_status",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "schemaVersion",
+              "sessionId",
+              "observedAt"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "observedAt": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "integer"
+          },
+          "sessionId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Inspect native WebView HTML/ARIA controls with revision-bound refs. Sensitive surfaces are blocked.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "windowId": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "omniget_app_inspect",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "schemaVersion",
+              "sessionId",
+              "observedAt"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "observedAt": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "integer"
+          },
+          "sessionId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": true,
         "readOnlyHint": false

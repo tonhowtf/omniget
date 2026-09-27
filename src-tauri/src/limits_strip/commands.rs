@@ -182,7 +182,7 @@ fn build(app: &AppHandle, transparent: bool) -> tauri::Result<WebviewWindow> {
         .build()
 }
 
-fn open_window(app: &AppHandle, p: &StripPrefs) -> Result<(), String> {
+pub(crate) fn open_window(app: &AppHandle, p: &StripPrefs) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(WINDOW_LABEL) {
         let _ = window.show();
         let _ = window.set_always_on_top(true);
