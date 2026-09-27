@@ -18,8 +18,8 @@ const PREVIEW_COMMANDS: &[&str] = &["preview_report", "debug_report"];
 /// True when the webview `label` may call the app command `command`.
 pub fn allowed(label: &str, command: &str) -> bool {
     match label {
-        "main" | "pet" | "limits-strip" => true,
-        l if l.starts_with("omnidisc-stream-") => true,
+        // The app's own windows (the menu bar usage panel included).
+        "main" | "pet" | "limits-strip" | "usage-panel" => true,
         l if l.starts_with("preview-") => PREVIEW_COMMANDS.contains(&command),
         // Login windows load third-party sites; the app reads their cookies
         // and navigation from Rust, it never needs a call from the page.
@@ -56,7 +56,7 @@ mod tests {
 
     #[test]
     fn app_windows_call_everything_remote_pages_almost_nothing() {
-        for l in ["main", "pet", "limits-strip", "omnidisc-stream-42"] {
+        for l in ["main", "pet", "limits-strip", "usage-panel"] {
             assert!(allowed(l, "threads_dispatch"), "{l}");
         }
         assert!(allowed("preview-thr_1", "preview_report"));
@@ -65,5 +65,19 @@ mod tests {
         assert!(!allowed("auth-123", "open_auth_webview"));
         assert!(!allowed("auth-123", "preview_report"));
         assert!(!allowed("somewhere-else", "threads_dispatch"));
+    }
+
+    /// Every window the app opens with its own label is an app window: a
+    /// renamed or new one must be added to `allowed`, or its page gets
+    /// ERR_IPC_FORBIDDEN on every call.
+    #[test]
+    fn every_app_window_label_is_allowed() {
+        for l in [
+            crate::commands::pet::WINDOW_LABEL,
+            crate::limits_strip::commands::WINDOW_LABEL,
+            crate::usage_tray::PANEL_LABEL,
+        ] {
+            assert!(allowed(l, "usage_tray_view"), "{l}");
+        }
     }
 }
