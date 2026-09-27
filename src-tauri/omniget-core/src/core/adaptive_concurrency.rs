@@ -15,8 +15,9 @@
 //!
 //! Origem: controle de congestionamento de CDN — subir devagar, cair rapido.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 /// Limites do ajuste. Um host nunca sai desta faixa, por mais que as medicoes
@@ -152,13 +153,87 @@ pub fn next_concurrency(stats: &HostStats, current: u32) -> u32 {
     }
 }
 
+/// Por quanto tempo um 429 continua valendo para os próximos processos.
+///
+/// Um dia: o download.blender.org recusou a segunda execução seguida do CLI
+/// (benchmarks, sessões 01 a 04), e cada `omniget download` começava de novo
+/// com todas as conexões. Depois de um dia o host ganha outra chance inteira.
+pub const RATE_LIMIT_MEMORY_SECS: u64 = 24 * 60 * 60;
+
+/// O que fica gravado de um host entre processos: só os 429, que são a
+/// resposta do servidor. Amostras de velocidade dependem da rede do momento e
+/// morrem com o processo.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct RememberedLimit {
+    pub rate_limit_hits: u32,
+    /// Segundos desde a época Unix do último 429.
+    pub last_at: u64,
+}
+
+/// Lê a memória de 429, descartando o que passou de `RATE_LIMIT_MEMORY_SECS`.
+/// Arquivo ausente ou ilegível é memória vazia: nunca impede um download.
+pub fn load_remembered(path: &Path, now: u64) -> HashMap<String, RememberedLimit> {
+    let Ok(bytes) = std::fs::read(path) else {
+        return HashMap::new();
+    };
+    let map: HashMap<String, RememberedLimit> = serde_json::from_slice(&bytes).unwrap_or_default();
+    map.into_iter()
+        .filter(|(_, r)| now.saturating_sub(r.last_at) < RATE_LIMIT_MEMORY_SECS)
+        .collect()
+}
+
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 /// Estado por host, para o ajuste sobreviver entre downloads.
+///
+/// Com `store`, os 429 também sobrevivem entre processos: o app e o CLI leem
+/// e gravam o mesmo arquivo (`tools/host-limits.json` na pasta de dados).
 #[derive(Debug, Default)]
 pub struct ConcurrencyTuner {
     hosts: HashMap<String, HostStats>,
+    store: Option<PathBuf>,
 }
 
 impl ConcurrencyTuner {
+    /// Tuner que começa com os 429 ainda válidos gravados em `path`.
+    pub fn with_store(path: PathBuf) -> Self {
+        let mut hosts: HashMap<String, HostStats> = HashMap::new();
+        for (host, r) in load_remembered(&path, unix_now()) {
+            hosts.entry(host).or_default().rate_limit_hits = r.rate_limit_hits;
+        }
+        Self {
+            hosts,
+            store: Some(path),
+        }
+    }
+
+    /// Grava os hosts com 429, somando aos que outro processo gravou.
+    fn persist(&self, host: &str) {
+        let Some(path) = &self.store else { return };
+        let now = unix_now();
+        let mut map = load_remembered(path, now);
+        let hits = self.hosts.get(host).map_or(0, |s| s.rate_limit_hits);
+        let entry = map.entry(host.to_string()).or_default();
+        entry.rate_limit_hits = entry.rate_limit_hits.max(hits);
+        entry.last_at = now;
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        // Escreve ao lado e renomeia: um processo lendo no meio nunca vê
+        // meio arquivo.
+        let tmp = path.with_extension(format!("json.{}", std::process::id()));
+        if let Ok(bytes) = serde_json::to_vec_pretty(&map) {
+            if std::fs::write(&tmp, bytes).is_ok() && std::fs::rename(&tmp, path).is_err() {
+                let _ = std::fs::remove_file(&tmp);
+            }
+        }
+    }
+
     pub fn record(&mut self, host: &str, concurrency: u32, throughput_bps: f64) {
         self.hosts
             .entry(host.to_string())
@@ -171,6 +246,7 @@ impl ConcurrencyTuner {
             .entry(host.to_string())
             .or_default()
             .record_rate_limit();
+        self.persist(host);
     }
 
     /// `ceiling` e o numero de Config: vira **teto**, nao valor fixo. O teto
@@ -199,7 +275,17 @@ impl ConcurrencyTuner {
 pub fn global() -> &'static tokio::sync::Mutex<ConcurrencyTuner> {
     static TUNER: std::sync::OnceLock<tokio::sync::Mutex<ConcurrencyTuner>> =
         std::sync::OnceLock::new();
-    TUNER.get_or_init(|| tokio::sync::Mutex::new(ConcurrencyTuner::default()))
+    TUNER.get_or_init(|| {
+        // Testes nunca leem nem gravam a pasta de dados de quem roda.
+        let store = if cfg!(test) {
+            None
+        } else {
+            crate::core::paths::app_data_dir().map(|d| d.join("tools").join("host-limits.json"))
+        };
+        tokio::sync::Mutex::new(
+            store.map_or_else(ConcurrencyTuner::default, ConcurrencyTuner::with_store),
+        )
+    })
 }
 
 #[cfg(test)]
@@ -321,6 +407,67 @@ mod tests {
         t.record("youtube.com", 4, 6.0 * MB);
         assert_eq!(t.suggest("youtube.com", 4, 16), 5, "abaixo do teto, sobe");
         assert_eq!(t.suggest("youtube.com", 4, 4), 4, "o teto segura");
+    }
+
+    fn store_temporario(nome: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "omniget-host-limits-{}-{}",
+            nome,
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir.join("tools").join("host-limits.json")
+    }
+
+    #[test]
+    fn um_429_vale_para_o_proximo_processo() {
+        // O CLI é um processo por download: sem isto, a segunda execução
+        // seguida voltava a abrir todas as conexões e levava outro 429.
+        let path = store_temporario("proximo");
+        let mut primeiro = ConcurrencyTuner::with_store(path.clone());
+        assert_eq!(
+            primeiro.suggest_with_ceiling("download.blender.org", 12, 16),
+            12
+        );
+        primeiro.record_rate_limit("download.blender.org");
+
+        let segundo = ConcurrencyTuner::with_store(path.clone());
+        assert_eq!(
+            segundo.suggest_with_ceiling("download.blender.org", 12, 16),
+            6
+        );
+        assert_eq!(
+            segundo.suggest_with_ceiling("bilibili.com", 12, 16),
+            12,
+            "outros hosts continuam inteiros"
+        );
+        let _ = std::fs::remove_dir_all(path.parent().unwrap().parent().unwrap());
+    }
+
+    #[test]
+    fn memoria_de_429_vence_em_um_dia_e_arquivo_ruim_e_vazio() {
+        let path = store_temporario("vence");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let agora = 1_800_000_000;
+        let antigo = RememberedLimit {
+            rate_limit_hits: 2,
+            last_at: agora - RATE_LIMIT_MEMORY_SECS,
+        };
+        let recente = RememberedLimit {
+            rate_limit_hits: 1,
+            last_at: agora - 60,
+        };
+        let map: HashMap<&str, RememberedLimit> =
+            [("velho.example", antigo), ("novo.example", recente)].into();
+        std::fs::write(&path, serde_json::to_vec(&map).unwrap()).unwrap();
+        let lido = load_remembered(&path, agora);
+        assert!(!lido.contains_key("velho.example"));
+        assert_eq!(lido.get("novo.example"), Some(&recente));
+
+        std::fs::write(&path, b"{ nao e json").unwrap();
+        assert!(load_remembered(&path, agora).is_empty());
+        assert!(load_remembered(&path.with_file_name("nao-existe.json"), agora).is_empty());
+        let _ = std::fs::remove_dir_all(path.parent().unwrap().parent().unwrap());
     }
 
     #[test]

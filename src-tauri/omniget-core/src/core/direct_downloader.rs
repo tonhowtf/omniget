@@ -309,6 +309,13 @@ async fn probe_url(
         // transient 503 and hide it from the retry policy, gates G03).
         Err(e) if e.downcast_ref::<ServerBusy>().is_some() => {
             let busy = e.downcast::<ServerBusy>().expect("checked above");
+            // Um 429 já na sondagem também é o host pedindo menos conexões: a
+            // próxima tentativa, e o próximo processo, abrem menos segmentos.
+            if busy.status == 429 {
+                if let Some(h) = host_of(url) {
+                    concurrency_tuner().lock().await.record_rate_limit(&h);
+                }
+            }
             if worker && busy.status == 429 {
                 return Err(RateLimitError {
                     retry_after_seconds: busy
