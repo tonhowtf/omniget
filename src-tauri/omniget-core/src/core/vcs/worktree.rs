@@ -817,17 +817,35 @@ pub async fn rename_branch(worktree: &Path, new_name: &str) -> VcsResult<String>
     if stem == old {
         return Ok(old);
     }
-    let mut name = stem.clone();
-    let mut n = 2;
-    while branch_exists(&ctx, &name).await? {
-        name = format!("{stem}-{n}");
+    // Arena entries get the same first message, so their threads rename at
+    // the same moment to the same name. Checking and renaming take turns in
+    // this process: two concurrent `git branch -m` onto one free name left a
+    // worktree on a branch with no history, and its next commit was a root.
+    static RENAMING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _turn = RENAMING.lock().await;
+    let mut n = 1;
+    loop {
+        let name = if n == 1 {
+            stem.clone()
+        } else {
+            format!("{stem}-{n}")
+        };
         n += 1;
+        if branch_exists(&ctx, &name).await? {
+            continue;
+        }
+        match ctx
+            .git()
+            .args(["branch", "-m", "--", &old, &name])
+            .run()
+            .await
+        {
+            Ok(_) => return Ok(name),
+            // Taken by another process between the check and the rename.
+            Err(_) if n <= 20 && branch_exists(&ctx, &name).await.unwrap_or(false) => continue,
+            Err(e) => return Err(e.into()),
+        }
     }
-    ctx.git()
-        .args(["branch", "-m", "--", &old, &name])
-        .run()
-        .await?;
-    Ok(name)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

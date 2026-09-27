@@ -1733,7 +1733,14 @@ async fn merge_tree(
         .run()
         .await
         .map_err(|e| e.to_string())?;
-    parse_merge_tree(&o.text(), o.code)
+    parse_merge_tree(&o.text(), o.code).map_err(|e| {
+        let why = o.err_text();
+        if why.trim().is_empty() {
+            e
+        } else {
+            format!("{e}: {}", why.trim())
+        }
+    })
 }
 
 async fn is_ancestor(ctx: &GitCtx, a: &str, b: &str) -> bool {
