@@ -843,7 +843,7 @@ pub async fn rename_branch(worktree: &Path, new_name: &str) -> VcsResult<String>
             Ok(_) => return Ok(name),
             // Taken by another process between the check and the rename.
             Err(_) if n <= 20 && branch_exists(&ctx, &name).await.unwrap_or(false) => continue,
-            Err(e) => return Err(e.into()),
+            Err(e) => return Err(e),
         }
     }
 }

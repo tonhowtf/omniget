@@ -555,11 +555,16 @@ fn concurrency_tuner() -> &'static tokio::sync::Mutex<super::adaptive_concurrenc
     super::adaptive_concurrency::global()
 }
 
+/// The key of a server in the concurrency tuner: the host, plus the port
+/// when it is not the scheme's default (another port is another server; the
+/// tests' local servers share 127.0.0.1 and must not share a 429).
 fn host_of(url: &str) -> Option<String> {
-    url::Url::parse(url)
-        .ok()?
-        .host_str()
-        .map(|h| h.to_ascii_lowercase())
+    let u = url::Url::parse(url).ok()?;
+    let host = u.host_str()?.to_ascii_lowercase();
+    Some(match u.port() {
+        Some(port) => format!("{host}:{port}"),
+        None => host,
+    })
 }
 
 /// Last gate before the `.part` becomes the real file.
@@ -1112,6 +1117,15 @@ mod tests {
             "host tem que normalizar para caixa baixa, senao vira duas entradas"
         );
         assert_eq!(host_of("nao e url"), None);
+        // Porta padrao nao entra; outra porta e outro servidor.
+        assert_eq!(
+            host_of("https://cdn.exemplo.com:443/x"),
+            Some("cdn.exemplo.com".to_string())
+        );
+        assert_eq!(
+            host_of("http://127.0.0.1:54321/x"),
+            Some("127.0.0.1:54321".to_string())
+        );
     }
 
     #[test]
