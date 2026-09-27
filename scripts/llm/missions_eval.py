@@ -57,6 +57,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import statistics
 import tempfile
 import time
 
@@ -711,6 +712,9 @@ def main():
                     help='modelo para tarefas simples (arquivo/pesquisa/tradução), ex.: haiku')
     ap.add_argument('--no-batching', dest='batching', action='store_false',
                     help='sem o --append-system-prompt PROJECT_BATCHING (mede o efeito da instrução de lote)')
+    ap.add_argument('--jobs', type=int, default=1,
+                    help='missões em paralelo (cada uma no próprio workspace); o tempo por tarefa '
+                         'continua medido por missão, e o valor vai no JSON para comparar rodadas iguais')
     ap.add_argument('--list', action='store_true')
     args = ap.parse_args()
     if args.list:
@@ -728,14 +732,25 @@ def main():
     pathlib.Path(args.work).mkdir(parents=True, exist_ok=True)
     rows = []
     t_all = time.time()
+    def report_row(row):
+        rows.append(row)
+        print(f"{row['task']:18} r{row['rep']} {'OK ' if row['sucesso'] else 'FAIL'} {row['tempo_s']:7.1f}s "
+              f"tok={row['tokens_total']:>8} ${row['custo_usd'] or 0:.4f} tools={row['tool_calls']} {row['detalhe']}",
+              flush=True)
+
+    work = [(t, rep) for rep in range(args.reps) for t in sel]
     try:
-        for rep in range(args.reps):
-            for t in sel:
-                row = run_task(args, t, rep)
-                rows.append(row)
-                print(f"{row['task']:18} {'OK ' if row['sucesso'] else 'FAIL'} {row['tempo_s']:7.1f}s "
-                      f"tok={row['tokens_total']:>8} ${row['custo_usd'] or 0:.4f} tools={row['tool_calls']} {row['detalhe']}",
-                      flush=True)
+        if args.jobs <= 1:
+            for t, rep in work:
+                report_row(run_task(args, t, rep))
+        else:
+            # Each mission has its own workspace (`<work>/<task>-r<rep>`), so
+            # running them side by side changes nothing but the wall clock.
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+                for fut in as_completed([pool.submit(run_task, args, t, rep) for t, rep in work]):
+                    report_row(fut.result())
+        rows.sort(key=lambda r: (r['rep'], r['task']))
     finally:
         for pid in list(OWN_PIDS):  # só os PIDs que este processo criou
             try:
@@ -750,6 +765,11 @@ def main():
         'custo_usd': round(sum(r['custo_usd'] or 0 for r in rows), 4),
         'custo_juiz_usd': round(sum((r.get('juiz') or {}).get('custo_usd') or 0 for r in rows), 4),
         'tempo_s': round(sum(r['tempo_s'] for r in rows), 1), 'wall_s': round(time.time() - t_all, 1),
+        # The baseline gate (B0) is per mission: median cost and time over all
+        # rows, so a regression shows without post-processing the JSON.
+        'mediana_custo_usd': round(statistics.median([r['custo_usd'] or 0 for r in rows]), 4) if n else None,
+        'mediana_tempo_s': round(statistics.median([r['tempo_s'] for r in rows]), 2) if n else None,
+        'jobs': args.jobs,
     }
     ver = subprocess.run([shutil.which('claude') or 'claude', '--version'], capture_output=True, text=True).stdout.strip()
     report = {

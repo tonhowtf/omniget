@@ -763,6 +763,8 @@ struct Inner {
     capacity: Arc<AppCapacity>,
     accounts: Arc<AccountStore>,
     cli_capacity: Arc<CliCapacity>,
+    /// The CLI half of the runtime, kept to push the watchdog settings.
+    cli: Arc<CliRuntime>,
     router: Arc<Router>,
     coordinator: Arc<Coordinator>,
     executor: Arc<McpToolExecutor>,
@@ -875,10 +877,23 @@ impl LlmManager {
             )),
         );
         // Without `with_cli` every `RuntimeKind::Cli` agent answers ERR_LLM_MODEL.
-        let cli = Arc::new(CliRuntime::new(accounts.clone(), cli_capacity.clone()));
+        // A turn waiting on a permission prompt is not a stuck turn: the
+        // watchdog asks the broker before it counts the silence (1.2). Weak,
+        // so the runtime never keeps the broker alive by itself.
+        let pause_broker = Arc::downgrade(&broker);
+        let cli = Arc::new(
+            CliRuntime::new(accounts.clone(), cli_capacity.clone()).with_pause_probe(Arc::new(
+                move |request: &str| {
+                    pause_broker
+                        .upgrade()
+                        .map(|b| b.has_pending(request))
+                        .unwrap_or(false)
+                },
+            )),
+        );
         let runtime: Arc<dyn AgentRuntime> = Arc::new(
             CompositeRuntime::new(native.clone())
-                .with_cli(cli)
+                .with_cli(cli.clone())
                 .with_acp(Arc::new(omniget_core::core::llm::acp::AcpRuntime::new(
                     broker.clone(),
                 ))),
@@ -931,6 +946,7 @@ impl LlmManager {
             capacity,
             accounts,
             cli_capacity,
+            cli,
             router,
             coordinator,
             executor,
@@ -1585,15 +1601,53 @@ impl LlmManager {
     }
 
     pub fn pending_ask_list(&self) -> Vec<serde_json::Value> {
-        let live = self.inner().broker.pending_count();
+        let broker = self.inner().broker.clone();
         let mut asks = PENDING_ASKS.lock().unwrap_or_else(|e| e.into_inner());
-        if live == 0 {
-            asks.clear();
-        } else if asks.len() > live {
-            let drop_n = asks.len() - live;
-            asks.drain(..drop_n);
-        }
+        // The broker is the truth: whatever it no longer waits on (answered,
+        // expired, cancelled) is gone, however it ended.
+        asks.retain(|a| {
+            a["tool_call_id"]
+                .as_str()
+                .map(|id| broker.has_pending_call(id))
+                .unwrap_or(false)
+        });
         asks.clone()
+    }
+
+    /// Whether a question of this turn waits for a person right now. The turn
+    /// watchdog freezes on it and the jobs show `waiting_approval` from it.
+    pub fn has_pending_ask(&self, request_id: &str) -> bool {
+        self.inner().broker.has_pending(request_id)
+    }
+
+    /// Whether this exact question is still unanswered: a notification is
+    /// checked against it right before it is shown.
+    pub fn has_pending_call(&self, tool_call_id: &str) -> bool {
+        self.inner().broker.has_pending_call(tool_call_id)
+    }
+
+    /// The watchdog windows of the next CLI turns (`LlmSettings`).
+    pub fn set_watchdog(&self, config: omniget_core::core::llm::cli_runtime::WatchdogConfig) {
+        self.inner().cli.set_watchdog(config);
+    }
+
+    /// How long a question of this turn waits in total (explain shows the
+    /// time left).
+    pub fn ask_timeout_for(&self, request_id: &str) -> std::time::Duration {
+        self.inner().broker.ask_timeout_for(request_id)
+    }
+
+    /// The chat's ask timeout (`ask_timeout_chat_s`), the broker's default.
+    pub fn set_ask_timeout(&self, timeout: std::time::Duration) {
+        self.inner().broker.set_ask_timeout(timeout);
+    }
+
+    /// Per-request ask timeouts (the jobs register theirs).
+    pub fn set_ask_timeout_resolver(
+        &self,
+        resolver: Option<omniget_core::core::llm::broker::AskTimeoutResolver>,
+    ) {
+        self.inner().broker.set_ask_timeout_resolver(resolver);
     }
 
     pub fn answer_tool(
@@ -1739,11 +1793,17 @@ impl LlmManager {
                         "tool_call_id": tool_call_id,
                         "tool": tool,
                         "preview": preview,
+                        "asked_ms": now_ms(),
                     }));
                 }
                 inner.telemetry.with(agent, agent, |t| {
                     t.state = AgentState::WaitingTool;
                 })
+            }
+            BusEvent::ToolAskResolved { tool_call_id, .. } => {
+                if let Ok(mut asks) = PENDING_ASKS.lock() {
+                    asks.retain(|a| a["tool_call_id"] != tool_call_id.as_str());
+                }
             }
             BusEvent::ToolCalled { agent, ok, .. } => inner.telemetry.with(agent, agent, |t| {
                 if !*ok {

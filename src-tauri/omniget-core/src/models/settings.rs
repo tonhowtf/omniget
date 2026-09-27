@@ -59,10 +59,79 @@ pub struct LlmSettings {
     /// The ported default suits cloud models; a small local context wants less.
     #[serde(default = "default_prune_min_tokens")]
     pub prune_min_tokens: u32,
+    /// A CLI turn (`claude -p`, `codex exec`) with no stdout line for this
+    /// long is stuck: its process tree is killed and the job fails `stalled`.
+    /// 600 s is ~39x the longest silence measured over the 33 missions x 3
+    /// reps of round r2 (15.3 s, `estudos/87-onda1/sp4-stream-gaps.json`),
+    /// kept generous because those missions never compact nor think long.
+    #[serde(default = "default_turn_idle_timeout_s")]
+    pub turn_idle_timeout_s: u32,
+    /// The same window while a tool the CLI started has not answered yet
+    /// (`tool_use` without `tool_result`): a test suite or a build is silent
+    /// by nature, and killing it would lose real work.
+    #[serde(default = "default_turn_tool_idle_timeout_s")]
+    pub turn_tool_idle_timeout_s: u32,
+    /// No line at all this long after the spawn = the prompt never took
+    /// (`ERR_CLI_NO_START`). The stream's `system/init` comes before any
+    /// model call, so a healthy CLI prints within a couple of seconds.
+    #[serde(default = "default_turn_start_timeout_s")]
+    pub turn_start_timeout_s: u32,
+    /// Wall-clock ceiling of every background job (`run`, `loop` round,
+    /// `trigger`) that does not set its own. A mission keeps its own guard.
+    #[serde(default = "default_job_deadline_min")]
+    pub job_default_deadline_min: u32,
+    /// How long a permission question of the chat waits for an answer. The
+    /// old fixed 120 s denied in silence whenever nobody looked in time.
+    #[serde(default = "default_ask_timeout_chat_s")]
+    pub ask_timeout_chat_s: u32,
+    /// The same for a background job. `None` = until the job's own deadline,
+    /// so a question never outlives the job nor dies before it.
+    #[serde(default)]
+    pub ask_timeout_job_s: Option<u32>,
+    /// A question still unanswered this long after it was raised becomes an
+    /// OS notification ("needs you"). One answered sooner never notifies.
+    #[serde(default = "default_approval_notify_delay_s")]
+    pub approval_notify_delay_s: u32,
+    /// Background jobs (runs, Loop rounds, triggers, mission tasks) running
+    /// at the same time, 1–16. The old fixed 2 queued the third job behind
+    /// any mission (W1, W2); 4 is Orca's coordinator default (`78#P4`).
+    #[serde(default = "default_jobs_max_parallel")]
+    pub jobs_max_parallel: u32,
+    /// Jobs of one agent at the same time; `None` = only the global cap.
+    #[serde(default)]
+    pub jobs_max_per_agent: Option<u32>,
 }
 
 fn default_prune_min_tokens() -> u32 {
     50_000
+}
+
+fn default_turn_idle_timeout_s() -> u32 {
+    600
+}
+
+fn default_turn_tool_idle_timeout_s() -> u32 {
+    1800
+}
+
+fn default_turn_start_timeout_s() -> u32 {
+    90
+}
+
+fn default_job_deadline_min() -> u32 {
+    60
+}
+
+fn default_ask_timeout_chat_s() -> u32 {
+    1800
+}
+
+fn default_approval_notify_delay_s() -> u32 {
+    5
+}
+
+fn default_jobs_max_parallel() -> u32 {
+    4
 }
 
 fn default_prune_judge() -> String {
@@ -75,6 +144,15 @@ impl Default for LlmSettings {
             prune_enabled: false,
             prune_judge: default_prune_judge(),
             prune_min_tokens: default_prune_min_tokens(),
+            turn_idle_timeout_s: default_turn_idle_timeout_s(),
+            turn_tool_idle_timeout_s: default_turn_tool_idle_timeout_s(),
+            turn_start_timeout_s: default_turn_start_timeout_s(),
+            job_default_deadline_min: default_job_deadline_min(),
+            ask_timeout_chat_s: default_ask_timeout_chat_s(),
+            ask_timeout_job_s: None,
+            approval_notify_delay_s: default_approval_notify_delay_s(),
+            jobs_max_parallel: default_jobs_max_parallel(),
+            jobs_max_per_agent: None,
         }
     }
 }
@@ -1024,5 +1102,45 @@ mod backcompat_tests {
         let round = serde_json::to_value(&s).expect("serialize");
         let back: AppSettings = serde_json::from_value(round).expect("deserialize");
         assert!(back.exit_on_close);
+    }
+
+    /// A settings file written before the watchdog knew nothing of it: the
+    /// `/llm` block loads with the documented defaults, never zeros (a zero
+    /// idle window would kill every turn on its first silence).
+    #[test]
+    fn an_llm_block_without_the_watchdog_fields_loads_the_defaults() {
+        let old = serde_json::json!({
+            "prune_enabled": true,
+            "prune_judge": "local",
+            "prune_min_tokens": 40000
+        });
+        let llm: LlmSettings = serde_json::from_value(old).expect("an old file has to load");
+        assert!(llm.prune_enabled);
+        assert_eq!(llm.turn_idle_timeout_s, 600);
+        assert_eq!(llm.turn_tool_idle_timeout_s, 1800);
+        assert_eq!(llm.turn_start_timeout_s, 90);
+        assert_eq!(llm.job_default_deadline_min, 60);
+        assert_eq!(llm.ask_timeout_chat_s, 1800);
+        assert_eq!(llm.ask_timeout_job_s, None);
+        assert_eq!(llm.approval_notify_delay_s, 5);
+        // And a whole file without the block at all.
+        let mut all = serde_json::to_value(AppSettings::default()).expect("serialize");
+        all.as_object_mut().expect("object").remove("llm");
+        let parsed: AppSettings = serde_json::from_value(all).expect("loads");
+        assert_eq!(parsed.llm.turn_idle_timeout_s, 600);
+    }
+
+    /// 1.6: a settings file from before the parallel cap loads with 4 jobs
+    /// at a time and no per-agent cap (the old constant was 2).
+    #[test]
+    fn an_llm_block_without_the_jobs_fields_loads_the_defaults() {
+        let llm: LlmSettings =
+            serde_json::from_value(serde_json::json!({ "prune_enabled": false })).expect("loads");
+        assert_eq!(llm.jobs_max_parallel, 4);
+        assert_eq!(llm.jobs_max_per_agent, None);
+        assert_eq!(LlmSettings::default().jobs_max_parallel, 4);
+        let back: LlmSettings =
+            serde_json::from_value(serde_json::to_value(&llm).unwrap()).expect("round trip");
+        assert_eq!(back.jobs_max_parallel, 4);
     }
 }

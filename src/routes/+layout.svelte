@@ -53,6 +53,8 @@
   import { trayStrings } from "$lib/tray-strings";
   import { usageTrayStrings } from "$lib/usage-tray-strings";
   import { agentPrompts } from "$lib/agent-prompts";
+  import { llmNotifyStrings } from "$lib/llm-notify-strings";
+  import { focusPayload, getLlmFocus } from "$lib/llm/ui-focus.svelte";
   import { get } from "svelte/store";
   import { CORE_NAV_ITEMS, type NavItem } from "$lib/nav-config";
   import { isBareWindow } from "$lib/bare-window";
@@ -107,6 +109,21 @@
     invoke("sync_llm_prompts", { prompts: payload }).catch(() => {
       // prompt sync is best-effort (no backend in browser/dev)
     });
+  });
+
+  // The agents' OS notifications ("needs you", "finished") are sent by Rust,
+  // which has no locale: same push as the prompts (see $lib/llm-notify-strings).
+  $effect(() => {
+    const strings = llmNotifyStrings($rawTranslations, $locale);
+    invoke("sync_llm_notify_strings", { strings }).catch(() => {});
+  });
+
+  // What the window shows, so a notification about a job already on screen
+  // is not sent (see $lib/llm/ui-focus). Bare windows (pet, strip) never
+  // report: they would overwrite the main window's route.
+  $effect(() => {
+    if (isBareWindow(page.url.pathname)) return;
+    invoke("llm_ui_focus", focusPayload(page.url.pathname, getLlmFocus())).catch(() => {});
   });
 
   // The pet, the limits strip and the usage panel are windows exactly as big

@@ -16,6 +16,8 @@ pub mod code_tools;
 pub mod compress;
 pub mod coordinator;
 pub mod error;
+pub mod folder_key;
+pub mod job_gate;
 pub mod kb;
 pub mod local_servers;
 pub mod perm;

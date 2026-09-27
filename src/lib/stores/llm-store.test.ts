@@ -568,6 +568,23 @@ describe("rooms", () => {
 });
 
 describe("saved chats", () => {
+  it("loads saved history when conversations arrive before the roster", async () => {
+    invoke.mockImplementation((cmd: string) => {
+      if (cmd === "llm_roster_list") return Promise.resolve([realAgent("real", "Real")]);
+      if (cmd === "llm_conversation_list") return Promise.resolve([
+        { id: "native-proof", title: "Saved", agent_id: "real", messages: 1, updated_ms: 5 },
+      ]);
+      if (cmd === "llm_conversation_get") return Promise.resolve({
+        messages: [{ role: "user", parts: [{ type: "text", text: "Native saved history" }] }],
+      });
+      return Promise.resolve(null);
+    });
+    await store.loadConversations();
+    await store.loadRoster();
+    await vi.waitFor(() => expect(store.getMessages()).toHaveLength(1));
+    expect(store.getMessages()[0].text).toBe("Native saved history");
+  });
+
   it("old single-agent chats reopen as direct chats with the same id; room sessions are hidden", async () => {
     invoke.mockImplementation((cmd: string) => {
       if (cmd === "llm_roster_list") return Promise.resolve([realAgent("real", "Real")]);

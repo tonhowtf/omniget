@@ -16,6 +16,7 @@ pub mod prompts;
 pub mod prune;
 pub mod roster;
 pub mod skills;
+pub mod watchdog;
 pub mod wire_probe;
 
 use std::time::{Duration, Instant};
@@ -33,6 +34,11 @@ pub const EVENT_TOOL_ASK: &str = "llm://tool-ask";
 /// `BusEvent::Rerouted` re-emitted: the Observatory draws it on the timeline
 /// and the chat shows "switched to X".
 pub const EVENT_REROUTED: &str = "llm://rerouted";
+/// `BusEvent::ToolAskResolved` re-emitted under the name every window already
+/// drops a question on (`llm_tool_answer` sends it too): an ask that expired
+/// or whose turn was cancelled leaves the pet, the chat and the jobs page at
+/// once, with its `outcome`.
+pub const EVENT_TOOL_RESOLVED: &str = "omni://tool-resolved";
 
 /// Text deltas are merged and emitted at most this often (budget: ≤ 30 emits/s
 /// per turn). Everything else goes through the moment it arrives.
@@ -161,6 +167,9 @@ fn spawn_bus_forwarder_claimed(
             match rx.recv().await {
                 Ok(event) => {
                     manager.note_bus(&event);
+                    // Questions change the state of their job right away,
+                    // and unanswered ones become notifications (1.3).
+                    crate::jobs::on_bus(&event);
                     if let Some(intent) = omniget_core::core::omni::rules::rules(&event, &omni) {
                         omni.apply(&intent);
                         if let Ok(payload) = serde_json::to_value(&intent)
@@ -247,6 +256,25 @@ pub fn tauri_event_for(event: &BusEvent) -> Option<(&'static str, serde_json::Va
                 "preview": preview,
             }),
         )),
+        BusEvent::ToolAskResolved {
+            agent,
+            request_id,
+            tool_call_id,
+            tool,
+            outcome,
+            waited_ms,
+        } => Some((
+            EVENT_TOOL_RESOLVED,
+            serde_json::json!({
+                "agent": agent,
+                "request_id": request_id,
+                "tool_call_id": tool_call_id,
+                "tool": tool,
+                "outcome": outcome,
+                "allow": outcome == "allow",
+                "waited_ms": waited_ms,
+            }),
+        )),
         BusEvent::Rerouted {
             agent,
             from,
@@ -278,6 +306,7 @@ pub fn ensure_wired(app: &AppHandle) {
             tracing::info!("[llm] swept {swept} orphan bridge conversation(s)");
         }
         prune::install(app);
+        watchdog::install(app);
         spawn_bus_forwarder_claimed(app.clone(), manager);
     }
 }
@@ -531,8 +560,88 @@ mod tests {
         manager.finish_turn(&request_id, &agent.id);
     }
 
+    /// 1.2/1.3: the manager knows, per turn, whether a person is being asked
+    /// (the watchdog pauses on it), and the end of the ask reaches every
+    /// window as `omni://tool-resolved` with its outcome.
+    #[tokio::test]
+    async fn has_pending_ask_follows_the_question_and_its_end_goes_out() {
+        use futures::StreamExt;
+        use omniget_core::core::llm::agent::{GrantMode, ModelPolicy, ToolGrant, ToolSource};
+        use omniget_core::core::llm::roster_store;
+        use omniget_core::core::llm::types::{ModelRef, ProviderId};
+
+        const PROVIDER: &str = "test-tool-then-text-pending";
+        let tool = crate::llm_manager::mcp_specs()
+            .first()
+            .map(|s| s.name.clone())
+            .expect("the MCP server exposes tools");
+        let manager = std::sync::Arc::new(crate::llm_manager::LlmManager::new());
+        manager.set_root(
+            std::env::temp_dir().join(format!("omniget-pending-{}", uuid::Uuid::new_v4())),
+        );
+        manager.register_provider(
+            PROVIDER,
+            std::sync::Arc::new(ToolThenText {
+                calls: std::sync::atomic::AtomicU32::new(0),
+                tool: tool.clone(),
+            }),
+        );
+        let mut agent = roster_store::default_roster().remove(0);
+        agent.model = ModelPolicy::Fixed {
+            model: ModelRef {
+                provider: ProviderId::new(PROVIDER),
+                model: "m".into(),
+            },
+        };
+        agent.tools = vec![ToolGrant {
+            source: ToolSource::Internal { name: tool.clone() },
+            mode: GrantMode::Ask,
+        }];
+        manager.roster_update(agent.clone()).unwrap();
+        let mut bus_rx = manager.bus().subscribe();
+        let (request_id, _cancel, mut stream) = manager
+            .turn_stream("c-pending", &agent.id, "baixa isso")
+            .await
+            .expect("the turn must start");
+        let drive = tokio::spawn(async move { while stream.next().await.is_some() {} });
+
+        let call = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if let Ok(BusEvent::ToolAsk { tool_call_id, .. }) = bus_rx.recv().await {
+                    return tool_call_id;
+                }
+            }
+        })
+        .await
+        .expect("an ask");
+        assert!(manager.has_pending_ask(&request_id));
+        assert!(manager.has_pending_call(&call));
+        assert!(!manager.has_pending_ask("some-other-turn"));
+        manager.answer_tool(&request_id, &call, true, false).unwrap();
+
+        let resolved = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if let Ok(ev @ BusEvent::ToolAskResolved { .. }) = bus_rx.recv().await {
+                    return ev;
+                }
+            }
+        })
+        .await
+        .expect("the end of the ask goes on the bus");
+        manager.note_bus(&resolved);
+        assert!(!manager.has_pending_ask(&request_id));
+        assert!(manager.pending_ask_list().is_empty());
+        let (name, payload) = tauri_event_for(&resolved).expect("mapped");
+        assert_eq!(name, EVENT_TOOL_RESOLVED);
+        assert_eq!(payload["tool_call_id"], call.as_str());
+        assert_eq!(payload["outcome"], "allow");
+        assert_eq!(payload["request_id"], request_id.as_str());
+        let _ = drive.await;
+        manager.finish_turn(&request_id, &agent.id);
+    }
+
     #[test]
-    fn tauri_event_for_only_maps_the_two_events_the_ui_listens_to() {
+    fn tauri_event_for_only_maps_the_events_the_ui_listens_to() {
         use omniget_core::core::llm::types::Usage;
         let ask = BusEvent::ToolAsk {
             agent: "omni".into(),

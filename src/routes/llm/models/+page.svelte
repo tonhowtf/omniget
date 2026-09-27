@@ -17,6 +17,7 @@
   import { showToast } from "$lib/stores/toast-store.svelte";
   import RoutingRules from "$components/llm/RoutingRules.svelte";
   import PruneSettings from "$components/llm/PruneSettings.svelte";
+  import WatchdogSettings from "$components/llm/WatchdogSettings.svelte";
 
   type Kind = { id: string; name: string; base_url: string };
   type KeyView = { id: string; name: string; kind: string; has_key: boolean; models: number };
@@ -134,6 +135,7 @@
   <RoutingRules />
   </details>
   <PruneSettings />
+  <WatchdogSettings />
 </div>
 
 <style>

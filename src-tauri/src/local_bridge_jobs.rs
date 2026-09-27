@@ -1,9 +1,9 @@
 //! Bridge routes of the job system, same bearer as the rest of the bridge:
 //! `POST /v1/hooks/<id>` (webhook trigger; the body becomes `{{body}}`), and
-//! the small API `omniget-cli agent run|loop|jobs` talks to.
+//! the small API `omniget-cli agent run|loop|jobs|explain|status|diff` talks to.
 
-use axum::extract::Path;
-use axum::http::{HeaderMap, StatusCode};
+use axum::extract::{Path, RawQuery};
+use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -33,6 +33,16 @@ fn fail(status: StatusCode, message: impl Into<String>) -> Response {
     (status, Json(json!({ "error": message.into() }))).into_response()
 }
 
+/// `format=` of a query string (`files` when absent).
+fn format_of(query: Option<&str>) -> String {
+    query
+        .unwrap_or("")
+        .split('&')
+        .find_map(|pair| pair.strip_prefix("format="))
+        .unwrap_or("files")
+        .to_string()
+}
+
 fn ok<T: serde::Serialize>(v: Result<T, String>) -> Response {
     match v {
         Ok(v) => Json(json!(v)).into_response(),
@@ -46,6 +56,9 @@ struct RunBody {
     prompt: String,
     #[serde(default)]
     workspace: Option<String>,
+    /// This job's ceiling in minutes (1–1440); absent = the setting.
+    #[serde(default)]
+    deadline_min: Option<u32>,
 }
 
 pub fn router<S>(state: JobsBridgeState) -> Router<S>
@@ -65,7 +78,10 @@ where
             ($body)(jobs)
         }};
     }
-    let (s1, s2, s3, s4, s5, s6, s7, s8, s9) = (
+    let (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12) = (
+        state.clone(),
+        state.clone(),
+        state.clone(),
         state.clone(),
         state.clone(),
         state.clone(),
@@ -91,14 +107,16 @@ where
             "/v1/agent/run",
             post(
                 move |headers: HeaderMap, Json(b): Json<RunBody>| async move {
-                    guarded!(s2, headers, |j: std::sync::Arc<jobs::Jobs>| ok(j.submit(
-                        "run",
-                        &b.agent_id,
-                        &b.prompt,
-                        b.workspace.clone(),
-                        None,
-                        None
-                    )))
+                    guarded!(s2, headers, |j: std::sync::Arc<jobs::Jobs>| ok(j
+                        .submit_with_deadline(
+                            "run",
+                            &b.agent_id,
+                            &b.prompt,
+                            b.workspace.clone(),
+                            None,
+                            None,
+                            b.deadline_min,
+                        )))
                 },
             ),
         )
@@ -189,6 +207,69 @@ where
                 },
             ),
         )
+        // Why the job is in its state (79#P8). Local bridge only: it carries
+        // the pid, which never leaves through MCP.
+        .route(
+            "/v1/jobs/{id}/explain",
+            get(
+                move |Path(id): Path<String>, headers: HeaderMap| async move {
+                    guarded!(
+                        s10,
+                        headers,
+                        |j: std::sync::Arc<jobs::Jobs>| match j.explain(&id) {
+                            Some(v) => Json(v).into_response(),
+                            None => fail(StatusCode::NOT_FOUND, format!("no job {id}")),
+                        }
+                    )
+                },
+            ),
+        )
+        // What runs, what waits (position and reason) and the limits (1.6,
+        // symphony's state snapshot). `omniget agent status` reads it.
+        .route(
+            "/v1/state",
+            get(move |headers: HeaderMap| async move {
+                guarded!(s11, headers, |j: std::sync::Arc<jobs::Jobs>| Json(
+                    j.state_view()
+                )
+                .into_response())
+            }),
+        )
+        // What the job changed (1.7, 78#P2): `format=files` (default) is the
+        // list and totals as JSON, `format=patch` the unified diff. A job
+        // with no snapshot says so (409 for the patch), never an empty diff.
+        .route(
+            "/v1/jobs/{id}/diff",
+            get(
+                move |Path(id): Path<String>, RawQuery(query): RawQuery, headers: HeaderMap| async move {
+                    if !check_bearer(&headers, &s12.token) {
+                        return fail(StatusCode::UNAUTHORIZED, "bad or missing bearer token");
+                    }
+                    let j = match jobs::get(&s12.app) {
+                        Ok(j) => j,
+                        Err(e) => return fail(StatusCode::INTERNAL_SERVER_ERROR, e),
+                    };
+                    let (job, patch, complete) = match j.diff(&id).await {
+                        Ok(v) => v,
+                        Err(e) => return fail(StatusCode::NOT_FOUND, e),
+                    };
+                    let path = jobs::patch_path(&job.id);
+                    let format = format_of(query.as_deref());
+                    match jobs::diff_view(&job, patch.as_deref(), path.as_deref(), &format, complete) {
+                        Ok(jobs::DiffBody::Json(v)) => Json(v).into_response(),
+                        Ok(jobs::DiffBody::Patch(text)) => (
+                            [(header::CONTENT_TYPE, "text/x-diff; charset=utf-8")],
+                            text,
+                        )
+                            .into_response(),
+                        Err((code, e)) => fail(
+                            StatusCode::from_u16(code).unwrap_or(StatusCode::BAD_REQUEST),
+                            e,
+                        ),
+                    }
+                },
+            ),
+        )
         .route(
             "/v1/jobs/{id}/cancel",
             post(
@@ -208,4 +289,17 @@ where
                 .into_response())
             }),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_of;
+
+    #[test]
+    fn the_diff_format_comes_from_the_query() {
+        assert_eq!(format_of(None), "files");
+        assert_eq!(format_of(Some("format=patch")), "patch");
+        assert_eq!(format_of(Some("x=1&format=files")), "files");
+        assert_eq!(format_of(Some("x=1")), "files");
+    }
 }

@@ -29,6 +29,27 @@ pub async fn llm_job_submit(
     to(jobs::get(&app)?.submit("run", &agent_id, &prompt, workspace, None, None)?)
 }
 
+/// What runs, what waits (position and reason) and the limits: the queue
+/// view of the jobs page (the same as `GET /v1/state`).
+#[tauri::command]
+pub async fn llm_jobs_state(app: AppHandle) -> Result<Value, String> {
+    Ok(jobs::get(&app)?.state_view())
+}
+
+/// Saves the parallel caps and applies them to the running gate at once.
+#[tauri::command]
+pub async fn llm_jobs_limits_set(
+    app: AppHandle,
+    limits: jobs::JobLimitsInput,
+) -> Result<Value, String> {
+    let mut current = crate::storage::config::load_settings(&app);
+    current.llm = jobs::merge_limits(current.llm, &limits);
+    crate::storage::config::save_settings(&app, &current).map_err(|e| format!("Save: {e}"))?;
+    let j = jobs::get(&app)?;
+    j.apply_limits(&current.llm);
+    Ok(j.state_view())
+}
+
 #[tauri::command]
 pub async fn llm_job_cancel(app: AppHandle, id: String) -> Result<Value, String> {
     to(jobs::get(&app)?.cancel(&id)?)
@@ -72,9 +93,11 @@ pub async fn llm_triggers_list(app: AppHandle) -> Result<Value, String> {
     Ok(json!({ "triggers": triggers, "bridge": bridge }))
 }
 
+/// Returns the routine as the list shows it (next run, missed), not the raw
+/// row.
 #[tauri::command]
 pub async fn llm_trigger_save(app: AppHandle, trigger: Trigger) -> Result<Value, String> {
-    to(jobs::get(&app)?.trigger_save(trigger)?)
+    Ok(jobs::trigger_view(&jobs::get(&app)?.trigger_save(trigger)?))
 }
 
 #[tauri::command]
@@ -121,4 +144,54 @@ pub async fn llm_trigger_mute(app: AppHandle, id: String, muted: bool) -> Result
     to(jobs::trigger_view(
         &jobs::get(&app)?.trigger_mute(&id, muted)?,
     ))
+}
+
+/// What the job changed: files, totals, why it is unavailable, and the
+/// patch (the jobs page; the bridge serves the same as `GET
+/// /v1/jobs/{id}/diff`).
+#[tauri::command]
+pub async fn llm_job_diff(app: AppHandle, id: String) -> Result<Value, String> {
+    let j = jobs::get(&app)?;
+    let (job, patch, complete) = j.diff(&id).await?;
+    let path = jobs::patch_path(&job.id);
+    match jobs::diff_view(&job, patch.as_deref(), path.as_deref(), "files", complete) {
+        Ok(jobs::DiffBody::Json(mut v)) => {
+            v["patch"] = json!(patch.unwrap_or_default());
+            Ok(v)
+        }
+        Ok(jobs::DiffBody::Patch(_)) => Err(format!("{}: unexpected patch", jobs::ERR_JOBS)),
+        Err((_, e)) => Err(e),
+    }
+}
+
+/// The user opened a job: it stops counting as "finished, not seen".
+#[tauri::command]
+pub async fn llm_job_seen(app: AppHandle, id: String) -> Result<Value, String> {
+    to(jobs::get(&app)?.mark_seen(&id)?)
+}
+
+/// Why a job is in its state right now: last event age, pending question,
+/// deadline left (`omniget agent explain` reads the same through the bridge).
+#[tauri::command]
+pub async fn llm_job_explain(app: AppHandle, id: String) -> Result<Value, String> {
+    jobs::get(&app)?
+        .explain(&id)
+        .ok_or_else(|| format!("{}: no job {id}", jobs::ERR_JOBS))
+}
+
+/// What the window shows, so a notification about a job already on screen
+/// is not sent (`llm_attention`). Cheap: called on every navigation.
+#[tauri::command]
+pub fn llm_ui_focus(path: String, job_id: Option<String>, conversation_id: Option<String>) {
+    crate::llm_attention::report_focus(path, job_id, conversation_id);
+}
+
+/// The notification texts in the interface language (`$lib/llm-notify-strings`);
+/// the backend has no locale of its own, like the tray.
+#[tauri::command]
+pub fn sync_llm_notify_strings(strings: crate::llm_attention::NotifyStrings) {
+    crate::llm_attention::push_strings(strings.clone());
+    if let Some(jobs) = jobs::try_get() {
+        jobs.attention.set_strings(strings);
+    }
 }

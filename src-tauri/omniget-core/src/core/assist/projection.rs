@@ -27,7 +27,7 @@ use super::ctx::{AssistCtx, Scope};
 use super::db::{AssistDb, Migration};
 use super::tools::{AssistToolset, EmptyToolset};
 use crate::core::llm::agent::GrantMode;
-use crate::core::llm::broker::{Answer, ToolBroker};
+use crate::core::llm::broker::{Answer, AskEnd, ToolBroker};
 use crate::core::llm::types::ToolSpec;
 
 pub const ERR_PROJECTION: &str = "ERR_PROJECTION";
@@ -630,8 +630,8 @@ async fn call_tool(grant: &Grant, name: &str, args: Value) -> Value {
             );
         };
         let call_id = format!("proj-{}", super::new_id());
-        let answer = broker
-            .ask_user(
+        let end = broker
+            .ask_user_ended(
                 &grant.bot_id,
                 grant.run_id.as_deref().unwrap_or(""),
                 &call_id,
@@ -639,7 +639,11 @@ async fn call_tool(grant: &Grant, name: &str, args: Value) -> Value {
                 &crate::core::llm::code_tools::preview(name, &args),
             )
             .await;
-        if matches!(answer, Answer::Deny) {
+        if let AskEnd::Expired { waited } = end {
+            let e = crate::core::llm::broker::timeout_error(name, waited);
+            return text_result(format!("{}: {}", e.code, e.message), true);
+        }
+        if matches!(end.answer(), Answer::Deny) {
             return text_result(format!("`{name}` was refused"), true);
         }
     }
@@ -699,13 +703,13 @@ async fn permission_prompt(grant: &Grant, args: Value) -> Value {
             .unwrap_or_else(|| input.to_string().chars().take(600).collect()),
     };
     let decided = crate::core::llm::perm::decide(&grant.bot_id, &label, &input);
-    let answer = match decided {
-        Some(crate::core::llm::perm::Action::Allow) => Answer::Once,
-        Some(crate::core::llm::perm::Action::Deny) => Answer::Deny,
+    let end = match decided {
+        Some(crate::core::llm::perm::Action::Allow) => AskEnd::Answered(Answer::Once),
+        Some(crate::core::llm::perm::Action::Deny) => AskEnd::Answered(Answer::Deny),
         _ => match broker_of(&grant.id) {
             Some(broker) => {
                 broker
-                    .ask_user(
+                    .ask_user_ended(
                         &grant.bot_id,
                         grant.run_id.as_deref().unwrap_or(""),
                         &call_id,
@@ -714,9 +718,17 @@ async fn permission_prompt(grant: &Grant, args: Value) -> Value {
                     )
                     .await
             }
-            None => Answer::Deny,
+            None => AskEnd::Answered(Answer::Deny),
         },
     };
+    // Nobody answered: the agent must not read that as the user's "no"
+    // (it would stop trying, or apologise for a refusal that never was).
+    if let AskEnd::Expired { waited } = end {
+        let e = crate::core::llm::broker::timeout_error(&tool, waited);
+        let body = json!({ "behavior": "deny", "message": format!("{}: {}", e.code, e.message) });
+        return text_result(body.to_string(), false);
+    }
+    let answer = end.answer();
     if matches!(answer, Answer::Always) {
         crate::core::llm::perm::add_rule(
             &grant.bot_id,

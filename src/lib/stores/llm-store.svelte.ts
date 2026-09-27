@@ -97,7 +97,13 @@ let toolAsk = $state<ToolAsk | null>(null);
  * the Missions page show them. Each expires with the broker's deadline.
  */
 let heldAsks = $state<(ToolAsk & { receivedMs: number })[]>([]);
-const HELD_ASK_TTL_MS = 125_000;
+/**
+ * Only a safety net now: every way out of a question (answer, expiry,
+ * cancel) arrives as `omni://tool-resolved`, and a job's question may wait
+ * as long as the job's deadline (30 min in chat, 60 min in a job by
+ * default), far past the old fixed 120 s.
+ */
+const HELD_ASK_TTL_MS = 24 * 60 * 60 * 1000;
 let errorKey = $state<string | null>(null);
 /** How the last permission request of a conversation ended when it did not get an answer. */
 let lastAsk = $state<{ conversationId: string; tool: string; state: "expired" | "cancelled" } | null>(null);
@@ -334,7 +340,7 @@ export function newConversation(agentId: string): string {
 export function selectAgent(agentId: string): string {
   const existing = [...conversations].reverse().find((c) => c.agentId === agentId && c.kind !== "group");
   if (existing) {
-    activeConversationId = existing.id;
+    selectConversation(existing.id);
     return existing.id;
   }
   return newConversation(agentId);
@@ -885,7 +891,7 @@ async function loadHistory(id: string): Promise<void> {
   try {
     const answer = await invoke<{ messages?: Message[] } | null>("llm_conversation_get", { conversationId: id });
     const target = conversations.find((c) => c.id === id);
-    if (!target) return;
+    if (!target || target !== conversation || target.loaded !== false) return;
     const history = Array.isArray(answer?.messages) ? historyToChat(answer.messages, id) : [];
     // Anything typed while the history loaded stays after it.
     target.messages = [...history, ...target.messages];

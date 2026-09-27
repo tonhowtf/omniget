@@ -92,8 +92,12 @@ if (fs.existsSync(pkgLockPath)) {
   });
 }
 
-const cargoTomlPath = path.join(root, "src-tauri", "Cargo.toml");
-writeText(cargoTomlPath, (content) => {
+// The CLI ships in the same release as the app, so `omniget --version` follows it.
+const cargoTomlPaths = [
+  path.join(root, "src-tauri", "Cargo.toml"),
+  path.join(root, "src-tauri", "omniget-cli", "Cargo.toml"),
+];
+for (const cargoTomlPath of cargoTomlPaths) writeText(cargoTomlPath, (content) => {
   const lines = content.split("\n");
   let inPackage = false;
   let replaced = false;
@@ -111,7 +115,7 @@ writeText(cargoTomlPath, (content) => {
     }
   }
   if (!replaced) {
-    console.error("Failed to update version in Cargo.toml");
+    console.error(`Failed to update version in ${path.relative(root, cargoTomlPath)}`);
     process.exit(1);
   }
   return lines.join("\n");
@@ -121,7 +125,7 @@ const cargoLockPath = path.join(root, "src-tauri", "Cargo.lock");
 if (fs.existsSync(cargoLockPath)) {
   writeText(cargoLockPath, (content) => {
     return content.replace(
-      /(name = "omniget"\nversion = ")([^"]+)(")/,
+      /(name = "omniget(?:-cli)?"\nversion = ")([^"]+)(")/g,
       (_, a, _b, c) => `${a}${version}${c}`
     );
   });

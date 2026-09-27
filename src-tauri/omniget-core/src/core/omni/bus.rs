@@ -31,6 +31,18 @@ pub enum BusEvent {
         #[serde(default)]
         preview: String,
     },
+    /// A `ToolAsk` ended, whatever ended it: `outcome` is `allow`, `deny`,
+    /// `expired` (nobody answered in time) or `cancelled` (its turn ended).
+    /// Exactly one per ask, so no window ever keeps a ghost question and an
+    /// expiry is never silent.
+    ToolAskResolved {
+        agent: String,
+        request_id: String,
+        tool_call_id: String,
+        tool: String,
+        outcome: String,
+        waited_ms: u64,
+    },
     ToolCalled {
         agent: String,
         tool: String,

@@ -104,6 +104,7 @@ fn item() -> Value {
             "fragment_index": ty("integer"),
             "fragment_count": ty("integer"),
             "started_at_ms": ty("integer"),
+            "finished_at_ms": ty("integer"),
             "command": ty("object"),
             "attempt": ty("integer"),
             "source": ty("string"),
@@ -462,6 +463,29 @@ fn own(name: &str) -> Option<Value> {
                 "evidenceGaps": ty("array"),
             }),
             &["missionId", "tasks"],
+        ),
+        "job_diff" => obj(
+            json!({
+                "jobId": ty("string"),
+                "state": ty("string"),
+                "available": ty("boolean"),
+                "reason": nullable("string"),
+                "detail": nullable("string"),
+                "files": arr(obj(
+                    json!({"path": ty("string"), "status": ty("string"), "additions": nullable("integer"), "deletions": nullable("integer"), "binary": ty("boolean")}),
+                    &["path", "status", "binary"],
+                )),
+                "fileCount": ty("integer"),
+                "filesTruncated": ty("boolean"),
+                "additions": ty("integer"),
+                "deletions": ty("integer"),
+                "clipped": ty("boolean"),
+                "complete": ty("boolean"),
+                "headOid": nullable("string"),
+                "patch": ty("string"),
+                "patchClipped": ty("boolean"),
+            }),
+            &["jobId", "available", "files", "fileCount", "additions", "deletions"],
         ),
         "approvals_list" => obj(
             json!({
@@ -822,6 +846,16 @@ mod tests {
         check(
             "approvals_list",
             &json!({"missionId":"m","pending":[{"requestId":"r","runId":"u","action":"a","scope":"s","preview":"p","deadlineMs":null}],"remoteApproval":false,"approveIn":"OmniGet window"}),
+        );
+        // `orchestration::job_diff_reply` literals: available with a patch,
+        // and unavailable (no patch key).
+        check(
+            "job_diff",
+            &json!({"jobId":"j","state":"done","available":true,"reason":null,"detail":null,"files":[{"path":"a.txt","status":"M","additions":1,"deletions":0,"binary":false},{"path":"b.pyc","status":"A","additions":null,"deletions":null,"binary":true}],"fileCount":2,"filesTruncated":false,"additions":1,"deletions":0,"clipped":false,"complete":true,"headOid":null,"patch":"+x\n","patchClipped":false}),
+        );
+        check(
+            "job_diff",
+            &json!({"jobId":"j","state":"done","available":false,"reason":"no_snapshot","detail":"no turn of this job took a snapshot","files":[],"fileCount":0,"filesTruncated":false,"additions":0,"deletions":0,"clipped":false,"complete":true,"headOid":null}),
         );
     }
 

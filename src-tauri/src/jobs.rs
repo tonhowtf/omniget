@@ -33,9 +33,14 @@ use crate::llm_manager::{now_ms, sanitize_id, LlmManager};
 
 pub const EVENT_JOB: &str = "llm://job";
 pub const EVENT_LOOP: &str = "llm://loop";
+/// A routine's schedule or counters changed (fired, missed, saved): the
+/// payload is [`trigger_view`].
+pub const EVENT_TRIGGER: &str = "llm://trigger";
+/// The queue changed (a job was admitted, finished or the cap moved): the
+/// payload is [`state_view`], so the jobs page shows positions without asking.
+pub const EVENT_QUEUE: &str = "llm://queue";
 pub const ERR_JOBS: &str = "ERR_LLM_JOBS";
 
-const MAX_PARALLEL_JOBS: usize = 2;
 const LOG_MAX: usize = 64 * 1024;
 const RESULT_MAX: usize = 32 * 1024;
 const CRON_TICK_S: u64 = 30;
@@ -50,7 +55,8 @@ pub struct Job {
     pub conversation_id: String,
     pub prompt: String,
     pub workspace: Option<String>,
-    /// `queued|running|waiting_approval|done|failed|cancelled|interrupted`
+    /// `queued|waiting_workspace|running|waiting_approval|done|failed|cancelled|interrupted`.
+    /// `waiting_workspace`: another job holds an overlapping folder (1.5).
     pub state: String,
     pub loop_id: Option<String>,
     pub trigger_id: Option<String>,
@@ -66,6 +72,46 @@ pub struct Job {
     /// `null` when the provider has no price (local models, CLI accounts).
     #[serde(default)]
     pub usage: Option<serde_json::Value>,
+    /// Grows by one on every state change of this job (never on a log line),
+    /// so a listener can drop an event older than what it already has.
+    #[serde(default)]
+    pub state_seq: i64,
+    /// When the user last opened this job (epoch ms); a finished job with a
+    /// later `finished_ms` is "not seen yet".
+    #[serde(default)]
+    pub seen_ms: Option<i64>,
+    /// Why a failed job failed, in one word the UI can translate:
+    /// `stalled`, `no_start`, `deadline`, `limit`, `ask_expired`.
+    #[serde(default)]
+    pub failure_reason: Option<String>,
+    /// Per-job wall-clock ceiling in minutes; `None` = the setting
+    /// `job_default_deadline_min`.
+    #[serde(default)]
+    pub deadline_min: Option<u32>,
+    /// The deadline actually applied, set when the job starts.
+    #[serde(default)]
+    pub deadline_ms: Option<u64>,
+    /// Why a `queued`/`waiting_workspace` job has not started: `slot`,
+    /// `agent_cap` or `workspace:<job id>` (the job holding the folder).
+    /// Cleared when it starts.
+    #[serde(default)]
+    pub wait_reason: Option<String>,
+    /// What the job changed in its folder, recorded when it ended (1.7):
+    /// the files (status, `+/-`, binary), totals, and whether the patch at
+    /// `<llm dir>/jobs/<id>.patch` or the list was cut. `None` with
+    /// `diff_unavailable` also `None` = not computed yet.
+    #[serde(default)]
+    pub diff_files: Option<Vec<omniget_core::core::llm::snapshot::FileChange>>,
+    #[serde(default)]
+    pub additions: Option<u64>,
+    #[serde(default)]
+    pub deletions: Option<u64>,
+    #[serde(default)]
+    pub diff_clipped: bool,
+    /// Why the job has no diff, `code: detail`, code one of `no_workspace`,
+    /// `no_snapshot`, `error`. Never an empty list standing for "unknown".
+    #[serde(default)]
+    pub diff_unavailable: Option<String>,
 }
 
 /// Appends one prune receipt to a job's usage: per model request, what the
@@ -153,6 +199,9 @@ pub struct LoopDef {
     pub max_minutes: Option<u32>,
     #[serde(default)]
     pub check_command: Option<String>,
+    /// Ceiling of each round (one job), in minutes; `None` = the setting.
+    #[serde(default)]
+    pub deadline_min: Option<u32>,
     /// `running|done|failed|cancelled|interrupted`
     #[serde(default)]
     pub state: String,
@@ -207,20 +256,140 @@ pub struct Trigger {
     /// missions too, there is no second queue.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mission: Option<Value>,
+    /// Ceiling of the job each firing starts, in minutes; `None` = the
+    /// setting `job_default_deadline_min`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deadline_min: Option<u32>,
+    /// Next scheduled time of a cron routine (epoch ms); `None` for webhooks,
+    /// disabled routines and lines that never fire. The `triggers` column of
+    /// the same name is the truth: only a compare-and-set moves it (1.4).
+    #[serde(default)]
+    pub next_run_ms: Option<i64>,
+    /// What happens to the times missed while the app was closed or asleep.
+    #[serde(default)]
+    pub catch_up: CatchUp,
+    /// What happens when a time comes while the last run is still going.
+    #[serde(default)]
+    pub concurrency: TriggerConcurrency,
+    /// Zone of the cron line: `local` (this machine), `UTC` or `+HH:MM`.
+    #[serde(default = "local_zone")]
+    pub tz: String,
+    /// Scheduled times that did not run (missed and not caught up, or
+    /// skipped because the last run was still going), all time.
+    #[serde(default)]
+    pub missed: u32,
+    #[serde(default)]
+    pub last_missed_ms: Option<u64>,
+    /// Catch-up runs still to start: `skip_if_active` runs them one at a
+    /// time, never two of one routine together.
+    #[serde(default)]
+    pub backlog: u32,
+    /// Job (or mission) of the last firing.
+    #[serde(default)]
+    pub last_run_id: Option<String>,
 }
 
 fn yes() -> bool {
     true
 }
 
+fn local_zone() -> String {
+    "local".into()
+}
+
+/// The times a cron routine missed while nothing could run it (80#P2).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CatchUp {
+    /// Counted and logged as missed; nothing runs.
+    Skip,
+    /// One run for all of them (a daily 9:00 routine opened at 10:00 runs
+    /// once).
+    #[default]
+    Once,
+    /// One run per missed time, at most [`CATCH_UP_CAP`].
+    AllCapped,
+}
+
+/// A scheduled time while the routine's last run is still going.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TriggerConcurrency {
+    /// Not started (counted as missed); catch-up runs wait their turn.
+    #[default]
+    SkipIfActive,
+    /// Started anyway; the gate orders it.
+    Queue,
+}
+
+/// Most catch-up runs one routine starts after a long gap (80#P2).
+pub const CATCH_UP_CAP: u32 = 25;
+
 pub struct Jobs {
     db: Mutex<Connection>,
     app: AppHandle,
     llm: Arc<LlmManager>,
-    slots: tokio::sync::Semaphore,
+    /// Slots, per-agent caps and one writer per folder (1.5, 1.6).
+    gate: Arc<omniget_core::core::llm::job_gate::Gate>,
     cancels: Mutex<HashMap<String, CancellationToken>>,
     cron_running: AtomicBool,
+    /// One cron pass at a time (the boot pass and the ticker): a pass claims
+    /// and starts its runs before the next one reads who is busy.
+    cron_pass: Mutex<()>,
     guards: Mutex<HashMap<String, JobGuard>>,
+    /// Per running job: its turn, when it last heard from it, its deadline
+    /// (what `explain` and the job ask timeout read).
+    live: Mutex<HashMap<String, Live>>,
+    /// Per running turn (request id): the job it belongs to and the channel
+    /// its runner reads questions from. The runner is the only writer of its
+    /// row, so the bus hands it the event instead of writing the row itself.
+    watchers: Mutex<HashMap<String, (String, tokio::sync::mpsc::UnboundedSender<AskSignal>)>>,
+    /// "Needs you" / "finished" notifications.
+    pub attention: Arc<crate::llm_attention::Attention>,
+}
+
+/// A question of a job's turn, as the bus forwarder hands it to the runner.
+#[derive(Debug, Clone)]
+pub enum AskSignal {
+    Opened {
+        tool_call_id: String,
+        tool: String,
+        preview: String,
+    },
+    Resolved {
+        tool: String,
+        outcome: String,
+        waited_ms: u64,
+    },
+}
+
+/// The OS side of [`crate::llm_attention::Attention`]: the notification
+/// plugin, and the focus of the main window plus the route the front reports.
+struct TauriSink {
+    app: AppHandle,
+}
+
+impl crate::llm_attention::NotifySink for TauriSink {
+    fn show(&self, title: &str, body: &str) {
+        use tauri_plugin_notification::NotificationExt;
+        let _ = self
+            .app
+            .notification()
+            .builder()
+            .title(title)
+            .body(if body.is_empty() { " " } else { body })
+            .show();
+    }
+
+    fn focus(&self) -> crate::llm_attention::UiFocus {
+        let mut focus = crate::llm_attention::reported_focus();
+        focus.focused = self
+            .app
+            .get_webview_window("main")
+            .and_then(|w| w.is_focused().ok())
+            .unwrap_or(false);
+        focus
+    }
 }
 
 /// Per-request usage check of a job: `(tokens so far, known usd so far)`;
@@ -241,6 +410,23 @@ pub struct JobGuard {
 
 static JOBS: OnceLock<Arc<Jobs>> = OnceLock::new();
 
+/// Drops a job's cancel token however `run_job` returns (the early returns
+/// of a cancel at the gate included).
+struct Unregister<'a> {
+    jobs: &'a Jobs,
+    id: &'a str,
+}
+
+impl Drop for Unregister<'_> {
+    fn drop(&mut self) {
+        self.jobs
+            .cancels
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(self.id);
+    }
+}
+
 fn short_id(prefix: &str) -> String {
     format!(
         "{prefix}{}",
@@ -259,16 +445,9 @@ fn clip(s: &str, max: usize) -> String {
     format!("[…]\n{}", &s[cut..])
 }
 
-/// The one instance. The first caller opens the database and resumes what the
-/// last run left behind.
-pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
-    if let Some(j) = JOBS.get() {
-        return Ok(j.clone());
-    }
-    let dir = omniget_core::core::llm::roster_store::llm_dir()
-        .ok_or_else(|| format!("{ERR_JOBS}: no app data dir"))?;
-    std::fs::create_dir_all(&dir).map_err(|e| format!("{ERR_JOBS}: {e}"))?;
-    let db = Connection::open(dir.join("jobs.db")).map_err(|e| format!("{ERR_JOBS}: {e}"))?;
+/// The tables of `jobs.db` and every migration, safe on every open: a
+/// column that already exists is skipped.
+pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
     db.execute_batch(
         "PRAGMA journal_mode=WAL;
          CREATE TABLE IF NOT EXISTS jobs (
@@ -284,21 +463,106 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
     .map_err(|e| format!("{ERR_JOBS}: {e}"))?;
     // Databases created before 0.10.0 final have no usage column.
     let _ = db.execute("ALTER TABLE jobs ADD COLUMN usage TEXT", []);
+    // Watchdog, deadline and state events (1.2, 1.3): older rows read as
+    // seq 0, never seen, no reason, the default deadline.
+    for column in [
+        "state_seq INTEGER NOT NULL DEFAULT 0",
+        "seen_ms INTEGER",
+        "failure_reason TEXT",
+        "deadline_min INTEGER",
+        "deadline_ms INTEGER",
+        // Why a queued job waits (1.6).
+        "wait_reason TEXT",
+        // What the job changed (1.7): older rows have no diff yet, and one
+        // is computed the first time someone asks.
+        "diff_files TEXT",
+        "additions INTEGER",
+        "deletions INTEGER",
+        "diff_clipped INTEGER NOT NULL DEFAULT 0",
+        "diff_unavailable TEXT",
+    ] {
+        let _ = db.execute(&format!("ALTER TABLE jobs ADD COLUMN {column}"), []);
+    }
+    let _ = db.execute(
+        "CREATE INDEX IF NOT EXISTS jobs_request ON jobs(request_id)",
+        [],
+    );
+    let _ = db.execute(
+        "CREATE INDEX IF NOT EXISTS jobs_trigger ON jobs(trigger_id)",
+        [],
+    );
+    // The durable schedule (1.4): routines saved before it start from now.
+    let _ = db.execute("ALTER TABLE triggers ADD COLUMN next_run_ms INTEGER", []);
+    migrate_triggers(db, now_ms);
+    Ok(())
+}
+
+/// The one instance. The first caller opens the database and resumes what the
+/// last run left behind.
+pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
+    if let Some(j) = JOBS.get() {
+        return Ok(j.clone());
+    }
+    let dir = omniget_core::core::llm::roster_store::llm_dir()
+        .ok_or_else(|| format!("{ERR_JOBS}: no app data dir"))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("{ERR_JOBS}: {e}"))?;
+    let db = Connection::open(dir.join("jobs.db")).map_err(|e| format!("{ERR_JOBS}: {e}"))?;
+    ensure_schema(&db, now_ms() as i64)?;
     crate::commands::llm::ensure_wired(app);
     let jobs = Arc::new(Jobs {
         db: Mutex::new(db),
         app: app.clone(),
         llm: app.state::<crate::AppState>().llm.clone(),
-        slots: tokio::sync::Semaphore::new(MAX_PARALLEL_JOBS),
+        gate: omniget_core::core::llm::job_gate::Gate::new(gate_limits(
+            &crate::storage::config::load_settings(app).llm,
+        )),
         cancels: Mutex::new(HashMap::new()),
         cron_running: AtomicBool::new(false),
+        cron_pass: Mutex::new(()),
         guards: Mutex::new(HashMap::new()),
+        live: Mutex::new(HashMap::new()),
+        watchers: Mutex::new(HashMap::new()),
+        attention: crate::llm_attention::Attention::new(Arc::new(TauriSink { app: app.clone() })),
     });
     if JOBS.set(jobs.clone()).is_ok() {
+        let limits = crate::commands::llm::watchdog::limits(app);
+        jobs.attention.set_delay(limits.notify_delay);
+        jobs.attention
+            .set_strings(crate::llm_attention::pushed_strings());
+        // A job's question waits as long as the job may still run (1.3).
+        let weak = Arc::downgrade(&jobs);
+        jobs.llm.set_ask_timeout_resolver(Some(Arc::new(move |request: &str| {
+            weak.upgrade()?.ask_timeout_for(request)
+        })));
+        // Waiting rows follow the gate: state, reason and `llm://queue`.
+        let weak = Arc::downgrade(&jobs);
+        let mut changed = jobs.gate.subscribe();
+        tauri::async_runtime::spawn(async move {
+            let mut reported: HashMap<String, (&'static str, String)> = HashMap::new();
+            while changed.changed().await.is_ok() {
+                let Some(jobs) = weak.upgrade() else { return };
+                jobs.report_queue(&mut reported);
+            }
+        });
         jobs.clone().resume();
         jobs.clone().ensure_cron();
     }
     Ok(JOBS.get().cloned().unwrap_or(jobs))
+}
+
+/// The instance, if something already opened it. Never opens it (the boot
+/// order matters: runs are reconciled before jobs resume).
+pub fn try_get() -> Option<Arc<Jobs>> {
+    JOBS.get().cloned()
+}
+
+/// Called by the bus forwarder for every bus event: questions of a job's
+/// turn change its state the moment they happen (A7), and the ones nobody
+/// answers become notifications (A4).
+pub fn on_bus(event: &omniget_core::core::omni::bus::BusEvent) {
+    if let Some(jobs) = try_get() {
+        jobs.handle_bus(event);
+    }
 }
 
 /// Called from the app setup so a Loop left running comes back without anyone
@@ -340,10 +604,23 @@ fn row_to_job(r: &rusqlite::Row<'_>) -> rusqlite::Result<Job> {
         usage: r
             .get::<_, Option<String>>(16)?
             .and_then(|s| serde_json::from_str(&s).ok()),
+        state_seq: r.get::<_, Option<i64>>(17)?.unwrap_or(0),
+        seen_ms: r.get(18)?,
+        failure_reason: r.get(19)?,
+        deadline_min: r.get::<_, Option<i64>>(20)?.map(|v| v as u32),
+        deadline_ms: r.get::<_, Option<i64>>(21)?.map(|v| v as u64),
+        wait_reason: r.get(22)?,
+        diff_files: r
+            .get::<_, Option<String>>(23)?
+            .and_then(|s| serde_json::from_str(&s).ok()),
+        additions: r.get::<_, Option<i64>>(24)?.map(|v| v as u64),
+        deletions: r.get::<_, Option<i64>>(25)?.map(|v| v as u64),
+        diff_clipped: r.get::<_, Option<i64>>(26)?.unwrap_or(0) != 0,
+        diff_unavailable: r.get(27)?,
     })
 }
 
-const JOB_COLS: &str = "id, kind, agent_id, conversation_id, prompt, workspace, state, loop_id, trigger_id, request_id, created_ms, started_ms, finished_ms, result, error, log, usage";
+const JOB_COLS: &str = "id, kind, agent_id, conversation_id, prompt, workspace, state, loop_id, trigger_id, request_id, created_ms, started_ms, finished_ms, result, error, log, usage, state_seq, seen_ms, failure_reason, deadline_min, deadline_ms, wait_reason, diff_files, additions, deletions, diff_clipped, diff_unavailable";
 
 impl Jobs {
     fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
@@ -353,19 +630,51 @@ impl Jobs {
     // ── jobs ─────────────────────────────────────────────────────────
 
     fn save_job_checked(&self, job: &Job) -> Result<(), String> {
-        let r = self.db().execute(
-            &format!("INSERT OR REPLACE INTO jobs ({JOB_COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)"),
-            params![
-                job.id, job.kind, job.agent_id, job.conversation_id, job.prompt, job.workspace,
-                job.state, job.loop_id, job.trigger_id, job.request_id, job.created_ms as i64,
-                job.started_ms.map(|v| v as i64), job.finished_ms.map(|v| v as i64),
-                job.result, job.error, job.log, job.usage.as_ref().map(|u| u.to_string())
-            ],
-        );
-        r.map_err(|_| "JOB_STORAGE_UNAVAILABLE".to_owned())?;
-        // The list view does not need the log on every event.
+        let state_seq = {
+            let db = self.db();
+            // The stored row decides the sequence, not the caller's copy: a
+            // runner, the bus handler and a cancel may each hold one, and the
+            // number must still only grow, by one per real state change.
+            // `seen_ms` is owned by the user's side (`mark_seen`): kept.
+            let stored: Option<(String, i64, Option<i64>)> = db
+                .query_row(
+                    "SELECT state, state_seq, seen_ms FROM jobs WHERE id=?1",
+                    params![job.id],
+                    |r| Ok((r.get(0)?, r.get::<_, Option<i64>>(1)?.unwrap_or(0), r.get(2)?)),
+                )
+                .optional()
+                .map_err(|_| "JOB_STORAGE_UNAVAILABLE".to_owned())?;
+            let seq = next_state_seq(
+                stored.as_ref().map(|(st, seq, _)| (st.as_str(), *seq)),
+                &job.state,
+            );
+            let seen = stored.and_then(|(_, _, seen)| seen).or(job.seen_ms);
+            db.execute(
+                &format!("INSERT OR REPLACE INTO jobs ({JOB_COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28)"),
+                params![
+                    job.id, job.kind, job.agent_id, job.conversation_id, job.prompt, job.workspace,
+                    job.state, job.loop_id, job.trigger_id, job.request_id, job.created_ms as i64,
+                    job.started_ms.map(|v| v as i64), job.finished_ms.map(|v| v as i64),
+                    job.result, job.error, job.log, job.usage.as_ref().map(|u| u.to_string()),
+                    seq, seen, job.failure_reason, job.deadline_min.map(i64::from),
+                    job.deadline_ms.map(|v| v as i64), job.wait_reason,
+                    job.diff_files.as_ref().and_then(|f| serde_json::to_string(f).ok()),
+                    job.additions.map(|v| v as i64), job.deletions.map(|v| v as i64),
+                    i64::from(job.diff_clipped), job.diff_unavailable
+                ],
+            )
+            .map_err(|_| "JOB_STORAGE_UNAVAILABLE".to_owned())?;
+            (seq, seen)
+        };
+        // The list view does not need the log on every event. The event is
+        // the whole row, so it carries `{id, state, state_seq}` too.
         let mut light = job.clone();
+        light.state_seq = state_seq.0;
+        light.seen_ms = state_seq.1;
         light.log = clip(&light.log, 4096);
+        // Up to 1000 file entries: the totals travel, the list is read on
+        // demand (`llm_job_diff`, `GET /v1/jobs/{id}/diff`).
+        light.diff_files = None;
         let _ = self.app.emit(EVENT_JOB, &light);
         Ok(())
     }
@@ -399,7 +708,10 @@ impl Jobs {
         rows.map(|r| {
             r.filter_map(Result::ok)
                 .map(|mut j| {
+                    // Rows of a list carry the diff totals, not the file
+                    // list (see `save_job_checked`).
                     j.log = String::new();
+                    j.diff_files = None;
                     j
                 })
                 .collect()
@@ -449,8 +761,33 @@ impl Jobs {
         conversation_id: Option<String>,
         trigger_id: Option<String>,
     ) -> Result<Job, String> {
+        self.submit_with_deadline(
+            kind,
+            agent_id,
+            prompt,
+            workspace,
+            conversation_id,
+            trigger_id,
+            None,
+        )
+    }
+
+    /// [`Self::submit`] with the job's own deadline in minutes (`None` = the
+    /// `job_default_deadline_min` setting).
+    #[allow(clippy::too_many_arguments)]
+    pub fn submit_with_deadline(
+        self: &Arc<Self>,
+        kind: &str,
+        agent_id: &str,
+        prompt: &str,
+        workspace: Option<String>,
+        conversation_id: Option<String>,
+        trigger_id: Option<String>,
+        deadline_min: Option<u32>,
+    ) -> Result<Job, String> {
         let mut job = self.new_job(kind, agent_id, prompt, workspace, conversation_id)?;
         job.trigger_id = trigger_id;
+        job.deadline_min = deadline_min.map(|m| m.clamp(1, 24 * 60));
         self.save_job(&job);
         let this = self.clone();
         let id = job.id.clone();
@@ -499,8 +836,9 @@ impl Jobs {
             .job(id)
             .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))?;
         // Persist before consulting the token. The runner either sees this
-        // cancelled row on its re-read or has already registered its token.
-        if job.state == "queued" {
+        // cancelled row on its re-read or has already registered its token
+        // (a job waiting at the gate has one: the cancel wakes the wait).
+        if matches!(job.state.as_str(), "queued" | "waiting_workspace") {
             job.state = "cancelled".into();
             job.finished_ms = Some(now_ms());
             self.save_job_checked(&job)?;
@@ -525,7 +863,106 @@ impl Jobs {
         self.db()
             .execute("DELETE FROM jobs WHERE id=?1", params![id])
             .map_err(|e| e.to_string())?;
+        if let Some(path) = patch_path(id) {
+            let _ = std::fs::remove_file(path);
+        }
         Ok(())
+    }
+
+    // ── diff (1.7) ───────────────────────────────────────────────────
+
+    /// The folder the job's turns wrote in: the conversation's bound folder
+    /// (canonical, which is what the snapshots are keyed by), else the
+    /// job's own.
+    fn diff_folder(&self, job: &Job) -> Option<std::path::PathBuf> {
+        code_tools::workspace_of(&sanitize_id(&job.conversation_id)).or_else(|| {
+            job.workspace
+                .as_deref()
+                .filter(|w| !w.trim().is_empty())
+                .map(|w| std::fs::canonicalize(w).unwrap_or_else(|_| w.into()))
+        })
+    }
+
+    /// Fills the job's diff fields; returns the patch when there is one.
+    async fn compute_diff(&self, job: &mut Job, requests: &[String]) -> Option<String> {
+        let out = match self.diff_folder(job) {
+            Some(ws) => {
+                omniget_core::core::llm::snapshot::job_diff(
+                    &ws,
+                    &sanitize_id(&job.conversation_id),
+                    requests,
+                )
+                .await
+            }
+            None => Err(format!("{NO_WORKSPACE}: the job ran without a folder")),
+        };
+        apply_diff(job, out)
+    }
+
+    /// [`Self::compute_diff`] and the patch file next to `jobs.db`.
+    async fn record_diff(&self, job: &mut Job, requests: &[String]) {
+        let patch = self.compute_diff(job, requests).await;
+        let Some(path) = patch_path(&job.id) else {
+            return;
+        };
+        match patch.filter(|p| !p.is_empty()) {
+            Some(text) => {
+                if let Some(dir) = path.parent() {
+                    let _ = std::fs::create_dir_all(dir);
+                }
+                if let Err(e) = std::fs::write(&path, text) {
+                    tracing::warn!("[jobs] patch of {}: {e}", job.id);
+                }
+            }
+            None => {
+                let _ = std::fs::remove_file(&path);
+            }
+        }
+    }
+
+    fn store_diff_columns(&self, job: &Job) {
+        let _ = self.db().execute(
+            "UPDATE jobs SET diff_files=?2, additions=?3, deletions=?4, diff_clipped=?5, diff_unavailable=?6 WHERE id=?1",
+            params![
+                job.id,
+                job.diff_files.as_ref().and_then(|f| serde_json::to_string(f).ok()),
+                job.additions.map(|v| v as i64),
+                job.deletions.map(|v| v as i64),
+                i64::from(job.diff_clipped),
+                job.diff_unavailable
+            ],
+        );
+    }
+
+    /// The job's diff as stored, its patch, and whether it is final. A
+    /// finished job recorded before 1.7 (or a chat turn) gets its diff
+    /// computed and stored now; a running one is diffed against the folder
+    /// as it is (`complete = false`), nothing stored.
+    pub async fn diff(&self, id: &str) -> Result<(Job, Option<String>, bool), String> {
+        let mut job = self
+            .job(id)
+            .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))?;
+        let active = matches!(
+            job.state.as_str(),
+            "queued" | "waiting_workspace" | "running" | "waiting_approval"
+        );
+        let requests: Vec<String> = job.request_id.clone().into_iter().collect();
+        if active {
+            let patch = self.compute_diff(&mut job, &requests).await;
+            return Ok((job, patch, false));
+        }
+        if job.diff_files.is_none() && job.diff_unavailable.is_none() {
+            self.record_diff(&mut job, &requests).await;
+            self.store_diff_columns(&job);
+        }
+        let patch = job.diff_files.as_ref().and_then(|files| {
+            match patch_path(&job.id).and_then(|p| std::fs::read_to_string(p).ok()) {
+                Some(text) => Some(text),
+                // No file: nothing changed, or the file is gone.
+                None => files.is_empty().then(String::new),
+            }
+        });
+        Ok((job, patch, true))
     }
 
     /// A turn of the conversation tab, mirrored as a job so `/llm/jobs` shows
@@ -590,11 +1027,52 @@ impl Jobs {
     /// Runs one job to the end. `resume_note` replaces the prompt when the job
     /// was already running when the app died.
     async fn run_job(self: &Arc<Self>, id: &str, resume_note: Option<String>) -> Option<Job> {
-        let _slot = self.slots.acquire().await.ok()?;
+        let queued = self.job(id)?;
+        if queued.state == "cancelled" {
+            return Some(queued);
+        }
+        // A resumed job keeps the turn it had before: its diff spans both.
+        let earlier_request = queued.request_id.clone();
+        // Registered before the wait, so a cancel while queued wakes it (the
+        // gate drops it from the queue) instead of waiting for a slot first.
+        let cancel = CancellationToken::new();
+        self.cancels
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(id.to_string(), cancel.clone());
+        let _unregister = Unregister { jobs: self, id };
+        // One gate for a slot, the agent's share and the folder (1.5, 1.6):
+        // the same for native, CLI and ACP agents, since it holds the job,
+        // not a tool. Chat turns never come here.
+        let ticket = omniget_core::core::llm::job_gate::Ticket {
+            job_id: id.to_string(),
+            agent_id: queued.agent_id.clone(),
+            class: if queued.kind == "mission" {
+                omniget_core::core::llm::job_gate::Class::Mission
+            } else {
+                omniget_core::core::llm::job_gate::Class::Manual
+            },
+            folder: self.folder_of(&queued),
+        };
+        let lease = tokio::select! {
+            biased;
+            _ = cancel.cancelled() => return self.job(id),
+            lease = self.gate.acquire(ticket) => lease,
+        };
+        // The slot is this job's; the spawn waits its turn (500 ms apart).
+        if !lease.delay.is_zero() {
+            tokio::select! {
+                biased;
+                _ = cancel.cancelled() => return self.job(id),
+                _ = tokio::time::sleep(lease.delay) => {}
+            }
+        }
+        let _lease = lease;
         let mut job = self.job(id)?;
         if job.state == "cancelled" {
             return Some(job);
         }
+        job.wait_reason = None;
         let conv = sanitize_id(&job.conversation_id);
         if let Some(ws) = job.workspace.clone().filter(|w| !w.is_empty()) {
             if let Err(e) = code_tools::set_conversation_workspace(&conv, Some(ws.into())) {
@@ -605,13 +1083,8 @@ impl Jobs {
                 return Some(job);
             }
         }
-        let cancel = CancellationToken::new();
-        self.cancels
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .insert(job.id.clone(), cancel.clone());
-        // Cancellation may have arrived after the initial read but before
-        // registration. Re-read its durable state before dispatching anything.
+        // Cancellation may have landed between the gate and here. Re-read
+        // its durable state before dispatching anything.
         if self
             .job(id)
             .is_none_or(|current| current.state == "cancelled")
@@ -625,6 +1098,28 @@ impl Jobs {
         }
         job.state = "running".into();
         job.started_ms = Some(now_ms());
+        // A mission brings its own guard; every other background job gets the
+        // default deadline (D4: a stuck run, Loop round or trigger can no
+        // longer hold a slot until the app closes).
+        let guard = self
+            .guards
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(id)
+            .cloned()
+            .or_else(|| {
+                let min = job.deadline_min.unwrap_or_else(|| {
+                    crate::commands::llm::watchdog::limits(&self.app).job_deadline_min
+                });
+                default_deadline_ms(&job.kind, job.started_ms.unwrap_or_default(), min).map(
+                    |deadline| JobGuard {
+                        deadline_ms: Some(deadline),
+                        check: None,
+                        deadline_reason: format!("the job ran past its {min} min deadline"),
+                    },
+                )
+            });
+        job.deadline_ms = guard.as_ref().and_then(|g| g.deadline_ms);
         if self.save_job_checked(&job).is_err() {
             cancel.cancel();
             self.cancels
@@ -662,6 +1157,26 @@ impl Jobs {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .insert(job.id.clone(), cancel.clone());
+        // Questions of this turn reach this loop through the bus forwarder
+        // (`on_bus`), the moment they are raised and resolved.
+        let (ask_tx, mut asks) = tokio::sync::mpsc::unbounded_channel::<AskSignal>();
+        self.watchers
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(request_id.clone(), (job.id.clone(), ask_tx));
+        self.live.lock().unwrap_or_else(|e| e.into_inner()).insert(
+            job.id.clone(),
+            Live {
+                request_id: request_id.clone(),
+                started_ms: job.started_ms.unwrap_or_default(),
+                last_event_ms: now_ms(),
+                deadline_ms: job.deadline_ms,
+            },
+        );
+        // A question raised before the watcher existed is still seen.
+        if self.llm.has_pending_ask(&request_id) {
+            job.state = "waiting_approval".into();
+        }
         let mut storage_failed = self.save_job_checked(&job).is_err();
         if storage_failed {
             cancel.cancel();
@@ -670,14 +1185,9 @@ impl Jobs {
         let mut text = String::new();
         let mut saw_finished = false;
         let mut error: Option<String> = None;
-        let guard = self
-            .guards
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .get(id)
-            .cloned();
-        // Set when the mission's guard stopped the job (cap or deadline).
+        // Set when a guard stopped the job (cap or deadline), with its kind.
         let mut limit_hit: Option<String> = None;
+        let mut limit_kind: Option<&'static str> = None;
         // Input tokens of the model requests so far (prune receipts), for the
         // guard's check between requests; the exact total arrives as `Usage`.
         let mut est_input: u64 = 0;
@@ -698,6 +1208,7 @@ impl Jobs {
             tokio::select! {
                 event = stream.next() => {
                     let Some(event) = event else { break };
+                    self.touch(&job.id);
                     self.llm.note_event(&job.agent_id, &event);
                     match event {
                         TurnEvent::Finished { .. } => saw_finished = true,
@@ -713,6 +1224,7 @@ impl Jobs {
                                 if let Err(why) = check(tokens, usd) {
                                     job.log.push_str(&format!("! {why}\n"));
                                     limit_hit = Some(why);
+                                    limit_kind = Some("limit");
                                     cancel.cancel();
                                 }
                             }
@@ -729,6 +1241,7 @@ impl Jobs {
                                 if let Err(why) = check(tokens, usd) {
                                     job.log.push_str(&format!("! {why}\n"));
                                     limit_hit = Some(why);
+                                    limit_kind = Some("limit");
                                     cancel.cancel();
                                 }
                             }
@@ -744,6 +1257,7 @@ impl Jobs {
                                 if let Err(why) = check(tokens, u["cost_usd"].as_f64()) {
                                     job.log.push_str(&format!("! {why}\n"));
                                     limit_hit = Some(why);
+                                    limit_kind = Some("limit");
                                     cancel.cancel();
                                 }
                             }
@@ -755,18 +1269,27 @@ impl Jobs {
                         _ => {}
                     }
                 }
+                Some(signal) = asks.recv() => {
+                    // A7: `waiting_approval` is born with the question itself.
+                    self.apply_ask(&mut job, &request_id, signal);
+                    if self.save_job_checked(&job).is_err() { storage_failed = true; cancel.cancel(); }
+                }
                 _ = tick.tick() => {
                     if let (Some(deadline), None) = (guard.as_ref().and_then(|g| g.deadline_ms), &limit_hit) {
                         if now_ms() > deadline {
                             let why = guard.as_ref().map(|g| g.deadline_reason.clone()).filter(|r| !r.is_empty()).unwrap_or_else(|| "the time limit was reached".into());
                             job.log.push_str(&format!("! {why}\n"));
                             limit_hit = Some(why);
+                            limit_kind = Some("deadline");
                             cancel.cancel();
                         }
                     }
-                    let waiting = self.llm.pending_ask_list().iter().any(|a| a["request_id"] == request_id.as_str());
+                    // Only a safety net for a bus event lost to lag: the
+                    // state itself follows the ask events above.
+                    let waiting = self.llm.has_pending_ask(&request_id);
                     let want = if waiting { "waiting_approval" } else { "running" };
                     if job.state != want {
+                        tracing::debug!("[jobs] {} reconciled to {want} by the tick", job.id);
                         job.state = want.into();
                         if self.save_job_checked(&job).is_err() { storage_failed = true; cancel.cancel(); }
                     }
@@ -775,6 +1298,14 @@ impl Jobs {
         }
         self.llm.finish_turn(&request_id, &job.agent_id);
         self.cancels
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&job.id);
+        self.watchers
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&request_id);
+        self.live
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .remove(&job.id);
@@ -795,18 +1326,368 @@ impl Jobs {
         .into();
         job.result = Some(clip(&text, RESULT_MAX));
         job.error = limit_hit.or(error);
+        // What the job changed, from the snapshots its turns took: host-side
+        // post-processing, not a token more (1.7). The Coordinator records
+        // the tree after the turn before the stream says `Finished`.
+        let requests: Vec<String> = earlier_request
+            .into_iter()
+            .chain(std::iter::once(request_id.clone()))
+            .collect();
+        self.record_diff(&mut job, &requests).await;
+        job.failure_reason = (job.state == "failed")
+            .then(|| {
+                limit_kind
+                    .or_else(|| job.error.as_deref().and_then(failure_reason_of))
+                    .map(String::from)
+            })
+            .flatten();
         job.finished_ms = Some(now_ms());
         self.save_job_checked(&job).ok()?;
         if let Some(tid) = job.trigger_id.clone() {
+            // Routines keep their own rule (only a changed result, muted).
             self.notify_routine(&tid, &job);
+        } else if job.kind == "run" && matches!(job.state.as_str(), "done" | "failed") {
+            let ok = job.state == "done";
+            let detail = if ok {
+                job.result.clone().unwrap_or_default()
+            } else {
+                job.error.clone().unwrap_or_default()
+            };
+            let first = detail.lines().find(|l| !l.trim().is_empty()).unwrap_or("");
+            self.attention.job_ended(&self.target_of(&job), ok, first);
         }
         Some(job)
+    }
+
+    /// Marks that the turn of a running job was just heard from.
+    fn touch(&self, job_id: &str) {
+        if let Some(l) = self
+            .live
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get_mut(job_id)
+        {
+            l.last_event_ms = now_ms();
+        }
+    }
+
+    /// Who a notification about this job names, and where it lives.
+    fn target_of(&self, job: &Job) -> crate::llm_attention::AttentionTarget {
+        crate::llm_attention::AttentionTarget {
+            job_id: job.id.clone(),
+            conversation_id: job.conversation_id.clone(),
+            agent: self
+                .llm
+                .agent(&job.agent_id)
+                .map(|a| a.name)
+                .filter(|n| !n.trim().is_empty())
+                .unwrap_or_else(|| job.agent_id.clone()),
+        }
+    }
+
+    /// One question event applied to a job's row (in memory; the caller
+    /// saves): the state follows the question at once, an unanswered one is
+    /// scheduled as a notification, and an expired one is written down with
+    /// its reason and said out loud — never a silent "no" (A3).
+    fn apply_ask(&self, job: &mut Job, request_id: &str, signal: AskSignal) {
+        match signal {
+            AskSignal::Opened {
+                tool_call_id,
+                tool,
+                preview,
+            } => {
+                job.state = "waiting_approval".into();
+                let llm = self.llm.clone();
+                self.attention.ask_opened(
+                    self.target_of(job),
+                    tool_call_id,
+                    tool,
+                    preview,
+                    Arc::new(move |call: &str| llm.has_pending_call(call)),
+                );
+            }
+            AskSignal::Resolved {
+                tool,
+                outcome,
+                waited_ms,
+            } => {
+                if outcome == "expired" {
+                    use omniget_core::core::llm::broker::ERR_TOOL_TIMEOUT;
+                    job.log.push_str(&format!(
+                        "! {ERR_TOOL_TIMEOUT}: nobody answered {tool} in {} s; it did not run\n",
+                        waited_ms / 1000
+                    ));
+                    job.log = clip(&job.log, LOG_MAX);
+                    self.attention.ask_expired(
+                        &self.target_of(job),
+                        &tool,
+                        std::time::Duration::from_millis(waited_ms),
+                    );
+                }
+                if job.state == "waiting_approval" && !self.llm.has_pending_ask(request_id) {
+                    job.state = "running".into();
+                }
+            }
+        }
+    }
+
+    /// Routes a bus event to the job it belongs to: the runner of a
+    /// background job (through its channel, so it stays the only writer of
+    /// its row), or the row of a chat turn directly.
+    fn handle_bus(&self, event: &omniget_core::core::omni::bus::BusEvent) {
+        use omniget_core::core::omni::bus::BusEvent;
+        let (request_id, signal) = match event {
+            BusEvent::ToolAsk {
+                request_id,
+                tool_call_id,
+                tool,
+                preview,
+                ..
+            } => (
+                request_id,
+                AskSignal::Opened {
+                    tool_call_id: tool_call_id.clone(),
+                    tool: tool.clone(),
+                    preview: preview.clone(),
+                },
+            ),
+            BusEvent::ToolAskResolved {
+                request_id,
+                tool,
+                outcome,
+                waited_ms,
+                ..
+            } => (
+                request_id,
+                AskSignal::Resolved {
+                    tool: tool.clone(),
+                    outcome: outcome.clone(),
+                    waited_ms: *waited_ms,
+                },
+            ),
+            _ => return,
+        };
+        let watcher = self
+            .watchers
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(request_id)
+            .map(|(_, tx)| tx.clone());
+        if let Some(tx) = watcher {
+            let _ = tx.send(signal);
+            return;
+        }
+        // A chat turn has no runner here: its mirror row is updated in place.
+        let row = self
+            .db()
+            .query_row(
+                &format!(
+                    "SELECT {JOB_COLS} FROM jobs WHERE request_id=?1 AND state IN ('running','waiting_approval') LIMIT 1"
+                ),
+                params![request_id],
+                row_to_job,
+            )
+            .optional()
+            .ok()
+            .flatten();
+        if let Some(mut job) = row {
+            self.apply_ask(&mut job, request_id, signal);
+            self.save_job(&job);
+            return;
+        }
+        // A turn with no job at all (Help, the stateless bridge): there is
+        // no row to write the reason to, but an expiry is still said out
+        // loud — the agent got ERR_TOOL_TIMEOUT, and so does the user.
+        if let (
+            BusEvent::ToolAskResolved { agent, .. },
+            AskSignal::Resolved {
+                tool,
+                outcome,
+                waited_ms,
+            },
+        ) = (event, &signal)
+        {
+            if outcome == "expired" {
+                let target = crate::llm_attention::AttentionTarget {
+                    job_id: request_id.clone(),
+                    conversation_id: String::new(),
+                    agent: self
+                        .llm
+                        .agent(agent)
+                        .map(|a| a.name)
+                        .unwrap_or_else(|| agent.clone()),
+                };
+                self.attention.ask_expired(
+                    &target,
+                    tool,
+                    std::time::Duration::from_millis(*waited_ms),
+                );
+            }
+        }
+    }
+
+    /// How long a question of this turn waits, when the turn is a running
+    /// background job; `None` = not one (the chat's timeout applies).
+    fn ask_timeout_for(&self, request_id: &str) -> Option<std::time::Duration> {
+        let deadline = self
+            .live
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .values()
+            .find(|l| l.request_id == request_id)
+            .map(|l| l.deadline_ms)?;
+        let ask_job = crate::commands::llm::watchdog::limits(&self.app).ask_job;
+        job_ask_timeout(now_ms(), deadline, ask_job)
+    }
+
+    /// `GET /v1/jobs/{id}/explain` and `omniget agent explain`.
+    pub fn explain(&self, id: &str) -> Option<Value> {
+        let job = self.job(id)?;
+        let live = self
+            .live
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(id)
+            .cloned();
+        let mut asks = self.llm.pending_ask_list();
+        for a in asks.iter_mut() {
+            if let (Some(at), Some(req)) = (a["asked_ms"].as_u64(), a["request_id"].as_str()) {
+                let wait = self.llm.ask_timeout_for(req).as_millis() as u64;
+                a["expires_ms"] = json!(at + wait);
+            }
+        }
+        let pid = job
+            .request_id
+            .as_deref()
+            .and_then(|r| omniget_core::core::assist::runs::active()?.run(r))
+            .and_then(|r| r.pid);
+        let mut v = explain_view(&job, live.as_ref(), now_ms(), &asks, pid);
+        // Still at the gate: where it stands and why (1.6).
+        let view = self.gate.snapshot();
+        if let Some(q) = view.queued.iter().find(|q| q.job_id == id) {
+            let mut queue = json!({
+                "position": q.position,
+                "of": view.queued.len(),
+                "reason": q.reason.code(),
+                "detail": wait_detail(&q.reason, &view, &q.agent_id),
+            });
+            if let WaitReason::Workspace { holder, .. } = &q.reason {
+                queue["holder"] = json!(holder);
+            }
+            v["queue"] = queue;
+        }
+        Some(v)
+    }
+
+    // ── the gate: folder, queue, limits (1.5, 1.6) ─────────────────────
+
+    /// The folder a job may write in: its own, or the one its conversation
+    /// is already bound to. `None` = a personal job (the agent's private
+    /// sandbox, no project tools), which takes no folder lock.
+    fn folder_of(&self, job: &Job) -> Option<omniget_core::core::llm::folder_key::FolderKey> {
+        job.workspace
+            .as_deref()
+            .filter(|w| !w.trim().is_empty())
+            .map(std::path::PathBuf::from)
+            .or_else(|| code_tools::workspace_of(&sanitize_id(&job.conversation_id)))
+            .map(|p| omniget_core::core::llm::folder_key::FolderKey::of(&p))
+    }
+
+    /// Writes the state and reason of every job still at the gate, only when
+    /// they changed, and sends `llm://queue`. Only a row still `queued` or
+    /// `waiting_workspace` is touched, so a cancel is never overwritten.
+    fn report_queue(&self, reported: &mut HashMap<String, (&'static str, String)>) {
+        let view = self.gate.snapshot();
+        let mut still = std::collections::HashSet::new();
+        for q in &view.queued {
+            still.insert(q.job_id.clone());
+            let want = wait_state(&q.reason);
+            if reported.get(&q.job_id) == Some(&want) {
+                continue;
+            }
+            let changed = self
+                .db()
+                .execute(
+                    "UPDATE jobs SET state=?2, wait_reason=?3, \
+                     state_seq = state_seq + (CASE WHEN state=?2 THEN 0 ELSE 1 END) \
+                     WHERE id=?1 AND state IN ('queued','waiting_workspace') \
+                     AND (state<>?2 OR IFNULL(wait_reason,'')<>?3)",
+                    params![q.job_id, want.0, want.1],
+                )
+                .unwrap_or(0);
+            if changed > 0 {
+                if let Some(mut job) = self.job(&q.job_id) {
+                    job.log = clip(&job.log, 4096);
+                    let _ = self.app.emit(EVENT_JOB, &job);
+                }
+            }
+            reported.insert(q.job_id.clone(), want);
+        }
+        reported.retain(|id, _| still.contains(id));
+        let _ = self
+            .app
+            .emit(EVENT_QUEUE, state_view(&view, &|id| self.job(id)));
+    }
+
+    /// `GET /v1/state`, `llm_jobs_state`, `omniget agent status`.
+    pub fn state_view(&self) -> Value {
+        state_view(&self.gate.snapshot(), &|id| self.job(id))
+    }
+
+    /// New caps from the settings, applied to running jobs at once (no
+    /// permit lost or made up, see `job_gate`).
+    pub fn apply_limits(&self, s: &omniget_core::models::settings::LlmSettings) {
+        let l = gate_limits(s);
+        self.gate.set_limits(l.max_parallel, l.max_per_agent);
+    }
+
+    /// The parallel cap now: how many tasks a mission sends to the gate at
+    /// once (the gate still orders them behind manual jobs).
+    pub fn max_parallel(&self) -> usize {
+        self.gate.limits().max_parallel
+    }
+
+    /// Folders of the turns running right now in other conversations: jobs
+    /// and chat turns (mirrored as `chat` jobs). The undo guard refuses to
+    /// restore files that overlap any of them.
+    pub fn live_folders(&self, except_conversation: &str) -> Vec<std::path::PathBuf> {
+        let except = sanitize_id(except_conversation);
+        let rows: Vec<(String, Option<String>)> = {
+            let db = self.db();
+            let Ok(mut stmt) = db.prepare(
+                "SELECT conversation_id, workspace FROM jobs WHERE state IN ('running','waiting_approval')",
+            ) else {
+                return Vec::new();
+            };
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+                .map(|rows| rows.filter_map(Result::ok).collect())
+                .unwrap_or_default()
+        };
+        rows.into_iter()
+            .filter(|(conv, _)| sanitize_id(conv) != except)
+            .filter_map(|(conv, ws)| {
+                ws.filter(|w| !w.trim().is_empty())
+                    .map(std::path::PathBuf::from)
+                    .or_else(|| code_tools::workspace_of(&sanitize_id(&conv)))
+            })
+            .collect()
+    }
+
+    /// The user opened this job: its "not seen" badge goes away.
+    pub fn mark_seen(&self, id: &str) -> Result<Job, String> {
+        self.db()
+            .execute(
+                "UPDATE jobs SET seen_ms=?2 WHERE id=?1",
+                params![id, now_ms() as i64],
+            )
+            .map_err(|e| format!("{ERR_JOBS}: {e}"))?;
+        self.job(id).ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))
     }
 
     /// A routine's result reaches the user only when it changed and the
     /// routine is not silenced.
     fn notify_routine(&self, trigger_id: &str, job: &Job) {
-        let Some(mut t) = self.trigger(trigger_id) else {
+        let Some(t) = self.trigger(trigger_id) else {
             return;
         };
         let body = match job.state.as_str() {
@@ -817,9 +1698,11 @@ impl Jobs {
         let Some(digest) = routine_digest(&t, &body) else {
             return;
         };
-        t.last_digest = Some(digest);
-        t.last_notified_ms = Some(now_ms());
-        self.store_trigger(&t);
+        let notified = now_ms();
+        self.update_trigger(trigger_id, |t| {
+            t.last_digest = Some(digest);
+            t.last_notified_ms = Some(notified);
+        });
         use tauri_plugin_notification::NotificationExt;
         let text: String = body.trim().chars().take(180).collect();
         let _ = self
@@ -920,7 +1803,10 @@ impl Jobs {
             .into_iter()
             .filter(|j| {
                 j.loop_id.as_deref() == Some(id)
-                    && matches!(j.state.as_str(), "queued" | "running" | "waiting_approval")
+                    && matches!(
+                        j.state.as_str(),
+                        "queued" | "waiting_workspace" | "running" | "waiting_approval"
+                    )
             })
             .map(|j| j.id)
             .collect();
@@ -1028,6 +1914,7 @@ impl Jobs {
                 }
             };
             job.loop_id = Some(l.id.clone());
+            job.deadline_min = l.deadline_min;
             self.save_job(&job);
             let done = self.run_job(&job.id, None).await;
             l.rounds_done = round;
@@ -1080,6 +1967,25 @@ impl Jobs {
         }
         l.finished_ms = Some(now_ms());
         self.save_loop(&l);
+        // A Loop is one piece of background work: it says so once, when it
+        // ends, not after every round.
+        if matches!(l.state.as_str(), "done" | "failed") {
+            let target = crate::llm_attention::AttentionTarget {
+                job_id: l.id.clone(),
+                conversation_id: l.conversation_id.clone(),
+                agent: self
+                    .llm
+                    .agent(&l.agent_id)
+                    .map(|a| a.name)
+                    .unwrap_or_else(|| l.agent_id.clone()),
+            };
+            let detail = format!(
+                "{} · {}",
+                l.name,
+                l.stop_reason.clone().unwrap_or_default()
+            );
+            self.attention.job_ended(&target, l.state == "done", &detail);
+        }
     }
 
     // ── boot ─────────────────────────────────────────────────────────
@@ -1088,14 +1994,22 @@ impl Jobs {
         let open: Vec<Job> = self
             .list(500)
             .into_iter()
-            .filter(|j| matches!(j.state.as_str(), "queued" | "running" | "waiting_approval"))
+            .filter(|j| {
+                matches!(
+                    j.state.as_str(),
+                    "queued" | "waiting_workspace" | "running" | "waiting_approval"
+                )
+            })
             .collect();
         for stale in open {
             let Some(mut job) = self.job(&stale.id) else {
                 continue;
             };
-            let never_sent =
-                job.state == "queued" && job.request_id.is_none() && job.started_ms.is_none();
+            // A job still at the gate (queued or waiting for its folder) was
+            // never sent: the queue is rebuilt by starting it again.
+            let never_sent = matches!(job.state.as_str(), "queued" | "waiting_workspace")
+                && job.request_id.is_none()
+                && job.started_ms.is_none();
             // Mission jobs are driven (and reconciled) by the mission driver.
             if never_sent && job.loop_id.is_none() && job.kind != "chat" && job.kind != "mission" {
                 // Provably never dispatched: safe to start now.
@@ -1228,72 +2142,98 @@ impl Jobs {
     // ── triggers ─────────────────────────────────────────────────────
 
     pub fn triggers(&self) -> Vec<Trigger> {
-        let db = self.db();
-        let Ok(mut stmt) = db.prepare("SELECT body FROM triggers") else {
-            return Vec::new();
-        };
-        let mut out: Vec<Trigger> = stmt
-            .query_map([], |r| r.get::<_, String>(0))
-            .map(|rows| {
-                rows.filter_map(Result::ok)
-                    .filter_map(|b| serde_json::from_str(&b).ok())
-                    .collect()
-            })
-            .unwrap_or_default();
-        out.sort_by_key(|j| j.created_ms);
-        out
+        read_triggers(&self.db())
     }
 
     pub fn trigger(&self, id: &str) -> Option<Trigger> {
-        self.triggers().into_iter().find(|t| t.id == id)
+        read_trigger(&self.db(), id)
     }
 
-    fn store_trigger(&self, t: &Trigger) {
-        if let Ok(body) = serde_json::to_string(t) {
-            let _ = self.db().execute(
-                "INSERT OR REPLACE INTO triggers (id, body) VALUES (?1, ?2)",
-                params![t.id, body],
-            );
-        }
+    /// Read, change and write one routine's body under one lock, so two
+    /// writers (a firing and a notification, say) never lose each other's
+    /// counters. The schedule column is not touched.
+    fn update_trigger(&self, id: &str, change: impl FnOnce(&mut Trigger)) -> Option<Trigger> {
+        let t = {
+            let db = self.db();
+            let mut t = read_trigger(&db, id)?;
+            change(&mut t);
+            if let Err(e) = write_trigger_body(&db, &t) {
+                tracing::warn!("[jobs] trigger {id}: {e}");
+                return None;
+            }
+            t
+        };
+        let _ = self.app.emit(EVENT_TRIGGER, trigger_view(&t));
+        Some(t)
     }
 
     pub fn trigger_save(self: &Arc<Self>, mut t: Trigger) -> Result<Trigger, String> {
         if self.llm.agent(&t.agent_id).is_none() {
             return Err(format!("{ERR_JOBS}: no agent `{}`", t.agent_id));
         }
-        match t.kind.as_str() {
-            "cron" => {
-                Cron::parse(t.cron.as_deref().unwrap_or(""))?;
+        let cron = match t.kind.as_str() {
+            "cron" => Some(Cron::parse(t.cron.as_deref().unwrap_or(""))?),
+            "webhook" => {
+                t.cron = None;
+                None
             }
-            "webhook" => t.cron = None,
             other => return Err(format!("{ERR_JOBS}: unknown trigger kind `{other}`")),
-        }
-        if t.id.is_empty() {
-            t.id = short_id("t");
-            t.created_ms = now_ms();
-        } else if let Some(old) = self.trigger(&t.id) {
-            t.created_ms = old.created_ms;
-            t.fire_count = old.fire_count;
-            t.last_fired_ms = old.last_fired_ms;
-            t.last_digest = old.last_digest;
-            t.last_notified_ms = old.last_notified_ms;
+        };
+        if parse_zone(&t.tz).is_none() {
+            tracing::warn!(
+                "[jobs] trigger zone `{}` is not local, UTC or ±HH:MM; this machine's zone is used",
+                t.tz
+            );
         }
         if t.name.trim().is_empty() {
             t.name = t.prompt.chars().take(48).collect();
         }
-        self.store_trigger(&t);
+        {
+            let db = self.db();
+            let old = (!t.id.is_empty()).then(|| read_trigger(&db, &t.id)).flatten();
+            if t.id.is_empty() {
+                t.id = short_id("t");
+            }
+            // A save that keeps the line, the zone and the switch keeps the
+            // schedule (and what waits to catch up); anything else starts
+            // over from now: turning a routine back on does not recover the
+            // time it was off.
+            let same = old.as_ref().is_some_and(|o| {
+                o.kind == t.kind && o.cron == t.cron && o.tz == t.tz && o.enabled == t.enabled
+            });
+            match &old {
+                Some(o) => {
+                    t.created_ms = o.created_ms;
+                    t.fire_count = o.fire_count;
+                    t.last_fired_ms = o.last_fired_ms;
+                    t.last_digest = o.last_digest.clone();
+                    t.last_notified_ms = o.last_notified_ms;
+                    t.missed = o.missed;
+                    t.last_missed_ms = o.last_missed_ms;
+                    t.last_run_id = o.last_run_id.clone();
+                    t.backlog = if same { o.backlog } else { 0 };
+                }
+                None => {
+                    t.created_ms = now_ms();
+                    t.backlog = 0;
+                }
+            }
+            t.next_run_ms = match (&old, &cron) {
+                (Some(o), _) if same => o.next_run_ms,
+                (_, Some(c)) if t.enabled => c.next_after(now_ms() as i64, &t.tz),
+                _ => None,
+            };
+            set_schedule(&db, &t)?;
+        }
+        let _ = self.app.emit(EVENT_TRIGGER, trigger_view(&t));
         self.clone().ensure_cron();
         Ok(t)
     }
 
     /// Silence (or unsilence) a routine without touching its schedule.
     pub fn trigger_mute(&self, id: &str, muted: bool) -> Result<Trigger, String> {
-        let mut t = self
-            .trigger(id)
-            .ok_or_else(|| format!("{ERR_JOBS}: no trigger {id}"))?;
-        t.muted = muted;
-        self.store_trigger(&t);
-        Ok(t)
+        self.update_trigger(id, |t| t.muted = muted)
+            .ok_or_else(|| format!("{ERR_JOBS}: no trigger {id}"))
     }
 
     pub fn trigger_delete(&self, id: &str) -> Result<(), String> {
@@ -1304,7 +2244,7 @@ impl Jobs {
     }
 
     pub fn fire(self: &Arc<Self>, id: &str, body: Option<&str>) -> Result<Job, String> {
-        let mut t = self
+        let t = self
             .trigger(id)
             .ok_or_else(|| format!("{ERR_JOBS}: no trigger {id}"))?;
         if !t.enabled {
@@ -1320,9 +2260,7 @@ impl Jobs {
         };
         if let Some(template) = t.mission.clone() {
             let mission_id = crate::missions::start_from_trigger(&self.app, &t, &prompt, template)?;
-            t.last_fired_ms = Some(now_ms());
-            t.fire_count += 1;
-            self.store_trigger(&t);
+            self.note_fired(&t.id, &mission_id);
             return Ok(Job {
                 id: mission_id,
                 kind: "mission".into(),
@@ -1334,21 +2272,31 @@ impl Jobs {
                 ..Default::default()
             });
         }
-        let job = self.submit(
+        let job = self.submit_with_deadline(
             "trigger",
             &t.agent_id,
             &prompt,
             t.workspace.clone(),
             None,
             Some(t.id.clone()),
+            t.deadline_min,
         )?;
-        t.last_fired_ms = Some(now_ms());
-        t.fire_count += 1;
-        self.store_trigger(&t);
+        self.note_fired(&t.id, &job.id);
         Ok(job)
     }
 
-    /// The ticker only exists while some cron trigger is enabled.
+    fn note_fired(&self, id: &str, run_id: &str) {
+        let at = now_ms();
+        self.update_trigger(id, |t| {
+            t.last_fired_ms = Some(at);
+            t.fire_count += 1;
+            t.last_run_id = Some(run_id.to_string());
+        });
+    }
+
+    /// The ticker only exists while some cron trigger is enabled. Its first
+    /// pass runs at once with no grace: whatever came due while the app was
+    /// closed is a missed time and follows the routine's policy (1.4).
     fn ensure_cron(self: Arc<Self>) {
         let has = |this: &Jobs| {
             this.triggers()
@@ -1359,34 +2307,55 @@ impl Jobs {
             return;
         }
         tauri::async_runtime::spawn(async move {
+            self.cron_tick(0);
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(CRON_TICK_S)).await;
                 if !has(&self) {
                     self.cron_running.store(false, Ordering::SeqCst);
                     return;
                 }
-                let now = chrono::Local::now();
-                let minute = now.timestamp() / 60;
-                for t in self
-                    .triggers()
-                    .into_iter()
-                    .filter(|t| t.enabled && t.kind == "cron")
-                {
-                    let fired_this_minute = t
-                        .last_fired_ms
-                        .map(|ms| (ms / 60_000) as i64 == minute)
-                        .unwrap_or(false);
-                    let due = Cron::parse(t.cron.as_deref().unwrap_or(""))
-                        .map(|c| c.matches(&now))
-                        .unwrap_or(false);
-                    if due && !fired_this_minute {
-                        if let Err(e) = self.fire(&t.id, None) {
-                            tracing::warn!("[jobs] cron {}: {e}", t.id);
-                        }
-                    }
-                }
+                self.cron_tick(CRON_GRACE_MS);
             }
         });
+    }
+
+    /// One pass over the cron routines: each due one is claimed with a
+    /// compare-and-set on its schedule before anything starts, so no time
+    /// fires twice (this pass, the next one, or after a restart).
+    fn cron_tick(self: &Arc<Self>, grace_ms: i64) {
+        let _pass = self.cron_pass.lock().unwrap_or_else(|e| e.into_inner());
+        let now = now_ms() as i64;
+        for t in self
+            .triggers()
+            .into_iter()
+            .filter(|t| t.enabled && t.kind == "cron")
+        {
+            let mission_active = t.mission.is_some()
+                && t.last_run_id.as_deref().is_some_and(|m| {
+                    crate::missions::driver(&self.app).is_ok_and(|d| d.is_driving(m))
+                });
+            let claimed = claim_due(&self.db(), &t.id, now, grace_ms, mission_active);
+            let Some((t, plan)) = claimed else { continue };
+            if plan.missed_slots > 0 || plan.skipped_active > 0 {
+                tracing::info!(
+                    "[jobs] cron {}: missed={} caught_up={} skipped_active={} backlog={} policy={:?}/{:?}",
+                    t.id,
+                    plan.missed_slots,
+                    plan.caught_up,
+                    plan.skipped_active,
+                    plan.backlog,
+                    t.catch_up,
+                    t.concurrency
+                );
+            }
+            for _ in 0..plan.fire_now {
+                if let Err(e) = self.fire(&t.id, None) {
+                    tracing::warn!("[jobs] cron {}: {e}", t.id);
+                }
+            }
+            let latest = self.trigger(&t.id).unwrap_or(t);
+            let _ = self.app.emit(EVENT_TRIGGER, trigger_view(&latest));
+        }
     }
 }
 
@@ -1483,9 +2452,9 @@ impl Cron {
 
 impl Cron {
     /// The next minute this line fires, strictly after `from`, in `from`'s
-    /// time zone (the user's, `chrono::Local`, for the UI). `None` when it
-    /// never fires within a year (e.g. `0 0 31 2 *`).
-    pub fn next_after<Tz: chrono::TimeZone>(
+    /// time zone. `None` when it never fires within a year (e.g.
+    /// `0 0 31 2 *`).
+    pub fn next_after_at<Tz: chrono::TimeZone>(
         &self,
         from: &chrono::DateTime<Tz>,
     ) -> Option<chrono::DateTime<Tz>> {
@@ -1495,10 +2464,307 @@ impl Cron {
             if self.matches(&t) {
                 return Some(t);
             }
-            t = t + chrono::Duration::minutes(1);
+            t += chrono::Duration::minutes(1);
         }
         None
     }
+
+    /// [`Self::next_after_at`] on epoch milliseconds, with the wall clock of
+    /// the routine's zone (`tz`, see [`zone_of`]).
+    pub fn next_after(&self, ts_ms: i64, tz: &str) -> Option<i64> {
+        use chrono::TimeZone;
+        match zone_of(tz) {
+            Zone::Local => {
+                let from = chrono::Local.timestamp_millis_opt(ts_ms).single()?;
+                self.next_after_at(&from).map(|d| d.timestamp_millis())
+            }
+            Zone::Fixed(offset) => {
+                let from = offset.timestamp_millis_opt(ts_ms).single()?;
+                self.next_after_at(&from).map(|d| d.timestamp_millis())
+            }
+        }
+    }
+}
+
+// ── cron: durable schedule (1.4) ──────────────────────────────────────
+
+/// The zone a routine's cron line is read in.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Zone {
+    /// This machine's zone, looked up at every computation (daylight saving
+    /// follows the OS).
+    Local,
+    Fixed(chrono::FixedOffset),
+}
+
+/// `local` (or empty), `UTC`, `+HH:MM`, `-HHMM`, `+HH`. `None` for anything
+/// else: IANA names (`America/Sao_Paulo`) would need the tz database
+/// (`chrono-tz`), which the app does not carry.
+pub fn parse_zone(tz: &str) -> Option<Zone> {
+    let tz = tz.trim();
+    if tz.is_empty() || tz.eq_ignore_ascii_case("local") {
+        return Some(Zone::Local);
+    }
+    if tz.eq_ignore_ascii_case("utc") || tz == "Z" {
+        return chrono::FixedOffset::east_opt(0).map(Zone::Fixed);
+    }
+    let (sign, rest) = match tz.as_bytes().first()? {
+        b'+' => (1, &tz[1..]),
+        b'-' => (-1, &tz[1..]),
+        _ => return None,
+    };
+    let digits: String = rest.chars().filter(|c| *c != ':').collect();
+    if !digits.chars().all(|c| c.is_ascii_digit()) || !matches!(digits.len(), 2 | 4) {
+        return None;
+    }
+    let hours: i32 = digits[..2].parse().ok()?;
+    let minutes: i32 = if digits.len() == 4 { digits[2..].parse().ok()? } else { 0 };
+    if hours > 14 || minutes > 59 {
+        return None;
+    }
+    chrono::FixedOffset::east_opt(sign * (hours * 3600 + minutes * 60)).map(Zone::Fixed)
+}
+
+/// [`parse_zone`], with an unknown zone read as this machine's (logged when
+/// the routine is saved).
+pub fn zone_of(tz: &str) -> Zone {
+    parse_zone(tz).unwrap_or(Zone::Local)
+}
+
+/// A scheduled time that is at most this late when the ticker sees it still
+/// runs as itself (a tick that came late is not a "missed" run). On boot the
+/// grace is 0: the app was closed, every time that passed is missed.
+pub const CRON_GRACE_MS: i64 = 3 * CRON_TICK_S as i64 * 1000;
+/// Counting missed times stops here (a year closed with `*/1`).
+const MISSED_COUNT_MAX: u32 = 10_000;
+
+/// What one pass of the cron ticker does with one routine.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TickPlan {
+    /// Jobs to start now.
+    pub fire_now: u32,
+    /// Catch-up runs left for the next passes (the new `Trigger.backlog`).
+    pub backlog: u32,
+    /// Scheduled times that passed with nothing to run them.
+    pub missed_slots: u32,
+    /// How many of those will still run (now or from the backlog).
+    pub caught_up: u32,
+    /// Runs of this pass not started because the last run is still going.
+    pub skipped_active: u32,
+    /// To add to `Trigger.missed`.
+    pub not_run: u32,
+    pub next_run_ms: Option<i64>,
+}
+
+/// The pure half of the cron: given the routine as stored, the time, how
+/// late a time may be seen and still run as itself (`grace_ms`), and whether
+/// its last run is still going, what to start and what to count. Every
+/// branch is decided here, so the clock can be injected in tests.
+pub fn plan_tick(t: &Trigger, cron: &Cron, now_ms: i64, grace_ms: i64, active: bool) -> TickPlan {
+    let mut plan = TickPlan {
+        backlog: t.backlog.min(CATCH_UP_CAP),
+        next_run_ms: t.next_run_ms,
+        ..Default::default()
+    };
+    // A routine the ticker never saw (just migrated, just enabled) starts
+    // from now: nothing before it counts as missed.
+    let Some(first) = t.next_run_ms else {
+        plan.next_run_ms = cron.next_after(now_ms, &t.tz);
+        return plan;
+    };
+    let mut runs = 0;
+    if first <= now_ms {
+        let (mut due, mut last, mut slot) = (0u32, first, Some(first));
+        while let Some(s) = slot.filter(|s| *s <= now_ms && due < MISSED_COUNT_MAX) {
+            due += 1;
+            last = s;
+            slot = cron.next_after(s, &t.tz);
+        }
+        let on_time = u32::from(due > 0 && now_ms - last <= grace_ms);
+        let missed = due - on_time;
+        let catch = match t.catch_up {
+            CatchUp::Skip => 0,
+            CatchUp::Once => u32::from(missed > 0 && on_time == 0),
+            CatchUp::AllCapped => missed.min(CATCH_UP_CAP - on_time),
+        };
+        plan.missed_slots = missed;
+        plan.caught_up = catch;
+        plan.not_run = missed - catch;
+        runs = on_time + catch;
+        plan.next_run_ms = cron.next_after(now_ms, &t.tz);
+    }
+    let pending = (runs + plan.backlog).min(CATCH_UP_CAP);
+    match t.concurrency {
+        TriggerConcurrency::Queue => {
+            plan.fire_now = pending;
+            plan.backlog = 0;
+        }
+        // The runs of this pass are skipped while the last one goes on; the
+        // catch-up already waiting keeps waiting (and goes one at a time).
+        TriggerConcurrency::SkipIfActive if active => {
+            plan.skipped_active = runs;
+            plan.not_run += runs;
+            plan.caught_up = 0;
+        }
+        TriggerConcurrency::SkipIfActive => {
+            plan.fire_now = u32::from(pending > 0);
+            plan.backlog = pending.saturating_sub(1);
+        }
+    }
+    plan
+}
+
+// Trigger rows: the JSON body, plus the schedule in a column of its own.
+// The schedule is the one field two writers race on (the ticker, the boot
+// pass, a webhook firing, a save), so it is never rewritten from a copy of
+// the body: only `cas_schedule` (the ticker) and `set_schedule` (a save that
+// changed the line) move it.
+
+fn trigger_of(body: &str, next_run_ms: Option<i64>) -> Option<Trigger> {
+    let mut t: Trigger = serde_json::from_str(body).ok()?;
+    t.next_run_ms = next_run_ms;
+    Some(t)
+}
+
+pub fn read_triggers(db: &Connection) -> Vec<Trigger> {
+    let Ok(mut stmt) = db.prepare("SELECT body, next_run_ms FROM triggers") else {
+        return Vec::new();
+    };
+    let mut out: Vec<Trigger> = stmt
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<i64>>(1)?)))
+        .map(|rows| {
+            rows.filter_map(Result::ok)
+                .filter_map(|(body, next)| trigger_of(&body, next))
+                .collect()
+        })
+        .unwrap_or_default();
+    out.sort_by_key(|t| t.created_ms);
+    out
+}
+
+pub fn read_trigger(db: &Connection, id: &str) -> Option<Trigger> {
+    db.query_row(
+        "SELECT body, next_run_ms FROM triggers WHERE id=?1",
+        params![id],
+        |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<i64>>(1)?)),
+    )
+    .optional()
+    .ok()
+    .flatten()
+    .and_then(|(body, next)| trigger_of(&body, next))
+}
+
+/// Writes the body. A new row takes its schedule from `t`; an existing row
+/// keeps the schedule it has.
+pub fn write_trigger_body(db: &Connection, t: &Trigger) -> Result<(), String> {
+    let body = serde_json::to_string(t).map_err(|e| e.to_string())?;
+    db.execute(
+        "INSERT INTO triggers (id, body, next_run_ms) VALUES (?1, ?2, ?3)
+         ON CONFLICT(id) DO UPDATE SET body=excluded.body",
+        params![t.id, body, t.next_run_ms],
+    )
+    .map(|_| ())
+    .map_err(|e| format!("{ERR_JOBS}: {e}"))
+}
+
+/// Writes body and schedule, whatever the schedule was (a save).
+fn set_schedule(db: &Connection, t: &Trigger) -> Result<(), String> {
+    let body = serde_json::to_string(t).map_err(|e| e.to_string())?;
+    db.execute(
+        "INSERT INTO triggers (id, body, next_run_ms) VALUES (?1, ?2, ?3)
+         ON CONFLICT(id) DO UPDATE SET body=excluded.body, next_run_ms=excluded.next_run_ms",
+        params![t.id, body, t.next_run_ms],
+    )
+    .map(|_| ())
+    .map_err(|e| format!("{ERR_JOBS}: {e}"))
+}
+
+/// Compare-and-set: writes `t` (body and schedule) only if the stored
+/// schedule is still `seen`. `true` = this caller owns the times it planned;
+/// `false` = someone else already moved it, fire nothing.
+pub fn cas_schedule(db: &Connection, t: &Trigger, seen: Option<i64>) -> bool {
+    let Ok(body) = serde_json::to_string(t) else {
+        return false;
+    };
+    db.execute(
+        "UPDATE triggers SET body=?2, next_run_ms=?3 WHERE id=?1 AND next_run_ms IS ?4",
+        params![t.id, body, t.next_run_ms, seen],
+    )
+    .map(|n| n == 1)
+    .unwrap_or(false)
+}
+
+/// Routines saved before the durable schedule get one computed from now
+/// (the times before this version are not "missed"). Idempotent: rows that
+/// have a schedule are left alone.
+fn migrate_triggers(db: &Connection, now_ms: i64) {
+    let rows: Vec<(String, String)> = db
+        .prepare("SELECT id, body FROM triggers WHERE next_run_ms IS NULL")
+        .and_then(|mut stmt| {
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+                .map(|rows| rows.filter_map(Result::ok).collect())
+        })
+        .unwrap_or_default();
+    for (id, body) in rows {
+        let Some(mut t) = trigger_of(&body, None) else {
+            continue;
+        };
+        if !(t.enabled && t.kind == "cron") {
+            continue;
+        }
+        t.next_run_ms = Cron::parse(t.cron.as_deref().unwrap_or(""))
+            .ok()
+            .and_then(|c| c.next_after(now_ms, &t.tz));
+        if t.next_run_ms.is_some() && !cas_schedule(db, &t, None) {
+            tracing::debug!("[jobs] trigger {id}: migrated by someone else");
+        }
+    }
+}
+
+/// A job of this routine has not finished yet.
+pub fn trigger_busy(db: &Connection, id: &str) -> bool {
+    db.query_row(
+        "SELECT EXISTS(SELECT 1 FROM jobs WHERE trigger_id=?1 AND state IN ('queued','waiting_workspace','running','waiting_approval'))",
+        params![id],
+        |r| r.get::<_, bool>(0),
+    )
+    .unwrap_or(false)
+}
+
+/// One routine, one pass of the ticker: plans with [`plan_tick`] and, if
+/// anything changes, takes it with [`cas_schedule`]. `Some` only for the
+/// caller that won: it starts `plan.fire_now` runs; a loser (or a routine
+/// with nothing due) gets `None`. `mission_active` covers a routine whose
+/// last firing was a mission still running (the jobs table does not know).
+pub fn claim_due(
+    db: &Connection,
+    id: &str,
+    now_ms: i64,
+    grace_ms: i64,
+    mission_active: bool,
+) -> Option<(Trigger, TickPlan)> {
+    let t = read_trigger(db, id)?;
+    if !(t.enabled && t.kind == "cron") {
+        return None;
+    }
+    let cron = Cron::parse(t.cron.as_deref().unwrap_or("")).ok()?;
+    let active = mission_active || trigger_busy(db, id);
+    let plan = plan_tick(&t, &cron, now_ms, grace_ms, active);
+    let unchanged = plan.fire_now == 0
+        && plan.not_run == 0
+        && plan.backlog == t.backlog
+        && plan.next_run_ms == t.next_run_ms;
+    if unchanged {
+        return None;
+    }
+    let mut next = t.clone();
+    next.next_run_ms = plan.next_run_ms;
+    next.backlog = plan.backlog;
+    next.missed = next.missed.saturating_add(plan.not_run);
+    if plan.not_run > 0 {
+        next.last_missed_ms = Some(now_ms.max(0) as u64);
+    }
+    cas_schedule(db, &next, t.next_run_ms).then_some((next, plan))
 }
 
 /// `Some(new digest)` when a routine result should notify: not silenced and
@@ -1518,17 +2784,24 @@ pub fn routine_digest(t: &Trigger, body: &str) -> Option<String> {
 /// A trigger as the UI shows it: next run in the user's zone, and the plain
 /// fact that a routine only runs while OmniGet is open.
 pub fn trigger_view(t: &Trigger) -> Value {
+    use chrono::TimeZone;
     let now = chrono::Local::now();
+    // The stored schedule; a routine the ticker has not seen yet shows the
+    // time it will get.
     let next = if t.enabled && t.kind == "cron" {
-        Cron::parse(t.cron.as_deref().unwrap_or(""))
-            .ok()
-            .and_then(|c| c.next_after(&now))
+        t.next_run_ms.or_else(|| {
+            Cron::parse(t.cron.as_deref().unwrap_or(""))
+                .ok()
+                .and_then(|c| c.next_after(now.timestamp_millis(), &t.tz))
+        })
     } else {
         None
     };
+    let local = next.and_then(|ms| chrono::Local.timestamp_millis_opt(ms).single());
     let mut v = serde_json::to_value(t).unwrap_or(Value::Null);
-    v["next_run_ms"] = json!(next.map(|d| d.timestamp_millis()));
-    v["next_run_local"] = json!(next.map(|d| d.format("%Y-%m-%d %H:%M").to_string()));
+    v["next_run_ms"] = json!(next);
+    v["next_run_local"] = json!(local.map(|d| d.format("%Y-%m-%d %H:%M").to_string()));
+    v["zone_known"] = json!(parse_zone(&t.tz).is_some());
     v["utc_offset"] = json!(now.format("%:z").to_string());
     v["requires_app_open"] = json!(true);
     v
@@ -1543,6 +2816,791 @@ pub fn bridge_info(app: &AppHandle) -> Value {
     })
 }
 
+// ── watchdog, deadline and asks: the pure half (1.2, 1.3) ─────────────
+
+/// What a running job's explain reads besides its row.
+#[derive(Debug, Clone, Default)]
+pub struct Live {
+    pub request_id: String,
+    pub started_ms: u64,
+    /// Last event of the turn's stream (any kind).
+    pub last_event_ms: u64,
+    pub deadline_ms: Option<u64>,
+}
+
+/// The `state_seq` a save writes: the stored one, plus one when the state
+/// changes. A new row starts at 1.
+pub fn next_state_seq(stored: Option<(&str, i64)>, new_state: &str) -> i64 {
+    match stored {
+        None => 1,
+        Some((state, seq)) if state == new_state => seq,
+        Some((_, seq)) => seq + 1,
+    }
+}
+
+/// The one-word reason of a failed job, read off the error it ended with.
+pub fn failure_reason_of(error: &str) -> Option<&'static str> {
+    use omniget_core::core::llm::broker::ERR_TOOL_TIMEOUT;
+    use omniget_core::core::llm::cli_runtime::{ERR_CLI_NO_START, ERR_CLI_STALLED};
+    if error.starts_with(ERR_CLI_STALLED) {
+        Some("stalled")
+    } else if error.starts_with(ERR_CLI_NO_START) {
+        Some("no_start")
+    } else if error.starts_with(ERR_TOOL_TIMEOUT) {
+        Some("ask_expired")
+    } else {
+        None
+    }
+}
+
+/// D4: the deadline of a background job that has no guard of its own. A chat
+/// turn has a person in front of it; a mission brings its own guard.
+pub fn default_deadline_ms(kind: &str, started_ms: u64, deadline_min: u32) -> Option<u64> {
+    matches!(kind, "run" | "loop" | "trigger")
+        .then(|| started_ms + u64::from(deadline_min) * 60_000)
+}
+
+/// How long a question of a background job waits: the explicit setting, or
+/// what is left of the job's deadline (79#P4). `None` = not a job with a
+/// deadline (the chat's timeout applies).
+pub fn job_ask_timeout(
+    now_ms: u64,
+    deadline_ms: Option<u64>,
+    ask_job: Option<std::time::Duration>,
+) -> Option<std::time::Duration> {
+    ask_job.or_else(|| {
+        deadline_ms.map(|d| std::time::Duration::from_millis(d.saturating_sub(now_ms)))
+    })
+}
+
+/// `GET /v1/jobs/{id}/explain`: why the job is in its state right now
+/// (79#P8). `asks` are the pending questions of its turn (each with
+/// `asked_ms` and, when known, `expires_ms`); `pid` only ever leaves through
+/// the local bridge, never through MCP.
+pub fn explain_view(
+    job: &Job,
+    live: Option<&Live>,
+    now_ms: u64,
+    asks: &[Value],
+    pid: Option<i64>,
+) -> Value {
+    let secs = |from: u64, to: u64| to.saturating_sub(from) / 1000;
+    let running = matches!(job.state.as_str(), "running" | "waiting_approval");
+    let asks: Vec<Value> = asks
+        .iter()
+        .filter(|a| {
+            job.request_id.is_some() && a["request_id"].as_str() == job.request_id.as_deref()
+        })
+        .map(|a| {
+            json!({
+                "tool": a["tool"],
+                "tool_call_id": a["tool_call_id"],
+                "preview": a["preview"],
+                "age_s": a["asked_ms"].as_u64().map(|t| secs(t, now_ms)),
+                "expires_in_s": a["expires_ms"].as_u64().map(|t| secs(now_ms, t)),
+            })
+        })
+        .collect();
+    let deadline = live.and_then(|l| l.deadline_ms).or(job.deadline_ms);
+    let mut v = json!({
+        "id": job.id,
+        "kind": job.kind,
+        "state": job.state,
+        "state_seq": job.state_seq,
+        "failure_reason": job.failure_reason,
+        "error": job.error,
+        "request_id": job.request_id,
+        "started_ms": job.started_ms,
+        "last_event_age_s": live.filter(|_| running).map(|l| secs(l.last_event_ms, now_ms)),
+        "ask_pending": running && !asks.is_empty(),
+        "asks": asks,
+        "deadline_ms": deadline,
+        "deadline_left_s": deadline.filter(|_| running).map(|d| secs(now_ms, d)),
+        // Holds one of the parallel job slots right now.
+        "slot": running,
+    });
+    if let Some(pid) = pid.filter(|_| running) {
+        v["pid"] = json!(pid);
+    }
+    v
+}
+
+// ── one gate, one writer per folder, the queue explained (1.5, 1.6) ──
+
+use omniget_core::core::llm::job_gate::{GateView, Limits, WaitReason};
+
+/// The gate's limits from the settings, clamped like the settings card
+/// (a 0 would admit nobody, a 99 would start 99 `claude` at once).
+pub fn gate_limits(s: &omniget_core::models::settings::LlmSettings) -> Limits {
+    let (lo, hi) = omniget_core::core::llm::job_gate::MAX_PARALLEL_RANGE;
+    Limits {
+        max_parallel: (s.jobs_max_parallel as usize).clamp(lo, hi),
+        max_per_agent: s.jobs_max_per_agent.map(|n| (n as usize).clamp(lo, hi)),
+        stagger: omniget_core::core::llm::job_gate::STAGGER,
+    }
+}
+
+/// What the jobs page sends; `max_per_agent: 0` = no per-agent cap.
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct JobLimitsInput {
+    pub max_parallel: Option<u32>,
+    pub max_per_agent: Option<u32>,
+}
+
+/// Applies the input over the stored settings, clamped like [`gate_limits`].
+pub fn merge_limits(
+    mut s: omniget_core::models::settings::LlmSettings,
+    input: &JobLimitsInput,
+) -> omniget_core::models::settings::LlmSettings {
+    let (lo, hi) = omniget_core::core::llm::job_gate::MAX_PARALLEL_RANGE;
+    if let Some(n) = input.max_parallel {
+        s.jobs_max_parallel = (n as usize).clamp(lo, hi) as u32;
+    }
+    if let Some(n) = input.max_per_agent {
+        s.jobs_max_per_agent = (n > 0).then(|| (n as usize).clamp(lo, hi) as u32);
+    }
+    s
+}
+
+/// The row a waiting job shows: `waiting_workspace` when another job holds
+/// its folder, `queued` otherwise; `wait_reason` is a code the UI
+/// translates (`slot`, `agent_cap`, `workspace:<job id>`).
+pub fn wait_state(reason: &WaitReason) -> (&'static str, String) {
+    match reason {
+        WaitReason::Workspace { holder, .. } => ("waiting_workspace", format!("workspace:{holder}")),
+        other => ("queued", other.code().to_string()),
+    }
+}
+
+/// One English line for a waiting job (the CLI prints it; the UI translates
+/// the code instead).
+fn wait_detail(reason: &WaitReason, view: &GateView, agent: &str) -> String {
+    match reason {
+        WaitReason::Slot => format!(
+            "all {} job slots are busy",
+            view.limits.max_parallel
+        ),
+        WaitReason::AgentCap { cap } => format!("agent {agent} is at its cap of {cap} jobs"),
+        WaitReason::Workspace { holder, folder } => format!("folder busy by {holder} ({folder})"),
+    }
+}
+
+/// `GET /v1/state`, `llm_jobs_state` and `llm://queue`: what runs, what
+/// waits and why, and the limits (symphony's state snapshot, 83#P5).
+/// `blocked` = holds a slot but waits for a person.
+pub fn state_view(view: &GateView, job: &dyn Fn(&str) -> Option<Job>) -> Value {
+    let mut running = Vec::new();
+    let mut blocked = Vec::new();
+    for h in &view.held {
+        let j = job(&h.job_id);
+        let state = j.as_ref().map(|j| j.state.clone()).unwrap_or_else(|| "running".into());
+        let row = json!({
+            "id": h.job_id,
+            "agent_id": h.agent_id,
+            "kind": j.as_ref().map(|j| j.kind.clone()),
+            "state": state,
+            "workspace": j.as_ref().and_then(|j| j.workspace.clone()),
+            "started_ms": j.as_ref().and_then(|j| j.started_ms),
+        });
+        if state == "waiting_approval" {
+            let mut row = row;
+            row["reason"] = json!("approval");
+            blocked.push(row);
+        } else {
+            running.push(row);
+        }
+    }
+    let queued: Vec<Value> = view
+        .queued
+        .iter()
+        .map(|q| {
+            let j = job(&q.job_id);
+            let mut row = json!({
+                "id": q.job_id,
+                "position": q.position,
+                "reason": q.reason.code(),
+                "detail": wait_detail(&q.reason, view, &q.agent_id),
+                "agent_id": q.agent_id,
+                "kind": j.as_ref().map(|j| j.kind.clone()),
+                "state": wait_state(&q.reason).0,
+                "workspace": j.as_ref().and_then(|j| j.workspace.clone()),
+            });
+            if let WaitReason::Workspace { holder, folder } = &q.reason {
+                row["holder"] = json!(holder);
+                row["folder"] = json!(folder.as_str());
+            }
+            row
+        })
+        .collect();
+    json!({
+        "running": running,
+        "queued": queued,
+        "blocked": blocked,
+        "limits": {
+            "max_parallel": view.limits.max_parallel,
+            "max_per_agent": view.limits.max_per_agent,
+            "in_use": view.held.len(),
+            "available": view.available,
+            "stagger_ms": view.limits.stagger.as_millis() as u64,
+        },
+    })
+}
+
+// ── job diff: the pure half (1.7) ─────────────────────────────────────
+
+/// `diff_unavailable` code of a job that ran without a folder.
+const NO_WORKSPACE: &str = "no_workspace";
+
+/// `<llm dir>/jobs/<id>.patch`.
+pub fn patch_path(job_id: &str) -> Option<std::path::PathBuf> {
+    let name = sanitize_id(job_id);
+    if name.is_empty() || name.contains("..") {
+        return None;
+    }
+    omniget_core::core::llm::roster_store::llm_dir()
+        .map(|d| d.join("jobs").join(format!("{name}.patch")))
+}
+
+/// Copies a [`omniget_core::core::llm::snapshot::job_diff`] outcome into the
+/// job's columns; returns the patch text when the diff is known.
+pub fn apply_diff(
+    job: &mut Job,
+    out: Result<omniget_core::core::llm::snapshot::JobDiff, String>,
+) -> Option<String> {
+    use omniget_core::core::llm::snapshot::ERR_DIFF_UNAVAILABLE;
+    match out {
+        Ok(d) => {
+            job.diff_files = Some(d.files);
+            job.additions = Some(d.additions);
+            job.deletions = Some(d.deletions);
+            job.diff_clipped = d.clipped;
+            job.diff_unavailable = None;
+            Some(d.patch)
+        }
+        Err(e) => {
+            job.diff_files = None;
+            job.additions = None;
+            job.deletions = None;
+            job.diff_clipped = false;
+            job.diff_unavailable = Some(if let Some(rest) = e.strip_prefix(ERR_DIFF_UNAVAILABLE) {
+                format!("no_snapshot{rest}")
+            } else if e.starts_with(NO_WORKSPACE) {
+                e
+            } else {
+                format!("error: {e}")
+            });
+            None
+        }
+    }
+}
+
+/// What `GET /v1/jobs/{id}/diff` answers.
+#[derive(Debug, PartialEq)]
+pub enum DiffBody {
+    Json(Value),
+    /// `format=patch`: the unified diff, `text/x-diff`.
+    Patch(String),
+}
+
+/// `format=files` (default): the file list, totals and why it is
+/// unavailable; `format=patch`: the patch itself, 409 when unavailable.
+/// `complete` is false for a job still running (diffed against now).
+pub fn diff_view(
+    job: &Job,
+    patch: Option<&str>,
+    patch_path: Option<&std::path::Path>,
+    format: &str,
+    complete: bool,
+) -> Result<DiffBody, (u16, String)> {
+    let unavailable = match (&job.diff_files, &job.diff_unavailable) {
+        (_, Some(u)) => Some(u.clone()),
+        (Some(_), None) => None,
+        (None, None) => Some("no_snapshot: the diff of this job was not computed".into()),
+    };
+    let (reason, detail) = match unavailable.as_deref() {
+        Some(u) => match u.split_once(": ") {
+            Some((code, detail)) => (Some(code), Some(detail)),
+            None => (Some(u), None),
+        },
+        None => (None, None),
+    };
+    match format {
+        "" | "files" => {
+            let files = job.diff_files.clone().unwrap_or_default();
+            Ok(DiffBody::Json(json!({
+                "job_id": job.id,
+                "state": job.state,
+                "available": unavailable.is_none(),
+                "reason": reason,
+                "detail": detail,
+                "file_count": files.len(),
+                "files": files,
+                "additions": job.additions.unwrap_or(0),
+                "deletions": job.deletions.unwrap_or(0),
+                "clipped": job.diff_clipped,
+                "complete": complete,
+                "head_oid": Value::Null,
+                "patch_path": patch.and(patch_path).map(|p| p.to_string_lossy().to_string()),
+            })))
+        }
+        "patch" => match (unavailable.is_some(), patch) {
+            (true, _) => Err((
+                409,
+                format!(
+                    "{}: {}",
+                    omniget_core::core::llm::snapshot::ERR_DIFF_UNAVAILABLE,
+                    detail.or(reason).unwrap_or("no diff")
+                ),
+            )),
+            (false, Some(p)) => Ok(DiffBody::Patch(p.to_string())),
+            (false, None) => Err((404, format!("{ERR_JOBS}: the patch file of job {} is gone", job.id))),
+        },
+        other => Err((
+            400,
+            format!("{ERR_JOBS}: format is `files` or `patch`, not `{other}`"),
+        )),
+    }
+}
+
+#[cfg(test)]
+mod diff_tests {
+    use super::*;
+    use omniget_core::core::llm::snapshot::{FileChange, JobDiff, ERR_DIFF_UNAVAILABLE};
+
+    fn change(path: &str, status: &str, add: Option<u64>, del: Option<u64>) -> FileChange {
+        FileChange {
+            path: path.into(),
+            status: status.into(),
+            additions: add,
+            deletions: del,
+            binary: add.is_none() && del.is_none(),
+        }
+    }
+
+    fn done_job() -> Job {
+        Job {
+            id: "j1".into(),
+            kind: "run".into(),
+            state: "done".into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn an_old_jobs_table_migrates_to_the_diff_columns() {
+        let db = Connection::open_in_memory().unwrap();
+        db.execute_batch(
+            "CREATE TABLE jobs (
+                id TEXT PRIMARY KEY, kind TEXT NOT NULL, agent_id TEXT NOT NULL,
+                conversation_id TEXT NOT NULL, prompt TEXT NOT NULL, workspace TEXT,
+                state TEXT NOT NULL, loop_id TEXT, trigger_id TEXT, request_id TEXT,
+                created_ms INTEGER NOT NULL, started_ms INTEGER, finished_ms INTEGER,
+                result TEXT, error TEXT, log TEXT NOT NULL DEFAULT '');
+             INSERT INTO jobs (id, kind, agent_id, conversation_id, prompt, state, created_ms)
+                VALUES ('j0', 'run', 'a', 'c', 'p', 'done', 1);",
+        )
+        .unwrap();
+        ensure_schema(&db, 0).unwrap();
+        let job = db
+            .query_row(&format!("SELECT {JOB_COLS} FROM jobs WHERE id='j0'"), [], row_to_job)
+            .unwrap();
+        assert_eq!(job.diff_files, None);
+        assert_eq!(job.diff_unavailable, None, "not computed yet, not 'unavailable'");
+        assert!(!job.diff_clipped);
+    }
+
+    #[test]
+    fn a_diff_outcome_fills_the_columns() {
+        let mut job = done_job();
+        let patch = apply_diff(
+            &mut job,
+            Ok(JobDiff {
+                files: vec![change("a.txt", "M", Some(2), Some(1)), change("b.pyc", "A", None, None)],
+                additions: 2,
+                deletions: 1,
+                clipped: true,
+                complete: true,
+                patch: "diff --git a/a.txt b/a.txt\n".into(),
+                ..Default::default()
+            }),
+        );
+        assert_eq!(patch.as_deref(), Some("diff --git a/a.txt b/a.txt\n"));
+        assert_eq!(job.diff_files.as_ref().map(Vec::len), Some(2));
+        assert_eq!((job.additions, job.deletions, job.diff_clipped), (Some(2), Some(1), true));
+        assert_eq!(job.diff_unavailable, None);
+
+        let none = apply_diff(&mut job, Err(format!("{ERR_DIFF_UNAVAILABLE}: 1 of 2 turns of this job took no snapshot")));
+        assert_eq!(none, None);
+        assert_eq!(job.diff_files, None, "never an empty list for unknown");
+        assert_eq!(job.diff_unavailable.as_deref(), Some("no_snapshot: 1 of 2 turns of this job took no snapshot"));
+        apply_diff(&mut job, Err("no_workspace: the job ran without a folder".into()));
+        assert_eq!(job.diff_unavailable.as_deref(), Some("no_workspace: the job ran without a folder"));
+        apply_diff(&mut job, Err("ERR_CODE_SNAPSHOT: git diff: boom".into()));
+        assert_eq!(job.diff_unavailable.as_deref(), Some("error: ERR_CODE_SNAPSHOT: git diff: boom"));
+    }
+
+    #[test]
+    fn the_view_says_unavailable_with_its_reason() {
+        let mut job = done_job();
+        job.diff_unavailable = Some("no_snapshot: no turn of this job took a snapshot".into());
+        let DiffBody::Json(v) = diff_view(&job, None, None, "files", true).unwrap() else {
+            panic!("files is json")
+        };
+        assert_eq!(v["available"], false);
+        assert_eq!(v["reason"], "no_snapshot");
+        assert_eq!(v["detail"], "no turn of this job took a snapshot");
+        assert_eq!(v["files"], json!([]));
+        let (status, msg) = diff_view(&job, None, None, "patch", true).unwrap_err();
+        assert_eq!(status, 409);
+        assert!(msg.starts_with(ERR_DIFF_UNAVAILABLE), "{msg}");
+        // Not computed at all reads as unavailable too, never as "no changes".
+        let DiffBody::Json(v) = diff_view(&done_job(), None, None, "", true).unwrap() else {
+            panic!()
+        };
+        assert_eq!(v["available"], false);
+        assert_eq!(diff_view(&done_job(), None, None, "zip", true).unwrap_err().0, 400);
+    }
+
+    #[test]
+    fn the_files_format_carries_totals_and_the_patch_path() {
+        let mut job = done_job();
+        job.diff_files = Some(vec![change("a.txt", "A", Some(3), Some(0)), change("m.bin", "M", None, None)]);
+        job.additions = Some(3);
+        job.deletions = Some(0);
+        let path = std::path::Path::new("/data/llm/jobs/j1.patch");
+        let DiffBody::Json(v) = diff_view(&job, Some("p"), Some(path), "files", false).unwrap() else {
+            panic!()
+        };
+        assert_eq!(v["available"], true);
+        assert_eq!(v["job_id"], "j1");
+        assert_eq!(v["file_count"], 2);
+        assert_eq!((v["additions"].as_u64(), v["deletions"].as_u64()), (Some(3), Some(0)));
+        assert_eq!(v["files"][1]["binary"], true);
+        assert_eq!(v["complete"], false);
+        assert_eq!(v["head_oid"], Value::Null);
+        assert_eq!(v["patch_path"], "/data/llm/jobs/j1.patch");
+        assert_eq!(v["reason"], Value::Null);
+    }
+
+    #[test]
+    fn the_patch_format_returns_the_stored_patch() {
+        let mut job = done_job();
+        job.diff_files = Some(vec![change("a.txt", "A", Some(1), Some(0))]);
+        assert_eq!(
+            diff_view(&job, Some("+x\n"), None, "patch", true).unwrap(),
+            DiffBody::Patch("+x\n".into())
+        );
+        // Known, but the file went away: said, not faked.
+        assert_eq!(diff_view(&job, None, None, "patch", true).unwrap_err().0, 404);
+        // Known and empty (a read-only job): an empty patch, 200.
+        job.diff_files = Some(Vec::new());
+        assert_eq!(diff_view(&job, Some(""), None, "patch", true).unwrap(), DiffBody::Patch(String::new()));
+    }
+
+    #[test]
+    fn patches_live_next_to_the_jobs_database() {
+        if let Some(p) = patch_path("j1") {
+            assert!(p.ends_with("llm/jobs/j1.patch"), "{p:?}");
+        }
+        if let Some(p) = patch_path("../../etc/x") {
+            assert!(!p.to_string_lossy().contains(".."), "{p:?}");
+        }
+    }
+}
+
+/// BN4 (`scripts/llm/diff_eval.py`): what `GET /v1/jobs/{id}/diff` does
+/// for a job that already ended, on a 50-file diff: read the row (the file
+/// list is JSON in `diff_files`), read the patch file, build both answers.
+/// Everything but axum and the socket.
+#[cfg(test)]
+mod bn4_read {
+    use super::*;
+    use omniget_core::core::llm::snapshot::FileChange;
+    use std::time::Instant;
+
+    fn bench(metric: &str, value: Value) {
+        if let Ok(path) = std::env::var("OMNIGET_BENCH_OUT") {
+            use std::io::Write as _;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                let _ = writeln!(f, "{}", json!({"bench": "bn4", "metric": metric, "value": value, "level": "stored read (row + patch file + diff_view)"}));
+            }
+        }
+    }
+
+    #[test]
+    fn bn4_the_stored_diff_answers_fast() {
+        let dir = std::env::temp_dir().join(format!("omniget-bn4-read-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = Connection::open(dir.join("jobs.db")).unwrap();
+        ensure_schema(&db, 0).unwrap();
+        let files: Vec<FileChange> = (0..50)
+            .map(|i| FileChange {
+                path: format!("src/m{:02}/f{i:02}.txt", i % 6),
+                status: "M".into(),
+                additions: Some(1),
+                deletions: Some(1),
+                binary: false,
+            })
+            .collect();
+        let patch: String = files
+            .iter()
+            .map(|f| {
+                let body: String = (0..6).map(|l| format!(" context {l}\n")).collect();
+                format!(
+                    "diff --git a/{p} b/{p}\nindex 1111111..2222222 100644\n--- a/{p}\n+++ b/{p}\n@@ -5,7 +5,7 @@\n{body}-old line\n+new line\n{body}",
+                    p = f.path
+                )
+            })
+            .collect();
+        db.execute(
+            "INSERT INTO jobs (id, kind, agent_id, conversation_id, prompt, state, created_ms, diff_files, additions, deletions)
+             VALUES ('j50', 'run', 'a', 'c', 'p', 'done', 1, ?1, 50, 50)",
+            params![serde_json::to_string(&files).unwrap()],
+        )
+        .unwrap();
+        let patch_file = dir.join("j50.patch");
+        std::fs::write(&patch_file, &patch).unwrap();
+        let reps = 50;
+        let mut times = Vec::new();
+        for _ in 0..reps {
+            let t = Instant::now();
+            let job = db
+                .query_row(&format!("SELECT {JOB_COLS} FROM jobs WHERE id='j50'"), [], row_to_job)
+                .unwrap();
+            let text = std::fs::read_to_string(&patch_file).unwrap();
+            let DiffBody::Json(v) = diff_view(&job, Some(&text), Some(&patch_file), "files", true).unwrap() else {
+                panic!()
+            };
+            let bytes = serde_json::to_vec(&v).unwrap();
+            let DiffBody::Patch(p) = diff_view(&job, Some(&text), Some(&patch_file), "patch", true).unwrap() else {
+                panic!()
+            };
+            assert!(!bytes.is_empty() && p.len() == patch.len());
+            assert_eq!(v["file_count"], 50);
+            times.push(t.elapsed().as_secs_f64() * 1000.0);
+        }
+        times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let (p50, max) = (times[reps / 2], times[reps - 1]);
+        bench("stored_read_files", json!(50));
+        bench("stored_read_ms_p50", json!(p50));
+        bench("stored_read_ms_max", json!(max));
+        assert!(p50 < 200.0, "p50 {p50} ms");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
+#[cfg(test)]
+mod queue_tests {
+    use super::*;
+    use omniget_core::core::llm::folder_key::FolderKey;
+    use omniget_core::core::llm::job_gate::{Class, Held, Queued};
+    use omniget_core::models::settings::LlmSettings;
+
+    #[test]
+    fn the_limits_are_clamped() {
+        let l = gate_limits(&LlmSettings::default());
+        assert_eq!((l.max_parallel, l.max_per_agent), (4, None));
+        assert_eq!(l.stagger, omniget_core::core::llm::job_gate::STAGGER);
+        let odd = LlmSettings {
+            jobs_max_parallel: 0,
+            jobs_max_per_agent: Some(99),
+            ..LlmSettings::default()
+        };
+        let l = gate_limits(&odd);
+        assert_eq!((l.max_parallel, l.max_per_agent), (1, Some(16)));
+        let merged = merge_limits(
+            LlmSettings::default(),
+            &JobLimitsInput { max_parallel: Some(40), max_per_agent: Some(2) },
+        );
+        assert_eq!((merged.jobs_max_parallel, merged.jobs_max_per_agent), (16, Some(2)));
+        let merged = merge_limits(merged, &JobLimitsInput { max_parallel: None, max_per_agent: Some(0) });
+        assert_eq!((merged.jobs_max_parallel, merged.jobs_max_per_agent), (16, None), "0 = no per-agent cap");
+    }
+
+    #[test]
+    fn a_folder_wait_is_waiting_workspace_with_the_holder() {
+        let folder = FolderKey::normalize("/w/repo", false, false);
+        assert_eq!(
+            wait_state(&WaitReason::Workspace { holder: "j1".into(), folder }),
+            ("waiting_workspace", "workspace:j1".to_string())
+        );
+        assert_eq!(wait_state(&WaitReason::Slot), ("queued", "slot".to_string()));
+        assert_eq!(wait_state(&WaitReason::AgentCap { cap: 2 }), ("queued", "agent_cap".to_string()));
+    }
+
+    #[test]
+    fn the_state_view_explains_every_queued_job() {
+        let folder = FolderKey::normalize("/w/repo", false, false);
+        let held = |id: &str, folder: Option<FolderKey>| Held {
+            job_id: id.into(),
+            agent_id: "claude".into(),
+            class: Class::Manual,
+            folder,
+        };
+        let view = GateView {
+            held: vec![held("run1", Some(folder.clone())), held("ask1", None)],
+            queued: vec![
+                Queued {
+                    job_id: "q1".into(),
+                    agent_id: "claude".into(),
+                    class: Class::Manual,
+                    folder: Some(folder.clone()),
+                    position: 1,
+                    reason: WaitReason::Workspace { holder: "run1".into(), folder: folder.clone() },
+                },
+                Queued {
+                    job_id: "q2".into(),
+                    agent_id: "codex".into(),
+                    class: Class::Mission,
+                    folder: None,
+                    position: 2,
+                    reason: WaitReason::Slot,
+                },
+            ],
+            limits: Limits { max_parallel: 2, max_per_agent: None, stagger: std::time::Duration::from_millis(500) },
+            available: 0,
+        };
+        let job = |id: &str| -> Option<Job> {
+            Some(Job {
+                id: id.into(),
+                kind: if id == "q2" { "mission" } else { "run" }.into(),
+                agent_id: "claude".into(),
+                state: match id {
+                    "ask1" => "waiting_approval",
+                    "run1" => "running",
+                    "q1" => "waiting_workspace",
+                    _ => "queued",
+                }
+                .into(),
+                workspace: Some("/w/repo".into()),
+                ..Default::default()
+            })
+        };
+        let v = state_view(&view, &job);
+        assert_eq!(v["running"].as_array().unwrap().len(), 1);
+        assert_eq!(v["running"][0]["id"], "run1");
+        assert_eq!(v["blocked"][0]["id"], "ask1");
+        assert_eq!(v["blocked"][0]["reason"], "approval");
+        let queued = v["queued"].as_array().unwrap();
+        assert_eq!(queued.len(), 2);
+        for q in queued {
+            assert!(q["position"].as_u64().is_some(), "{q}");
+            assert!(!q["reason"].as_str().unwrap_or("").is_empty(), "{q}");
+            assert!(!q["detail"].as_str().unwrap_or("").is_empty(), "{q}");
+        }
+        assert_eq!(queued[0]["reason"], "workspace");
+        assert_eq!(queued[0]["holder"], "run1");
+        assert!(queued[0]["detail"].as_str().unwrap().contains("run1"));
+        assert_eq!(queued[1]["reason"], "slot");
+        assert_eq!(queued[1]["kind"], "mission");
+        assert_eq!(v["limits"]["max_parallel"], 2);
+        assert_eq!(v["limits"]["in_use"], 2);
+        assert_eq!(v["limits"]["available"], 0);
+        assert_eq!(v["limits"]["stagger_ms"], 500);
+        assert!(v["limits"]["max_per_agent"].is_null());
+    }
+}
+
+#[cfg(test)]
+mod watchdog_tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn the_state_seq_only_grows_on_a_state_change() {
+        assert_eq!(next_state_seq(None, "queued"), 1);
+        assert_eq!(next_state_seq(Some(("queued", 1)), "queued"), 1);
+        assert_eq!(next_state_seq(Some(("queued", 1)), "running"), 2);
+        assert_eq!(next_state_seq(Some(("running", 2)), "waiting_approval"), 3);
+        assert_eq!(next_state_seq(Some(("waiting_approval", 3)), "running"), 4);
+        // A row from before the column (seq 0) still moves forward.
+        assert_eq!(next_state_seq(Some(("running", 0)), "done"), 1);
+    }
+
+    #[test]
+    fn a_stall_is_failure_reason_stalled() {
+        assert_eq!(
+            failure_reason_of("ERR_CLI_STALLED: the CLI printed nothing for 600 s"),
+            Some("stalled")
+        );
+        assert_eq!(failure_reason_of("ERR_CLI_NO_START: nothing"), Some("no_start"));
+        assert_eq!(failure_reason_of("ERR_TOOL_TIMEOUT: nobody answered"), Some("ask_expired"));
+        assert_eq!(failure_reason_of("ERR_CLI_EXIT: exited with 1"), None);
+    }
+
+    /// D4: run, loop and trigger all get a deadline; a chat turn (a person
+    /// is right there) and a mission (its own guard) do not get this one.
+    #[test]
+    fn every_background_kind_gets_a_deadline_and_chat_does_not() {
+        for kind in ["run", "loop", "trigger"] {
+            assert_eq!(default_deadline_ms(kind, 1_000, 60), Some(1_000 + 3_600_000), "{kind}");
+        }
+        assert_eq!(default_deadline_ms("chat", 1_000, 60), None);
+        assert_eq!(default_deadline_ms("mission", 1_000, 60), None);
+    }
+
+    /// A job's question waits as long as the job may still run (or the
+    /// explicit setting), never zero: the broker floors it to 1 s and the
+    /// deadline then fails the job with its own reason.
+    #[test]
+    fn the_job_ask_timeout_is_the_deadline_left_never_negative() {
+        assert_eq!(
+            job_ask_timeout(1_000, Some(61_000), None),
+            Some(Duration::from_secs(60))
+        );
+        assert_eq!(
+            job_ask_timeout(1_000, Some(61_000), Some(Duration::from_secs(300))),
+            Some(Duration::from_secs(300))
+        );
+        assert_eq!(job_ask_timeout(90_000, Some(61_000), None), Some(Duration::ZERO));
+        assert_eq!(job_ask_timeout(1_000, None, None), None);
+    }
+
+    #[test]
+    fn explain_reports_the_age_the_ask_and_the_deadline_left() {
+        let job = Job {
+            id: "j1".into(),
+            kind: "run".into(),
+            state: "waiting_approval".into(),
+            state_seq: 3,
+            request_id: Some("r1".into()),
+            started_ms: Some(10_000),
+            deadline_ms: Some(70_000),
+            ..Default::default()
+        };
+        let live = Live {
+            request_id: "r1".into(),
+            started_ms: 10_000,
+            last_event_ms: 20_000,
+            deadline_ms: Some(70_000),
+        };
+        let asks = vec![json!({"request_id": "r1", "tool": "cli:Bash", "tool_call_id": "c1", "asked_ms": 25_000u64})];
+        let v = explain_view(&job, Some(&live), 30_000, &asks, Some(4242));
+        assert_eq!(v["id"], "j1");
+        assert_eq!(v["state"], "waiting_approval");
+        assert_eq!(v["state_seq"], 3);
+        assert_eq!(v["last_event_age_s"], 10);
+        assert_eq!(v["ask_pending"], true);
+        assert_eq!(v["asks"][0]["tool"], "cli:Bash");
+        assert_eq!(v["asks"][0]["age_s"], 5);
+        assert_eq!(v["deadline_left_s"], 40);
+        assert_eq!(v["pid"], 4242);
+        assert_eq!(v["slot"], true);
+        // A finished job: no live info, no slot, the reason stays.
+        let done = Job {
+            state: "failed".into(),
+            failure_reason: Some("stalled".into()),
+            ..job.clone()
+        };
+        let v = explain_view(&done, None, 30_000, &[], None);
+        assert_eq!(v["slot"], false);
+        assert_eq!(v["ask_pending"], false);
+        assert_eq!(v["failure_reason"], "stalled");
+        assert!(v["last_event_age_s"].is_null());
+        assert!(v.get("pid").is_none_or(|p| p.is_null()));
+    }
+}
+
 #[cfg(test)]
 mod routine_tests {
     use super::*;
@@ -1554,7 +3612,7 @@ mod routine_tests {
         let tz = chrono::FixedOffset::west_opt(3 * 3600).unwrap();
         let from = tz.with_ymd_and_hms(2026, 9, 25, 18, 0, 0).unwrap();
         let c = Cron::parse("30 9 * * 1-5").unwrap();
-        let next = c.next_after(&from).unwrap();
+        let next = c.next_after_at(&from).unwrap();
         assert_eq!(
             next,
             tz.with_ymd_and_hms(2026, 9, 28, 9, 30, 0).unwrap(),
@@ -1564,7 +3622,7 @@ mod routine_tests {
         assert_eq!(next.hour(), 9);
         assert!(Cron::parse("0 0 31 2 *")
             .unwrap()
-            .next_after(&from)
+            .next_after_at(&from)
             .is_none());
     }
 
@@ -1606,6 +3664,296 @@ mod routine_tests {
         assert_eq!(v["requires_app_open"], true);
         assert!(v["next_run_ms"].as_i64().is_some());
         assert!(v["next_run_local"].as_str().unwrap().ends_with("08:00"));
+    }
+}
+
+#[cfg(test)]
+mod cron_tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    const MIN: i64 = 60_000;
+
+    /// 2026-09-26 10:00:00 UTC, a Saturday.
+    fn t0() -> i64 {
+        chrono::Utc
+            .with_ymd_and_hms(2026, 9, 26, 10, 0, 0)
+            .unwrap()
+            .timestamp_millis()
+    }
+
+    fn routine(line: &str, catch_up: CatchUp, concurrency: TriggerConcurrency) -> (Trigger, Cron) {
+        let t = Trigger {
+            id: "t1".into(),
+            kind: "cron".into(),
+            cron: Some(line.into()),
+            agent_id: "a".into(),
+            prompt: "p".into(),
+            enabled: true,
+            tz: "UTC".into(),
+            catch_up,
+            concurrency,
+            ..Default::default()
+        };
+        (t, Cron::parse(line).unwrap())
+    }
+
+    /// Applies a plan the way the ticker does.
+    fn apply(t: &mut Trigger, plan: &TickPlan) {
+        t.next_run_ms = plan.next_run_ms;
+        t.backlog = plan.backlog;
+        t.missed += plan.not_run;
+    }
+
+    #[test]
+    fn next_after_takes_a_timestamp_and_a_zone() {
+        let every = Cron::parse("*/1 * * * *").unwrap();
+        assert_eq!(every.next_after(t0(), "UTC"), Some(t0() + MIN));
+        assert_eq!(every.next_after(t0() + 30_000, "UTC"), Some(t0() + MIN), "strictly after, on the minute");
+        // 09:30 on the wall clock of the zone, not UTC.
+        let nine = Cron::parse("30 9 * * *").unwrap();
+        let utc = nine.next_after(t0(), "UTC").unwrap();
+        let plus2 = nine.next_after(t0(), "+02:00").unwrap();
+        assert_eq!(utc - t0(), 23 * 60 * MIN + 30 * MIN, "09:30 UTC tomorrow");
+        assert_eq!(plus2, utc - 2 * 60 * MIN, "09:30 at +02:00 is 07:30 UTC");
+        assert!(nine.next_after(t0(), "local").is_some());
+        assert!(Cron::parse("0 0 31 2 *").unwrap().next_after(t0(), "UTC").is_none());
+    }
+
+    #[test]
+    fn zones_parse_or_say_unknown() {
+        assert_eq!(parse_zone(""), Some(Zone::Local));
+        assert_eq!(parse_zone("local"), Some(Zone::Local));
+        let east = |s: i32| Some(Zone::Fixed(chrono::FixedOffset::east_opt(s).unwrap()));
+        assert_eq!(parse_zone("UTC"), east(0));
+        assert_eq!(parse_zone("+02:00"), east(7200));
+        assert_eq!(parse_zone("-0330"), east(-(3 * 3600 + 1800)));
+        assert_eq!(parse_zone("+05"), east(5 * 3600));
+        assert_eq!(parse_zone("America/Sao_Paulo"), None);
+        assert_eq!(parse_zone("+25:00"), None);
+        assert_eq!(zone_of("America/Sao_Paulo"), Zone::Local, "unknown reads as local");
+    }
+
+    #[test]
+    fn a_trigger_without_next_run_is_initialised_not_fired() {
+        let (t, c) = routine("*/1 * * * *", CatchUp::AllCapped, TriggerConcurrency::Queue);
+        let plan = plan_tick(&t, &c, t0() + 10_000, 0, false);
+        assert_eq!(plan.fire_now, 0);
+        assert_eq!(plan.missed_slots, 0);
+        assert_eq!(plan.next_run_ms, Some(t0() + MIN));
+    }
+
+    /// The acceptance test of 1.4 (80#P2 "Como medir" 1): the app closes
+    /// before three `*/1` times and opens after them; the boot pass (grace 0)
+    /// follows the policy.
+    #[test]
+    fn three_missed_minutes_follow_the_policy() {
+        let now = t0() + 3 * MIN + 30_000; // 10:03:30; 10:01, 10:02, 10:03 passed
+        let at = |catch_up, concurrency| {
+            let (mut t, c) = routine("*/1 * * * *", catch_up, concurrency);
+            t.next_run_ms = Some(t0() + MIN);
+            plan_tick(&t, &c, now, 0, false)
+        };
+        let once = at(CatchUp::Once, TriggerConcurrency::SkipIfActive);
+        assert_eq!((once.fire_now, once.backlog, once.missed_slots, once.caught_up), (1, 0, 3, 1));
+        assert_eq!(once.not_run, 2);
+        let skip = at(CatchUp::Skip, TriggerConcurrency::SkipIfActive);
+        assert_eq!((skip.fire_now, skip.backlog, skip.missed_slots, skip.caught_up), (0, 0, 3, 0));
+        assert_eq!(skip.not_run, 3, "logged as missed=3");
+        // All three run: at once when the routine may overlap itself, one at
+        // a time (1 now + 2 waiting) when it may not.
+        let all_q = at(CatchUp::AllCapped, TriggerConcurrency::Queue);
+        assert_eq!((all_q.fire_now, all_q.backlog, all_q.caught_up, all_q.not_run), (3, 0, 3, 0));
+        let all_s = at(CatchUp::AllCapped, TriggerConcurrency::SkipIfActive);
+        assert_eq!((all_s.fire_now, all_s.backlog, all_s.caught_up, all_s.not_run), (1, 2, 3, 0));
+        for p in [once, skip, all_q, all_s] {
+            assert_eq!(p.next_run_ms, Some(t0() + 4 * MIN), "the schedule moves past now");
+        }
+    }
+
+    #[test]
+    fn a_timely_tick_fires_once_under_every_policy() {
+        for catch_up in [CatchUp::Skip, CatchUp::Once, CatchUp::AllCapped] {
+            for concurrency in [TriggerConcurrency::SkipIfActive, TriggerConcurrency::Queue] {
+                let (mut t, c) = routine("*/5 * * * *", catch_up, concurrency);
+                t.next_run_ms = Some(t0() + 5 * MIN);
+                // Not due yet: nothing.
+                assert_eq!(plan_tick(&t, &c, t0() + 4 * MIN, CRON_GRACE_MS, false).fire_now, 0);
+                // Seen 20 s late by the ticker: it runs, nothing is missed.
+                let plan = plan_tick(&t, &c, t0() + 5 * MIN + 20_000, CRON_GRACE_MS, false);
+                assert_eq!((plan.fire_now, plan.missed_slots, plan.not_run), (1, 0, 0), "{catch_up:?} {concurrency:?}");
+                assert_eq!(plan.next_run_ms, Some(t0() + 10 * MIN));
+            }
+        }
+    }
+
+    #[test]
+    fn all_capped_stops_at_25() {
+        let (mut t, c) = routine("*/1 * * * *", CatchUp::AllCapped, TriggerConcurrency::Queue);
+        t.next_run_ms = Some(t0() + MIN);
+        let plan = plan_tick(&t, &c, t0() + 100 * MIN + 30_000, 0, false);
+        assert_eq!(plan.missed_slots, 100);
+        assert_eq!(plan.fire_now, CATCH_UP_CAP);
+        assert_eq!(plan.not_run, 100 - CATCH_UP_CAP);
+        // The backlog of a one-at-a-time routine is capped the same way.
+        t.concurrency = TriggerConcurrency::SkipIfActive;
+        let plan = plan_tick(&t, &c, t0() + 100 * MIN + 30_000, 0, false);
+        assert_eq!(plan.fire_now + plan.backlog, CATCH_UP_CAP);
+    }
+
+    #[test]
+    fn a_busy_routine_skips_and_counts_it() {
+        let (mut t, c) = routine("*/1 * * * *", CatchUp::Once, TriggerConcurrency::SkipIfActive);
+        t.next_run_ms = Some(t0() + MIN);
+        let plan = plan_tick(&t, &c, t0() + MIN + 5_000, CRON_GRACE_MS, true);
+        assert_eq!((plan.fire_now, plan.skipped_active, plan.not_run), (0, 1, 1));
+        t.concurrency = TriggerConcurrency::Queue;
+        let plan = plan_tick(&t, &c, t0() + MIN + 5_000, CRON_GRACE_MS, true);
+        assert_eq!((plan.fire_now, plan.skipped_active), (1, 0), "queue starts it anyway");
+    }
+
+    /// 80#P2 "Como medir" 2: never two jobs of one routine at once with
+    /// `skip_if_active`, whatever the catch-up policy, including a boot
+    /// with a backlog. A 30-minute day of the real ticker (30 s) on an
+    /// injected clock, `*/1`, every run lasting 150 s.
+    #[test]
+    fn skip_if_active_never_runs_two_of_one_routine() {
+        for catch_up in [CatchUp::Skip, CatchUp::Once, CatchUp::AllCapped] {
+            let (mut t, c) = routine("*/1 * * * *", catch_up, TriggerConcurrency::SkipIfActive);
+            t.next_run_ms = Some(t0() + MIN);
+            let mut running: Vec<i64> = Vec::new(); // end times
+            let (mut started, mut peak) = (0u32, 0usize);
+            let mut now = t0() + 5 * MIN + 10_000; // boot after 5 missed minutes
+            let mut grace = 0;
+            while now < t0() + 35 * MIN {
+                running.retain(|end| *end > now);
+                let plan = plan_tick(&t, &c, now, grace, !running.is_empty());
+                apply(&mut t, &plan);
+                for _ in 0..plan.fire_now {
+                    running.push(now + 150_000);
+                    started += 1;
+                }
+                peak = peak.max(running.len());
+                grace = CRON_GRACE_MS;
+                now += CRON_TICK_S as i64 * 1000;
+            }
+            assert_eq!(peak, 1, "{catch_up:?}: two runs of one routine at once");
+            assert!(started >= 10, "{catch_up:?}: it still runs ({started})");
+            assert_eq!(t.backlog, 0, "{catch_up:?}: the backlog drains");
+        }
+        // With `queue`, the same boot with `all_capped` does overlap: the
+        // simulation can see it.
+        let (mut t, c) = routine("*/1 * * * *", CatchUp::AllCapped, TriggerConcurrency::Queue);
+        t.next_run_ms = Some(t0() + MIN);
+        let plan = plan_tick(&t, &c, t0() + 5 * MIN + 10_000, 0, false);
+        assert_eq!(plan.fire_now, 5);
+    }
+
+    fn db_file() -> (std::path::PathBuf, Connection) {
+        let path = std::env::temp_dir().join(format!("omniget-cron-{}.db", uuid::Uuid::new_v4()));
+        let db = Connection::open(&path).unwrap();
+        ensure_schema(&db, t0()).unwrap();
+        (path, db)
+    }
+
+    /// A routine saved by 0.9.x: a body without any of the new fields and no
+    /// schedule column.
+    fn old_body() -> String {
+        json!({"id": "t1", "name": "r", "kind": "cron", "cron": "*/1 * * * *", "agent_id": "a",
+               "prompt": "p", "enabled": true, "last_fired_ms": null, "fire_count": 4, "created_ms": 1})
+        .to_string()
+    }
+
+    #[test]
+    fn an_old_trigger_is_migrated_from_now() {
+        let path = std::env::temp_dir().join(format!("omniget-cron-old-{}.db", uuid::Uuid::new_v4()));
+        let db = Connection::open(&path).unwrap();
+        db.execute_batch("CREATE TABLE triggers (id TEXT PRIMARY KEY, body TEXT NOT NULL);").unwrap();
+        db.execute("INSERT INTO triggers (id, body) VALUES ('t1', ?1)", params![old_body()]).unwrap();
+        ensure_schema(&db, t0() + 30_000).unwrap();
+        let t = read_trigger(&db, "t1").unwrap();
+        assert_eq!(t.next_run_ms, Some(t0() + MIN), "from now, not from the last firing");
+        assert_eq!((t.catch_up, t.concurrency, t.fire_count), (CatchUp::Once, TriggerConcurrency::SkipIfActive, 4));
+        assert!(parse_zone(&t.tz).is_some());
+        // Nothing before the migration counts as missed.
+        assert!(claim_due(&db, "t1", t0() + 40_000, 0, false).is_none());
+        // Running it again changes nothing.
+        ensure_schema(&db, t0() + 50 * MIN).unwrap();
+        assert_eq!(read_trigger(&db, "t1").unwrap().next_run_ms, Some(t0() + MIN));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn only_one_claim_wins_a_slot() {
+        let (path, db) = db_file();
+        let (mut t, _) = routine("*/1 * * * *", CatchUp::Once, TriggerConcurrency::Queue);
+        t.next_run_ms = Some(t0() + MIN);
+        set_schedule(&db, &t).unwrap();
+        let now = t0() + MIN + 10_000;
+        let first = claim_due(&db, "t1", now, CRON_GRACE_MS, false).expect("the first pass takes it");
+        assert_eq!(first.1.fire_now, 1);
+        assert!(claim_due(&db, "t1", now, CRON_GRACE_MS, false).is_none(), "the same slot twice");
+        // Another process that read the old schedule loses the CAS.
+        let other = Connection::open(&path).unwrap();
+        let mut stale = t.clone();
+        stale.next_run_ms = Some(t0() + 2 * MIN);
+        assert!(!cas_schedule(&other, &stale, Some(t0() + MIN)));
+        assert_eq!(read_trigger(&db, "t1").unwrap().next_run_ms, Some(t0() + 2 * MIN));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn a_restart_does_not_fire_the_same_slot_again() {
+        let (path, db) = db_file();
+        let (mut t, _) = routine("*/1 * * * *", CatchUp::AllCapped, TriggerConcurrency::Queue);
+        t.next_run_ms = Some(t0() + MIN);
+        set_schedule(&db, &t).unwrap();
+        let (_, plan) = claim_due(&db, "t1", t0() + MIN + 20_000, CRON_GRACE_MS, false).unwrap();
+        assert_eq!(plan.fire_now, 1);
+        drop(db);
+        // The app restarts 5 s later: the boot pass (grace 0) sees the
+        // stored schedule, already past this slot.
+        let db = Connection::open(&path).unwrap();
+        ensure_schema(&db, t0() + MIN + 25_000).unwrap();
+        assert!(claim_due(&db, "t1", t0() + MIN + 25_000, 0, false).is_none());
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn a_body_write_never_moves_the_schedule() {
+        let (path, db) = db_file();
+        let (mut t, _) = routine("*/1 * * * *", CatchUp::Once, TriggerConcurrency::Queue);
+        t.next_run_ms = Some(t0() + MIN);
+        set_schedule(&db, &t).unwrap();
+        // A webhook-style firing read the row, the ticker advanced it, the
+        // firing writes its counters back with the old schedule in the body.
+        let mut copy = read_trigger(&db, "t1").unwrap();
+        assert!(claim_due(&db, "t1", t0() + MIN + 1_000, CRON_GRACE_MS, false).is_some());
+        copy.fire_count += 1;
+        write_trigger_body(&db, &copy).unwrap();
+        let now = read_trigger(&db, "t1").unwrap();
+        assert_eq!(now.next_run_ms, Some(t0() + 2 * MIN), "the column wins");
+        assert_eq!(now.fire_count, 1);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn a_busy_routine_is_seen_through_its_jobs() {
+        let (path, db) = db_file();
+        let (mut t, _) = routine("*/1 * * * *", CatchUp::Once, TriggerConcurrency::SkipIfActive);
+        t.next_run_ms = Some(t0() + MIN);
+        set_schedule(&db, &t).unwrap();
+        db.execute(
+            "INSERT INTO jobs (id, kind, agent_id, conversation_id, prompt, state, trigger_id, created_ms) VALUES ('j1','trigger','a','c','p','running','t1',1)",
+            [],
+        )
+        .unwrap();
+        assert!(trigger_busy(&db, "t1"));
+        let (after, plan) = claim_due(&db, "t1", t0() + MIN + 1_000, CRON_GRACE_MS, false).unwrap();
+        assert_eq!((plan.fire_now, plan.skipped_active), (0, 1));
+        assert_eq!(after.missed, 1);
+        assert!(after.last_missed_ms.is_some());
+        let _ = std::fs::remove_file(path);
     }
 }
 

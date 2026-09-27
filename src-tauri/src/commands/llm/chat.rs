@@ -270,20 +270,36 @@ fn workspace_json(
 
 /// Puts the workspace back to how it was before the last turn of this
 /// conversation that wrote files.
+///
+/// Refused (`ERR_UNDO_SHARED`) while another conversation or job works in a
+/// folder that overlaps this one, and (`ERR_UNDO_CONFLICT`) when a file of
+/// that turn changed again after it: the UI then offers
+/// `conversation_only`, which takes the turn's messages back and leaves
+/// every file as it is (t3code's "revert the conversation only", 82#P2).
 #[tauri::command]
 pub async fn llm_turn_undo(
     state: State<'_, AppState>,
     conversation_id: String,
+    conversation_only: Option<bool>,
 ) -> Result<serde_json::Value, String> {
     use omniget_core::core::llm::types::ContentPart;
     use omniget_core::core::llm::{code_tools, coordinator, snapshot};
     let conv = crate::llm_manager::sanitize_id(&conversation_id);
     let ws = code_tools::workspace_of(&conv)
         .ok_or_else(|| format!("{}: no workspace", code_tools::ERR_NO_WORKSPACE))?;
-    if let Some(problem) = snapshot::problem(&ws).filter(|_| !snapshot::git_available()) {
+    if let Some(problem) = snapshot::problem(&ws)
+        .filter(|_| !snapshot::git_available() && conversation_only != Some(true))
+    {
         return Err(problem);
     }
-    let undone = snapshot::undo(&ws, &conv).await?;
+    let undone = if conversation_only.unwrap_or(false) {
+        snapshot::forget_last(&ws, &conv).await?
+    } else {
+        let live = crate::jobs::try_get()
+            .map(|j| j.live_folders(&conversation_id))
+            .unwrap_or_default();
+        snapshot::undo(&ws, &conv, &live).await?
+    };
     // The bubbles of that turn go with the files. Nothing is run again: the
     // records are cut from the conversation, the tools are not replayed.
     let removed = match (undone.messages_before, state.llm.coordinator().dir()) {

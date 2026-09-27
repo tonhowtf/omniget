@@ -205,7 +205,8 @@ pub fn scope(name: &str) -> Option<&'static str> {
         | "missions_events"
         | "missions_artifacts"
         | "missions_diagnostics"
-        | "approvals_list" => "orchestration_read",
+        | "approvals_list"
+        | "job_diff" => "orchestration_read",
         "missions_cancel" | "missions_pause" | "missions_resume" => "orchestration_control",
         "missions_create" => "orchestration_create",
         "agents_derived_list" | "groups_get" => "orchestration_read",
@@ -365,9 +366,29 @@ mod tests {
             "agent_delegate",
             "help_apply",
             "unknown",
+            "job_diff",
         ] {
             assert!(!allowed(&p, n));
         }
+    }
+
+    /// A job's diff is a read of orchestration data: only with that scope
+    /// (and the tool itself checks the job belongs to an owned mission).
+    #[test]
+    fn job_diff_is_read_scope_and_denied_by_default() {
+        let reader = Principal {
+            id: "r".into(),
+            name: "R".into(),
+            scopes: vec!["orchestration_read".into()],
+        };
+        assert_eq!(scope("job_diff"), Some("orchestration_read"));
+        assert!(allowed(&reader, "job_diff"));
+        let controller = Principal {
+            id: "c".into(),
+            name: "C".into(),
+            scopes: vec!["orchestration_control".into(), "diagnostics".into()],
+        };
+        assert!(!allowed(&controller, "job_diff"));
     }
 }
 

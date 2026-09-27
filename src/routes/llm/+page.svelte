@@ -4,6 +4,7 @@
    * mounts; nothing here polls, and the only timer that can exist belongs to a
    * running turn.
    */
+  import { setLlmFocus } from "$lib/llm/ui-focus.svelte";
   import { onMount, untrack } from "svelte";
   import { page } from "$app/stores";
   import { t } from "$lib/i18n";
@@ -34,6 +35,12 @@
   let agents = $derived(getAgents());
   let activeAgent = $derived(getAgent(getActiveAgentId()));
   let active = $derived(getActiveConversation());
+  // The conversation on screen: a "needs you" about its own turn is not sent
+  // while the window has the focus (see $lib/llm/ui-focus).
+  $effect(() => {
+    setLlmFocus({ conversationId: active?.id ?? null });
+    return () => setLlmFocus({ conversationId: null });
+  });
   let rooms = $derived(getRooms());
   let turn = $derived(getActiveTurn());
 

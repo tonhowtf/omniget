@@ -21,6 +21,7 @@ pub mod external_url;
 pub mod hotkey;
 pub mod jobs;
 pub mod limits_strip;
+pub mod llm_attention;
 pub mod llm_manager;
 pub mod local_bridge;
 pub mod local_bridge_debug;
@@ -1098,6 +1099,8 @@ pub fn run() {
             commands::llm::models::llm_models_list,
             commands::llm::observatory::llm_telemetry_snapshot,
             commands::llm::prune::llm_prune_status,
+            commands::llm::watchdog::llm_watchdog_get,
+            commands::llm::watchdog::llm_watchdog_set,
             commands::llm::prune::llm_prune_set_config,
             commands::llm::prune::llm_prune_set_jev_key,
             commands::llm::wire_probe::llm_wire_probe_run,
@@ -1236,6 +1239,13 @@ pub fn run() {
             commands::llm::jobs::llm_loop_resume,
             commands::llm::jobs::llm_loop_settle,
             commands::llm::jobs::llm_trigger_mute,
+            commands::llm::jobs::llm_job_seen,
+            commands::llm::jobs::llm_jobs_state,
+            commands::llm::jobs::llm_jobs_limits_set,
+            commands::llm::jobs::llm_job_explain,
+            commands::llm::jobs::llm_job_diff,
+            commands::llm::jobs::llm_ui_focus,
+            commands::llm::jobs::sync_llm_notify_strings,
             commands::assist::groups::assist_group_list,
             commands::assist::groups::assist_group_create,
             commands::assist::groups::assist_group_update,

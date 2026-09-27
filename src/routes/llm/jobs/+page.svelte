@@ -1,20 +1,25 @@
 <script lang="ts">
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
   import RunsPanel from "$components/llm/activity/RunsPanel.svelte";
+  import DiffView from "$components/llm/activity/DiffView.svelte";
   import { promptTitle } from "$components/llm/activity/run-status";
   /**
    * Jobs: background agent runs. A form to start one, the list with live
-   * state, the pending permission ask inline, and the triggers (cron and
-   * webhook) that start jobs on their own.
+   * state, what each job changed (files and diff), the pending permission
+   * ask inline, and the triggers (cron and webhook) that start jobs on
+   * their own, with what they do about missed times.
    */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { getAgents, loadRoster } from "$lib/stores/llm-store.svelte";
+  import { setLlmFocus } from "$lib/llm/ui-focus.svelte";
   import {
     answerAsk,
     cancelJob,
+    CATCH_UP_CAP,
     deleteJob,
+    diffReasonKey,
     deleteTrigger,
     discardJob,
     markJobDone,
@@ -23,21 +28,31 @@
     duration,
     usageLabel,
     fetchJob,
+    fetchJobDiff,
     fireTrigger,
     getAsks,
     getBridge,
     getJobs,
     getLastJobEvent,
+    getQueue,
     getTriggers,
     initJobsStore,
     pickFolder,
+    markJobSeen,
     pickState,
-    pollAsks,
+    queuedEntry,
+    queueLines,
+    reasonLine,
+    setJobLimits,
     saveTrigger,
     shortTime,
     submitJob,
+    triggerInput,
+    type CatchUp,
     type Job,
+    type JobDiffView,
     type Trigger,
+    type TriggerConcurrency,
   } from "$lib/stores/llm-jobs-store.svelte";
 
   let agents = $derived(getAgents());
@@ -55,7 +70,25 @@
   let triggers = $derived(getTriggers());
   let bridge = $derived(getBridge());
   let asks = $derived(getAsks());
-  let waiting = $derived(jobs.some((j) => j.state === "waiting_approval"));
+  // What runs and what waits, pushed by the gate (`llm://queue`).
+  let queue = $derived(getQueue());
+
+  /** "Position 2 of 5 · folder busy: job j1 is writing there" for a waiting job. */
+  function waitText(job: Job): string {
+    const entry = queuedEntry(job.id);
+    const lines = entry && queue ? queueLines(entry, queue) : null;
+    const why = lines?.reason ?? reasonLine(job.wait_reason, queue);
+    const parts: string[] = [];
+    if (lines) parts.push($t(lines.position.key, lines.position.params) as string);
+    if (why) parts.push($t(why.key, why.params) as string);
+    return parts.join(" · ");
+  }
+
+  function saveLimit(field: "max_parallel" | "max_per_agent", raw: string) {
+    const n = Math.round(Number(raw));
+    if (!Number.isFinite(n)) return;
+    void setJobLimits({ [field]: field === "max_parallel" ? Math.min(16, Math.max(1, n)) : Math.min(16, Math.max(0, n)) });
+  }
 
   let agentId = $state("");
   let prompt = $state("");
@@ -64,6 +97,9 @@
 
   let openId = $state<string | null>(null);
   let detail = $state<Job | null>(null);
+  let diff = $state<JobDiffView | null>(null);
+  const catchUps: CatchUp[] = ["once", "all_capped", "skip"];
+  const concurrencies: TriggerConcurrency[] = ["skip_if_active", "queue"];
 
   let trKind = $state<"cron" | "webhook">("cron");
   let trName = $state("");
@@ -71,6 +107,8 @@
   let trAgent = $state("");
   let trPrompt = $state("");
   let trWorkspace = $state<string | null>(null);
+  let trCatchUp = $state<CatchUp>("once");
+  let trConcurrency = $state<TriggerConcurrency>("skip_if_active");
   let trSaving = $state(false);
 
   onMount(() => {
@@ -84,18 +122,24 @@
     if (!trAgent) trAgent = agents[0].id;
   });
 
-  // Asks are polled only while some job waits for an answer.
+  // The pending questions follow `llm://tool-ask`, `omni://tool-resolved` and
+  // the job events (see initJobsStore): no timer here (A5).
+
+  // The open row is what a "needs you" notification would point at: while
+  // it is on screen, the backend does not send one (see $lib/llm/ui-focus).
   $effect(() => {
-    if (!waiting) return;
-    void pollAsks();
-    const timer = setInterval(() => void pollAsks(), 2000);
-    return () => clearInterval(timer);
+    setLlmFocus({ jobId: openId });
+    return () => setLlmFocus({ jobId: null });
   });
 
-  // A job event for the open row refreshes its full log.
+  // A job event for the open row refreshes its full log, and its diff once
+  // it has ended (the diff is recorded then; while it runs only on open).
   $effect(() => {
     const ev = getLastJobEvent();
-    if (ev && ev.id === openId) void refreshDetail(ev.id);
+    if (ev && ev.id === openId) {
+      void refreshDetail(ev.id);
+      if (!isActive(ev) && diff && !diff.complete) void refreshDiff(ev.id);
+    }
   });
 
   function agentName(id: string): string {
@@ -107,7 +151,16 @@
   }
 
   function isActive(job: Job): boolean {
-    return job.state === "queued" || job.state === "running" || job.state === "waiting_approval";
+    return (
+      job.state === "queued" ||
+      job.state === "waiting_workspace" ||
+      job.state === "running" ||
+      job.state === "waiting_approval"
+    );
+  }
+
+  function isWaiting(job: Job): boolean {
+    return job.state === "queued" || job.state === "waiting_workspace";
   }
 
   async function refreshDetail(id: string) {
@@ -115,15 +168,24 @@
     if (job && openId === id) detail = job;
   }
 
+  async function refreshDiff(id: string) {
+    const d = await fetchJobDiff(id);
+    if (openId === id) diff = d;
+  }
+
   function toggle(job: Job) {
     if (openId === job.id) {
       openId = null;
       detail = null;
+      diff = null;
       return;
     }
     openId = job.id;
     detail = null;
+    diff = null;
     void refreshDetail(job.id);
+    void refreshDiff(job.id);
+    void markJobSeen(job.id);
   }
 
   async function run() {
@@ -145,6 +207,9 @@
       prompt: trPrompt.trim(),
       workspace: trWorkspace,
       enabled: true,
+      catch_up: trCatchUp,
+      concurrency: trConcurrency,
+      tz: "local",
     });
     trSaving = false;
     if (saved) {
@@ -154,16 +219,7 @@
   }
 
   function toggleTrigger(tr: Trigger) {
-    void saveTrigger({
-      id: tr.id,
-      name: tr.name,
-      kind: tr.kind,
-      cron: tr.cron,
-      agent_id: tr.agent_id,
-      prompt: tr.prompt,
-      workspace: tr.workspace,
-      enabled: !tr.enabled,
-    });
+    void saveTrigger(triggerInput(tr, { enabled: !tr.enabled }));
   }
 
   function hookUrl(tr: Trigger): string {
@@ -243,6 +299,36 @@
 
   <section class="stack">
     <h2 class="section-header-title">{$t("llm.jobs.list_title")}</h2>
+    {#if queue}
+      <div class="queue-bar" role="group" aria-label={$t("llm.jobs.queue.title")}>
+        <span class="queue-summary">
+          {$t("llm.jobs.queue.summary", { running: queue.limits.in_use, limit: queue.limits.max_parallel, queued: queue.queued.length })}
+        </span>
+        <label class="queue-limit">
+          <span>{$t("llm.jobs.queue.max_parallel")}</span>
+          <input
+            class="input number"
+            type="number"
+            min="1"
+            max="16"
+            value={queue.limits.max_parallel}
+            onchange={(e) => saveLimit("max_parallel", (e.currentTarget as HTMLInputElement).value)}
+          />
+        </label>
+        <label class="queue-limit">
+          <span>{$t("llm.jobs.queue.max_per_agent")}</span>
+          <input
+            class="input number"
+            type="number"
+            min="0"
+            max="16"
+            value={queue.limits.max_per_agent ?? 0}
+            onchange={(e) => saveLimit("max_per_agent", (e.currentTarget as HTMLInputElement).value)}
+          />
+        </label>
+      </div>
+      <p class="hint">{$t("llm.jobs.queue.max_parallel_desc")} {$t("llm.jobs.queue.max_per_agent_desc")}</p>
+    {/if}
     <div class="job-filters" role="group" aria-label={$t("llm.jobs.list_title")}>
       {#each filters as key}<button class="button" type="button" aria-pressed={filter === key} onclick={() => filter = key}>{$t(`llm.jobs.filter_${key}`)} · {jobs.filter(job => matches(job, key)).length}</button>{/each}
     </div>
@@ -256,6 +342,12 @@
             <button type="button" class="row-head" aria-expanded={openId === job.id} onclick={() => toggle(job)}>
               <span class="pill {pickState(job.state)}">{job.state === "interrupted" ? $t("assist.runs.job_interrupted") : $t(`llm.jobs.state.${job.state}`)}</span>
               <span class="kind">{$t(`llm.jobs.kind.${job.kind}`)}</span>
+              {#if job.state === "failed" && job.failure_reason}
+                <span class="reason">{$t(`llm.jobs.failure.${job.failure_reason}`)}</span>
+              {/if}
+              {#if isWaiting(job)}
+                <span class="wait">{waitText(job)}</span>
+              {/if}
               <span class="agent">{agentName(job.agent_id)}</span>
               <span class="line">{promptTitle(job.prompt).title}</span>
               <span class="time">
@@ -299,6 +391,42 @@
                 {#if full.error}
                   <div class="field-label">{$t("llm.jobs.error")}</div>
                   <div class="text err">{full.error}</div>
+                {/if}
+                <div class="field-label">{$t("llm.jobs.diff.title")}</div>
+                {#if !diff}
+                  <p class="hint">{$t("llm.jobs.diff.loading")}</p>
+                {:else if !diff.available}
+                  <p class="hint">{$t(diffReasonKey(diff.reason))}</p>
+                {:else}
+                  {#if !diff.complete}<p class="hint">{$t("llm.jobs.diff.live")}</p>{/if}
+                  {#if diff.files.length === 0}
+                    <p class="hint">{$t("llm.jobs.diff.none")}</p>
+                  {:else}
+                    <p class="hint">
+                      {$t("llm.jobs.diff.totals", { files: diff.file_count, additions: diff.additions, deletions: diff.deletions })}
+                    </p>
+                    <ul class="files">
+                      {#each diff.files as f (f.path)}
+                        <li>
+                          <span class="badge st-{f.status}">{$t(`assist.runs.file_status.${f.status}`)}</span>
+                          <code class="path" title={f.path}>{f.path}</code>
+                          {#if f.binary}
+                            <span class="dim">{$t("llm.jobs.diff.binary")}</span>
+                          {:else}
+                            {#if f.additions != null}<span class="plus">+{f.additions}</span>{/if}
+                            {#if f.deletions != null}<span class="minus">−{f.deletions}</span>{/if}
+                          {/if}
+                        </li>
+                      {/each}
+                    </ul>
+                    {#if diff.patch}
+                      <details class="patch">
+                        <summary>{$t("assist.runs.show_diff")}</summary>
+                        <DiffView patch={diff.patch} label={$t("llm.jobs.diff.title")} />
+                      </details>
+                    {/if}
+                    {#if diff.clipped}<p class="hint">{$t("assist.runs.diff_clipped")}</p>{/if}
+                  {/if}
                 {/if}
                 <div class="field-label">{$t("llm.jobs.log")}</div>
                 <pre class="pre log">{full.log || $t("llm.jobs.log_empty")}</pre>
@@ -375,9 +503,38 @@
                 {#if tr.enabled && tr.next_run_local}
                   {$t("assist.runs.routine_next", { when: tr.next_run_local, offset: tr.utc_offset ?? "" })}
                 {/if}
+                {#if tr.missed}· <span class="missed">{$t("llm.jobs.trigger.missed", { count: tr.missed })}</span>{/if}
+                {#if tr.backlog}· {$t("llm.jobs.trigger.backlog", { count: tr.backlog })}{/if}
                 {#if tr.requires_app_open}· {$t("assist.runs.routine_app_open")}{/if}
                 {#if tr.muted}· {$t("assist.runs.routine_muted")}{/if}
+                {#if tr.zone_known === false}· {$t("llm.jobs.trigger.zone_unknown", { zone: tr.tz ?? "" })}{/if}
               </p>
+              <div class="policies">
+                <label class="policy">
+                  <span>{$t("llm.jobs.trigger.catch_up")}</span>
+                  <select
+                    class="input"
+                    value={tr.catch_up ?? "once"}
+                    onchange={(e) => void saveTrigger(triggerInput(tr, { catch_up: (e.currentTarget as HTMLSelectElement).value as CatchUp }))}
+                  >
+                    {#each catchUps as c (c)}
+                      <option value={c}>{$t(`llm.jobs.trigger.catch_up_${c}`, { count: CATCH_UP_CAP })}</option>
+                    {/each}
+                  </select>
+                </label>
+                <label class="policy">
+                  <span>{$t("llm.jobs.trigger.concurrency")}</span>
+                  <select
+                    class="input"
+                    value={tr.concurrency ?? "skip_if_active"}
+                    onchange={(e) => void saveTrigger(triggerInput(tr, { concurrency: (e.currentTarget as HTMLSelectElement).value as TriggerConcurrency }))}
+                  >
+                    {#each concurrencies as c (c)}
+                      <option value={c}>{$t(`llm.jobs.trigger.concurrency_${c}`)}</option>
+                    {/each}
+                  </select>
+                </label>
+              </div>
             {:else}
               <div class="copyline">
                 <code class="path">{hookUrl(tr)}</code>
@@ -427,6 +584,25 @@
       </div>
       {#if trKind === "cron"}
         <p class="hint">{$t("llm.jobs.trigger.cron_hint")}</p>
+        <div class="form-row">
+          <label class="field">
+            <span class="field-label">{$t("llm.jobs.trigger.catch_up")}</span>
+            <select class="input" bind:value={trCatchUp}>
+              {#each catchUps as c (c)}
+                <option value={c}>{$t(`llm.jobs.trigger.catch_up_${c}`, { count: CATCH_UP_CAP })}</option>
+              {/each}
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">{$t("llm.jobs.trigger.concurrency")}</span>
+            <select class="input" bind:value={trConcurrency}>
+              {#each concurrencies as c (c)}
+                <option value={c}>{$t(`llm.jobs.trigger.concurrency_${c}`)}</option>
+              {/each}
+            </select>
+          </label>
+        </div>
+        <p class="hint">{$t("llm.jobs.trigger.policy_hint")}</p>
       {/if}
       <label class="field">
         <span class="field-label">{$t("llm.jobs.prompt")}</span>
@@ -464,6 +640,11 @@
   .creation-panel[open] summary { margin-bottom:12px; }
   .creation-panel summary:focus-visible { outline:var(--focus-ring); }
   .job-filters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .queue-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+  .queue-summary { font-variant-numeric: tabular-nums; color: var(--text-dim); font-size: var(--text-sm); }
+  .queue-limit { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
+  .queue-limit .number { width: 7ch; text-align: right; }
+  .wait { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); color: var(--text-dim); }
   .job-filters [aria-pressed="true"] { color: var(--accent-hi); background: var(--accent-soft); }
   .jobs-page {
     flex: 1;
@@ -584,6 +765,78 @@
     font-weight: 600;
   }
 
+  .policies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  .policy {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  .missed {
+    color: var(--orange);
+  }
+
+  /* What the job changed: one line per file, like the run detail. */
+  .files {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .files li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    font-size: var(--text-xs);
+  }
+
+  .badge {
+    flex-shrink: 0;
+    padding: 0 6px;
+    border-radius: var(--radius-sm);
+    background: var(--fill-2);
+    color: var(--text-muted);
+  }
+
+  .badge.st-A {
+    color: var(--green);
+  }
+
+  .badge.st-D {
+    color: var(--red);
+  }
+
+  .plus {
+    color: var(--green);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .minus {
+    color: var(--red);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dim {
+    color: var(--text-dim);
+  }
+
+  .patch summary {
+    cursor: pointer;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+
   .enabled {
     display: inline-flex;
     align-items: center;
@@ -603,6 +856,13 @@
   .agent {
     color: var(--text-muted);
     font-weight: 500;
+  }
+
+  /* Why it failed, in words (a stall, a deadline, an unanswered question). */
+  .reason {
+    flex-shrink: 0;
+    font-size: var(--text-xs);
+    color: var(--danger);
   }
 
   .time {

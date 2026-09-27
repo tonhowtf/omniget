@@ -170,6 +170,9 @@ mod tests {
             BusEvent::TurnStarted { .. } => "turn_started",
             BusEvent::TokenDelta { .. } => "token_delta",
             BusEvent::ToolAsk { .. } => "tool_ask",
+            // Bookkeeping for jobs and windows, not a mascot moment: the
+            // `ToolCalled`/`ToolFinished` that follow an allowed ask move it.
+            BusEvent::ToolAskResolved { .. } => "tool_ask_resolved",
             BusEvent::ToolCalled { .. } => "tool_called",
             BusEvent::TurnEnded { .. } => "turn_ended",
             BusEvent::BudgetHit { .. } => "budget_hit",

@@ -49,8 +49,6 @@ use crate::llm_manager::sanitize_id;
 pub const EVENT_MISSION: &str = "assist://mission";
 const LEASE_MS: i64 = 10 * 60 * 1000;
 const HEARTBEAT_S: u64 = 60;
-/// Tasks of one mission running at the same time (bounded fan-out).
-const MISSION_CONCURRENCY: usize = 2;
 /// Characters of rebuilt context a task prompt carries.
 const CONTEXT_CHARS: usize = 6_000;
 
@@ -208,7 +206,9 @@ pub fn boot(app: &AppHandle) {
             "done" => Some(true),
             "failed" | "cancelled" => Some(false),
             // Interrupted before anything was sent: it never happened.
-            "interrupted" | "queued" if job.started_ms.is_none() && job.request_id.is_none() => {
+            "interrupted" | "queued" | "waiting_workspace"
+                if job.started_ms.is_none() && job.request_id.is_none() =>
+            {
                 Some(false)
             }
             _ => None,
@@ -642,7 +642,12 @@ impl Driver {
             let ready = missions::ready_tasks(&self.db, id)?;
             if !ready.is_empty() {
                 rounds_without_work = 0;
-                let batch: Vec<MissionTask> = ready.into_iter().take(MISSION_CONCURRENCY).collect();
+                // No mission cap of its own any more (W2): the fan-out is the
+                // job cap, and every task still passes the one job gate, which
+                // lets a job a person started go first and never runs more
+                // than the cap in total. Tasks in the same folder take turns.
+                let width = self.jobs().map(|j| j.max_parallel()).unwrap_or(1);
+                let batch: Vec<MissionTask> = ready.into_iter().take(width).collect();
                 let futs = batch.into_iter().map(|t| {
                     let this = self.clone();
                     let m = m.clone();

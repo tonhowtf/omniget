@@ -4603,7 +4603,7 @@ dependencies = [
 
 [[package]]
 name = "omniget-cli"
-version = "0.1.0"
+version = "0.10.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -4663,6 +4663,7 @@ dependencies = [
  "urlencoding",
  "uuid 1.21.0",
  "walkdir",
+ "windows-sys 0.61.2",
  "xz2",
  "zip 2.4.2",
 ]

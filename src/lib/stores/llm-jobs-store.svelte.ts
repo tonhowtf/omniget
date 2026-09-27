@@ -8,6 +8,8 @@ import { showToast } from "$lib/stores/toast-store.svelte";
 
 export type JobState =
   | "queued"
+  /** Another job holds an overlapping folder (one writer per folder). */
+  | "waiting_workspace"
   | "running"
   | "waiting_approval"
   | "done"
@@ -33,6 +35,28 @@ export type Job = {
   result: string | null;
   error: string | null;
   log: string;
+  /** Grows by one per state change of this job: an event with a lower one is stale. */
+  state_seq?: number;
+  /** When the user last opened the job (epoch ms). */
+  seen_ms?: number | null;
+  /** Why a failed job failed: `stalled`, `no_start`, `deadline`, `limit`, `ask_expired`. */
+  failure_reason?: string | null;
+  /** This job's own time limit in minutes; null = the setting. */
+  deadline_min?: number | null;
+  /** The deadline applied when it started (epoch ms). */
+  deadline_ms?: number | null;
+  /** Why a queued job waits: `slot`, `agent_cap` or `workspace:<job id>`. */
+  wait_reason?: string | null;
+  /**
+   * What the job changed, recorded when it ended. List rows and `llm://job`
+   * carry only the totals; the files come from `fetchJobDiff`.
+   */
+  diff_files?: FileChange[] | null;
+  additions?: number | null;
+  deletions?: number | null;
+  diff_clipped?: boolean;
+  /** Why there is no diff: `code: detail` (`no_workspace`, `no_snapshot`, `error`). */
+  diff_unavailable?: string | null;
   /** Summed over the model calls of the job; `cost_usd` is null for local models and CLI accounts. */
   usage?: {
     model: string;
@@ -107,9 +131,86 @@ export type Trigger = {
   utc_offset?: string;
   /** Routines only run while OmniGet is open. Always true today. */
   requires_app_open?: boolean;
+  /** Times missed while the app was closed: skipped, run once, or each (up to 25). */
+  catch_up?: CatchUp;
+  /** A time that comes while the last run still goes: skipped, or queued. */
+  concurrency?: TriggerConcurrency;
+  /** Zone of the cron line: `local`, `UTC` or `+HH:MM`. */
+  tz?: string;
+  zone_known?: boolean;
+  /** Scheduled times that did not run, all time. */
+  missed?: number;
+  last_missed_ms?: number | null;
+  /** Catch-up runs still waiting their turn. */
+  backlog?: number;
+  last_run_id?: string | null;
+  mission?: unknown;
+  deadline_min?: number | null;
 };
 
+export type CatchUp = "skip" | "once" | "all_capped";
+/** Most catch-up runs after a long gap (`jobs::CATCH_UP_CAP`). */
+export const CATCH_UP_CAP = 25;
+export type TriggerConcurrency = "skip_if_active" | "queue";
+
 export type BridgeInfo = { base_url: string; token: string };
+
+/** One job still at the gate, from `llm_jobs_state` / `llm://queue`. */
+export type QueuedEntry = {
+  id: string;
+  /** 1-based, in the order the gate lets them in. */
+  position: number;
+  reason: "slot" | "agent_cap" | "workspace";
+  /** The job holding the folder (reason `workspace`). */
+  holder?: string;
+  folder?: string;
+  /** English line for the CLI; the UI translates `reason` instead. */
+  detail: string;
+  agent_id: string;
+  kind: string | null;
+  state: string;
+  workspace: string | null;
+};
+
+type HeldEntry = { id: string; agent_id: string; kind: string | null; state: string; workspace: string | null };
+
+/** What runs, what waits and the limits (`GET /v1/state`). */
+export type QueueState = {
+  running: HeldEntry[];
+  /** Holds a slot but waits for a person. */
+  blocked: (HeldEntry & { reason: "approval" })[];
+  queued: QueuedEntry[];
+  limits: { max_parallel: number; max_per_agent: number | null; in_use: number; available: number; stagger_ms: number };
+};
+
+/** An i18n key with its parameters. */
+export type I18nLine = { key: string; params: Record<string, string | number> };
+
+/**
+ * The translated reason of a wait, from the gate's code (`slot`,
+ * `agent_cap`, `workspace`, or the row's `workspace:<job id>`).
+ */
+export function reasonLine(
+  code: string | null | undefined,
+  state: QueueState | null,
+  holder?: string,
+): I18nLine | null {
+  if (!code) return null;
+  const [kind, stored] = code.split(":", 2);
+  if (kind === "workspace")
+    return { key: "llm.jobs.queue.reason_workspace", params: { holder: holder ?? stored ?? "?" } };
+  if (kind === "agent_cap")
+    return { key: "llm.jobs.queue.reason_agent_cap", params: { cap: state?.limits.max_per_agent ?? "?" } };
+  return { key: "llm.jobs.queue.reason_slot", params: { limit: state?.limits.max_parallel ?? "?" } };
+}
+
+/** "Position N of M" and why, for one queued job (W7: no silent queue). */
+export function queueLines(entry: QueuedEntry, state: QueueState): { position: I18nLine; reason: I18nLine } {
+  return {
+    position: { key: "llm.jobs.queue.position", params: { position: entry.position, total: state.queued.length } },
+    reason: reasonLine(entry.reason, state, entry.holder) ?? { key: "llm.jobs.queue.reason_slot", params: { limit: state.limits.max_parallel } },
+  };
+}
 
 export type PendingAsk = {
   agent: string;
@@ -138,7 +239,38 @@ export type TriggerInput = {
   prompt: string;
   workspace?: string | null;
   enabled: boolean;
+  muted?: boolean;
+  mission?: unknown;
+  deadline_min?: number | null;
+  catch_up?: CatchUp;
+  concurrency?: TriggerConcurrency;
+  tz?: string;
 };
+
+/**
+ * A saved routine as a save request, with `patch` applied. The backend
+ * replaces the routine with what it gets, so every field travels (toggling
+ * it must not drop its silence, mission, deadline or policies).
+ */
+export function triggerInput(tr: Trigger, patch: Partial<TriggerInput>): TriggerInput {
+  return {
+    id: tr.id,
+    name: tr.name,
+    kind: tr.kind,
+    cron: tr.cron,
+    agent_id: tr.agent_id,
+    prompt: tr.prompt,
+    workspace: tr.workspace,
+    enabled: tr.enabled,
+    muted: tr.muted ?? false,
+    mission: tr.mission,
+    deadline_min: tr.deadline_min ?? null,
+    catch_up: tr.catch_up ?? "once",
+    concurrency: tr.concurrency ?? "skip_if_active",
+    tz: tr.tz ?? "local",
+    ...patch,
+  };
+}
 
 // ── Runs (durable record of every agent turn: `assist::runs`) ──────────
 
@@ -235,7 +367,49 @@ export type RunDetail = RunView & {
   session: RuntimeSession | null;
 };
 
-export type FileChange = { path: string; status: string; additions: number | null; deletions: number | null };
+export type FileChange = {
+  path: string;
+  status: string;
+  additions: number | null;
+  deletions: number | null;
+  /** Git sees binary content: no line counts. */
+  binary?: boolean;
+};
+
+/** `llm_job_diff`: what a whole job changed (1.7). */
+export type JobDiffView = {
+  job_id: string;
+  state: string;
+  available: boolean;
+  /** Why not: `no_workspace`, `no_snapshot`, `error`. */
+  reason: string | null;
+  detail: string | null;
+  files: FileChange[];
+  file_count: number;
+  additions: number;
+  deletions: number;
+  clipped: boolean;
+  /** False while the job runs: against the folder as it is now. */
+  complete: boolean;
+  patch: string;
+};
+
+const DIFF_REASONS = new Set(["no_workspace", "no_snapshot", "error"]);
+
+/** The i18n key that says why a job has no diff (never "no changes"). */
+export function diffReasonKey(reason: string | null | undefined): string {
+  const code = reason ?? "no_snapshot";
+  return `llm.jobs.diff.unavailable_${DIFF_REASONS.has(code) ? code : "error"}`;
+}
+
+export async function fetchJobDiff(id: string): Promise<JobDiffView | null> {
+  try {
+    return await invoke<JobDiffView>("llm_job_diff", { id });
+  } catch (e) {
+    fail(e);
+    return null;
+  }
+}
 
 export type RunDiff =
   | { available: true; workspace: string; diff: { files: FileChange[]; patch: string; clipped: boolean; complete: boolean } }
@@ -398,6 +572,7 @@ let bridge = $state<BridgeInfo | null>(null);
 let asks = $state<PendingAsk[]>([]);
 /** Last `llm://job` payload, so an open row can refresh its log. */
 let lastJobEvent = $state<Job | null>(null);
+let queue = $state<QueueState | null>(null);
 let started = false;
 
 export function getJobs(): Job[] {
@@ -418,6 +593,29 @@ export function getAsks(): PendingAsk[] {
 export function getLastJobEvent(): Job | null {
   return lastJobEvent;
 }
+export function getQueue(): QueueState | null {
+  return queue;
+}
+export function queuedEntry(id: string): QueuedEntry | undefined {
+  return queue?.queued.find((q) => q.id === id);
+}
+
+export async function reloadQueue(): Promise<void> {
+  try {
+    queue = await invoke<QueueState>("llm_jobs_state");
+  } catch {
+    // Older backend without the gate view: rows still show their reason.
+  }
+}
+
+/** Saves the parallel caps (`maxPerAgent: 0` = no per-agent cap); applied at once. */
+export async function setJobLimits(limits: { max_parallel?: number; max_per_agent?: number }): Promise<void> {
+  try {
+    queue = await invoke<QueueState>("llm_jobs_limits_set", { limits });
+  } catch (e) {
+    fail(e);
+  }
+}
 
 function fail(e: unknown) {
   showToast("error", String(e));
@@ -429,6 +627,18 @@ function upsert<T extends { id: string }>(list: T[], row: T): T[] {
   const next = list.slice();
   next[i] = row;
   return next;
+}
+
+/**
+ * Applies one `llm://job` payload. Events of one job can overtake each other
+ * (the runner and the bus handler both save it), so a payload whose
+ * `state_seq` is lower than the row already shown is stale and dropped; an
+ * equal one (a log line) still applies.
+ */
+export function mergeJobEvent(list: Job[], row: Job): Job[] {
+  const current = list.find((j) => j.id === row.id);
+  if (current && (row.state_seq ?? 0) < (current.state_seq ?? 0)) return list;
+  return upsert(list, row);
 }
 
 export async function reloadJobs(): Promise<void> {
@@ -464,11 +674,34 @@ export function initJobsStore(): void {
   void reloadLoops();
   void reloadTriggers();
   void listen<Job>("llm://job", (ev) => {
-    jobs = upsert(jobs, ev.payload);
+    const before = jobs.find((j) => j.id === ev.payload.id)?.state;
+    jobs = mergeJobEvent(jobs, ev.payload);
     lastJobEvent = ev.payload;
+    // A5: the pending questions are fetched when a job starts or stops
+    // waiting for one, never on a timer.
+    const now = jobs.find((j) => j.id === ev.payload.id)?.state;
+    if (before !== now && (before === "waiting_approval" || now === "waiting_approval")) void pollAsks();
+  }).catch(() => {});
+  // A question raised anywhere: fetched with its preview; one answered,
+  // expired or cancelled anywhere (the pet, the chat, a timeout): dropped.
+  void listen("llm://tool-ask", () => void pollAsks()).catch(() => {});
+  void listen<{ tool_call_id?: string }>("omni://tool-resolved", (ev) => {
+    const id = ev.payload?.tool_call_id;
+    if (id) asks = asks.filter((a) => a.tool_call_id !== id);
+  }).catch(() => {});
+  void pollAsks();
+  // The gate pushes the whole queue whenever it moves (W7): positions and
+  // reasons without a timer.
+  void reloadQueue();
+  void listen<QueueState>("llm://queue", (ev) => {
+    queue = ev.payload;
   }).catch(() => {});
   void listen<LoopDef>("llm://loop", (ev) => {
     loops = upsert(loops, ev.payload);
+  }).catch(() => {});
+  // A routine fired, missed a time or was saved (1.4): next run and counts.
+  void listen<Trigger>("llm://trigger", (ev) => {
+    triggers = upsert(triggers, ev.payload);
   }).catch(() => {});
   void reloadRuns();
   void listen<RunUpdate>("assist://run", (ev) => {
@@ -589,6 +822,16 @@ export async function pollAsks(): Promise<void> {
     asks = await invoke<PendingAsk[]>("llm_tool_asks_pending");
   } catch {
     asks = [];
+  }
+}
+
+/** The user opened a job: its "not seen" mark goes away. */
+export async function markJobSeen(id: string): Promise<void> {
+  try {
+    const job = await invoke<Job>("llm_job_seen", { id });
+    if (job) jobs = mergeJobEvent(jobs, job);
+  } catch {
+    // Older backend without the command: nothing to mark.
   }
 }
 

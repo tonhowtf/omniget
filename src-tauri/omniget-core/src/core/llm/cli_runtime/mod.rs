@@ -45,7 +45,7 @@ pub use accounts::{
     SHARE_LINK,
 };
 pub use parse::{CliSignal, QuotaSource, RateSnapshot, RateStatus, RateWindow};
-pub use session::{LineParser, SpawnSpec};
+pub use session::{LineParser, SpawnSpec, WatchdogConfig};
 
 /// The CLI binary is not installed, or the account points nowhere.
 pub const ERR_CLI_NOT_FOUND: &str = "ERR_CLI_NOT_FOUND";
@@ -59,6 +59,14 @@ pub const ERR_CLI_AUTH: &str = "ERR_CLI_AUTH";
 pub const ERR_CLI_ACCOUNT: &str = "ERR_CLI_ACCOUNT";
 /// Reading or writing `accounts.json` / a profile directory failed.
 pub const ERR_CLI_IO: &str = "ERR_CLI_IO";
+/// The CLI went silent past the watchdog's window (no stdout line for
+/// `idle_timeout`, or `tool_idle_timeout` while one of its tools had not
+/// answered). Its process tree was killed; never rerouted, because the turn
+/// may already have had side effects.
+pub const ERR_CLI_STALLED: &str = "ERR_CLI_STALLED";
+/// The CLI printed nothing at all within `start_timeout` of its spawn: the
+/// prompt never took. Its process tree was killed.
+pub const ERR_CLI_NO_START: &str = "ERR_CLI_NO_START";
 /// Quota exhausted. Defined by the router (F2) because that is what reroutes
 /// on it; re-exported here so this module has one error surface.
 pub use super::router::ERR_CLI_RATE;
@@ -213,7 +221,17 @@ pub struct CliRuntime {
     binaries: RwLock<HashMap<CliKind, PathBuf>>,
     /// Probed (or pinned, in tests) capabilities per CLI.
     caps: RwLock<HashMap<CliKind, super::caps::RuntimeCaps>>,
+    /// The windows every turn is launched under (the app pushes the user's
+    /// settings; the shipped defaults until then).
+    watchdog: RwLock<WatchdogConfig>,
+    /// "Is a person being asked something for this request id?" — the
+    /// broker's answer, so a turn waiting on a permission prompt is never
+    /// taken for a stuck one.
+    pause_probe: Option<PauseProbe>,
 }
+
+/// See [`CliRuntime::with_pause_probe`].
+pub type PauseProbe = Arc<dyn Fn(&str) -> bool + Send + Sync>;
 
 impl std::fmt::Debug for CliRuntime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -231,7 +249,28 @@ impl CliRuntime {
             options: CliRuntimeOptions::default(),
             binaries: RwLock::new(HashMap::new()),
             caps: RwLock::new(HashMap::new()),
+            watchdog: RwLock::new(WatchdogConfig::default()),
+            pause_probe: None,
         }
+    }
+
+    /// Freezes a turn's idle clock while `probe(request_id)` says a question
+    /// of that turn waits for a person (`ToolBroker::has_pending`).
+    pub fn with_pause_probe(mut self, probe: PauseProbe) -> Self {
+        self.pause_probe = Some(probe);
+        self
+    }
+
+    /// The windows the next turns run under. Turns already running keep the
+    /// ones they started with.
+    pub fn set_watchdog(&self, config: WatchdogConfig) {
+        if let Ok(mut w) = self.watchdog.write() {
+            *w = config;
+        }
+    }
+
+    pub fn watchdog(&self) -> WatchdogConfig {
+        self.watchdog.read().map(|w| *w).unwrap_or_default()
     }
 
     /// Pins the capabilities of a CLI (tests; a fake binary has no help).
@@ -473,6 +512,10 @@ impl CliRuntime {
                     scrub,
                     cwd,
                     stdin: Some(stdin),
+                    // Filled by `turn` from the watchdog settings: never part
+                    // of the argv, so the plan (and the missions baseline)
+                    // stays byte-identical.
+                    ..SpawnSpec::default()
                 };
                 (
                     spec,
@@ -493,6 +536,10 @@ impl CliRuntime {
                     scrub,
                     cwd,
                     stdin: Some(codex::render_prompt(&req.messages)),
+                    // Filled by `turn` from the watchdog settings: never part
+                    // of the argv, so the plan (and the missions baseline)
+                    // stays byte-identical.
+                    ..SpawnSpec::default()
                 };
                 (spec, Arc::new(codex::CodexParser::new()))
             }
@@ -666,7 +713,14 @@ impl AgentRuntime for CliRuntime {
             launch = Some(plan);
         }
 
-        let (spec, parser) = self.plan_with(&account, binary, &req, system_prompt, launch.as_ref());
+        let (mut spec, parser) =
+            self.plan_with(&account, binary, &req, system_prompt, launch.as_ref());
+        // Timing only: the argv the plan built is left exactly as it is.
+        self.watchdog().apply(&mut spec);
+        if let (Some(probe), Some(turn)) = (&self.pause_probe, &turn) {
+            let (probe, request) = (probe.clone(), turn.request.clone());
+            hooks.paused = Some(Arc::new(move || probe(&request)));
+        }
         if let Some(path) = launch.as_ref().and_then(|l| l.mcp_config.clone()) {
             hooks.cleanup = Some(Arc::new(move || {
                 let _ = std::fs::remove_file(&path);
@@ -805,6 +859,8 @@ mod tests {
             ERR_CLI_ACCOUNT,
             ERR_CLI_IO,
             ERR_CLI_RATE,
+            ERR_CLI_STALLED,
+            ERR_CLI_NO_START,
         ];
         for code in codes {
             assert!(code.starts_with("ERR_CLI_"), "{code}");
@@ -1122,6 +1178,53 @@ mod tests {
         assert_eq!(text, "ok");
         assert!(events.iter().any(|e| matches!(e, TurnEvent::Usage { .. })));
         let _ = std::fs::remove_file(fake);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The runtime launches every turn under the watchdog it was given (the
+    /// app pushes the user's settings): a CLI that prints its init and hangs
+    /// ends with ERR_CLI_STALLED instead of holding the turn forever.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_runtime_turn_runs_under_its_watchdog() {
+        use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
+        let root = tmp("watchdog");
+        let accounts = store_with(&root, CliKind::Claude);
+        let runtime = CliRuntime::new(accounts, Arc::new(CliCapacity::new()));
+        let fake = root.join("hang.sh");
+        let mut f = std::fs::File::create(&fake).unwrap();
+        writeln!(f, "#!/bin/sh\ncat > /dev/null").unwrap();
+        writeln!(
+            f,
+            "echo '{{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s1\"}}'"
+        )
+        .unwrap();
+        writeln!(f, "sleep 30").unwrap();
+        drop(f);
+        std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+        runtime.set_binary(CliKind::Claude, fake);
+        runtime.set_watchdog(WatchdogConfig {
+            idle: Some(std::time::Duration::from_millis(800)),
+            tool_idle: None,
+            start: Some(std::time::Duration::from_secs(5)),
+        });
+        let started = std::time::Instant::now();
+        let events: Vec<TurnEvent> = runtime
+            .turn(&cli_agent("claude", "max-1"), request("sonnet"))
+            .await
+            .unwrap()
+            .collect()
+            .await;
+        let error = events
+            .iter()
+            .find_map(|e| match e {
+                TurnEvent::Error { error } => Some(error.clone()),
+                _ => None,
+            })
+            .expect("the hung CLI must be stopped");
+        assert_eq!(error.code, ERR_CLI_STALLED);
+        assert!(started.elapsed() < std::time::Duration::from_secs(10));
         let _ = std::fs::remove_dir_all(&root);
     }
 

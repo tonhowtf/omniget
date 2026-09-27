@@ -49,6 +49,13 @@ struct Control {
     mission_id: String,
     idempotency_key: String,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct JobDiffArgs {
+    job_id: String,
+    #[serde(default)]
+    format: Option<String>,
+}
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct ArtifactCriterion {
@@ -152,6 +159,7 @@ pub fn tools() -> Vec<ToolDef> {
         ("missions_resume","Resume an owned native mission within its existing grant and remaining budget; unresolved effects must be reconciled first.",control,json!(["missionId","idempotencyKey"])),
         ("missions_artifacts","Current digest and latest verification receipt of each artifact of an owned mission; with the transfer scope, a short-lived artifact link bound to that exact revision (same rules as download artifacts). Optional extra paths inside the granted workspace.",json!({"missionId":id_schema,"paths":{"type":"array","maxItems":16,"items":{"type":"string","minLength":1,"maxLength":1024}}}),json!(["missionId"])),
         ("missions_diagnostics","Redacted diagnosis of an owned mission: state, block reason with suggested actions, criteria verdict, task errors, job/effect references. No private settings, memory or other clients' data.",mission.clone(),json!(["missionId"])),
+        ("job_diff","What a job of an owned mission changed in its folder, from the host's own snapshots (no agent tokens): files with status and +/- (binary files marked), totals, and with format=patch the unified diff (redacted, cut at 32 KB). A job whose turns took no snapshot answers available=false with the reason, never an empty diff. No host paths.",json!({"jobId":id_schema,"format":{"type":"string","enum":["files","patch"],"default":"files"}}),json!(["jobId"])),
         ("approvals_list","Pending permission questions of an owned mission's runs. Read-only: approvals are given by a person in the OmniGet window, never through this API.",json!({"missionId":id_schema}),json!(["missionId"])),
         ("missions_create","Create a bounded native mission using a local execution grant. File tools create new files or edit existing ones only against the SHA-256 of the revision last read; shell and arbitrary executors are unavailable.",json!({
             "grantId":id_schema,"workspaceId":id_schema,"executorId":id_schema,"objective":{"type":"string","minLength":1,"maxLength":8192},"budgetTokens":{"type":"integer","minimum":1},"maxMinutes":{"type":"integer","minimum":1,"maximum":240,"description":"Active work minutes before the mission blocks for a person (default 15)."},"idempotencyKey":{"type":"string","minLength":1,"maxLength":100},
@@ -175,6 +183,64 @@ fn owned(db: &AssistDb, p: &Principal, mission: &str) -> Result<(), String> {
     } else {
         Err("MISSION_NOT_AUTHORIZED".into())
     }
+}
+/// A job is readable when it ran a task of a mission this principal owns
+/// (the same rule as `missions_get`); anything else, local jobs included,
+/// is refused without saying whether it exists.
+fn owned_job(db: &AssistDb, p: &Principal, job: &str) -> Result<(), String> {
+    id(job)?;
+    // `LIKE` narrows, the JSON decides (`_` is a LIKE wildcard).
+    let pattern = format!("%\"{job}\"%");
+    let rows: Vec<(String, String)> = storage(db.with(|c| {
+        let mut s = c.prepare("SELECT mission_id, job_ids FROM missions_tasks WHERE job_ids LIKE ?1 LIMIT 50")?;
+        let rows = s.query_map([&pattern], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        rows.collect()
+    }))?;
+    let mut missions: Vec<String> = rows
+        .into_iter()
+        .filter(|(_, ids)| {
+            serde_json::from_str::<Vec<String>>(ids).is_ok_and(|ids| ids.iter().any(|i| i == job))
+        })
+        .map(|(m, _)| m)
+        .collect();
+    missions.dedup();
+    if missions.iter().any(|m| owned(db, p, m).is_ok()) {
+        Ok(())
+    } else {
+        Err("JOB_NOT_AUTHORIZED".into())
+    }
+}
+/// Most files and patch characters `job_diff` returns (the reply stays under
+/// the 64 KB ceiling).
+const JOB_DIFF_FILES: usize = 200;
+const JOB_DIFF_PATCH: usize = 32 * 1024;
+fn job_diff_reply(job: &crate::jobs::Job, patch: Option<&str>, complete: bool, with_patch: bool) -> Value {
+    let (reason, detail) = match (&job.diff_files, job.diff_unavailable.as_deref()) {
+        (_, Some(u)) => match u.split_once(": ") {
+            Some((code, detail)) => (Some(code.to_string()), Some(text(detail, 300))),
+            None => (Some(u.to_string()), None),
+        },
+        (Some(_), None) => (None, None),
+        (None, None) => (Some("no_snapshot".to_string()), None),
+    };
+    let files = job.diff_files.clone().unwrap_or_default();
+    let listed: Vec<Value> = files
+        .iter()
+        .take(JOB_DIFF_FILES)
+        .map(|f| json!({"path": text(&f.path, 512), "status": f.status, "additions": f.additions, "deletions": f.deletions, "binary": f.binary}))
+        .collect();
+    let mut out = json!({
+        "jobId": job.id, "state": job.state, "available": reason.is_none(), "reason": reason, "detail": detail,
+        "files": listed, "fileCount": files.len(), "filesTruncated": files.len() > JOB_DIFF_FILES,
+        "additions": job.additions.unwrap_or(0), "deletions": job.deletions.unwrap_or(0),
+        "clipped": job.diff_clipped, "complete": complete, "headOid": Value::Null,
+    });
+    if with_patch && reason.is_none() {
+        let full = patch.unwrap_or("");
+        out["patch"] = json!(text(full, JOB_DIFF_PATCH));
+        out["patchClipped"] = json!(full.chars().count() > JOB_DIFF_PATCH);
+    }
+    out
 }
 fn summary(db: &AssistDb, p: &Principal, mission: &str) -> Result<Value, String> {
     owned(db, p, mission)?;
@@ -625,6 +691,21 @@ pub async fn call(
             owned(&db, p, &request.mission_id)?;
             mission_diagnostics(app, &db, &request.mission_id)?
         }
+        "job_diff" => {
+            let request: JobDiffArgs = parse(args)?;
+            let with_patch = match request.format.as_deref().unwrap_or("files") {
+                "files" => false,
+                "patch" => true,
+                _ => return Err("INVALID_ARGUMENTS".into()),
+            };
+            owned_job(&db, p, &request.job_id)?;
+            let jobs = crate::jobs::get(app).map_err(|_| "ORCHESTRATION_UNAVAILABLE")?;
+            let (job, patch, complete) = jobs
+                .diff(&request.job_id)
+                .await
+                .map_err(|_| "JOB_NOT_AUTHORIZED")?;
+            job_diff_reply(&job, patch.as_deref(), complete, with_patch)
+        }
         "approvals_list" => {
             let request: MissionId = parse(args)?;
             owned(&db, p, &request.mission_id)?;
@@ -826,6 +907,53 @@ mod tests {
         })
         .unwrap();
         assert!(owned(&db, &alice, "mission-a").is_err());
+    }
+    #[test]
+    fn job_diff_only_reads_jobs_of_owned_missions() {
+        use omniget_core::core::assist::db::Migration;
+        let dir =
+            std::env::temp_dir().join(format!("omniget-orch-jd-{}", uuid::Uuid::new_v4().simple()));
+        let db = AssistDb::open_with(&dir.join("assist.db"), &[Migration { module: "orchestration_jd_fixture", version: 1, sql: r#"
+            CREATE TABLE missions_missions(id TEXT,principal TEXT,conversation_id TEXT);
+            CREATE TABLE external_executions(mission TEXT,conversation TEXT,grant_id TEXT);
+            CREATE TABLE external_grants(id TEXT,principal TEXT);
+            CREATE TABLE missions_tasks(mission_id TEXT, job_ids TEXT);
+            INSERT INTO missions_missions VALUES('mission-a','alice','external-mcp-a'),('mission-b','bob','external-mcp-b'),('local','alice','local');
+            INSERT INTO external_grants VALUES('grant-a','alice'),('grant-b','bob');
+            INSERT INTO external_executions VALUES('mission-a','external-mcp-a','grant-a'),('mission-b','external-mcp-b','grant-b');
+            INSERT INTO missions_tasks VALUES('mission-a','["ja1","ja2"]'),('mission-b','["jb1"]'),('local','["jl1"]'),('mission-b','["jyx"]');
+        "# }]).unwrap();
+        let who = |id: &str| Principal { id: id.into(), name: id.into(), scopes: vec![] };
+        assert!(owned_job(&db, &who("alice"), "ja2").is_ok());
+        assert_eq!(owned_job(&db, &who("alice"), "jb1").unwrap_err(), "JOB_NOT_AUTHORIZED");
+        assert!(owned_job(&db, &who("bob"), "jb1").is_ok());
+        // A local (non-external) mission's job and a job of no mission.
+        assert!(owned_job(&db, &who("alice"), "jl1").is_err());
+        assert!(owned_job(&db, &who("alice"), "j-none").is_err());
+        // `_` in the id is not a wildcard: `j_x` is not bob's `jyx`.
+        assert!(owned_job(&db, &who("bob"), "j_x").is_err());
+        assert!(owned_job(&db, &who("alice"), "../x").is_err());
+    }
+    #[test]
+    fn job_diff_reply_is_bounded_and_says_unavailable() {
+        use omniget_core::core::llm::snapshot::FileChange;
+        let mut job = crate::jobs::Job { id: "j1".into(), state: "done".into(), ..Default::default() };
+        job.diff_unavailable = Some("no_snapshot: no turn of this job took a snapshot".into());
+        let v = job_diff_reply(&job, None, true, true);
+        assert_eq!(v["available"], false);
+        assert_eq!(v["reason"], "no_snapshot");
+        assert!(v.get("patch").is_none());
+        job.diff_unavailable = None;
+        job.diff_files = Some((0..500).map(|i| FileChange { path: format!("f{i}.txt"), status: "M".into(), additions: Some(1), deletions: Some(1), binary: false }).collect());
+        job.additions = Some(500);
+        job.deletions = Some(500);
+        let patch = "+x\n".repeat(40_000);
+        let v = job_diff_reply(&job, Some(&patch), true, true);
+        assert_eq!(v["available"], true);
+        assert_eq!(v["files"].as_array().unwrap().len(), JOB_DIFF_FILES);
+        assert_eq!((v["fileCount"].as_u64(), v["filesTruncated"].as_bool()), (Some(500), Some(true)));
+        assert_eq!(v["patchClipped"], true);
+        assert!(bounded(v).is_ok(), "under the 64 KB reply ceiling");
     }
     #[test]
     fn catalog_closed_and_creation_describes_limited_executor() {

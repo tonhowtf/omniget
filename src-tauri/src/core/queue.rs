@@ -245,6 +245,10 @@ pub struct QueueItemInfo {
     pub fragment_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub started_at_ms: Option<u64>,
+    /// Quando a tentativa terminou (sucesso ou erro). Com `started_at_ms`, dá
+    /// a duração medida pelo próprio app, sem depender de quem consulta.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finished_at_ms: Option<u64>,
     /// Último comando yt-dlp desta tentativa (redigido), quando houve um.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub command: Option<CommandRecord>,
@@ -297,6 +301,7 @@ pub struct QueueItem {
     pub fragment_index: Option<u32>,
     pub fragment_count: Option<u32>,
     pub started_at_ms: Option<u64>,
+    pub finished_at_ms: Option<u64>,
     /// Comando completo escrito pelo usuário em "editar e tentar de novo".
     pub ytdlp_argv_override: Option<Vec<String>>,
 }
@@ -338,6 +343,7 @@ impl QueueItem {
             fragment_index: self.fragment_index,
             fragment_count: self.fragment_count,
             started_at_ms: self.started_at_ms,
+            finished_at_ms: self.finished_at_ms,
             command: omniget_core::core::ytdlp::get_command(self.id),
         }
     }
@@ -350,6 +356,7 @@ impl QueueItem {
         self.fragment_index = None;
         self.fragment_count = None;
         self.started_at_ms = None;
+        self.finished_at_ms = None;
     }
 }
 
@@ -459,6 +466,7 @@ impl DownloadQueue {
             fragment_index: None,
             fragment_count: None,
             started_at_ms: None,
+            finished_at_ms: None,
             ytdlp_argv_override: None,
         };
         crate::core::recovery::persist(crate::core::recovery::RecoveryItem {
@@ -614,6 +622,7 @@ impl DownloadQueue {
             fragment_index: None,
             fragment_count: None,
             started_at_ms: None,
+            finished_at_ms: None,
             ytdlp_argv_override: None,
         };
         self.items.push(item);
@@ -784,6 +793,7 @@ impl DownloadQueue {
             item.file_size_bytes = file_size_bytes;
             item.speed_bytes_per_sec = 0.0;
             item.eta_seconds = None;
+            item.finished_at_ms = Some(now_ms());
             crate::core::recovery::remove(id);
 
             let entry = crate::core::queue_history::HistoryEntry {
@@ -825,6 +835,7 @@ impl DownloadQueue {
             item.file_size_bytes = file_size_bytes;
             item.speed_bytes_per_sec = 0.0;
             item.torrent_id = torrent_id;
+            item.finished_at_ms = Some(now_ms());
             crate::core::recovery::remove(id);
         }
     }

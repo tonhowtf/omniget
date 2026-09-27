@@ -1,7 +1,7 @@
 [package]
 name = "omniget-cli"
 default-run = "omniget-cli"
-version = "0.1.0"
+version = "0.10.1"
 edition = "2021"
 description = "OmniGet command line: download from YouTube, Instagram, X and 1,800+ sites, and run AI agent jobs and loops"
 

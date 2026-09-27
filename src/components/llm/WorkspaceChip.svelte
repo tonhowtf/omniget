@@ -53,16 +53,39 @@
     void refresh();
   });
 
+  /**
+   * The backend refuses to restore files while another agent works in an
+   * overlapping folder (`ERR_UNDO_SHARED`) or when a file of that turn
+   * changed again after it (`ERR_UNDO_CONFLICT`): restoring would erase
+   * someone else's work. Then the person may take back only the
+   * conversation, leaving every file as it is.
+   */
+  function refusedForSharing(error: unknown): string | null {
+    const text = String(error);
+    const m = text.match(/(ERR_UNDO_SHARED|ERR_UNDO_CONFLICT):\s*(.*)$/s);
+    return m ? m[2] : null;
+  }
+
   async function undo() {
     if (!conversationId || undoing) return;
     undoing = true;
     try {
-      const out = (await invoke("llm_turn_undo", { conversationId })) as Undone;
+      let out: Undone;
+      try {
+        out = (await invoke("llm_turn_undo", { conversationId })) as Undone;
+      } catch (error) {
+        const reason = refusedForSharing(error);
+        if (reason === null) throw error;
+        if (!confirm($t("llm.workspace.undo_shared_confirm", { reason }) as string)) return;
+        out = (await invoke("llm_turn_undo", { conversationId, conversationOnly: true })) as Undone;
+      }
       ws = { ...ws, undo_depth: out.undo_depth };
       if (out.conversation_restored) rewindConversation(conversationId, out.user_messages_kept);
       showToast(
         "success",
-        $t("llm.workspace.undone_full", { count: out.files.length, messages: out.messages_removed }) as string,
+        (out.files.length === 0 && out.messages_removed > 0
+          ? $t("llm.workspace.undone_conversation", { messages: out.messages_removed })
+          : $t("llm.workspace.undone_full", { count: out.files.length, messages: out.messages_removed })) as string,
       );
       // Undo only knows the folder. What a command did elsewhere stays done.
       if (out.shell_commands.length > 0) {

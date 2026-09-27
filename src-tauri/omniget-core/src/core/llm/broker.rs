@@ -14,7 +14,11 @@
 //! that is already inside an `Arc`, without rebuilding the coordinator.
 //!
 //! `GrantMode::Ask` emits `BusEvent::ToolAsk` and waits for
-//! [`ToolBroker::answer`] until `ask_timeout`; a timeout denies the call.
+//! [`ToolBroker::answer`] until the ask timeout of its request (the chat's
+//! default, or what [`ToolBroker::set_ask_timeout_resolver`] says for a
+//! background job). Running out of time is not a refusal: the call fails with
+//! `ERR_TOOL_TIMEOUT`, and every ending of an ask — answer, expiry, cancel —
+//! goes out as one `BusEvent::ToolAskResolved`, so an expiry is never silent.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
@@ -36,8 +40,59 @@ pub const ERR_TOOL_UNKNOWN: &str = "ERR_TOOL_UNKNOWN";
 /// Nobody answered a `GrantMode::Ask` prompt in time.
 pub const ERR_TOOL_TIMEOUT: &str = "ERR_TOOL_TIMEOUT";
 
-/// How long an `Ask` grant waits for the user before denying.
+/// How long an `Ask` grant waits for the user when nothing else was set.
+/// The app replaces it with the user's `ask_timeout_chat_s` (30 min by
+/// default); 120 s only survives in a broker nobody configured.
 pub const DEFAULT_ASK_TIMEOUT: Duration = Duration::from_secs(120);
+/// No question ever expires sooner than this, whatever a resolver says (a job
+/// one second from its deadline still gets a real chance, and the deadline
+/// then ends the job with its own reason).
+pub const MIN_ASK_TIMEOUT: Duration = Duration::from_secs(1);
+
+/// Picks the ask timeout of one request (`None` = the default).
+pub type AskTimeoutResolver = Arc<dyn Fn(&str) -> Option<Duration> + Send + Sync>;
+
+/// How a question ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AskEnd {
+    /// A person (or a stored rule) answered.
+    Answered(Answer),
+    /// Nobody answered within the timeout: the action did not run.
+    Expired { waited: Duration },
+    /// The turn ended, or the answer could not apply to the durable record.
+    Cancelled,
+}
+
+impl AskEnd {
+    /// What the caller acts on: only an explicit yes allows.
+    pub fn answer(self) -> Answer {
+        match self {
+            AskEnd::Answered(a) => a,
+            AskEnd::Expired { .. } | AskEnd::Cancelled => Answer::Deny,
+        }
+    }
+
+    /// The `outcome` of `BusEvent::ToolAskResolved`.
+    pub fn outcome(self) -> &'static str {
+        match self {
+            AskEnd::Answered(Answer::Deny) => "deny",
+            AskEnd::Answered(_) => "allow",
+            AskEnd::Expired { .. } => "expired",
+            AskEnd::Cancelled => "cancelled",
+        }
+    }
+}
+
+/// The error of a brokered call whose question expired.
+pub fn timeout_error(name: &str, waited: Duration) -> LlmError {
+    LlmError::new(
+        ERR_TOOL_TIMEOUT,
+        format!(
+            "nobody answered the permission question for `{name}` in {} s; it did not run",
+            waited.as_secs()
+        ),
+    )
+}
 
 /// Runs one tool call. The app implements it over `omniget_core::core::tools::*`
 /// plus the MCP client; the tests implement it in three lines.
@@ -132,7 +187,8 @@ pub struct ToolBroker {
     sources: RwLock<Vec<Source>>,
     bus: Arc<Bus>,
     pending: Mutex<HashMap<String, PendingAsk>>,
-    ask_timeout: Duration,
+    ask_timeout: RwLock<Duration>,
+    ask_timeout_resolver: RwLock<Option<AskTimeoutResolver>>,
     /// The run registry of the last durable question, so a late answer can
     /// still be told apart (expired vs resolved) after its waiter left.
     last_registry: Mutex<Option<crate::core::assist::runs::Registry>>,
@@ -147,7 +203,7 @@ impl std::fmt::Debug for ToolBroker {
                 "specs",
                 &sources.iter().map(|s| s.specs.len()).sum::<usize>(),
             )
-            .field("ask_timeout", &self.ask_timeout)
+            .field("ask_timeout", &self.default_ask_timeout())
             .finish()
     }
 }
@@ -160,16 +216,51 @@ impl ToolBroker {
             sources: RwLock::new(Vec::new()),
             bus,
             pending: Mutex::new(HashMap::new()),
-            ask_timeout: DEFAULT_ASK_TIMEOUT,
+            ask_timeout: RwLock::new(DEFAULT_ASK_TIMEOUT),
+            ask_timeout_resolver: RwLock::new(None),
             last_registry: Mutex::new(None),
         };
         broker.register_internal(specs, executor);
         broker
     }
 
-    pub fn with_ask_timeout(mut self, timeout: Duration) -> Self {
-        self.ask_timeout = timeout;
+    pub fn with_ask_timeout(self, timeout: Duration) -> Self {
+        self.set_ask_timeout(timeout);
         self
+    }
+
+    /// The default ask timeout (the chat's), settable on a broker that is
+    /// already shared: the settings change while the app runs.
+    pub fn set_ask_timeout(&self, timeout: Duration) {
+        *self.ask_timeout.write().unwrap_or_else(|e| e.into_inner()) = timeout;
+    }
+
+    fn default_ask_timeout(&self) -> Duration {
+        *self.ask_timeout.read().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Per-request timeouts: the jobs register one so a background job's
+    /// question waits as long as the job may still run.
+    pub fn set_ask_timeout_resolver(&self, resolver: Option<AskTimeoutResolver>) {
+        *self
+            .ask_timeout_resolver
+            .write()
+            .unwrap_or_else(|e| e.into_inner()) = resolver;
+    }
+
+    /// How long a question of `request_id` would wait. What a resolver
+    /// picks is never under [`MIN_ASK_TIMEOUT`]; the default is taken as set
+    /// (the settings clamp it, the tests shorten it).
+    pub fn ask_timeout_for(&self, request_id: &str) -> Duration {
+        let resolver = self
+            .ask_timeout_resolver
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        match resolver.and_then(|r| r(request_id)) {
+            Some(t) => t.max(MIN_ASK_TIMEOUT),
+            None => self.default_ask_timeout(),
+        }
     }
 
     // ── Sources ───────────────────────────────────────────────────────
@@ -436,6 +527,25 @@ impl ToolBroker {
         self.pending.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
 
+    /// Whether a question of this turn waits for a person right now. The
+    /// turn watchdog freezes its idle clock on it.
+    pub fn has_pending(&self, request_id: &str) -> bool {
+        self.pending
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .values()
+            .any(|p| p.request_id == request_id)
+    }
+
+    /// Whether this exact question is still unanswered (a notification is
+    /// re-checked against it at delivery).
+    pub fn has_pending_call(&self, tool_call_id: &str) -> bool {
+        self.pending
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains_key(tool_call_id)
+    }
+
     /// Run one tool call for `agent_id`, honouring the grant. `request_id` is
     /// the id of the turn the call belongs to (the one the coordinator put in
     /// `TurnEvent::Started`), so the UI can tie an ask back to its turn. Emits
@@ -487,8 +597,8 @@ impl ToolBroker {
                 && name.starts_with("fs_")
                 && super::code_tools::is_external(path)
             {
-                let ok = self
-                    .ask(
+                let end = self
+                    .ask_ended(
                         agent_id,
                         request_id,
                         tool_call_id,
@@ -496,7 +606,10 @@ impl ToolBroker {
                         &Value::String(format!("{name} {path}")),
                     )
                     .await;
-                if !matches!(ok, Answer::Deny) {
+                if let AskEnd::Expired { waited } = end {
+                    return Err(self.fail(agent_id, name, start, timeout_error(name, waited)));
+                }
+                if !matches!(end.answer(), Answer::Deny) {
                     super::code_tools::allow_external_once();
                     mode = GrantMode::Auto;
                 } else {
@@ -514,9 +627,13 @@ impl ToolBroker {
                 ))
             }
             GrantMode::Ask => {
-                let answer = self
-                    .ask(agent_id, request_id, tool_call_id, name, &input)
+                let end = self
+                    .ask_ended(agent_id, request_id, tool_call_id, name, &input)
                     .await;
+                if let AskEnd::Expired { waited } = end {
+                    return Err(self.fail(agent_id, name, start, timeout_error(name, waited)));
+                }
+                let answer = end.answer();
                 // An external run's "Always" covers this call only: it never
                 // becomes a permanent local rule of the executor (L2).
                 if matches!(answer, Answer::Always) && external_context.is_none() {
@@ -642,7 +759,22 @@ impl ToolBroker {
         label: &str,
         preview: &str,
     ) -> Answer {
-        self.ask(
+        self.ask_user_ended(agent_id, request_id, tool_call_id, label, preview)
+            .await
+            .answer()
+    }
+
+    /// [`Self::ask_user`], saying how the question ended, so the caller can
+    /// tell its agent "nobody answered" instead of "the user refused".
+    pub async fn ask_user_ended(
+        &self,
+        agent_id: &str,
+        request_id: &str,
+        tool_call_id: &str,
+        label: &str,
+        preview: &str,
+    ) -> AskEnd {
+        self.ask_ended(
             agent_id,
             request_id,
             tool_call_id,
@@ -652,16 +784,19 @@ impl ToolBroker {
         .await
     }
 
-    /// Ask the user and wait. Returns false on refusal, on timeout and when
-    /// nobody is listening on the bus (no UI, no consent).
-    async fn ask(
+    /// Ask the user and wait. Only an explicit yes allows; a refusal, a
+    /// timeout, a cancelled turn and nobody listening on the bus (no UI, no
+    /// consent) all come back as something else, each told apart.
+    async fn ask_ended(
         &self,
         agent_id: &str,
         request_id: &str,
         tool_call_id: &str,
         name: &str,
         input: &Value,
-    ) -> Answer {
+    ) -> AskEnd {
+        let asked_at = Instant::now();
+        let ask_timeout = self.ask_timeout_for(request_id);
         let (tx, rx) = oneshot::channel();
         let preview_text = match input {
             Value::String(s) => s.clone(),
@@ -670,7 +805,7 @@ impl ToolBroker {
         // The durable request, when the turn has a run record: the answer
         // must resolve exactly this one, in time.
         let deadline = crate::core::assist::now_ms()
-            + self.ask_timeout.as_millis().min(i64::MAX as u128) as i64;
+            + ask_timeout.as_millis().min(i64::MAX as u128) as i64;
         let permission = crate::core::assist::runs::active().and_then(|reg| {
             reg.run(request_id)?;
             let req = reg
@@ -707,10 +842,14 @@ impl ToolBroker {
             tool: name.to_string(),
             preview: preview_text,
         });
-        let allowed = match tokio::time::timeout(self.ask_timeout, rx).await {
-            Ok(Ok(allow)) => allow,
-            // Sender dropped or the wait expired: both mean "no".
-            _ => Answer::Deny,
+        let end = match tokio::time::timeout(ask_timeout, rx).await {
+            Ok(Ok(answer)) => AskEnd::Answered(answer),
+            // The sender was dropped: the turn was cancelled, or the answer
+            // could not resolve the durable record.
+            Ok(Err(_)) => AskEnd::Cancelled,
+            Err(_) => AskEnd::Expired {
+                waited: asked_at.elapsed(),
+            },
         };
         {
             let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
@@ -731,7 +870,21 @@ impl ToolBroker {
                 }
             }
         }
-        allowed
+        if let AskEnd::Expired { waited } = end {
+            tracing::warn!(
+                "[broker] {ERR_TOOL_TIMEOUT}: `{name}` of {request_id} unanswered after {} s",
+                waited.as_secs()
+            );
+        }
+        self.bus.emit(BusEvent::ToolAskResolved {
+            agent: agent_id.to_string(),
+            request_id: request_id.to_string(),
+            tool_call_id: tool_call_id.to_string(),
+            tool: name.to_string(),
+            outcome: end.outcome().to_string(),
+            waited_ms: asked_at.elapsed().as_millis().min(u64::MAX as u128) as u64,
+        });
+        end
     }
 }
 
@@ -973,8 +1126,293 @@ mod tests {
             .call("agent", &grants, "req-9", "call-9", "dl_add", json!({}))
             .await
             .unwrap_err();
-        assert_eq!(err.code, ERR_TOOL_DENIED);
+        // A3: running out of time is its own outcome, never a silent "no".
+        assert_eq!(err.code, ERR_TOOL_TIMEOUT);
+        assert!(err.message.contains("nobody answered"), "{}", err.message);
         assert_eq!(b.pending_count(), 0);
+    }
+
+    fn ask_grant() -> Vec<ToolGrant> {
+        vec![grant(
+            ToolSource::Internal {
+                name: "dl_add".into(),
+            },
+            GrantMode::Ask,
+        )]
+    }
+
+    /// Collects the `ToolAskResolved` events already on the bus.
+    fn resolved(rx: &mut tokio::sync::broadcast::Receiver<BusEvent>) -> Vec<(String, String)> {
+        let mut out = Vec::new();
+        while let Ok(ev) = rx.try_recv() {
+            if let BusEvent::ToolAskResolved {
+                tool_call_id,
+                outcome,
+                ..
+            } = ev
+            {
+                out.push((tool_call_id, outcome));
+            }
+        }
+        out
+    }
+
+    /// An expired question says so on the bus (with how long it waited), so
+    /// the job log and the notification can carry the reason.
+    #[tokio::test]
+    async fn an_expired_ask_says_so_on_the_bus() {
+        let bus = Arc::new(Bus::new());
+        let mut rx = bus.subscribe();
+        let b = ToolBroker::new(vec![spec("dl_add")], Arc::new(EchoExecutor), bus)
+            .with_ask_timeout(Duration::from_millis(60));
+        let err = b
+            .call("agent", &ask_grant(), "req-1", "call-1", "dl_add", json!({}))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code, ERR_TOOL_TIMEOUT);
+        let mut waited = None;
+        let mut outcomes = Vec::new();
+        while let Ok(ev) = rx.try_recv() {
+            if let BusEvent::ToolAskResolved {
+                request_id,
+                outcome,
+                waited_ms,
+                tool,
+                ..
+            } = ev
+            {
+                assert_eq!(request_id, "req-1");
+                assert_eq!(tool, "dl_add");
+                waited = Some(waited_ms);
+                outcomes.push(outcome);
+            }
+        }
+        assert_eq!(outcomes, vec!["expired".to_string()]);
+        assert!(waited.unwrap() >= 60);
+    }
+
+    /// Every way out of a question emits exactly one resolved event: the
+    /// front and the jobs never keep a ghost ask, whatever ended it.
+    #[tokio::test]
+    async fn every_ask_end_emits_one_resolved_event() {
+        let bus = Arc::new(Bus::new());
+        let mut rx = bus.subscribe();
+        let b = Arc::new(ToolBroker::new(
+            vec![spec("dl_add")],
+            Arc::new(EchoExecutor),
+            bus,
+        ));
+        for (call, allow) in [("c-allow", true), ("c-deny", false)] {
+            let b2 = b.clone();
+            let task = tokio::spawn(async move {
+                b2.call("agent", &ask_grant(), "req-2", call, "dl_add", json!({}))
+                    .await
+            });
+            while !b.answer(call, allow) {
+                tokio::task::yield_now().await;
+            }
+            let _ = task.await.unwrap();
+        }
+        let b2 = b.clone();
+        let task = tokio::spawn(async move {
+            b2.call("agent", &ask_grant(), "req-3", "c-cancel", "dl_add", json!({}))
+                .await
+        });
+        while !b.has_pending("req-3") {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(b.cancel_request("req-3"), 1);
+        let err = task.await.unwrap().unwrap_err();
+        assert_eq!(err.code, ERR_TOOL_DENIED, "a cancelled turn's question is not a timeout");
+        assert_eq!(
+            resolved(&mut rx),
+            vec![
+                ("c-allow".into(), "allow".into()),
+                ("c-deny".into(), "deny".into()),
+                ("c-cancel".into(), "cancelled".into()),
+            ]
+        );
+    }
+
+    /// `has_pending` is what freezes the turn watchdog: true exactly while a
+    /// question of that request waits.
+    #[tokio::test]
+    async fn has_pending_follows_the_ask_lifetime() {
+        let b = Arc::new(ToolBroker::new(
+            vec![spec("dl_add")],
+            Arc::new(EchoExecutor),
+            Arc::new(Bus::new()),
+        ));
+        assert!(!b.has_pending("req-4"));
+        let b2 = b.clone();
+        let task = tokio::spawn(async move {
+            b2.call("agent", &ask_grant(), "req-4", "c-4", "dl_add", json!({}))
+                .await
+        });
+        while !b.has_pending("req-4") {
+            tokio::task::yield_now().await;
+        }
+        assert!(b.has_pending_call("c-4"));
+        assert!(!b.has_pending("req-other"));
+        assert!(b.answer("c-4", true));
+        task.await.unwrap().unwrap();
+        assert!(!b.has_pending("req-4"));
+        assert!(!b.has_pending_call("c-4"));
+    }
+
+    /// Chat and jobs wait differently: the resolver picks per request, and
+    /// the default (the chat's) is settable on a broker already in an `Arc`.
+    #[tokio::test]
+    async fn a_resolver_sets_the_timeout_per_request() {
+        let b = ToolBroker::new(
+            vec![spec("dl_add")],
+            Arc::new(EchoExecutor),
+            Arc::new(Bus::new()),
+        );
+        b.set_ask_timeout(Duration::from_secs(1800));
+        assert_eq!(b.ask_timeout_for("chat-req"), Duration::from_secs(1800));
+        b.set_ask_timeout_resolver(Some(Arc::new(|req: &str| {
+            (req == "job-req").then_some(Duration::from_millis(1100))
+        })));
+        assert_eq!(b.ask_timeout_for("job-req"), Duration::from_millis(1100));
+        assert_eq!(b.ask_timeout_for("chat-req"), Duration::from_secs(1800));
+        let started = Instant::now();
+        let err = b
+            .call("agent", &ask_grant(), "job-req", "c-5", "dl_add", json!({}))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code, ERR_TOOL_TIMEOUT);
+        assert!(started.elapsed() < Duration::from_secs(5));
+        // A resolver never makes a question expire at once.
+        b.set_ask_timeout_resolver(Some(Arc::new(|_: &str| Some(Duration::ZERO))));
+        assert_eq!(b.ask_timeout_for("x"), MIN_ASK_TIMEOUT);
+    }
+
+    /// The ACP and the Claude prompt tool get the ending too, so they can
+    /// tell the agent "nobody answered" instead of "the user refused".
+    #[tokio::test]
+    async fn ask_user_ended_reports_the_expiry() {
+        let b = ToolBroker::new(
+            vec![spec("dl_add")],
+            Arc::new(EchoExecutor),
+            Arc::new(Bus::new()),
+        )
+        .with_ask_timeout(Duration::from_millis(30));
+        match b.ask_user_ended("agent", "req-6", "c-6", "cli:Bash", "ls").await {
+            AskEnd::Expired { waited } => assert!(waited >= Duration::from_millis(30)),
+            other => panic!("expected an expiry, got {other:?}"),
+        }
+    }
+
+    // ── BN3, wave 1 (scripts/llm/approvals_eval.py) ────────────────────
+
+    fn bench(metric: &str, value: serde_json::Value) {
+        if let Ok(path) = std::env::var("OMNIGET_BENCH_OUT") {
+            use std::io::Write as _;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                let _ = writeln!(
+                    f,
+                    "{}",
+                    json!({ "bench": "bn3", "metric": metric, "value": value, "level": "unit" })
+                );
+            }
+        }
+    }
+
+    /// 20 background jobs ask for `shell_exec` and nobody answers (window
+    /// hidden). Every one must end as an expiry that says so — the tool
+    /// error is `ERR_TOOL_TIMEOUT` and the bus carries `outcome: expired` —
+    /// never a plain denial. Silent = anything else.
+    #[tokio::test]
+    async fn bn3_no_silent_denials_with_job_timeouts() {
+        let bus = Arc::new(Bus::new());
+        let mut rx = bus.subscribe();
+        let b = Arc::new(ToolBroker::new(
+            vec![spec("shell_exec")],
+            Arc::new(EchoExecutor),
+            bus,
+        ));
+        // Chat default stays long; the jobs' resolver gives each job what is
+        // left of its deadline (here: the 1 s floor).
+        b.set_ask_timeout(Duration::from_secs(1800));
+        b.set_ask_timeout_resolver(Some(Arc::new(|req: &str| {
+            req.starts_with("job-").then_some(Duration::ZERO)
+        })));
+        let grants = vec![grant(
+            ToolSource::Internal {
+                name: "shell_exec".into(),
+            },
+            GrantMode::Ask,
+        )];
+        let mut tasks = Vec::new();
+        for i in 0..20 {
+            let (b, grants) = (b.clone(), grants.clone());
+            tasks.push(tokio::spawn(async move {
+                b.call(
+                    "agent",
+                    &grants,
+                    &format!("job-{i}"),
+                    &format!("call-{i}"),
+                    "shell_exec",
+                    json!({"command": "npm test"}),
+                )
+                .await
+            }));
+        }
+        let mut codes = Vec::new();
+        for t in tasks {
+            codes.push(t.await.unwrap().unwrap_err().code.to_string());
+        }
+        let mut expired_events = 0;
+        while let Ok(ev) = rx.try_recv() {
+            if let BusEvent::ToolAskResolved { outcome, .. } = ev {
+                if outcome == "expired" {
+                    expired_events += 1;
+                }
+            }
+        }
+        let silent = codes.iter().filter(|c| c.as_str() != ERR_TOOL_TIMEOUT).count()
+            + 20usize.saturating_sub(expired_events);
+        bench("job_asks", json!(20));
+        bench("expired_with_reason", json!(expired_events));
+        bench("silent_denials", json!(silent));
+        assert_eq!(silent, 0, "{codes:?}, {expired_events} expired events");
+        assert_eq!(b.pending_count(), 0);
+    }
+
+    /// The job flips to `waiting_approval` off the `ToolAsk` event itself: the
+    /// time from the question being raised to the event reaching a listener
+    /// is what the state can lag by in-process (the CLI then polls every
+    /// 800 ms).
+    #[tokio::test]
+    async fn bn3_ask_event_reaches_a_listener_at_once() {
+        let bus = Arc::new(Bus::new());
+        let mut rx = bus.subscribe();
+        let b = Arc::new(ToolBroker::new(vec![], Arc::new(EchoExecutor), bus));
+        let mut worst = Duration::ZERO;
+        for i in 0..20 {
+            let raised = Instant::now();
+            let b2 = b.clone();
+            let call = format!("c-{i}");
+            let c2 = call.clone();
+            let task = tokio::spawn(async move {
+                b2.ask_user("agent", "job-r", &c2, "shell_exec", "ls").await
+            });
+            loop {
+                if let Ok(BusEvent::ToolAsk { tool_call_id, .. }) = rx.recv().await {
+                    if tool_call_id == call {
+                        break;
+                    }
+                }
+            }
+            worst = worst.max(raised.elapsed());
+            assert!(b.has_pending("job-r"));
+            assert!(b.answer(&call, true));
+            task.await.unwrap();
+        }
+        bench("ask_event_latency_max_ms", json!(worst.as_secs_f64() * 1000.0));
+        bench("cli_poll_ms", json!(800));
+        assert!(worst < Duration::from_millis(200), "{worst:?}");
     }
 
     #[test]
@@ -1227,8 +1665,8 @@ mod a11_permission_tests {
         let (broker, reg) = setup(80);
         let task = spawn_call(&broker, &reg, "call-1", "tool_a");
         let old = pending_of(&reg, "call-1").await;
-        // Nobody answers in time.
-        assert_eq!(task.await.unwrap().unwrap_err().code, ERR_TOOL_DENIED);
+        // Nobody answers in time: a timeout, said as one (A3), not a denial.
+        assert_eq!(task.await.unwrap().unwrap_err().code, ERR_TOOL_TIMEOUT);
         assert_eq!(
             reg.permission(&old).unwrap().state,
             PermissionState::Expired
@@ -1260,8 +1698,9 @@ mod a11_permission_tests {
             reg.permission(&fresh).unwrap().state,
             PermissionState::Pending
         );
-        // It runs out on its own: still refused, never approved by the old answer.
-        assert_eq!(next.await.unwrap().unwrap_err().code, ERR_TOOL_DENIED);
+        // It runs out on its own: never approved by the old answer, and
+        // reported as the timeout it is.
+        assert_eq!(next.await.unwrap().unwrap_err().code, ERR_TOOL_TIMEOUT);
         assert_eq!(
             reg.permission(&fresh).unwrap().state,
             PermissionState::Expired
