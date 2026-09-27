@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="hippo_opensim_viewer">
+  <label>Hippo OpenSim Viewer</label>
+  <description>Game</description>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.files" path="~/.hippo_opensim_viewer/cache/"/>
+    <action command="delete" search="walk.files" path="$USERPROFILE\Application Data\Hippo_OpenSim_Viewer\cache\"/>
+  </option>
+  <option id="logs">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action command="delete" search="walk.files" path="~/.hippo_opensim_viewer/logs/"/>
+    <action command="delete" search="walk.files" path="$USERPROFILE\Application Data\Hippo_OpenSim_Viewer\logs\"/>
+  </option>
+</cleaner>

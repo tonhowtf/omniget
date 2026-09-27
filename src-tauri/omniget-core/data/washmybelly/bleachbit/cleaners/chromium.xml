@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="chromium">
+  <label>Chromium</label>
+  <description>Web browser</description>
+  <running type="exe" os="windows" same_user="true">chrome.exe</running>
+  <running type="exe" os="linux" same_user="true">chromium-browser</running>
+  <!-- OpenBSD and NetBSD use "chrome" for Chromium, while on Linux it means
+    Google Chrome, so on Linux this could mistake Google Chrome for
+    Chromium. -->
+  <running type="exe" os="bsd">chrome</running>
+  <var name="base">
+    <value os="windows">%LocalAppData%\Chromium\User Data</value>
+    <value os="linux">$XDG_CONFIG_HOME/chromium</value>
+    <value os="linux">~/snap/chromium/common/chromium</value>
+    <value os="linux">~/.var/app/org.chromium.Chromium/config/chromium</value>
+    <value os="linux">~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium</value>
+    <value os="freebsd">$XDG_CONFIG_HOME/chromium</value>
+    <value os="openbsd">$XDG_CONFIG_HOME/chromium</value>
+  </var>
+  <var name="profile">
+    <value os="windows">%LocalAppData%\Chromium\User Data\Default</value>
+    <value os="linux">$XDG_CONFIG_HOME/chromium/Default</value>
+    <value os="linux">~/snap/chromium/common/chromium/Default</value>
+    <value os="linux">~/.var/app/org.chromium.Chromium/config/chromium/Default</value>
+    <value os="linux">~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default</value>
+    <value os="freebsd">$XDG_CONFIG_HOME/chromium/Default</value>
+    <value os="openbsd">$XDG_CONFIG_HOME/chromium/Default</value>
+  </var>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the web cache, which reduces time to display revisited pages</description>
+    <action command="delete" search="file" path="$$base$$/Safe Browsing Channel IDs-journal"/>
+    <action command="delete" search="walk.all" path="$$base$$/component_crx_cache"/>
+    <action command="delete" search="walk.all" path="$$base$$/extensions_crx_cache"/>
+    <action command="delete" search="walk.all" path="$$base$$/GraphiteDawnCache"/>
+    <action command="delete" search="walk.all" path="$$base$$/GrShaderCache"/>
+    <action command="delete" search="walk.all" path="$$base$$/ShaderCache"/>
+    <action command="delete" search="file" path="$$profile$$/Network Persistent State"/>
+    <action command="delete" search="file" path="$$profile$$/Network/Network Persistent State"/>
+    <action command="delete" search="walk.all" path="$$profile$$/Code Cache"/>
+    <action command="delete" search="walk.all" path="$$profile$$/DawnCache/"/>
+    <action command="delete" search="walk.all" path="$$profile$$/GPUCache/"/>
+    <action command="delete" search="walk.all" path="$$profile$$/Storage/ext/*/*def/GPUCache"/>
+    <action command="json" search="file" path="$$profile$$/Preferences" address="dns_prefetching/host_referral_list"/>
+    <action command="json" search="file" path="$$profile$$/Preferences" address="dns_prefetching/startup_list"/>
+    <action command="json" search="file" path="$$profile$$/Preferences" address="net/http_server_properties/servers"/>
+    <action command="json" search="file" path="$$base$$/Local State" address="HostReferralList"/>
+    <action command="json" search="file" path="$$base$$/Local State" address="StartupDNSPrefetchList"/>
+    <!-- Linux-specific -->
+    <action command="delete" search="walk.all" path="$XDG_CACHE_HOME/chromium/"/>
+    <action command="delete" search="walk.all" path="$$profile$$/Cache"/>
+    <action command="delete" search="walk.all" path="~/.var/app/org.chromium.Chromium/cache/"/>
+    <action command="delete" search="walk.all" path="~/.var/app/io.github.ungoogled_software.ungoogled_chromium/cache/"/>
+    <action command="delete" search="walk.all" path="~/snap/chromium/common/.cache/mesa_shader_cache_db"/>
+    <action command="delete" search="walk.all" path="~/snap/chromium/common/.cache/mesa_shader_cache"/>
+    <action command="delete" search="walk.all" path="~/snap/chromium/common/.cache/chromium"/>
+    <!-- Windows-specific -->
+    <action command="delete" search="glob" path="$$base$$\B*.tmp"/>
+    <action command="delete" search="walk.all" path="$$profile$$\Default\Application Cache\"/>
+    <action command="delete" search="walk.all" path="$$profile$$\Cache\"/>
+    <action command="delete" search="walk.all" path="$$profile$$\Media Cache\"/>
+  </option>
+  <option id="cookies">
+    <label>Cookies</label>
+    <description>Delete cookies, which store login information, website preferences, and tracking identifiers</description>
+    <action command="cookie" search="file" path="$$profile$$/Cookies"/>
+    <action command="delete" search="file" path="$$profile$$/Cookies-journal"/>
+    <action command="cookie" search="file" path="$$profile$$/Network/Cookies"/>
+    <action command="delete" search="file" path="$$profile$$/Network/Cookies-journal"/>
+    <action command="cookie" search="file" path="$$profile$$/Extension Cookies"/>
+    <action command="delete" search="file" path="$$profile$$/Extension Cookies-journal"/>
+    <action command="delete" search="file" path="$$profile$$/TransportSecurity"/>
+  </option>
+  <option id="crash_reports">
+    <label>Crash reports</label>
+    <description>Delete the files</description>
+    <action command="delete" search="walk.all" path="$$base$$/Crash Reports/"/>
+  </option>
+  <option id="form_history">
+    <label>Form history</label>
+    <description>A history of forms entered in websites</description>
+    <action command="chrome.autofill" search="file" path="$$profile$$/Web Data"/>
+    <action command="delete" search="file" path="$$profile$$/Web Data-journal"/>
+  </option>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the history which includes visited sites, downloads, and thumbnails</description>
+    <!-- keep /History before /Favicons -->
+    <action command="chrome.history" search="file" path="$$profile$$/History"/>
+    <action command="chrome.favicons" search="file" path="$$profile$$/Favicons"/>
+    <action command="delete" search="file" path="$$base$$/chrome_shutdown_ms.txt"/>
+    <action command="delete" search="file" path="$$base$$/Safe Browsing Cookies-journal"/>
+    <action command="delete" search="file" path="$$profile$$/Archived History-journal"/>
+    <action command="delete" search="file" path="$$profile$$/Archived History"/>
+    <action command="delete" search="file" path="$$profile$$/DownloadMetadata"/>
+    <action command="delete" search="file" path="$$profile$$/DIPS"/>
+    <action command="delete" search="file" path="$$profile$$/History Provider Cache"/>
+    <action command="delete" search="file" path="$$profile$$/History-journal"/>
+    <action command="delete" search="file" path="$$profile$$/MediaDeviceSalts-journal"/>
+    <action command="delete" search="file" path="$$profile$$/MediaDeviceSalts"/>
+    <action command="delete" search="file" path="$$profile$$/Network Action Predictor-journal"/>
+    <action command="delete" search="file" path="$$profile$$/Network Action Predictor"/>
+    <action command="delete" search="file" path="$$profile$$/Origin Bound Certs-journal"/>
+    <action command="delete" search="file" path="$$profile$$/Reporting and NEL-journal"/>
+    <action command="delete" search="file" path="$$profile$$/Reporting and NEL"/>
+    <action command="delete" search="file" path="$$profile$$/Shortcuts-journal"/>
+    <action command="delete" search="file" path="$$profile$$/Shortcuts"/>
+    <action command="delete" search="glob" path="$$profile$$/History Index ????-??-journal"/>
+    <action command="delete" search="glob" path="$$profile$$/History Index ????-??"/>
+    <!-- Thumbnails was an SQLite file until about January 2016 and is a folder by Chrome 48 -->
+    <action command="delete" search="file" path="$$profile$$/Thumbnails"/>
+    <action command="delete" search="walk.files" path="$$profile$$/Thumbnails"/>
+    <action command="delete" search="file" path="$$profile$$/Thumbnails-journal"/>
+    <action command="delete" search="file" path="$$profile$$/Top Sites-journal"/>
+    <action command="delete" search="file" path="$$profile$$/Top Sites"/>
+    <action command="delete" search="file" path="$$profile$$/Visited Links"/>
+    <action command="delete" search="file" path="$$profile$$/WebStorage/QuotaManager"/>
+    <action command="delete" search="file" path="$$profile$$/WebStorage/QuotaManager-journal"/>
+    <action command="json" search="file" path="$$profile$$/Preferences" address="zerosuggest/cachedresults"/>
+    <action command="json" search="file" path="$$profile$$/Preferences" address="zerosuggest/cachedresults_with_url"/>
+    <!-- Windows-specific -->
+    <action command="delete" search="walk.files" path="$$profile$$\JumpListIconsMostVisited\"/>
+    <action command="delete" search="walk.files" path="$$profile$$\JumpListIconsOld\"/>
+    <action command="delete" search="walk.files" path="$$profile$$\JumpListIconsRecentClosed\"/>
+    <action command="delete" search="walk.files" path="$$profile$$\JumpListIcons\"/>
+  </option>
+  <option id="search_engines">
+    <label>Search engines</label>
+    <description translators="'Factory' means a search engine that is installed by default 'from the factory,' but this is different than a 'default search engine' https://lists.launchpad.net/launchpad-translators/msg00283.html">Reset the search engine usage history and delete non-factory search engines, some of which are added automatically</description>
+    <action command="chrome.keywords" search="file" path="$$profile$$/Web Data"/>
+  </option>
+  <option id="session">
+    <label>Session</label>
+    <description>Previously open tabs and windows</description>
+    <action command="delete" search="file" path="$$profile$$/Current Session"/>
+    <action command="delete" search="file" path="$$profile$$/Current Tabs"/>
+    <action command="delete" search="file" path="$$profile$$/Last Session"/>
+    <action command="delete" search="file" path="$$profile$$/Last Tabs"/>
+    <action command="delete" search="walk.all" path="$$profile$$/Sessions"/>
+  </option>
+  <option id="site_data">
+    <label>Site data</label>
+    <description>Delete LocalStorage, IndexedDB, and other data stored by websites</description>
+    <!-- do not delete extension preferences ~/.config/chromium/Default/database/chrome-extension* (Fedora 14, Chromium 12) -->
+    <action command="chrome.databases_db" search="file" path="$$profile$$/databases/Databases.db"/>
+    <action command="delete" search="walk.all" path="$$profile$$/databases/http*/"/>
+    <action command="delete" search="walk.all" path="$$profile$$/File System"/>
+    <action command="delete" search="walk.all" path="$$profile$$/IndexedDB"/>
+    <action command="delete" search="walk.all" path="$$profile$$/Local Storage"/>
+    <action command="delete" search="walk.all" path="$$profile$$/Service Worker"/>
+    <action command="delete" search="walk.all" path="$$profile$$/WebStorage"/>
+    <action command="delete" search="file" path="$$profile$$/QuotaManager"/>
+    <action command="delete" search="file" path="$$profile$$/QuotaManager-journal"/>
+    <action command="delete" search="walk.all" path="$$profile$$/Extension State"/>
+    <action command="delete" search="walk.files" path="$$profile$$/Session Storage/"/>
+  </option>
+  <option id="sync">
+    <label>Sync</label>
+    <description>Delete the sync data (including web apps) and sign out of the browser</description>
+    <action command="delete" search="walk.files" path="$$profile$$/Sync Data/"/>
+    <!-- Sync Data Backup not seen in Chromium 65 -->
+    <action command="json" search="file" path="$$base$$/Local State" address="profile"/>
+    <action command="json" search="file" path="$$profile$$/Preferences" address="account_info"/>
+    <action command="json" search="file" path="$$profile$$/Preferences" address="google_services"/>
+    <action command="json" search="file" path="$$profile$$/Preferences" address="sync"/>
+  </option>
+  <option id="passwords">
+    <label>Passwords</label>
+    <description>A database of usernames and passwords as well as a list of sites that should not store passwords</description>
+    <warning>This option will delete your saved passwords.</warning>
+    <action command="delete" search="file" path="$$profile$$/Login Data"/>
+    <action command="delete" search="file" path="$$profile$$/Login Data-journal"/>
+    <action command="delete" search="file" path="$$profile$$/Login Data For Account"/>
+    <action command="delete" search="file" path="$$profile$$/Login Data For Account-journal"/>
+  </option>
+  <option id="vacuum">
+    <label>Vacuum</label>
+    <description>Clean database fragmentation to reduce space and improve speed without removing any data</description>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Cookies"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Network/Cookies"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Extension Cookies"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/History"/>
+    <action command="sqlite.vacuum" search="glob" path="$$profile$$/History Index ????-??"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Login Data"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Login Data For Account"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Origin Bound Certs"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Network Action Predictor"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Reporting and NEL"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/MediaDeviceSalts"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/previews_opt_out.db"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/QuotaManager"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/WebStorage/QuotaManager"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Shortcuts"/>
+    <!-- Thumbnails was an SQLite file until about January 2016 and is a folder by Chrome 48 -->
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Thumbnails" type="f"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Top Sites"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Web Data"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/databases/Databases.db"/>
+    <action command="sqlite.vacuum" search="glob" path="$$profile$$/databases/http*/?"/>
+    <action command="sqlite.vacuum" search="glob" path="$$profile$$/databases/http*/??"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Sync Data/SyncData.sqlite3"/>
+  </option>
+  <option id="site_preferences">
+    <label>Site preferences</label>
+    <description>Settings for individual sites</description>
+    <action command="json" search="file" path="$$profile$$/Preferences" address="profile/content_settings/exceptions"/>
+  </option>
+</cleaner>

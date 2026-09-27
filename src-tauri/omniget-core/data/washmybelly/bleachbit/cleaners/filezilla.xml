@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+Tested with FileZilla 3.52.2 on Debian 11, 3.62.2 as a flatpak on
+Debian 11, 3.41.2 as a snap on Debian 11, 3.60.2 on Fedora 37 and
+3.62.2 on Windows 11.
+
+-->
+<cleaner id="filezilla">
+  <label>FileZilla</label>
+  <description>File transfer client</description>
+  <running type="exe" os="windows" same_user="true">filezilla.exe</running>
+  <running type="exe" os="linux" same_user="true">filezilla</running>
+  <var name="profile">
+    <value os="windows">%AppData%\FileZilla</value>
+    <value os="linux">~/.filezilla</value>
+    <value os="linux">~/.config/filezilla</value>
+    <value os="linux">~/.var/app/org.filezillaproject.Filezilla/config/filezilla</value>
+    <value os="linux">~/snap/filezilla/22/.config/filezilla</value>
+  </var>
+  <option id="mru">
+    <label>Most recently used</label>
+    <description>Delete the usage history</description>
+    <action command="delete" search="file" path="$$profile$$/recentservers.xml"/>
+  </option>
+</cleaner>

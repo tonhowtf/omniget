@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="gimp">
+  <label>GIMP</label>
+  <description>Graphics editor</description>
+  <!-- GIMP 2.4 -->
+  <running type="exe" os="windows" same_user="true">gimp-2.4.exe</running>
+  <running type="exe" os="linux" same_user="true">gimp-2.4</running>
+  <!-- GIMP 2.6 -->
+  <running type="exe" os="windows" same_user="true">gimp-2.6.exe</running>
+  <running type="exe" os="linux" same_user="true">gimp-2.6</running>
+  <!-- GIMP 2.8 -->
+  <running type="exe" os="windows" same_user="true">gimp-2.8.exe</running>
+  <running type="exe" os="linux" same_user="true">gimp-2.8</running>
+  <!-- GIMP 2.10 -->
+  <running type="exe" os="windows" same_user="true">gimp-2.10.exe</running>
+  <running type="exe" os="linux" same_user="true">gimp-2.10</running>
+  <var name="base">
+    <!-- GIMP 2.4/2.6/2.8 -->
+    <value os="windows">%USERPROFILE%\.gimp-2.4</value>
+    <value os="windows">%USERPROFILE%\.gimp-2.6</value>
+    <value os="windows">%USERPROFILE%\.gimp-2.8</value>
+    <value os="linux">~/.gimp-2.4</value>
+    <value os="linux">~/.gimp-2.6</value>
+    <value os="linux">~/.gimp-2.8</value>
+    <!-- GIMP 2.10 -->
+    <value os="windows">%AppData%\GIMP\2.10</value>
+    <value os="linux">~/.config/GIMP/2.10</value>
+  </var>
+  <option id="tmp">
+    <label>Temporary files</label>
+    <description>Delete the temporary files</description>
+    <!-- GIMP -->
+    <action command="delete" search="walk.files" path="$$base$$/tmp/"/>
+  </option>
+</cleaner>

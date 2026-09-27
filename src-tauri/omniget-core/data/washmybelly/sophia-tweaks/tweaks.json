@@ -1,0 +1,191 @@
+{
+ "source": "https://github.com/farag2/Sophia-Script-for-Windows",
+ "commit": "1b761b48e3f680b6669c37ad61d92518d583a44e",
+ "license": "MIT",
+ "extracted_by_hand_from": "src/Sophia_Script_for_Windows_11/Module/Sophia.psm1",
+ "groups": [],
+ "items": [
+  {
+   "id": "sophia.hags",
+   "label": "Hardware-accelerated GPU scheduling",
+   "description": "Lets the graphics card manage its own memory queue. Needed by frame generation on NVIDIA cards; the gain in other games varies and can be negative.",
+   "category": "gaming",
+   "applies": { "min_build": 19041, "max_build": null },
+   "requires": ["hags"],
+   "ops": [
+    { "op": "reg_set", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers", "name": "HwSchMode", "kind": "REG_DWORD", "data": "2" }
+   ],
+   "default_ops": [
+    { "op": "reg_set", "hive": "HKLM", "key": "SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers", "name": "HwSchMode", "kind": "REG_DWORD", "data": "1" }
+   ],
+   "risk": "reversible",
+   "needs_restart": true,
+   "warning": "Measure your games before and after: if nothing improves, undo it.",
+   "source": "sophia",
+   "license": "MIT",
+   "upstream": "GPUScheduling"
+  },
+  {
+   "id": "sophia.xbox_game_tips_off",
+   "label": "Turn off Game Bar tips",
+   "description": "Stops the Game Bar from showing tips when a game starts.",
+   "category": "gaming",
+   "applies": { "min_build": null, "max_build": null },
+   "ops": [
+    { "op": "reg_set", "hive": "HKCU", "key": "Software\\Microsoft\\GameBar", "name": "ShowStartupPanel", "kind": "REG_DWORD", "data": "0" }
+   ],
+   "default_ops": [
+    { "op": "reg_set", "hive": "HKCU", "key": "Software\\Microsoft\\GameBar", "name": "ShowStartupPanel", "kind": "REG_DWORD", "data": "1" }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "sophia",
+   "license": "MIT",
+   "upstream": "XboxGameTips"
+  },
+  {
+   "id": "sophia.print_screen_plain",
+   "label": "Print Screen takes a plain screenshot",
+   "description": "The Print Screen key copies the screen instead of opening the Snipping Tool.",
+   "category": "system",
+   "applies": { "min_build": 22000, "max_build": null },
+   "ops": [
+    { "op": "reg_set", "hive": "HKCU", "key": "Control Panel\\Keyboard", "name": "PrintScreenKeyForSnippingEnabled", "kind": "REG_DWORD", "data": "0" }
+   ],
+   "default_ops": [
+    { "op": "reg_set", "hive": "HKCU", "key": "Control Panel\\Keyboard", "name": "PrintScreenKeyForSnippingEnabled", "kind": "REG_DWORD", "data": "1" }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "sophia",
+   "license": "MIT",
+   "upstream": "PrtScnSnippingTool"
+  },
+  {
+   "id": "sophia.aero_shake_off",
+   "label": "Turn off shake to minimize",
+   "description": "Shaking a window by its title bar no longer minimizes the others.",
+   "category": "appearance",
+   "applies": { "min_build": null, "max_build": null },
+   "ops": [
+    { "op": "reg_set", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "DisallowShaking", "kind": "REG_DWORD", "data": "1" }
+   ],
+   "default_ops": [
+    { "op": "reg_set", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "DisallowShaking", "kind": "REG_DWORD", "data": "0" }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "sophia",
+   "license": "MIT",
+   "upstream": "AeroShaking"
+  },
+  {
+   "id": "sophia.jpeg_wallpaper_quality",
+   "label": "Full-quality JPEG wallpapers",
+   "description": "Windows stops recompressing JPEG wallpapers to 85% quality.",
+   "category": "appearance",
+   "applies": { "min_build": null, "max_build": null },
+   "ops": [
+    { "op": "reg_set", "hive": "HKCU", "key": "Control Panel\\Desktop", "name": "JPEGImportQuality", "kind": "REG_DWORD", "data": "100" }
+   ],
+   "default_ops": [
+    { "op": "reg_delete", "hive": "HKCU", "key": "Control Panel\\Desktop", "name": "JPEGImportQuality" }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "sophia",
+   "license": "MIT",
+   "upstream": "JPEGWallpapersQuality"
+  },
+  {
+   "id": "sophia.restart_notification",
+   "label": "Tell me when an update needs a restart",
+   "description": "Shows a notice before Windows Update restarts the computer.",
+   "category": "updates",
+   "applies": { "min_build": null, "max_build": null },
+   "ops": [
+    { "op": "reg_set", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings", "name": "RestartNotificationsAllowed2", "kind": "REG_DWORD", "data": "1" }
+   ],
+   "default_ops": [
+    { "op": "reg_set", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings", "name": "RestartNotificationsAllowed2", "kind": "REG_DWORD", "data": "0" }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "sophia",
+   "license": "MIT",
+   "upstream": "RestartNotification"
+  },
+  {
+   "id": "sophia.active_hours_auto",
+   "label": "Set active hours automatically",
+   "description": "Windows learns when you use the computer and avoids restarting for updates then.",
+   "category": "updates",
+   "applies": { "min_build": null, "max_build": null },
+   "ops": [
+    { "op": "reg_set", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings", "name": "SmartActiveHoursState", "kind": "REG_DWORD", "data": "1" }
+   ],
+   "default_ops": [
+    { "op": "reg_set", "hive": "HKLM", "key": "SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings", "name": "SmartActiveHoursState", "kind": "REG_DWORD", "data": "0" }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "sophia",
+   "license": "MIT",
+   "upstream": "ActiveHours"
+  },
+  {
+   "id": "sophia.restartable_apps",
+   "label": "Reopen my apps after a restart",
+   "description": "Apps that support it come back after you sign in again.",
+   "category": "system",
+   "applies": { "min_build": null, "max_build": null },
+   "ops": [
+    { "op": "reg_set", "hive": "HKCU", "key": "Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon", "name": "RestartApps", "kind": "REG_DWORD", "data": "1" }
+   ],
+   "default_ops": [
+    { "op": "reg_set", "hive": "HKCU", "key": "Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon", "name": "RestartApps", "kind": "REG_DWORD", "data": "0" }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "sophia",
+   "license": "MIT",
+   "upstream": "SaveRestartableApps"
+  },
+  {
+   "id": "sophia.nav_pane_expand",
+   "label": "Expand the navigation pane to the open folder",
+   "description": "File Explorer's side pane follows the folder you are in.",
+   "category": "explorer",
+   "applies": { "min_build": null, "max_build": null },
+   "ops": [
+    { "op": "reg_set", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "NavPaneExpandToCurrentFolder", "kind": "REG_DWORD", "data": "1" }
+   ],
+   "default_ops": [
+    { "op": "reg_set", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "NavPaneExpandToCurrentFolder", "kind": "REG_DWORD", "data": "0" }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "sophia",
+   "license": "MIT",
+   "upstream": "NavigationPaneExpand"
+  },
+  {
+   "id": "sophia.start_recent_off",
+   "label": "Hide recently added apps in Start",
+   "description": "Start stops listing the apps you installed lately.",
+   "category": "taskbar_start",
+   "applies": { "min_build": 22000, "max_build": null },
+   "ops": [
+    { "op": "reg_set", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Start", "name": "ShowRecentList", "kind": "REG_DWORD", "data": "0" }
+   ],
+   "default_ops": [
+    { "op": "reg_delete", "hive": "HKCU", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Start", "name": "ShowRecentList" }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "sophia",
+   "license": "MIT",
+   "upstream": "RecentlyAddedApps"
+  }
+ ]
+}

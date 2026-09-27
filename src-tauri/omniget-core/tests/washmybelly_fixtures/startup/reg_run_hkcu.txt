@@ -1,0 +1,7 @@
+
+HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run
+    OneDrive    REG_SZ    "C:\Users\alex\AppData\Local\Microsoft\OneDrive\OneDrive.exe" /background
+    Discord    REG_SZ    "C:\Users\alex\AppData\Local\Discord\Update.exe" --processStart Discord.exe
+    Steam    REG_SZ    "C:\Program Files (x86)\Steam\steam.exe" -silent
+    Spotify    REG_SZ    C:\Users\alex\AppData\Roaming\Spotify\Spotify.exe --autostart --minimized
+

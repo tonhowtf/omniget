@@ -16,7 +16,7 @@
     searchActive?: boolean;
   } = $props();
 
-  type AdvancedDrill = "performance" | "torrent" | "expert" | "league" | "debug";
+  type AdvancedDrill = "performance" | "torrent" | "expert" | "league" | "washmybelly" | "debug";
   let subView = $state<AdvancedDrill | null>(null);
 
   let settings = $derived(getSettings());
@@ -26,6 +26,7 @@
     { id: "torrent", titleKey: "settings.advanced.section_torrent", hintKey: "settings.advanced.section_torrent_desc" },
     { id: "expert", titleKey: "settings.advanced.section_expert", hintKey: "settings.advanced.section_expert_desc" },
     { id: "league", titleKey: "league.settings_title", hintKey: "league.settings_desc" },
+    { id: "washmybelly", titleKey: "washmybelly.settings_title", hintKey: "washmybelly.settings_desc" },
     { id: "debug", titleKey: "settings.advanced.section_debug", hintKey: "settings.advanced.section_debug_desc" },
   ];
 
@@ -318,6 +319,34 @@
               <span class="setting-path">{$t('league.settings_auto_accept_desc')}</span>
             </div>
             <button class="toggle" class:on={settings.league?.auto_accept} onclick={() => { const next = !(settings.league?.auto_accept ?? false); updateSettings({ league: { auto_accept: next } }); invoke("league_auto_accept_set", { enabled: next }).catch(() => {}); }} role="switch" aria-checked={settings.league?.auto_accept ?? false} aria-label={$t('league.settings_auto_accept') as string}><span class="toggle-knob"></span></button>
+          </div>
+        {/if}
+      </div>
+    {:else if subView === "washmybelly"}
+      <div class="card">
+        <div class="setting-row">
+          <div class="setting-col">
+            <span class="setting-label">{$t('washmybelly.settings_enable')}</span>
+            <span class="setting-path">{$t('washmybelly.settings_enable_desc')}</span>
+          </div>
+          <button class="toggle" class:on={settings.washmybelly?.enabled ?? true} onclick={() => updateSettings({ washmybelly: { enabled: !(settings.washmybelly?.enabled ?? true) } })} role="switch" aria-checked={settings.washmybelly?.enabled ?? true} aria-label={$t('washmybelly.settings_enable') as string}><span class="toggle-knob"></span></button>
+        </div>
+        {#if settings.washmybelly?.enabled ?? true}
+          <div class="divider"></div>
+          <div class="setting-row">
+            <div class="setting-col">
+              <span class="setting-label">{$t('washmybelly.settings_quarantine_days')}</span>
+              <span class="setting-path">{$t('washmybelly.settings_quarantine_days_desc')}</span>
+            </div>
+            <input class="input input-num" type="number" min="1" max="90" value={settings.washmybelly?.quarantine_days ?? 7} onchange={(e) => { const n = Math.max(1, Math.min(90, Number((e.currentTarget as HTMLInputElement).value) || 7)); updateSettings({ washmybelly: { quarantine_days: n } }); }} aria-label={$t('washmybelly.settings_quarantine_days') as string} />
+          </div>
+          <div class="divider"></div>
+          <div class="setting-row">
+            <div class="setting-col">
+              <span class="setting-label">{$t('washmybelly.settings_auto_hold')}</span>
+              <span class="setting-path">{$t('washmybelly.settings_auto_hold_desc')}</span>
+            </div>
+            <button class="toggle" class:on={settings.washmybelly?.auto_hold_power} onclick={() => updateSettings({ washmybelly: { auto_hold_power: !(settings.washmybelly?.auto_hold_power ?? false) } })} role="switch" aria-checked={settings.washmybelly?.auto_hold_power ?? false} aria-label={$t('washmybelly.settings_auto_hold') as string}><span class="toggle-knob"></span></button>
           </div>
         {/if}
       </div>

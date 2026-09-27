@@ -1,0 +1,15 @@
+Executable=/Applications/Mullvad VPN.app/Contents/MacOS/Mullvad VPN
+Identifier=net.mullvad.vpn
+Format=app bundle with Mach-O universal (x86_64 arm64)
+CodeDirectory v=20500 size=635 flags=0x10000(runtime) hashes=9+7 location=embedded
+Signature size=9048
+Authority=Developer ID Application: Mullvad VPN AB (CKG9MXH72F)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+Timestamp=15 Jun 2026 at 05:34:52
+Notarization Ticket=stapled
+Info.plist entries=34
+TeamIdentifier=CKG9MXH72F
+Runtime Version=26.0.0
+Sealed Resources version=2 rules=13 files=36
+Internal requirements count=1 size=176

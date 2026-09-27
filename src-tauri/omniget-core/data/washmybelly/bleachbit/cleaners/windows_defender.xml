@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="windows_defender" os="windows">
+  <label>Windows Defender</label>
+  <description>Anti-virus</description>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the usage history</description>
+    <action command="delete" search="walk.files" path="%CommonAppData%\Microsoft\Windows Defender\Scans\History\Results\Quick\"/>
+    <action command="delete" search="walk.files" path="%CommonAppData%\Microsoft\Windows Defender\Scans\History\Results\Resource\"/>
+    <action command="delete" search="file" path="%CommonAppData%\Microsoft\Windows Defender\Scans\History\Service\History.Log"/>
+  </option>
+  <option id="temp">
+    <label>Temporary files</label>
+    <description>Delete the temporary files</description>
+    <action command="delete" search="file" path="%WinDir%\Temp\MpCmdRun.log"/>
+    <action command="delete" search="file" path="%WinDir%\Temp\MpSigStub.log"/>
+    <!-- Definition updates -->
+    <action command="delete" search="file" path="%WinDir%\SoftwareDistribution\Download\Install\mpas-d.exe"/>
+    <action command="delete" search="file" path="%WinDir%\SoftwareDistribution\Download\Install\mpas-fe.exe"/>
+    <action command="delete" search="file" path="%WinDir%\SoftwareDistribution\Download\Install\mpas-fe_bd.exe"/>
+    <!-- AS engine and base -->
+    <action command="delete" search="file" path="%WinDir%\SoftwareDistribution\Download\Install\AS_Engine.exe"/>
+    <action command="delete" search="glob" path="%WinDir%\SoftwareDistribution\Download\Install\AS_Engine_Patch_*.exe"/>
+    <action command="delete" search="file" path="%WinDir%\SoftwareDistribution\Download\Install\AS_Base.exe"/>
+    <action command="delete" search="glob" path="%WinDir%\SoftwareDistribution\Download\Install\AS_Base_Patch*.exe"/>
+    <!-- Antimalware definition updates -->
+    <action command="delete" search="file" path="%WinDir%\SoftwareDistribution\Download\Install\AS_Delta.exe"/>
+    <action command="delete" search="glob" path="%WinDir%\SoftwareDistribution\Download\Install\AS_Delta_Patch_*.exe"/>
+    <action command="delete" search="walk.files" path="%CommonAppData%\Microsoft\Windows Defender\Definition Updates\Updates\"/>
+  </option>
+  <option id="quarantine">
+    <label>Quarantine</label>
+    <description>Delete the files</description>
+    <action command="delete" search="walk.files" path="%CommonAppData%\Microsoft\Windows Defender\Quarantine"/>
+    <!-- Includes Entries, ResourceData and Resources -->
+  </option>
+  <option id="backup">
+    <label>Backup files</label>
+    <description>Delete the backup files</description>
+    <action command="delete" search="walk.files" path="%CommonAppData%\Microsoft\Windows Defender\Definition Updates\Backup\"/>
+  </option>
+  <option id="logs">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action command="delete" search="file" path="%CommonAppData%\Microsoft\Windows Defender\Scans\History\Service\Detections.log"/>
+    <action command="delete" search="file" path="%CommonAppData%\Microsoft\Windows Defender\Scans\History\Service\History.Log"/>
+    <action command="delete" search="file" path="%CommonAppData%\Microsoft\Windows Defender\Scans\History\Service\Unknown.Log"/>
+    <action command="delete" search="glob" path="%CommonAppData%\Microsoft\Windows Defender\Support\MPLog-*.log"/>
+  </option>
+</cleaner>

@@ -49,6 +49,22 @@ ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "n
 # (mesma versão/feature do crate do app, então compila uma vez só).
 rusqlite = { version = "0.32", features = ["bundled"] }
 tempfile = "=3.25.0"
+# washmybelly: Trash for files the person recognises (apps, documents).
+trash = "5"
+# washmybelly: monitor (sysinfo), CleanerML (roxmltree), privacy.sexy YAML,
+# duplicate hashing (xxh3).
+sysinfo = "0.39.6"
+roxmltree = "0.21.1"
+serde_yaml = "0.9.34"
+xxhash-rust = { version = "0.8.18", features = ["xxh3"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+# washmybelly: elevation (UAC), registry, services, power and the Restart
+# Manager on Windows.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Threading", "Win32_UI_Shell", "Win32_System_Registry", "Win32_System_Services", "Win32_System_Power", "Win32_System_RestartManager", "Win32_System_SystemInformation", "Win32_System_ProcessStatus", "Win32_System_Diagnostics_ToolHelp", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Ioctl", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_System_Performance", "Win32_System_ApplicationInstallationAndServicing", "Win32_Devices_DeviceAndDriverInstallation"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "5"

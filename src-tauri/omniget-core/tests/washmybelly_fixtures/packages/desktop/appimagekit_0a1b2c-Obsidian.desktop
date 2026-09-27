@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Obsidian
+Exec="/home/u/Applications/Obsidian-1.6.7.AppImage" --no-sandbox %U
+TryExec=/home/u/Applications/Obsidian-1.6.7.AppImage
+Terminal=false
+Type=Application
+Icon=appimagekit_0a1b2c_obsidian
+X-AppImage-Version=1.6.7

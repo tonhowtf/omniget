@@ -56,6 +56,11 @@ enum Commands {
         #[command(subcommand)]
         command: commands::agent::AgentCommand,
     },
+    /// washmybelly: scan, plan and clean this computer through the running app (execute asks in the window)
+    Wmb {
+        #[command(subcommand)]
+        command: commands::wmb::WmbCommand,
+    },
     /// Open Claude Code on one of the app's accounts (/llm → Accounts), skipping permission prompts
     Claude {
         /// Account id or label (a unique prefix works); without it, asks when there are several
@@ -145,6 +150,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Agent { command } => {
             commands::agent::execute(command, cli.json).await?;
+        }
+        Commands::Wmb { command } => {
+            commands::wmb::execute(command, cli.json).await?;
         }
         Commands::Claude {
             account,

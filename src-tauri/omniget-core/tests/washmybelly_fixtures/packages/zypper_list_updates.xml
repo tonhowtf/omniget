@@ -1,0 +1,11 @@
+<?xml version='1.0'?>
+<stream>
+<message type="info">Loading repository data...</message>
+<message type="info">Reading installed packages...</message>
+<update-status version="0.6">
+<update-list>
+<update kind="package" name="openSUSE-build-key" edition="1.0-69.1" arch="aarch64" edition-old="1.0-68.1"><summary>The public gpg keys for rpm package signature verification</summary><description>This package contains the gpg keys that are used to sign the
+openSUSE rpm packages. The keys installed here are not actually
+used by anything. rpm/zypper use the keys in the rpm db instead.</description><license/><source url="http://download.opensuse.org/ports/aarch64/update/tumbleweed/" alias="repo-update"/></update></update-list>
+</update-status>
+</stream>

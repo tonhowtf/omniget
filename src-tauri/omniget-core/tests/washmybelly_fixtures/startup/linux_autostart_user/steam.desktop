@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Steam
+Comment=Application for managing and playing games on Steam
+Exec=/usr/bin/steam %U -silent
+Icon=steam
+Terminal=false
+Type=Application
+X-GNOME-Autostart-enabled=false
+[Desktop Action Store]
+Name=Store
+Exec=steam steam://store

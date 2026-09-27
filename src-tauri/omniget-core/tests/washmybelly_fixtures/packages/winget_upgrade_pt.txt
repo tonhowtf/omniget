@@ -1,0 +1,4 @@
+Nome      ID              Versão Disponível Origem
+--------------------------------------------------
+Firefox   Mozilla.Firefox 130.0  131.0      winget
+1 atualizações disponíveis.

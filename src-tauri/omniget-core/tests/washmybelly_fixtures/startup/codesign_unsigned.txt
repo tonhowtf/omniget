@@ -1,0 +1,1 @@
+/tmp/unsigned.sh: code object is not signed at all

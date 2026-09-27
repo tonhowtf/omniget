@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+VSCodium 1.105.17075 on Linux has process `codium`, while
+VSCodium 1.121.03429 on Windows has process `VSCodium.exe`.
+
+-->
+<cleaner id="vscode">
+  <label>Visual Studio Code and forks</label>
+  <description translators="Cleaner description for vim, VS Code, etc.">Editor</description>
+  <running type="exe" os="linux" same_user="true">antigravity</running>
+  <running type="exe" os="linux" same_user="true">code</running>
+  <running type="exe" os="linux" same_user="true">codium</running>
+  <running type="exe" os="linux" same_user="true">cursor</running>
+  <running type="exe" os="linux" same_user="true">devin-desktop-next</running>
+  <running type="exe" os="linux" same_user="true">devin-desktop</running>
+  <running type="exe" os="linux" same_user="true">windsurf</running>
+  <running type="exe" os="windows" same_user="true">Antigravity.exe</running>
+  <running type="exe" os="windows" same_user="true">Code.exe</running>
+  <running type="exe" os="windows" same_user="true">cursor.exe</running>
+  <running type="exe" os="windows" same_user="true">Devin.exe</running>
+  <running type="exe" os="windows" same_user="true">Devin - Next.exe</running>
+  <running type="exe" os="windows" same_user="true">Windsurf.exe</running>
+  <running type="exe" os="windows" same_user="true">Windsurf - Next.exe</running>
+  <running type="exe" os="windows" same_user="true">VSCodium.exe</running>
+  <var name="base">
+    <value os="linux">$XDG_CONFIG_HOME/Antigravity</value>
+    <value os="linux">$XDG_CONFIG_HOME/Code - Insiders</value>
+    <value os="linux">$XDG_CONFIG_HOME/Code</value>
+    <value os="linux">$XDG_CONFIG_HOME/Cursor</value>
+    <value os="linux">$XDG_CONFIG_HOME/Devin - Next</value>
+    <value os="linux">$XDG_CONFIG_HOME/Devin</value>
+    <value os="linux">$XDG_CONFIG_HOME/VSCodium</value>
+    <value os="linux">$XDG_CONFIG_HOME/Windsurf - Next</value>
+    <value os="linux">$XDG_CONFIG_HOME/Windsurf</value>
+    <value os="windows">%AppData%\Antigravity</value>
+    <value os="windows">%AppData%\Code</value>
+    <value os="windows">%AppData%\Cursor</value>
+    <value os="windows">%AppData%\Devin</value>
+    <value os="windows">%AppData%\Devin - Next</value>
+    <value os="windows">%AppData%\Windsurf</value>
+    <value os="windows">%AppData%\Windsurf - Next</value>
+    <value os="windows">%AppData%\VSCodium</value>
+  </var>
+  <option id="backup">
+    <label>Backup files</label>
+    <description>Delete the backup files</description>
+    <action command="delete" search="walk.all" path="$$base$$/User/History/"/>
+  </option>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.all" path="$$base$$/blob_storage/"/>
+    <action command="delete" search="walk.all" path="$$base$$/Cache/"/>
+    <action command="delete" search="walk.all" path="$$base$$/CachedConfigurations/"/>
+    <action command="delete" search="walk.all" path="$$base$$/CachedData/"/>
+    <action command="delete" search="walk.all" path="$$base$$/CachedExtensionVSIXs/"/>
+    <action command="delete" search="walk.all" path="$$base$$/CachedProfilesData/"/>
+    <action command="delete" search="walk.all" path="$$base$$/Code Cache/"/>
+    <action command="delete" search="walk.all" path="$$base$$/Crashpad/"/>
+    <action command="delete" search="walk.all" path="$$base$$/DawnGraphiteCache/"/>
+    <action command="delete" search="walk.all" path="$$base$$/DawnWebGPUCache/"/>
+    <action command="delete" search="walk.all" path="$$base$$/GPUCache/"/>
+  </option>
+  <option id="logs">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action command="delete" search="walk.all" path="$$base$$/logs/"/>
+    <action command="delete" search="walk.all" path="$$base$$/Crashpad/"/>
+  </option>
+</cleaner>

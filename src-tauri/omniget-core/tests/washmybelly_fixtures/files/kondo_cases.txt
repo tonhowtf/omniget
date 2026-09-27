@@ -1,0 +1,27 @@
+# One project per kind of the kondo table: <folder> <marker files, comma separated> <artifact>
+# `-` as artifact: not a project (its __pycache__ must not be offered).
+cargo Cargo.toml target
+node package.json node_modules
+react-native package.json,ios/AppDelegate.m ios/build
+unity Assembly-CSharp.csproj Library
+stack stack.yaml .stack-work
+cabal cabal.project dist-newstyle
+sbt build.sbt project/target
+maven pom.xml target
+gradle build.gradle.kts .gradle
+cmake CMakeLists.txt cmake-build-debug
+unreal Game.uproject Intermediate
+jupyter notes.ipynb .ipynb_checkpoints
+python pyproject.toml .pytest_cache
+pixi pixi.toml .pixi
+composer composer.json vendor
+pub pubspec.yaml .dart_tool
+elixir mix.exs _build
+swift Package.swift .build
+zig build.zig zig-out
+godot project.godot,Game.csproj .godot
+dotnet App.fsproj obj
+turborepo turbo.json .turbo
+terraform .terraform.lock.hcl .terraform
+cocoapods Podfile Pods
+loose-py main.py -

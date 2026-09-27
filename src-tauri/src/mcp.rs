@@ -15,6 +15,7 @@ pub mod orchestration;
 pub mod orchestration_config;
 pub mod output_schemas;
 pub mod policy;
+pub mod washmybelly;
 pub mod worker;
 
 use async_trait::async_trait;
@@ -59,8 +60,7 @@ pub struct ToolDef {
 /// alimenta o broker do /llm e as concessoes da UI. Aqui so muda o formato do
 /// JSON que o protocolo MCP espera (`inputSchema` em camelCase).
 pub fn tools() -> Vec<ToolDef> {
-    tool_table::table()
-        .iter()
+    tool_table::available()
         .map(|e| ToolDef {
             name: e.name,
             description: e.description,
@@ -553,7 +553,7 @@ pub async fn handle(app: &AppHandle, principal: &policy::Principal, msg: &Value)
                 id,
                 json!({
                     "protocolVersion": version,
-                    "capabilities": { "tools": { "listChanged": false } },
+                    "capabilities": { "tools": { "listChanged": true } },
                     "serverInfo": { "name": "OmniGet", "version": env!("CARGO_PKG_VERSION") },
                     "instructions": INSTRUCTIONS
                 }),
@@ -746,7 +746,12 @@ mod tests {
         json!({
             "protocolVersions": SUPPORTED_PROTOCOLS,
             "instructions": INSTRUCTIONS,
-            "tools": output_schemas::apply(downloads::catalog(&everything)),
+            // washmybelly tools depend on the OS the desktop runs on; the
+            // offline adapter catalog lists only what is the same everywhere.
+            "tools": output_schemas::apply(downloads::catalog(&everything))
+                .into_iter()
+                .filter(|t| !t["name"].as_str().unwrap_or("").starts_with("wmb_"))
+                .collect::<Vec<_>>(),
         })
     }
 
@@ -969,11 +974,12 @@ mod tests {
     /// uma tool so aqui (ou so la), este teste cai.
     #[test]
     fn a_lista_do_servidor_e_a_tabela_do_core() {
-        let table = omniget_core::core::llm::tool_table::table();
+        let table: Vec<_> = omniget_core::core::llm::tool_table::available().collect();
         let list = tools();
-        assert_eq!(list.len(), 26, "a tabela mudou de tamanho");
+        let legacy = list.iter().filter(|t| !t.name.starts_with("wmb_")).count();
+        assert_eq!(legacy, 26, "a tabela mudou de tamanho");
         assert_eq!(list.len(), table.len());
-        for (def, entry) in list.iter().zip(table) {
+        for (def, entry) in list.iter().zip(table.iter().copied()) {
             assert_eq!(def.name, entry.name);
             assert_eq!(def.description, entry.description);
             assert_eq!(def.input_schema, entry.input_schema);

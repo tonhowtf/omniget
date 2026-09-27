@@ -1,0 +1,4 @@
+Application,ProcessID,SwapChainAddress,Runtime,SyncInterval,PresentFlags,Dropped,TimeInSeconds,msInPresentAPI,msBetweenPresents,AllowsTearing,PresentMode,msUntilRenderComplete,msUntilDisplayed,msBetweenDisplayChange,msFlipDelay,msUntilRenderStart,msGPUActive
+vkcube.exe,5120,0x000001D2A0B0,Other,0,0,0,3.101234,0.110,8.33,1,Hardware: Independent Flip,6.10,8.50,8.34,0.00,0.40,6.00
+vkcube.exe,5120,0x000001D2A0B0,Other,0,0,1,3.109564,0.100,8.33,1,Hardware: Independent Flip,6.00,0.00,0.00,0.00,0.40,5.90
+vkcube.exe,5120,0x000001D2A0B0,Other,0,0,0,3.117894,0.120,8.34,1,Hardware: Independent Flip,6.20,8.60,16.67,0.00,0.40,6.10

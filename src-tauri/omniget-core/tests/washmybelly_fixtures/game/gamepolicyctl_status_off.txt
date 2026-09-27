@@ -1,0 +1,2 @@
+Game mode is [0;31moff[0;0m.[0;33m[0;0m
+Game mode enablement policy is currently automatic. The system must meet all specified requirements to enable game mode.

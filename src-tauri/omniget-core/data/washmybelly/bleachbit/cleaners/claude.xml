@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="claude">
+  <label>Claude</label>
+  <description translators="Label for Claude coding assistant">AI assistant</description>
+  <running type="exe" os="windows">Claude.exe</running>
+  <running type="exe" os="unix">claude</running>
+  <option id="backup">
+    <label>Backup files</label>
+    <description>Delete the backup files</description>
+    <action command="delete" search="walk.all" path="~/.claude/backups/"/>
+  </option>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.all" path="~/.claude/cache/"/>
+    <action command="delete" search="walk.all" path="~/.claude/downloads/"/>
+    <action command="delete" search="walk.all" path="~/.claude/plugins/cache/"/>
+    <action command="delete" search="walk.all" path="~/.claude/plugins/marketplaces/"/>
+  </option>
+  <option id="file_history">
+    <label translators="Pre-edit snapshots of files Claude Code changed, used for checkpoint restore">File history</label>
+    <description translators="Claude Code: checkpoint restore for past sessions. Also, do not translate /restore, which is a command.">Delete the file history used for /restore</description>
+    <action command="delete" search="walk.all" path="~/.claude/file-history/"/>
+  </option>
+  <option id="logs">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action command="delete" search="walk.files" path="~/.claude/debug/"/>
+    <action command="delete" search="walk.files" path="~/.claude/logs/"/>
+    <action command="delete" search="glob" path="~/.claude/*.log" type="f"/>
+  </option>
+  <option id="session">
+    <label>Session</label>
+    <description translators="Description for deleting Claude Code sessions">Delete the conversation history</description>
+    <warning>You would lose resume, continue, and rewind for past sessions</warning>
+    <action command="delete" search="file" path="~/.claude/history.jsonl"/>
+    <action command="delete" search="walk.all" path="~/.claude/projects/"/>
+    <action command="delete" search="walk.all" path="~/.claude/sessions/"/>
+    <action command="delete" search="walk.all" path="~/.claude/session-env/"/>
+  </option>
+  <option id="shell_snapshots">
+    <label translators="In Claude Code: captured shell environment used by the Bash tool">Shell snapshots</label>
+    <description>Delete the files</description>
+    <action command="delete" search="walk.all" path="~/.claude/shell-snapshots/"/>
+  </option>
+  <option id="tmp">
+    <label>Temporary files</label>
+    <description>Delete the temporary files</description>
+    <action command="delete" search="walk.files" path="~/.claude/" regex="\.tmp$"/>
+    <action command="delete" search="walk.files" path="~/.claude/" regex="\.temp$"/>
+  </option>
+</cleaner>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="konqueror" os="linux">
+  <label>Konqueror</label>
+  <description>Web browser</description>
+  <running type="exe" same_user="true">konqueror</running>
+  <option id="cookies">
+    <label>Cookies</label>
+    <description>Delete cookies, which store login information, website preferences, and tracking identifiers</description>
+    <action command="delete" search="file" path="~/.kde/share/apps/kcookiejar/cookies"/>
+    <!-- Chakra 2014.02 uses ~/.kde4/ -->
+    <action command="delete" search="file" path="~/.kde4/share/apps/kcookiejar/cookies"/>
+  </option>
+  <option id="current_session">
+    <label>Current session</label>
+    <description>Delete the current session</description>
+    <action command="delete" search="walk.files" path="~/.kde/share/apps/konqueror/autosave/"/>
+    <!-- Chakra 2014.02 uses ~/.kde4/ -->
+    <action command="delete" search="walk.files" path="~/.kde4/share/apps/konqueror/autosave/"/>
+  </option>
+  <option id="url_history">
+    <label>URL history</label>
+    <description>List of visited web pages</description>
+    <action command="delete" search="file" path="~/.kde/share/apps/konqueror/closeditems_saved"/>
+    <action command="delete" search="file" path="~/.kde/share/apps/konqueror/konq_history"/>
+    <action command="delete" search="file" path="~/.kde/share/config/konq_history"/>
+    <!-- Chakra 2014.02 uses ~/.kde4/ -->
+    <action command="delete" search="file" path="~/.kde4/share/apps/konqueror/closeditems_saved"/>
+    <action command="delete" search="file" path="~/.kde4/share/apps/konqueror/konq_history"/>
+    <action command="delete" search="file" path="~/.kde4/share/config/konq_history"/>
+  </option>
+</cleaner>

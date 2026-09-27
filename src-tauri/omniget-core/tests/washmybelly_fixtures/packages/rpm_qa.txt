@@ -1,0 +1,10 @@
+libgcc	16.2.1-2.fc44	227620	Fedora Project	GCC version 16 shared support library
+publicsuffix-list-dafsa	20260116-1.fc44	72062	Fedora Project	Cross-vendor public domain suffix database in DAFSA form
+libssh-config	0.12.2-1.fc44	277	Fedora Project	Configuration files for libssh
+fedora-release-identity-container	44-18	1454	Fedora Project	Package providing the identity for Fedora Container Base Image
+fedora-gpg-keys	44-1	136596	Fedora Project	Fedora RPM keys
+fedora-repos	44-1	4971	Fedora Project	Fedora package repositories
+fedora-release-common	44-18	21111	Fedora Project	Fedora release files
+fedora-release-container	44-18	0	Fedora Project	Base package for Fedora container specific default configurations
+less	704-4.fc44	622070	Fedora Project	A text file browser similar to more, but better
+nano	8.7.1-2.fc44	3051328	Fedora Project	A small text editor

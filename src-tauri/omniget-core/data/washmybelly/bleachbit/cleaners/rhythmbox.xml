@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="rhythmbox" os="linux">
+  <label>Rhythmbox</label>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.files" path="~/.gnome2/rhythmbox/jamendo/"/>
+    <action command="delete" search="walk.files" path="~/.gnome2/rhythmbox/magnatune/"/>
+  </option>
+  <option id="history">
+    <label>Database</label>
+    <description>Delete the database, which contains information such as play count and last played</description>
+    <action command="delete" search="file" path="$XDG_DATA_HOME/rhythmbox/rhythmdb.xml"/>
+  </option>
+</cleaner>

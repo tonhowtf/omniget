@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<!-- FIXME: is this available for Windows? -->
+<cleaner id="easytag" os="unix">
+  <label>EasyTAG</label>
+  <description translators="This software edits metadata tags, such as title and artist, in audio files">Audio files tagger</description>
+  <running type="exe" os="freebsd">easytag</running>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the usage history</description>
+    <action command="delete" search="glob" path="~/.easytag/*.history"/>
+    <action command="delete" search="glob" path="~/.easytag/*.mask"/>
+    <action command="delete" search="glob" path="$XDG_CONFIG_HOME/easytag/*.history"/>
+    <action command="delete" search="glob" path="$XDG_CONFIG_HOME/easytag/*.mask"/>
+  </option>
+  <option id="logs">
+    <label>Logs</label>
+    <description>Delete the debug logs</description>
+    <action command="delete" search="file" path="~/.easytag/easytag.log"/>
+    <action command="delete" search="file" path="$XDG_CACHE_HOME/easytag/easytag.log"/>
+  </option>
+</cleaner>

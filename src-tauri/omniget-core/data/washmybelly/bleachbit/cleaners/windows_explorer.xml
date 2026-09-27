@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="windows_explorer" os="windows">
+  <label>Windows Explorer</label>
+  <description>File manager</description>
+  <option id="mru">
+    <label>Most recently used</label>
+    <description>Delete the most recently used list</description>
+    <!-- applications executed including date and time, Windows XP -->
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist\{5E6AB780-7743-11CF-A12B-00AA004AE837}\Count"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist\{75048700-EF1F-11D0-9888-006097DEACF9}\Count"/>
+    <!-- applications executed including date and time, Windows 7 -->
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist\{CEBFF5CD-ACE2-4F4F-9178-9926F41749EA}\Count"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist\{F4E57C4B-2036-45F0-A9AB-443BCFE33D9F}\Count"/>
+    <!-- refresh Windows shell after UserAssist -->
+    <action command="win.shell.change.notify"/>
+    <!-- https://web.archive.org/web/20150224160439/http://support.microsoft.com/kb/142298 -->
+    <!-- common open dialog -->
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\ComDlg32\LastVisitedMRU"/>
+    <!-- Windows Vista/7 -->
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\ComDlg32\LastVisitedPidlMRU"/>
+    <!-- common save as dialog -->
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\ComDlg32\OpenSaveMRU"/>
+    <!-- Windows Vista/7 -->
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\ComDlg32\OpenSavePidlMRU"/>
+    <!-- find files command -->
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Doc Find Spec MRU"/>
+    <!-- find Computer command -->
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FindComputerMRU"/>
+    <!-- map network drives -->
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Map Network Drive MRU"/>
+    <!-- printer ports -->
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\PrnPortsMRU"/>
+  </option>
+  <option id="recent_documents">
+    <label>Recent documents list</label>
+    <description>Delete the list of recently used documents</description>
+    <warning>This option will reset pinned locations in Quick Access to their defaults.</warning>
+    <!-- Windows XP -->
+    <action command="delete" search="glob" path="%USERPROFILE%\Recent\*.lnk"/>
+    <!-- Vista -->
+    <action command="delete" search="glob" path="%APPDATA%\Microsoft\Windows\Recent\*.lnk"/>
+    <!-- recent documents in start menu -->
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\RecentDocs"/>
+    <!-- Windows 7 jump list -->
+    <action command="delete" search="glob" path="%APPDATA%\Microsoft\Windows\Recent\AutomaticDestinations\*.automaticDestinations-ms"/>
+    <action command="delete" search="glob" path="%APPDATA%\Microsoft\Windows\Recent\CustomDestinations\*customDestinations-ms"/>
+  </option>
+  <option id="run">
+    <label translators="In Windows 'Run' is the dialog in the Start menu">Run</label>
+    <description>Delete the most recently used list</description>
+    <!-- run command -->
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\RunMRU"/>
+  </option>
+  <option id="search_history">
+    <label>Search history</label>
+    <description>Delete the search history</description>
+    <action command="winreg" path="HKCU\Software\Microsoft\Search Assistant\ACMru"/>
+    <!-- Windows 10 -->
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\WordWheelQuery"/>
+  </option>
+  <option id="shellbags">
+    <label>Shellbags</label>
+    <description>Delete the usage date, window position, and other data for folders</description>
+    <warning>This will reset the position of desktop icons.</warning>
+    <!-- http://support.microsoft.com/kb/813711 -->
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\Shell\Bags"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\Shell\BagMRU"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\ShellNoRoam\Bags"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\ShellNoRoam\BagMRU"/>
+    <action command="winreg" path="HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\Bags"/>
+    <action command="winreg" path="HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\BagMRU"/>
+    <!-- 64-bit Windows -->
+    <action command="winreg" path="HKCU\Software\Classes\Wow6432Node\Local Settings\Software\Microsoft\Windows\Shell\Bags"/>
+    <action command="winreg" path="HKCU\Software\Classes\Wow6432Node\Local Settings\Software\Microsoft\Windows\Shell\BagMRU"/>
+  </option>
+  <option id="thumbnails">
+    <label>Thumbnails</label>
+    <description>Delete the cache</description>
+    <warning>This will restart Windows Explorer.</warning>
+    <action command="process" cmd="%WINDIR%\System32\taskkill.exe /f /IM explorer.exe"/>
+    <action command="delete" search="glob" path="%LOCALAPPDATA%\Microsoft\Windows\Explorer\thumbcache*.db"/>
+    <!-- On 64-bit Windows, it is important to start the 64-bit Windows Explorer,
+         so use the full path. Also, do not wait for the process to terminate.
+
+         The redundant .exe is intentional to launch explorer.exe in disabled UAC
+         virtualization mode rather than elevated mode because normally it
+         inherits the mode from bleachbit.exe.
+     -->
+    <action command="process" wait="false" cmd="%WINDIR%\explorer.exe %WINDIR%\explorer.exe"/>
+  </option>
+</cleaner>

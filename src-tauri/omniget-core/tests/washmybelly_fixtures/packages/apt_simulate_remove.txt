@@ -1,0 +1,14 @@
+NOTE: This is only a simulation!
+      apt-get needs root privileges for real execution.
+      Keep also in mind that locking is deactivated,
+      so don't depend on the relevance to the real current situation!
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages were automatically installed and are no longer required:
+  less libgpm2 libncursesw6
+Use 'apt autoremove' to remove them.
+The following packages will be REMOVED:
+  nano
+0 upgraded, 0 newly installed, 1 to remove and 1 not upgraded.
+Remv nano [7.2-1+deb12u1]

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<!-- verified with Octave 3.6.2 on Ubuntu 12.10 -->
+<!-- verified with Octave 3.6.2 on Windows XP -->
+<cleaner id="octave">
+  <label>Octave</label>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the command history</description>
+    <action command="delete" search="file" path="~/.octave_hist"/>
+  </option>
+</cleaner>

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+The last release of Safari for Windows was 5.1.7 in May 2012, so this is useful
+only for Windows systems using retro browsers or Windows user profiles copied
+over from older systems.
+
+This cleaner may be removed.
+
+We do not support the Cookie Manager for this old browser, so the cookie jar
+file is deleted.
+
+-->
+<cleaner id="safari_windows" os="windows">
+  <label>Safari</label>
+  <description>Web browser</description>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the web cache, which reduces time to display revisited pages</description>
+    <action command="delete" search="file" path="$localappdata\Apple Computer\Safari\Cache.db"/>
+  </option>
+  <option id="cookies">
+    <label>Cookies</label>
+    <description>Delete cookies, which store login information, website preferences, and tracking identifiers</description>
+    <action command="delete" search="file" path="$APPDATA\Apple Computer\Safari\Cookies\Cookies.plist"/>
+    <action command="delete" search="walk.files" path="$localappdata\Apple Computer\Safari\LocalStorage\"/>
+  </option>
+  <option id="history">
+    <label>History</label>
+    <description>List of visited web pages</description>
+    <action command="delete" search="file" path="$APPDATA\Apple Computer\Safari\History.plist"/>
+    <action command="delete" search="file" path="$APPDATA\Apple Computer\Safari\LastSession.plist"/>
+    <action command="delete" search="walk.files" path="$localappdata\Apple Computer\Safari\History\"/>
+    <action command="delete" search="walk.files" path="$localappdata\Apple Computer\Safari\Webpage Previews\"/>
+  </option>
+  <option id="vacuum">
+    <label>Vacuum</label>
+    <description>Clean database fragmentation to reduce space and improve speed without removing any data</description>
+    <action command="sqlite.vacuum" search="file" path="$APPDATA\Apple Computer\Safari\PubSub\Database\Database.sqlite3"/>
+    <action command="sqlite.vacuum" search="glob" path="$localappdata\Apple Computer\Safari\Databases\*\*db"/>
+    <action command="sqlite.vacuum" search="file" path="$localappdata\Apple Computer\Safari\Databases\Databases.db"/>
+    <action command="sqlite.vacuum" search="glob" path="$localappdata\Apple Computer\Safari\LocalStorage\*.localstorage"/>
+    <action command="sqlite.vacuum" search="file" path="$localappdata\Apple Computer\Safari\SafeBrowsing.db"/>
+    <action command="sqlite.vacuum" search="file" path="$localappdata\Apple Computer\Safari\WebpageIcons.db"/>
+  </option>
+</cleaner>

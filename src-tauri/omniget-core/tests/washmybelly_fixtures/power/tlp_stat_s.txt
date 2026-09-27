@@ -1,0 +1,20 @@
+--- TLP 1.6.1 --------------------------------------------
+
++++ System Info
+System         = LENOVO ThinkPad T14 Gen 3 21AH
+BIOS           = R23ET70W (1.46 )
+EC Firmware    = R23HT70W (1.46 )
+OS Release     = Fedora Linux 40 (Workstation Edition)
+Kernel         = 6.10.6-200.fc40.x86_64 #1 SMP PREEMPT_DYNAMIC Mon Aug 19 14:09:30 UTC 2024 x86_64
+/proc/cmdline  = BOOT_IMAGE=(hd0,gpt2)/vmlinuz-6.10.6-200.fc40.x86_64 root=UUID=abc ro rhgb quiet
+Init system    = systemd v255 (255.10-3.fc40)
+Boot mode      = UEFI
+
++++ TLP Status
+State          = enabled
+RDW state      = enabled
+Last run       = 09:12:40 AM,    120 sec(s) ago
+Mode           = battery
+Power source   = battery
+
+Notice: power-profiles-daemon.service is running - conflicts with TLP

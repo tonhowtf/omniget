@@ -1,0 +1,9 @@
+-\| Name                                   Id                                    Version          Available Source
+-------------------------------------------------------------------------------------------------------------
+Mozilla Firefox (x64 en-US)            Mozilla.Firefox                       120.0            121.0     winget
+7-Zip 23.01 (x64 edition)              7zip.7zip                             23.01.00.0                 winget
+Foo Tool 2.1                           ARP\Machine\X86\Foo Tool_is1          2.1
+Microsoft Visual C++ 2015-2022 Redist… Microsoft.VCRedist.2015+.x64          14.38.33130.0              winget
+Feedback Hub                           9NBLGGH4R32N                          1.2401.20253.0             msstore
+Bing News                              MSIX\Microsoft.BingNews_4.55.62231.0… 4.55.62231.0
+Some Very Long Application Name That … SomeVendor.SomeVeryLongApplicationNa… 1.0                        winget

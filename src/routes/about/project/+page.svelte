@@ -1,6 +1,7 @@
 <script lang="ts">
   import { open } from "@tauri-apps/plugin-shell";
   import { t } from "$lib/i18n";
+  import { WMB_CREDITS } from "$lib/washmybelly/credits";
 
   const GITHUB_URL = "https://github.com/tonhowtf/omniget";
   const APP_VERSION = "0.10.1";
@@ -47,9 +48,31 @@
   </div>
 </section>
 
+<section class="card">
+  <h5 class="card-title">{$t('about.wmb_credits_title')}</h5>
+  <p class="feature-item">{$t('about.wmb_credits_body')}</p>
+  <div class="features-list">
+    {#each WMB_CREDITS as c (c.name)}
+      <p class="feature-item">
+        <button class="credit-link" onclick={() => open(c.url)}>{c.name}</button>
+        · {c.license} · {$t(`about.wmb_credit_${c.use}`)}
+      </p>
+    {/each}
+  </div>
+</section>
+
 <p class="version">{$t('about.version')} {APP_VERSION}</p>
 
 <style>
+  .credit-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    cursor: pointer;
+  }
+
   .star-section {
     display: flex;
     flex-direction: column;

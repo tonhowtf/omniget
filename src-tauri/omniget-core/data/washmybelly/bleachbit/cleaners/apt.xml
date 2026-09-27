@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem, nodiscc.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="apt" os="linux">
+  <label>APT</label>
+  <description>Package manager</description>
+  <running type="exe" same_user="false">apt-get</running>
+  <running type="exe" same_user="false">synaptic</running>
+  <!-- gnome-app-install uses synaptic -->
+  <option id="clean">
+    <label translate="false">clean</label>
+    <description>Delete the cache</description>
+    <action command="apt.clean"/>
+  </option>
+  <option id="autoclean">
+    <label translate="false">autoclean</label>
+    <description>Delete obsolete files</description>
+    <action command="apt.autoclean"/>
+  </option>
+  <option id="autoremove">
+    <label translate="false">autoremove</label>
+    <description>Delete obsolete files</description>
+    <action command="apt.autoremove"/>
+  </option>
+  <option id="package_lists">
+    <label>Package lists</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.all" path="/var/lib/apt/lists/"/>
+  </option>
+</cleaner>

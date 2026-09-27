@@ -1,0 +1,59 @@
+
+HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall
+
+HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Mozilla Firefox 120.0 (x64 en-US)
+    Comments    REG_SZ    Mozilla Firefox 120.0 (x64 en-US)
+    DisplayIcon    REG_SZ    C:\Program Files\Mozilla Firefox\firefox.exe,0
+    DisplayName    REG_SZ    Mozilla Firefox (x64 en-US)
+    DisplayVersion    REG_SZ    120.0
+    EstimatedSize    REG_DWORD    0x3a4f0
+    InstallLocation    REG_SZ    C:\Program Files\Mozilla Firefox
+    NoModify    REG_DWORD    0x1
+    NoRepair    REG_DWORD    0x1
+    Publisher    REG_SZ    Mozilla
+    UninstallString    REG_SZ    "C:\Program Files\Mozilla Firefox\uninstall\helper.exe"
+
+HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{23170F69-40C1-2702-2301-000001000000}
+    AuthorizedCDFPrefix    REG_SZ    
+    DisplayName    REG_SZ    7-Zip 23.01 (x64 edition)
+    DisplayVersion    REG_SZ    23.01.00.0
+    EstimatedSize    REG_DWORD    0x1664
+    InstallDate    REG_SZ    20240131
+    InstallLocation    REG_SZ    C:\Program Files\7-Zip\
+    Publisher    REG_SZ    Igor Pavlov
+    UninstallString    REG_EXPAND_SZ    MsiExec.exe /I{23170F69-40C1-2702-2301-000001000000}
+    WindowsInstaller    REG_DWORD    0x1
+
+HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\KB5034441
+    DisplayName    REG_SZ    Security Update for Windows (KB5034441)
+    ParentKeyName    REG_SZ    OperatingSystem
+    UninstallString    REG_SZ    wusa.exe /uninstall /kb:5034441
+
+HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{0A1B2C3D-0000-1111-2222-333344445555}
+    DisplayName    REG_SZ    Microsoft Visual C++ 2022 X64 Minimum Runtime - 14.38.33130
+    SystemComponent    REG_DWORD    0x1
+    WindowsInstaller    REG_DWORD    0x1
+    UninstallString    REG_EXPAND_SZ    MsiExec.exe /I{0A1B2C3D-0000-1111-2222-333344445555}
+
+HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall
+
+HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Foo Tool_is1
+    Inno Setup: App Path    REG_SZ    C:\Program Files (x86)\Foo Tool
+    Inno Setup: Setup Version    REG_SZ    6.2.2
+    DisplayName    REG_SZ    Foo Tool 2.1
+    DisplayVersion    REG_SZ    2.1
+    InstallLocation    REG_SZ    C:\Program Files (x86)\Foo Tool\
+    Publisher    REG_SZ    Foo Software
+    QuietUninstallString    REG_SZ    "C:\Program Files (x86)\Foo Tool\unins000.exe" /SILENT
+    UninstallString    REG_SZ    "C:\Program Files (x86)\Foo Tool\unins000.exe"
+    EstimatedSize    REG_DWORD    0x2800
+
+HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 730
+    DisplayIcon    REG_SZ    C:\Program Files (x86)\Steam\steam\games\730.ico
+    DisplayName    REG_SZ    Counter-Strike 2
+    InstallLocation    REG_SZ    C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive
+    Publisher    REG_SZ    Valve
+    UninstallString    REG_SZ    "C:\Program Files (x86)\Steam\steam.exe" steam://uninstall/730
+
+HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\NoName
+    NoRemove    REG_DWORD    0x1

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<!-- verified with SQLite 3.7.13 on Ubuntu 12.10 -->
+<!-- verified with SQLite 3.11.0 on Ubuntu 16.04 -->
+<cleaner id="sqlite3" os="unix">
+  <label>sqlite3</label>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the command history</description>
+    <action command="delete" search="file" path="~/.sqlite_history"/>
+  </option>
+</cleaner>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- washmybelly: pkexec may start only the OmniGet helper, which accepts a
+     signed batch of typed operations (no command, script or free path). -->
+<policyconfig>
+  <vendor>OmniGet</vendor>
+  <vendor_url>https://github.com/tonhowtf/omniget</vendor_url>
+  <action id="wtf.tonho.omniget.washmybelly.elevate">
+    <description>Run a washmybelly cleanup that needs administrator rights</description>
+    <message>OmniGet needs your password to finish the cleanup you approved</message>
+    <icon_name>omniget</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omniget-elevate</annotate>
+  </action>
+</policyconfig>

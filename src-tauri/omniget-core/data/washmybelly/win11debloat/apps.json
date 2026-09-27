@@ -1,0 +1,1422 @@
+{
+ "source": "https://github.com/Raphire/Win11Debloat",
+ "commit": "32024662f3c602442e7af82bbf52c89143b31aeb",
+ "license": "MIT",
+ "generated_by": "scripts/washmybelly/win-apps-convert.mjs",
+ "upstream_file": "Config/Apps.json",
+ "upstream_version": "1.1",
+ "count": 141,
+ "apps": [
+  {
+   "ids": [
+    "Clipchamp.Clipchamp"
+   ],
+   "name": "Clipchamp",
+   "description": "Video editor from Microsoft",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.3DBuilder"
+   ],
+   "name": "3D Builder",
+   "description": "Basic 3D modeling software",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.549981C3F5F10"
+   ],
+   "name": "Cortana",
+   "description": "Microsoft Cortana voice assistant (Discontinued)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.BingFinance"
+   ],
+   "name": "Bing Finance",
+   "description": "Finance news and tracking via Bing (Discontinued)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.BingFoodAndDrink"
+   ],
+   "name": "Bing Food And Drink",
+   "description": "Recipes and food news via Bing (Discontinued)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.BingHealthAndFitness"
+   ],
+   "name": "Bing Health And Fitness",
+   "description": "Health and fitness tracking/news via Bing (Discontinued)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.BingNews"
+   ],
+   "name": "Bing News",
+   "description": "News aggregator via Bing (Replaced by Microsoft News/Start)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.BingSports"
+   ],
+   "name": "Bing Sports",
+   "description": "Sports news and scores via Bing (Discontinued)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.BingTranslator"
+   ],
+   "name": "Bing Translator",
+   "description": "Translation service via Bing",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.BingTravel"
+   ],
+   "name": "Bing Travel",
+   "description": "Travel planning and news via Bing (Discontinued)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.BingWeather"
+   ],
+   "name": "Bing Weather",
+   "description": "Weather forecast via Bing",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "XP9CXNGPPJ97XX"
+   ],
+   "name": "Microsoft Copilot",
+   "description": "AI assistant integrated into Windows",
+   "recommendation": "safe",
+   "removal": "winget",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.Windows.AIHub"
+   ],
+   "name": "Copilot+ AI Hub",
+   "description": "Copilot+ AI Hub app (Windows 11 24H2+)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.PCManager"
+   ],
+   "name": "Microsoft PC Manager",
+   "description": "Microsoft PC Manager system cleanup and optimization tool (often preinstalled)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.Getstarted"
+   ],
+   "name": "Get Started",
+   "description": "Tips and introductory guide for Windows (Cannot be uninstalled in Windows 11)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.Messaging"
+   ],
+   "name": "Messaging",
+   "description": "Messaging app, often integrates with Skype (Largely discontinued)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.Microsoft3DViewer"
+   ],
+   "name": "3D Viewer",
+   "description": "Viewer for 3D models",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.MicrosoftJournal"
+   ],
+   "name": "Microsoft Journal",
+   "description": "Digital note-taking app optimized for pen input",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.MicrosoftOfficeHub"
+   ],
+   "name": "Office Hub",
+   "description": "Hub to access Microsoft Office apps and documents (Precursor to Microsoft 365 app)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.MicrosoftPowerBIForWindows"
+   ],
+   "name": "Power BI",
+   "description": "Business analytics service client",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.MicrosoftSolitaireCollection"
+   ],
+   "name": "Solitaire Collection",
+   "description": "Collection of solitaire card games",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.MicrosoftStickyNotes"
+   ],
+   "name": "Sticky Notes",
+   "description": "Digital sticky notes app (Discontinued & replaced by OneNote)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.MixedReality.Portal"
+   ],
+   "name": "Mixed Reality Portal",
+   "description": "Portal for Windows Mixed Reality headsets",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.NetworkSpeedTest"
+   ],
+   "name": "Network Speed Test",
+   "description": "Internet connection speed test utility",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.News"
+   ],
+   "name": "Microsoft News",
+   "description": "News aggregator (Replaced Bing News, now part of Microsoft Start)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.Office.OneNote"
+   ],
+   "name": "OneNote",
+   "description": "Digital note-taking app (Universal Windows Platform version)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.Office.Sway"
+   ],
+   "name": "Sway",
+   "description": "Presentation and storytelling app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.OneConnect"
+   ],
+   "name": "One Connect",
+   "description": "Mobile Operator management app (Replaced by Mobile Plans)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.Print3D"
+   ],
+   "name": "Print 3D",
+   "description": "3D printing preparation software",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.PowerAutomateDesktop"
+   ],
+   "name": "Power Automate",
+   "description": "Desktop automation tool (RPA)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.SkypeApp"
+   ],
+   "name": "Skype (UWP)",
+   "description": "Skype communication app, Universal Windows Platform version (Discontinued)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.Todos"
+   ],
+   "name": "Microsoft To Do",
+   "description": "To-do list and task management app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.Windows.DevHome"
+   ],
+   "name": "Dev Home",
+   "description": "Developer dashboard and tool configuration utility (Discontinued)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.WindowsAlarms"
+   ],
+   "name": "Alarms & Clock",
+   "description": "Alarms & Clock app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.WindowsFeedbackHub"
+   ],
+   "name": "Feedback Hub",
+   "description": "App for providing feedback to Microsoft on Windows",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.WindowsMaps"
+   ],
+   "name": "Windows Maps",
+   "description": "Mapping and navigation app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.WindowsSoundRecorder"
+   ],
+   "name": "Sound Recorder",
+   "description": "Basic audio recording app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.XboxApp"
+   ],
+   "name": "Xbox Console Companion",
+   "description": "Old Xbox Console Companion App (Discontinued)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.ZuneVideo"
+   ],
+   "name": "Movies & TV",
+   "description": "Movies & TV app for renting/buying/playing video content (Rebranded as \"Films & TV\")",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "MicrosoftCorporationII.MicrosoftFamily"
+   ],
+   "name": "Family Safety",
+   "description": "Family Safety App for managing family accounts and settings",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "MicrosoftCorporationII.QuickAssist"
+   ],
+   "name": "Quick Assist",
+   "description": "Remote assistance tool",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "MicrosoftTeams"
+   ],
+   "name": "Microsoft Teams (Old)",
+   "description": "Old Microsoft Teams personal (MS Store version)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "MSTeams"
+   ],
+   "name": "Microsoft Teams (New)",
+   "description": "New Microsoft Teams app (Work/School or Personal)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "ACGMediaPlayer"
+   ],
+   "name": "ACG Media Player",
+   "description": "Media player app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "ActiproSoftwareLLC"
+   ],
+   "name": "Actipro Software",
+   "description": "Potentially UI controls or software components, often bundled by OEMs",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "AdobeSystemsIncorporated.AdobePhotoshopExpress"
+   ],
+   "name": "Adobe Photoshop Express",
+   "description": "Basic photo editing app from Adobe",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Amazon.com.Amazon"
+   ],
+   "name": "Amazon",
+   "description": "Amazon shopping app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "AmazonVideo.PrimeVideo"
+   ],
+   "name": "Prime Video",
+   "description": "Amazon Prime Video streaming service app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Asphalt8Airborne"
+   ],
+   "name": "Asphalt 8",
+   "description": "Racing game",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "AutodeskSketchBook"
+   ],
+   "name": "Autodesk SketchBook",
+   "description": "Digital drawing and sketching app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "CaesarsSlotsFreeCasino"
+   ],
+   "name": "Caesars Slots",
+   "description": "Casino slot machine game",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "COOKINGFEVER"
+   ],
+   "name": "Cooking Fever",
+   "description": "Restaurant simulation game",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "CyberLinkMediaSuiteEssentials"
+   ],
+   "name": "CyberLink Media Suite",
+   "description": "Multimedia software suite (often preinstalled by OEMs)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "DisneyMagicKingdoms"
+   ],
+   "name": "Disney Magic Kingdoms",
+   "description": "Disney theme park building game",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Disney.37853FC22B2CE"
+   ],
+   "name": "Disney+",
+   "description": "Disney+ streaming service app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "DrawboardPDF"
+   ],
+   "name": "Drawboard PDF",
+   "description": "PDF viewing and annotation app, often focused on pen input",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Duolingo-LearnLanguagesforFree"
+   ],
+   "name": "Duolingo",
+   "description": "Language learning app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "EclipseManager"
+   ],
+   "name": "Eclipse Manager",
+   "description": "Often related to specific OEM software or utilities (e.g. for managing screen settings)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "FACEBOOK.FACEBOOK"
+   ],
+   "name": "Facebook",
+   "description": "Facebook social media app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "FarmVille2CountryEscape"
+   ],
+   "name": "FarmVille 2",
+   "description": "Farming simulation game",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Flipboard"
+   ],
+   "name": "Flipboard",
+   "description": "News and social network aggregator styled as a magazine",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "HiddenCity"
+   ],
+   "name": "Hidden City",
+   "description": "Hidden object puzzle adventure game",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "HULULLC.HULUPLUS"
+   ],
+   "name": "Hulu",
+   "description": "Hulu streaming service app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "iHeartRadio"
+   ],
+   "name": "iHeartRadio",
+   "description": "Internet radio streaming app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Facebook.Instagram"
+   ],
+   "name": "Instagram",
+   "description": "Instagram social media app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "king.com.BubbleWitch3Saga"
+   ],
+   "name": "Bubble Witch 3",
+   "description": "Puzzle game from King",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "king.com.CandyCrushSaga"
+   ],
+   "name": "Candy Crush Saga",
+   "description": "Puzzle game from King",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "king.com.CandyCrushSodaSaga"
+   ],
+   "name": "Candy Crush Soda",
+   "description": "Puzzle game from King",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "LinkedInforWindows"
+   ],
+   "name": "LinkedIn",
+   "description": "LinkedIn professional networking app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "MarchofEmpires"
+   ],
+   "name": "March of Empires",
+   "description": "Strategy game",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "4DF9E0F8.Netflix"
+   ],
+   "name": "Netflix",
+   "description": "Netflix streaming service app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "NYTCrossword"
+   ],
+   "name": "NYT Crossword",
+   "description": "New York Times crossword puzzle app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "OneCalendar"
+   ],
+   "name": "One Calendar",
+   "description": "Calendar aggregation app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "PandoraMediaInc"
+   ],
+   "name": "Pandora",
+   "description": "Pandora music streaming app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "PhototasticCollage"
+   ],
+   "name": "Phototastic Collage",
+   "description": "Photo collage creation app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "PicsArt-PhotoStudio"
+   ],
+   "name": "PicsArt",
+   "description": "Photo editing and creative app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "PolarrPhotoEditorAcademicEdition"
+   ],
+   "name": "Polarr Photo Editor",
+   "description": "Photo editing app (Academic Edition)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "flaregamesGmbH.RoyalRevolt"
+   ],
+   "name": "Royal Revolt",
+   "description": "Tower defense / strategy game",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Sidia.LiveWallpaper"
+   ],
+   "name": "Live Wallpaper",
+   "description": "Live wallpaper app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "SlingTV"
+   ],
+   "name": "Sling TV",
+   "description": "Live TV streaming service app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "SpotifyAB.SpotifyMusic"
+   ],
+   "name": "Spotify",
+   "description": "Spotify music streaming app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "BytedancePte.Ltd.TikTok"
+   ],
+   "name": "TikTok",
+   "description": "TikTok short-form video app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "TuneInRadio"
+   ],
+   "name": "TuneIn Radio",
+   "description": "Internet radio streaming app",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "WinZipUniversal"
+   ],
+   "name": "WinZip",
+   "description": "File compression and extraction utility (Universal Windows Platform version)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": true
+  },
+  {
+   "ids": [
+    "Microsoft.BingSearch"
+   ],
+   "name": "Bing Search",
+   "description": "Web Search from Microsoft Bing (Integrates into Windows Search)",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.Edge",
+    "XPFFTQ037JWMHS"
+   ],
+   "name": "Microsoft Edge",
+   "description": "Windows' default browser, WARNING: Removing this app also removes the only browser from Windows Sandbox and could affect other apps",
+   "recommendation": "dangerous",
+   "removal": "winget",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.GamingApp"
+   ],
+   "name": "Xbox Gaming App",
+   "description": "Modern Xbox Gaming App, required for installing some PC games",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.GetHelp"
+   ],
+   "name": "Get Help",
+   "description": "Required for some Windows 11 Troubleshooters and support interactions",
+   "recommendation": "dangerous",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.M365Companions"
+   ],
+   "name": "Microsoft 365 Companions",
+   "description": "Microsoft 365 (Business) Calendar, Files and People mini-apps, these apps may be reinstalled if enabled by your Microsoft 365 admin",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.MSPaint"
+   ],
+   "name": "Paint 3D",
+   "description": "Paint 3D (Modern paint application with 3D features)",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.OneDrive"
+   ],
+   "name": "OneDrive",
+   "description": "OneDrive consumer cloud storage client",
+   "recommendation": "optional",
+   "removal": "winget",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.OutlookForWindows"
+   ],
+   "name": "Outlook for Windows",
+   "description": "New Outlook for Windows mail client",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.Paint"
+   ],
+   "name": "Paint",
+   "description": "Classic Paint (Traditional 2D paint application)",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.People"
+   ],
+   "name": "People",
+   "description": "Required for & included with Mail & Calendar (discontinued)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.RemoteDesktop"
+   ],
+   "name": "Remote Desktop",
+   "description": "Remote Desktop client app",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.ScreenSketch"
+   ],
+   "name": "Snipping Tool",
+   "description": "Snipping Tool (Screenshot and annotation tool)",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.StartExperiencesApp"
+   ],
+   "name": "Widgets Experience",
+   "description": "This app powers Windows Widgets My Feed",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.Whiteboard"
+   ],
+   "name": "Whiteboard",
+   "description": "Digital collaborative whiteboard app",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.Windows.Photos"
+   ],
+   "name": "Photos",
+   "description": "Default photo viewing and basic editing app",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.WindowsCalculator"
+   ],
+   "name": "Calculator",
+   "description": "Calculator app",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.WindowsCamera"
+   ],
+   "name": "Camera",
+   "description": "Camera app for using built-in or connected cameras",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.windowscommunicationsapps"
+   ],
+   "name": "Mail & Calendar",
+   "description": "Mail & Calendar app suite (Discontinued)",
+   "recommendation": "safe",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.WindowsNotepad"
+   ],
+   "name": "Notepad",
+   "description": "Notepad text editor app",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.WindowsStore"
+   ],
+   "name": "Microsoft Store",
+   "description": "Microsoft Store, WARNING: This app cannot be reinstalled easily if removed!",
+   "recommendation": "dangerous",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.WindowsTerminal"
+   ],
+   "name": "Windows Terminal",
+   "description": "Default terminal app in windows 11 (Command Prompt, PowerShell, WSL), WARNING: Do not remove if you launched Win11Debloat from Windows Terminal, as this will cause the script to fail.",
+   "recommendation": "dangerous",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.Xbox.TCUI"
+   ],
+   "name": "Xbox TCUI Framework",
+   "description": "UI framework, seems to be required for Microsoft Store, photos and certain games",
+   "recommendation": "dangerous",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.XboxGameOverlay"
+   ],
+   "name": "Xbox Game Overlay",
+   "description": "Game overlay, required/useful for some games (Part of Xbox Game Bar)",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.XboxGamingOverlay"
+   ],
+   "name": "Xbox Gaming Overlay",
+   "description": "Game overlay, required/useful for some games (Part of Xbox Game Bar)",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.XboxIdentityProvider"
+   ],
+   "name": "Xbox Identity Provider",
+   "description": "Xbox sign-in framework, required for some games and Xbox services",
+   "recommendation": "dangerous",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.XboxSpeechToTextOverlay"
+   ],
+   "name": "Xbox Speech To Text",
+   "description": "Accessibility feature required for some games, WARNING: This app cannot be reinstalled easily!",
+   "recommendation": "dangerous",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.YourPhone"
+   ],
+   "name": "Phone Link",
+   "description": "Phone link (Connects Android/iOS phone to PC)",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.ZuneMusic"
+   ],
+   "name": "Media Player",
+   "description": "Modern Media Player (Replaced Groove Music, plays local audio/video)",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "MicrosoftWindows.CrossDevice"
+   ],
+   "name": "Cross Device Experience",
+   "description": "Phone integration within File Explorer, Camera and more (Part of Phone Link features)",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "MicrosoftWindows.Client.WebExperience"
+   ],
+   "name": "Windows Web Experience Pack",
+   "description": "Helps deliver and update certain features, like Widgets, through the Microsoft Store",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "Microsoft.WidgetsPlatformRuntime"
+   ],
+   "name": "Widgets Platform Runtime",
+   "description": "Runtime required for Windows Widgets to function",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "LGElectronics.LGMonitorApp"
+   ],
+   "name": "LG Monitor App",
+   "description": "LG OEM software for controlling your LG monitor, Windows Update may silently reinstall this app if you have an LG monitor connected",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPAIExperienceCenter"
+   ],
+   "name": "HP AI Experience Center",
+   "description": "HP OEM software, AI-enhanced features and support",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPConnectedMusic"
+   ],
+   "name": "HP Connected Music",
+   "description": "HP OEM software for music (Potentially discontinued)",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPConnectedPhotopoweredbySnapfish"
+   ],
+   "name": "HP Connected Photo",
+   "description": "HP OEM software for photos, integrated with Snapfish (Potentially discontinued)",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPDesktopSupportUtilities"
+   ],
+   "name": "HP Desktop Support Utilities",
+   "description": "HP OEM software providing desktop support tools",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPEasyClean"
+   ],
+   "name": "HP Easy Clean",
+   "description": "HP OEM software for system cleaning or optimization",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPFileViewer"
+   ],
+   "name": "HP File Viewer",
+   "description": "HP OEM software for viewing specific file types",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPJumpStarts"
+   ],
+   "name": "HP JumpStarts",
+   "description": "HP OEM software for tutorials, app discovery, or quick access to HP features",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPPCHardwareDiagnosticsWindows"
+   ],
+   "name": "HP PC Hardware Diagnostics",
+   "description": "HP OEM software for PC hardware diagnostics",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPPowerManager"
+   ],
+   "name": "HP Power Manager",
+   "description": "HP OEM software for managing power settings and battery",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPPrinterControl"
+   ],
+   "name": "HP Printer Control",
+   "description": "HP OEM software for managing HP printers",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPPrivacySettings"
+   ],
+   "name": "HP Privacy Settings",
+   "description": "HP OEM software for managing privacy settings",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPQuickDrop"
+   ],
+   "name": "HP QuickDrop",
+   "description": "HP OEM software for quick file transfer between devices",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPQuickTouch"
+   ],
+   "name": "HP QuickTouch",
+   "description": "HP OEM software, possibly for touch-specific shortcuts or controls",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPRegistration"
+   ],
+   "name": "HP Registration",
+   "description": "HP OEM software for product registration",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPSupportAssistant"
+   ],
+   "name": "HP Support Assistant",
+   "description": "HP OEM software for support, updates, and troubleshooting",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPSureShieldAI"
+   ],
+   "name": "HP Sure Shield AI",
+   "description": "HP OEM security software, likely AI-based threat protection",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPSystemInformation"
+   ],
+   "name": "HP System Information",
+   "description": "HP OEM software for displaying system information",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPWelcome"
+   ],
+   "name": "HP Welcome",
+   "description": "HP OEM software providing a welcome experience or initial setup help",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.HPWorkWell"
+   ],
+   "name": "HP WorkWell",
+   "description": "HP OEM software focused on well-being, possibly with break reminders or ergonomic tips",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "AD2F1837.myHP"
+   ],
+   "name": "myHP",
+   "description": "HP OEM central hub app for device info, support, and services",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "E046963F.LenovoCompanion"
+   ],
+   "name": "Lenovo Vantage",
+   "description": "Lenovo OEM hub app for device settings, updates, and support",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "LenovoCompanyLimited.LenovoVantageService"
+   ],
+   "name": "Lenovo Vantage Service",
+   "description": "Background service component for Lenovo Vantage",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "DellInc.DellSupportAssistforPCs"
+   ],
+   "name": "Dell SupportAssist",
+   "description": "Dell OEM support, diagnostic, and update tool",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "DellInc.DellDigitalDelivery"
+   ],
+   "name": "Dell Digital Delivery Services",
+   "description": "Dell OEM software for delivering pre-purchased software",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  },
+  {
+   "ids": [
+    "DellInc.DellMobileConnect"
+   ],
+   "name": "Dell Mobile Connect",
+   "description": "Dell OEM app for linking Android/iOS phone to PC (superseded by Phone Link)",
+   "recommendation": "optional",
+   "removal": "appx",
+   "default": false
+  }
+ ]
+}

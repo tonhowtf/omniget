@@ -1,0 +1,602 @@
+{
+ "source": "https://github.com/tonhowtf/omniget",
+ "license": "GPL-3.0 (items say their own origin)",
+ "note": "Hand-written: OmniGet's own items, the old win_tweaks.rs (Sophia + hardentools ideas) and winutil functions that are PowerShell upstream (update deferral, Ultimate Performance).",
+ "groups": [
+  {
+   "id": "ours.power_plan",
+   "label": "Power plan",
+   "description": "Undo always goes back to the plan you had before.",
+   "members": [
+    "ours.power_balanced",
+    "ours.power_high",
+    "ours.power_ultimate"
+   ],
+   "default": "ours.power_balanced"
+  }
+ ],
+ "items": [
+  {
+   "id": "ours.hvci_off",
+   "label": "Turn off memory integrity (Core Isolation)",
+   "description": "Memory integrity makes the kernel check every driver. Turning it off gives a few frames per second in some games.",
+   "category": "gaming",
+   "applies": {
+    "min_build": 19041,
+    "max_build": null
+   },
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\HypervisorEnforcedCodeIntegrity",
+     "name": "Enabled",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\HypervisorEnforcedCodeIntegrity",
+     "name": "Enabled",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ],
+   "risk": "extreme",
+   "needs_restart": true,
+   "warning": "This trades security for FPS: without memory integrity a malicious driver can take over the kernel. Turn it back on when you are done playing.",
+   "source": "omniget",
+   "license": "GPL-3.0"
+  },
+  {
+   "id": "ours.power_balanced",
+   "label": "Power plan: Balanced",
+   "description": "The Windows default: fast when you need it, saves power when idle.",
+   "category": "gaming",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": "ours.power_plan",
+   "ops": [
+    {
+     "op": "power_setting",
+     "scheme": "balanced"
+    }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "omniget",
+   "license": "GPL-3.0"
+  },
+  {
+   "id": "ours.power_high",
+   "label": "Power plan: High performance",
+   "description": "Keeps the processor at high clock speeds. Undo goes back to the plan you had.",
+   "category": "gaming",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": "ours.power_plan",
+   "ops": [
+    {
+     "op": "power_setting",
+     "scheme": "high_performance"
+    }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "warning": "Uses more power and heat; on a laptop it drains the battery.",
+   "source": "omniget",
+   "license": "GPL-3.0"
+  },
+  {
+   "id": "ours.power_ultimate",
+   "label": "Power plan: Ultimate performance",
+   "description": "Adds the Ultimate Performance plan and turns it on. Undo goes back to your plan and removes the one we added.",
+   "category": "gaming",
+   "applies": {
+    "min_build": 17134,
+    "max_build": null
+   },
+   "group": "ours.power_plan",
+   "ops": [
+    {
+     "op": "power_setting",
+     "scheme": "ultimate"
+    }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "warning": "Made for desktops; on a laptop it drains the battery.",
+   "source": "winutil",
+   "license": "MIT",
+   "upstream": "Invoke-WPFUltimatePerformance.ps1"
+  },
+  {
+   "id": "ours.updates_defer",
+   "label": "Delay updates (security first)",
+   "description": "Feature updates wait a year and quality updates four days. Security fixes keep coming; Windows Update stays on.",
+   "category": "updates",
+   "applies": {
+    "min_build": null,
+    "max_build": null,
+    "editions": [
+     "Professional",
+     "ProfessionalN",
+     "ProfessionalWorkstation",
+     "ProfessionalWorkstationN",
+     "ProfessionalEducation",
+     "ProfessionalEducationN",
+     "Enterprise",
+     "EnterpriseN",
+     "EnterpriseS",
+     "EnterpriseSN",
+     "Education",
+     "EducationN",
+     "IoTEnterprise",
+     "IoTEnterpriseS"
+    ]
+   },
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+     "name": "DeferFeatureUpdates",
+     "kind": "REG_DWORD",
+     "data": "1"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+     "name": "DeferFeatureUpdatesPeriodInDays",
+     "kind": "REG_DWORD",
+     "data": "365"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+     "name": "DeferQualityUpdates",
+     "kind": "REG_DWORD",
+     "data": "1"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+     "name": "DeferQualityUpdatesPeriodInDays",
+     "kind": "REG_DWORD",
+     "data": "4"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+     "name": "DeferFeatureUpdates"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+     "name": "DeferFeatureUpdatesPeriodInDays"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+     "name": "DeferQualityUpdates"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+     "name": "DeferQualityUpdatesPeriodInDays"
+    }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "upstream": "Invoke-WPFUpdatessecurity.ps1"
+  },
+  {
+   "id": "ours.seconds_in_clock",
+   "label": "Show seconds in the clock",
+   "description": "The taskbar clock shows seconds.",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22621,
+    "max_build": null
+   },
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+     "name": "ShowSecondsInSystemClock",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+     "name": "ShowSecondsInSystemClock",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "omniget",
+   "license": "GPL-3.0",
+   "upstream": "win_tweaks.rs (Sophia)"
+  },
+  {
+   "id": "ours.taskbar_widgets_off",
+   "label": "Hide the Widgets button",
+   "description": "Removes the weather and news button from the taskbar.",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+     "name": "TaskbarDa",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+     "name": "TaskbarDa",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "omniget",
+   "license": "GPL-3.0",
+   "upstream": "win_tweaks.rs (Sophia)"
+  },
+  {
+   "id": "ours.autorun_off",
+   "label": "Turn off AutoRun on every drive",
+   "description": "Inserted drives and discs no longer start programs on their own.",
+   "category": "hardening",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+     "name": "NoDriveTypeAutoRun",
+     "kind": "REG_DWORD",
+     "data": "255"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_delete",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+     "name": "NoDriveTypeAutoRun"
+    }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "hardentools",
+   "license": "GPL-3.0",
+   "upstream": "win_tweaks.rs"
+  },
+  {
+   "id": "ours.autoplay_off",
+   "label": "Turn off AutoPlay",
+   "description": "Windows stops asking what to do when you plug in a drive or phone.",
+   "category": "hardening",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\AutoplayHandlers",
+     "name": "DisableAutoplay",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\AutoplayHandlers",
+     "name": "DisableAutoplay",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "hardentools",
+   "license": "GPL-3.0",
+   "upstream": "win_tweaks.rs"
+  },
+  {
+   "id": "ours.wsh_off",
+   "label": "Turn off Windows Script Host",
+   "description": "Blocks .vbs and .js scripts, a common way malware starts from email attachments.",
+   "category": "hardening",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Windows Script Host\\Settings",
+     "name": "Enabled",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_delete",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Windows Script Host\\Settings",
+     "name": "Enabled"
+    }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "warning": "Some old installers and company login scripts use these scripts.",
+   "source": "hardentools",
+   "license": "GPL-3.0",
+   "upstream": "win_tweaks.rs"
+  },
+  {
+   "id": "ours.office_macros_off",
+   "label": "Block Office macros",
+   "description": "Word, Excel and PowerPoint no longer run macros, not even after asking.",
+   "category": "hardening",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Office\\16.0\\Word\\Security",
+     "name": "VBAWarnings",
+     "kind": "REG_DWORD",
+     "data": "4"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Office\\16.0\\Excel\\Security",
+     "name": "VBAWarnings",
+     "kind": "REG_DWORD",
+     "data": "4"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Office\\16.0\\PowerPoint\\Security",
+     "name": "VBAWarnings",
+     "kind": "REG_DWORD",
+     "data": "4"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Office\\16.0\\Word\\Security",
+     "name": "VBAWarnings",
+     "kind": "REG_DWORD",
+     "data": "2"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Office\\16.0\\Excel\\Security",
+     "name": "VBAWarnings",
+     "kind": "REG_DWORD",
+     "data": "2"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Office\\16.0\\PowerPoint\\Security",
+     "name": "VBAWarnings",
+     "kind": "REG_DWORD",
+     "data": "2"
+    }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "warning": "Spreadsheets and documents that depend on macros stop working.",
+   "source": "hardentools",
+   "license": "GPL-3.0",
+   "upstream": "win_tweaks.rs"
+  },
+  {
+   "id": "ours.office_dde_off",
+   "label": "Stop Office from updating links on open",
+   "description": "Word and Excel no longer fetch linked content (DDE) when a file opens.",
+   "category": "hardening",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Office\\16.0\\Word\\Options",
+     "name": "DontUpdateLinks",
+     "kind": "REG_DWORD",
+     "data": "1"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Office\\16.0\\Excel\\Options",
+     "name": "DontUpdateLinks",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_delete",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Office\\16.0\\Word\\Options",
+     "name": "DontUpdateLinks"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Office\\16.0\\Excel\\Options",
+     "name": "DontUpdateLinks"
+    }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "hardentools",
+   "license": "GPL-3.0",
+   "upstream": "win_tweaks.rs"
+  },
+  {
+   "id": "ours.acrobat_js_off",
+   "label": "Turn off JavaScript in Acrobat Reader",
+   "description": "PDFs can no longer run scripts in Acrobat Reader.",
+   "category": "hardening",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Adobe\\Acrobat Reader\\DC\\JSPrefs",
+     "name": "bEnableJS",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Adobe\\Acrobat Reader\\DC\\JSPrefs",
+     "name": "bEnableJS",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "hardentools",
+   "license": "GPL-3.0",
+   "upstream": "win_tweaks.rs"
+  },
+  {
+   "id": "ours.uac_max",
+   "label": "Always ask for the password on admin prompts",
+   "description": "Administrator prompts ask for the password on the secure desktop instead of a Yes button.",
+   "category": "hardening",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+     "name": "ConsentPromptBehaviorAdmin",
+     "kind": "REG_DWORD",
+     "data": "2"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+     "name": "ConsentPromptBehaviorAdmin",
+     "kind": "REG_DWORD",
+     "data": "5"
+    }
+   ],
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "hardentools",
+   "license": "GPL-3.0",
+   "upstream": "win_tweaks.rs"
+  },
+  {
+   "id": "ours.safe_dll_search",
+   "label": "Safe DLL search order",
+   "description": "Programs look for DLLs in the system folders before the current folder.",
+   "category": "hardening",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager",
+     "name": "SafeDllSearchMode",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager",
+     "name": "SafeDllSearchMode"
+    }
+   ],
+   "risk": "reversible",
+   "needs_restart": true,
+   "source": "hardentools",
+   "license": "GPL-3.0",
+   "upstream": "win_tweaks.rs"
+  }
+ ]
+}

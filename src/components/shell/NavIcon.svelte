@@ -23,12 +23,13 @@
     settings: { glyph: "gear-six", from: "#A3A3A8", to: "#6F6F75" },
     about: { glyph: "info", from: "#5AA9FF", to: "#1E6FE8" },
     league: { glyph: "sword", from: "#E8B84A", to: "#B8860B" },
+    washmybelly: { glyph: "sparkle", from: "#FF9BC2", to: "#E0527F" },
     fallback: { glyph: "puzzle-piece", from: "#8E8E93", to: "#5C5C60" },
   };
 
   const ART = new Set([
     "home", "downloads", "llm", "help", "world",
-    "superpowers", "settings", "about", "league",
+    "superpowers", "settings", "about", "league", "washmybelly",
   ]);
 
   let tile = $derived(TILES[icon] ?? TILES.fallback);

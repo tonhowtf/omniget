@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="screenlets">
+  <label>Screenlets</label>
+  <description>Desktop widgets</description>
+  <option id="logs">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action search="glob" command="delete" path="$XDG_CONFIG_HOME/Screenlets/*.log"/>
+  </option>
+</cleaner>

@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+Tested with Vivaldi 6.x on Windows 10/11, Linux and macOS.
+Only the Default profile is cleaned.
+
+-->
+<cleaner id="vivaldi">
+  <label>Vivaldi</label>
+  <description>Web browser</description>
+  <running type="exe" os="windows" same_user="true">vivaldi.exe</running>
+  <running type="exe" os="linux" same_user="true">vivaldi</running>
+  <running type="exe" os="macos" same_user="true">Vivaldi</running>
+  <var name="base">
+    <value os="windows">%LOCALAPPDATA%\Vivaldi\User Data</value>
+    <value os="linux">$XDG_CONFIG_HOME/vivaldi</value>
+    <value os="linux">~/.config/vivaldi</value>
+    <value os="linux">~/snap/vivaldi/current/.config/vivaldi</value>
+    <value os="macos">$HOME/Library/Application Support/Vivaldi</value>
+  </var>
+  <var name="profile">
+    <value os="windows">%LOCALAPPDATA%\Vivaldi\User Data\Default</value>
+    <value os="linux">$XDG_CONFIG_HOME/vivaldi/Default</value>
+    <value os="linux">~/.config/vivaldi/Default</value>
+    <value os="linux">~/snap/vivaldi/current/.config/vivaldi/Default</value>
+    <value os="macos">$HOME/Library/Application Support/Vivaldi/Default</value>
+  </var>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the web cache, which reduces time to display revisited pages</description>
+    <action command="delete" search="file" path="$$profile$$/Network Persistent State"/>
+    <action command="delete" search="walk.all" path="$$base$$/component_crx_cache"/>
+    <action command="delete" search="walk.all" path="$$base$$/extensions_crx_cache"/>
+    <action command="delete" search="walk.all" path="$$base$$/GraphiteDawnCache"/>
+    <action command="delete" search="walk.all" path="$$base$$/GrShaderCache"/>
+    <action command="delete" search="walk.all" path="$$base$$/ShaderCache"/>
+    <action command="delete" search="walk.all" path="$$profile$$/Code Cache"/>
+    <action command="delete" search="walk.all" path="$$profile$$/GPUCache/"/>
+    <!-- specific to OS or packaging -->
+    <action command="delete" search="walk.all" path="~/snap/vivaldi/common/.cache/mesa_shader_cache_db"/>
+    <action command="delete" search="walk.all" path="~/snap/vivaldi/common/.cache/mesa_shader_cache"/>
+    <action command="delete" search="walk.all" path="~/snap/vivaldi/common/.cache/vivaldi"/>
+  </option>
+  <option id="cookies">
+    <label>Cookies</label>
+    <description>Delete cookies, which store login information, website preferences, and tracking identifiers</description>
+    <action command="cookie" search="file" path="$$profile$$/Cookies"/>
+    <action command="delete" search="file" path="$$profile$$/Cookies-journal"/>
+    <action command="delete" search="file" path="$$profile$$/TransportSecurity"/>
+  </option>
+  <option id="crash_reports">
+    <label>Crash reports</label>
+    <description>Delete the files</description>
+    <action command="delete" search="walk.all" path="$$base$$/Crash Reports/"/>
+  </option>
+  <option id="form_history">
+    <label>Form history</label>
+    <description>A history of forms entered in websites</description>
+    <action command="chrome.autofill" search="file" path="$$profile$$/Web Data"/>
+  </option>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the history which includes visited sites, downloads, and thumbnails</description>
+    <action command="chrome.history" search="file" path="$$profile$$/History"/>
+    <action command="chrome.favicons" search="file" path="$$profile$$/Favicons"/>
+    <action command="delete" search="file" path="$$profile$$/DIPS"/>
+    <action command="delete" search="file" path="$$profile$$/History Provider Cache"/>
+    <action command="delete" search="file" path="$$profile$$/MediaDeviceSalts-journal"/>
+    <action command="delete" search="file" path="$$profile$$/MediaDeviceSalts"/>
+    <action command="delete" search="file" path="$$profile$$/Network Action Predictor-journal"/>
+    <action command="delete" search="file" path="$$profile$$/Network Action Predictor"/>
+    <action command="delete" search="file" path="$$profile$$/Shortcuts-journal"/>
+    <action command="delete" search="file" path="$$profile$$/Shortcuts"/>
+    <action command="delete" search="file" path="$$profile$$/Top Sites-journal"/>
+    <action command="delete" search="file" path="$$profile$$/Top Sites"/>
+    <action command="delete" search="file" path="$$profile$$/Visited Links"/>
+    <action command="json" search="file" path="$$profile$$/Preferences" address="prefetch/search_prefetch/cache"/>
+    <action command="json" search="file" path="$$profile$$/Preferences" address="zerosuggest/cachedresults"/>
+    <action command="json" search="file" path="$$profile$$/Preferences" address="zerosuggest/cachedresults_with_url"/>
+    <action command="json" search="file" path="$$profile$$/Preferences" address="profile/content_settings/exceptions/media_engagement"/>
+    <action command="json" search="file" path="$$profile$$/Preferences" address="profile/content_settings/exceptions/popups"/>
+  </option>
+  <option id="session">
+    <label>Session</label>
+    <description>Previously open tabs and windows</description>
+    <action command="delete" search="walk.all" path="$$profile$$/Sessions"/>
+  </option>
+  <option id="site_data">
+    <label>Site data</label>
+    <description>Delete LocalStorage, IndexedDB, and other data stored by websites</description>
+    <action command="delete" search="walk.all" path="$$profile$$/File System"/>
+    <action command="delete" search="walk.all" path="$$profile$$/IndexedDB"/>
+    <action command="delete" search="walk.all" path="$$profile$$/Local Storage"/>
+    <action command="delete" search="walk.all" path="$$profile$$/Service Worker"/>
+    <action command="delete" search="walk.all" path="$$profile$$/WebStorage"/>
+    <action command="delete" search="file" path="$$profile$$/QuotaManager"/>
+    <action command="delete" search="file" path="$$profile$$/QuotaManager-journal"/>
+    <action command="delete" search="walk.files" path="$$profile$$/Session Storage/"/>
+  </option>
+  <option id="sync">
+    <label>Sync</label>
+    <description>Delete the sync data (including web apps) and sign out of the browser</description>
+    <action command="delete" search="walk.files" path="$$profile$$/Sync Data/"/>
+  </option>
+  <option id="passwords">
+    <label>Passwords</label>
+    <description>A database of usernames and passwords as well as a list of sites that should not store passwords</description>
+    <warning>This option will delete your saved passwords.</warning>
+    <action command="delete" search="file" path="$$profile$$/Login Data"/>
+    <action command="delete" search="file" path="$$profile$$/Login Data-journal"/>
+  </option>
+  <option id="vacuum">
+    <label>Vacuum</label>
+    <description>Clean database fragmentation to reduce space and improve speed without removing any data</description>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Account Web Data"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Affiliation Database"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Calendar"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Contacts"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Cookies"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/DIPS"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Favicons"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/heavy_ad_intervention_opt_out.db"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/History"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Login Data For Account"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Login Data"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/MailSearchDB"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/MediaDeviceSalts"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Network Action Predictor"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Safe Browsing Cookies"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/ServerCertificate"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/SharedStorage"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Shortcuts"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Top Sites"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Trust Tokens"/>
+    <action command="sqlite.vacuum" search="file" path="$$profile$$/Web Data"/>
+  </option>
+</cleaner>

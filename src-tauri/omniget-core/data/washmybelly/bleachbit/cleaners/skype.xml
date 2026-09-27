@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="skype">
+  <label>Skype</label>
+  <description>Chat client</description>
+  <running type="exe" same_user="true">skype</running>
+  <option id="chat_logs">
+    <label>Chat logs</label>
+    <description>Delete the chat logs</description>
+    <action command="delete" search="glob" path="~/.Skype/*/chatmsg[0-9]*.dbb"/>
+    <action command="delete" search="glob" path="~/.Skype/*/chatsync/*/*.dat"/>
+    <action command="delete" search="glob" path="$APPDATA\Skype\*\chatmsg[0-9]*.dbb"/>
+    <action command="delete" search="glob" path="$APPDATA\Skype\*\chatsync\*\*.dat"/>
+  </option>
+  <option id="installers">
+    <label>Installers</label>
+    <description>Delete cached patches and installers</description>
+    <action command="delete" search="glob" path="$PROGRAMDATA\Skype\{*}\*.msi"/>
+    <action command="delete" search="glob" path="$PROGRAMDATA\Skype\{*}\*.exe"/>
+  </option>
+</cleaner>

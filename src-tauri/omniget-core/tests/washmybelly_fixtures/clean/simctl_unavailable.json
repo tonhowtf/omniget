@@ -1,0 +1,26 @@
+{
+  "devices" : {
+    "com.apple.CoreSimulator.SimRuntime.iOS-16-4" : [
+      {
+        "dataPath" : "/Users/u/Library/Developer/CoreSimulator/Devices/0A1B2C3D-0000-0000-0000-000000000001/data",
+        "dataPathSize" : 1843200000,
+        "logPath" : "/Users/u/Library/Logs/CoreSimulator/0A1B2C3D-0000-0000-0000-000000000001",
+        "udid" : "0A1B2C3D-0000-0000-0000-000000000001",
+        "isAvailable" : false,
+        "availabilityError" : "runtime profile not found using \"System\" match policy",
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-14",
+        "state" : "Shutdown",
+        "name" : "iPhone 14"
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.iOS-18-0" : [
+      {
+        "dataPath" : "/Users/u/Library/Developer/CoreSimulator/Devices/0A1B2C3D-0000-0000-0000-000000000002/data",
+        "udid" : "0A1B2C3D-0000-0000-0000-000000000002",
+        "isAvailable" : true,
+        "state" : "Shutdown",
+        "name" : "iPhone 16"
+      }
+    ]
+  }
+}

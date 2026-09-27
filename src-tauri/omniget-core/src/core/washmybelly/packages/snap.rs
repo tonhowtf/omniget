@@ -1,0 +1,208 @@
+//! snap, through the snapd REST API on `/run/snapd.socket` (HTTP/1.1 over a
+//! unix socket, no extra crate; the client lives in `clean::rules_linux`).
+//!
+//! - list: `GET /v2/snaps` (`result[]` with `name`, `version`, `revision`,
+//!   `type` = app|base|os|snapd|gadget|kernel, `installed-size`,
+//!   `publisher.display-name`, `title`, `summary`). Only `type: app` is an app;
+//! - removal preview: snaps carry their own dependencies, so a removal takes
+//!   only the snap itself (its old revisions go with it);
+//! - updates: `GET /v2/find?select=refresh` (the new `version`,
+//!   `download-size`), current version from `/v2/snaps`;
+//! - remove and refresh need root: `snap remove -- <names>`,
+//!   `snap refresh -- <names>` in the helper.
+
+use serde_json::Value;
+
+use super::{package_app, App, PackageBackend, RemovePreview, Update};
+
+pub struct Snap;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SnapInfo {
+    pub name: String,
+    pub title: String,
+    pub version: String,
+    pub kind: String,
+    pub bytes: Option<u64>,
+    pub publisher: String,
+    pub summary: String,
+}
+
+fn results(body: &str) -> Vec<Value> {
+    serde_json::from_str::<Value>(body)
+        .ok()
+        .and_then(|v| v.get("result").and_then(Value::as_array).cloned())
+        .unwrap_or_default()
+}
+
+/// `GET /v2/snaps` or `/v2/find` bodies. Names that are not valid snap
+/// names are dropped.
+pub fn parse_snaps(body: &str) -> Vec<SnapInfo> {
+    results(body)
+        .into_iter()
+        .filter_map(|s| {
+            let name = s["name"].as_str()?.to_string();
+            if !super::valid_name("snap", &name) {
+                return None;
+            }
+            Some(SnapInfo {
+                title: s["title"]
+                    .as_str()
+                    .filter(|t| !t.is_empty())
+                    .unwrap_or(&name)
+                    .to_string(),
+                version: s["version"].as_str().unwrap_or("").to_string(),
+                kind: s["type"].as_str().unwrap_or("app").to_string(),
+                bytes: s["installed-size"]
+                    .as_u64()
+                    .or_else(|| s["download-size"].as_u64()),
+                publisher: s["publisher"]["display-name"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_string(),
+                summary: s["summary"].as_str().unwrap_or("").to_string(),
+                name,
+            })
+        })
+        .collect()
+}
+
+/// Updates from `/v2/find?select=refresh`, current versions from `installed`.
+pub fn parse_refresh(body: &str, installed: &[SnapInfo]) -> Vec<Update> {
+    parse_snaps(body)
+        .into_iter()
+        .map(|s| Update {
+            id: format!("packages:snap:{}", s.name),
+            current: installed
+                .iter()
+                .find(|i| i.name == s.name)
+                .map(|i| i.version.clone())
+                .unwrap_or_default(),
+            available: s.version,
+            size: s.bytes,
+            manager: "snap".into(),
+            admin: true,
+            name: s.name,
+            ..Default::default()
+        })
+        .collect()
+}
+
+fn get(path: &str) -> Result<String, String> {
+    super::super::clean::rules_linux::snapd_get(path)
+        .ok_or_else(|| format!("snapd did not answer {path}"))
+}
+
+fn installed() -> Result<Vec<SnapInfo>, String> {
+    Ok(parse_snaps(&get("/v2/snaps")?))
+}
+
+pub fn to_app(s: &SnapInfo) -> App {
+    let mut a = package_app(
+        "snap",
+        &s.name,
+        &s.version,
+        s.bytes,
+        &s.summary,
+        (!s.publisher.is_empty()).then(|| s.publisher.clone()),
+    );
+    a.name = s.title.clone();
+    a.path = Some(format!("/snap/{}", s.name));
+    a
+}
+
+impl PackageBackend for Snap {
+    fn id(&self) -> &'static str {
+        "snap"
+    }
+
+    fn available(&self) -> bool {
+        cfg!(target_os = "linux")
+            && std::path::Path::new("/run/snapd.socket").exists()
+            && super::find_program("snap").is_some()
+    }
+
+    fn list(&self) -> Result<Vec<App>, String> {
+        Ok(installed()?
+            .iter()
+            .filter(|s| s.kind == "app")
+            .map(to_app)
+            .collect())
+    }
+
+    fn remove_preview(&self, names: &[String]) -> Result<RemovePreview, String> {
+        let all = installed()?;
+        let mut frees = 0;
+        for n in names {
+            let s = all
+                .iter()
+                .find(|s| &s.name == n)
+                .ok_or_else(|| format!("{n} is not installed"))?;
+            if s.kind != "app" {
+                return Err(format!("{n} is a {} snap other snaps need", s.kind));
+            }
+            frees += s.bytes.unwrap_or(0);
+        }
+        Ok(RemovePreview {
+            removes: names.to_vec(),
+            also_removes: Vec::new(),
+            frees_bytes: Some(frees),
+            exact: true,
+        })
+    }
+
+    fn remove_argv(&self, names: &[String]) -> Vec<String> {
+        let mut v: Vec<String> = ["snap", "remove", "--"].map(String::from).to_vec();
+        v.extend(names.iter().cloned());
+        v
+    }
+
+    fn orphans(&self) -> Result<Vec<App>, String> {
+        // Old revisions are the clean module's (`linux_snap_revisions`).
+        Ok(Vec::new())
+    }
+
+    fn updates(&self) -> Result<Vec<Update>, String> {
+        let inst = installed()?;
+        Ok(parse_refresh(&get("/v2/find?select=refresh")?, &inst))
+    }
+
+    fn upgrade_argv(&self, names: &[String]) -> Vec<String> {
+        let mut v: Vec<String> = ["snap", "refresh", "--"].map(String::from).to_vec();
+        v.extend(names.iter().cloned());
+        v
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::fixture;
+    use super::*;
+
+    #[test]
+    fn snaps_from_the_api() {
+        let v = parse_snaps(&fixture("snapd_snaps.json"));
+        assert_eq!(v.len(), 3, "the invalid name is dropped");
+        let ff = &v[0];
+        assert_eq!(
+            (ff.name.as_str(), ff.kind.as_str(), ff.publisher.as_str()),
+            ("firefox", "app", "Mozilla")
+        );
+        assert_eq!(ff.bytes, Some(265_289_728));
+        assert_eq!(v.iter().filter(|s| s.kind == "app").count(), 1);
+        assert_eq!(to_app(ff).id, "snap:firefox");
+    }
+
+    #[test]
+    fn refresh_list() {
+        let inst = parse_snaps(&fixture("snapd_snaps.json"));
+        let u = parse_refresh(&fixture("snapd_find_refresh.json"), &inst);
+        assert_eq!(u.len(), 1);
+        assert_eq!(
+            (u[0].current.as_str(), u[0].available.as_str()),
+            ("131.0-1", "132.0-1")
+        );
+        assert_eq!(u[0].size, Some(273_000_000));
+        assert!(u[0].admin);
+    }
+}

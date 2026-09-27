@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+gPodder 3.10.13 on Windows 10, under %Documents%\gPodder
+
+./Database
+./Downloads
+./Downloads/Stuff You Should Know
+./Downloads/Stuff You Should Know/HSW3963930750.mp3
+./Downloads/Stuff You Should Know/folder.png
+./Logs
+./Logs/2020-03-15.log
+./Settings.json
+./gpodder.net
+
+gPodder 3.10.9-1 on Linux, under ~/gPodder
+
+./Database
+./Database-journal
+./Downloads
+./Downloads/Friday Night Comedy from BBC Radio 4
+./Downloads/Friday Night Comedy from BBC Radio 4/FridayNightComedyFromBBCRadio4-20200313-TheNowShow13thMarch2020FtChrisMcCauslandSaraBarronAndHugeDavies.mp3
+./Downloads/Friday Night Comedy from BBC Radio 4/folder.jpg
+./Logs
+./Logs/2020-03-15.log
+./Settings.json
+./gpodder.net
+./gpodder.net-journal
+
+gPodder 3.10.9-1 on Linux
+- does not have $XDG_CONFIG_HOME/gpodder
+- does have ~/.cache/gpodder/
+
+-->
+<cleaner id="gpodder">
+  <label>gPodder</label>
+  <var name="base">
+    <value os="windows">%Documents%\gPodder</value>
+    <value os="linux">~/gPodder</value>
+  </var>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="glob" path="$XDG_CONFIG_HOME/gpodder/cache/*xml"/>
+    <action command="delete" search="walk.top" path="$XDG_CACHE_HOME/gpodder"/>
+  </option>
+  <option id="downloaded_podcasts">
+    <label>Downloaded podcasts</label>
+    <description>Delete downloaded podcasts</description>
+    <action command="delete" search="walk.files" path="$$base$$/Downloads"/>
+  </option>
+  <option id="logs">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action command="delete" search="walk.files" path="$$base$$/Logs"/>
+  </option>
+  <option id="vacuum">
+    <label>Vacuum</label>
+    <description>Clean database fragmentation to reduce space and improve speed without removing any data</description>
+    <action command="sqlite.vacuum" search="file" path="$XDG_CONFIG_HOME/gpodder/database.sqlite"/>
+    <action command="sqlite.vacuum" search="file" path="$$base$$/Database"/>
+    <action command="sqlite.vacuum" search="file" path="$$base$$/gpodder.net"/>
+  </option>
+</cleaner>

@@ -21,5 +21,5 @@ export const CORE_NAV_ITEMS: NavItem[] = [
 
 /** Routes that live inside a hub keep the hub's sidebar item lit. */
 export const NAV_ALIASES: Record<string, string[]> = {
-  "/superpowers": ["/league"],
+  "/superpowers": ["/league", "/washmybelly"],
 };

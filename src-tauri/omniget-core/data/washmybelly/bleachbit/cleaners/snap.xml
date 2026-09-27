@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="snap" os="linux">
+  <label>snap</label>
+  <description>Package manager</description>
+  <!-- No <running> check, because the per-user "snap userd" daemon is
+       always running for logged-in users and does not conflict with
+       "snap remove". -->
+  <option id="disabled">
+    <label>Disabled</label>
+    <description>Remove disabled packages</description>
+    <action command="snap.disabled"/>
+  </option>
+</cleaner>

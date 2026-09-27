@@ -23,6 +23,14 @@
       href: "/league",
       enabled: getSettings()?.league?.enabled ?? true,
     },
+    {
+      id: "washmybelly",
+      icon: "washmybelly",
+      title: "washmybelly",
+      descKey: "superpowers.washmybelly_desc",
+      href: "/washmybelly",
+      enabled: getSettings()?.washmybelly?.enabled ?? true,
+    },
   ]);
 </script>
 

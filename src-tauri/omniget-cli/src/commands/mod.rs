@@ -7,3 +7,4 @@ pub mod import_cookies;
 pub mod info;
 pub mod splash;
 pub mod usage;
+pub mod wmb;

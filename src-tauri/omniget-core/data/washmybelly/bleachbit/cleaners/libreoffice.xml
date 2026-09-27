@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+OpenOffice.org and Apache OpenOffice.org are covered in `openoffice.xml`.
+
+Deleting $XDG_CONFIG_HOME/libreoffice/4/user/uno_packages (or equivalent)
+will uninstall all extensions.
+
+-->
+<cleaner id="libreoffice">
+  <label>LibreOffice</label>
+  <description>Office suite</description>
+  <running type="exe" os="unix" same_user="true">soffice.bin</running>
+  <running type="exe" os="macos" same_user="true">soffice</running>
+  <running type="exe" os="windows" same_user="true">soffice.exe</running>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the usage history</description>
+    <!-- LibreOffice 3 from the openSUSE repo uses ~/.libreoffice/3-suse/user/ -->
+    <!-- LibreOffice 3.4.5 on Fedora 16 uses ~/.libreoffice/3/user -->
+    <!-- LibreOffice 3.5 on Mint 9 (Ubuntu 10.04) uses ~/.config/libreoffice/3/user/ -->
+    <!-- LibreOffice 4 on Ubuntu 13.04 uses ~/.config/libreoffice/4/user -->
+    <action command="office_registrymodifications" search="file" path="$APPDATA\LibreOffice\3\user\registrymodifications.xcu"/>
+    <action command="office_registrymodifications" search="file" path="$APPDATA\LibreOffice\4\user\registrymodifications.xcu"/>
+    <action command="office_registrymodifications" search="file" path="$XDG_CONFIG_HOME/libreoffice/3/user/registrymodifications.xcu"/>
+    <action command="office_registrymodifications" search="file" path="$XDG_CONFIG_HOME/libreoffice/4/user/registrymodifications.xcu"/>
+    <action command="office_registrymodifications" search="file" path="~/.libreoffice/3-suse/user/registrymodifications.xcu"/>
+    <action command="office_registrymodifications" search="file" path="~/.libreoffice/3/user/registrymodifications.xcu"/>
+    <!-- LibreOffice 26.2 on macOS 26 uses ~/Library/Application Support/LibreOffice/4/user -->
+    <action command="office_registrymodifications" search="file" path="~/Library/Application Support/LibreOffice/4/user/registrymodifications.xcu" os="macos"/>
+  </option>
+</cleaner>

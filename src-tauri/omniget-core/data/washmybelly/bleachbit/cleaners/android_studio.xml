@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="android_studio">
+  <label>Android Studio</label>
+  <description>Development environment</description>
+  <running type="exe" os="unix" same_user="true">studio.sh</running>
+  <running type="exe" os="windows" same_user="true">studio.exe</running>
+  <running type="exe" os="windows" same_user="true">studio64.exe</running>
+  <running type="exe" os="macos" same_user="true">studio</running>
+  <var name="gradle_home">
+    <value os="windows">%UserProfile%\.gradle</value>
+    <value os="macos">~/.gradle</value>
+    <value os="unix">~/.gradle</value>
+  </var>
+  <var name="android_home">
+    <value os="windows">%UserProfile%\.android</value>
+    <value os="macos">~/.android</value>
+    <value os="unix">~/.android</value>
+  </var>
+  <var name="as_cache">
+    <value search="glob" os="windows">%LocalAppData%\Google\AndroidStudio*\caches</value>
+    <value search="glob" os="macos">~/Library/Caches/Google/AndroidStudio*</value>
+    <value search="glob" os="unix">~/.cache/Google/AndroidStudio*/caches</value>
+  </var>
+  <var name="as_logs">
+    <value search="glob" os="windows">%LocalAppData%\Google\AndroidStudio*\log</value>
+    <value search="glob" os="macos">~/Library/Logs/Google/AndroidStudio*</value>
+    <value search="glob" os="unix">~/.cache/Google/AndroidStudio*/log</value>
+  </var>
+  <option id="gradle_cache">
+    <label>Gradle cache</label>
+    <description>Delete downloaded dependencies and build artifacts</description>
+    <warning>Dependencies will need to be downloaded on the next build.</warning>
+    <action command="delete" search="walk.all" path="$$gradle_home$$/caches/"/>
+    <action command="delete" search="walk.all" path="$$gradle_home$$/daemon/"/>
+  </option>
+  <option id="ide_cache">
+    <label>IDE cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.all" path="$$android_home$$/cache/"/>
+    <action command="delete" search="walk.all" path="$$android_home$$/build-cache/"/>
+    <action command="delete" search="walk.all" path="$$as_cache$$"/>
+  </option>
+  <option id="logs">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action command="delete" search="glob" path="$$as_logs$$/*.log*"/>
+    <action command="delete" search="glob" path="$$as_logs$$/threadDumps*"/>
+  </option>
+</cleaner>

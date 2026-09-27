@@ -1,0 +1,34 @@
+{
+  "rules": [
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "system",
+      "description": "Delete the cache",
+      "destination": "unlink",
+      "exclude": [],
+      "id": "bleachbit.thumbnails.cache",
+      "include": [
+        "type:f"
+      ],
+      "label": "Thumbnails: Cache",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "macos",
+        "linux"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [],
+      "source": "BleachBit",
+      "targets": [
+        "~/.thumbnails",
+        "$XDG_CACHE_HOME/thumbnails"
+      ]
+    }
+  ],
+  "skipped": []
+}

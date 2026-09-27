@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="pidgin">
+  <label>Pidgin</label>
+  <description>Chat client</description>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <!-- avatars -->
+    <action command="delete" search="walk.all" path="~/.purple/icons/"/>
+    <action command="delete" search="walk.all" path="$APPDATA\.purple\icons\"/>
+  </option>
+  <option id="logs">
+    <label>Chat logs</label>
+    <description>Delete the chat logs</description>
+    <action command="delete" search="walk.all" path="~/.purple/logs/"/>
+    <action command="delete" search="walk.all" path="$APPDATA\.purple\logs\"/>
+  </option>
+</cleaner>

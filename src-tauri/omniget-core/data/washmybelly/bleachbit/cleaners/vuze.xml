@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="vuze">
+  <label>Vuze/Azureus</label>
+  <description>File transfer client</description>
+  <var name="Profile">
+    <value os="windows">%AppData%\Azureus</value>
+    <value os="linux">~/.azureus</value>
+  </var>
+  <var name="ProgramFiles">
+    <!-- See https://docs.bleachbit.org/cml/variables.html for explanation of $$ProgramFiles$$ -->
+    <value os="windows">$$ProgramFiles$$\Vuze</value>
+  </var>
+  <option id="backup">
+    <label>Backup files</label>
+    <description>Delete the backup files</description>
+    <action command="delete" search="walk.files" path="$$Profile$$/" regex="\.[Bb][Aa][Kk]$"/>
+    <action command="delete" search="walk.all" path="$$ProgramFiles$$\backup\"/>
+    <action command="delete" search="walk.all" path="$$ProgramFiles$$\Vuze AzConfigBackup\"/>
+  </option>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="file" path="$$Profile$$/ipfilter.cache"/>
+    <action command="delete" search="walk.all" path="$$Profile$$/cache"/>
+    <!-- $$Profile$$\shares\cache* are not ordinary caches, so leave them -->
+  </option>
+  <option id="logs">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action command="delete" search="walk.all" path="$$Profile$$/logs/"/>
+    <action command="delete" search="glob" path="$$Profile$$/plugins/*/*.log"/>
+    <action command="delete" search="glob" path="$$Profile$$/plugins/*/eventlog.txt"/>
+    <action command="delete" search="file" path="$$Profile$$/update.log"/>
+    <action command="delete" search="file" path="$$Profile$$/tracker.log"/>
+    <action command="delete" search="glob" path="$$ProgramFiles$$\*.log"/>
+    <action command="delete" search="walk.files" path="$$ProgramFiles$$\log\"/>
+    <action command="delete" search="glob" path="$$ProgramFiles$$\.install4j\*.log"/>
+  </option>
+  <option id="stats">
+    <label>Statistics</label>
+    <description>Delete the files</description>
+    <action command="delete" search="walk.all" path="$$Profile$$/stats/"/>
+  </option>
+  <option id="temp">
+    <label>Temporary files</label>
+    <description>Delete the temporary files</description>
+    <action command="delete" search="walk.files" path="$$Profile$$/tmp/"/>
+    <action command="delete" search="glob" path="$$Profile$$/torrents/*.tmp"/>
+    <action command="delete" search="glob" path="$$Profile$$/subs/*.results.bad*"/>
+    <action command="delete" search="walk.files" path="$$Profile$$/subs/temp/"/>
+    <action command="delete" search="glob" path="$$Profile$$/torrents/*.tmp._az"/>
+    <action command="delete" search="glob" path="$$Profile$$/torrents/*.torrent._az.saving"/>
+    <action command="delete" search="walk.all" path="$$Profile$$/updates/"/>
+    <action command="delete" search="walk.all" path="%Temp%\AzureusInstall\"/>
+    <action command="delete" search="file" path="%Temp%\AzureusInstall\"/>
+    <action command="delete" search="glob" path="%Temp%\core_Azureus*"/>
+  </option>
+</cleaner>

@@ -1,0 +1,12 @@
+
+	disabled services = {
+		"com.microsoft.teams2.agent" => enabled
+		"com.macpaw.CleanMyMac-setapp.HealthMonitor" => enabled
+		"com.apple.ManagedClientAgent.enrollagent" => disabled
+		"com.apple.Siri.agent" => enabled
+		"com.logi.ghub" => enabled
+		"com.bjango.istatmenus-setapp.status" => enabled
+		"com.microsoft.update.agent" => enabled
+		"com.spotify.client.startuphelper" => enabled
+		"com.apple.FolderActionsDispatcher" => enabled
+		"homebrew.mxcl.ollama" => enabled

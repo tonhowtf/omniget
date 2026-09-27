@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="links2" os="linux">
+  <label>Links 2</label>
+  <description>Web browser</description>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the usage history</description>
+    <action command="delete" search="file" path="~/.links2/links.his"/>
+    <!-- Chakra 2014.05 Links 2.8 has ~/.links/ -->
+    <action command="delete" search="file" path="~/.links/links.his"/>
+  </option>
+</cleaner>

@@ -1,0 +1,1209 @@
+{
+ "source": "https://github.com/ChrisTitusTech/winutil",
+ "commit": "ad81e0a7aff424932afff77504e7440e07e19a15",
+ "license": "MIT",
+ "generated_by": "scripts/washmybelly/tweaks-convert.mjs",
+ "upstream_file": "config/tweaks.json",
+ "count": 21,
+ "excluded": [
+  {
+   "id": "WPFTweaksActivity",
+   "title": "Activity History - Disable"
+  },
+  {
+   "id": "WPFTweaksHiber",
+   "title": "Hibernation - Disable"
+  },
+  {
+   "id": "WPFTweaksWidget",
+   "title": "Widgets - Remove"
+  },
+  {
+   "id": "WPFTweaksRevertStartMenu",
+   "title": "Start Menu Previous Layout - Enable"
+  },
+  {
+   "id": "WPFTweaksDisableStoreSearch",
+   "title": "Microsoft Store Recommended Search Results - Disable"
+  },
+  {
+   "id": "WPFTweaksLocation",
+   "title": "Location Tracking - Disable"
+  },
+  {
+   "id": "WPFTweaksServices",
+   "title": "Services - Set to Manual"
+  },
+  {
+   "id": "WPFTweaksBraveDebloat",
+   "title": "Brave Browser - Debloat"
+  },
+  {
+   "id": "WPFTweaksDisableWarningForUnsignedRdp",
+   "title": "RDP Unsigned File Warnings - Disable"
+  },
+  {
+   "id": "WPFTweaksTelemetry",
+   "title": "Telemetry - Disable"
+  },
+  {
+   "id": "WPFTweaksRemoveEdge",
+   "title": "Microsoft Edge - Remove"
+  },
+  {
+   "id": "WPFTweaksDisableBitLocker",
+   "title": "BitLocker - Disable"
+  },
+  {
+   "id": "WPFTweaksRemoveOneDrive",
+   "title": "Microsoft OneDrive - Remove"
+  },
+  {
+   "id": "WPFTweaksRemoveHomeAndGallery",
+   "title": "File Explorer Home and Gallery - Disable"
+  },
+  {
+   "id": "WPFTweaksDisplay",
+   "title": "Visual Effects - Set to Best Performance"
+  },
+  {
+   "id": "WPFTweaksReservedStorage",
+   "title": "Disable Reserved Storage"
+  },
+  {
+   "id": "WPFTweaksRestorePoint",
+   "title": "Restore Point - Create"
+  },
+  {
+   "id": "WPFTweaksEndTaskOnTaskbar",
+   "title": "End Task With Right Click - Enable"
+  },
+  {
+   "id": "WPFTweaksStorage",
+   "title": "Storage Sense - Disable"
+  },
+  {
+   "id": "WPFTweaksWindowsAI",
+   "title": "Windows AI - Disable And Remove"
+  },
+  {
+   "id": "WPFTweaksRazerBlock",
+   "title": "Razer Software Auto-Install - Disable"
+  },
+  {
+   "id": "WPFTweaksLogiBlock",
+   "title": "Logitech Download Assistant Auto-Install - Disable"
+  },
+  {
+   "id": "WPFTweaksDisableNotifications",
+   "title": "System Tray Notifications & Calendar - Disable"
+  },
+  {
+   "id": "WPFTweaksBlockAdobeNet",
+   "title": "Adobe URL Block List - Enable"
+  },
+  {
+   "id": "WPFTweaksRightClickMenu",
+   "title": "Right-Click Menu Previous Layout - Enable"
+  },
+  {
+   "id": "WPFTweaksDiskCleanup",
+   "title": "Disk Cleanup - Run"
+  },
+  {
+   "id": "WPFTweaksDeleteTempFiles",
+   "title": "Temporary Files - Remove"
+  },
+  {
+   "id": "WPFTweaksDisableExplorerAutoDiscovery",
+   "title": "File Explorer Automatic Folder Discovery - Disable"
+  },
+  {
+   "id": "WPFToggleDarkMode",
+   "title": "Dark Theme for Windows"
+  },
+  {
+   "id": "WPFToggleShowExt",
+   "title": "File Explorer File Extensions"
+  },
+  {
+   "id": "WPFToggleHiddenFiles",
+   "title": "File Explorer Hidden Files"
+  },
+  {
+   "id": "WPFToggleNewOutlook",
+   "title": "Microsoft Outlook New Version"
+  },
+  {
+   "id": "WPFToggleMouseAcceleration",
+   "title": "Mouse Acceleration"
+  },
+  {
+   "id": "WPFToggleNumLock",
+   "title": "Num Lock on Startup"
+  },
+  {
+   "id": "WPFToggleWindowSnapping",
+   "title": "Window Snapping"
+  },
+  {
+   "id": "WPFToggleStandbyFix",
+   "title": "S0 Sleep Network Connectivity"
+  },
+  {
+   "id": "WPFToggleS3Sleep",
+   "title": "S3 Sleep"
+  },
+  {
+   "id": "WPFToggleHideSettingsHome",
+   "title": "Settings Home Page"
+  },
+  {
+   "id": "WPFToggleBingSearch",
+   "title": "Start Menu Bing Search"
+  },
+  {
+   "id": "WPFToggleStartMenuRecommendations",
+   "title": "Start Menu Recommendations"
+  },
+  {
+   "id": "WPFToggleStickyKeys",
+   "title": "Sticky Keys"
+  },
+  {
+   "id": "WPFToggleTaskbarAlignment",
+   "title": "Taskbar Centered Icons"
+  },
+  {
+   "id": "WPFToggleTaskbarSearch",
+   "title": "Taskbar Search Icon"
+  },
+  {
+   "id": "WPFToggleTaskView",
+   "title": "Taskbar Task View Icon"
+  },
+  {
+   "id": "WPFOOSUbutton",
+   "title": "O&O ShutUp10++ - Run"
+  },
+  {
+   "id": "WPFchangedns",
+   "title": "DNS - Set to:"
+  },
+  {
+   "id": "WPFAddUltPerf",
+   "title": "Ultimate Performance Profile - Enable"
+  },
+  {
+   "id": "WPFRemoveUltPerf",
+   "title": "Ultimate Performance Profile - Disable"
+  }
+ ],
+ "groups": [
+  {
+   "id": "winutil.ipv6",
+   "label": "IPv6",
+   "description": "The three write the same value: only one can be on.",
+   "members": [
+    "winutil.ipv4_preferred",
+    "winutil.teredo_off",
+    "winutil.ipv6_off"
+   ],
+   "default": null
+  },
+  {
+   "id": "winutil.mpo",
+   "label": "Multiplane Overlay",
+   "description": "Turn it off only if you see flicker or black screens.",
+   "members": [
+    "winutil.mpo.enabled",
+    "winutil.mpo.compat",
+    "winutil.mpo.off"
+   ],
+   "default": "winutil.mpo.enabled"
+  }
+ ],
+ "items": [
+  {
+   "label": "Microsoft Edge - Debloat",
+   "description": "Disables various telemetry options, popups, and other annoyances in Edge.",
+   "category": "bloat",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "warning": "Edge will say it is managed by your organization.",
+   "id": "winutil.edge_debloat",
+   "group": null,
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\EdgeUpdate",
+     "name": "CreateDesktopShortcutDefault",
+     "kind": "REG_DWORD",
+     "data": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "PersonalizationReportingEnabled",
+     "kind": "REG_DWORD",
+     "data": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge\\ExtensionInstallBlocklist",
+     "name": "1",
+     "kind": "REG_SZ",
+     "data": "ofefcgjbeghpigppfmkologfjadafddi"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "ShowRecommendationsEnabled",
+     "kind": "REG_DWORD",
+     "data": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "HideFirstRunExperience",
+     "kind": "REG_DWORD",
+     "data": "1"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "UserFeedbackAllowed",
+     "kind": "REG_DWORD",
+     "data": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "ConfigureDoNotTrack",
+     "kind": "REG_DWORD",
+     "data": "1"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "AlternateErrorPagesEnabled",
+     "kind": "REG_DWORD",
+     "data": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "EdgeCollectionsEnabled",
+     "kind": "REG_DWORD",
+     "data": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "EdgeShoppingAssistantEnabled",
+     "kind": "REG_DWORD",
+     "data": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "MicrosoftEdgeInsiderPromotionEnabled",
+     "kind": "REG_DWORD",
+     "data": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "ShowMicrosoftRewards",
+     "kind": "REG_DWORD",
+     "data": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "WebWidgetAllowed",
+     "kind": "REG_DWORD",
+     "data": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "DiagnosticData",
+     "kind": "REG_DWORD",
+     "data": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "EdgeAssetDeliveryServiceEnabled",
+     "kind": "REG_DWORD",
+     "data": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "WalletDonationEnabled",
+     "kind": "REG_DWORD",
+     "data": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "DefaultBrowserSettingsCampaignEnabled",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\EdgeUpdate",
+     "name": "CreateDesktopShortcutDefault"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "PersonalizationReportingEnabled"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge\\ExtensionInstallBlocklist",
+     "name": "1"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "ShowRecommendationsEnabled"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "HideFirstRunExperience"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "UserFeedbackAllowed"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "ConfigureDoNotTrack"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "AlternateErrorPagesEnabled"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "EdgeCollectionsEnabled"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "EdgeShoppingAssistantEnabled"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "MicrosoftEdgeInsiderPromotionEnabled"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "ShowMicrosoftRewards"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "WebWidgetAllowed"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "DiagnosticData"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "EdgeAssetDeliveryServiceEnabled"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "WalletDonationEnabled"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+     "name": "DefaultBrowserSettingsCampaignEnabled"
+    }
+   ]
+  },
+  {
+   "label": "ConsumerFeatures - Disable",
+   "description": "Stops promoted app installs and reduces app suggestions from Microsoft Store content.",
+   "category": "bloat",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "id": "winutil.consumer_features",
+   "group": null,
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent",
+     "name": "DisableWindowsConsumerFeatures",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent",
+     "name": "DisableWindowsConsumerFeatures"
+    }
+   ]
+  },
+  {
+   "label": "Delivery Optimization - Disable",
+   "description": "Stops Windows from using your bandwidth to upload updates to other PCs on the internet or local network.",
+   "category": "updates",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "id": "winutil.delivery_optimization",
+   "group": null,
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization",
+     "name": "DODownloadMode",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization",
+     "name": "DODownloadMode"
+    }
+   ]
+  },
+  {
+   "label": "Date & Time - Set Time to UTC",
+   "description": "Essential for computers that are dual booting. Fixes the time sync with Linux systems.",
+   "category": "system",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "warning": "Only for computers that also boot Linux.",
+   "id": "winutil.utc_clock",
+   "group": null,
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\TimeZoneInformation",
+     "name": "RealTimeIsUniversal",
+     "kind": "REG_QWORD",
+     "data": "1"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\TimeZoneInformation",
+     "name": "RealTimeIsUniversal",
+     "kind": "REG_QWORD",
+     "data": "0"
+    }
+   ]
+  },
+  {
+   "label": "Windows Platform Binary Table (WPBT) - Disable",
+   "description": "If enabled, WPBT allows your computer vendor to execute programs at boot time, such as anti-theft software, software drivers, as well as force install software without user consent. Poses potential security risk.",
+   "category": "system",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "warning": "Stops anti-theft and driver tools your PC maker installs at boot.",
+   "id": "winutil.wpbt",
+   "group": null,
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager",
+     "name": "DisableWpbtExecution",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager",
+     "name": "DisableWpbtExecution"
+    }
+   ]
+  },
+  {
+   "label": "Prevent Device Companion Apps",
+   "description": "Prevents additional software from being installed when plugging in devices (e.g. Ads when plugging in a monitor). Poses potential security risk.",
+   "category": "bloat",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "id": "winutil.device_metadata",
+   "group": null,
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Device Metadata",
+     "name": "PreventDeviceMetadataFromNetwork",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Device Metadata",
+     "name": "PreventDeviceMetadataFromNetwork"
+    }
+   ]
+  },
+  {
+   "label": "IPv6 - Set IPv4 as Preferred",
+   "description": "Setting the IPv4 preference can have latency and security benefits on private networks where IPv6 is not configured.",
+   "category": "network",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "id": "winutil.ipv4_preferred",
+   "group": "winutil.ipv6",
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters",
+     "name": "DisabledComponents",
+     "kind": "REG_DWORD",
+     "data": "32"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters",
+     "name": "DisabledComponents",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ]
+  },
+  {
+   "label": "Teredo - Disable",
+   "description": "Teredo network tunneling is an IPv6 feature that can cause additional latency, but may cause problems with some games.",
+   "category": "network",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "warning": "Some games and Xbox party chat use Teredo.",
+   "id": "winutil.teredo_off",
+   "group": "winutil.ipv6",
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters",
+     "name": "DisabledComponents",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters",
+     "name": "DisabledComponents",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ],
+   "note": "registry part only; the upstream PowerShell step is not run"
+  },
+  {
+   "label": "IPv6 - Disable",
+   "description": "Disables IPv6.",
+   "category": "network",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "warning": "Networks that only offer IPv6 stop working.",
+   "id": "winutil.ipv6_off",
+   "group": "winutil.ipv6",
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters",
+     "name": "DisabledComponents",
+     "kind": "REG_DWORD",
+     "data": "255"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters",
+     "name": "DisabledComponents",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ],
+   "note": "registry part only; the upstream PowerShell step is not run"
+  },
+  {
+   "label": "Background Apps - Disable",
+   "description": "Disables all Microsoft Store apps from running in the background, which has to be done individually since Windows 11.",
+   "category": "performance",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "warning": "Store apps (the new Teams too) stop notifying you in the background.",
+   "id": "winutil.background_apps",
+   "group": null,
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications",
+     "name": "GlobalUserDisabled",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications",
+     "name": "GlobalUserDisabled",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ]
+  },
+  {
+   "label": "BSoD Verbose Mode",
+   "description": "Gives more information when you blue screen.",
+   "category": "system",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "id": "winutil.bsod_details",
+   "group": null,
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\CrashControl",
+     "name": "DisplayParameters",
+     "kind": "REG_DWORD",
+     "data": "1",
+     "absent_means": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\CrashControl",
+     "name": "DisableEmoticon",
+     "kind": "REG_DWORD",
+     "data": "1",
+     "absent_means": "0"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\CrashControl",
+     "name": "DisplayParameters",
+     "kind": "REG_DWORD",
+     "data": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\CrashControl",
+     "name": "DisableEmoticon",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ]
+  },
+  {
+   "label": "System Tray Battery Percentage",
+   "description": "Shows numeric battery percentage next to the battery icon in the system tray.",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "id": "winutil.battery_percentage",
+   "group": null,
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+     "name": "IsBatteryPercentageEnabled",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_delete",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+     "name": "IsBatteryPercentageEnabled"
+    }
+   ]
+  },
+  {
+   "label": "Logon Verbose Mode",
+   "description": "Show detailed messages during startup/shutdown.",
+   "category": "system",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "id": "winutil.verbose_logon",
+   "group": null,
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+     "name": "VerboseStatus",
+     "kind": "REG_DWORD",
+     "data": "1",
+     "absent_means": "0"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+     "name": "VerboseStatus",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ]
+  },
+  {
+   "label": "Scrollbars Always Visible",
+   "description": "If enabled, scrollbars will always be visible. If disabled, Windows will automatically hide scrollbars when not in use.",
+   "category": "appearance",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "id": "winutil.scrollbars_visible",
+   "group": null,
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Control Panel\\Accessibility",
+     "name": "DynamicScrollbars",
+     "kind": "REG_DWORD",
+     "data": "0",
+     "absent_means": "1"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Control Panel\\Accessibility",
+     "name": "DynamicScrollbars",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ]
+  },
+  {
+   "label": "Multiplane Overlay: Enabled",
+   "description": "Uses Windows' default overlay behavior.",
+   "category": "gaming",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "id": "winutil.mpo.enabled",
+   "group": "winutil.mpo",
+   "ops": [
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Microsoft\\Windows\\Dwm",
+     "name": "OverlayTestMode"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+     "name": "DisableOverlays"
+    }
+   ]
+  },
+  {
+   "label": "Multiplane Overlay: Disabled (Compatibility)",
+   "description": "Disables MPO using OverlayTestMode=5, the less aggressive compatibility method.",
+   "category": "gaming",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "id": "winutil.mpo.compat",
+   "group": "winutil.mpo",
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Microsoft\\Windows\\Dwm",
+     "name": "OverlayTestMode",
+     "kind": "REG_DWORD",
+     "data": "5"
+    },
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+     "name": "DisableOverlays"
+    }
+   ]
+  },
+  {
+   "label": "Multiplane Overlay: Fully Disabled",
+   "description": "Disables MPO using OverlayTestMode=5 and DisableOverlays=1, the more aggressive method.",
+   "category": "gaming",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "id": "winutil.mpo.off",
+   "group": "winutil.mpo",
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Microsoft\\Windows\\Dwm",
+     "name": "OverlayTestMode",
+     "kind": "REG_DWORD",
+     "data": "5"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+     "name": "DisableOverlays",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ]
+  },
+  {
+   "label": "Logon Screen Acrylic Blur",
+   "description": "Toggles the acrylic blur effect on login screen background.",
+   "category": "appearance",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "id": "winutil.logon_blur",
+   "group": null,
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+     "name": "DisableAcrylicBackgroundOnLogon",
+     "kind": "REG_DWORD",
+     "data": "0",
+     "absent_means": "0"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+     "name": "DisableAcrylicBackgroundOnLogon",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ]
+  },
+  {
+   "label": "Lock Screen - Disable",
+   "description": "Skips the lock screen entirely and goes directly to the sign-in screen on boot and wake.",
+   "category": "appearance",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "id": "winutil.no_lock_screen",
+   "group": null,
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Personalization",
+     "name": "NoLockScreen",
+     "kind": "REG_DWORD",
+     "data": "1"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_delete",
+     "hive": "HKLM",
+     "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Personalization",
+     "name": "NoLockScreen"
+    }
+   ]
+  },
+  {
+   "label": "Game Mode",
+   "description": "Toggles Windows prioritizes gaming performance by allocating system resources to games.",
+   "category": "gaming",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "id": "winutil.game_mode",
+   "group": null,
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\GameBar",
+     "name": "AllowAutoGameMode",
+     "kind": "REG_DWORD",
+     "data": "1",
+     "absent_means": "1"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\GameBar",
+     "name": "AutoGameModeEnabled",
+     "kind": "REG_DWORD",
+     "data": "1",
+     "absent_means": "1"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\GameBar",
+     "name": "AllowAutoGameMode",
+     "kind": "REG_DWORD",
+     "data": "0"
+    },
+    {
+     "op": "reg_set",
+     "hive": "HKCU",
+     "key": "Software\\Microsoft\\GameBar",
+     "name": "AutoGameModeEnabled",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ]
+  },
+  {
+   "label": "Enable Long Paths",
+   "description": "Toggles support for file paths longer than 260 characters in Explorer.",
+   "category": "system",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "winutil",
+   "license": "MIT",
+   "id": "winutil.long_paths",
+   "group": null,
+   "ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\FileSystem",
+     "name": "LongPathsEnabled",
+     "kind": "REG_DWORD",
+     "data": "1",
+     "absent_means": "0"
+    }
+   ],
+   "default_ops": [
+    {
+     "op": "reg_set",
+     "hive": "HKLM",
+     "key": "SYSTEM\\CurrentControlSet\\Control\\FileSystem",
+     "name": "LongPathsEnabled",
+     "kind": "REG_DWORD",
+     "data": "0"
+    }
+   ]
+  }
+ ]
+}

@@ -7,14 +7,14 @@ use std::time::Duration;
 use anyhow::{anyhow, bail, Context};
 use serde_json::{json, Value};
 
-struct Bridge {
+pub(crate) struct Bridge {
     base: String,
     token: String,
     http: reqwest::Client,
 }
 
 impl Bridge {
-    fn open() -> anyhow::Result<Self> {
+    pub(crate) fn open() -> anyhow::Result<Self> {
         let dir =
             omniget_core::core::paths::app_data_dir().ok_or_else(|| anyhow!("no app data dir"))?;
         let raw = std::fs::read_to_string(dir.join("settings.json"))
@@ -58,7 +58,7 @@ impl Bridge {
             .await
     }
 
-    async fn post(&self, path: &str, body: Value) -> anyhow::Result<Value> {
+    pub(crate) async fn post(&self, path: &str, body: Value) -> anyhow::Result<Value> {
         self.send(self.http.post(format!("{}{path}", self.base)).json(&body))
             .await
     }

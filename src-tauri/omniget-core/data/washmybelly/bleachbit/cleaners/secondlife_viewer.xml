@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="secondlife_viewer">
+  <label>Second Life Viewer</label>
+  <description>Game</description>
+  <option id="Cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.files" path="~/.secondlife/cache/"/>
+    <action command="delete" search="walk.files" path="$USERPROFILE\Application Data\SecondLife\cache\"/>
+  </option>
+  <option id="Logs">
+    <label>Debug logs</label>
+    <description>Delete the debug logs</description>
+    <action command="delete" search="walk.files" path="~/.secondlife/logs/"/>
+    <action command="delete" search="walk.files" path="$USERPROFILE\Application Data\SecondLife\logs\"/>
+  </option>
+</cleaner>

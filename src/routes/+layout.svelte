@@ -119,12 +119,14 @@
     page.url.pathname.startsWith("/settings") ||
     page.url.pathname.startsWith("/superpowers") ||
     page.url.pathname.startsWith("/league") ||
+    page.url.pathname.startsWith("/washmybelly") ||
     page.url.pathname.startsWith("/about"),
   );
 
   let isFlushRoute = $derived(
     page.url.pathname === "/" ||
     page.url.pathname.startsWith("/downloads") ||
+    page.url.pathname.startsWith("/washmybelly") ||
     page.url.pathname.startsWith("/settings"),
   );
 
@@ -132,6 +134,7 @@
   let OnboardingWizard = $state<any>(null);
   let ChangelogDialog = $state<any>(null);
   let ConfirmCloseDialog = $state<any>(null);
+  let WmbApprovalPrompt = $state<any>(null);
   let ShortcutsDialog = $state<any>(null);
   let LegalDialog = $state<any>(null);
   let RecoveryDialog = $state<any>(null);
@@ -178,6 +181,9 @@
     });
     import("$components/dialog/ChangelogDialog.svelte").then((m) => {
       ChangelogDialog = m.default;
+    });
+    import("$components/washmybelly/ApprovalPrompt.svelte").then((m) => {
+      WmbApprovalPrompt = m.default;
     });
     import("$components/dialog/ConfirmCloseDialog.svelte").then((m) => {
       ConfirmCloseDialog = m.default;
@@ -256,6 +262,13 @@
         group: get(t)("command_palette.group_nav"),
         keywords: "superpowers superpoderes league of legends lol extras",
         action: () => goto("/superpowers"),
+      },
+      {
+        id: "nav-washmybelly",
+        label: get(t)("washmybelly.nav"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "washmybelly clean limpar cache junk lixo uninstall desinstalar startup inicialização privacy privacidade debloat fps frametime battery bateria disk disco",
+        action: () => goto("/washmybelly"),
       },
       { id: "nav-help", label: get(t)("nav.help"), group: get(t)("command_palette.group_nav"), keywords: "help ajuda guias docs assinatura agente monitor", action: () => goto("/help") },
       {
@@ -415,6 +428,9 @@
   <ChangelogDialog />
 {/if}
 
+{#if WmbApprovalPrompt && (getSettings()?.washmybelly?.enabled ?? true)}
+  <WmbApprovalPrompt />
+{/if}
 {#if ConfirmCloseDialog}
   <ConfirmCloseDialog />
 {/if}

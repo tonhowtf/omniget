@@ -1,0 +1,5 @@
+
+HKEY_CURRENT_USER\Software\Microsoft\GameBar
+    UseNexusForGameBarEnabled    REG_DWORD    0x0
+    AutoGameModeEnabled    REG_DWORD    0x1
+

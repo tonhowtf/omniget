@@ -23,6 +23,7 @@ pub mod rules;
 pub mod settings;
 pub mod smart_speed;
 pub mod video_ops;
+pub mod washmybelly;
 pub mod world;
 pub mod world_bench;
 pub mod yt_templates;

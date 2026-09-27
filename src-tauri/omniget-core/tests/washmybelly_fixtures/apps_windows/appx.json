@@ -1,0 +1,58 @@
+[
+    {
+        "Name":  "Microsoft.BingNews",
+        "PackageFullName":  "Microsoft.BingNews_4.55.62231.0_x64__8wekyb3d8bbwe",
+        "PackageFamilyName":  "Microsoft.BingNews_8wekyb3d8bbwe",
+        "InstallLocation":  "C:\\Program Files\\WindowsApps\\Microsoft.BingNews_4.55.62231.0_x64__8wekyb3d8bbwe",
+        "SignatureKind":  3,
+        "IsFramework":  false,
+        "IsResourcePackage":  false,
+        "NonRemovable":  false,
+        "Publisher":  "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+        "Version":  { "Major": 4, "Minor": 55, "Build": 62231, "Revision": 0, "MajorRevision": 0, "MinorRevision": 0 }
+    },
+    {
+        "Name":  "Microsoft.VCLibs.140.00",
+        "PackageFullName":  "Microsoft.VCLibs.140.00_14.0.33519.0_x64__8wekyb3d8bbwe",
+        "SignatureKind":  3,
+        "IsFramework":  true,
+        "NonRemovable":  false
+    },
+    {
+        "Name":  "Microsoft.Windows.ShellExperienceHost",
+        "PackageFullName":  "Microsoft.Windows.ShellExperienceHost_10.0.22621.3007_neutral_neutral_cw5n1h2txyewy",
+        "PackageFamilyName":  "Microsoft.Windows.ShellExperienceHost_cw5n1h2txyewy",
+        "SignatureKind":  4,
+        "IsFramework":  false,
+        "NonRemovable":  true,
+        "Publisher":  "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+        "Version":  "10.0.22621.3007"
+    },
+    {
+        "Name":  "Microsoft.WindowsStore",
+        "PackageFullName":  "Microsoft.WindowsStore_22401.1400.6.0_x64__8wekyb3d8bbwe",
+        "PackageFamilyName":  "Microsoft.WindowsStore_8wekyb3d8bbwe",
+        "SignatureKind":  "Store",
+        "IsFramework":  false,
+        "NonRemovable":  false,
+        "Version":  "22401.1400.6.0"
+    },
+    {
+        "Name":  "SpotifyAB.SpotifyMusic",
+        "PackageFullName":  "SpotifyAB.SpotifyMusic_1.230.1135.0_x64__zpdnekdrzrea0",
+        "PackageFamilyName":  "SpotifyAB.SpotifyMusic_zpdnekdrzrea0",
+        "SignatureKind":  3,
+        "IsFramework":  false,
+        "NonRemovable":  false,
+        "Version":  "1.230.1135.0"
+    },
+    {
+        "Name":  "Contoso.Notes",
+        "PackageFullName":  "Contoso.Notes_1.0.0.0_x64__abc",
+        "PackageFamilyName":  "Contoso.Notes_abc",
+        "SignatureKind":  3,
+        "IsFramework":  false,
+        "NonRemovable":  false,
+        "Version":  "1.0.0.0"
+    }
+]

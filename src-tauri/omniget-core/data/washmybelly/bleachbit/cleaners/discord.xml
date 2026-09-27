@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="discord">
+  <label>Discord</label>
+  <description>Chat client</description>
+  <!-- Discord Stable -->
+  <running type="exe" os="windows">Discord.exe</running>
+  <running type="exe" os="linux">Discord</running>
+  <!-- Discord PTB -->
+  <running type="exe" os="windows">DiscordPTB.exe</running>
+  <running type="exe" os="linux">DiscordPTB</running>
+  <!-- Discord Canary -->
+  <running type="exe" os="windows">DiscordCanary.exe</running>
+  <running type="exe" os="linux">DiscordCanary</running>
+  <!-- Discord Development -->
+  <running type="exe" os="windows">DiscordDevelopment.exe</running>
+  <running type="exe" os="linux">DiscordDevelopment</running>
+  <var name="base">
+    <!-- Discord Stable -->
+    <value os="windows">%UserProfile%\AppData\Roaming\discord</value>
+    <value os="linux">~/.config/discord</value>
+    <value os="linux">~/snap/discord/current/.config/discord</value>
+    <value os="linux">~/.var/app/com.discordapp.Discord/config/discord</value>
+    <!-- Discord PTB -->
+    <value os="windows">%UserProfile%\AppData\Roaming\discordptb</value>
+    <value os="linux">~/.config/discordptb</value>
+    <!-- Discord Canary -->
+    <value os="windows">%UserProfile%\AppData\Roaming\discordcanary</value>
+    <value os="linux">~/.config/discordcanary</value>
+    <value os="linux">~/snap/discord/current/.config/discordcanary</value>
+    <value os="linux">~/.var/app/com.discordapp.DiscordCanary/config/discordcanary</value>
+    <!-- Discord Development -->
+    <value os="windows">%UserProfile%\AppData\Roaming\discorddevelopment</value>
+    <value os="linux">~/.config/discorddevelopment</value>
+  </var>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the web cache, which reduces time to display revisited pages. This also clears favorited GIFs.</description>
+    <action command="delete" search="walk.all" path="$$base$$/Cache"/>
+    <action command="delete" search="walk.all" path="$$base$$/Code Cache"/>
+    <action command="delete" search="walk.all" path="$$base$$/GPUCache"/>
+    <action command="delete" search="file" path="$$base$$/Network Persistent State"/>
+    <action command="delete" search="walk.all" path="~/.var/app/com.discordapp.Discord/cache"/>
+    <action command="delete" search="walk.all" path="~/.var/app/com.discordapp.DiscordCanary/cache"/>
+  </option>
+  <option id="cookies">
+    <label>Cookies</label>
+    <description>Delete cookies, which store login information, website preferences, and tracking identifiers</description>
+    <action command="delete" search="file" path="$$base$$/Cookies"/>
+    <action command="delete" search="file" path="$$base$$/Cookies-journal"/>
+    <action command="delete" search="file" path="$$base$$/Preferences"/>
+  </option>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the history which includes visited sites, downloads, and thumbnails</description>
+    <action command="delete" search="file" path="$$base$$/TransportSecurity"/>
+    <action command="delete" search="walk.all" path="$$base$$/Session Storage"/>
+    <action command="delete" search="walk.all" path="$$base$$/VideoDecodeStats"/>
+  </option>
+  <option id="vacuum">
+    <label>Vacuum</label>
+    <description>Clean database fragmentation to reduce space and improve speed without removing any data</description>
+    <action command="sqlite.vacuum" search="file" path="$$base$$/Cookies"/>
+    <action command="sqlite.vacuum" search="file" path="$$base$$/Origin Bound Certs"/>
+    <action command="sqlite.vacuum" search="file" path="$$base$$/QuotaManager"/>
+    <action command="sqlite.vacuum" search="file" path="$$base$$/databases/Databases.db"/>
+  </option>
+</cleaner>

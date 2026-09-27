@@ -34,6 +34,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub league: LeagueSettings,
     #[serde(default)]
+    pub washmybelly: WashMyBellySettings,
+    #[serde(default)]
     pub accessibility: AccessibilitySettings,
     #[serde(default)]
     pub omnidisc: OmnidiscSettings,
@@ -261,6 +263,47 @@ fn default_sgp_enabled() -> bool {
 
 fn default_coach_style() -> String {
     "objective".to_string()
+}
+
+/// The washmybelly superpower (cleanup, uninstall, privacy, power, FPS).
+/// On by default because nothing runs on its own: no scan starts until the
+/// person opens the screen or an agent calls a `wmb_*` tool.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WashMyBellySettings {
+    #[serde(default = "default_wmb_enabled")]
+    pub enabled: bool,
+    /// Days a quarantined item is kept before it is purged for good.
+    #[serde(default = "default_wmb_quarantine_days")]
+    pub quarantine_days: u32,
+    /// Extra folders no rule may touch, on top of the built-in list.
+    #[serde(default)]
+    pub protected_paths_extra: Vec<String>,
+    /// Hold the performance power profile while big downloads and agents run.
+    #[serde(default)]
+    pub auto_hold_power: bool,
+    /// A PresentMon (Windows) or MangoHud path picked by the person.
+    #[serde(default)]
+    pub perf_tool_path: String,
+}
+
+fn default_wmb_enabled() -> bool {
+    true
+}
+
+fn default_wmb_quarantine_days() -> u32 {
+    7
+}
+
+impl Default for WashMyBellySettings {
+    fn default() -> Self {
+        Self {
+            enabled: default_wmb_enabled(),
+            quarantine_days: default_wmb_quarantine_days(),
+            protected_paths_extra: Vec::new(),
+            auto_hold_power: false,
+            perf_tool_path: String::new(),
+        }
+    }
 }
 
 fn default_league_enabled() -> bool {
@@ -844,6 +887,7 @@ impl Default for AppSettings {
             rpc: RpcSettings::default(),
             bridge: BridgeSettings::default(),
             league: LeagueSettings::default(),
+            washmybelly: WashMyBellySettings::default(),
             accessibility: AccessibilitySettings::default(),
             omnidisc: OmnidiscSettings::default(),
             world: WorldSettings::default(),

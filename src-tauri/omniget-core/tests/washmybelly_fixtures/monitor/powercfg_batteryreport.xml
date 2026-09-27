@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<BatteryReport xmlns="http://schemas.microsoft.com/battery/2012">
+  <ReportInformation>
+    <ReportVersion>1</ReportVersion>
+    <ScanTime>2026-09-27T10:00:00</ScanTime>
+    <LocalScanTime>2026-09-27T07:00:00</LocalScanTime>
+    <UtcOffset>-3</UtcOffset>
+  </ReportInformation>
+  <SystemInformation>
+    <ComputerName>REDACTED</ComputerName>
+    <SystemManufacturer>LENOVO</SystemManufacturer>
+    <SystemProductName>21AH</SystemProductName>
+  </SystemInformation>
+  <Batteries>
+    <Battery>
+      <Id>5B10W13930</Id>
+      <Manufacturer>SMP</Manufacturer>
+      <SerialNumber>REDACTED</SerialNumber>
+      <Chemistry>LiP</Chemistry>
+      <LongTerm>1</LongTerm>
+      <RelativeCapacity>0</RelativeCapacity>
+      <DesignCapacity>57000</DesignCapacity>
+      <FullChargeCapacity>49130</FullChargeCapacity>
+      <CycleCount>143</CycleCount>
+    </Battery>
+  </Batteries>
+</BatteryReport>

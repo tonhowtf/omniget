@@ -1,0 +1,5 @@
+
+Existing Power Schemes (* Active)
+-----------------------------------
+Power Scheme GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)
+Power Scheme GUID: 5a6c1a2e-7b19-4f55-9d2d-0c3a1e8b7f10  (Ultimate Performance) *

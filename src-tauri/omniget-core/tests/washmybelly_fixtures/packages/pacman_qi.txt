@@ -1,0 +1,116 @@
+Name            : acl
+Version         : 2.4.0-1
+Description     : Access control list utilities, libraries and headers
+Architecture    : x86_64
+URL             : https://savannah.nongnu.org/projects/acl
+Licenses        : LGPL-2.1-or-later AND GPL-2.0-or-later
+Groups          : None
+Provides        : libacl.so=1-64
+Depends On      : glibc
+Optional Deps   : None
+Required By     : coreutils  gettext  libarchive  sed  shadow  systemd  tar  vim
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 345.21 KiB
+Packager        : Christian Hesse <eworm@archlinux.org>
+Build Date      : Mon Jun 29 13:16:29 2026
+Install Date    : Sun Sep 20 00:00:00 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : Signature
+
+Name            : gpm
+Version         : 1.20.7.r38.ge82d1a6-7
+Description     : A mouse server for the console and xterm
+Architecture    : x86_64
+URL             : https://www.nico.schottelius.org/software/gpm/
+Licenses        : GPL
+Groups          : None
+Provides        : libgpm.so=2-64
+Depends On      : bash  procps-ng
+Optional Deps   : None
+Required By     : vim
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 394.13 KiB
+Packager        : Christian Hesse <eworm@archlinux.org>
+Build Date      : Fri Sep 18 13:17:20 2026
+Install Date    : Sun Sep 27 12:08:04 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : Signature
+
+Name            : nano
+Version         : 9.2-1
+Description     : Pico editor clone with enhancements
+Architecture    : x86_64
+URL             : https://www.nano-editor.org
+Licenses        : GPL-3.0-or-later
+Groups          : None
+Provides        : None
+Depends On      : ncurses  file  glibc
+Optional Deps   : None
+Required By     : None
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 2.71 MiB
+Packager        : Andreas Radke <andyrtr@archlinux.org>
+Build Date      : Fri Jul 31 10:12:17 2026
+Install Date    : Sun Sep 27 12:08:04 2026
+Install Reason  : Explicitly installed
+Install Script  : No
+Validated By    : Signature
+
+Name            : vim
+Version         : 9.2.1046-1
+Description     : Vi Improved, a highly configurable, improved version of the vi text editor
+Architecture    : x86_64
+URL             : https://www.vim.org
+Licenses        : custom:vim
+Groups          : None
+Provides        : xxd  vim-minimal  vim-plugin-runtime
+Depends On      : vim-runtime=9.2.1046-1  gpm  acl  glibc  libgcrypt  zlib
+Optional Deps   : python: Python language support
+                  ruby: Ruby language support
+                  lua: Lua language support
+                  perl: Perl language support
+                  tcl: Tcl language support
+Required By     : None
+Optional For    : None
+Conflicts With  : gvim  vim-minimal
+Replaces        : vim-minimal
+Installed Size  : 5.37 MiB
+Packager        : T.J. Townsend <blakkheim@archlinux.org>
+Build Date      : Tue Sep  8 13:11:21 2026
+Install Date    : Sun Sep 27 12:08:04 2026
+Install Reason  : Explicitly installed
+Install Script  : No
+Validated By    : Signature
+
+Name            : vim-runtime
+Version         : 9.2.1046-1
+Description     : Vi Improved, a highly configurable, improved version of the vi text editor (shared runtime)
+Architecture    : x86_64
+URL             : https://www.vim.org
+Licenses        : custom:vim
+Groups          : None
+Provides        : None
+Depends On      : None
+Optional Deps   : sh: support for some tools and macros [installed]
+                  python: demoserver example tool
+                  gawk: mve tools support [installed]
+Required By     : vim
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 38.69 MiB
+Packager        : T.J. Townsend <blakkheim@archlinux.org>
+Build Date      : Tue Sep  8 13:11:21 2026
+Install Date    : Sun Sep 27 12:08:04 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : Signature
+

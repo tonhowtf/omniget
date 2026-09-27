@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="geary" os="linux">
+  <label>Geary</label>
+  <description>Email client</description>
+  <running type="exe">geary</running>
+  <var name="accounts">
+    <value search="glob">~/.local/share/geary/*</value>
+    <value search="glob">$XDG_DATA_HOME/geary/*</value>
+    <value search="glob">~/.var/app/org.gnome.Geary/data/geary/*</value>
+  </var>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.all" path="~/.cache/geary"/>
+    <action command="delete" search="walk.all" path="$XDG_CACHE_HOME/geary"/>
+    <action command="delete" search="walk.all" path="~/.var/app/org.gnome.Geary/cache"/>
+  </option>
+  <option id="attachments">
+    <label>Attachments</label>
+    <description>Delete the files</description>
+    <action command="delete" search="walk.top" path="$$accounts$$/attachments"/>
+  </option>
+  <option id="sync_conflict">
+    <label>Sync conflict</label>
+    <description>Delete the files</description>
+    <action command="delete" search="glob" path="$$accounts$$/geary.sync-conflict*.db"/>
+  </option>
+  <option id="vacuum">
+    <label>Vacuum</label>
+    <description>Clean database fragmentation to reduce space and improve speed without removing any data</description>
+    <warning>This option is slow.</warning>
+    <action command="sqlite.vacuum" search="file" path="$$accounts$$/geary.db"/>
+  </option>
+</cleaner>

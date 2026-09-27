@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+This cleaner covers OpenOffice.org and Apache OpenOffice.org, but
+LibreOffice is in `libreoffice.xml`.
+
+Notes
+
+- Deleting the cache directory will also remove cached registry data.
+- When converting from Python code to CleanerML, we dropped support
+  for cleaning MRU in `Common.xcu`, which was obsolete by OpenOffice 3.4.
+
+Apache OpenOffice 4.1.16 on Ubuntu
+
+- starts with `/usr/bin/openoffice4`, but has process names `soffice` and `soffice.bin`.
+- deleting `$$base$$/user/uno_packages/cache` still uninstalls extensions
+- `registrymodifications.xcu` MRU cleaner worked
+
+Apache OpenOffice 4.1.6 on Windows 10
+
+- has running processes `soffice.exe` and `soffice.bin`
+
+-->
+<cleaner id="openoffice">
+  <label>Apache OpenOffice</label>
+  <description>Office suite</description>
+  <running type="exe" os="linux" same_user="true">soffice</running>
+  <running type="exe" os="windows" same_user="true">soffice.exe</running>
+  <running type="exe" same_user="true">soffice.bin</running>
+  <var name="base">
+    <!-- OpenOffice.org 2.x -->
+    <value os="linux">~/.ooo-2.0</value>
+    <value os="linux">~/.openoffice.org2</value>
+    <value os="linux">~/.openoffice.org2.0</value>
+    <!-- OpenOffice.org 3.x -->
+    <value os="linux">~/.openoffice.org/3</value>
+    <value os="linux">~/.ooo-dev3</value>
+    <value os="windows">$APPDATA\OpenOffice.org\3</value>
+    <value os="windows">$APPDATA\OpenOffice.org2</value>
+    <!-- Apache OpenOffice 4.x -->
+    <value os="linux">~/.openoffice/4</value>
+    <value os="windows">$APPDATA\OpenOffice.org\4</value>
+  </var>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.files" path="$$base$$/user/registry/cache"/>
+  </option>
+  <option id="recent_documents">
+    <label>Most recently used</label>
+    <description>Delete the list of recently used documents</description>
+    <action command="delete" search="file" path="$$base$$/user/registry/data/org/openoffice/Office/Histories.xcu"/>
+    <action command="delete" search="file" path="$$base$$/user/registry/cache/org.openoffice.Office.Histories.dat"/>
+    <action command="delete" search="file" path="$$base$$/user/registry/cache/org.openoffice.Office.Common.dat"/>
+    <action command="office_registrymodifications" search="file" path="$$base$$/user/registrymodifications.xcu"/>
+  </option>
+</cleaner>

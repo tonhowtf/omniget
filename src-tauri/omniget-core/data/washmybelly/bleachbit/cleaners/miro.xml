@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="miro">
+  <label>Miro</label>
+  <description>Multimedia viewer</description>
+  <var name="Cache-Profile">
+    <value os="windows">%AppData%\Participatory Culture Foundation\Miro\Support</value>
+    <value os="linux">~/.miro</value>
+  </var>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.files" path="$$Cache-Profile$$/icon-cache/"/>
+    <action command="delete" search="walk.files" path="$$Cache-Profile$$/mozilla/Cache/"/>
+  </option>
+  <option id="logs">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action command="delete" search="file" path="~/.miro/miro-downloader-log"/>
+    <action command="delete" search="file" path="~/.miro/miro-log"/>
+    <action command="delete" search="file" path="~/.miro/miro-log.1"/>
+    <action command="delete" search="file" path="%Temp%\Miro-downloader.log"/>
+    <action command="delete" search="file" path="%Temp%\Miro.log"/>
+    <action command="delete" search="file" path="%Temp%\Miro.log.1"/>
+    <action command="delete" search="file" path="%Temp%\Miro_Download_Daemon_a.txt"/>
+  </option>
+</cleaner>

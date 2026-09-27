@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="silverlight" os="windows">
+  <label>Silverlight</label>
+  <description>Multimedia viewer</description>
+  <option id="cookies">
+    <label>Cookies</label>
+    <description>Delete cookies, which store login information, website preferences, and tracking identifiers</description>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Microsoft\Silverlight\is\"/>
+    <action command="delete" search="walk.all" path="%LocalAppDataLow%\Microsoft\Silverlight\is\"/>
+  </option>
+  <option id="temp">
+    <label>Temporary files</label>
+    <description>Delete the temporary files</description>
+    <action command="delete" search="glob" path="%Temp%\Silverlight*.log"/>
+    <!-- Silverlight0.log, SilverlightMSI.log -->
+  </option>
+</cleaner>

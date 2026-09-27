@@ -1,4 +1,5 @@
-fn enhanced_path() -> Option<String> {
+/// The PATH every spawned tool gets: managed `bin/`, Homebrew, `~/.local/bin`.
+pub fn enhanced_path() -> Option<String> {
     use std::sync::OnceLock;
     static CACHED: OnceLock<Option<String>> = OnceLock::new();
     CACHED

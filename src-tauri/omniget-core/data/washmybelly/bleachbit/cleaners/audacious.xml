@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="audacious" os="linux">
+  <label>Audacious</label>
+  <description>Media player</description>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.files" path="$XDG_CACHE_HOME/audacious/thumbs/"/>
+  </option>
+  <option id="log">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action command="delete" search="file" path="$XDG_CONFIG_HOME/audacious/log"/>
+  </option>
+  <option id="mru">
+    <label>Most recently used</label>
+    <description>Delete the list of recently used documents</description>
+    <action command="delete" search="file" path="$XDG_CONFIG_HOME/audacious/playlist.xspf"/>
+  </option>
+</cleaner>

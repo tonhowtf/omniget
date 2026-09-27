@@ -1,0 +1,18 @@
+Dependencies resolved.
+================================================================================
+ Package             Architecture   Version               Repository       Size
+================================================================================
+Removing:
+ vim-common          x86_64         2:8.2.2637-20.el9_1   @appstream       30 M
+Removing dependent packages:
+ vim-enhanced        x86_64         2:8.2.2637-20.el9_1   @appstream      3.9 M
+Removing unused dependencies:
+ gpm-libs            x86_64         1.20.7-29.el9         @appstream       26 k
+ vim-filesystem      noarch         2:8.2.2637-20.el9_1   @baseos          40
+
+Transaction Summary
+================================================================================
+Remove  4 Packages
+
+Freed space: 34 M
+Is this ok [y/N]: Operation aborted.

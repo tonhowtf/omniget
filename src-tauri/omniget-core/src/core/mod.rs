@@ -40,4 +40,5 @@ pub mod shell_words;
 pub mod skills;
 pub mod subtitle_merge;
 pub mod tools;
+pub mod washmybelly;
 pub mod ytdlp;

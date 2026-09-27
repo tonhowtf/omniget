@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="exaile" os="linux">
+  <label>Exaile</label>
+  <description>Media player</description>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.files" path="~/.exaile/cache/"/>
+    <action command="delete" search="walk.files" path="~/.exaile/covers/"/>
+  </option>
+  <option id="downloaded_podcasts">
+    <label>Downloaded podcasts</label>
+    <description>Delete downloaded podcasts</description>
+    <action command="delete" search="walk.files" path="~/.exaile/podcasts/"/>
+  </option>
+  <option id="log">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action command="delete" search="file" path="~/.exaile/exaile.log"/>
+  </option>
+</cleaner>

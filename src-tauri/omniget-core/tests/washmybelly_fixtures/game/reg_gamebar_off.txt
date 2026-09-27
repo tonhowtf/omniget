@@ -1,0 +1,4 @@
+
+HKEY_CURRENT_USER\Software\Microsoft\GameBar
+    AutoGameModeEnabled    REG_DWORD    0x0
+

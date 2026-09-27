@@ -1,0 +1,2 @@
+error: Failed dependencies:
+	vim-common = 2:9.2.1129-1.fc44 is needed by (installed) vim-enhanced-2:9.2.1129-1.fc44.aarch64

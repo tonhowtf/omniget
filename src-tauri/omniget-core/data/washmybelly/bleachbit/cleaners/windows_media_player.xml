@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="windows_media_player" os="windows">
+  <label>Windows Media Player</label>
+  <description>Media player</description>
+  <option id="mru">
+    <label>Most recently used</label>
+    <description>Delete the most recently used list</description>
+    <action command="winreg" path="HKCU\Software\Microsoft\MediaPlayer\Player\RecentFileList"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\MediaPlayer\Player\RecentURLList"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\MediaPlayer\Player\Settings" name="OpenDir"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\MediaPlayer\Player\Settings" name="SaveAsDir"/>
+  </option>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Microsoft\Media Player\Cache*\"/>
+    <action command="delete" search="glob" path="%LocalAppData%\Microsoft\Media Player\Cache*\"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Microsoft\Media Player\Grafikcache\LocalMLS\"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Microsoft\Media Player\Transcoded Files Cache\"/>
+    <action command="delete" search="file" path="%Temp%\wmsetup.log"/>
+  </option>
+</cleaner>

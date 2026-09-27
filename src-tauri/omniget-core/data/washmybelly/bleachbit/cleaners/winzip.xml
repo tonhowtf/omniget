@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="winzip" os="windows">
+  <label>WinZip</label>
+  <option id="mru">
+    <label>Most recently used</label>
+    <description>Delete the most recently used list</description>
+    <action command="winreg" path="HKCU\Software\Nico Mak Computing\WinZip\mru\jobs"/>
+    <action command="winreg" path="HKCU\Software\Nico Mak Computing\WinZip\mru\archives"/>
+  </option>
+</cleaner>

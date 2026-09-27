@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>MCMMetadataActiveDPClass</key>
+	<integer>0</integer>
+	<key>MCMMetadataContentClass</key>
+	<integer>2</integer>
+	<key>MCMMetadataIdentifier</key>
+	<string>com.example.sandboxed</string>
+	<key>MCMMetadataInfo</key>
+	<dict>
+		<key>com.apple.MobileInstallation.ContentProtectionClass</key>
+		<integer>0</integer>
+	</dict>
+	<key>MCMMetadataSchemaVersion</key>
+	<integer>1</integer>
+	<key>MCMMetadataUUID</key>
+	<string>6F1C0A52-8C57-4E0B-9D6E-2F7C1B9E4A10</string>
+	<key>MCMMetadataVersion</key>
+	<integer>6</integer>
+</dict>
+</plist>

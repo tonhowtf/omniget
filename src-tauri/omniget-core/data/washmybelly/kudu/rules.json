@@ -1,0 +1,6203 @@
+{
+ "source": "https://github.com/AdventDevInc/kudu",
+ "commit": "4e0002259b58e8ee41925611831e8f4085295ddd",
+ "license": "MIT",
+ "generated_by": "scripts/washmybelly/kudu-convert.mjs",
+ "count": 209,
+ "skipped": [
+  {
+   "id": "kudu.system.prefetch_data",
+   "target": "${WINDIR}/Prefetch",
+   "reason": "Prefetch is on the placebo list (slower boot and launches until it rebuilds)"
+  },
+  {
+   "id": "kudu.system.delivery_optimization_cache",
+   "target": "${WINDIR}/SoftwareDistribution/DeliveryOptimization",
+   "reason": "native action delivery-optimization is implemented by rules_windows (maintenance)"
+  },
+  {
+   "id": "kudu.system.windows_component_cleanup",
+   "target": "${WINDIR}/WinSxS",
+   "reason": "component store cleanup is DISM territory (maintenance module), never ResetBase"
+  },
+  {
+   "id": "kudu.system.installer_patch_cache",
+   "target": "${WINDIR}/Installer/$PatchCache$",
+   "reason": "MSI patch baseline: needed to uninstall updates"
+  },
+  {
+   "id": "kudu.system.event_log_archives",
+   "target": "%WINDIR%\\System32\\winevt\\Logs",
+   "reason": "inside protected %windir%/system32"
+  },
+  {
+   "id": "kudu.system.defender_scan_history",
+   "target": "%ProgramData%\\Microsoft\\Windows Defender\\Scans\\History",
+   "reason": "inside protected %programdata%/microsoft/windows defender"
+  },
+  {
+   "id": "kudu.system.previous_windows_installation",
+   "target": "${SYSTEMDRIVE}/Windows.old",
+   "reason": "rollback of the previous Windows; cleanmgr territory, not a cache"
+  },
+  {
+   "id": "kudu.system.defender_support_logs",
+   "target": "%ProgramData%\\Microsoft\\Windows Defender\\Support",
+   "reason": "inside protected %programdata%/microsoft/windows defender"
+  },
+  {
+   "id": "kudu.system.defender_metastore",
+   "target": "%ProgramData%\\Microsoft\\Windows Defender\\Scans\\MetaStore",
+   "reason": "inside protected %programdata%/microsoft/windows defender"
+  },
+  {
+   "id": "kudu.system.defender_nis_logs",
+   "target": "%ProgramData%\\Microsoft\\Windows Defender\\Network Inspection System\\Support",
+   "reason": "inside protected %programdata%/microsoft/windows defender"
+  },
+  {
+   "id": "kudu.system.defender_trace_files",
+   "target": "%ProgramData%\\Microsoft\\Windows Defender\\Scans\\RtSigs",
+   "reason": "inside protected %programdata%/microsoft/windows defender"
+  },
+  {
+   "id": "kudu.system.firewall_logs",
+   "target": "%WINDIR%\\System32\\LogFiles\\Firewall",
+   "reason": "inside protected %windir%/system32"
+  },
+  {
+   "id": "kudu.system.app_compatibility_cache",
+   "target": "${WINDIR}/AppCompat/Programs",
+   "reason": "holds Amcache.hve (application compatibility), not a cache"
+  },
+  {
+   "id": "kudu.system.system_certificate_cache",
+   "target": "%WINDIR%\\System32\\config\\systemprofile\\AppData\\LocalLow\\Microsoft\\CryptnetUrlCache",
+   "reason": "inside protected %windir%/system32"
+  },
+  {
+   "id": "kudu.system.wmi_trace_logs",
+   "target": "%WINDIR%\\System32\\LogFiles\\WMI",
+   "reason": "inside protected %windir%/system32"
+  },
+  {
+   "id": "kudu.system.http_error_logs",
+   "target": "%WINDIR%\\System32\\LogFiles\\HTTPERR",
+   "reason": "inside protected %windir%/system32"
+  },
+  {
+   "id": "kudu.system.setup_cleanup_logs",
+   "target": "%WINDIR%\\System32\\LogFiles\\setupcln",
+   "reason": "inside protected %windir%/system32"
+  },
+  {
+   "id": "kudu.system.power_efficiency_report",
+   "target": "%WINDIR%\\System32\\energy-report.html",
+   "reason": "inside protected %windir%/system32"
+  },
+  {
+   "id": "kudu.apps.docker_build_cache",
+   "target": "docker-build-prune",
+   "reason": "rules_windows ships its own docker builder prune rule"
+  },
+  {
+   "id": "kudu.apps.uv",
+   "target": "uv-prune",
+   "reason": "uv is not in plan::NATIVE_PROGRAMS"
+  },
+  {
+   "id": "kudu.apps.electron_updater_artifacts",
+   "target": "${LOCALAPPDATA}",
+   "reason": "fileMatch.skipIfChildExists has no equivalent in the Rule shape"
+  },
+  {
+   "id": "kudu.games.steam_shader_cache",
+   "target": "${PROGRAMFILES_X86}/Steam/steamapps/shadercache",
+   "reason": "wipes the shader cache of installed games too; rules_windows offers only uninstalled games"
+  },
+  {
+   "id": "kudu.databases",
+   "target": "databases.json",
+   "reason": "history/cookie databases: BleachBit and rules_windows own browser privacy"
+  },
+  {
+   "id": "kudu.steam",
+   "target": "steam.json",
+   "reason": "redistributable folders live inside game folders; never game files"
+  },
+  {
+   "id": "kudu.misc",
+   "target": "misc.json",
+   "reason": "event logs and Recycle Bin are not cleanup targets here"
+  }
+ ],
+ "rules": [
+  {
+   "id": "kudu.system.user_temp_files",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "User Temp Files",
+   "description": "Temporary files created by applications and the current user session; recent descendants are protected through cleanup",
+   "targets": [
+    "%LOCALAPPDATA%\\Temp"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 2,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.system_account_temp_files",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "SYSTEM Account Temp Files",
+   "description": "Temporary files from processes running as SYSTEM on current Windows 11 builds; recent descendants are protected through cleanup",
+   "targets": [
+    "%WINDIR%\\SystemTemp"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 2,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.system_temp_files",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "System Temp Files",
+   "description": "Temporary files created by Windows services and system processes",
+   "targets": [
+    "%WINDIR%\\Temp"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.windows_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Windows Logs",
+   "description": "Windows system and component log files including CBS and DISM logs",
+   "targets": [
+    "%WINDIR%\\Logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.setup_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Setup Logs",
+   "description": "Log files from Windows installation and upgrade processes",
+   "targets": [
+    "%WINDIR%\\Panther"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.thumbnail_icon_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "Thumbnail & Icon Cache",
+   "description": "Cached thumbnails and icons for File Explorer; rebuilt automatically on demand",
+   "targets": [
+    "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.font_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "Font Cache",
+   "description": "Cached font rendering data; rebuilt automatically by the Font Cache Service",
+   "targets": [
+    "%WINDIR%\\ServiceProfiles\\LocalService\\AppData\\Local\\FontCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.directx_shader_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "DirectX Shader Cache",
+   "description": "Compiled DirectX shader cache used to reduce game and app load times Performance cache: the next launch is slower while it rebuilds.",
+   "targets": [
+    "%LOCALAPPDATA%\\D3DSCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.internet_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "Internet Cache",
+   "description": "Cached web content from Internet Explorer and Windows system components",
+   "targets": [
+    "%LOCALAPPDATA%\\Microsoft\\Windows\\INetCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.windows_update_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "Windows Update Cache",
+   "description": "Downloaded Windows Update packages (may include pending updates that will need to re-download)",
+   "targets": [
+    "%WINDIR%\\SoftwareDistribution\\Download"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.error_reports",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Error Reports",
+   "description": "Windows Error Reporting crash and problem reports for the current user",
+   "targets": [
+    "%LOCALAPPDATA%\\Microsoft\\Windows\\WER"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.system_error_reports",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "System Error Reports",
+   "description": "System-wide Windows Error Reporting crash and problem reports",
+   "targets": [
+    "%ProgramData%\\Microsoft\\Windows\\WER"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.crash_dumps",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Crash Dumps",
+   "description": "User-mode application crash dump files",
+   "targets": [
+    "%LOCALAPPDATA%\\CrashDumps"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.minidump_files",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Minidump Files",
+   "description": "Kernel minidump files created during blue screen crashes",
+   "targets": [
+    "%WINDIR%\\Minidump"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.net_usage_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": ".NET Usage Logs",
+   "description": "Usage telemetry logs generated by the .NET Framework runtime (64-bit)",
+   "targets": [
+    "%LOCALAPPDATA%\\Microsoft\\CLR_v4.0\\UsageLogs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.net_usage_logs_32_bit",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": ".NET Usage Logs (32-bit)",
+   "description": "Usage telemetry logs generated by the .NET Framework runtime (32-bit)",
+   "targets": [
+    "%LOCALAPPDATA%\\Microsoft\\CLR_v4.0_32\\UsageLogs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.rdp_bitmap_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "RDP Bitmap Cache",
+   "description": "Cached bitmap tiles from Remote Desktop sessions",
+   "targets": [
+    "%LOCALAPPDATA%\\Microsoft\\Terminal Server Client\\Cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.windows_debug_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Windows Debug Logs",
+   "description": "Debug log files generated by Windows services such as Netlogon and WIA",
+   "targets": [
+    "%WINDIR%\\debug"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.network_service_temp",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "Network Service Temp",
+   "description": "Temporary files created by the Network Service system account",
+   "targets": [
+    "%WINDIR%\\ServiceProfiles\\NetworkService\\AppData\\Local\\Temp"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.windows_caches",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "Windows Caches",
+   "description": "General-purpose caches used by Windows shell components",
+   "targets": [
+    "%LOCALAPPDATA%\\Microsoft\\Windows\\Caches"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.local_service_temp",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "Local Service Temp",
+   "description": "Temporary files created by the Local Service system account",
+   "targets": [
+    "%WINDIR%\\ServiceProfiles\\LocalService\\AppData\\Local\\Temp"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.system_tracing_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "System Tracing Logs",
+   "description": "Network and system component diagnostic tracing log files",
+   "targets": [
+    "%WINDIR%\\tracing"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.windows_update_db_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Windows Update DB Logs",
+   "description": "Transaction log files for the Windows Update database",
+   "targets": [
+    "%WINDIR%\\SoftwareDistribution\\DataStore\\Logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.reliability_monitor_data",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "Reliability Monitor Data",
+   "description": "Reliability Analysis Component data collected for Reliability Monitor reports",
+   "targets": [
+    "%ProgramData%\\Microsoft\\RAC\\PublishedData"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.windows_search_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Windows Search Logs",
+   "description": "Gather log files from the Windows Search indexing service",
+   "targets": [
+    "%ProgramData%\\Microsoft\\Search\\Data\\Applications\\Windows\\GatherLogs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.diagnostic_etl_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Diagnostic ETL Logs",
+   "description": "Event Trace Log files from Windows diagnostic data collection",
+   "targets": [
+    "%ProgramData%\\Microsoft\\Diagnosis\\ETLLogs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.power_efficiency_reports",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Power Efficiency Reports",
+   "description": "Energy efficiency diagnostic reports generated by powercfg",
+   "targets": [
+    "%ProgramData%\\Microsoft\\Windows\\Power Efficiency Diagnostics"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.kernel_live_dump_files",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Kernel Live Dump Files",
+   "description": "Kernel live dump files created during abnormal system operations without crashing",
+   "targets": [
+    "%WINDIR%\\LiveKernelReports"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.local_system_temp",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "Local System Temp",
+   "description": "Temporary files created by the Local System service account",
+   "targets": [
+    "%WINDIR%\\ServiceProfiles\\LocalSystem\\AppData\\Local\\Temp"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.winsat_results",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "WinSAT Results",
+   "description": "Windows System Assessment Tool benchmark results and performance data",
+   "targets": [
+    "%WINDIR%\\Performance\\WinSAT\\DataStore"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.update_ux_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Update UX Logs",
+   "description": "Reusable UX Interaction Manager logs from Windows Update notifications",
+   "targets": [
+    "%ProgramData%\\Microsoft\\Windows\\RUXIM"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.local_service_certificate_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "Local Service Certificate Cache",
+   "description": "Cached certificate revocation lists and OCSP responses for the Local Service account",
+   "targets": [
+    "%WINDIR%\\ServiceProfiles\\LocalService\\AppData\\LocalLow\\Microsoft\\CryptnetUrlCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.network_service_certificate_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "Network Service Certificate Cache",
+   "description": "Cached certificate revocation lists and OCSP responses for the Network Service account",
+   "targets": [
+    "%WINDIR%\\ServiceProfiles\\NetworkService\\AppData\\LocalLow\\Microsoft\\CryptnetUrlCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.qwave_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "system",
+   "label_key": null,
+   "label": "qWAVE Cache",
+   "description": "Quality Windows Audio/Video Experience cached multimedia quality data",
+   "targets": [
+    "%WINDIR%\\ServiceProfiles\\LocalService\\AppData\\Local\\Microsoft\\Windows\\qWave"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.peer_networking_traces",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Peer Networking Traces",
+   "description": "Peer-to-peer networking group data and connection traces",
+   "targets": [
+    "%WINDIR%\\ServiceProfiles\\LocalService\\AppData\\Local\\PeerNetworking"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.elevated_diagnostics",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Elevated Diagnostics",
+   "description": "Results from elevated system diagnostic troubleshooters",
+   "targets": [
+    "%LOCALAPPDATA%\\ElevatedDiagnostics"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.update_orchestrator_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Update Orchestrator Logs",
+   "description": "Windows Update Orchestrator diagnostic logs; active and recent descendants remain protected through cleanup",
+   "targets": [
+    "%ProgramData%\\USOShared\\Logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 2,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.system.full_memory_dump",
+   "os": [
+    "windows"
+   ],
+   "category": "logs",
+   "label_key": null,
+   "label": "Full Memory Dump",
+   "description": "Complete memory dump file created during a system crash; often several GB",
+   "targets": [
+    "%WINDIR%\\MEMORY.DMP"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "admin"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.discord",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Discord",
+   "description": "Discord Electron app cache, compiled code cache, GPU cache, and logs",
+   "targets": [
+    "%APPDATA%\\discord\\Cache\\Cache_Data",
+    "%APPDATA%\\discord\\Code Cache",
+    "%APPDATA%\\discord\\GPUCache",
+    "%APPDATA%\\discord\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.teams",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Microsoft Teams",
+   "description": "Microsoft Teams cached web content",
+   "targets": [
+    "%APPDATA%\\Microsoft\\Teams\\Cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.slack",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Slack",
+   "description": "Slack Electron app cache, compiled code cache, GPU cache, and logs",
+   "targets": [
+    "%APPDATA%\\Slack\\Cache\\Cache_Data",
+    "%APPDATA%\\Slack\\Code Cache",
+    "%APPDATA%\\Slack\\GPUCache",
+    "%APPDATA%\\Slack\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.zoom",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Zoom",
+   "description": "Zoom cached data, GPU cache, and log files",
+   "targets": [
+    "%APPDATA%\\Zoom\\data\\Cache",
+    "%APPDATA%\\Zoom\\data\\GPUCache",
+    "%APPDATA%\\Zoom\\data\\logs",
+    "%APPDATA%\\Zoom\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.telegram",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Telegram",
+   "description": "Telegram cached user data and emoji assets",
+   "targets": [
+    "%APPDATA%\\Telegram Desktop\\tdata\\user_data",
+    "%APPDATA%\\Telegram Desktop\\tdata\\emoji"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.vscode",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "VS Code",
+   "description": "VS Code web, compiled code, GPU, extension, and log caches",
+   "targets": [
+    "%APPDATA%\\Code\\Cache\\Cache_Data",
+    "%APPDATA%\\Code\\Code Cache",
+    "%APPDATA%\\Code\\GPUCache",
+    "%APPDATA%\\Code\\CachedData",
+    "%APPDATA%\\Code\\CachedExtensions",
+    "%APPDATA%\\Code\\CachedExtensionVSIXs",
+    "%APPDATA%\\Code\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.jetbrains",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "JetBrains IDEs",
+   "description": "JetBrains IDE caches (IntelliJ, PyCharm, WebStorm, etc.); rebuilt on restart",
+   "targets": [
+    "%LOCALAPPDATA%\\JetBrains\\*\\caches"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.spotify",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Spotify",
+   "description": "Spotify offline storage and cached streaming data",
+   "targets": [
+    "%LOCALAPPDATA%\\Spotify\\Storage",
+    "%LOCALAPPDATA%\\Spotify\\Data"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.obs",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "OBS Studio",
+   "description": "OBS Studio log files and performance profiler data",
+   "targets": [
+    "%APPDATA%\\obs-studio\\logs",
+    "%APPDATA%\\obs-studio\\profiler_data"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.adobe",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Adobe Creative Cloud",
+   "description": "Adobe Acrobat CEF cache and shared media cache used by Premiere, After Effects, etc.",
+   "targets": [
+    "%LOCALAPPDATA%\\Adobe\\AcroCef\\Cache",
+    "%APPDATA%\\Adobe\\Common\\Media Cache Files",
+    "%APPDATA%\\Adobe\\Common\\Media Cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.npm",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "npm Cache",
+   "description": "npm downloaded package tarballs and metadata cache; includes current and legacy Windows locations",
+   "targets": [
+    "%LOCALAPPDATA%\\npm-cache",
+    "%APPDATA%\\npm-cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.yarn",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Yarn Cache",
+   "description": "Yarn downloaded package cache (yarn cache clean clears this)",
+   "targets": [
+    "%LOCALAPPDATA%\\Yarn\\Cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.pnpm",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "pnpm Unused Packages",
+   "description": "Optional native pnpm store prune; removes unreferenced packages instead of emptying the store. Savings are not estimated.",
+   "targets": [],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 0,
+   "action": {
+    "type": "command",
+    "program": "pnpm",
+    "args": [
+     "store",
+     "prune"
+    ],
+    "measure": [
+     "%LOCALAPPDATA%\\pnpm\\store",
+     "%LOCALAPPDATA%\\pnpm-cache",
+     "%LOCALAPPDATA%\\pnpm-store",
+     "%USERPROFILE%\\.pnpm-store"
+    ]
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [
+    {
+     "type": "program",
+     "name": "pnpm"
+    }
+   ],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.bun",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Bun Cache",
+   "description": "Bun downloaded package cache",
+   "targets": [
+    "%USERPROFILE%\\.bun\\install\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.pip",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "pip Cache",
+   "description": "pip downloaded wheel and source distribution cache",
+   "targets": [
+    "%LOCALAPPDATA%\\pip\\Cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.pipenv",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Pipenv Cache",
+   "description": "Pipenv downloaded package and lock resolution cache; re-downloaded when needed",
+   "targets": [
+    "%LOCALAPPDATA%\\pipenv\\pipenv\\Cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.nuget",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "NuGet Cache",
+   "description": "NuGet HTTP response cache and plugins cache for .NET package management",
+   "targets": [
+    "%LOCALAPPDATA%\\NuGet\\v3-cache",
+    "%LOCALAPPDATA%\\NuGet\\plugins-cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.sccache",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "sccache",
+   "description": "Shared compiler cache for Rust and C/C++ (can grow to several GB; builds just take longer on next compile)",
+   "targets": [
+    "%LOCALAPPDATA%\\Mozilla\\sccache\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.cargo",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Cargo/Rust Cache",
+   "description": "Cargo downloaded crate archives, extracted source files, and git dependency checkouts (re-created from the git database on demand)",
+   "targets": [
+    "%USERPROFILE%\\.cargo\\registry\\cache",
+    "%USERPROFILE%\\.cargo\\registry\\src",
+    "%USERPROFILE%\\.cargo\\git\\checkouts"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.go",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Go Module Cache",
+   "description": "Go module download cache (go clean -modcache clears this)",
+   "targets": [
+    "%USERPROFILE%\\go\\pkg\\mod\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.gradle",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Gradle Cache",
+   "description": "Gradle build caches and daemon log files",
+   "targets": [
+    "%USERPROFILE%\\.gradle\\caches",
+    "%USERPROFILE%\\.gradle\\daemon"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.maven",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Maven Cache",
+   "description": "Maven local repository of downloaded artifacts and dependencies",
+   "targets": [
+    "%USERPROFILE%\\.m2\\repository"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.modern_mtr",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Modern MTR",
+   "description": "Modern MTR web, compiled code, and GPU caches",
+   "targets": [
+    "%APPDATA%\\Modern MTR\\Cache\\Cache_Data",
+    "%APPDATA%\\Modern MTR\\Code Cache",
+    "%APPDATA%\\Modern MTR\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.composer",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Composer Cache",
+   "description": "Composer downloaded PHP package cache",
+   "targets": [
+    "%LOCALAPPDATA%\\Composer\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.docker",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Docker Desktop",
+   "description": "Docker Desktop Electron caches and settled host/VM logs; files modified in the last day are preserved",
+   "targets": [
+    "%APPDATA%\\Docker Desktop\\cache",
+    "%APPDATA%\\Docker Desktop\\Code Cache",
+    "%APPDATA%\\Docker Desktop\\GPUCache",
+    "%LOCALAPPDATA%\\Docker\\log\\host",
+    "%LOCALAPPDATA%\\Docker\\log\\vm"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.cursor",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Cursor IDE",
+   "description": "Cursor IDE cached data, extensions, compiled code, GPU cache, and settled logs; preserves projects, history, sessions, and settings",
+   "targets": [
+    "%APPDATA%\\Cursor\\Cache\\Cache_Data",
+    "%APPDATA%\\Cursor\\Code Cache",
+    "%APPDATA%\\Cursor\\GPUCache",
+    "%APPDATA%\\Cursor\\CachedData",
+    "%APPDATA%\\Cursor\\CachedExtensions",
+    "%APPDATA%\\Cursor\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.signal",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Signal Desktop",
+   "description": "Signal Desktop Electron app cache and GPU cache",
+   "targets": [
+    "%APPDATA%\\Signal\\Cache\\Cache_Data",
+    "%APPDATA%\\Signal\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.postman",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Postman",
+   "description": "Postman Electron app cache and GPU cache",
+   "targets": [
+    "%APPDATA%\\Postman\\Cache\\Cache_Data",
+    "%APPDATA%\\Postman\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.figma",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Figma",
+   "description": "Figma Desktop Electron app cache and GPU cache",
+   "targets": [
+    "%APPDATA%\\Figma\\Cache\\Cache_Data",
+    "%APPDATA%\\Figma\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.github_desktop",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "GitHub Desktop",
+   "description": "GitHub Desktop Electron app cache and GPU cache",
+   "targets": [
+    "%APPDATA%\\GitHub Desktop\\Cache\\Cache_Data",
+    "%APPDATA%\\GitHub Desktop\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.vlc",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "VLC",
+   "description": "VLC cached album art and media thumbnails",
+   "targets": [
+    "%APPDATA%\\vlc\\art_cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.thunderbird",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Thunderbird",
+   "description": "Thunderbird per-profile web content cache",
+   "targets": [
+    "%LOCALAPPDATA%\\Thunderbird\\Profiles\\*\\cache2"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.gimp",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "GIMP",
+   "description": "GIMP temporary swap and working files",
+   "targets": [
+    "%APPDATA%\\GIMP\\*\\tmp"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.blender",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Blender",
+   "description": "Blender thumbnail and script cache per version",
+   "targets": [
+    "%APPDATA%\\Blender Foundation\\Blender\\*\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.libreoffice",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "LibreOffice",
+   "description": "LibreOffice cached data including extension thumbnails",
+   "targets": [
+    "%APPDATA%\\LibreOffice\\*\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.teamviewer",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "TeamViewer",
+   "description": "TeamViewer session log files",
+   "targets": [
+    "%APPDATA%\\TeamViewer\\Logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.google_earth",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Google Earth",
+   "description": "Google Earth cached satellite imagery tiles",
+   "targets": [
+    "%LOCALAPPDATA%\\Google\\GoogleEarth\\Cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.inkscape",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Inkscape",
+   "description": "Inkscape font and rendering cache",
+   "targets": [
+    "%LOCALAPPDATA%\\inkscape\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.krita",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Krita",
+   "description": "Krita resource and rendering cache",
+   "targets": [
+    "%LOCALAPPDATA%\\krita\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.filezilla",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "FileZilla",
+   "description": "FileZilla directory listing cache",
+   "targets": [
+    "%APPDATA%\\FileZilla\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.fontconfig",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "fontconfig",
+   "description": "fontconfig's generated font discovery cache; rebuilt automatically",
+   "targets": [
+    "%LOCALAPPDATA%\\fontconfig\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.pidgin",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Pidgin",
+   "description": "Pidgin cached buddy icons",
+   "targets": [
+    "%APPDATA%\\.purple\\icons"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.transmission",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Transmission",
+   "description": "Transmission BitTorrent client cache",
+   "targets": [
+    "%LOCALAPPDATA%\\Transmission\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.android_studio",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Android Studio",
+   "description": "Google application caches including Android Studio and other Google products",
+   "targets": [
+    "%LOCALAPPDATA%\\Google\\*\\caches"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.conda",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Conda Package Cache",
+   "description": "Conda downloaded package cache (conda clean --packages clears this)",
+   "targets": [
+    "%USERPROFILE%\\anaconda3\\pkgs",
+    "%USERPROFILE%\\miniconda3\\pkgs",
+    "%USERPROFILE%\\.conda\\pkgs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.unity",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Unity Editor",
+   "description": "Unity global shader and GI cache (regenerated when projects are opened)",
+   "targets": [
+    "%LOCALAPPDATA%\\Unity\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.visual_studio",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Visual Studio",
+   "description": "Visual Studio MEF component model cache (regenerated on restart)",
+   "targets": [
+    "%LOCALAPPDATA%\\Microsoft\\VisualStudio\\*\\ComponentModelCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.notion",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Notion",
+   "description": "Notion top-level and partitioned web, compiled code, GPU, shader, dictionary, and log caches; preserves sessions and offline data",
+   "targets": [
+    "%APPDATA%\\Notion\\Cache\\Cache_Data",
+    "%APPDATA%\\Notion\\Code Cache",
+    "%APPDATA%\\Notion\\GPUCache",
+    "%APPDATA%\\Notion\\logs",
+    "%APPDATA%\\Notion\\Partitions\\notion\\Cache\\Cache_Data",
+    "%APPDATA%\\Notion\\Partitions\\notion\\Code Cache",
+    "%APPDATA%\\Notion\\Partitions\\notion\\GPUCache",
+    "%APPDATA%\\Notion\\Partitions\\notion\\DawnCache",
+    "%APPDATA%\\Notion\\Partitions\\notion\\DawnGraphiteCache",
+    "%APPDATA%\\Notion\\Partitions\\notion\\DawnWebGPUCache",
+    "%APPDATA%\\Notion\\Partitions\\notion\\Shared Dictionary\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.obsidian",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Obsidian",
+   "description": "Obsidian Electron app cache, compiled code cache, and GPU cache",
+   "targets": [
+    "%APPDATA%\\obsidian\\Cache\\Cache_Data",
+    "%APPDATA%\\obsidian\\Code Cache",
+    "%APPDATA%\\obsidian\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.whatsapp",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "WhatsApp Desktop",
+   "description": "WhatsApp Desktop Electron app cache and GPU cache",
+   "targets": [
+    "%APPDATA%\\WhatsApp\\Cache\\Cache_Data",
+    "%APPDATA%\\WhatsApp\\Code Cache",
+    "%APPDATA%\\WhatsApp\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.bitwarden",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Bitwarden",
+   "description": "Bitwarden Electron app cache and GPU cache",
+   "targets": [
+    "%APPDATA%\\Bitwarden\\Cache\\Cache_Data",
+    "%APPDATA%\\Bitwarden\\Code Cache",
+    "%APPDATA%\\Bitwarden\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.1password",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "1Password",
+   "description": "1Password Electron app cache and GPU cache",
+   "targets": [
+    "%APPDATA%\\1Password\\Cache\\Cache_Data",
+    "%APPDATA%\\1Password\\Code Cache",
+    "%APPDATA%\\1Password\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.ruby_gems",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Ruby Gem Cache",
+   "description": "Downloaded .gem file cache (reinstall regenerates as needed)",
+   "targets": [
+    "%USERPROFILE%\\.gem\\*\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.deno",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Deno Cache",
+   "description": "Deno module cache (re-downloaded on demand)",
+   "targets": [
+    "%LOCALAPPDATA%\\deno"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.claude",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Claude Desktop Caches",
+   "description": "Claude Desktop web, compiled code, GPU, shader, and dictionary caches; preserves account state, conversations, local storage, sessions, projects, and VM bundles",
+   "targets": [
+    "%APPDATA%\\Claude\\Cache\\Cache_Data",
+    "%APPDATA%\\Claude\\Code Cache",
+    "%APPDATA%\\Claude\\GPUCache",
+    "%APPDATA%\\Claude\\DawnGraphiteCache",
+    "%APPDATA%\\Claude\\DawnWebGPUCache",
+    "%APPDATA%\\Claude\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\Shared Dictionary\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.claude_partitions",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Claude Desktop Partition Caches",
+   "description": "Claude preview-partition caches only; preserves sessions, IndexedDB, local storage, service-worker data, and offline content",
+   "targets": [
+    "%APPDATA%\\Claude\\Partitions\\*\\Cache",
+    "%APPDATA%\\Claude\\Partitions\\*\\Code Cache",
+    "%APPDATA%\\Claude\\Partitions\\*\\GPUCache",
+    "%APPDATA%\\Claude\\Partitions\\*\\DawnCache",
+    "%APPDATA%\\Claude\\Partitions\\*\\DawnGraphiteCache",
+    "%APPDATA%\\Claude\\Partitions\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\Partitions\\*\\Cache",
+    "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\Partitions\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\Partitions\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\Partitions\\*\\DawnCache",
+    "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\Partitions\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\Partitions\\*\\DawnWebGPUCache"
+   ],
+   "include": [],
+   "exclude": [
+    "File System",
+    "IndexedDB",
+    "Local Storage",
+    "Network",
+    "Service Worker",
+    "Session Storage",
+    "Sessions",
+    "Sync Data",
+    "WebStorage",
+    "blob_storage",
+    "databases"
+   ],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.claude_code_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Claude Code Cache",
+   "description": "Claude Code download and plugin caches; preserves projects, checkpoints, conversation history, configuration, plugins, backups, and shell snapshots",
+   "targets": [
+    "%USERPROFILE%\\.claude\\cache",
+    "%USERPROFILE%\\.claude\\plugins\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.claude_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Claude Logs",
+   "description": "Claude Desktop and Claude Code diagnostic logs older than one week; conversations, projects, file history, and session data are never scanned",
+   "targets": [
+    "%APPDATA%\\Claude\\logs",
+    "%LOCALAPPDATA%\\Claude\\Logs",
+    "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Local\\Claude\\Logs",
+    "%USERPROFILE%\\.claude\\debug",
+    "%USERPROFILE%\\.claude\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 7,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.claude_crash_reports",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Claude Crash Reports",
+   "description": "Claude crash reports older than one week; crash settings and pending application state are preserved",
+   "targets": [
+    "%APPDATA%\\Claude\\Crashpad\\reports",
+    "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\Crashpad\\reports"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 7,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.chatgpt_desktop_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "ChatGPT Desktop Caches",
+   "description": "ChatGPT Desktop web, compiled code, GPU, shader, and dictionary caches; preserves login state, conversations, IndexedDB, local storage, and sessions",
+   "targets": [
+    "%LOCALAPPDATA%\\Packages\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0\\LocalCache\\Roaming\\ChatGPT\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0\\LocalCache\\Roaming\\ChatGPT\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0\\LocalCache\\Roaming\\ChatGPT\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0\\LocalCache\\Roaming\\ChatGPT\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0\\LocalCache\\Roaming\\ChatGPT\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0\\LocalCache\\Roaming\\ChatGPT\\Shared Dictionary\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.chatgpt_desktop_partitions",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "ChatGPT Desktop Partition Caches",
+   "description": "ChatGPT Desktop partition caches only; preserves conversations, sessions, storage, and offline content",
+   "targets": [
+    "%LOCALAPPDATA%\\Packages\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0\\LocalCache\\Roaming\\ChatGPT\\Partitions\\*\\Cache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0\\LocalCache\\Roaming\\ChatGPT\\Partitions\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0\\LocalCache\\Roaming\\ChatGPT\\Partitions\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0\\LocalCache\\Roaming\\ChatGPT\\Partitions\\*\\DawnCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0\\LocalCache\\Roaming\\ChatGPT\\Partitions\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0\\LocalCache\\Roaming\\ChatGPT\\Partitions\\*\\DawnWebGPUCache"
+   ],
+   "include": [],
+   "exclude": [
+    "File System",
+    "IndexedDB",
+    "Local Storage",
+    "Network",
+    "Service Worker",
+    "Session Storage",
+    "Sessions",
+    "Sync Data",
+    "WebStorage",
+    "blob_storage",
+    "databases"
+   ],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.chatgpt_desktop_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "ChatGPT Desktop Logs",
+   "description": "ChatGPT Desktop diagnostic logs older than one week; conversations and account state are never scanned",
+   "targets": [
+    "%LOCALAPPDATA%\\Packages\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0\\LocalCache\\Local\\ChatGPT\\Logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 7,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.chatgpt_desktop_crash_reports",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "ChatGPT Desktop Crash Reports",
+   "description": "ChatGPT Desktop crash reports older than one week",
+   "targets": [
+    "%LOCALAPPDATA%\\Packages\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0\\LocalCache\\Roaming\\ChatGPT\\Crashpad\\reports"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 7,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.codex_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Codex Cache",
+   "description": "Codex app and connector metadata caches; preserves sessions, archives, memories, attachments, generated images, credentials, configuration, plugins, and installed runtimes",
+   "targets": [
+    "%USERPROFILE%\\.codex\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.codex_temp",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Codex Temporary Files",
+   "description": "Settled Codex command temporary files; preserves the plugin staging and backup area under .codex/.tmp",
+   "targets": [
+    "%USERPROFILE%\\.codex\\tmp"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.codex_desktop_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Codex Desktop Caches",
+   "description": "Codex Desktop web, compiled code, GPU, shader, component, extension-package, and dictionary caches; preserves conversations, browser profiles, logins, local storage, sessions, plugins, and runtimes",
+   "targets": [
+    "%APPDATA%\\Codex\\Cache\\Cache_Data",
+    "%APPDATA%\\Codex\\Code Cache",
+    "%APPDATA%\\Codex\\GPUCache",
+    "%APPDATA%\\Codex\\DawnGraphiteCache",
+    "%APPDATA%\\Codex\\DawnWebGPUCache",
+    "%APPDATA%\\Codex\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\Default\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\Default\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\Default\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\Default\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\Default\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\Default\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\codex-browser-app\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\codex-browser-app\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\codex-browser-app\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\codex-browser-app\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\codex-browser-app\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\codex-browser-app\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\component_crx_cache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\extensions_crx_cache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\GrShaderCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\ShaderCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\GPUPersistentCache\\DawnGraphiteCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.codex_desktop_partitions",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Codex Desktop Partition Caches",
+   "description": "Codex controlled-browser partition caches only; preserves browser extensions, history, downloads, logins, sessions, local storage, service-worker data, and offline content",
+   "targets": [
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\Default\\Partitions\\*\\Cache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\Default\\Partitions\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\Default\\Partitions\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\Default\\Partitions\\*\\DawnCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\Default\\Partitions\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\Default\\Partitions\\*\\DawnWebGPUCache"
+   ],
+   "include": [],
+   "exclude": [
+    "File System",
+    "IndexedDB",
+    "Local Storage",
+    "Network",
+    "Service Worker",
+    "Session Storage",
+    "Sessions",
+    "Sync Data",
+    "WebStorage",
+    "blob_storage",
+    "databases"
+   ],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.codex_desktop_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Codex Desktop Logs",
+   "description": "Codex Desktop diagnostic logs older than one week; the task, state, memory, and activity databases under .codex are never scanned",
+   "targets": [
+    "%APPDATA%\\Codex\\logs",
+    "%LOCALAPPDATA%\\Codex\\Logs",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\Logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 7,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.codex_desktop_crash_reports",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Codex Desktop Crash Reports",
+   "description": "Codex Desktop crash reports older than one week",
+   "targets": [
+    "%APPDATA%\\Codex\\Crashpad\\reports",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\Crashpad\\reports",
+    "%LOCALAPPDATA%\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex\\Crashpad\\reports"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 7,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.github_copilot_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "GitHub Copilot Logs",
+   "description": "GitHub Copilot diagnostic logs older than one week; chat sessions, edit sessions, credentials, and IDE data are preserved",
+   "targets": [
+    "%USERPROFILE%\\.copilot\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 7,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.sublime_text",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Sublime Text",
+   "description": "Sublime Text index and asset cache",
+   "targets": [
+    "%LOCALAPPDATA%\\Sublime Text\\Cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.termius",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Termius",
+   "description": "Termius Electron app cache and GPU cache",
+   "targets": [
+    "%APPDATA%\\Termius\\Cache\\Cache_Data",
+    "%APPDATA%\\Termius\\Code Cache",
+    "%APPDATA%\\Termius\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.ledger_live",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Ledger Live",
+   "description": "Ledger Live Electron app cache and GPU cache",
+   "targets": [
+    "%APPDATA%\\Ledger Live\\Cache\\Cache_Data",
+    "%APPDATA%\\Ledger Live\\Code Cache",
+    "%APPDATA%\\Ledger Live\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.node_gyp",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "node-gyp Cache",
+   "description": "Node.js native addon build header cache (re-downloaded on demand)",
+   "targets": [
+    "%LOCALAPPDATA%\\node-gyp\\Cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.electron_builder",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "electron-builder Cache",
+   "description": "Electron builder download cache (re-downloaded on demand)",
+   "targets": [
+    "%LOCALAPPDATA%\\electron-builder\\Cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.electron",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Electron Runtime Cache",
+   "description": "Downloaded Electron runtime archives and extracted distributions; re-downloaded on demand",
+   "targets": [
+    "%LOCALAPPDATA%\\electron\\Cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.ffmpeg_static",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "ffmpeg-static Cache",
+   "description": "Downloaded ffmpeg-static binaries and response metadata; re-downloaded on demand",
+   "targets": [
+    "%LOCALAPPDATA%\\ffmpeg-static-nodejs\\Cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.curseforge",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "CurseForge",
+   "description": "CurseForge mod manager Electron app cache, GPU cache, and log files",
+   "targets": [
+    "%APPDATA%\\CurseForge\\Cache\\Cache_Data",
+    "%APPDATA%\\CurseForge\\Code Cache",
+    "%APPDATA%\\CurseForge\\GPUCache",
+    "%APPDATA%\\CurseForge\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.logitech_ghub",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Logitech G HUB",
+   "description": "Logitech G HUB Electron caches and downloaded content-addressed packages; files used in the last week are preserved",
+   "targets": [
+    "%APPDATA%\\G HUB\\Cache\\Cache_Data",
+    "%APPDATA%\\G HUB\\Code Cache",
+    "%APPDATA%\\G HUB\\GPUCache",
+    "%ProgramData%\\LGHUB\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 7,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.zen_browser",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Zen Browser",
+   "description": "Zen Browser per-profile web content cache",
+   "targets": [
+    "%LOCALAPPDATA%\\Zen\\Profiles\\*\\cache2"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.kodi",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Kodi",
+   "description": "Kodi media center cache and thumbnail images (can be several GB; rebuilt on demand)",
+   "targets": [
+    "%APPDATA%\\Kodi\\cache",
+    "%APPDATA%\\Kodi\\userdata\\Thumbnails"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.qbittorrent",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "qBittorrent",
+   "description": "qBittorrent log files",
+   "targets": [
+    "%LOCALAPPDATA%\\qBittorrent\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.handbrake",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "HandBrake",
+   "description": "HandBrake video encoder log files from past encoding jobs",
+   "targets": [
+    "%APPDATA%\\HandBrake\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.java_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Java Runtime Cache",
+   "description": "Java Web Start and applet download cache (deprecated technology; safe to remove)",
+   "targets": [
+    "%USERPROFILE%\\AppData\\LocalLow\\Sun\\Java\\Deployment\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.windsurf",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Windsurf IDE",
+   "description": "Windsurf IDE cached data, extensions, and settled logs; preserves projects, history, sessions, and settings",
+   "targets": [
+    "%APPDATA%\\Windsurf\\Cache\\Cache_Data",
+    "%APPDATA%\\Windsurf\\CachedData",
+    "%APPDATA%\\Windsurf\\CachedExtensions",
+    "%APPDATA%\\Windsurf\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.hyper",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Hyper Terminal",
+   "description": "Hyper terminal Electron app cache and GPU cache",
+   "targets": [
+    "%APPDATA%\\Hyper\\Cache\\Cache_Data",
+    "%APPDATA%\\Hyper\\Code Cache",
+    "%APPDATA%\\Hyper\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.linear",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Linear",
+   "description": "Linear project management Electron app cache and GPU cache",
+   "targets": [
+    "%APPDATA%\\Linear\\Cache\\Cache_Data",
+    "%APPDATA%\\Linear\\Code Cache",
+    "%APPDATA%\\Linear\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.todoist",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Todoist",
+   "description": "Todoist Electron app cache and GPU cache",
+   "targets": [
+    "%APPDATA%\\Todoist\\Cache\\Cache_Data",
+    "%APPDATA%\\Todoist\\Code Cache",
+    "%APPDATA%\\Todoist\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.loom",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Loom",
+   "description": "Loom screen recorder Electron app cache and GPU cache",
+   "targets": [
+    "%APPDATA%\\Loom\\Cache\\Cache_Data",
+    "%APPDATA%\\Loom\\Code Cache",
+    "%APPDATA%\\Loom\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.scoop",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Scoop Cache",
+   "description": "Scoop package manager downloaded installer cache (re-downloaded on demand)",
+   "targets": [
+    "%USERPROFILE%\\scoop\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.aws_cli",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "AWS CLI Cache",
+   "description": "AWS CLI cached API responses and temporary credentials (re-fetched automatically)",
+   "targets": [
+    "%USERPROFILE%\\.aws\\cli\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.gcloud",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Google Cloud CLI Cache",
+   "description": "Google Cloud CLI log files and cached API data",
+   "targets": [
+    "%APPDATA%\\gcloud\\logs",
+    "%APPDATA%\\gcloud\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.google_drive",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Google Drive",
+   "description": "Rotated Google Drive logs and embedded Chromium caches; preserves sync state and offline files",
+   "targets": [
+    "%LOCALAPPDATA%\\Google\\DriveFS\\Logs",
+    "%LOCALAPPDATA%\\Google\\DriveFS\\cef_cache\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\Google\\DriveFS\\cef_cache\\Code Cache",
+    "%LOCALAPPDATA%\\Google\\DriveFS\\cef_cache\\component_crx_cache",
+    "%LOCALAPPDATA%\\Google\\DriveFS\\cef_cache\\Shared Dictionary\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.kudu",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Kudu",
+   "description": "Kudu's own web, compiled code, GPU, and log caches; active files remain protected by recency and lock checks",
+   "targets": [
+    "%APPDATA%\\kudu\\Cache\\Cache_Data",
+    "%APPDATA%\\kudu\\Code Cache",
+    "%APPDATA%\\kudu\\GPUCache",
+    "%APPDATA%\\kudu\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.spotify_store_browser",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Spotify Store Browser Cache",
+   "description": "Store Spotify browser and partition caches only; preserves account state, downloads, sessions, IndexedDB, and offline data",
+   "targets": [
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\Browser\\*\\Cache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\Browser\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\Browser\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\Browser\\*\\DawnCache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\Browser\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\Browser\\*\\DawnWebGPUCache"
+   ],
+   "include": [],
+   "exclude": [
+    "File System",
+    "IndexedDB",
+    "Local Storage",
+    "Network",
+    "Service Worker",
+    "Session Storage",
+    "Sessions",
+    "Sync Data",
+    "WebStorage",
+    "blob_storage",
+    "databases"
+   ],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.spotify_store_shared",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Spotify Store Shared Caches",
+   "description": "Store Spotify profile, shader, component, widget, launcher, and crash-report caches; preserves the Data and offline-storage trees",
+   "targets": [
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\Default\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\Default\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\Default\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\Default\\DawnCache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\Default\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\Default\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\Default\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\component_crx_cache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\extensions_crx_cache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\GraphiteDawnCache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\GrShaderCache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\ShaderCache",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\DashboardWidget\\logs",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\DashboardWidget\\Crashpad\\reports",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\Launcher\\Logs",
+    "%LOCALAPPDATA%\\Packages\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\\LocalCache\\Spotify\\Launcher\\Crashpad\\reports"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.nvidia_app",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "NVIDIA App",
+   "description": "NVIDIA App embedded-browser caches and settled logs; preserves account, assets, settings, and driver state",
+   "targets": [
+    "%LOCALAPPDATA%\\NVIDIA Corporation\\NVIDIA app\\CefCache\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\NVIDIA Corporation\\NVIDIA app\\CefCache\\Code Cache",
+    "%LOCALAPPDATA%\\NVIDIA Corporation\\NVIDIA app\\CefCache\\GPUCache",
+    "%LOCALAPPDATA%\\NVIDIA Corporation\\NVIDIA app\\CefCache\\component_crx_cache",
+    "%LOCALAPPDATA%\\NVIDIA Corporation\\NVIDIA app\\CefCache\\extensions_crx_cache",
+    "%LOCALAPPDATA%\\NVIDIA Corporation\\NVIDIA app\\CefCache\\GraphiteDawnCache",
+    "%LOCALAPPDATA%\\NVIDIA Corporation\\NVIDIA app\\CefCache\\GrShaderCache",
+    "%LOCALAPPDATA%\\NVIDIA Corporation\\NVIDIA app\\CefCache\\ShaderCache",
+    "%ProgramData%\\NVIDIA Corporation\\NVIDIA app\\Logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.nvidia_driver_downloads",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "NVIDIA Driver Downloads",
+   "description": "Driver installer packages the NVIDIA app and GeForce Experience downloaded and kept after installing; only needed to reinstall that exact driver version. Downloads from the last two weeks are kept",
+   "targets": [
+    "%ProgramData%\\NVIDIA Corporation\\Downloader"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 14,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.amd_installer_files",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "AMD Installer Files",
+   "description": "Setup files AMD Software: Adrenalin and chipset installers extract to the AMD folder on the system drive and never use again once installed; installed drivers live elsewhere. Extractions from the last two weeks are kept",
+   "targets": [
+    "%SystemDrive%\\AMD"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 14,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.cursor_partitions",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Cursor IDE Partitions",
+   "description": "Cursor browser-partition web, compiled code, GPU, and shader caches; preserves sessions and persistent web data",
+   "targets": [
+    "%APPDATA%\\Cursor\\Partitions\\*\\Cache",
+    "%APPDATA%\\Cursor\\Partitions\\*\\Code Cache",
+    "%APPDATA%\\Cursor\\Partitions\\*\\GPUCache",
+    "%APPDATA%\\Cursor\\Partitions\\*\\DawnCache",
+    "%APPDATA%\\Cursor\\Partitions\\*\\DawnGraphiteCache",
+    "%APPDATA%\\Cursor\\Partitions\\*\\DawnWebGPUCache"
+   ],
+   "include": [],
+   "exclude": [
+    "File System",
+    "IndexedDB",
+    "Local Storage",
+    "Network",
+    "Service Worker",
+    "Session Storage",
+    "Sessions",
+    "WebStorage",
+    "blob_storage",
+    "databases"
+   ],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.jetbrains_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "JetBrains IDE Logs",
+   "description": "Settled JetBrains IDE logs and diagnostic output older than one week",
+   "targets": [
+    "%LOCALAPPDATA%\\JetBrains\\*\\log"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 7,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.ea_desktop_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "EA Desktop Logs",
+   "description": "Settled EA background-service, installer, and desktop logs; preserves launcher authentication and offline data",
+   "targets": [
+    "%ProgramData%\\EA Desktop\\Logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.edge_update_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Microsoft Edge Update Logs",
+   "description": "Settled Microsoft Edge updater logs; active logs modified in the last day are preserved",
+   "targets": [
+    "%ProgramData%\\Microsoft\\EdgeUpdate\\Log"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.firefox_crash_history",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Firefox Crash History",
+   "description": "Submitted Firefox crash reports and telemetry events older than one week; preserves crash-reporter settings",
+   "targets": [
+    "%APPDATA%\\Mozilla\\Firefox\\Crash Reports\\submitted",
+    "%APPDATA%\\Mozilla\\Firefox\\Crash Reports\\events",
+    "%APPDATA%\\Mozilla\\Firefox\\Crash Reports\\glean"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 7,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.firefox_pending_crashes",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Old Firefox Pending Crashes",
+   "description": "Unsubmitted Firefox crash reports older than 30 days; recent pending reports and settings are preserved",
+   "targets": [
+    "%APPDATA%\\Mozilla\\Firefox\\Crash Reports\\pending"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 30,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.chocolatey_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Chocolatey Logs",
+   "description": "Chocolatey package-manager logs older than one week; installed packages, backups, configuration, and binaries are preserved",
+   "targets": [
+    "%ProgramData%\\chocolatey\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 7,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.bramblewatch",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Bramblewatch",
+   "description": "Bramblewatch Electron web, compiled code, GPU, shader, dictionary, and settled log caches",
+   "targets": [
+    "%APPDATA%\\Bramblewatch\\Cache\\Cache_Data",
+    "%APPDATA%\\Bramblewatch\\Code Cache",
+    "%APPDATA%\\Bramblewatch\\GPUCache",
+    "%APPDATA%\\Bramblewatch\\DawnGraphiteCache",
+    "%APPDATA%\\Bramblewatch\\DawnWebGPUCache",
+    "%APPDATA%\\Bramblewatch\\Shared Dictionary\\cache",
+    "%APPDATA%\\Bramblewatch\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.hearthglen",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Hearthglen",
+   "description": "Hearthglen Electron web, compiled code, GPU, shader, and dictionary caches",
+   "targets": [
+    "%APPDATA%\\hearthglen\\Cache\\Cache_Data",
+    "%APPDATA%\\hearthglen\\Code Cache",
+    "%APPDATA%\\hearthglen\\GPUCache",
+    "%APPDATA%\\hearthglen\\DawnGraphiteCache",
+    "%APPDATA%\\hearthglen\\DawnWebGPUCache",
+    "%APPDATA%\\hearthglen\\Shared Dictionary\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.t3_code",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "T3 Code",
+   "description": "T3 Code Electron web, compiled code, GPU, shader, and dictionary caches; preserves workspaces and sessions",
+   "targets": [
+    "%APPDATA%\\t3code\\Cache\\Cache_Data",
+    "%APPDATA%\\t3code\\Code Cache",
+    "%APPDATA%\\t3code\\GPUCache",
+    "%APPDATA%\\t3code\\DawnGraphiteCache",
+    "%APPDATA%\\t3code\\DawnWebGPUCache",
+    "%APPDATA%\\t3code\\Shared Dictionary\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.t3_code_partitions",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "T3 Code Partitions",
+   "description": "T3 Code preview-partition caches only; preserves partition sessions, storage, and workspace data",
+   "targets": [
+    "%APPDATA%\\t3code\\Partitions\\*\\Cache",
+    "%APPDATA%\\t3code\\Partitions\\*\\Code Cache",
+    "%APPDATA%\\t3code\\Partitions\\*\\GPUCache",
+    "%APPDATA%\\t3code\\Partitions\\*\\DawnCache",
+    "%APPDATA%\\t3code\\Partitions\\*\\DawnGraphiteCache",
+    "%APPDATA%\\t3code\\Partitions\\*\\DawnWebGPUCache"
+   ],
+   "include": [],
+   "exclude": [
+    "File System",
+    "IndexedDB",
+    "Local Storage",
+    "Network",
+    "Service Worker",
+    "Session Storage",
+    "Sessions",
+    "WebStorage",
+    "blob_storage",
+    "databases"
+   ],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.t3_code_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "T3 Code Logs",
+   "description": "T3 Code diagnostic logs older than one week; attachments, secrets, and runtime state are never scanned",
+   "targets": [
+    "%USERPROFILE%\\.t3\\userdata\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 7,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.buzz_node_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Buzz Node Tools Cache",
+   "description": "Buzz's npm download and metadata cache; installed node tools and modules are preserved",
+   "targets": [
+    "%APPDATA%\\Buzz\\node-tools\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.upscayl",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Upscayl",
+   "description": "Upscayl Electron web, compiled code, GPU, shader, and settled log caches; image databases are preserved",
+   "targets": [
+    "%APPDATA%\\Upscayl\\Cache\\Cache_Data",
+    "%APPDATA%\\Upscayl\\Code Cache",
+    "%APPDATA%\\Upscayl\\GPUCache",
+    "%APPDATA%\\Upscayl\\DawnCache",
+    "%APPDATA%\\Upscayl\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.todesktop_builder",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "ToDesktop Builder",
+   "description": "ToDesktop Builder Electron caches and settled logs; app projects, binaries, sessions, and storage are preserved",
+   "targets": [
+    "%APPDATA%\\ToDesktop Builder\\Cache\\Cache_Data",
+    "%APPDATA%\\ToDesktop Builder\\Code Cache",
+    "%APPDATA%\\ToDesktop Builder\\GPUCache",
+    "%APPDATA%\\ToDesktop Builder\\DawnGraphiteCache",
+    "%APPDATA%\\ToDesktop Builder\\DawnWebGPUCache",
+    "%APPDATA%\\ToDesktop Builder\\Shared Dictionary\\cache",
+    "%APPDATA%\\ToDesktop Builder\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.git_project_updater",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Git Project Updater",
+   "description": "Git Project Updater Electron caches and settled logs; repository and session data are preserved",
+   "targets": [
+    "%APPDATA%\\git-project-updater\\Cache\\Cache_Data",
+    "%APPDATA%\\git-project-updater\\Code Cache",
+    "%APPDATA%\\git-project-updater\\GPUCache",
+    "%APPDATA%\\git-project-updater\\DawnGraphiteCache",
+    "%APPDATA%\\git-project-updater\\DawnWebGPUCache",
+    "%APPDATA%\\git-project-updater\\Shared Dictionary\\cache",
+    "%APPDATA%\\git-project-updater\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.polyscope",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Polyscope",
+   "description": "Polyscope Electron caches and settled logs; local storage, network state, and sessions are preserved",
+   "targets": [
+    "%APPDATA%\\Polyscope\\Cache\\Cache_Data",
+    "%APPDATA%\\Polyscope\\Code Cache",
+    "%APPDATA%\\Polyscope\\GPUCache",
+    "%APPDATA%\\Polyscope\\DawnGraphiteCache",
+    "%APPDATA%\\Polyscope\\DawnWebGPUCache",
+    "%APPDATA%\\Polyscope\\Shared Dictionary\\cache",
+    "%APPDATA%\\Polyscope\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.shure_plus_motiv",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "ShurePlus MOTIV",
+   "description": "ShurePlus MOTIV Electron caches and settled logs; firmware, device settings, and recorded content are preserved",
+   "targets": [
+    "%APPDATA%\\ShurePlus MOTIV\\Cache\\Cache_Data",
+    "%APPDATA%\\ShurePlus MOTIV\\Code Cache",
+    "%APPDATA%\\ShurePlus MOTIV\\GPUCache",
+    "%APPDATA%\\ShurePlus MOTIV\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.termius_beta",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Termius Beta",
+   "description": "Termius Beta Electron and old crash-report caches; credentials, databases, sessions, and storage are preserved",
+   "targets": [
+    "%APPDATA%\\Termius Beta\\Cache\\Cache_Data",
+    "%APPDATA%\\Termius Beta\\Code Cache",
+    "%APPDATA%\\Termius Beta\\GPUCache",
+    "%APPDATA%\\Termius Beta\\DawnCache",
+    "%APPDATA%\\Termius Beta\\Crashpad\\reports"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.webview2",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Microsoft Edge WebView2 Caches",
+   "description": "WebView2 web, compiled code, GPU, shader, and dictionary cache directories only; bounded anchor paths avoid scanning unrelated Local AppData trees and preserve cookies, sessions, IndexedDB, Local Storage, service-worker storage, and offline content",
+   "targets": [
+    "%LOCALAPPDATA%\\*\\EBWebView\\*\\Cache",
+    "%LOCALAPPDATA%\\*\\EBWebView\\Cache",
+    "%LOCALAPPDATA%\\*\\EBWebView\\*\\Code Cache",
+    "%LOCALAPPDATA%\\*\\EBWebView\\Code Cache",
+    "%LOCALAPPDATA%\\*\\EBWebView\\*\\GPUCache",
+    "%LOCALAPPDATA%\\*\\EBWebView\\GPUCache",
+    "%LOCALAPPDATA%\\*\\EBWebView\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\*\\EBWebView\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\*\\EBWebView\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\*\\EBWebView\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\EBWebView\\*\\Cache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\EBWebView\\Cache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\EBWebView\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\EBWebView\\Code Cache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\EBWebView\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\EBWebView\\GPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\EBWebView\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\EBWebView\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\EBWebView\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\EBWebView\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\EBWebView\\*\\Cache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\EBWebView\\Cache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\EBWebView\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\EBWebView\\Code Cache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\EBWebView\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\EBWebView\\GPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\EBWebView\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\EBWebView\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\EBWebView\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\EBWebView\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\*\\EBWebView\\*\\Cache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\*\\EBWebView\\Cache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\*\\EBWebView\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\*\\EBWebView\\Code Cache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\*\\EBWebView\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\*\\EBWebView\\GPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\*\\EBWebView\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\*\\EBWebView\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\*\\EBWebView\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\*\\*\\*\\EBWebView\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\EBWebView\\*\\Cache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\EBWebView\\Cache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\EBWebView\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\EBWebView\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\EBWebView\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\EBWebView\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\EBWebView\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\EBWebView\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\EBWebView\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\EBWebView\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\EBWebView\\*\\Cache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\EBWebView\\Cache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\EBWebView\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\EBWebView\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\EBWebView\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\EBWebView\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\EBWebView\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\EBWebView\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\EBWebView\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\EBWebView\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\*\\EBWebView\\*\\Cache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\*\\EBWebView\\Cache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\*\\EBWebView\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\*\\EBWebView\\Code Cache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\*\\EBWebView\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\*\\EBWebView\\GPUCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\*\\EBWebView\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\*\\EBWebView\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\*\\EBWebView\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Packages\\*\\*\\*\\*\\EBWebView\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\EBWebView\\*\\Cache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\EBWebView\\Cache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\EBWebView\\*\\Code Cache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\EBWebView\\Code Cache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\EBWebView\\*\\GPUCache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\EBWebView\\GPUCache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\EBWebView\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\EBWebView\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\EBWebView\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\EBWebView\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\*\\EBWebView\\*\\Cache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\*\\EBWebView\\Cache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\*\\EBWebView\\*\\Code Cache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\*\\EBWebView\\Code Cache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\*\\EBWebView\\*\\GPUCache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\*\\EBWebView\\GPUCache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\*\\EBWebView\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\*\\EBWebView\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\*\\EBWebView\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\TeamViewer\\EdgeBrowserControl\\*\\*\\*\\EBWebView\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Zoom\\data\\WebviewCacheX64\\*\\EBWebView\\*\\Cache",
+    "%LOCALAPPDATA%\\Zoom\\data\\WebviewCacheX64\\*\\EBWebView\\Cache",
+    "%LOCALAPPDATA%\\Zoom\\data\\WebviewCacheX64\\*\\EBWebView\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Zoom\\data\\WebviewCacheX64\\*\\EBWebView\\Code Cache",
+    "%LOCALAPPDATA%\\Zoom\\data\\WebviewCacheX64\\*\\EBWebView\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Zoom\\data\\WebviewCacheX64\\*\\EBWebView\\GPUCache",
+    "%LOCALAPPDATA%\\Zoom\\data\\WebviewCacheX64\\*\\EBWebView\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Zoom\\data\\WebviewCacheX64\\*\\EBWebView\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Zoom\\data\\WebviewCacheX64\\*\\EBWebView\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Zoom\\data\\WebviewCacheX64\\*\\EBWebView\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Google\\DriveFS\\webview2_user_data\\*\\EBWebView\\*\\Cache",
+    "%LOCALAPPDATA%\\Google\\DriveFS\\webview2_user_data\\*\\EBWebView\\Cache",
+    "%LOCALAPPDATA%\\Google\\DriveFS\\webview2_user_data\\*\\EBWebView\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Google\\DriveFS\\webview2_user_data\\*\\EBWebView\\Code Cache",
+    "%LOCALAPPDATA%\\Google\\DriveFS\\webview2_user_data\\*\\EBWebView\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Google\\DriveFS\\webview2_user_data\\*\\EBWebView\\GPUCache",
+    "%LOCALAPPDATA%\\Google\\DriveFS\\webview2_user_data\\*\\EBWebView\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Google\\DriveFS\\webview2_user_data\\*\\EBWebView\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Google\\DriveFS\\webview2_user_data\\*\\EBWebView\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Google\\DriveFS\\webview2_user_data\\*\\EBWebView\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\Office\\*\\Wef\\webview2\\*\\*\\EBWebView\\*\\Cache",
+    "%LOCALAPPDATA%\\Microsoft\\Office\\*\\Wef\\webview2\\*\\*\\EBWebView\\Cache",
+    "%LOCALAPPDATA%\\Microsoft\\Office\\*\\Wef\\webview2\\*\\*\\EBWebView\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Microsoft\\Office\\*\\Wef\\webview2\\*\\*\\EBWebView\\Code Cache",
+    "%LOCALAPPDATA%\\Microsoft\\Office\\*\\Wef\\webview2\\*\\*\\EBWebView\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\Office\\*\\Wef\\webview2\\*\\*\\EBWebView\\GPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\Office\\*\\Wef\\webview2\\*\\*\\EBWebView\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Microsoft\\Office\\*\\Wef\\webview2\\*\\*\\EBWebView\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Microsoft\\Office\\*\\Wef\\webview2\\*\\*\\EBWebView\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\Office\\*\\Wef\\webview2\\*\\*\\EBWebView\\DawnWebGPUCache"
+   ],
+   "include": [],
+   "exclude": [
+    "File System",
+    "IndexedDB",
+    "Local Storage",
+    "Network",
+    "Service Worker",
+    "Session Storage",
+    "WebStorage",
+    "blob_storage",
+    "databases"
+   ],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.zed",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Zed Editor",
+   "description": "Zed's downloaded Node package cache and logs; regenerated on demand",
+   "targets": [
+    "%LOCALAPPDATA%\\Zed\\node\\cache",
+    "%LOCALAPPDATA%\\Zed\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.vscode_insiders",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "VS Code Insiders",
+   "description": "VS Code Insiders cached web content, compiled code cache, GPU cache, downloaded extension packages, and logs; preserves settings, extensions, and workspace state",
+   "targets": [
+    "%APPDATA%\\Code - Insiders\\Cache\\Cache_Data",
+    "%APPDATA%\\Code - Insiders\\Code Cache",
+    "%APPDATA%\\Code - Insiders\\GPUCache",
+    "%APPDATA%\\Code - Insiders\\CachedData",
+    "%APPDATA%\\Code - Insiders\\CachedExtensionVSIXs",
+    "%APPDATA%\\Code - Insiders\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.vscodium",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "VSCodium",
+   "description": "VSCodium cached web content, compiled code cache, GPU cache, downloaded extension packages, and logs; preserves settings, extensions, and workspace state",
+   "targets": [
+    "%APPDATA%\\VSCodium\\Cache\\Cache_Data",
+    "%APPDATA%\\VSCodium\\Code Cache",
+    "%APPDATA%\\VSCodium\\GPUCache",
+    "%APPDATA%\\VSCodium\\CachedData",
+    "%APPDATA%\\VSCodium\\CachedExtensionVSIXs",
+    "%APPDATA%\\VSCodium\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.discord_ptb",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Discord PTB",
+   "description": "Discord PTB Electron app cache, compiled code cache, and GPU cache",
+   "targets": [
+    "%APPDATA%\\discordptb\\Cache\\Cache_Data",
+    "%APPDATA%\\discordptb\\Code Cache",
+    "%APPDATA%\\discordptb\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.discord_canary",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "Discord Canary",
+   "description": "Discord Canary Electron app cache, compiled code cache, and GPU cache",
+   "targets": [
+    "%APPDATA%\\discordcanary\\Cache\\Cache_Data",
+    "%APPDATA%\\discordcanary\\Code Cache",
+    "%APPDATA%\\discordcanary\\GPUCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.typescript_typings",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "TypeScript Typings Cache",
+   "description": "Type definitions the TypeScript language server downloads for JavaScript projects (automatic type acquisition); re-downloaded on demand",
+   "targets": [
+    "%LOCALAPPDATA%\\Microsoft\\TypeScript"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.vscode_cpptools",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "VS Code C/C++ IntelliSense Cache",
+   "description": "Precompiled header cache from the Microsoft C/C++ extension; rebuilt automatically when files are reopened",
+   "targets": [
+    "%LOCALAPPDATA%\\Microsoft\\vscode-cpptools\\ipch"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.go_build",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Go Build Cache",
+   "description": "Go compiler build cache (go clean -cache clears this); rebuilt on the next build",
+   "targets": [
+    "%LOCALAPPDATA%\\go-build"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.poetry",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Poetry Cache",
+   "description": "Poetry package metadata and downloaded distribution cache; the virtualenvs folder beside them is left alone",
+   "targets": [
+    "%LOCALAPPDATA%\\pypoetry\\Cache\\cache",
+    "%LOCALAPPDATA%\\pypoetry\\Cache\\artifacts"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.winget_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Windows Package Manager Logs",
+   "description": "winget and App Installer diagnostic logs older than seven days",
+   "targets": [
+    "%LOCALAPPDATA%\\Packages\\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\\LocalState\\DiagOutputDir"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 7,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.onedrive_logs",
+   "os": [
+    "windows"
+   ],
+   "category": "apps",
+   "label_key": null,
+   "label": "OneDrive Logs",
+   "description": "OneDrive sync client and setup logs older than seven days; synced files and settings are untouched",
+   "targets": [
+    "%LOCALAPPDATA%\\Microsoft\\OneDrive\\logs",
+    "%LOCALAPPDATA%\\Microsoft\\OneDrive\\setup\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 7,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.apps.unreal_ddc",
+   "os": [
+    "windows"
+   ],
+   "category": "dev",
+   "label_key": null,
+   "label": "Unreal Engine Derived Data Cache",
+   "description": "Shared Unreal Engine derived data (compiled shaders and cooked assets); rebuilt when projects are next opened, which can take a while Performance cache: the next launch is slower while it rebuilds.",
+   "targets": [
+    "%LOCALAPPDATA%\\UnrealEngine\\Common\\DerivedDataCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.steam",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "Steam Launcher",
+   "description": "Steam client logs, crash dumps, and HTTP cache",
+   "targets": [
+    "%ProgramFiles(x86)%\\Steam\\logs",
+    "%ProgramFiles(x86)%\\Steam\\dumps",
+    "%ProgramFiles(x86)%\\Steam\\appcache\\httpcache",
+    "%LOCALAPPDATA%\\Steam\\htmlcache\\Default\\Cache",
+    "%LOCALAPPDATA%\\Steam\\htmlcache\\Default\\Code Cache",
+    "%LOCALAPPDATA%\\Steam\\htmlcache\\Default\\GPUCache",
+    "%LOCALAPPDATA%\\Steam\\htmlcache\\GrShaderCache",
+    "%LOCALAPPDATA%\\Steam\\htmlcache\\ShaderCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.epic",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "Epic Games Launcher",
+   "description": "Epic Games Launcher web cache, logs, and Vault asset cache",
+   "targets": [
+    "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\webcache",
+    "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\webcache_4430",
+    "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\Logs",
+    "%LOCALAPPDATA%\\EpicGamesLauncher\\Intermediate",
+    "%ProgramData%\\Epic\\EpicGamesLauncher\\VaultCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.epic_webcache",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "Epic Games Launcher Web Cache",
+   "description": "Epic launcher web cache older than one week; rebuilt on demand. Close the launcher before cleaning.",
+   "targets": [
+    "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\webcache_4147"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 7,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.ea",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "EA App",
+   "description": "EA App and legacy Origin logs and cached data",
+   "targets": [
+    "%LOCALAPPDATA%\\Electronic Arts\\EA Desktop\\Logs",
+    "%LOCALAPPDATA%\\Electronic Arts\\EA Desktop\\IGOCache",
+    "%LOCALAPPDATA%\\EADesktop\\cache",
+    "%LOCALAPPDATA%\\Origin\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.ubisoft",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "Ubisoft Connect",
+   "description": "Ubisoft Connect downloaded web cache and client log files",
+   "targets": [
+    "%LOCALAPPDATA%\\Ubisoft Game Launcher\\cache",
+    "%LOCALAPPDATA%\\Ubisoft Game Launcher\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.gog",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "GOG Galaxy",
+   "description": "GOG Galaxy web cache and log files",
+   "targets": [
+    "%LOCALAPPDATA%\\GOG.com\\Galaxy\\webcache",
+    "%ProgramData%\\GOG.com\\Galaxy\\logs",
+    "%ProgramData%\\GOG.com\\Galaxy\\webcache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.battlenet",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "Battle.net",
+   "description": "Battle.net launcher web cache and log files",
+   "targets": [
+    "%LOCALAPPDATA%\\Battle.net\\Cache",
+    "%LOCALAPPDATA%\\Blizzard Entertainment\\Battle.net\\Logs",
+    "%APPDATA%\\Battle.net\\Logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.riot",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "Riot Games",
+   "description": "Riot Client log files (League of Legends, Valorant, etc.)",
+   "targets": [
+    "%LOCALAPPDATA%\\Riot Games\\Riot Client\\Logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.xbox",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "Xbox App",
+   "description": "Xbox app local cache (UWP package cache)",
+   "targets": [
+    "%LOCALAPPDATA%\\Packages\\Microsoft.GamingApp_8wekyb3d8bbwe\\LocalCache",
+    "%LOCALAPPDATA%\\Packages\\Microsoft.XboxApp_8wekyb3d8bbwe\\LocalCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.rockstar",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "Rockstar Games Launcher",
+   "description": "Rockstar Games Launcher cache and log files",
+   "targets": [
+    "%LOCALAPPDATA%\\Rockstar Games\\Launcher\\cache",
+    "%LOCALAPPDATA%\\Rockstar Games\\Launcher\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.itch",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "itch.io",
+   "description": "itch.io Electron app cache and log files",
+   "targets": [
+    "%APPDATA%\\itch\\Cache\\Cache_Data",
+    "%APPDATA%\\itch\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.minecraft",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "Minecraft Java Edition",
+   "description": "Minecraft logs, crash reports, and launcher web cache",
+   "targets": [
+    "%APPDATA%\\.minecraft\\logs",
+    "%APPDATA%\\.minecraft\\crash-reports",
+    "%APPDATA%\\.minecraft\\webcache2"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.roblox",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "Roblox",
+   "description": "Roblox player logs",
+   "targets": [
+    "%LOCALAPPDATA%\\Roblox\\logs"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.valorant",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "Valorant",
+   "description": "Valorant game logs and crash reports",
+   "targets": [
+    "%LOCALAPPDATA%\\VALORANT\\Saved\\Logs",
+    "%LOCALAPPDATA%\\VALORANT\\Saved\\Crashes"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.fortnite",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "Fortnite",
+   "description": "Fortnite game logs and crash reports",
+   "targets": [
+    "%LOCALAPPDATA%\\FortniteGame\\Saved\\Logs",
+    "%LOCALAPPDATA%\\FortniteGame\\Saved\\Crashes"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.amazon_games",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "Amazon Games",
+   "description": "Amazon Games launcher logs and Chromium embedded framework cache",
+   "targets": [
+    "%LOCALAPPDATA%\\Amazon Games\\Data\\Logs",
+    "%LOCALAPPDATA%\\Amazon Games\\App\\CEFCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.games.overwolf",
+   "os": [
+    "windows"
+   ],
+   "category": "games",
+   "label_key": null,
+   "label": "Overwolf / CurseForge",
+   "description": "Overwolf overlay and CurseForge mod manager logs and browser cache",
+   "targets": [
+    "%LOCALAPPDATA%\\Overwolf\\Log",
+    "%LOCALAPPDATA%\\Overwolf\\BrowserCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.shader.nvidia",
+   "os": [
+    "windows"
+   ],
+   "category": "shader_cache",
+   "label_key": null,
+   "label": "NVIDIA Shader Cache",
+   "description": "NVIDIA compiled shader cache for OpenGL, DirectX, and Vulkan; rebuilt automatically per-game Performance cache: the next launch is slower while it rebuilds.",
+   "targets": [
+    "%LOCALAPPDATA%\\NVIDIA\\GLCache",
+    "%LOCALAPPDATA%\\NVIDIA\\DXCache",
+    "%LOCALAPPDATA%\\NVIDIA Corporation\\NV_Cache",
+    "%ProgramData%\\NVIDIA Corporation\\NV_Cache",
+    "%USERPROFILE%\\AppData\\LocalLow\\NVIDIA\\DXCache",
+    "%USERPROFILE%\\AppData\\LocalLow\\NVIDIA\\PerDriverVersion\\DXCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.shader.amd",
+   "os": [
+    "windows"
+   ],
+   "category": "shader_cache",
+   "label_key": null,
+   "label": "AMD Shader Cache",
+   "description": "AMD compiled shader cache for DirectX, OpenGL, and Vulkan; rebuilt automatically per-game Performance cache: the next launch is slower while it rebuilds.",
+   "targets": [
+    "%LOCALAPPDATA%\\AMD\\DxCache",
+    "%LOCALAPPDATA%\\AMD\\GLCache",
+    "%LOCALAPPDATA%\\AMD\\VkCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.shader.intel",
+   "os": [
+    "windows"
+   ],
+   "category": "shader_cache",
+   "label_key": null,
+   "label": "Intel Shader Cache",
+   "description": "Intel GPU compiled shader cache; rebuilt automatically as needed Performance cache: the next launch is slower while it rebuilds.",
+   "targets": [
+    "%LOCALAPPDATA%\\Intel\\ShaderCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.shader.unity_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "shader_cache",
+   "label_key": null,
+   "label": "Unity Shader Cache",
+   "description": "Unity engine compiled shader cache; rebuilt when Unity projects are opened Performance cache: the next launch is slower while it rebuilds.",
+   "targets": [
+    "%LOCALAPPDATA%\\Unity\\cache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.shader.cuda_compute_cache",
+   "os": [
+    "windows"
+   ],
+   "category": "shader_cache",
+   "label_key": null,
+   "label": "CUDA Compute Cache",
+   "description": "CUDA JIT-compiled kernel cache; rebuilt automatically the next time CUDA apps run Performance cache: the next launch is slower while it rebuilds.",
+   "targets": [
+    "%APPDATA%\\NVIDIA\\ComputeCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.chrome.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "chrome cache",
+   "description": "Web, code, GPU and shader caches; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\*\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\*\\Service Worker\\CacheStorage",
+    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\*\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\component_crx_cache",
+    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\extensions_crx_cache",
+    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\GrShaderCache",
+    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\ShaderCache",
+    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\GraphiteDawnCache",
+    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\GPUPersistentCache",
+    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\PnaclTranslationCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "chrome.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.edge.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "edge cache",
+   "description": "Web, code, GPU and shader caches; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\Service Worker\\CacheStorage",
+    "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\component_crx_cache",
+    "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\extensions_crx_cache",
+    "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\GrShaderCache",
+    "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\ShaderCache",
+    "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\GraphiteDawnCache",
+    "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\GPUPersistentCache",
+    "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\PnaclTranslationCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "msedge.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.brave.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "brave cache",
+   "description": "Web, code, GPU and shader caches; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Code Cache",
+    "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\*\\GPUCache",
+    "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Service Worker\\CacheStorage",
+    "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\*\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\component_crx_cache",
+    "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\extensions_crx_cache",
+    "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\GrShaderCache",
+    "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\ShaderCache",
+    "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\GraphiteDawnCache",
+    "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\GPUPersistentCache",
+    "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\PnaclTranslationCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "brave.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.opera.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "opera cache",
+   "description": "Web, code, GPU and shader caches; rebuilt on demand.",
+   "targets": [
+    "%APPDATA%\\Opera Software\\Opera Stable\\*\\Cache\\Cache_Data",
+    "%APPDATA%\\Opera Software\\Opera Stable\\Cache\\Cache_Data",
+    "%APPDATA%\\Opera Software\\Opera Stable\\*\\Code Cache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\Code Cache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\*\\GPUCache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\GPUCache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\*\\Service Worker\\CacheStorage",
+    "%APPDATA%\\Opera Software\\Opera Stable\\Service Worker\\CacheStorage",
+    "%APPDATA%\\Opera Software\\Opera Stable\\*\\Shared Dictionary\\cache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\Shared Dictionary\\cache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\*\\DawnWebGPUCache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\DawnWebGPUCache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\*\\DawnGraphiteCache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\DawnGraphiteCache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\component_crx_cache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\extensions_crx_cache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\GrShaderCache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\ShaderCache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\GraphiteDawnCache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\GPUPersistentCache",
+    "%APPDATA%\\Opera Software\\Opera Stable\\PnaclTranslationCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "opera.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.operagx.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "operaGX cache",
+   "description": "Web, code, GPU and shader caches; rebuilt on demand.",
+   "targets": [
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\*\\Cache\\Cache_Data",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\Cache\\Cache_Data",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\*\\Code Cache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\Code Cache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\*\\GPUCache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\GPUCache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\*\\Service Worker\\CacheStorage",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\Service Worker\\CacheStorage",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\*\\Shared Dictionary\\cache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\Shared Dictionary\\cache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\*\\DawnWebGPUCache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\DawnWebGPUCache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\*\\DawnGraphiteCache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\DawnGraphiteCache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\component_crx_cache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\extensions_crx_cache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\GrShaderCache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\ShaderCache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\GraphiteDawnCache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\GPUPersistentCache",
+    "%APPDATA%\\Opera Software\\Opera GX Stable\\PnaclTranslationCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "opera.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.vivaldi.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "vivaldi cache",
+   "description": "Web, code, GPU and shader caches; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\Vivaldi\\User Data\\*\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\Vivaldi\\User Data\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Vivaldi\\User Data\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Vivaldi\\User Data\\*\\Service Worker\\CacheStorage",
+    "%LOCALAPPDATA%\\Vivaldi\\User Data\\*\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\Vivaldi\\User Data\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Vivaldi\\User Data\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Vivaldi\\User Data\\component_crx_cache",
+    "%LOCALAPPDATA%\\Vivaldi\\User Data\\extensions_crx_cache",
+    "%LOCALAPPDATA%\\Vivaldi\\User Data\\GrShaderCache",
+    "%LOCALAPPDATA%\\Vivaldi\\User Data\\ShaderCache",
+    "%LOCALAPPDATA%\\Vivaldi\\User Data\\GraphiteDawnCache",
+    "%LOCALAPPDATA%\\Vivaldi\\User Data\\GPUPersistentCache",
+    "%LOCALAPPDATA%\\Vivaldi\\User Data\\PnaclTranslationCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "vivaldi.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.arc.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "arc cache",
+   "description": "Web, code, GPU and shader caches; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\Arc\\User Data\\*\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\Arc\\User Data\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Arc\\User Data\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Arc\\User Data\\*\\Service Worker\\CacheStorage",
+    "%LOCALAPPDATA%\\Arc\\User Data\\*\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\Arc\\User Data\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Arc\\User Data\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Arc\\User Data\\component_crx_cache",
+    "%LOCALAPPDATA%\\Arc\\User Data\\extensions_crx_cache",
+    "%LOCALAPPDATA%\\Arc\\User Data\\GrShaderCache",
+    "%LOCALAPPDATA%\\Arc\\User Data\\ShaderCache",
+    "%LOCALAPPDATA%\\Arc\\User Data\\GraphiteDawnCache",
+    "%LOCALAPPDATA%\\Arc\\User Data\\GPUPersistentCache",
+    "%LOCALAPPDATA%\\Arc\\User Data\\PnaclTranslationCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "Arc.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.chromium.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "chromium cache",
+   "description": "Web, code, GPU and shader caches; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\Chromium\\User Data\\*\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\Chromium\\User Data\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Chromium\\User Data\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Chromium\\User Data\\*\\Service Worker\\CacheStorage",
+    "%LOCALAPPDATA%\\Chromium\\User Data\\*\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\Chromium\\User Data\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Chromium\\User Data\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Chromium\\User Data\\component_crx_cache",
+    "%LOCALAPPDATA%\\Chromium\\User Data\\extensions_crx_cache",
+    "%LOCALAPPDATA%\\Chromium\\User Data\\GrShaderCache",
+    "%LOCALAPPDATA%\\Chromium\\User Data\\ShaderCache",
+    "%LOCALAPPDATA%\\Chromium\\User Data\\GraphiteDawnCache",
+    "%LOCALAPPDATA%\\Chromium\\User Data\\GPUPersistentCache",
+    "%LOCALAPPDATA%\\Chromium\\User Data\\PnaclTranslationCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "chrome.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.thorium.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "thorium cache",
+   "description": "Web, code, GPU and shader caches; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\Thorium\\User Data\\*\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\Thorium\\User Data\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Thorium\\User Data\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Thorium\\User Data\\*\\Service Worker\\CacheStorage",
+    "%LOCALAPPDATA%\\Thorium\\User Data\\*\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\Thorium\\User Data\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Thorium\\User Data\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Thorium\\User Data\\component_crx_cache",
+    "%LOCALAPPDATA%\\Thorium\\User Data\\extensions_crx_cache",
+    "%LOCALAPPDATA%\\Thorium\\User Data\\GrShaderCache",
+    "%LOCALAPPDATA%\\Thorium\\User Data\\ShaderCache",
+    "%LOCALAPPDATA%\\Thorium\\User Data\\GraphiteDawnCache",
+    "%LOCALAPPDATA%\\Thorium\\User Data\\GPUPersistentCache",
+    "%LOCALAPPDATA%\\Thorium\\User Data\\PnaclTranslationCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "thorium.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.supermium.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "supermium cache",
+   "description": "Web, code, GPU and shader caches; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\Supermium\\User Data\\*\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\Supermium\\User Data\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Supermium\\User Data\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Supermium\\User Data\\*\\Service Worker\\CacheStorage",
+    "%LOCALAPPDATA%\\Supermium\\User Data\\*\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\Supermium\\User Data\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Supermium\\User Data\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Supermium\\User Data\\component_crx_cache",
+    "%LOCALAPPDATA%\\Supermium\\User Data\\extensions_crx_cache",
+    "%LOCALAPPDATA%\\Supermium\\User Data\\GrShaderCache",
+    "%LOCALAPPDATA%\\Supermium\\User Data\\ShaderCache",
+    "%LOCALAPPDATA%\\Supermium\\User Data\\GraphiteDawnCache",
+    "%LOCALAPPDATA%\\Supermium\\User Data\\GPUPersistentCache",
+    "%LOCALAPPDATA%\\Supermium\\User Data\\PnaclTranslationCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "supermium.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.helium.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "helium cache",
+   "description": "Web, code, GPU and shader caches; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\imput\\Helium\\User Data\\*\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\imput\\Helium\\User Data\\*\\Code Cache",
+    "%LOCALAPPDATA%\\imput\\Helium\\User Data\\*\\GPUCache",
+    "%LOCALAPPDATA%\\imput\\Helium\\User Data\\*\\Service Worker\\CacheStorage",
+    "%LOCALAPPDATA%\\imput\\Helium\\User Data\\*\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\imput\\Helium\\User Data\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\imput\\Helium\\User Data\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\imput\\Helium\\User Data\\component_crx_cache",
+    "%LOCALAPPDATA%\\imput\\Helium\\User Data\\extensions_crx_cache",
+    "%LOCALAPPDATA%\\imput\\Helium\\User Data\\GrShaderCache",
+    "%LOCALAPPDATA%\\imput\\Helium\\User Data\\ShaderCache",
+    "%LOCALAPPDATA%\\imput\\Helium\\User Data\\GraphiteDawnCache",
+    "%LOCALAPPDATA%\\imput\\Helium\\User Data\\GPUPersistentCache",
+    "%LOCALAPPDATA%\\imput\\Helium\\User Data\\PnaclTranslationCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "helium.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.cromite.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "cromite cache",
+   "description": "Web, code, GPU and shader caches; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\Cromite\\User Data\\*\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\Cromite\\User Data\\*\\Code Cache",
+    "%LOCALAPPDATA%\\Cromite\\User Data\\*\\GPUCache",
+    "%LOCALAPPDATA%\\Cromite\\User Data\\*\\Service Worker\\CacheStorage",
+    "%LOCALAPPDATA%\\Cromite\\User Data\\*\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\Cromite\\User Data\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\Cromite\\User Data\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\Cromite\\User Data\\component_crx_cache",
+    "%LOCALAPPDATA%\\Cromite\\User Data\\extensions_crx_cache",
+    "%LOCALAPPDATA%\\Cromite\\User Data\\GrShaderCache",
+    "%LOCALAPPDATA%\\Cromite\\User Data\\ShaderCache",
+    "%LOCALAPPDATA%\\Cromite\\User Data\\GraphiteDawnCache",
+    "%LOCALAPPDATA%\\Cromite\\User Data\\GPUPersistentCache",
+    "%LOCALAPPDATA%\\Cromite\\User Data\\PnaclTranslationCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "chrome.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.catsxp.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "catsxp cache",
+   "description": "Web, code, GPU and shader caches; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\ArcSoft\\CatsXP\\User Data\\*\\Cache\\Cache_Data",
+    "%LOCALAPPDATA%\\ArcSoft\\CatsXP\\User Data\\*\\Code Cache",
+    "%LOCALAPPDATA%\\ArcSoft\\CatsXP\\User Data\\*\\GPUCache",
+    "%LOCALAPPDATA%\\ArcSoft\\CatsXP\\User Data\\*\\Service Worker\\CacheStorage",
+    "%LOCALAPPDATA%\\ArcSoft\\CatsXP\\User Data\\*\\Shared Dictionary\\cache",
+    "%LOCALAPPDATA%\\ArcSoft\\CatsXP\\User Data\\*\\DawnWebGPUCache",
+    "%LOCALAPPDATA%\\ArcSoft\\CatsXP\\User Data\\*\\DawnGraphiteCache",
+    "%LOCALAPPDATA%\\ArcSoft\\CatsXP\\User Data\\component_crx_cache",
+    "%LOCALAPPDATA%\\ArcSoft\\CatsXP\\User Data\\extensions_crx_cache",
+    "%LOCALAPPDATA%\\ArcSoft\\CatsXP\\User Data\\GrShaderCache",
+    "%LOCALAPPDATA%\\ArcSoft\\CatsXP\\User Data\\ShaderCache",
+    "%LOCALAPPDATA%\\ArcSoft\\CatsXP\\User Data\\GraphiteDawnCache",
+    "%LOCALAPPDATA%\\ArcSoft\\CatsXP\\User Data\\GPUPersistentCache",
+    "%LOCALAPPDATA%\\ArcSoft\\CatsXP\\User Data\\PnaclTranslationCache"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "catsxp.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.firefox.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "firefox cache",
+   "description": "Per-profile web content cache; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\Mozilla\\Firefox\\Profiles\\*\\cache2"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "firefox.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.librewolf.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "librewolf cache",
+   "description": "Per-profile web content cache; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\LibreWolf\\Profiles\\*\\cache2"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "librewolf.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.waterfox.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "waterfox cache",
+   "description": "Per-profile web content cache; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\Waterfox\\Profiles\\*\\cache2"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "waterfox.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.floorp.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "floorp cache",
+   "description": "Per-profile web content cache; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\Floorp\\Profiles\\*\\cache2"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "floorp.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  },
+  {
+   "id": "kudu.browser.zen.cache",
+   "os": [
+    "windows"
+   ],
+   "category": "browser",
+   "label_key": null,
+   "label": "zen cache",
+   "description": "Per-profile web content cache; rebuilt on demand.",
+   "targets": [
+    "%LOCALAPPDATA%\\Zen\\Profiles\\*\\cache2"
+   ],
+   "include": [],
+   "exclude": [],
+   "running": [
+    "zen.exe"
+   ],
+   "min_age_days": 1,
+   "action": {
+    "type": "delete_contents"
+   },
+   "destination": "unlink",
+   "risk": "destructive",
+   "requires": [],
+   "source": "Kudu",
+   "license": "MIT"
+  }
+ ]
+}
