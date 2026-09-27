@@ -259,9 +259,17 @@ impl Attention {
     /// result or its error.
     pub fn job_ended(&self, target: &AttentionTarget, ok: bool, detail: &str) -> bool {
         let s = self.strings();
-        let title = if ok { &s.finished_title } else { &s.failed_title };
+        let title = if ok {
+            &s.finished_title
+        } else {
+            &s.failed_title
+        };
         let body: String = detail.trim().chars().take(180).collect();
-        self.deliver(target, fill(title, &[("agent", target.agent.as_str())]), body)
+        self.deliver(
+            target,
+            fill(title, &[("agent", target.agent.as_str())]),
+            body,
+        )
     }
 
     fn deliver(&self, target: &AttentionTarget, title: String, body: String) -> bool {
@@ -318,7 +326,11 @@ mod tests {
     fn bench(metric: &str, value: serde_json::Value) {
         if let Ok(path) = std::env::var("OMNIGET_BENCH_OUT") {
             use std::io::Write;
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+            {
                 let _ = writeln!(
                     f,
                     "{}",
@@ -357,10 +369,16 @@ mod tests {
         let shown = rec.shown.lock().unwrap().clone();
         assert_eq!(shown.len(), 1);
         let latency = shown[0].0 - asked;
-        assert!(latency >= Duration::from_secs(5) && latency <= Duration::from_secs(6), "{latency:?}");
+        assert!(
+            latency >= Duration::from_secs(5) && latency <= Duration::from_secs(6),
+            "{latency:?}"
+        );
         assert!(shown[0].1.contains("Claude Code"), "{:?}", shown[0]);
         assert!(shown[0].2.contains("shell_exec") && shown[0].2.contains("npm test"));
-        bench("ask_to_notification_s", serde_json::json!(latency.as_secs_f64()));
+        bench(
+            "ask_to_notification_s",
+            serde_json::json!(latency.as_secs_f64()),
+        );
         bench("notify_delay_s", serde_json::json!(5));
     }
 
@@ -391,7 +409,10 @@ mod tests {
             assert!(!w.await.unwrap());
         }
         assert_eq!(rec.shown.lock().unwrap().len(), 0);
-        bench("notifications_for_asks_answered_under_5s", serde_json::json!(0));
+        bench(
+            "notifications_for_asks_answered_under_5s",
+            serde_json::json!(0),
+        );
         bench("asks_answered_under_5s", serde_json::json!(20));
     }
 
@@ -422,7 +443,13 @@ mod tests {
             *rec.focus.lock().unwrap() = focus.clone();
             let open = Arc::new(std::sync::atomic::AtomicBool::new(true));
             let shown = att
-                .ask_opened(target("j1"), "c".into(), "t".into(), "p".into(), pending(open))
+                .ask_opened(
+                    target("j1"),
+                    "c".into(),
+                    "t".into(),
+                    "p".into(),
+                    pending(open),
+                )
                 .await
                 .unwrap();
             assert!(!shown, "suppressed by {focus:?}");
@@ -435,7 +462,13 @@ mod tests {
         };
         let open = Arc::new(std::sync::atomic::AtomicBool::new(true));
         assert!(att
-            .ask_opened(target("j1"), "c".into(), "t".into(), "p".into(), pending(open))
+            .ask_opened(
+                target("j1"),
+                "c".into(),
+                "t".into(),
+                "p".into(),
+                pending(open)
+            )
             .await
             .unwrap());
         // And another job's route does not hide this one.
@@ -478,7 +511,11 @@ mod tests {
         let shown = rec.shown.lock().unwrap().clone();
         assert_eq!(shown.len(), 1);
         assert!(shown[0].2.contains("shell_exec"), "{:?}", shown[0]);
-        assert!(shown[0].2.contains("30"), "the minutes waited: {:?}", shown[0]);
+        assert!(
+            shown[0].2.contains("30"),
+            "the minutes waited: {:?}",
+            shown[0]
+        );
         // The pushed translation wins over the English fallback.
         att.set_strings(NotifyStrings {
             finished_title: "{{agent}} terminou".into(),
@@ -486,13 +523,19 @@ mod tests {
         });
         tokio::time::advance(COOLDOWN).await;
         assert!(att.job_ended(&target("j9"), true, "3 arquivos"));
-        assert_eq!(rec.shown.lock().unwrap()[1].1, "OmniGet · Claude Code terminou");
+        assert_eq!(
+            rec.shown.lock().unwrap()[1].1,
+            "OmniGet · Claude Code terminou"
+        );
     }
 
     #[test]
     fn fill_replaces_every_placeholder() {
         assert_eq!(
-            fill("{{agent}} precisa de você: {{tool}}", &[("agent", "A"), ("tool", "ls")]),
+            fill(
+                "{{agent}} precisa de você: {{tool}}",
+                &[("agent", "A"), ("tool", "ls")]
+            ),
             "A precisa de você: ls"
         );
     }

@@ -1,0 +1,13 @@
+{
+  "name": "OmniGet Remote",
+  "short_name": "OmniGet",
+  "description": "Follow and drive your OmniGet Central threads from your phone.",
+  "start_url": "/remote/",
+  "scope": "/remote/",
+  "display": "standalone",
+  "background_color": "#101014",
+  "theme_color": "#101014",
+  "icons": [
+    { "src": "/remote/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

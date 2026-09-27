@@ -2029,7 +2029,7 @@ async fn spawn_download_inner(
             }
 
             let mut clamped = percent.clamp(0.0, 100.0);
-            if percent >= 0.0 && percent < 100.0 {
+            if (0.0..100.0).contains(&percent) {
                 if clamped < last_percent {
                     clamped = last_percent;
                 }

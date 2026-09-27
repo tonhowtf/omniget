@@ -190,7 +190,10 @@ mod tests {
             },
         );
         assert_eq!(merged.turn_idle_timeout_s, 60);
-        assert_eq!(merged.ask_timeout_job_s, None, "0 = until the job's deadline");
+        assert_eq!(
+            merged.ask_timeout_job_s, None,
+            "0 = until the job's deadline"
+        );
         assert_eq!(merged.approval_notify_delay_s, 300);
         // Untouched fields keep their values.
         assert_eq!(merged.turn_start_timeout_s, 90);

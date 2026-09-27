@@ -52,6 +52,9 @@ const HEARTBEAT_S: u64 = 60;
 /// Characters of rebuilt context a task prompt carries.
 const CONTEXT_CHARS: usize = 6_000;
 
+/// Tool calls and failed calls of one mission's current round.
+type RoundCalls = (Vec<String>, Vec<String>);
+
 pub struct Driver {
     app: AppHandle,
     db: Arc<AssistDb>,
@@ -60,7 +63,7 @@ pub struct Driver {
     guards: Mutex<std::collections::HashMap<String, Vec<progress::RoundObservation>>>,
     /// Tool calls of the current round, per mission, collected from every
     /// task conversation before it is detached (F9).
-    calls: Mutex<std::collections::HashMap<String, (Vec<String>, Vec<String>)>>,
+    calls: Mutex<std::collections::HashMap<String, RoundCalls>>,
     /// Reservations kept after a job with no terminal result: booked
     /// (conservatively, at their estimate) on the mission's next step (F6).
     kept: Mutex<std::collections::HashMap<String, Vec<(String, u64)>>>,
@@ -1635,7 +1638,7 @@ impl Driver {
         let run = xc::claim_task(&self.db, principal, task_id, &run_id)?;
         // Root level: external writes create files only in existing directories.
         let rel = format!("{GROUP_TASK_PREFIX}{task_id}.md");
-        let budget = run.authority.max_tokens.min(60_000).max(1);
+        let budget = run.authority.max_tokens.clamp(1, 60_000);
         let new = missions::NewMission {
             objective: format!("Group task for {}: {}", run.bot, missions::clip_pub(&run.task.question, 2000)),
             bot_id: Some(run.bot.clone()),

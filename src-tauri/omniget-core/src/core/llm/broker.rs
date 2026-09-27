@@ -804,8 +804,8 @@ impl ToolBroker {
         };
         // The durable request, when the turn has a run record: the answer
         // must resolve exactly this one, in time.
-        let deadline = crate::core::assist::now_ms()
-            + ask_timeout.as_millis().min(i64::MAX as u128) as i64;
+        let deadline =
+            crate::core::assist::now_ms() + ask_timeout.as_millis().min(i64::MAX as u128) as i64;
         let permission = crate::core::assist::runs::active().and_then(|reg| {
             reg.run(request_id)?;
             let req = reg
@@ -842,14 +842,27 @@ impl ToolBroker {
             tool: name.to_string(),
             preview: preview_text,
         });
-        let end = match tokio::time::timeout(ask_timeout, rx).await {
-            Ok(Ok(answer)) => AskEnd::Answered(answer),
-            // The sender was dropped: the turn was cancelled, or the answer
-            // could not resolve the durable record.
-            Ok(Err(_)) => AskEnd::Cancelled,
-            Err(_) => AskEnd::Expired {
-                waited: asked_at.elapsed(),
-            },
+        // A thread of the Central persists the ask as `request.opened` and
+        // waits for the answer however long it takes (plan §3.3); jobs and
+        // the old chat keep the configurable timeout.
+        let durable = super::code_tools::current_turn()
+            .map(|ctx| super::drivers::is_durable_conversation(&ctx.conversation))
+            .unwrap_or(false);
+        let end = if durable {
+            match rx.await {
+                Ok(answer) => AskEnd::Answered(answer),
+                Err(_) => AskEnd::Cancelled,
+            }
+        } else {
+            match tokio::time::timeout(ask_timeout, rx).await {
+                Ok(Ok(answer)) => AskEnd::Answered(answer),
+                // The sender was dropped: the turn was cancelled, or the answer
+                // could not resolve the durable record.
+                Ok(Err(_)) => AskEnd::Cancelled,
+                Err(_) => AskEnd::Expired {
+                    waited: asked_at.elapsed(),
+                },
+            }
         };
         {
             let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
@@ -1166,7 +1179,14 @@ mod tests {
         let b = ToolBroker::new(vec![spec("dl_add")], Arc::new(EchoExecutor), bus)
             .with_ask_timeout(Duration::from_millis(60));
         let err = b
-            .call("agent", &ask_grant(), "req-1", "call-1", "dl_add", json!({}))
+            .call(
+                "agent",
+                &ask_grant(),
+                "req-1",
+                "call-1",
+                "dl_add",
+                json!({}),
+            )
             .await
             .unwrap_err();
         assert_eq!(err.code, ERR_TOOL_TIMEOUT);
@@ -1215,15 +1235,25 @@ mod tests {
         }
         let b2 = b.clone();
         let task = tokio::spawn(async move {
-            b2.call("agent", &ask_grant(), "req-3", "c-cancel", "dl_add", json!({}))
-                .await
+            b2.call(
+                "agent",
+                &ask_grant(),
+                "req-3",
+                "c-cancel",
+                "dl_add",
+                json!({}),
+            )
+            .await
         });
         while !b.has_pending("req-3") {
             tokio::task::yield_now().await;
         }
         assert_eq!(b.cancel_request("req-3"), 1);
         let err = task.await.unwrap().unwrap_err();
-        assert_eq!(err.code, ERR_TOOL_DENIED, "a cancelled turn's question is not a timeout");
+        assert_eq!(
+            err.code, ERR_TOOL_DENIED,
+            "a cancelled turn's question is not a timeout"
+        );
         assert_eq!(
             resolved(&mut rx),
             vec![
@@ -1298,7 +1328,10 @@ mod tests {
             Arc::new(Bus::new()),
         )
         .with_ask_timeout(Duration::from_millis(30));
-        match b.ask_user_ended("agent", "req-6", "c-6", "cli:Bash", "ls").await {
+        match b
+            .ask_user_ended("agent", "req-6", "c-6", "cli:Bash", "ls")
+            .await
+        {
             AskEnd::Expired { waited } => assert!(waited >= Duration::from_millis(30)),
             other => panic!("expected an expiry, got {other:?}"),
         }
@@ -1309,7 +1342,11 @@ mod tests {
     fn bench(metric: &str, value: serde_json::Value) {
         if let Ok(path) = std::env::var("OMNIGET_BENCH_OUT") {
             use std::io::Write as _;
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+            {
                 let _ = writeln!(
                     f,
                     "{}",
@@ -1371,7 +1408,10 @@ mod tests {
                 }
             }
         }
-        let silent = codes.iter().filter(|c| c.as_str() != ERR_TOOL_TIMEOUT).count()
+        let silent = codes
+            .iter()
+            .filter(|c| c.as_str() != ERR_TOOL_TIMEOUT)
+            .count()
             + 20usize.saturating_sub(expired_events);
         bench("job_asks", json!(20));
         bench("expired_with_reason", json!(expired_events));
@@ -1410,7 +1450,10 @@ mod tests {
             assert!(b.answer(&call, true));
             task.await.unwrap();
         }
-        bench("ask_event_latency_max_ms", json!(worst.as_secs_f64() * 1000.0));
+        bench(
+            "ask_event_latency_max_ms",
+            json!(worst.as_secs_f64() * 1000.0),
+        );
         bench("cli_poll_ms", json!(800));
         assert!(worst < Duration::from_millis(200), "{worst:?}");
     }

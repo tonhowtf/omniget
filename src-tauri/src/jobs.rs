@@ -39,6 +39,7 @@ pub const EVENT_TRIGGER: &str = "llm://trigger";
 /// The queue changed (a job was admitted, finished or the cap moved): the
 /// payload is [`state_view`], so the jobs page shows positions without asking.
 pub const EVENT_QUEUE: &str = "llm://queue";
+pub const EVENT_PLAYBOOK: &str = "llm://playbook";
 pub const ERR_JOBS: &str = "ERR_LLM_JOBS";
 
 const LOG_MAX: usize = 64 * 1024;
@@ -112,7 +113,35 @@ pub struct Job {
     /// `no_snapshot`, `error`. Never an empty list standing for "unknown".
     #[serde(default)]
     pub diff_unavailable: Option<String>,
+    /// Run spec of a job whose `agent_id` is `tool:<id>` (a coding CLI run
+    /// headless, maybe in a sandbox): [`RunSpec`] as JSON.
+    #[serde(default)]
+    pub spec: Option<serde_json::Value>,
+    /// The playbook run this job is a step of.
+    #[serde(default)]
+    pub playbook_id: Option<String>,
 }
+
+/// How a `tool:<id>` job runs: the agent as the system prompt, model and
+/// permission level of the CLI, and the optional sandbox.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RunSpec {
+    #[serde(default)]
+    pub system_prompt: Option<String>,
+    /// Name of the agent used as the role (for the UI).
+    #[serde(default)]
+    pub agent_name: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+    /// `default | plan | accept_edits | bypass`
+    #[serde(default)]
+    pub permission: Option<String>,
+    #[serde(default)]
+    pub sandbox: Option<omniget_core::core::agentkit_run::sandbox::SandboxOpts>,
+}
+
+/// Prefix of the agent id of a job run by a coding CLI instead of the roster.
+pub const TOOL_PREFIX: &str = "tool:";
 
 /// Appends one prune receipt to a job's usage: per model request, what the
 /// history was estimated at before and after the omissions, and what the
@@ -217,6 +246,74 @@ pub struct LoopDef {
     pub last_check: Option<String>,
     #[serde(default)]
     pub stop_reason: Option<String>,
+    /// Rounds spaced by an interval (`10m`, `daily`) or a cron line
+    /// (`*/15 * * * *`); `None` = back to back.
+    #[serde(default)]
+    pub schedule: Option<String>,
+    /// Stop when the rounds together cost this much (USD).
+    #[serde(default)]
+    pub max_cost_usd: Option<f64>,
+    #[serde(default)]
+    pub spent_usd: f64,
+    /// [`RunSpec`] of each round when `agent_id` is `tool:<id>`.
+    #[serde(default)]
+    pub spec: Option<serde_json::Value>,
+    /// Catalog id of the loop it came from.
+    #[serde(default)]
+    pub source: Option<String>,
+    /// When the next scheduled round starts.
+    #[serde(default)]
+    pub next_round_ms: Option<u64>,
+    /// Time spent inside rounds (the minute budget of a scheduled loop).
+    #[serde(default)]
+    pub active_ms: u64,
+}
+
+/// One step of a running playbook.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PlaybookStepRun {
+    pub name: String,
+    pub agent_id: String,
+    /// The step's own task (the chained context is added at run time).
+    pub prompt: String,
+    #[serde(default)]
+    pub spec: Option<serde_json::Value>,
+    #[serde(default)]
+    pub runner_label: Option<String>,
+    #[serde(default)]
+    pub job_id: Option<String>,
+    /// `pending|running|done|failed|cancelled|skipped`
+    #[serde(default)]
+    pub state: String,
+    #[serde(default)]
+    pub output: Option<String>,
+}
+
+/// A workflow run as a chain of jobs: the output of each step becomes the
+/// context of the next.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PlaybookRun {
+    #[serde(default)]
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub source: Option<String>,
+    #[serde(default)]
+    pub workspace: Option<String>,
+    pub steps: Vec<PlaybookStepRun>,
+    /// `running|done|failed|cancelled`
+    #[serde(default)]
+    pub state: String,
+    #[serde(default)]
+    pub current: usize,
+    #[serde(default)]
+    pub created_ms: u64,
+    #[serde(default)]
+    pub finished_ms: Option<u64>,
+    #[serde(default)]
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -346,6 +443,8 @@ pub struct Jobs {
     watchers: Mutex<HashMap<String, (String, tokio::sync::mpsc::UnboundedSender<AskSignal>)>>,
     /// "Needs you" / "finished" notifications.
     pub attention: Arc<crate::llm_attention::Attention>,
+    /// Wakes a Loop sleeping until its next scheduled round when it is cancelled.
+    loop_waits: Mutex<HashMap<String, CancellationToken>>,
 }
 
 /// A question of a job's turn, as the bus forwarder hands it to the runner.
@@ -458,7 +557,8 @@ pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
             result TEXT, error TEXT, log TEXT NOT NULL DEFAULT '');
          CREATE INDEX IF NOT EXISTS jobs_created ON jobs(created_ms DESC);
          CREATE TABLE IF NOT EXISTS loops (id TEXT PRIMARY KEY, body TEXT NOT NULL);
-         CREATE TABLE IF NOT EXISTS triggers (id TEXT PRIMARY KEY, body TEXT NOT NULL);",
+         CREATE TABLE IF NOT EXISTS triggers (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+         CREATE TABLE IF NOT EXISTS playbooks (id TEXT PRIMARY KEY, body TEXT NOT NULL);",
     )
     .map_err(|e| format!("{ERR_JOBS}: {e}"))?;
     // Databases created before 0.10.0 final have no usage column.
@@ -480,6 +580,9 @@ pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
         "deletions INTEGER",
         "diff_clipped INTEGER NOT NULL DEFAULT 0",
         "diff_unavailable TEXT",
+        // Catalog runs (0.11): the tool run spec and the playbook of a step.
+        "spec TEXT",
+        "playbook_id TEXT",
     ] {
         let _ = db.execute(&format!("ALTER TABLE jobs ADD COLUMN {column}"), []);
     }
@@ -523,6 +626,7 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
         live: Mutex::new(HashMap::new()),
         watchers: Mutex::new(HashMap::new()),
         attention: crate::llm_attention::Attention::new(Arc::new(TauriSink { app: app.clone() })),
+        loop_waits: Mutex::new(HashMap::new()),
     });
     if JOBS.set(jobs.clone()).is_ok() {
         let limits = crate::commands::llm::watchdog::limits(app);
@@ -531,9 +635,10 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
             .set_strings(crate::llm_attention::pushed_strings());
         // A job's question waits as long as the job may still run (1.3).
         let weak = Arc::downgrade(&jobs);
-        jobs.llm.set_ask_timeout_resolver(Some(Arc::new(move |request: &str| {
-            weak.upgrade()?.ask_timeout_for(request)
-        })));
+        jobs.llm
+            .set_ask_timeout_resolver(Some(Arc::new(move |request: &str| {
+                weak.upgrade()?.ask_timeout_for(request)
+            })));
         // Waiting rows follow the gate: state, reason and `llm://queue`.
         let weak = Arc::downgrade(&jobs);
         let mut changed = jobs.gate.subscribe();
@@ -617,10 +722,14 @@ fn row_to_job(r: &rusqlite::Row<'_>) -> rusqlite::Result<Job> {
         deletions: r.get::<_, Option<i64>>(25)?.map(|v| v as u64),
         diff_clipped: r.get::<_, Option<i64>>(26)?.unwrap_or(0) != 0,
         diff_unavailable: r.get(27)?,
+        spec: r
+            .get::<_, Option<String>>(28)?
+            .and_then(|s| serde_json::from_str(&s).ok()),
+        playbook_id: r.get(29)?,
     })
 }
 
-const JOB_COLS: &str = "id, kind, agent_id, conversation_id, prompt, workspace, state, loop_id, trigger_id, request_id, created_ms, started_ms, finished_ms, result, error, log, usage, state_seq, seen_ms, failure_reason, deadline_min, deadline_ms, wait_reason, diff_files, additions, deletions, diff_clipped, diff_unavailable";
+const JOB_COLS: &str = "id, kind, agent_id, conversation_id, prompt, workspace, state, loop_id, trigger_id, request_id, created_ms, started_ms, finished_ms, result, error, log, usage, state_seq, seen_ms, failure_reason, deadline_min, deadline_ms, wait_reason, diff_files, additions, deletions, diff_clipped, diff_unavailable, spec, playbook_id";
 
 impl Jobs {
     fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
@@ -640,7 +749,13 @@ impl Jobs {
                 .query_row(
                     "SELECT state, state_seq, seen_ms FROM jobs WHERE id=?1",
                     params![job.id],
-                    |r| Ok((r.get(0)?, r.get::<_, Option<i64>>(1)?.unwrap_or(0), r.get(2)?)),
+                    |r| {
+                        Ok((
+                            r.get(0)?,
+                            r.get::<_, Option<i64>>(1)?.unwrap_or(0),
+                            r.get(2)?,
+                        ))
+                    },
                 )
                 .optional()
                 .map_err(|_| "JOB_STORAGE_UNAVAILABLE".to_owned())?;
@@ -650,7 +765,7 @@ impl Jobs {
             );
             let seen = stored.and_then(|(_, _, seen)| seen).or(job.seen_ms);
             db.execute(
-                &format!("INSERT OR REPLACE INTO jobs ({JOB_COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28)"),
+                &format!("INSERT OR REPLACE INTO jobs ({JOB_COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30)"),
                 params![
                     job.id, job.kind, job.agent_id, job.conversation_id, job.prompt, job.workspace,
                     job.state, job.loop_id, job.trigger_id, job.request_id, job.created_ms as i64,
@@ -660,7 +775,8 @@ impl Jobs {
                     job.deadline_ms.map(|v| v as i64), job.wait_reason,
                     job.diff_files.as_ref().and_then(|f| serde_json::to_string(f).ok()),
                     job.additions.map(|v| v as i64), job.deletions.map(|v| v as i64),
-                    i64::from(job.diff_clipped), job.diff_unavailable
+                    i64::from(job.diff_clipped), job.diff_unavailable,
+                    job.spec.as_ref().map(|u| u.to_string()), job.playbook_id
                 ],
             )
             .map_err(|_| "JOB_STORAGE_UNAVAILABLE".to_owned())?;
@@ -727,7 +843,9 @@ impl Jobs {
         workspace: Option<String>,
         conversation_id: Option<String>,
     ) -> Result<Job, String> {
-        if self.llm.agent(agent_id).is_none() {
+        if let Some(tool) = agent_id.strip_prefix(TOOL_PREFIX) {
+            omniget_core::core::agentkit_run::runner::runner_of(tool)?;
+        } else if self.llm.agent(agent_id).is_none() {
             let ids: Vec<String> = self.llm.roster().into_iter().map(|a| a.id).collect();
             return Err(format!(
                 "{ERR_JOBS}: no agent `{agent_id}` (roster: {})",
@@ -829,6 +947,26 @@ impl Jobs {
             .unwrap_or_else(|e| e.into_inner())
             .remove(id);
         out
+    }
+
+    /// Like [`Jobs::submit`] with a run spec (tool runners, sandbox).
+    pub fn submit_spec(
+        self: &Arc<Self>,
+        kind: &str,
+        agent_id: &str,
+        prompt: &str,
+        workspace: Option<String>,
+        spec: Option<Value>,
+    ) -> Result<Job, String> {
+        let mut job = self.new_job(kind, agent_id, prompt, workspace, None)?;
+        job.spec = spec;
+        self.save_job(&job);
+        let this = self.clone();
+        let id = job.id.clone();
+        tauri::async_runtime::spawn(async move {
+            this.run_job(&id, None).await;
+        });
+        Ok(job)
     }
 
     pub fn cancel(&self, id: &str) -> Result<Job, String> {
@@ -1129,6 +1267,9 @@ impl Jobs {
             return None;
         }
         let input = resume_note.unwrap_or_else(|| job.prompt.clone());
+        if job.agent_id.starts_with(TOOL_PREFIX) {
+            return Some(self.run_tool_job(job, input).await);
+        }
         let (request_id, cancel, mut stream) = match self
             .llm
             .turn_stream_with_cancel(&conv, &job.agent_id, &input, cancel.clone())
@@ -1681,7 +1822,8 @@ impl Jobs {
                 params![id, now_ms() as i64],
             )
             .map_err(|e| format!("{ERR_JOBS}: {e}"))?;
-        self.job(id).ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))
+        self.job(id)
+            .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))
     }
 
     /// A routine's result reaches the user only when it changed and the
@@ -1759,7 +1901,9 @@ impl Jobs {
     }
 
     pub fn loop_create(self: &Arc<Self>, mut def: LoopDef) -> Result<LoopDef, String> {
-        if self.llm.agent(&def.agent_id).is_none() {
+        if let Some(tool) = def.agent_id.strip_prefix(TOOL_PREFIX) {
+            omniget_core::core::agentkit_run::runner::runner_of(tool)?;
+        } else if self.llm.agent(&def.agent_id).is_none() {
             return Err(format!("{ERR_JOBS}: no agent `{}`", def.agent_id));
         }
         if def.prompt.trim().is_empty() {
@@ -1778,7 +1922,17 @@ impl Jobs {
         }
         def.conversation_id = format!("loop-{}", def.id);
         def.state = "running".into();
+        if let Some(s) = def.schedule.as_deref() {
+            if next_round_at(s, now_ms()).is_none() {
+                return Err(format!(
+                    "{ERR_JOBS}: bad schedule `{s}` (an interval like 10m, 2h, daily, or a 5-field cron line)"
+                ));
+            }
+        }
         def.rounds_done = 0;
+        def.spent_usd = 0.0;
+        def.active_ms = 0;
+        def.next_round_ms = None;
         def.created_ms = now_ms();
         def.finished_ms = None;
         self.save_loop(&def);
@@ -1797,6 +1951,14 @@ impl Jobs {
             l.stop_reason = Some("cancelled".into());
             l.finished_ms = Some(now_ms());
             self.save_loop(&l);
+        }
+        if let Some(t) = self
+            .loop_waits
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(id)
+        {
+            t.cancel();
         }
         let running: Vec<String> = self
             .list(200)
@@ -1861,7 +2023,19 @@ impl Jobs {
         let Some(mut l) = self.loop_get(&id) else {
             return;
         };
-        let deadline = l.max_minutes.map(|m| l.created_ms + u64::from(m) * 60_000);
+        // A scheduled loop counts the minutes spent in rounds, not the wall clock.
+        let deadline = if l.schedule.is_some() {
+            None
+        } else {
+            l.max_minutes.map(|m| l.created_ms + u64::from(m) * 60_000)
+        };
+        if let Some(ws) = l.workspace.clone().filter(|w| !w.is_empty()) {
+            // The check may run before the first round sets the workspace.
+            let _ = code_tools::set_conversation_workspace(
+                &sanitize_id(&l.conversation_id),
+                Some(ws.into()),
+            );
+        }
         // Already green? Then there is nothing to do.
         if l.rounds_done == 0 {
             if let Some((true, out)) = self.run_check(&l).await {
@@ -1886,6 +2060,35 @@ impl Jobs {
             if deadline.map(|d| now_ms() >= d).unwrap_or(false) {
                 l.stop_reason = Some("max_minutes".into());
                 break;
+            }
+            if l.schedule.is_some()
+                && l.max_minutes
+                    .map(|m| l.active_ms >= u64::from(m) * 60_000)
+                    .unwrap_or(false)
+            {
+                l.stop_reason = Some("max_minutes".into());
+                break;
+            }
+            if l.max_cost_usd.map(|m| l.spent_usd >= m).unwrap_or(false) {
+                l.stop_reason = Some("max_cost".into());
+                break;
+            }
+            if let Some(sched) = l.schedule.clone() {
+                if l.rounds_done > 0 || l.next_round_ms.is_some() {
+                    let at = l
+                        .next_round_ms
+                        .or_else(|| next_round_at(&sched, now_ms()))
+                        .unwrap_or_else(now_ms);
+                    l.next_round_ms = Some(at);
+                    self.save_loop(&l);
+                    if !self.wait_until(&id, at).await {
+                        return;
+                    }
+                    match self.loop_get(&id) {
+                        Some(cur) if cur.state == "running" => {}
+                        _ => return,
+                    }
+                }
             }
             let round = l.rounds_done + 1;
             let prompt = if round == 1 {
@@ -1915,10 +2118,20 @@ impl Jobs {
             };
             job.loop_id = Some(l.id.clone());
             job.deadline_min = l.deadline_min;
+            job.spec = l.spec.clone();
             self.save_job(&job);
+            let round_started = now_ms();
             let done = self.run_job(&job.id, None).await;
             l.rounds_done = round;
+            l.active_ms += now_ms().saturating_sub(round_started);
+            l.next_round_ms = l
+                .schedule
+                .as_deref()
+                .and_then(|s| next_round_at(s, now_ms()));
             let Some(done) = done else { break };
+            if let Some(c) = done.usage.as_ref().and_then(|u| u["cost_usd"].as_f64()) {
+                l.spent_usd += c;
+            }
             match done.state.as_str() {
                 "cancelled" => {
                     l.state = "cancelled".into();
@@ -1958,6 +2171,7 @@ impl Jobs {
         if l.state == "running" {
             l.state = "done".into();
         }
+        l.next_round_ms = None;
         // A cancel may have landed while the last round ran.
         if let Some(cur) = self.loop_get(&id) {
             if cur.state == "cancelled" {
@@ -1979,13 +2193,352 @@ impl Jobs {
                     .map(|a| a.name)
                     .unwrap_or_else(|| l.agent_id.clone()),
             };
-            let detail = format!(
-                "{} · {}",
-                l.name,
-                l.stop_reason.clone().unwrap_or_default()
-            );
-            self.attention.job_ended(&target, l.state == "done", &detail);
+            let detail = format!("{} · {}", l.name, l.stop_reason.clone().unwrap_or_default());
+            self.attention
+                .job_ended(&target, l.state == "done", &detail);
         }
+    }
+
+    /// Sleeps until `at_ms`; `false` when the loop was cancelled meanwhile.
+    async fn wait_until(&self, loop_id: &str, at_ms: u64) -> bool {
+        let token = CancellationToken::new();
+        self.loop_waits
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(loop_id.to_string(), token.clone());
+        let wait = at_ms.saturating_sub(now_ms());
+        let woke = tokio::select! {
+            _ = tokio::time::sleep(std::time::Duration::from_millis(wait)) => true,
+            _ = token.cancelled() => false,
+        };
+        self.loop_waits
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(loop_id);
+        woke
+    }
+
+    // ── tool runs (coding CLIs headless, maybe in a sandbox) ─────────
+
+    /// Runs a `tool:<id>` job: the CLI from the tool manifest's `[runner]`,
+    /// the agent as the system prompt, locally or in the sandbox of the spec.
+    async fn run_tool_job(self: &Arc<Self>, job: Job, input: String) -> Job {
+        use omniget_core::core::agentkit_run::{runner, sandbox};
+        let tool = job
+            .agent_id
+            .strip_prefix(TOOL_PREFIX)
+            .unwrap_or_default()
+            .to_string();
+        let spec: RunSpec = job
+            .spec
+            .clone()
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default();
+        let run = runner::ToolRun {
+            tool: tool.clone(),
+            prompt: input,
+            system_prompt: spec.system_prompt.clone(),
+            model: spec.model.clone(),
+            permission: runner::Permission::parse(spec.permission.as_deref().unwrap_or("")),
+            cwd: job
+                .workspace
+                .clone()
+                .filter(|w| !w.is_empty())
+                .map(Into::into),
+        };
+        let cancel = CancellationToken::new();
+        self.cancels
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(job.id.clone(), cancel.clone());
+        let log = Arc::new(Mutex::new(String::new()));
+        let this = self.clone();
+        let (log2, job_id) = (log.clone(), job.id.clone());
+        // Log lines land in the row at most once per 750 ms.
+        let last_flush = Arc::new(Mutex::new(0u64));
+        let mut on_log = move |line: &str| {
+            let text = {
+                let mut l = log2.lock().unwrap_or_else(|e| e.into_inner());
+                l.push_str(line);
+                l.push('\n');
+                *l = clip(&l, LOG_MAX);
+                l.clone()
+            };
+            let mut last = last_flush.lock().unwrap_or_else(|e| e.into_inner());
+            if now_ms().saturating_sub(*last) >= 750 {
+                *last = now_ms();
+                if let Some(mut j) = this.job(&job_id) {
+                    j.log = text;
+                    this.save_job(&j);
+                }
+            }
+        };
+        let result = match &spec.sandbox {
+            Some(opts) => sandbox::run(&job.id, &run, opts, cancel.clone(), &mut on_log)
+                .await
+                .map(|(out, rec)| {
+                    let n = if rec.bind_original {
+                        None
+                    } else {
+                        sandbox::diff(&rec.id).ok().map(|c| c.len())
+                    };
+                    on_log(&match n {
+                        Some(n) => format!(
+                            "· sandbox ({}): {n} changed file(s) to review in this job",
+                            rec.provider
+                        ),
+                        None => {
+                            format!("· sandbox ({}): worked on the project itself", rec.provider)
+                        }
+                    });
+                    out
+                }),
+            None => runner::run_local(&run, cancel.clone(), &mut on_log).await,
+        };
+        self.cancels
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&job.id);
+        let mut job = self.job(&job.id).unwrap_or(job);
+        job.log = log.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        match result {
+            Ok(out) => {
+                if let Some(u) = &out.usage {
+                    let model = if u.model.is_empty() {
+                        format!(
+                            "{tool}/{}",
+                            spec.model.clone().unwrap_or_else(|| "default".into())
+                        )
+                    } else {
+                        format!("{tool}/{}", u.model)
+                    };
+                    job.usage = Some(json!({
+                        "model": model,
+                        "input_tokens": u.input_tokens,
+                        "output_tokens": u.output_tokens,
+                        "cache_read_tokens": u.cache_read_tokens,
+                        "cost_usd": u.cost_usd,
+                        "calls": u.calls,
+                    }));
+                }
+                // A CLI that failed (auth, crash) may still print its error as
+                // the result: a non-zero exit with an error is a failure.
+                let errored = out.error.is_some()
+                    && (out.text.trim().is_empty()
+                        || out.exit_code.map(|c| c != 0).unwrap_or(true)
+                        || Some(out.text.trim()) == out.error.as_deref().map(str::trim));
+                job.state = if out.cancelled || cancel.is_cancelled() {
+                    "cancelled"
+                } else if errored {
+                    "failed"
+                } else {
+                    "done"
+                }
+                .into();
+                job.result = Some(clip(&out.text, RESULT_MAX));
+                job.error = out.error;
+            }
+            Err(e) => {
+                job.state = if cancel.is_cancelled() {
+                    "cancelled"
+                } else {
+                    "failed"
+                }
+                .into();
+                job.error = Some(e);
+            }
+        }
+        job.finished_ms = Some(now_ms());
+        self.save_job(&job);
+        job
+    }
+
+    // ── playbooks (workflows as chained jobs) ────────────────────────
+
+    fn save_playbook(&self, p: &PlaybookRun) {
+        if let Ok(body) = serde_json::to_string(p) {
+            let _ = self.db().execute(
+                "INSERT OR REPLACE INTO playbooks (id, body) VALUES (?1, ?2)",
+                params![p.id, body],
+            );
+        }
+        let _ = self.app.emit(EVENT_PLAYBOOK, p);
+    }
+
+    pub fn playbook_get(&self, id: &str) -> Option<PlaybookRun> {
+        self.db()
+            .query_row("SELECT body FROM playbooks WHERE id=?1", params![id], |r| {
+                r.get::<_, String>(0)
+            })
+            .optional()
+            .ok()
+            .flatten()
+            .and_then(|b| serde_json::from_str(&b).ok())
+    }
+
+    pub fn playbooks(&self) -> Vec<PlaybookRun> {
+        let db = self.db();
+        let Ok(mut stmt) = db.prepare("SELECT body FROM playbooks") else {
+            return Vec::new();
+        };
+        let mut out: Vec<PlaybookRun> = stmt
+            .query_map([], |r| r.get::<_, String>(0))
+            .map(|rows| {
+                rows.filter_map(Result::ok)
+                    .filter_map(|b| serde_json::from_str(&b).ok())
+                    .collect()
+            })
+            .unwrap_or_default();
+        out.sort_by_key(|p| std::cmp::Reverse(p.created_ms));
+        out
+    }
+
+    /// Starts a playbook whose steps are already resolved to runners.
+    pub fn playbook_start(self: &Arc<Self>, mut p: PlaybookRun) -> Result<PlaybookRun, String> {
+        if p.steps.is_empty() {
+            return Err(format!("{ERR_JOBS}: a playbook needs at least one step"));
+        }
+        for s in &p.steps {
+            if let Some(tool) = s.agent_id.strip_prefix(TOOL_PREFIX) {
+                omniget_core::core::agentkit_run::runner::runner_of(tool)?;
+            } else if self.llm.agent(&s.agent_id).is_none() {
+                return Err(format!(
+                    "{ERR_JOBS}: step `{}`: no agent `{}`",
+                    s.name, s.agent_id
+                ));
+            }
+        }
+        p.id = short_id("p");
+        p.state = "running".into();
+        p.current = 0;
+        p.created_ms = now_ms();
+        p.finished_ms = None;
+        for s in &mut p.steps {
+            s.state = "pending".into();
+            s.job_id = None;
+            s.output = None;
+        }
+        self.save_playbook(&p);
+        let this = self.clone();
+        let id = p.id.clone();
+        tauri::async_runtime::spawn(async move { this.run_playbook(id).await });
+        Ok(p)
+    }
+
+    pub fn playbook_cancel(&self, id: &str) -> Result<PlaybookRun, String> {
+        let mut p = self
+            .playbook_get(id)
+            .ok_or_else(|| format!("{ERR_JOBS}: no playbook {id}"))?;
+        if p.state == "running" {
+            p.state = "cancelled".into();
+            p.finished_ms = Some(now_ms());
+            for s in &mut p.steps {
+                if s.state == "pending" {
+                    s.state = "skipped".into();
+                }
+            }
+            self.save_playbook(&p);
+        }
+        for s in &p.steps {
+            if let Some(j) = &s.job_id {
+                let _ = self.cancel(j);
+            }
+        }
+        Ok(p)
+    }
+
+    pub fn playbook_delete(&self, id: &str) -> Result<(), String> {
+        let _ = self.playbook_cancel(id);
+        self.db()
+            .execute("DELETE FROM playbooks WHERE id=?1", params![id])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    async fn run_playbook(self: Arc<Self>, id: String) {
+        use omniget_core::core::agentkit_run::playbook as pb;
+        let Some(mut p) = self.playbook_get(&id) else {
+            return;
+        };
+        while p.current < p.steps.len() {
+            match self.playbook_get(&id) {
+                Some(cur) if cur.state == "running" => {}
+                _ => return,
+            }
+            let i = p.current;
+            let previous: Vec<(String, String)> = p.steps[..i]
+                .iter()
+                .filter_map(|s| s.output.clone().map(|o| (s.name.clone(), o)))
+                .collect();
+            let shape = pb::Playbook {
+                name: p.name.clone(),
+                description: p.description.clone(),
+                steps: p
+                    .steps
+                    .iter()
+                    .map(|s| pb::PlaybookStep {
+                        name: s.name.clone(),
+                        ..Default::default()
+                    })
+                    .collect(),
+                ..Default::default()
+            };
+            let prompt = pb::step_prompt(&shape, i, &p.steps[i].prompt, &previous);
+            let mut job = match self.new_job(
+                "playbook",
+                &p.steps[i].agent_id,
+                &prompt,
+                p.workspace.clone(),
+                None,
+            ) {
+                Ok(j) => j,
+                Err(e) => {
+                    p.steps[i].state = "failed".into();
+                    p.state = "failed".into();
+                    p.error = Some(e);
+                    break;
+                }
+            };
+            job.playbook_id = Some(p.id.clone());
+            job.spec = p.steps[i].spec.clone();
+            self.save_job(&job);
+            p.steps[i].job_id = Some(job.id.clone());
+            p.steps[i].state = "running".into();
+            self.save_playbook(&p);
+            let done = self.run_job(&job.id, None).await;
+            let Some(done) = done else {
+                p.state = "failed".into();
+                break;
+            };
+            p.steps[i].output = done.result.clone();
+            p.steps[i].state = done.state.clone();
+            if done.state != "done" {
+                p.state = if done.state == "cancelled" {
+                    "cancelled".into()
+                } else {
+                    "failed".into()
+                };
+                p.error = done.error.clone();
+                break;
+            }
+            p.current = i + 1;
+            self.save_playbook(&p);
+        }
+        if p.state == "running" {
+            p.state = "done".into();
+        }
+        if let Some(cur) = self.playbook_get(&id) {
+            if cur.state == "cancelled" {
+                p.state = "cancelled".into();
+            }
+        }
+        for s in &mut p.steps {
+            if s.state == "pending" {
+                s.state = "skipped".into();
+            }
+        }
+        p.finished_ms = Some(now_ms());
+        self.save_playbook(&p);
     }
 
     // ── boot ─────────────────────────────────────────────────────────
@@ -2011,7 +2564,12 @@ impl Jobs {
                 && job.request_id.is_none()
                 && job.started_ms.is_none();
             // Mission jobs are driven (and reconciled) by the mission driver.
-            if never_sent && job.loop_id.is_none() && job.kind != "chat" && job.kind != "mission" {
+            if never_sent
+                && job.loop_id.is_none()
+                && job.playbook_id.is_none()
+                && job.kind != "chat"
+                && job.kind != "mission"
+            {
                 // Provably never dispatched: safe to start now.
                 let this = self.clone();
                 tauri::async_runtime::spawn(async move {
@@ -2031,6 +2589,20 @@ impl Jobs {
             l.state = "interrupted".into();
             l.stop_reason = Some("app_closed".into());
             self.save_loop(&l);
+        }
+        // A playbook resumes at the step that was running (it starts again).
+        for mut p in self
+            .playbooks()
+            .into_iter()
+            .filter(|p| p.state == "running")
+        {
+            if let Some(s) = p.steps.get_mut(p.current) {
+                s.state = "pending".into();
+                s.job_id = None;
+            }
+            self.save_playbook(&p);
+            let this = self.clone();
+            tauri::async_runtime::spawn(async move { this.run_playbook(p.id).await });
         }
     }
 
@@ -2190,7 +2762,9 @@ impl Jobs {
         }
         {
             let db = self.db();
-            let old = (!t.id.is_empty()).then(|| read_trigger(&db, &t.id)).flatten();
+            let old = (!t.id.is_empty())
+                .then(|| read_trigger(&db, &t.id))
+                .flatten();
             if t.id.is_empty() {
                 t.id = short_id("t");
             }
@@ -2518,7 +3092,11 @@ pub fn parse_zone(tz: &str) -> Option<Zone> {
         return None;
     }
     let hours: i32 = digits[..2].parse().ok()?;
-    let minutes: i32 = if digits.len() == 4 { digits[2..].parse().ok()? } else { 0 };
+    let minutes: i32 = if digits.len() == 4 {
+        digits[2..].parse().ok()?
+    } else {
+        0
+    };
     if hours > 14 || minutes > 59 {
         return None;
     }
@@ -2631,7 +3209,9 @@ pub fn read_triggers(db: &Connection) -> Vec<Trigger> {
         return Vec::new();
     };
     let mut out: Vec<Trigger> = stmt
-        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<i64>>(1)?)))
+        .query_map([], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, Option<i64>>(1)?))
+        })
         .map(|rows| {
             rows.filter_map(Result::ok)
                 .filter_map(|(body, next)| trigger_of(&body, next))
@@ -2807,6 +3387,31 @@ pub fn trigger_view(t: &Trigger) -> Value {
     v
 }
 
+/// When the next round of a scheduled Loop starts: a 5-field cron line (the
+/// next matching minute, local time) or an interval (`10m`, `2h`, `daily`).
+pub fn next_round_at(schedule: &str, from_ms: u64) -> Option<u64> {
+    let s = schedule.trim();
+    if s.is_empty() {
+        return None;
+    }
+    if s.split_whitespace().count() == 5 || s.starts_with('@') {
+        let cron = Cron::parse(s).ok()?;
+        let start =
+            chrono::DateTime::from_timestamp_millis(from_ms as i64)?.with_timezone(&chrono::Local);
+        let mut t =
+            start.with_second(0).and_then(|t| t.with_nanosecond(0))? + chrono::Duration::minutes(1);
+        for _ in 0..(366 * 24 * 60) {
+            if cron.matches(&t) {
+                return Some(t.timestamp_millis() as u64);
+            }
+            t += chrono::Duration::minutes(1);
+        }
+        return None;
+    }
+    omniget_core::core::agentkit::convert::loop_runbook::interval_secs(s)
+        .map(|secs| from_ms + secs * 1000)
+}
+
 /// `{ base_url, token }` of the local bridge, for the webhook URL in the UI.
 pub fn bridge_info(app: &AppHandle) -> Value {
     let settings = crate::storage::config::load_settings(app);
@@ -2868,9 +3473,8 @@ pub fn job_ask_timeout(
     deadline_ms: Option<u64>,
     ask_job: Option<std::time::Duration>,
 ) -> Option<std::time::Duration> {
-    ask_job.or_else(|| {
-        deadline_ms.map(|d| std::time::Duration::from_millis(d.saturating_sub(now_ms)))
-    })
+    ask_job
+        .or_else(|| deadline_ms.map(|d| std::time::Duration::from_millis(d.saturating_sub(now_ms))))
 }
 
 /// `GET /v1/jobs/{id}/explain`: why the job is in its state right now
@@ -2967,7 +3571,9 @@ pub fn merge_limits(
 /// translates (`slot`, `agent_cap`, `workspace:<job id>`).
 pub fn wait_state(reason: &WaitReason) -> (&'static str, String) {
     match reason {
-        WaitReason::Workspace { holder, .. } => ("waiting_workspace", format!("workspace:{holder}")),
+        WaitReason::Workspace { holder, .. } => {
+            ("waiting_workspace", format!("workspace:{holder}"))
+        }
         other => ("queued", other.code().to_string()),
     }
 }
@@ -2976,10 +3582,7 @@ pub fn wait_state(reason: &WaitReason) -> (&'static str, String) {
 /// the code instead).
 fn wait_detail(reason: &WaitReason, view: &GateView, agent: &str) -> String {
     match reason {
-        WaitReason::Slot => format!(
-            "all {} job slots are busy",
-            view.limits.max_parallel
-        ),
+        WaitReason::Slot => format!("all {} job slots are busy", view.limits.max_parallel),
         WaitReason::AgentCap { cap } => format!("agent {agent} is at its cap of {cap} jobs"),
         WaitReason::Workspace { holder, folder } => format!("folder busy by {holder} ({folder})"),
     }
@@ -2993,7 +3596,10 @@ pub fn state_view(view: &GateView, job: &dyn Fn(&str) -> Option<Job>) -> Value {
     let mut blocked = Vec::new();
     for h in &view.held {
         let j = job(&h.job_id);
-        let state = j.as_ref().map(|j| j.state.clone()).unwrap_or_else(|| "running".into());
+        let state = j
+            .as_ref()
+            .map(|j| j.state.clone())
+            .unwrap_or_else(|| "running".into());
         let row = json!({
             "id": h.job_id,
             "agent_id": h.agent_id,
@@ -3153,7 +3759,10 @@ pub fn diff_view(
                 ),
             )),
             (false, Some(p)) => Ok(DiffBody::Patch(p.to_string())),
-            (false, None) => Err((404, format!("{ERR_JOBS}: the patch file of job {} is gone", job.id))),
+            (false, None) => Err((
+                404,
+                format!("{ERR_JOBS}: the patch file of job {} is gone", job.id),
+            )),
         },
         other => Err((
             400,
@@ -3202,10 +3811,17 @@ mod diff_tests {
         .unwrap();
         ensure_schema(&db, 0).unwrap();
         let job = db
-            .query_row(&format!("SELECT {JOB_COLS} FROM jobs WHERE id='j0'"), [], row_to_job)
+            .query_row(
+                &format!("SELECT {JOB_COLS} FROM jobs WHERE id='j0'"),
+                [],
+                row_to_job,
+            )
             .unwrap();
         assert_eq!(job.diff_files, None);
-        assert_eq!(job.diff_unavailable, None, "not computed yet, not 'unavailable'");
+        assert_eq!(
+            job.diff_unavailable, None,
+            "not computed yet, not 'unavailable'"
+        );
         assert!(!job.diff_clipped);
     }
 
@@ -3215,7 +3831,10 @@ mod diff_tests {
         let patch = apply_diff(
             &mut job,
             Ok(JobDiff {
-                files: vec![change("a.txt", "M", Some(2), Some(1)), change("b.pyc", "A", None, None)],
+                files: vec![
+                    change("a.txt", "M", Some(2), Some(1)),
+                    change("b.pyc", "A", None, None),
+                ],
                 additions: 2,
                 deletions: 1,
                 clipped: true,
@@ -3226,17 +3845,37 @@ mod diff_tests {
         );
         assert_eq!(patch.as_deref(), Some("diff --git a/a.txt b/a.txt\n"));
         assert_eq!(job.diff_files.as_ref().map(Vec::len), Some(2));
-        assert_eq!((job.additions, job.deletions, job.diff_clipped), (Some(2), Some(1), true));
+        assert_eq!(
+            (job.additions, job.deletions, job.diff_clipped),
+            (Some(2), Some(1), true)
+        );
         assert_eq!(job.diff_unavailable, None);
 
-        let none = apply_diff(&mut job, Err(format!("{ERR_DIFF_UNAVAILABLE}: 1 of 2 turns of this job took no snapshot")));
+        let none = apply_diff(
+            &mut job,
+            Err(format!(
+                "{ERR_DIFF_UNAVAILABLE}: 1 of 2 turns of this job took no snapshot"
+            )),
+        );
         assert_eq!(none, None);
         assert_eq!(job.diff_files, None, "never an empty list for unknown");
-        assert_eq!(job.diff_unavailable.as_deref(), Some("no_snapshot: 1 of 2 turns of this job took no snapshot"));
-        apply_diff(&mut job, Err("no_workspace: the job ran without a folder".into()));
-        assert_eq!(job.diff_unavailable.as_deref(), Some("no_workspace: the job ran without a folder"));
+        assert_eq!(
+            job.diff_unavailable.as_deref(),
+            Some("no_snapshot: 1 of 2 turns of this job took no snapshot")
+        );
+        apply_diff(
+            &mut job,
+            Err("no_workspace: the job ran without a folder".into()),
+        );
+        assert_eq!(
+            job.diff_unavailable.as_deref(),
+            Some("no_workspace: the job ran without a folder")
+        );
         apply_diff(&mut job, Err("ERR_CODE_SNAPSHOT: git diff: boom".into()));
-        assert_eq!(job.diff_unavailable.as_deref(), Some("error: ERR_CODE_SNAPSHOT: git diff: boom"));
+        assert_eq!(
+            job.diff_unavailable.as_deref(),
+            Some("error: ERR_CODE_SNAPSHOT: git diff: boom")
+        );
     }
 
     #[test]
@@ -3258,23 +3897,35 @@ mod diff_tests {
             panic!()
         };
         assert_eq!(v["available"], false);
-        assert_eq!(diff_view(&done_job(), None, None, "zip", true).unwrap_err().0, 400);
+        assert_eq!(
+            diff_view(&done_job(), None, None, "zip", true)
+                .unwrap_err()
+                .0,
+            400
+        );
     }
 
     #[test]
     fn the_files_format_carries_totals_and_the_patch_path() {
         let mut job = done_job();
-        job.diff_files = Some(vec![change("a.txt", "A", Some(3), Some(0)), change("m.bin", "M", None, None)]);
+        job.diff_files = Some(vec![
+            change("a.txt", "A", Some(3), Some(0)),
+            change("m.bin", "M", None, None),
+        ]);
         job.additions = Some(3);
         job.deletions = Some(0);
         let path = std::path::Path::new("/data/llm/jobs/j1.patch");
-        let DiffBody::Json(v) = diff_view(&job, Some("p"), Some(path), "files", false).unwrap() else {
+        let DiffBody::Json(v) = diff_view(&job, Some("p"), Some(path), "files", false).unwrap()
+        else {
             panic!()
         };
         assert_eq!(v["available"], true);
         assert_eq!(v["job_id"], "j1");
         assert_eq!(v["file_count"], 2);
-        assert_eq!((v["additions"].as_u64(), v["deletions"].as_u64()), (Some(3), Some(0)));
+        assert_eq!(
+            (v["additions"].as_u64(), v["deletions"].as_u64()),
+            (Some(3), Some(0))
+        );
         assert_eq!(v["files"][1]["binary"], true);
         assert_eq!(v["complete"], false);
         assert_eq!(v["head_oid"], Value::Null);
@@ -3291,10 +3942,16 @@ mod diff_tests {
             DiffBody::Patch("+x\n".into())
         );
         // Known, but the file went away: said, not faked.
-        assert_eq!(diff_view(&job, None, None, "patch", true).unwrap_err().0, 404);
+        assert_eq!(
+            diff_view(&job, None, None, "patch", true).unwrap_err().0,
+            404
+        );
         // Known and empty (a read-only job): an empty patch, 200.
         job.diff_files = Some(Vec::new());
-        assert_eq!(diff_view(&job, Some(""), None, "patch", true).unwrap(), DiffBody::Patch(String::new()));
+        assert_eq!(
+            diff_view(&job, Some(""), None, "patch", true).unwrap(),
+            DiffBody::Patch(String::new())
+        );
     }
 
     #[test]
@@ -3321,8 +3978,16 @@ mod bn4_read {
     fn bench(metric: &str, value: Value) {
         if let Ok(path) = std::env::var("OMNIGET_BENCH_OUT") {
             use std::io::Write as _;
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-                let _ = writeln!(f, "{}", json!({"bench": "bn4", "metric": metric, "value": value, "level": "stored read (row + patch file + diff_view)"}));
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+            {
+                let _ = writeln!(
+                    f,
+                    "{}",
+                    json!({"bench": "bn4", "metric": metric, "value": value, "level": "stored read (row + patch file + diff_view)"})
+                );
             }
         }
     }
@@ -3365,14 +4030,22 @@ mod bn4_read {
         for _ in 0..reps {
             let t = Instant::now();
             let job = db
-                .query_row(&format!("SELECT {JOB_COLS} FROM jobs WHERE id='j50'"), [], row_to_job)
+                .query_row(
+                    &format!("SELECT {JOB_COLS} FROM jobs WHERE id='j50'"),
+                    [],
+                    row_to_job,
+                )
                 .unwrap();
             let text = std::fs::read_to_string(&patch_file).unwrap();
-            let DiffBody::Json(v) = diff_view(&job, Some(&text), Some(&patch_file), "files", true).unwrap() else {
+            let DiffBody::Json(v) =
+                diff_view(&job, Some(&text), Some(&patch_file), "files", true).unwrap()
+            else {
                 panic!()
             };
             let bytes = serde_json::to_vec(&v).unwrap();
-            let DiffBody::Patch(p) = diff_view(&job, Some(&text), Some(&patch_file), "patch", true).unwrap() else {
+            let DiffBody::Patch(p) =
+                diff_view(&job, Some(&text), Some(&patch_file), "patch", true).unwrap()
+            else {
                 panic!()
             };
             assert!(!bytes.is_empty() && p.len() == patch.len());
@@ -3410,22 +4083,47 @@ mod queue_tests {
         assert_eq!((l.max_parallel, l.max_per_agent), (1, Some(16)));
         let merged = merge_limits(
             LlmSettings::default(),
-            &JobLimitsInput { max_parallel: Some(40), max_per_agent: Some(2) },
+            &JobLimitsInput {
+                max_parallel: Some(40),
+                max_per_agent: Some(2),
+            },
         );
-        assert_eq!((merged.jobs_max_parallel, merged.jobs_max_per_agent), (16, Some(2)));
-        let merged = merge_limits(merged, &JobLimitsInput { max_parallel: None, max_per_agent: Some(0) });
-        assert_eq!((merged.jobs_max_parallel, merged.jobs_max_per_agent), (16, None), "0 = no per-agent cap");
+        assert_eq!(
+            (merged.jobs_max_parallel, merged.jobs_max_per_agent),
+            (16, Some(2))
+        );
+        let merged = merge_limits(
+            merged,
+            &JobLimitsInput {
+                max_parallel: None,
+                max_per_agent: Some(0),
+            },
+        );
+        assert_eq!(
+            (merged.jobs_max_parallel, merged.jobs_max_per_agent),
+            (16, None),
+            "0 = no per-agent cap"
+        );
     }
 
     #[test]
     fn a_folder_wait_is_waiting_workspace_with_the_holder() {
         let folder = FolderKey::normalize("/w/repo", false, false);
         assert_eq!(
-            wait_state(&WaitReason::Workspace { holder: "j1".into(), folder }),
+            wait_state(&WaitReason::Workspace {
+                holder: "j1".into(),
+                folder
+            }),
             ("waiting_workspace", "workspace:j1".to_string())
         );
-        assert_eq!(wait_state(&WaitReason::Slot), ("queued", "slot".to_string()));
-        assert_eq!(wait_state(&WaitReason::AgentCap { cap: 2 }), ("queued", "agent_cap".to_string()));
+        assert_eq!(
+            wait_state(&WaitReason::Slot),
+            ("queued", "slot".to_string())
+        );
+        assert_eq!(
+            wait_state(&WaitReason::AgentCap { cap: 2 }),
+            ("queued", "agent_cap".to_string())
+        );
     }
 
     #[test]
@@ -3446,7 +4144,10 @@ mod queue_tests {
                     class: Class::Manual,
                     folder: Some(folder.clone()),
                     position: 1,
-                    reason: WaitReason::Workspace { holder: "run1".into(), folder: folder.clone() },
+                    reason: WaitReason::Workspace {
+                        holder: "run1".into(),
+                        folder: folder.clone(),
+                    },
                 },
                 Queued {
                     job_id: "q2".into(),
@@ -3457,7 +4158,11 @@ mod queue_tests {
                     reason: WaitReason::Slot,
                 },
             ],
-            limits: Limits { max_parallel: 2, max_per_agent: None, stagger: std::time::Duration::from_millis(500) },
+            limits: Limits {
+                max_parallel: 2,
+                max_per_agent: None,
+                stagger: std::time::Duration::from_millis(500),
+            },
             available: 0,
         };
         let job = |id: &str| -> Option<Job> {
@@ -3523,8 +4228,14 @@ mod watchdog_tests {
             failure_reason_of("ERR_CLI_STALLED: the CLI printed nothing for 600 s"),
             Some("stalled")
         );
-        assert_eq!(failure_reason_of("ERR_CLI_NO_START: nothing"), Some("no_start"));
-        assert_eq!(failure_reason_of("ERR_TOOL_TIMEOUT: nobody answered"), Some("ask_expired"));
+        assert_eq!(
+            failure_reason_of("ERR_CLI_NO_START: nothing"),
+            Some("no_start")
+        );
+        assert_eq!(
+            failure_reason_of("ERR_TOOL_TIMEOUT: nobody answered"),
+            Some("ask_expired")
+        );
         assert_eq!(failure_reason_of("ERR_CLI_EXIT: exited with 1"), None);
     }
 
@@ -3533,7 +4244,11 @@ mod watchdog_tests {
     #[test]
     fn every_background_kind_gets_a_deadline_and_chat_does_not() {
         for kind in ["run", "loop", "trigger"] {
-            assert_eq!(default_deadline_ms(kind, 1_000, 60), Some(1_000 + 3_600_000), "{kind}");
+            assert_eq!(
+                default_deadline_ms(kind, 1_000, 60),
+                Some(1_000 + 3_600_000),
+                "{kind}"
+            );
         }
         assert_eq!(default_deadline_ms("chat", 1_000, 60), None);
         assert_eq!(default_deadline_ms("mission", 1_000, 60), None);
@@ -3552,7 +4267,10 @@ mod watchdog_tests {
             job_ask_timeout(1_000, Some(61_000), Some(Duration::from_secs(300))),
             Some(Duration::from_secs(300))
         );
-        assert_eq!(job_ask_timeout(90_000, Some(61_000), None), Some(Duration::ZERO));
+        assert_eq!(
+            job_ask_timeout(90_000, Some(61_000), None),
+            Some(Duration::ZERO)
+        );
         assert_eq!(job_ask_timeout(1_000, None, None), None);
     }
 
@@ -3574,7 +4292,9 @@ mod watchdog_tests {
             last_event_ms: 20_000,
             deadline_ms: Some(70_000),
         };
-        let asks = vec![json!({"request_id": "r1", "tool": "cli:Bash", "tool_call_id": "c1", "asked_ms": 25_000u64})];
+        let asks = vec![
+            json!({"request_id": "r1", "tool": "cli:Bash", "tool_call_id": "c1", "asked_ms": 25_000u64}),
+        ];
         let v = explain_view(&job, Some(&live), 30_000, &asks, Some(4242));
         assert_eq!(v["id"], "j1");
         assert_eq!(v["state"], "waiting_approval");
@@ -3709,7 +4429,11 @@ mod cron_tests {
     fn next_after_takes_a_timestamp_and_a_zone() {
         let every = Cron::parse("*/1 * * * *").unwrap();
         assert_eq!(every.next_after(t0(), "UTC"), Some(t0() + MIN));
-        assert_eq!(every.next_after(t0() + 30_000, "UTC"), Some(t0() + MIN), "strictly after, on the minute");
+        assert_eq!(
+            every.next_after(t0() + 30_000, "UTC"),
+            Some(t0() + MIN),
+            "strictly after, on the minute"
+        );
         // 09:30 on the wall clock of the zone, not UTC.
         let nine = Cron::parse("30 9 * * *").unwrap();
         let utc = nine.next_after(t0(), "UTC").unwrap();
@@ -3717,7 +4441,10 @@ mod cron_tests {
         assert_eq!(utc - t0(), 23 * 60 * MIN + 30 * MIN, "09:30 UTC tomorrow");
         assert_eq!(plus2, utc - 2 * 60 * MIN, "09:30 at +02:00 is 07:30 UTC");
         assert!(nine.next_after(t0(), "local").is_some());
-        assert!(Cron::parse("0 0 31 2 *").unwrap().next_after(t0(), "UTC").is_none());
+        assert!(Cron::parse("0 0 31 2 *")
+            .unwrap()
+            .next_after(t0(), "UTC")
+            .is_none());
     }
 
     #[test]
@@ -3731,7 +4458,11 @@ mod cron_tests {
         assert_eq!(parse_zone("+05"), east(5 * 3600));
         assert_eq!(parse_zone("America/Sao_Paulo"), None);
         assert_eq!(parse_zone("+25:00"), None);
-        assert_eq!(zone_of("America/Sao_Paulo"), Zone::Local, "unknown reads as local");
+        assert_eq!(
+            zone_of("America/Sao_Paulo"),
+            Zone::Local,
+            "unknown reads as local"
+        );
     }
 
     #[test]
@@ -3755,19 +4486,55 @@ mod cron_tests {
             plan_tick(&t, &c, now, 0, false)
         };
         let once = at(CatchUp::Once, TriggerConcurrency::SkipIfActive);
-        assert_eq!((once.fire_now, once.backlog, once.missed_slots, once.caught_up), (1, 0, 3, 1));
+        assert_eq!(
+            (
+                once.fire_now,
+                once.backlog,
+                once.missed_slots,
+                once.caught_up
+            ),
+            (1, 0, 3, 1)
+        );
         assert_eq!(once.not_run, 2);
         let skip = at(CatchUp::Skip, TriggerConcurrency::SkipIfActive);
-        assert_eq!((skip.fire_now, skip.backlog, skip.missed_slots, skip.caught_up), (0, 0, 3, 0));
+        assert_eq!(
+            (
+                skip.fire_now,
+                skip.backlog,
+                skip.missed_slots,
+                skip.caught_up
+            ),
+            (0, 0, 3, 0)
+        );
         assert_eq!(skip.not_run, 3, "logged as missed=3");
         // All three run: at once when the routine may overlap itself, one at
         // a time (1 now + 2 waiting) when it may not.
         let all_q = at(CatchUp::AllCapped, TriggerConcurrency::Queue);
-        assert_eq!((all_q.fire_now, all_q.backlog, all_q.caught_up, all_q.not_run), (3, 0, 3, 0));
+        assert_eq!(
+            (
+                all_q.fire_now,
+                all_q.backlog,
+                all_q.caught_up,
+                all_q.not_run
+            ),
+            (3, 0, 3, 0)
+        );
         let all_s = at(CatchUp::AllCapped, TriggerConcurrency::SkipIfActive);
-        assert_eq!((all_s.fire_now, all_s.backlog, all_s.caught_up, all_s.not_run), (1, 2, 3, 0));
+        assert_eq!(
+            (
+                all_s.fire_now,
+                all_s.backlog,
+                all_s.caught_up,
+                all_s.not_run
+            ),
+            (1, 2, 3, 0)
+        );
         for p in [once, skip, all_q, all_s] {
-            assert_eq!(p.next_run_ms, Some(t0() + 4 * MIN), "the schedule moves past now");
+            assert_eq!(
+                p.next_run_ms,
+                Some(t0() + 4 * MIN),
+                "the schedule moves past now"
+            );
         }
     }
 
@@ -3778,10 +4545,17 @@ mod cron_tests {
                 let (mut t, c) = routine("*/5 * * * *", catch_up, concurrency);
                 t.next_run_ms = Some(t0() + 5 * MIN);
                 // Not due yet: nothing.
-                assert_eq!(plan_tick(&t, &c, t0() + 4 * MIN, CRON_GRACE_MS, false).fire_now, 0);
+                assert_eq!(
+                    plan_tick(&t, &c, t0() + 4 * MIN, CRON_GRACE_MS, false).fire_now,
+                    0
+                );
                 // Seen 20 s late by the ticker: it runs, nothing is missed.
                 let plan = plan_tick(&t, &c, t0() + 5 * MIN + 20_000, CRON_GRACE_MS, false);
-                assert_eq!((plan.fire_now, plan.missed_slots, plan.not_run), (1, 0, 0), "{catch_up:?} {concurrency:?}");
+                assert_eq!(
+                    (plan.fire_now, plan.missed_slots, plan.not_run),
+                    (1, 0, 0),
+                    "{catch_up:?} {concurrency:?}"
+                );
                 assert_eq!(plan.next_run_ms, Some(t0() + 10 * MIN));
             }
         }
@@ -3803,13 +4577,24 @@ mod cron_tests {
 
     #[test]
     fn a_busy_routine_skips_and_counts_it() {
-        let (mut t, c) = routine("*/1 * * * *", CatchUp::Once, TriggerConcurrency::SkipIfActive);
+        let (mut t, c) = routine(
+            "*/1 * * * *",
+            CatchUp::Once,
+            TriggerConcurrency::SkipIfActive,
+        );
         t.next_run_ms = Some(t0() + MIN);
         let plan = plan_tick(&t, &c, t0() + MIN + 5_000, CRON_GRACE_MS, true);
-        assert_eq!((plan.fire_now, plan.skipped_active, plan.not_run), (0, 1, 1));
+        assert_eq!(
+            (plan.fire_now, plan.skipped_active, plan.not_run),
+            (0, 1, 1)
+        );
         t.concurrency = TriggerConcurrency::Queue;
         let plan = plan_tick(&t, &c, t0() + MIN + 5_000, CRON_GRACE_MS, true);
-        assert_eq!((plan.fire_now, plan.skipped_active), (1, 0), "queue starts it anyway");
+        assert_eq!(
+            (plan.fire_now, plan.skipped_active),
+            (1, 0),
+            "queue starts it anyway"
+        );
     }
 
     /// 80#P2 "Como medir" 2: never two jobs of one routine at once with
@@ -3866,20 +4651,36 @@ mod cron_tests {
 
     #[test]
     fn an_old_trigger_is_migrated_from_now() {
-        let path = std::env::temp_dir().join(format!("omniget-cron-old-{}.db", uuid::Uuid::new_v4()));
+        let path =
+            std::env::temp_dir().join(format!("omniget-cron-old-{}.db", uuid::Uuid::new_v4()));
         let db = Connection::open(&path).unwrap();
-        db.execute_batch("CREATE TABLE triggers (id TEXT PRIMARY KEY, body TEXT NOT NULL);").unwrap();
-        db.execute("INSERT INTO triggers (id, body) VALUES ('t1', ?1)", params![old_body()]).unwrap();
+        db.execute_batch("CREATE TABLE triggers (id TEXT PRIMARY KEY, body TEXT NOT NULL);")
+            .unwrap();
+        db.execute(
+            "INSERT INTO triggers (id, body) VALUES ('t1', ?1)",
+            params![old_body()],
+        )
+        .unwrap();
         ensure_schema(&db, t0() + 30_000).unwrap();
         let t = read_trigger(&db, "t1").unwrap();
-        assert_eq!(t.next_run_ms, Some(t0() + MIN), "from now, not from the last firing");
-        assert_eq!((t.catch_up, t.concurrency, t.fire_count), (CatchUp::Once, TriggerConcurrency::SkipIfActive, 4));
+        assert_eq!(
+            t.next_run_ms,
+            Some(t0() + MIN),
+            "from now, not from the last firing"
+        );
+        assert_eq!(
+            (t.catch_up, t.concurrency, t.fire_count),
+            (CatchUp::Once, TriggerConcurrency::SkipIfActive, 4)
+        );
         assert!(parse_zone(&t.tz).is_some());
         // Nothing before the migration counts as missed.
         assert!(claim_due(&db, "t1", t0() + 40_000, 0, false).is_none());
         // Running it again changes nothing.
         ensure_schema(&db, t0() + 50 * MIN).unwrap();
-        assert_eq!(read_trigger(&db, "t1").unwrap().next_run_ms, Some(t0() + MIN));
+        assert_eq!(
+            read_trigger(&db, "t1").unwrap().next_run_ms,
+            Some(t0() + MIN)
+        );
         let _ = std::fs::remove_file(path);
     }
 
@@ -3890,15 +4691,22 @@ mod cron_tests {
         t.next_run_ms = Some(t0() + MIN);
         set_schedule(&db, &t).unwrap();
         let now = t0() + MIN + 10_000;
-        let first = claim_due(&db, "t1", now, CRON_GRACE_MS, false).expect("the first pass takes it");
+        let first =
+            claim_due(&db, "t1", now, CRON_GRACE_MS, false).expect("the first pass takes it");
         assert_eq!(first.1.fire_now, 1);
-        assert!(claim_due(&db, "t1", now, CRON_GRACE_MS, false).is_none(), "the same slot twice");
+        assert!(
+            claim_due(&db, "t1", now, CRON_GRACE_MS, false).is_none(),
+            "the same slot twice"
+        );
         // Another process that read the old schedule loses the CAS.
         let other = Connection::open(&path).unwrap();
         let mut stale = t.clone();
         stale.next_run_ms = Some(t0() + 2 * MIN);
         assert!(!cas_schedule(&other, &stale, Some(t0() + MIN)));
-        assert_eq!(read_trigger(&db, "t1").unwrap().next_run_ms, Some(t0() + 2 * MIN));
+        assert_eq!(
+            read_trigger(&db, "t1").unwrap().next_run_ms,
+            Some(t0() + 2 * MIN)
+        );
         let _ = std::fs::remove_file(path);
     }
 
@@ -3940,7 +4748,11 @@ mod cron_tests {
     #[test]
     fn a_busy_routine_is_seen_through_its_jobs() {
         let (path, db) = db_file();
-        let (mut t, _) = routine("*/1 * * * *", CatchUp::Once, TriggerConcurrency::SkipIfActive);
+        let (mut t, _) = routine(
+            "*/1 * * * *",
+            CatchUp::Once,
+            TriggerConcurrency::SkipIfActive,
+        );
         t.next_run_ms = Some(t0() + MIN);
         set_schedule(&db, &t).unwrap();
         db.execute(

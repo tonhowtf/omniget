@@ -79,7 +79,7 @@ fn path_end(text: &str, start: usize) -> usize {
         if c.is_ascii_whitespace() || matches!(c, b'"' | b'\'' | b'`' | b')' | b'>' | b',' | b';') {
             break;
         }
-        if c == b':' && bytes.get(i + 1).map_or(true, |n| n.is_ascii_whitespace()) {
+        if c == b':' && bytes.get(i + 1).is_none_or(|n| n.is_ascii_whitespace()) {
             break;
         }
         i += 1;

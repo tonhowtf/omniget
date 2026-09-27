@@ -127,7 +127,10 @@ fn resolve(path: &Path) -> PathBuf {
             }
             return out;
         }
-        match (existing.file_name().map(|n| n.to_os_string()), existing.parent()) {
+        match (
+            existing.file_name().map(|n| n.to_os_string()),
+            existing.parent(),
+        ) {
             (Some(name), Some(parent)) => {
                 rest.push(name);
                 existing = parent.to_path_buf();
@@ -192,8 +195,14 @@ mod tests {
     fn a_case_insensitive_mac_folder_matches_in_any_case() {
         let root = temp("case");
         std::fs::create_dir_all(root.join("Shared")).unwrap();
-        assert_eq!(FolderKey::of(&root.join("Shared")), FolderKey::of(&root.join("SHARED")));
-        assert_eq!(FolderKey::of(&root.join("Shared")), FolderKey::of(&root.join("shared")));
+        assert_eq!(
+            FolderKey::of(&root.join("Shared")),
+            FolderKey::of(&root.join("SHARED"))
+        );
+        assert_eq!(
+            FolderKey::of(&root.join("Shared")),
+            FolderKey::of(&root.join("shared"))
+        );
         let _ = std::fs::remove_dir_all(root);
     }
 

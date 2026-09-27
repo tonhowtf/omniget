@@ -1,0 +1,119 @@
+# Zed Agent. Source: estudo 75/06 0B.3, 0C.1-0C.10, Part 4 "Zed" (a)-(k) and cross-tool tables, Part 6 §2.3/§2.4 (zed), §5.4, §6.1, §8, §10.
+id = "zed"
+name = "Zed"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://zed.dev/docs/ai/"
+notes = "Editor agent with no hooks, no custom agent files and no headless mode; it is the ACP client. Skills live only in .agents/skills. The global settings path on macOS is disputed (~/.config/zed vs ~/Library/Application Support/Zed)."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["zed"]
+home_dirs = ["{xdg_config}/zed"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".zed", ".rules"]
+global_dir = "{xdg_config}/zed"
+
+[formats]
+rule = "agents_md"
+# no native subagents: .agents/agents/<name>.md + a pointer block in AGENTS.md
+agent = "simulated"
+command = "skill"
+skill = "skill_dir"
+
+[reads_claude]
+rules = true      # CLAUDE.md only when no earlier file in the first-match list exists
+agents = false
+commands = false
+hooks = false
+skills = false
+plugins = false
+settings = false
+statusline = false
+
+# Project: first match of .rules, .cursorrules, .windsurfrules, .clinerules,
+# .github/copilot-instructions.md, AGENT.md, AGENTS.md, CLAUDE.md, GEMINI.md.
+[paths.rules]
+project = ".rules"
+global = "{xdg_config}/zed/AGENTS.md"
+global_windows = "{app_support}/Zed/AGENTS.md"
+project_alt = [".cursorrules", ".windsurfrules", ".clinerules", ".github/copilot-instructions.md", "AGENT.md", "AGENTS.md", "CLAUDE.md", "GEMINI.md"]
+
+[paths.commands]
+project = ".agents/skills"
+global = "~/.agents/skills"
+
+[paths.skills]
+project = ".agents/skills"
+global = "~/.agents/skills"
+
+[paths.settings]
+project = ".zed/settings.json"
+global = "{xdg_config}/zed/settings.json"
+global_windows = "{app_support}/Zed/settings.json"
+global_alt = ["~/Library/Application Support/Zed/settings.json"]   # UNVERIFIED (add-mcp's macOS path)
+
+[[mcp]]
+surface = "ide"
+format = "json"
+project = ".zed/settings.json"   # UNVERIFIED
+global = "{xdg_config}/zed/settings.json"
+global_windows = "{app_support}/Zed/settings.json"
+key = ["context_servers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "url"
+transports = ["stdio", "http"]
+default = true
+
+[tool_name_map]
+Bash = "terminal"
+Read = "read_file"
+Edit = "edit_file"
+Write = "write_file"
+Glob = "find_path"
+Grep = "grep"
+WebFetch = "fetch"
+WebSearch = "search_web"
+Agent = "spawn_agent"
+TodoWrite = ""
+Skill = "skill"
+AskUserQuestion = ""
+mcp = "mcp:{server}:{tool}"
+
+[placeholder_map]
+args = ""
+arg = ""
+shell = ""
+file = ""
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+# settings.json agent.tool_permissions: per tool default + always_allow / always_deny / always_confirm regex patterns.
+[permissions]
+syntax = "none"
+
+[transcripts]
+globs = ["~/Library/Application Support/Zed/threads/threads.db", "{xdg_data}/zed/threads/threads.db", "{local_app_data}/Zed/threads/threads.db"]
+parser = "zed_sqlite"
+format = "sqlite"
+
+# Zed is the ACP client, not an agent.
+[acp]
+native = false
+
+[trust]
+requires_review = true
+how = "Zed loads project .agents/skills only from trusted worktrees."

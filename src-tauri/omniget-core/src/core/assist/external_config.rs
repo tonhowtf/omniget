@@ -412,7 +412,7 @@ struct BotPlan {
 
 enum Stage {
     Ready(String),
-    Apply(BotPlan),
+    Apply(Box<BotPlan>),
 }
 
 /// Validates against the live grant and the current source; returns the plan.
@@ -564,9 +564,9 @@ pub fn prepare_bot_with(
             }
             return match state.as_str() {
                 "ready" => Ok(Stage::Ready(target)),
-                "pending" => Ok(Stage::Apply(
+                "pending" => Ok(Stage::Apply(Box::new(
                     serde_json::from_str(&plan).map_err(|_| "EXTERNAL_CONFIG_STORAGE")?,
-                )),
+                ))),
                 _ => Err("EXTERNAL_BOT_CHANGED_LOCALLY".into()),
             };
         }
@@ -596,11 +596,11 @@ pub fn prepare_bot_with(
             ],
         )
         .map_err(storage)?;
-        Ok(Stage::Apply(plan))
+        Ok(Stage::Apply(Box::new(plan)))
     })?;
     let plan = match stage {
         Stage::Ready(bot) => return ready_view(db, principal, &bot, roster),
-        Stage::Apply(plan) => plan,
+        Stage::Apply(plan) => *plan,
     };
     // Phase 2: roster compare-and-swap. The source must still be the pinned
     // revision; an existing agent under this id must be exactly the plan.
@@ -1166,6 +1166,7 @@ pub(crate) fn claim_task_gated(
 }
 
 /// Records the end of an owned, claimed task run.
+#[allow(clippy::too_many_arguments)]
 pub fn finish_task(
     db: &AssistDb,
     principal: &str,

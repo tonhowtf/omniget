@@ -108,7 +108,7 @@ async fn probe_snapshot(
     let binary = crate::core::dependencies::find_tool("ffprobe")
         .await
         .ok_or("DEPENDENCY_MISSING")?;
-    let reads = engine_files::dependency_files(&[binary.clone()]).await?;
+    let reads = engine_files::dependency_files(std::slice::from_ref(&binary)).await?;
     let mut command = engine_files::isolated_command(&binary, &reads)?;
     command.args([
         "-v", "error", "-max_alloc", "67108864", "-protocol_whitelist", "pipe",
@@ -297,7 +297,7 @@ mod tests {
     #[test]
     fn transfer_limit_is_the_artifact_limit_and_probe_time_scales() {
         assert_eq!(MAX_AUTHORIZED_MEDIA_BYTES, 2 * 1024 * 1024 * 1024);
-        assert!(MAX_AUTHORIZED_MEDIA_BYTES > 81_411_033); // bench D2 mkv
+        const { assert!(MAX_AUTHORIZED_MEDIA_BYTES > 81_411_033) }; // bench D2 mkv
         assert_eq!(probe_timeout(81_411_033), Duration::from_secs(15));
         assert_eq!(
             probe_timeout(MAX_AUTHORIZED_MEDIA_BYTES),

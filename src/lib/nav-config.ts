@@ -11,7 +11,7 @@ export interface NavItem {
 export const CORE_NAV_ITEMS: NavItem[] = [
   { href: "/", labelKey: "nav.home", icon: "home", group: "primary", order: 10 },
   { href: "/downloads", labelKey: "nav.downloads", icon: "downloads", group: "primary", badge: "downloads", order: 20 },
-  { href: "/llm", labelKey: "nav.llm", icon: "llm", group: "primary", order: 24 },
+  { href: "/llm/threads", labelKey: "nav.llm", icon: "llm", group: "primary", order: 24 },
   { href: "/help", labelKey: "nav.help", icon: "help", group: "primary", order: 25 },
   { href: "/world", labelKey: "nav.world", icon: "world", group: "primary", order: 26 },
   { href: "/superpowers", labelKey: "nav.superpowers", icon: "superpowers", group: "app", order: 30 },

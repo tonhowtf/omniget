@@ -1,0 +1,190 @@
+# Cursor (IDE + agent CLI). Source: estudo 75/06 0A, 0B.1, 0C.1-0C.10, Part 2 "Cursor" a)-k), Part 6 §2.3/§2.4, §4, §5.4, §6.1, §8.2, §9.
+id = "cursor"
+name = "Cursor"
+tier = 1
+status = "active"
+beta = false
+homepage = "https://cursor.com"
+notes = "IDE plus the agent CLI (formerly cursor-agent). Loads Claude hooks, agents, skills and plugins while 'Include Third-Party Plugins, Skills, and Other Configs' is on (the default)."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["agent", "cursor-agent"]   # cursor-agent alias UNVERIFIED
+home_dirs = ["~/.cursor"]
+app_bundles = ["Cursor.app"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = true              # enterprise hooks.json
+project_markers = [".cursor", "AGENTS.md"]
+global_dir = "~/.cursor"
+config_dir_env = "CURSOR_CONFIG_DIR"   # moves cli-config.json
+
+[formats]
+rule = "cursor_mdc"
+agent = "cursor_md"
+command = "cursor_md"
+skill = "skill_dir"
+hook = "cursor"
+setting = "cursor_cli"
+statusline = "cursor_cli"   # Claude shape, behind the stdin adapter (convert/statusline_stdin.rs)
+plugin = "cursor_plugin"
+
+[reads_claude]
+rules = true                # the CLI reads CLAUDE.md at the project root
+agents = true
+commands = false
+hooks = true
+skills = true
+plugins = true
+settings = false
+statusline = false
+
+# User Rules live in app settings, not in a user file.
+[paths.rules]
+project = "AGENTS.md"
+project_alt = ["CLAUDE.md"]
+
+[paths.scoped_rules]
+project = ".cursor/rules"
+
+[paths.agents]
+project = ".cursor/agents"
+global = "~/.cursor/agents"
+project_alt = [".claude/agents", ".codex/agents"]
+global_alt = ["~/.claude/agents", "~/.codex/agents"]
+
+[paths.commands]
+project = ".cursor/commands"
+global = "~/.cursor/commands"
+
+[paths.skills]
+project = ".cursor/skills"
+global = "~/.cursor/skills"
+project_alt = [".agents/skills", ".claude/skills", ".codex/skills"]
+global_alt = ["~/.agents/skills", "~/.claude/skills", "~/.codex/skills"]
+
+[paths.hooks]
+project = ".cursor/hooks.json"
+global = "~/.cursor/hooks.json"
+project_alt = [".claude/settings.json", ".claude/settings.local.json"]
+global_alt = ["~/.claude/settings.json"]
+managed_macos = "/Library/Application Support/Cursor/hooks.json"
+managed_linux = "/etc/cursor/hooks.json"
+managed_windows = "C:/ProgramData/Cursor/hooks.json"
+
+[paths.hook_scripts]
+project = ".cursor/hooks"
+global = "~/.cursor/hooks"      # user hooks run with cwd ~/.cursor
+
+# Project .cursor/cli.json holds permissions only.
+[paths.settings]
+project = ".cursor/cli.json"
+global = "~/.cursor/cli-config.json"
+global_alt = ["{xdg_config}/cursor/cli-config.json"]
+
+[paths.statusline]
+global = "~/.cursor/cli-config.json"
+
+[paths.statusline_scripts]
+global = "~/.cursor"
+
+[paths.plugins]
+global = "~/.cursor/plugins/local"
+
+# IDE and CLI share these files.
+[[mcp]]
+surface = "ide"
+format = "json"
+project = ".cursor/mcp.json"
+global = "~/.cursor/mcp.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "url"
+transports = ["stdio", "http", "sse"]
+secret_mode = "env_ref"
+env_ref = "${env:VAR}"
+default = true
+
+[hook_event_map]
+SessionStart = "sessionStart"
+SessionEnd = "sessionEnd"
+UserPromptSubmit = "beforeSubmitPrompt"
+PreToolUse = "preToolUse"
+PostToolUse = "postToolUse"
+PostToolUseFailure = "postToolUseFailure"
+Stop = "stop"
+SubagentStart = "subagentStart"
+SubagentStop = "subagentStop"
+PreCompact = "preCompact"
+
+[hooks]
+shape = "cursor"
+timeout_unit = "s"
+version = 1
+env_aliases = ["CLAUDE_PROJECT_DIR"]
+events_count = 21
+
+# Hook matcher names.
+[tool_name_map]
+Bash = "Shell"
+Read = "Read"
+Edit = "Write"
+Write = "Write"
+Glob = ""
+Grep = "Grep"
+WebFetch = ""
+WebSearch = ""
+Agent = "Task"
+TodoWrite = ""
+Skill = ""
+AskUserQuestion = ""
+mcp = "MCP:{tool}"
+
+# Commands are plain text; typed arguments are appended. # UNVERIFIED
+[placeholder_map]
+args = ""
+arg = ""
+shell = ""
+file = ""
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = "inherit"
+
+[statusline]
+key = ["statusLine"]
+shape = "claude"
+stdin_fields = ["model.display_name", "context_window.used_percentage"]   # UNVERIFIED full schema
+
+[permissions]
+syntax = "cursor_cli"
+key = ["permissions"]
+lists = ["allow", "deny"]
+
+# Other stores: {app_support}/Cursor/User/globalStorage/state.vscdb (tokenCount in bubbles) and ~/.cursor/chats/*/*/store.db.
+[transcripts]
+globs = ["~/.cursor/projects/*/agent-transcripts/*.jsonl", "~/.cursor/projects/*/agent-transcripts/*/*.jsonl"]
+parser = "cursor_jsonl"
+format = "jsonl"
+
+[runner]
+cmd = "agent"
+headless = ["-p"]
+json_flag = ["--output-format", "stream-json"]
+resume_flag = "--resume"
+model_flag = "--model"
+permission_flags = { plan = ["--mode", "plan"], bypass = ["--force"] }
+
+[acp]
+native = true
+cmd = "agent"
+args = ["acp"]
+registry_id = "cursor"

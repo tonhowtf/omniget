@@ -60,6 +60,7 @@ pub const SCOPES: &[&str] = &[
     "orchestration_control",
     "orchestration_create",
     "auth",
+    "catalog",
 ];
 pub fn create(name: String, scopes: Vec<String>) -> Result<ConnectionGrant, String> {
     if name.trim().is_empty()
@@ -153,6 +154,14 @@ pub fn authenticate(token: &str) -> Result<Principal, String> {
         .map_err(|_| "UNAUTHORIZED".into())
 }
 pub fn active(p: &Principal) -> Result<(), String> {
+    // A Central session lives in memory until its thread stops.
+    if let Some(thread) = p.id.strip_prefix(super::SESSION_PREFIX) {
+        return if super::session_count(thread) > 0 {
+            Ok(())
+        } else {
+            Err("REVOKED".into())
+        };
+    }
     let yes: bool = db()?
         .query_row(
             "SELECT EXISTS(SELECT 1 FROM clients WHERE id=?1 AND revoked=0)",
@@ -211,6 +220,7 @@ pub fn scope(name: &str) -> Option<&'static str> {
         "missions_create" => "orchestration_create",
         "agents_derived_list" | "groups_get" => "orchestration_read",
         "agents_prepare" | "groups_prepare" | "group_tasks_create" => "orchestration_create",
+        "catalog_search" | "catalog_get" | "catalog_plan_install" | "catalog_install" => "catalog",
         _ => return None,
     })
 }

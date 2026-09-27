@@ -1,0 +1,142 @@
+# Pi coding agent. Source: estudo 75/06 Part 5 "Pi" (a)-(k) + built-in tools, 0B.3, 0C.3, 0C.4, 0C.6, 0C.10, Part 5 "Cross-tool notes", Part 6 §2.2-§2.4 (pi), §3, §5.2, §6.1, §8.1, §9.
+id = "pi"
+name = "Pi"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://github.com/earendil-works/pi"
+notes = "Formerly badlogic/pi-mono; npm @earendil-works/pi-coding-agent (the @mariozechner package is deprecated), binary still `pi`. By design it has no MCP, no subagent tool and no permission prompts; hooks, commands and UI come from TypeScript extensions."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["pi"]
+home_dirs = ["~/.pi/agent"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".pi", "AGENTS.md"]
+global_dir = "~/.pi/agent"
+config_dir_env = "PI_CODING_AGENT_DIR"
+
+[formats]
+rule = "agents_md"
+agent = "simulated"       # no native subagents
+command = "pi_prompt"
+skill = "skill_dir"
+hook = "code_plugin"      # TS extension handlers pi.on("<event>")
+setting = "pi"
+plugin = "pi"             # Pi packages (npm/git) bundling extensions, skills, prompts, themes
+
+[reads_claude]
+rules = true              # CLAUDE.md is one of the context files
+agents = false
+commands = false
+hooks = false
+skills = false
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "~/.pi/agent/AGENTS.md"
+project_alt = ["AGENTS.override.md", "CLAUDE.md", ".pi/SYSTEM.md", ".pi/APPEND_SYSTEM.md"]
+global_alt = ["~/.pi/agent/SYSTEM.md", "~/.pi/agent/APPEND_SYSTEM.md"]
+
+[paths.commands]
+project = ".pi/prompts"
+global = "~/.pi/agent/prompts"
+
+[paths.skills]
+project = ".pi/skills"
+global = "~/.pi/agent/skills"
+project_alt = [".agents/skills"]
+global_alt = ["~/.agents/skills"]
+
+[paths.hooks]
+project = ".pi/extensions"            # directory of TS extensions (no JSON hooks file)
+global = "~/.pi/agent/extensions"
+
+[paths.settings]
+project = ".pi/settings.json"         # needs project trust
+global = "~/.pi/agent/settings.json"
+global_alt = ["~/.pi/agent/models.json", "~/.pi/agent/keybindings.json"]
+
+# Pi core has no MCP ("does not and will not support MCP"). 0C.6 and add-mcp (Part 6 §6.1) still list
+# this file, read only through a third-party extension, so it is not written by default.
+[[mcp]]
+surface = "cli"
+format = "json"
+project = ".pi/mcp.json"
+global = "~/.pi/agent/mcp.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "url"                  # {url, headers, requestTimeoutMs}
+transports = ["stdio", "http"]        # UNVERIFIED
+default = false
+
+# Pi has no Claude-named events; mapped by extension event name (study gives no explicit Pi column).
+[hook_event_map]
+SessionStart = "session_start"
+SessionEnd = "session_shutdown"
+UserPromptSubmit = "input"
+PreToolUse = "tool_call"
+PostToolUse = "tool_result"
+Stop = "agent_end"
+PreCompact = "session_before_compact"
+
+[hooks]
+shape = "code_plugin"
+events_count = 39
+
+[tool_name_map]
+Bash = "bash"
+Read = "read"
+Edit = "edit"
+Write = "write"
+Grep = "grep"
+WebFetch = ""
+WebSearch = ""
+Agent = ""
+TodoWrite = ""
+AskUserQuestion = ""
+mcp = ""
+
+[placeholder_map]
+args = "$ARGUMENTS"
+arg = "$N"
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+[permissions]
+syntax = "none"
+
+[transcripts]
+globs = ["~/.pi/agent/sessions/*/*.jsonl"]
+parser = "pi_jsonl"
+format = "jsonl"
+
+[runner]
+cmd = "pi"
+headless = ["-p"]
+json_flag = ["--mode", "json"]
+resume_flag = "--resume"
+model_flag = "--model"
+
+[acp]
+native = false
+registry_id = "pi-acp"                # community adapter svkozak/pi-acp
+
+[trust]
+requires_review = true
+how = "Project .pi/settings.json and project SYSTEM.md load only after project trust (/trust, defaultProjectTrust ask|always|never); context files load without trust."

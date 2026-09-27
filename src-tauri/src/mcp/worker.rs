@@ -174,8 +174,10 @@ impl WorkerDownloader {
         }
         self.check_network_grants()?;
         let runtime = RuntimeDir::create()?;
-        let mut policy = Policy::default();
-        policy.local_allowances = self.allowed_sockets.clone();
+        let policy = Policy {
+            local_allowances: self.allowed_sockets.clone(),
+            ..Policy::default()
+        };
         let broker = Broker::start(policy, cancel.clone())
             .await
             .map_err(|_| anyhow!("EGRESS_UNAVAILABLE"))?;
@@ -902,7 +904,7 @@ mod tests {
         };
         let exe = PathBuf::from(exe).canonicalize().unwrap();
         let dir = onedir_root(&exe).expect("onedir layout");
-        let files = omniget_core::core::engine_files::dependency_files(&[exe.clone()])
+        let files = omniget_core::core::engine_files::dependency_files(std::slice::from_ref(&exe))
             .await
             .unwrap();
         let runtime = std::env::temp_dir().join(format!(
@@ -916,7 +918,7 @@ mod tests {
             .unwrap();
         let run = |reads: Vec<PathBuf>| {
             let mut c = broker
-                .confined_command_with_files(&exe, &reads, &[runtime.clone()])
+                .confined_command_with_files(&exe, &reads, std::slice::from_ref(&runtime))
                 .unwrap();
             c.current_dir(&runtime)
                 .env("TMPDIR", &runtime)

@@ -46,9 +46,14 @@ walkdir = "2"
 # binario gerido, baixado sob demanda.
 ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-27"] }
 # core/assist: bots, memória pessoal, leitura, sessões e recibos em SQLite
-# (mesma versão/feature do crate do app, então compila uma vez só).
+# (mesma versão/feature do crate do app, então compila uma vez só). Também o
+# motor de threads da Central, analytics de sessões e o lockfile do agentkit.
 rusqlite = { version = "0.32", features = ["bundled"] }
 tempfile = "=3.25.0"
+# Rollouts do Codex (.jsonl.zst) e threads do Zed (zstd JSON).
+zstd = "0.13"
+# Pinning de commits do catálogo (git blob sha1).
+sha1 = "0.10"
 
 [target.'cfg(windows)'.dependencies]
 # Job Object of the CLI turns (`core::process::ProcessTreeGuard`): the only

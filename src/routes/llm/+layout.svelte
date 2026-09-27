@@ -4,10 +4,12 @@
   import { t } from '$lib/i18n';
   import { LLM_DESTINATIONS, llmDestination } from '$lib/llm/workspace-navigation';
   import UsageMonitor from '$components/llm/UsageMonitor.svelte';
+  import UpdatesWatcher from '$components/central/tools/UpdatesWatcher.svelte';
   let { children }: { children: Snippet } = $props();
   let path = $derived(page.url.pathname.replace(/\/$/, '') || '/llm');
   let destination = $derived(llmDestination(path));
 </script>
+<UpdatesWatcher />
 <div class="llm-root">
   <header class="workspace-header">
     <nav class="llm-tabs" aria-label={$t('llm.title')}>

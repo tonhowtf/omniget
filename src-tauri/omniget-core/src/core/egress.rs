@@ -637,7 +637,7 @@ async fn serve(
                     })
                 }
             },
-            |address| TcpStream::connect(address),
+            TcpStream::connect,
         ),
     )
     .await
@@ -766,7 +766,7 @@ fn charge(
     {
         record_limit(limit, LimitReason::Bytes);
         stop.cancel();
-        return Err(io::Error::new(io::ErrorKind::Other, "EGRESS_BYTE_BUDGET"));
+        return Err(io::Error::other("EGRESS_BYTE_BUDGET"));
     }
     Ok(())
 }
@@ -1324,7 +1324,7 @@ mod tests {
             .unwrap();
         let script="printf ok > \"$1/allowed\" || exit 10; test \"$(cat \"$1/allowed\")\" = ok || exit 11; if cat \"$2\" >/dev/null 2>&1; then exit 12; fi; if cat \"$1/escape\" >/dev/null 2>&1; then exit 13; fi; if printf bad > \"$3\" 2>/dev/null; then exit 14; fi; if ln \"$2\" \"$1/hardlink\" 2>/dev/null; then exit 15; fi; if cat \"$4\" >/dev/null 2>&1; then exit 16; fi; printf confined";
         let result = b
-            .confined_command_with_files(Path::new("/bin/sh"), &[], &[grant.clone()])
+            .confined_command_with_files(Path::new("/bin/sh"), &[], std::slice::from_ref(&grant))
             .unwrap()
             .current_dir(&grant)
             .args([
@@ -1376,7 +1376,7 @@ mod tests {
         let started = std::time::Instant::now();
         let result = tokio::time::timeout(
             Duration::from_secs(120),
-            b.confined_command_with_files(&binary, &[], &[runtime.clone()])
+            b.confined_command_with_files(&binary, &[], std::slice::from_ref(&runtime))
                 .unwrap()
                 .current_dir(&runtime)
                 .env("TMPDIR", &runtime)
@@ -1416,7 +1416,7 @@ mod tests {
             .await
             .unwrap();
         let profile = b
-            .files_profile(Path::new("/bin/sh"), &[granted.clone()], &[])
+            .files_profile(Path::new("/bin/sh"), std::slice::from_ref(&granted), &[])
             .unwrap();
         let canonical = granted.canonicalize().unwrap();
         for ancestor in canonical.ancestors().skip(1) {
@@ -1428,7 +1428,7 @@ mod tests {
         assert!(!profile.contains("(subpath \"/private/tmp\")"));
         let script = "test \"$(cat \"$1\")\" = granted || exit 10; stat \"$4\" >/dev/null 2>&1 || exit 11; stat /private/tmp >/dev/null 2>&1 || exit 12; if cat \"$2\" >/dev/null 2>&1; then exit 13; fi; if ls \"$3\" >/dev/null 2>&1; then exit 14; fi; if ls /private/tmp >/dev/null 2>&1; then exit 15; fi; printf confined";
         let result = b
-            .confined_command_with_files(Path::new("/bin/sh"), &[granted.clone()], &[])
+            .confined_command_with_files(Path::new("/bin/sh"), std::slice::from_ref(&granted), &[])
             .unwrap()
             .args([
                 "-c",

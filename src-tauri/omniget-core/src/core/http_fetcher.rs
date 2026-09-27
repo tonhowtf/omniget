@@ -418,11 +418,7 @@ impl HttpFetcher {
         // desta tentativa. Cancelar o token do chamador (o item da fila)
         // transformava um 429 num segmento em "Download cancelado" para o
         // item inteiro, e a tentativa seguinte já nascia cancelada.
-        let cancel = self
-            .cancel
-            .clone()
-            .unwrap_or_else(CancellationToken::new)
-            .child_token();
+        let cancel = self.cancel.clone().unwrap_or_default().child_token();
         let progress_done = Arc::new(AtomicU64::new(0));
         for seg in segments.lock().await.iter() {
             progress_done.fetch_add(seg.downloaded.load(Ordering::Relaxed), Ordering::Relaxed);

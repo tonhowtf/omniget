@@ -1,0 +1,142 @@
+# Charm Crush. Source: estudo 75/06 0B.1, 0C.1-0C.10, Part 2 "Crush" a)-k), Part 5 "Charm Crush" (second pass), Part 6 §2.3/§2.4, §5.4, §8.2.
+id = "crush"
+name = "Crush"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://github.com/charmbracelet/crush"
+notes = "Config moved to the Bash crushrc in 2026; crush.json is still read but deprecated. Only PreToolUse hooks, no user subagents, no plugins, no ACP. Both config formats run as trusted code ($(...) executes)."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["crush"]
+home_dirs = ["{xdg_config}/crush"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".crush", "CRUSH.md", ".crushrc", "crushrc", "crush.json", ".crush.json"]
+global_dir = "{xdg_config}/crush"
+config_dir_env = "CRUSH_GLOBAL_CONFIG"
+
+[formats]
+rule = "agents_md"
+agent = "simulated"
+command = "crush_md"
+skill = "skill_dir"
+hook = "crush"              # flat [{name, matcher, command, timeout}] under PreToolUse
+setting = "crush"
+
+[reads_claude]
+rules = true                # CLAUDE.md and CLAUDE.local.md are in the default context list
+agents = false
+commands = false
+hooks = false
+skills = true
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "{xdg_config}/AGENTS.md"
+project_alt = ["CRUSH.md", "CRUSH.local.md", "CLAUDE.md", "CLAUDE.local.md", "GEMINI.md", ".github/copilot-instructions.md", ".cursorrules", ".cursor/rules"]
+global_alt = ["{xdg_config}/crush/CRUSH.md"]
+
+# No native subagents: rulesync "simulated" mode writes here and appends a pointer to AGENTS.md.
+[paths.agents]
+project = ".agents/agents"
+
+[paths.commands]
+project = ".crush/commands"
+global = "{xdg_config}/crush/commands"
+global_alt = ["~/.crush/commands"]
+
+[paths.skills]
+project = ".crush/skills"
+global = "{xdg_config}/crush/skills"
+project_alt = [".agents/skills", ".claude/skills", ".cursor/skills"]
+global_alt = ["{xdg_config}/agents/skills", "~/.agents/skills", "~/.claude/skills"]
+
+# Prefer crushrc lines (hook add PreToolUse ...); legacy JSON is still read.
+[paths.hooks]
+# JSON form {"hooks":{"PreToolUse":[{name,matcher,command,timeout}]}}; crushrc `hook add` lines are the alternative.
+project = ".crush.json"
+global = "{xdg_config}/crush/crush.json"
+project_alt = ["crush.json", ".crushrc", "crushrc"]
+global_alt = ["{xdg_config}/crush/crushrc"]
+
+[paths.settings]
+project = ".crushrc"
+global = "{xdg_config}/crush/crushrc"
+project_alt = ["crushrc", "crush.json", ".crush.json"]
+global_alt = ["{xdg_config}/crush/crush.json"]
+
+# Legacy JSON surface (the crushrc equivalent is the line: mcp add <name> --type stdio|http|sse ...).
+[[mcp]]
+surface = "cli"
+format = "json"
+project = "crush.json"
+global = "{xdg_config}/crush/crush.json"
+key = ["mcp"]
+container = "map"
+stdio_shape = "standard_typed"
+remote_shape = "typed"
+transports = ["stdio", "http", "sse"]
+secret_mode = "env_ref"
+env_ref = "$VAR"
+default = true
+
+[hook_event_map]
+PreToolUse = "PreToolUse"
+
+[hooks]
+shape = "crush"
+timeout_unit = "s"
+events_count = 1
+
+[tool_name_map]
+Bash = "bash"
+Read = "view"
+Edit = "edit"
+Write = "write"
+Glob = "glob"
+Grep = "grep"
+WebFetch = "fetch"
+WebSearch = ""
+Agent = "agent"
+TodoWrite = ""
+Skill = ""
+AskUserQuestion = ""
+mcp = "mcp_{server}_{tool}"
+
+# Any $UPPER_NAME is a named argument prompted in a dialog, so $ARGUMENTS works as one named arg.
+[placeholder_map]
+args = "$ARGUMENTS"
+arg = "$ARGN"                # positional N becomes the named argument $ARGN
+shell = ""
+file = ""
+
+[permissions]
+syntax = "crush"            # tool-name lists only, no argument patterns
+key = ["permissions"]
+lists = ["allowed_tools"]
+
+# Registry of every project's data dir; each holds <project>/.crush/crush.db (sessions: prompt_tokens, completion_tokens, cost).
+[transcripts]
+globs = ["{xdg_data}/crush/projects.json"]
+parser = "crush_sqlite"
+format = "sqlite"
+
+[runner]
+cmd = "crush"
+headless = ["run"]
+resume_flag = "--session"
+model_flag = "--model"
+permission_flags = { bypass = ["--yolo"] }
+
+[acp]
+native = false

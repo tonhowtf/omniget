@@ -364,6 +364,111 @@ pub fn check_tool(conversation: &str, bot: &str, name: &str) -> Result<(), Strin
     Ok(())
 }
 
+/// Synchronous bounded file transaction. Capabilities are resolved here, never
+/// supplied by model arguments; every call rechecks revocation/root identity.
+pub fn execute_files(
+    conversation: &str,
+    bot: &str,
+    name: &str,
+    args: &serde_json::Value,
+) -> Result<String, String> {
+    check_tool(conversation, bot, name)?;
+    let db = super::db::global()?;
+    let ceiling = resolve(&db, conversation, bot)?;
+    let identity = ceiling
+        .workspace_identity
+        .as_ref()
+        .ok_or("WORKSPACE_IDENTITY_REQUIRED")?;
+    let workspace = std::path::Path::new(&ceiling.workspace);
+    crate::core::secure_files::Root::open(workspace, Some(identity))
+        .map_err(|_| "WORKSPACE_CHANGED")?;
+    // All external file tools deny the reserved staging prefix, including
+    // discovery under a broader grant. No external process has access here.
+    let parent = workspace.parent().ok_or("WORKSPACE_PARENT_REQUIRED")?;
+    let staging = tempfile::Builder::new()
+        .prefix(".omniget-private-")
+        .tempdir_in(parent)
+        .map_err(|_| "STAGING_UNAVAILABLE")?;
+    let stage = crate::core::secure_files::Root::open(staging.path(), None)
+        .map_err(|_| "STAGING_UNAVAILABLE")?;
+    let files = super::external_files::ExternalFiles::open(
+        workspace,
+        identity,
+        staging.path(),
+        stage.identity(),
+    )?;
+    check_tool(conversation, bot, name)?;
+    let result = files.execute(name, args)?;
+    check_tool(conversation, bot, name)?;
+    serde_json::to_string(&result).map_err(|_| "FILE_RESPONSE_ENCODING".into())
+}
+
+/// Charge before each provider request, including retries. Conservative debits
+/// survive crashes and are never refunded without authoritative usage evidence.
+pub fn reserve_model(conversation: &str, bot: &str, amount: u64) -> Result<(), String> {
+    reserve_model_id(conversation, bot, amount).map(|_| ())
+}
+/// Replaces a conservative debit by the usage the provider reported for that
+/// request, never raising it (an unreported request keeps its upper bound).
+pub fn settle_model(debit: &str, actual_tokens: u64) -> Result<(), String> {
+    if debit.is_empty() || actual_tokens == 0 {
+        return Ok(());
+    }
+    let db = super::db::global()?;
+    db.with(|c| {
+        c.execute(
+            "UPDATE external_model_debits SET amount=MIN(amount,?2) WHERE id=?1",
+            params![debit, actual_tokens as i64],
+        )
+    })?;
+    Ok(())
+}
+/// For a CLI run (its own tool loop inside one request): the debit becomes the
+/// usage the CLI reported, even above the up-front bound, so the shared
+/// ledger reflects what really ran; the next request is refused if over.
+pub fn settle_model_actual(debit: &str, actual_tokens: u64) -> Result<(), String> {
+    if debit.is_empty() || actual_tokens == 0 {
+        return Ok(());
+    }
+    let db = super::db::global()?;
+    db.with(|c| {
+        c.execute(
+            "UPDATE external_model_debits SET amount=?2 WHERE id=?1",
+            params![debit, actual_tokens.min(i64::MAX as u64) as i64],
+        )
+    })?;
+    Ok(())
+}
+/// [`reserve_model`] returning the debit id to settle after the request.
+pub fn reserve_model_id(conversation: &str, bot: &str, amount: u64) -> Result<String, String> {
+    if !external(conversation) {
+        return Ok(String::new());
+    }
+    if amount == 0 || amount > i64::MAX as u64 {
+        return Err("EXTERNAL_BUDGET_EXCEEDED".into());
+    }
+    let db = super::db::global()?;
+    db.tx(|tx|{
+        let (body,mission):(String,String)=tx.query_row("SELECT g.body,e.mission FROM external_executions e JOIN external_grants g ON g.id=e.grant_id WHERE e.conversation=?1 AND e.bot=?2 AND g.revoked=0",params![conversation,bot],|r|Ok((r.get(0)?,r.get(1)?))).map_err(|_|"EXECUTION_NOT_GRANTED")?;
+        let grant:Ceiling=serde_json::from_str(&body).map_err(|_|"INVALID_EXECUTION_GRANT")?;
+        if grant.max_usd.is_some(){return Err("USD_ESTIMATE_REQUIRED".into());}
+        // Derived bots debit the parent grant's ledger; still check they are live.
+        if !grant.bots.iter().any(|b|b==bot){super::external_config::derived_ceiling(tx,&grant.id,&grant.principal,bot,super::external_config::installed_roster().as_deref())?;}
+        let (state,budget,principal):(String,String,String)=tx.query_row("SELECT state,budget,principal FROM missions_missions WHERE id=?1",[&mission],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).map_err(|_|"MISSION_UNAVAILABLE")?;
+        if principal!=grant.principal||!matches!(state.as_str(),"running"|"verifying"){return Err("MISSION_NOT_ACTIVE".into());}
+        let budget:super::missions::MissionBudget=serde_json::from_str(&budget).map_err(|_|"INVALID_MISSION_BUDGET")?;
+        let mission_cap=budget.tokens.ok_or("EXTERNAL_BUDGET_REQUIRED")?;
+        let used:u64=tx.query_row("SELECT COALESCE(SUM(amount),0) FROM external_model_debits WHERE grant_id=?1",[&grant.id],|r|r.get(0)).map_err(|_|"BUDGET_UNAVAILABLE")?;
+        let mission_used:u64=tx.query_row("SELECT COALESCE(SUM(amount),0) FROM external_model_debits WHERE mission=?1",[&mission],|r|r.get(0)).map_err(|_|"BUDGET_UNAVAILABLE")?;
+        // Say which limit ran out: the grant's shared ceiling or this mission's cap.
+        if used.checked_add(amount).is_none_or(|n|n>grant.max_tokens){return Err(format!("EXTERNAL_BUDGET_EXCEEDED: grant {used} of {} tokens used, this request needs {amount}",grant.max_tokens));}
+        if mission_used.checked_add(amount).is_none_or(|n|n>mission_cap){return Err(format!("EXTERNAL_MISSION_BUDGET_EXCEEDED: mission {mission_used} of {mission_cap} tokens used, this request needs {amount}"));}
+        let id=super::new_id();
+        tx.execute("INSERT INTO external_model_debits(id,grant_id,mission,amount) VALUES(?1,?2,?3,?4)",params![id,grant.id,mission,amount]).map_err(|_|"BUDGET_UNAVAILABLE")?;
+        Ok(id)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -477,109 +582,4 @@ mod tests {
         assert!(!c.is_user_ui());
         assert!(!c.can_read(&Scope::User));
     }
-}
-
-/// Synchronous bounded file transaction. Capabilities are resolved here, never
-/// supplied by model arguments; every call rechecks revocation/root identity.
-pub fn execute_files(
-    conversation: &str,
-    bot: &str,
-    name: &str,
-    args: &serde_json::Value,
-) -> Result<String, String> {
-    check_tool(conversation, bot, name)?;
-    let db = super::db::global()?;
-    let ceiling = resolve(&db, conversation, bot)?;
-    let identity = ceiling
-        .workspace_identity
-        .as_ref()
-        .ok_or("WORKSPACE_IDENTITY_REQUIRED")?;
-    let workspace = std::path::Path::new(&ceiling.workspace);
-    crate::core::secure_files::Root::open(workspace, Some(identity))
-        .map_err(|_| "WORKSPACE_CHANGED")?;
-    // All external file tools deny the reserved staging prefix, including
-    // discovery under a broader grant. No external process has access here.
-    let parent = workspace.parent().ok_or("WORKSPACE_PARENT_REQUIRED")?;
-    let staging = tempfile::Builder::new()
-        .prefix(".omniget-private-")
-        .tempdir_in(parent)
-        .map_err(|_| "STAGING_UNAVAILABLE")?;
-    let stage = crate::core::secure_files::Root::open(staging.path(), None)
-        .map_err(|_| "STAGING_UNAVAILABLE")?;
-    let files = super::external_files::ExternalFiles::open(
-        workspace,
-        identity,
-        staging.path(),
-        stage.identity(),
-    )?;
-    check_tool(conversation, bot, name)?;
-    let result = files.execute(name, args)?;
-    check_tool(conversation, bot, name)?;
-    serde_json::to_string(&result).map_err(|_| "FILE_RESPONSE_ENCODING".into())
-}
-
-/// Charge before each provider request, including retries. Conservative debits
-/// survive crashes and are never refunded without authoritative usage evidence.
-pub fn reserve_model(conversation: &str, bot: &str, amount: u64) -> Result<(), String> {
-    reserve_model_id(conversation, bot, amount).map(|_| ())
-}
-/// Replaces a conservative debit by the usage the provider reported for that
-/// request, never raising it (an unreported request keeps its upper bound).
-pub fn settle_model(debit: &str, actual_tokens: u64) -> Result<(), String> {
-    if debit.is_empty() || actual_tokens == 0 {
-        return Ok(());
-    }
-    let db = super::db::global()?;
-    db.with(|c| {
-        c.execute(
-            "UPDATE external_model_debits SET amount=MIN(amount,?2) WHERE id=?1",
-            params![debit, actual_tokens as i64],
-        )
-    })?;
-    Ok(())
-}
-/// For a CLI run (its own tool loop inside one request): the debit becomes the
-/// usage the CLI reported, even above the up-front bound, so the shared
-/// ledger reflects what really ran; the next request is refused if over.
-pub fn settle_model_actual(debit: &str, actual_tokens: u64) -> Result<(), String> {
-    if debit.is_empty() || actual_tokens == 0 {
-        return Ok(());
-    }
-    let db = super::db::global()?;
-    db.with(|c| {
-        c.execute(
-            "UPDATE external_model_debits SET amount=?2 WHERE id=?1",
-            params![debit, actual_tokens.min(i64::MAX as u64) as i64],
-        )
-    })?;
-    Ok(())
-}
-/// [`reserve_model`] returning the debit id to settle after the request.
-pub fn reserve_model_id(conversation: &str, bot: &str, amount: u64) -> Result<String, String> {
-    if !external(conversation) {
-        return Ok(String::new());
-    }
-    if amount == 0 || amount > i64::MAX as u64 {
-        return Err("EXTERNAL_BUDGET_EXCEEDED".into());
-    }
-    let db = super::db::global()?;
-    db.tx(|tx|{
-        let (body,mission):(String,String)=tx.query_row("SELECT g.body,e.mission FROM external_executions e JOIN external_grants g ON g.id=e.grant_id WHERE e.conversation=?1 AND e.bot=?2 AND g.revoked=0",params![conversation,bot],|r|Ok((r.get(0)?,r.get(1)?))).map_err(|_|"EXECUTION_NOT_GRANTED")?;
-        let grant:Ceiling=serde_json::from_str(&body).map_err(|_|"INVALID_EXECUTION_GRANT")?;
-        if grant.max_usd.is_some(){return Err("USD_ESTIMATE_REQUIRED".into());}
-        // Derived bots debit the parent grant's ledger; still check they are live.
-        if !grant.bots.iter().any(|b|b==bot){super::external_config::derived_ceiling(tx,&grant.id,&grant.principal,bot,super::external_config::installed_roster().as_deref())?;}
-        let (state,budget,principal):(String,String,String)=tx.query_row("SELECT state,budget,principal FROM missions_missions WHERE id=?1",[&mission],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).map_err(|_|"MISSION_UNAVAILABLE")?;
-        if principal!=grant.principal||!matches!(state.as_str(),"running"|"verifying"){return Err("MISSION_NOT_ACTIVE".into());}
-        let budget:super::missions::MissionBudget=serde_json::from_str(&budget).map_err(|_|"INVALID_MISSION_BUDGET")?;
-        let mission_cap=budget.tokens.ok_or("EXTERNAL_BUDGET_REQUIRED")?;
-        let used:u64=tx.query_row("SELECT COALESCE(SUM(amount),0) FROM external_model_debits WHERE grant_id=?1",[&grant.id],|r|r.get(0)).map_err(|_|"BUDGET_UNAVAILABLE")?;
-        let mission_used:u64=tx.query_row("SELECT COALESCE(SUM(amount),0) FROM external_model_debits WHERE mission=?1",[&mission],|r|r.get(0)).map_err(|_|"BUDGET_UNAVAILABLE")?;
-        // Say which limit ran out: the grant's shared ceiling or this mission's cap.
-        if used.checked_add(amount).is_none_or(|n|n>grant.max_tokens){return Err(format!("EXTERNAL_BUDGET_EXCEEDED: grant {used} of {} tokens used, this request needs {amount}",grant.max_tokens));}
-        if mission_used.checked_add(amount).is_none_or(|n|n>mission_cap){return Err(format!("EXTERNAL_MISSION_BUDGET_EXCEEDED: mission {mission_used} of {mission_cap} tokens used, this request needs {amount}"));}
-        let id=super::new_id();
-        tx.execute("INSERT INTO external_model_debits(id,grant_id,mission,amount) VALUES(?1,?2,?3,?4)",params![id,grant.id,mission,amount]).map_err(|_|"BUDGET_UNAVAILABLE")?;
-        Ok(id)
-    })
 }

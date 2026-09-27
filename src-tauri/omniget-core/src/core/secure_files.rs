@@ -560,7 +560,7 @@ mod manifest_files {
     }
 
     fn tree_error(code: &str, detail: String) -> std::io::Error {
-        std::io::Error::new(std::io::ErrorKind::Other, format!("{code}: {detail}"))
+        std::io::Error::other(format!("{code}: {detail}"))
     }
     #[allow(clippy::too_many_arguments)]
     fn scan_walk(

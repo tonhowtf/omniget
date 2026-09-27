@@ -617,7 +617,9 @@ mod tests {
         assert!(manager.has_pending_ask(&request_id));
         assert!(manager.has_pending_call(&call));
         assert!(!manager.has_pending_ask("some-other-turn"));
-        manager.answer_tool(&request_id, &call, true, false).unwrap();
+        manager
+            .answer_tool(&request_id, &call, true, false)
+            .unwrap();
 
         let resolved = tokio::time::timeout(Duration::from_secs(5), async {
             loop {

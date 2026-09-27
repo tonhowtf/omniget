@@ -1,0 +1,54 @@
+/* Paleta dos gráficos da Central (sessões/uso/retro). Slots 1-5 da paleta de
+   referência do método dataviz, em ordem fixa, validados contra a superfície
+   do app (escuro #2A2A2D: todos passam; claro #FFFFFF: contraste < 3:1 em três
+   slots, por isso todo gráfico tem legenda, tooltip e tabela de valores).
+   A cor segue a entidade (tipo de token), nunca o rank. */
+:root {
+  --viz-input: #3987e5;
+  --viz-output: #d95926;
+  --viz-cache_read: #199e70;
+  --viz-cache_write: #c98500;
+  --viz-reasoning: #d55181;
+  --viz-seq: var(--accent);
+  --viz-grid: color-mix(in srgb, var(--secondary) 10%, transparent);
+  --viz-base: color-mix(in srgb, var(--secondary) 24%, transparent);
+  --viz-empty: color-mix(in srgb, var(--secondary) 7%, transparent);
+}
+[data-theme="light"],
+[data-theme="catppuccin-latte"],
+[data-theme="nyxvamp-radiance"],
+[data-theme="eink-day"] {
+  --viz-input: #2a78d6;
+  --viz-output: #eb6834;
+  --viz-cache_read: #1baf7a;
+  --viz-cache_write: #eda100;
+  --viz-reasoning: #e87ba4;
+}
+.viz-tip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  min-width: 140px;
+  max-width: 260px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--popup-bg);
+  box-shadow: 0 4px 16px rgba(var(--shadow-ink), var(--elev-alpha-2)), inset 0 0 0 1px var(--content-border);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.viz-tip .tip-head { color: var(--text-dim); margin-bottom: 4px; font-size: var(--text-xs); }
+.viz-tip .tip-row { display: grid; grid-template-columns: 10px 1fr auto; gap: 6px; align-items: center; }
+.viz-tip .tip-row strong { color: var(--text); font-weight: 600; }
+.viz-tip .key { width: 10px; height: 2px; border-radius: 1px; }
+.viz-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--text-sm); color: var(--text-muted); margin: 0 0 8px; padding: 0; list-style: none; }
+.viz-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.viz-legend .sw { width: 10px; height: 10px; border-radius: 3px; }
+.viz-values { margin-top: 8px; font-size: var(--text-sm); color: var(--text-muted); }
+.viz-values summary { cursor: pointer; color: var(--text-dim); font-size: var(--text-xs); }
+.viz-values .table-wrap { max-height: 260px; overflow: auto; margin-top: 6px; }
+.viz-values table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.viz-values th, .viz-values td { padding: 3px 6px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--separator); font-weight: 400; }
+.viz-values th:first-child, .viz-values td:first-child { text-align: left; }
+.viz-values thead th { color: var(--text-dim); position: sticky; top: 0; background: var(--surface); }

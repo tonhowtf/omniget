@@ -264,9 +264,9 @@ pub fn assemble(bundle_id: &str, created_at: i64, input: Inputs) -> Value {
         // Evidence alone overflowed (cannot with the per-field caps, but the
         // ceiling is a promise): keep the manifest and diagnosis only.
         bundle["evidence"] = json!([]);
-        bundle["manifest"]["gaps"]
-            .as_array_mut()
-            .map(|g| g.push(json!("Evidence omitted to respect the size ceiling.")));
+        if let Some(g) = bundle["manifest"]["gaps"].as_array_mut() {
+            g.push(json!("Evidence omitted to respect the size ceiling."));
+        }
         let size = bundle.to_string().len();
         bundle["manifest"]["bytes"] = json!(size);
     }

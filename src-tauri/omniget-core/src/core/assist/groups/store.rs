@@ -241,7 +241,7 @@ pub(crate) fn create_room_tx(
             ],
         )
         .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
-    write_members(tx, &id, &draft.members)?;
+    write_members(tx, id, &draft.members)?;
     // A room is a conversation too: personal until a folder is picked.
     tx.execute(
         "INSERT OR IGNORE INTO groups_conversations(id, kind, workspace, imported, updated_ms)

@@ -1,0 +1,197 @@
+# Qwen Code. Source: estudo 75/06 0B.1, 0C.1-0C.10, Part 1 "Qwen Code" (a)-(k) + cross-tool maps, Part 5 "Newcomers: Qwen Code", Part 6 §2.3/§2.4, §8.1, §9.
+id = "qwen"
+name = "Qwen Code"
+tier = 1
+status = "active"
+beta = true
+homepage = "https://github.com/QwenLM/qwen-code"
+notes = "Gemini CLI fork that now mirrors Claude Code hooks, permissions, statusline, .mcp.json and transcript layout. Installs Claude marketplaces, Gemini extensions and Agent Plugins with conversion."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["qwen"]
+home_dirs = ["~/.qwen"]
+
+[scopes]
+project = true
+global = true
+local = false               # .qwen/QWEN.local.md is a personal rules file, not a settings file
+managed = true              # /etc/qwen-code/settings.json
+project_markers = [".qwen", "QWEN.md"]
+global_dir = "~/.qwen"
+config_dir_env = "QWEN_HOME"
+
+[formats]
+rule = "qwen_md"
+agent = "qwen_md"
+command = "qwen_md"
+skill = "skill_dir"
+hook = "claude"
+setting = "qwen"
+statusline = "qwen"
+plugin = "qwen_extension"
+
+[reads_claude]
+rules = false
+agents = false              # Claude agent files are accepted when placed in .qwen/agents (supported fields only)
+commands = false
+hooks = false
+skills = false
+plugins = false             # Claude marketplaces install with conversion to qwen-extension.json
+settings = false
+statusline = false
+
+[paths.rules]
+project = "QWEN.md"
+global = "~/.qwen/QWEN.md"
+project_alt = ["AGENTS.md", ".qwen/QWEN.local.md"]
+global_alt = ["~/.qwen/AGENTS.md"]
+
+[paths.scoped_rules]
+project = ".qwen/rules"     # trusted folders only; frontmatter description + paths
+global = "~/.qwen/rules"
+
+[paths.agents]
+project = ".qwen/agents"
+global = "~/.qwen/agents"
+
+[paths.commands]
+project = ".qwen/commands"
+global = "~/.qwen/commands"
+
+[paths.skills]
+project = ".qwen/skills"
+global = "~/.qwen/skills"
+project_alt = [".agents/skills"]
+global_alt = ["~/.agents/skills"]
+
+[paths.hooks]
+project = ".qwen/settings.json"
+global = "~/.qwen/settings.json"
+managed_linux = "/etc/qwen-code/settings.json"
+
+[paths.hook_scripts]
+project = ".qwen/hooks"
+
+[paths.settings]
+project = ".qwen/settings.json"
+global = "~/.qwen/settings.json"
+managed_linux = "/etc/qwen-code/settings.json"
+
+[paths.statusline]
+global = "~/.qwen/settings.json"
+
+[paths.plugins]
+global = "~/.qwen/extensions"
+
+[[mcp]]
+surface = "cli"
+format = "json"
+project = ".qwen/settings.json"
+global = "~/.qwen/settings.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "gemini"
+transports = ["stdio", "http", "sse"]
+secret_mode = "env_ref"
+env_ref = "${VAR}"
+prefer_cli = "qwen mcp add --scope {scope} {name} {command}"
+default = true
+
+# Claude-style project .mcp.json, normalized through normalizeClaudeMcpServer; gated behind an approval prompt.
+[[mcp]]
+surface = "cli"
+format = "json"
+project = ".mcp.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "typed"
+transports = ["stdio", "http", "sse"]
+secret_mode = "env_ref"
+env_ref = "${VAR}"
+default = false
+
+[hook_event_map]
+SessionStart = "SessionStart"
+SessionEnd = "SessionEnd"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"
+PostToolUse = "PostToolUse"
+PostToolUseFailure = "PostToolUseFailure"
+PermissionRequest = "PermissionRequest"
+Stop = "Stop"
+SubagentStart = "SubagentStart"
+SubagentStop = "SubagentStop"
+PreCompact = "PreCompact"
+Notification = "Notification"
+
+[hooks]
+shape = "claude"
+timeout_unit = "s"          # values >= 1000 are read as ms
+env_aliases = ["CLAUDE_PROJECT_DIR", "GEMINI_PROJECT_DIR"]
+events_count = 22
+
+# Permissions also accept the Claude aliases (Bash, Read, Edit, Write, Grep, Glob, WebFetch, Agent, Skill).
+[tool_name_map]
+Bash = "run_shell_command"
+Read = "read_file"
+Edit = "edit"
+Write = "write_file"
+Glob = "glob"
+Grep = "grep_search"
+WebFetch = "web_fetch"
+WebSearch = "web_search"
+Agent = "agent"
+TodoWrite = "todo_write"
+Skill = "skill"
+AskUserQuestion = "ask_user_question"
+mcp = "mcp__{server}__{tool}"
+
+# $ARGUMENTS is substituted only inside !{...} shell blocks.
+[placeholder_map]
+args = "{{args}}"
+arg = ""
+shell = "!{{cmd}}"
+file = "@{{path}}"
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = "inherit"
+
+[statusline]
+key = ["ui", "statusLine"]
+shape = "claude"
+stdin_fields = ["model.display_name", "context_window.used_percentage"]
+
+[permissions]
+syntax = "claude"
+key = ["permissions"]
+lists = ["allow", "ask", "deny"]
+
+[transcripts]
+globs = ["~/.qwen/projects/*/chats/*.jsonl"]
+parser = "qwen_jsonl"
+format = "jsonl"
+
+[runner]
+cmd = "qwen"
+headless = ["-p"]
+json_flag = ["--output-format", "stream-json"]
+resume_flag = "--resume"
+permission_flags = { bypass = ["--yolo"] }
+
+[acp]
+native = true
+cmd = "qwen"
+args = ["--acp"]
+registry_id = "qwen-code"
+
+[trust]
+requires_review = true
+how = "Qwen trusted folders: project hooks and .qwen/rules load only in trusted folders, and the project .mcp.json is behind an approval prompt."

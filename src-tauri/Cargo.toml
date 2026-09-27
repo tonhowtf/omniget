@@ -59,6 +59,10 @@ ed25519-dalek = "2"
 data-encoding = "2"
 hex = "0.4"
 hmac = "0.12"
+# QR de pareamento do acesso remoto da Central.
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+# Terminal embutido da Central (PTY multiplataforma do wezterm).
+portable-pty = "0.9"
 omniget-core = { path = "omniget-core" }
 omniget-world = { path = "omniget-world" }
 which = "7"

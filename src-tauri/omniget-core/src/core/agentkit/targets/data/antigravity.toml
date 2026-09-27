@@ -1,0 +1,108 @@
+# Google Antigravity (IDE + `agy` CLI). Source: estudo 75/06 0C.6, Part 6 §2.1-§2.4 (rulesync antigravity-ide/-cli), §3 ruler, §4 AGENTS.md, §5.2/§5.4 skills, §6.1 add-mcp, §8.1/§8.2 usage trackers, §9 ACP registry, §10 discrepancies. No per-tool section exists in Parts 1-5.
+id = "antigravity"
+name = "Google Antigravity"
+tier = 2
+status = "active"
+beta = true
+notes = "Antigravity 2.0 split into an IDE and a CLI (`agy`) that share ~/.gemini/config/. All paths come from rulesync, add-mcp and npx skills, not vendor docs; pre-2.0 paths lived under ~/.gemini/antigravity/."
+reads_agents_dir = true
+# IDE reads AGENTS.md since v1.20.3 (Gemini-lineage discovery order AGENTS.md, CONTEXT.md, GEMINI.md).
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["agy"]
+home_dirs = ["~/.gemini/antigravity", "~/.gemini/antigravity-cli"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".antigravity", ".agents/mcp_config.json", ".agents/workflows"]
+global_dir = "~/.gemini/config"
+
+[formats]
+rule = "agents_md"
+# .agents/rules/*.md with `trigger: always_on|glob|manual|model_decision` (same as Devin).
+scoped_rule = "devin_rules"
+# .agents/agents/<name>.md; frontmatter not described in the study.
+agent = "antigravity"
+# Commands become workflows .agents/workflows/*.md with `trigger`, `turbo`.
+command = "antigravity_workflow"
+skill = "skill_dir"
+setting = "antigravity"
+
+[reads_claude]
+rules = false
+agents = false
+commands = false
+hooks = false
+skills = false
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "~/.gemini/GEMINI.md"
+project_alt = ["CONTEXT.md", "GEMINI.md"]
+
+[paths.scoped_rules]
+project = ".agents/rules"
+
+[paths.agents]
+project = ".agents/agents"
+global = "~/.gemini/config/agents"
+
+[paths.commands]
+project = ".agents/workflows"
+global = "~/.gemini/antigravity/global_workflows"
+global_alt = ["~/.gemini/antigravity-cli/global_workflows"]
+
+[paths.skills]
+# Sources disagree: rulesync IDE 2.0 ~/.gemini/config/skills; rulesync CLI and npx skills use the per-product dirs.
+project = ".agents/skills"
+global = "~/.gemini/config/skills"
+global_alt = ["~/.gemini/antigravity/skills", "~/.gemini/antigravity-cli/skills"]
+
+[paths.hooks]
+# File written by rulesync; hook shape and event names are not in the study.
+project = ".agents/hooks.json"
+global = "~/.gemini/config/hooks.json"
+
+[paths.settings]
+# Project file is the IDE's; global file is the CLI's.
+project = ".antigravity/settings.json"
+global = "~/.gemini/antigravity-cli/settings.json"
+
+[[mcp]]
+surface = "cli"
+format = "json"
+project = ".agents/mcp_config.json"
+# Shared by IDE and CLI (2.0). Pre-2.0 / Smithery: ~/.gemini/antigravity/mcp_config.json.
+global = "~/.gemini/config/mcp_config.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "server_url"
+# Study only gives the serverUrl remote shape; transport list is not spelled out.
+transports = ["stdio", "http"]
+default = true
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+[transcripts]
+# Override root with $ANTIGRAVITY_DATA_DIR. SQLite with protobuf `gen_metadata` (input, cache read, visible output, thinking).
+globs = ["~/.gemini/antigravity/conversations/*.db", "~/.gemini/antigravity-cli/conversations/*.db", "~/.gemini/antigravity-ide/conversations/*.db", "~/.gemini/antigravity-backup/conversations/*.db", "~/.config/antigravity/conversations/*"]
+parser = "antigravity_sqlite"
+format = "sqlite"
+
+[acp]
+# Only the registry id is known; launch command not in the study.
+native = false
+registry_id = "antigravity-acp"

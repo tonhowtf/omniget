@@ -235,7 +235,7 @@ async fn a08_resume_by_captured_handle_and_replay_when_a_pin_changes() {
     let session = reg.session(&conv, "coder").unwrap();
     assert_eq!(session.provider_handle.as_deref(), Some("sess-1"));
     assert_eq!(session.cwd.as_deref(), Some(&*ws1.display().to_string()));
-    assert_eq!(r1.pid.is_some(), true);
+    assert!(r1.pid.is_some());
     assert!(r1.launch_id.is_some());
 
     let _ = turn(&c, "run-2", &conv, "second question").await;

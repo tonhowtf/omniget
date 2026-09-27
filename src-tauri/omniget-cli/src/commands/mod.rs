@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod agentkit;
 pub mod batch;
 pub mod claude;
 pub mod common;

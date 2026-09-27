@@ -557,7 +557,7 @@ pub async fn handle(
                 out.push(r);
             }
         }
-        return Ok((!out.is_empty()).then(|| Value::Array(out)));
+        return Ok((!out.is_empty()).then_some(Value::Array(out)));
     }
     Ok(handle_one(&grant, msg).await)
 }

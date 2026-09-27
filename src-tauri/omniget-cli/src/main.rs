@@ -94,6 +94,12 @@ enum Commands {
         #[arg(long, value_name = "SECONDS", help = "Keep refreshing every N seconds")]
         watch: Option<u64>,
     },
+    /// Catalog of agents, commands, skills, MCP servers, hooks and settings for
+    /// every coding tool (Claude Code, Codex, Gemini, Cursor, Copilot, OpenCode…)
+    Agentkit {
+        #[command(subcommand)]
+        command: commands::agentkit::AgentkitCommand,
+    },
     /// Import a cookies.txt file (Netscape format)
     ImportCookies {
         file: String,
@@ -158,6 +164,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Usage { days, watch } => {
             commands::usage::execute(days, watch, cli.json).await?;
+        }
+        Commands::Agentkit { command } => {
+            commands::agentkit::execute(command, cli.json).await?;
         }
         Commands::ImportCookies {
             file,

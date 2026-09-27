@@ -192,7 +192,9 @@ fn owned_job(db: &AssistDb, p: &Principal, job: &str) -> Result<(), String> {
     // `LIKE` narrows, the JSON decides (`_` is a LIKE wildcard).
     let pattern = format!("%\"{job}\"%");
     let rows: Vec<(String, String)> = storage(db.with(|c| {
-        let mut s = c.prepare("SELECT mission_id, job_ids FROM missions_tasks WHERE job_ids LIKE ?1 LIMIT 50")?;
+        let mut s = c.prepare(
+            "SELECT mission_id, job_ids FROM missions_tasks WHERE job_ids LIKE ?1 LIMIT 50",
+        )?;
         let rows = s.query_map([&pattern], |r| Ok((r.get(0)?, r.get(1)?)))?;
         rows.collect()
     }))?;
@@ -214,7 +216,12 @@ fn owned_job(db: &AssistDb, p: &Principal, job: &str) -> Result<(), String> {
 /// the 64 KB ceiling).
 const JOB_DIFF_FILES: usize = 200;
 const JOB_DIFF_PATCH: usize = 32 * 1024;
-fn job_diff_reply(job: &crate::jobs::Job, patch: Option<&str>, complete: bool, with_patch: bool) -> Value {
+fn job_diff_reply(
+    job: &crate::jobs::Job,
+    patch: Option<&str>,
+    complete: bool,
+    with_patch: bool,
+) -> Value {
     let (reason, detail) = match (&job.diff_files, job.diff_unavailable.as_deref()) {
         (_, Some(u)) => match u.split_once(": ") {
             Some((code, detail)) => (Some(code.to_string()), Some(text(detail, 300))),
@@ -923,9 +930,16 @@ mod tests {
             INSERT INTO external_executions VALUES('mission-a','external-mcp-a','grant-a'),('mission-b','external-mcp-b','grant-b');
             INSERT INTO missions_tasks VALUES('mission-a','["ja1","ja2"]'),('mission-b','["jb1"]'),('local','["jl1"]'),('mission-b','["jyx"]');
         "# }]).unwrap();
-        let who = |id: &str| Principal { id: id.into(), name: id.into(), scopes: vec![] };
+        let who = |id: &str| Principal {
+            id: id.into(),
+            name: id.into(),
+            scopes: vec![],
+        };
         assert!(owned_job(&db, &who("alice"), "ja2").is_ok());
-        assert_eq!(owned_job(&db, &who("alice"), "jb1").unwrap_err(), "JOB_NOT_AUTHORIZED");
+        assert_eq!(
+            owned_job(&db, &who("alice"), "jb1").unwrap_err(),
+            "JOB_NOT_AUTHORIZED"
+        );
         assert!(owned_job(&db, &who("bob"), "jb1").is_ok());
         // A local (non-external) mission's job and a job of no mission.
         assert!(owned_job(&db, &who("alice"), "jl1").is_err());
@@ -937,21 +951,38 @@ mod tests {
     #[test]
     fn job_diff_reply_is_bounded_and_says_unavailable() {
         use omniget_core::core::llm::snapshot::FileChange;
-        let mut job = crate::jobs::Job { id: "j1".into(), state: "done".into(), ..Default::default() };
+        let mut job = crate::jobs::Job {
+            id: "j1".into(),
+            state: "done".into(),
+            ..Default::default()
+        };
         job.diff_unavailable = Some("no_snapshot: no turn of this job took a snapshot".into());
         let v = job_diff_reply(&job, None, true, true);
         assert_eq!(v["available"], false);
         assert_eq!(v["reason"], "no_snapshot");
         assert!(v.get("patch").is_none());
         job.diff_unavailable = None;
-        job.diff_files = Some((0..500).map(|i| FileChange { path: format!("f{i}.txt"), status: "M".into(), additions: Some(1), deletions: Some(1), binary: false }).collect());
+        job.diff_files = Some(
+            (0..500)
+                .map(|i| FileChange {
+                    path: format!("f{i}.txt"),
+                    status: "M".into(),
+                    additions: Some(1),
+                    deletions: Some(1),
+                    binary: false,
+                })
+                .collect(),
+        );
         job.additions = Some(500);
         job.deletions = Some(500);
         let patch = "+x\n".repeat(40_000);
         let v = job_diff_reply(&job, Some(&patch), true, true);
         assert_eq!(v["available"], true);
         assert_eq!(v["files"].as_array().unwrap().len(), JOB_DIFF_FILES);
-        assert_eq!((v["fileCount"].as_u64(), v["filesTruncated"].as_bool()), (Some(500), Some(true)));
+        assert_eq!(
+            (v["fileCount"].as_u64(), v["filesTruncated"].as_bool()),
+            (Some(500), Some(true))
+        );
         assert_eq!(v["patchClipped"], true);
         assert!(bounded(v).is_ok(), "under the 64 KB reply ceiling");
     }

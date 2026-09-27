@@ -171,6 +171,9 @@ pub type RateSink = Arc<dyn Fn(RateSnapshot) + Send + Sync>;
 /// a warning, instead of growing the buffer without bound.
 pub const MAX_LINE_BYTES: usize = 8 * 1024 * 1024;
 
+/// Called with the child's pid and our launch id.
+pub type SpawnedHook = Arc<dyn Fn(Option<u32>, &str) + Send + Sync>;
+
 /// Everything besides the event stream a turn can report, all optional.
 #[derive(Default, Clone)]
 pub struct TurnHooks {
@@ -179,7 +182,7 @@ pub struct TurnHooks {
     pub session: Option<Arc<dyn Fn(String) + Send + Sync>>,
     /// Right after the spawn: pid and our launch id (also in the child's
     /// environment as `OMNIGET_LAUNCH_ID`).
-    pub spawned: Option<Arc<dyn Fn(Option<u32>, &str) + Send + Sync>>,
+    pub spawned: Option<SpawnedHook>,
     /// Runs once when the turn task ends, whatever the path (temp files,
     /// tokens).
     pub cleanup: Option<Arc<dyn Fn() + Send + Sync>>,
@@ -1046,7 +1049,12 @@ mod tests {
     // ── watchdog ────────────────────────────────────────────────────────
 
     #[cfg(unix)]
-    fn watched(program: PathBuf, idle_ms: u64, tool_ms: Option<u64>, start_ms: Option<u64>) -> SpawnSpec {
+    fn watched(
+        program: PathBuf,
+        idle_ms: u64,
+        tool_ms: Option<u64>,
+        start_ms: Option<u64>,
+    ) -> SpawnSpec {
         SpawnSpec {
             program,
             idle_timeout: Some(Duration::from_millis(idle_ms)),
@@ -1089,7 +1097,11 @@ mod tests {
         let TurnEvent::Error { error } = &events[i].1 else {
             return None;
         };
-        let since = if i == 0 { Duration::ZERO } else { events[i - 1].0 };
+        let since = if i == 0 {
+            Duration::ZERO
+        } else {
+            events[i - 1].0
+        };
         Some((events[i].0 - since, error.clone()))
     }
 
@@ -1099,7 +1111,11 @@ mod tests {
     #[tokio::test]
     async fn a_silent_cli_is_killed_after_the_idle_window() {
         let cli = fake_cli("stall", "echo first\nsleep 30\necho never\n");
-        let events = run_timed(watched(cli.clone(), 1000, None, Some(5000)), TurnHooks::default()).await;
+        let events = run_timed(
+            watched(cli.clone(), 1000, None, Some(5000)),
+            TurnHooks::default(),
+        )
+        .await;
         let (at, error) = error_of(&events).expect("a stall error");
         assert_eq!(error.code, ERR_CLI_STALLED, "{}", error.message);
         assert!(!error.retryable, "a stall is never rerouted");
@@ -1109,9 +1125,16 @@ mod tests {
         );
         assert!(matches!(
             events.last(),
-            Some((_, TurnEvent::Finished { reason: FinishReason::Other }))
+            Some((
+                _,
+                TurnEvent::Finished {
+                    reason: FinishReason::Other
+                }
+            ))
         ));
-        assert!(!events.iter().any(|(_, e)| matches!(e, TurnEvent::TextDelta { text } if text == "never")));
+        assert!(!events
+            .iter()
+            .any(|(_, e)| matches!(e, TurnEvent::TextDelta { text } if text == "never")));
         let _ = std::fs::remove_file(cli);
     }
 
@@ -1120,7 +1143,11 @@ mod tests {
     #[tokio::test]
     async fn a_cli_that_never_prints_fails_with_no_start() {
         let cli = fake_cli("nostart", "sleep 30\n");
-        let events = run_timed(watched(cli.clone(), 10_000, None, Some(1000)), TurnHooks::default()).await;
+        let events = run_timed(
+            watched(cli.clone(), 10_000, None, Some(1000)),
+            TurnHooks::default(),
+        )
+        .await;
         let (at, error) = error_of(&events).expect("a no-start error");
         assert_eq!(error.code, ERR_CLI_NO_START, "{}", error.message);
         assert!(at <= Duration::from_millis(1000) + LATE, "took {at:?}");
@@ -1186,9 +1213,15 @@ mod tests {
             "toolwin",
             "echo 'TOOL t1'\nsleep 2\necho 'RESULT t1'\nsleep 30\n",
         );
-        let events = run_timed(watched(cli.clone(), 1000, Some(5000), Some(5000)), TurnHooks::default()).await;
+        let events = run_timed(
+            watched(cli.clone(), 1000, Some(5000), Some(5000)),
+            TurnHooks::default(),
+        )
+        .await;
         assert!(
-            events.iter().any(|(_, e)| matches!(e, TurnEvent::ToolResult { .. })),
+            events
+                .iter()
+                .any(|(_, e)| matches!(e, TurnEvent::ToolResult { .. })),
             "2 s of silence with a tool in flight must not kill (window 5 s)"
         );
         let (at, error) = error_of(&events).expect("stalls after the result");
@@ -1210,7 +1243,11 @@ mod tests {
     #[tokio::test]
     async fn a_tool_that_never_answers_is_a_tool_stall() {
         let cli = fake_cli("toolstall", "echo 'TOOL t1'\nsleep 30\n");
-        let events = run_timed(watched(cli.clone(), 500, Some(1500), Some(5000)), TurnHooks::default()).await;
+        let events = run_timed(
+            watched(cli.clone(), 500, Some(1500), Some(5000)),
+            TurnHooks::default(),
+        )
+        .await;
         let (at, error) = error_of(&events).expect("a stall");
         assert_eq!(error.code, ERR_CLI_STALLED);
         assert!(error.message.contains("tool"), "{}", error.message);
@@ -1231,11 +1268,20 @@ mod tests {
             "ticks",
             "for i in 1 2 3 4 5 6 7 8 9 10 11 12; do echo tick; sleep 0.5; done\nexit 0\n",
         );
-        let events = run_timed(watched(cli.clone(), 3000, None, Some(5000)), TurnHooks::default()).await;
+        let events = run_timed(
+            watched(cli.clone(), 3000, None, Some(5000)),
+            TurnHooks::default(),
+        )
+        .await;
         assert!(error_of(&events).is_none(), "{events:?}");
         assert!(matches!(
             events.last(),
-            Some((_, TurnEvent::Finished { reason: FinishReason::Stop }))
+            Some((
+                _,
+                TurnEvent::Finished {
+                    reason: FinishReason::Stop
+                }
+            ))
         ));
         let _ = std::fs::remove_file(cli);
     }
@@ -1249,16 +1295,30 @@ mod tests {
         let pidfile = dir.join("grandchild.pid");
         let cli = fake_cli(
             "stalltree",
-            &format!("sleep 120 &\necho $! > {}\necho started\nwait\n", pidfile.display()),
+            &format!(
+                "sleep 120 &\necho $! > {}\necho started\nwait\n",
+                pidfile.display()
+            ),
         );
-        let events = run_timed(watched(cli.clone(), 800, None, Some(5000)), TurnHooks::default()).await;
+        let events = run_timed(
+            watched(cli.clone(), 800, None, Some(5000)),
+            TurnHooks::default(),
+        )
+        .await;
         assert_eq!(error_of(&events).expect("stall").1.code, ERR_CLI_STALLED);
-        let grandchild: i32 = std::fs::read_to_string(&pidfile).unwrap().trim().parse().unwrap();
+        let grandchild: i32 = std::fs::read_to_string(&pidfile)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
         let killed_at = Instant::now();
         while alive(grandchild) && killed_at.elapsed() < Duration::from_secs(1) {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
-        assert!(!alive(grandchild), "the grandchild outlived the stall by 1 s");
+        assert!(
+            !alive(grandchild),
+            "the grandchild outlived the stall by 1 s"
+        );
         let _ = std::fs::remove_file(cli);
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -1294,7 +1354,10 @@ mod tests {
     /// before the CLI prints its first line.
     #[cfg(unix)]
     fn await_pidfile(pidfile: &std::path::Path) -> String {
-        format!("while [ ! -s {0} ]; do sleep 0.02; done\n", pidfile.display())
+        format!(
+            "while [ ! -s {0} ]; do sleep 0.02; done\n",
+            pidfile.display()
+        )
     }
 
     #[cfg(unix)]
@@ -1326,16 +1389,28 @@ mod tests {
     /// A tree whose grandchild left the group (`setsid`): `pidfile` gets
     /// its pid (and, with `--child`, its own child's) before "started".
     #[cfg(unix)]
-    fn escaping_cli(name: &str, dir: &std::path::Path, pidfile: &std::path::Path, deep: bool) -> PathBuf {
+    fn escaping_cli(
+        name: &str,
+        dir: &std::path::Path,
+        pidfile: &std::path::Path,
+        deep: bool,
+    ) -> PathBuf {
         let escape = escapee_script(dir);
         let launch = if deep {
             // child (group leader) → sh (same group) → python (new session)
             // → sleep (python's session): three levels, two of them outside.
-            format!("sh -c 'python3 {} {} --child & wait' &\n", escape.display(), pidfile.display())
+            format!(
+                "sh -c 'python3 {} {} --child & wait' &\n",
+                escape.display(),
+                pidfile.display()
+            )
         } else {
             format!("python3 {} {} &\n", escape.display(), pidfile.display())
         };
-        fake_cli(name, &format!("{launch}{}echo started\nwait\n", await_pidfile(pidfile)))
+        fake_cli(
+            name,
+            &format!("{launch}{}echo started\nwait\n", await_pidfile(pidfile)),
+        )
     }
 
     /// The watchdog's kill reaches a grandchild that called `setsid()`.
@@ -1343,14 +1418,23 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn a_stall_kills_a_grandchild_that_left_the_group() {
-        let dir = std::env::temp_dir().join(format!("omniget-escape-stall-{}", uuid::Uuid::new_v4()));
+        let dir =
+            std::env::temp_dir().join(format!("omniget-escape-stall-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let pidfile = dir.join("escapee.pid");
         let cli = escaping_cli("escstall", &dir, &pidfile, false);
-        let events = run_timed(watched(cli.clone(), 800, None, Some(5000)), TurnHooks::default()).await;
+        let events = run_timed(
+            watched(cli.clone(), 800, None, Some(5000)),
+            TurnHooks::default(),
+        )
+        .await;
         assert_eq!(error_of(&events).expect("stall").1.code, ERR_CLI_STALLED);
         let pids = read_pids(&pidfile);
-        assert_eq!(survivors_after_1s(&pids).await, Vec::<i32>::new(), "the escapee outlived the stall");
+        assert_eq!(
+            survivors_after_1s(&pids).await,
+            Vec::<i32>::new(),
+            "the escapee outlived the stall"
+        );
         let _ = std::fs::remove_file(cli);
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -1359,19 +1443,38 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn cancel_kills_a_grandchild_that_left_the_group() {
-        let dir = std::env::temp_dir().join(format!("omniget-escape-cancel-{}", uuid::Uuid::new_v4()));
+        let dir =
+            std::env::temp_dir().join(format!("omniget-escape-cancel-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let pidfile = dir.join("escapee.pid");
         let cli = escaping_cli("esccancel", &dir, &pidfile, false);
         let cancel = CancellationToken::new();
-        let mut stream = spawn_turn(spec(cli.clone()), Arc::new(EchoParser), cancel.clone(), None).unwrap();
-        assert!(matches!(stream.next().await, Some(TurnEvent::TextDelta { .. })));
+        let mut stream = spawn_turn(
+            spec(cli.clone()),
+            Arc::new(EchoParser),
+            cancel.clone(),
+            None,
+        )
+        .unwrap();
+        assert!(matches!(
+            stream.next().await,
+            Some(TurnEvent::TextDelta { .. })
+        ));
         let pids = read_pids(&pidfile);
         assert!(pids.iter().all(|&p| alive(p)));
         cancel.cancel();
         let rest: Vec<TurnEvent> = stream.collect().await;
-        assert!(matches!(rest.last(), Some(TurnEvent::Finished { reason: FinishReason::Cancelled })));
-        assert_eq!(survivors_after_1s(&pids).await, Vec::<i32>::new(), "the escapee outlived the cancel");
+        assert!(matches!(
+            rest.last(),
+            Some(TurnEvent::Finished {
+                reason: FinishReason::Cancelled
+            })
+        ));
+        assert_eq!(
+            survivors_after_1s(&pids).await,
+            Vec::<i32>::new(),
+            "the escapee outlived the cancel"
+        );
         let _ = std::fs::remove_file(cli);
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -1381,15 +1484,24 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn a_deep_chain_with_a_new_session_dies_whole() {
-        let dir = std::env::temp_dir().join(format!("omniget-escape-deep-{}", uuid::Uuid::new_v4()));
+        let dir =
+            std::env::temp_dir().join(format!("omniget-escape-deep-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let pidfile = dir.join("escapee.pid");
         let cli = escaping_cli("escdeep", &dir, &pidfile, true);
-        let events = run_timed(watched(cli.clone(), 800, None, Some(5000)), TurnHooks::default()).await;
+        let events = run_timed(
+            watched(cli.clone(), 800, None, Some(5000)),
+            TurnHooks::default(),
+        )
+        .await;
         assert_eq!(error_of(&events).expect("stall").1.code, ERR_CLI_STALLED);
         let pids = read_pids(&pidfile);
         assert_eq!(pids.len(), 2, "python and its sleep");
-        assert_eq!(survivors_after_1s(&pids).await, Vec::<i32>::new(), "part of the chain survived");
+        assert_eq!(
+            survivors_after_1s(&pids).await,
+            Vec::<i32>::new(),
+            "part of the chain survived"
+        );
         let _ = std::fs::remove_file(cli);
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -1400,7 +1512,8 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn a_tree_kill_spares_a_process_that_is_not_a_descendant() {
-        let dir = std::env::temp_dir().join(format!("omniget-escape-foreign-{}", uuid::Uuid::new_v4()));
+        let dir =
+            std::env::temp_dir().join(format!("omniget-escape-foreign-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let foreign_file = dir.join("foreign.pid");
         let mut foreign = std::process::Command::new("python3")
@@ -1411,8 +1524,17 @@ mod tests {
         let pidfile = dir.join("escapee.pid");
         let cli = escaping_cli("escforeign", &dir, &pidfile, false);
         let cancel = CancellationToken::new();
-        let mut stream = spawn_turn(spec(cli.clone()), Arc::new(EchoParser), cancel.clone(), None).unwrap();
-        assert!(matches!(stream.next().await, Some(TurnEvent::TextDelta { .. })));
+        let mut stream = spawn_turn(
+            spec(cli.clone()),
+            Arc::new(EchoParser),
+            cancel.clone(),
+            None,
+        )
+        .unwrap();
+        assert!(matches!(
+            stream.next().await,
+            Some(TurnEvent::TextDelta { .. })
+        ));
         let since = Instant::now();
         while !foreign_file.exists() && since.elapsed() < Duration::from_secs(5) {
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -1420,7 +1542,10 @@ mod tests {
         let stranger = read_pids(&foreign_file)[0];
         cancel.cancel();
         let _: Vec<TurnEvent> = stream.collect().await;
-        assert_eq!(survivors_after_1s(&read_pids(&pidfile)).await, Vec::<i32>::new());
+        assert_eq!(
+            survivors_after_1s(&read_pids(&pidfile)).await,
+            Vec::<i32>::new()
+        );
         assert!(alive(stranger), "a process outside the tree was killed");
         let _ = foreign.kill();
         let _ = foreign.wait();
@@ -1442,9 +1567,15 @@ mod tests {
             stdin: Some("User: oi".into()),
             ..SpawnSpec::default()
         };
-        let before = format!("{:?}|{:?}|{:?}|{:?}|{:?}|{:?}", spec.program, spec.args, spec.env, spec.scrub, spec.cwd, spec.stdin);
+        let before = format!(
+            "{:?}|{:?}|{:?}|{:?}|{:?}|{:?}",
+            spec.program, spec.args, spec.env, spec.scrub, spec.cwd, spec.stdin
+        );
         WatchdogConfig::default().apply(&mut spec);
-        let after = format!("{:?}|{:?}|{:?}|{:?}|{:?}|{:?}", spec.program, spec.args, spec.env, spec.scrub, spec.cwd, spec.stdin);
+        let after = format!(
+            "{:?}|{:?}|{:?}|{:?}|{:?}|{:?}",
+            spec.program, spec.args, spec.env, spec.scrub, spec.cwd, spec.stdin
+        );
         assert_eq!(before, after);
         assert_eq!(spec.idle_timeout, Some(Duration::from_secs(600)));
         assert_eq!(spec.tool_idle_timeout, Some(Duration::from_secs(1800)));
@@ -1461,18 +1592,36 @@ mod tests {
             start_timeout: Some(Duration::from_secs(5)),
             ..SpawnSpec::default()
         };
-        assert_eq!(watch_window(&spec, false, false), Some((Duration::from_secs(5), Stall::NoStart)));
-        assert_eq!(watch_window(&spec, true, false), Some((Duration::from_secs(10), Stall::Idle)));
-        assert_eq!(watch_window(&spec, true, true), Some((Duration::from_secs(30), Stall::ToolIdle)));
+        assert_eq!(
+            watch_window(&spec, false, false),
+            Some((Duration::from_secs(5), Stall::NoStart))
+        );
+        assert_eq!(
+            watch_window(&spec, true, false),
+            Some((Duration::from_secs(10), Stall::Idle))
+        );
+        assert_eq!(
+            watch_window(&spec, true, true),
+            Some((Duration::from_secs(30), Stall::ToolIdle))
+        );
         let only_idle = SpawnSpec {
             idle_timeout: Some(Duration::from_secs(10)),
             ..SpawnSpec::default()
         };
-        assert_eq!(watch_window(&only_idle, false, false), Some((Duration::from_secs(10), Stall::NoStart)));
-        assert_eq!(watch_window(&only_idle, true, true), Some((Duration::from_secs(10), Stall::ToolIdle)));
+        assert_eq!(
+            watch_window(&only_idle, false, false),
+            Some((Duration::from_secs(10), Stall::NoStart))
+        );
+        assert_eq!(
+            watch_window(&only_idle, true, true),
+            Some((Duration::from_secs(10), Stall::ToolIdle))
+        );
         assert_eq!(watch_window(&SpawnSpec::default(), true, false), None);
         assert_eq!(pause_poll(Duration::from_secs(600)), Duration::from_secs(1));
-        assert_eq!(pause_poll(Duration::from_millis(1000)), Duration::from_millis(250));
+        assert_eq!(
+            pause_poll(Duration::from_millis(1000)),
+            Duration::from_millis(250)
+        );
     }
 
     // ── BN1 (scripts/llm/watchdog_eval.py) ─────────────────────────────
@@ -1490,7 +1639,11 @@ mod tests {
     fn bench(metric: &str, value: serde_json::Value) {
         if let Ok(path) = std::env::var("OMNIGET_BENCH_OUT") {
             use std::io::Write as _;
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+            {
                 let _ = writeln!(
                     f,
                     "{}",
@@ -1503,7 +1656,10 @@ mod tests {
     fn fake_claude() -> Option<PathBuf> {
         let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../scripts/llm/fake_claude.py");
-        let python = std::process::Command::new("python3").arg("--version").output().ok()?;
+        let python = std::process::Command::new("python3")
+            .arg("--version")
+            .output()
+            .ok()?;
         (python.status.success() && script.is_file()).then_some(script)
     }
 
@@ -1548,41 +1704,94 @@ mod tests {
     }
 
     fn bn1_error(events: &[(Duration, TurnEvent)]) -> Option<(Duration, LlmError)> {
-        let i = events.iter().position(|(_, e)| matches!(e, TurnEvent::Error { .. }))?;
-        let TurnEvent::Error { error } = &events[i].1 else { return None };
-        let since = if i == 0 { Duration::ZERO } else { events[i - 1].0 };
+        let i = events
+            .iter()
+            .position(|(_, e)| matches!(e, TurnEvent::Error { .. }))?;
+        let TurnEvent::Error { error } = &events[i].1 else {
+            return None;
+        };
+        let since = if i == 0 {
+            Duration::ZERO
+        } else {
+            events[i - 1].0
+        };
         Some((events[i].0 - since, error.clone()))
     }
 
     fn bn1_finished_ok(events: &[(Duration, TurnEvent)]) -> bool {
         bn1_error(events).is_none()
-            && events.iter().any(|(_, e)| matches!(e, TurnEvent::Finished { reason: FinishReason::Stop }))
+            && events.iter().any(|(_, e)| {
+                matches!(
+                    e,
+                    TurnEvent::Finished {
+                        reason: FinishReason::Stop
+                    }
+                )
+            })
     }
 
     /// Silent after `init`: killed within idle + 2 s (herdr's goal, 79#P1).
     #[tokio::test]
     async fn bn1_stall_after_init() {
-        let Some(fake) = fake_claude() else { return eprintln!("python3 missing: skipped") };
-        let events = bn1_run(bn1_spec(&fake, "stall-after-init", 3600.0), TurnHooks::default()).await;
+        let Some(fake) = fake_claude() else {
+            return eprintln!("python3 missing: skipped");
+        };
+        let events = bn1_run(
+            bn1_spec(&fake, "stall-after-init", 3600.0),
+            TurnHooks::default(),
+        )
+        .await;
         let (after_last, error) = bn1_error(&events).expect("the stall must end the turn");
         assert_eq!(error.code, ERR_CLI_STALLED);
         let limit = Duration::from_millis(BN1_IDLE_MS + 2_000);
-        bench("stall_after_init_kill_s", serde_json::json!(after_last.as_secs_f64()));
-        bench("stall_after_init_idle_s", serde_json::json!(BN1_IDLE_MS as f64 / 1000.0));
+        bench(
+            "stall_after_init_kill_s",
+            serde_json::json!(after_last.as_secs_f64()),
+        );
+        bench(
+            "stall_after_init_idle_s",
+            serde_json::json!(BN1_IDLE_MS as f64 / 1000.0),
+        );
         bench("stall_after_init_code", serde_json::json!(error.code));
         // The stream ends right after the error: the job's runner returns
         // and its slot guard drops.
-        let closed = events.last().unwrap().0 - events.iter().rev().find(|(_, e)| matches!(e, TurnEvent::Error { .. })).unwrap().0;
-        bench("stream_closed_after_error_ms", serde_json::json!(closed.as_millis() as u64));
-        assert!(after_last <= limit, "killed {after_last:?} after the last line");
-        assert!(matches!(events.last(), Some((_, TurnEvent::Finished { reason: FinishReason::Other }))));
+        let closed = events.last().unwrap().0
+            - events
+                .iter()
+                .rev()
+                .find(|(_, e)| matches!(e, TurnEvent::Error { .. }))
+                .unwrap()
+                .0;
+        bench(
+            "stream_closed_after_error_ms",
+            serde_json::json!(closed.as_millis() as u64),
+        );
+        assert!(
+            after_last <= limit,
+            "killed {after_last:?} after the last line"
+        );
+        assert!(matches!(
+            events.last(),
+            Some((
+                _,
+                TurnEvent::Finished {
+                    reason: FinishReason::Other
+                }
+            ))
+        ));
     }
 
     /// Nothing printed at all: `ERR_CLI_NO_START` within start + 2 s.
     #[tokio::test]
     async fn bn1_silent_start() {
-        let Some(fake) = fake_claude() else { return eprintln!("python3 missing: skipped") };
-        let events = bn1_run(bn1_spec(&fake, "silent-start", 3600.0), TurnHooks::default()).await;
+        let Some(fake) = fake_claude() else {
+            return eprintln!("python3 missing: skipped");
+        };
+        let events = bn1_run(
+            bn1_spec(&fake, "silent-start", 3600.0),
+            TurnHooks::default(),
+        )
+        .await;
         let (at, error) = bn1_error(&events).expect("no-start must end the turn");
         bench("silent_start_code", serde_json::json!(error.code));
         bench("silent_start_kill_s", serde_json::json!(at.as_secs_f64()));
@@ -1594,14 +1803,18 @@ mod tests {
     /// the tool window (≙ 30 min) is not killed: no false positive.
     #[tokio::test]
     async fn bn1_tool_long() {
-        let Some(fake) = fake_claude() else { return eprintln!("python3 missing: skipped") };
+        let Some(fake) = fake_claude() else {
+            return eprintln!("python3 missing: skipped");
+        };
         let hold = 2.0 * BN1_IDLE_MS as f64 / 1000.0;
         let events = bn1_run(bn1_spec(&fake, "tool-long", hold), TurnHooks::default()).await;
         let ok = bn1_finished_ok(&events);
         bench("tool_long_survived", serde_json::json!(ok));
         bench("tool_long_silence_s", serde_json::json!(hold));
         assert!(ok, "{:?}", bn1_error(&events));
-        assert!(events.iter().any(|(_, e)| matches!(e, TurnEvent::ToolResult { .. })));
+        assert!(events
+            .iter()
+            .any(|(_, e)| matches!(e, TurnEvent::ToolResult { .. })));
     }
 
     /// A question to a person pending for 2.5x the idle window (≙ 15 min+
@@ -1618,7 +1831,9 @@ mod tests {
                 Ok(String::new())
             }
         }
-        let Some(fake) = fake_claude() else { return eprintln!("python3 missing: skipped") };
+        let Some(fake) = fake_claude() else {
+            return eprintln!("python3 missing: skipped");
+        };
         let broker = Arc::new(
             ToolBroker::new(vec![], Arc::new(Nothing), Arc::new(Bus::new()))
                 .with_ask_timeout(Duration::from_secs(600)),
@@ -1627,7 +1842,14 @@ mod tests {
         // The question, as Claude's permission prompt tool raises it.
         let b = broker.clone();
         tokio::spawn(async move {
-            b.ask_user("claude-code", "req-bn1", "toolu_fake_1", "cli:Bash", "sleep 300").await
+            b.ask_user(
+                "claude-code",
+                "req-bn1",
+                "toolu_fake_1",
+                "cli:Bash",
+                "sleep 300",
+            )
+            .await
         });
         let b = broker.clone();
         tokio::spawn(async move {
@@ -1653,7 +1875,10 @@ mod tests {
         let events = bn1_run(spec, hooks).await;
         let ok = bn1_finished_ok(&events);
         bench("ask_pending_survived", serde_json::json!(ok));
-        bench("ask_pending_s", serde_json::json!(pending_for.as_secs_f64()));
+        bench(
+            "ask_pending_s",
+            serde_json::json!(pending_for.as_secs_f64()),
+        );
         assert!(ok, "{:?}", bn1_error(&events));
     }
 
@@ -1675,7 +1900,9 @@ mod tests {
 
     #[cfg(unix)]
     async fn bn1_grandchild_in(mode: &str, metric: &str) {
-        let Some(fake) = fake_claude() else { return eprintln!("python3 missing: skipped") };
+        let Some(fake) = fake_claude() else {
+            return eprintln!("python3 missing: skipped");
+        };
         let dir = std::env::temp_dir().join(format!("omniget-bn1-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let pidfile = dir.join("grandchild.pid");
@@ -1685,7 +1912,11 @@ mod tests {
         let events = bn1_run(spec, TurnHooks::default()).await;
         let killed = Instant::now();
         assert_eq!(bn1_error(&events).expect("stall").1.code, ERR_CLI_STALLED);
-        let grandchild: i32 = std::fs::read_to_string(&pidfile).unwrap().trim().parse().unwrap();
+        let grandchild: i32 = std::fs::read_to_string(&pidfile)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
         while alive(grandchild) && killed.elapsed() < Duration::from_secs(2) {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
@@ -1698,7 +1929,10 @@ mod tests {
             }
         }
         bench(&format!("{metric}_survivors"), serde_json::json!(survivors));
-        bench(&format!("{metric}_gone_after_ms"), serde_json::json!(gone_after.as_millis() as u64));
+        bench(
+            &format!("{metric}_gone_after_ms"),
+            serde_json::json!(gone_after.as_millis() as u64),
+        );
         assert_eq!(survivors, 0, "the grandchild outlived the stall");
         assert!(gone_after <= Duration::from_secs(1), "{gone_after:?}");
         let _ = std::fs::remove_dir_all(dir);
@@ -1707,7 +1941,9 @@ mod tests {
     /// A healthy turn is untouched by the watchdog.
     #[tokio::test]
     async fn bn1_ok() {
-        let Some(fake) = fake_claude() else { return eprintln!("python3 missing: skipped") };
+        let Some(fake) = fake_claude() else {
+            return eprintln!("python3 missing: skipped");
+        };
         let events = bn1_run(bn1_spec(&fake, "ok", 0.0), TurnHooks::default()).await;
         let ok = bn1_finished_ok(&events);
         bench("ok_survived", serde_json::json!(ok));

@@ -179,6 +179,30 @@ Claude Code, Codex, Gemini CLI and local models become agents in a desktop windo
 | Start work on a schedule | **LLM → Jobs → Triggers** | A cron line or a webhook on the local bridge starts a job |
 | Use other MCP servers in your agents | **LLM → MCP → Servers you use** | Each tool is granted per agent as *auto*, *ask* or *deny* |
 
+### The Central: every coding agent you already pay for, in one place
+
+The **LLM** section opens on the Central: one place to configure, drive and watch Claude Code, Codex, Gemini CLI, Cursor, GitHub Copilot, OpenCode, Qwen Code and about 30 other coding agents. Everything reads and writes on your machine.
+
+| You want to | Open | What happens |
+|---|---|---|
+| Drive Claude Code, Codex or any ACP agent in a real UI | **LLM → Threads** | A thread per task, on its own git worktree, with the diff of every turn, approvals that wait for you, a terminal and a PR button |
+| Install an agent, command, skill, MCP server or hook into all your tools | **LLM → Catalog** | Thousands of components, converted to each tool's own format, with a diff before anything is written and a clean uninstall |
+| Install, update or log in to the agent CLIs | **LLM → Tools** | Detects the tools you have, shows installed vs latest version, and only updates what it can prove it installed |
+| See what every agent cost you | **LLM → Activity → Usage, Sessions, Retrospective** | Tokens and cost from the logs your tools already keep, a searchable history, and a yearly replay |
+| Race the same prompt across several agents | **LLM → Arena** | Each agent works in its own worktree; compare the diffs side by side and merge the winner |
+| Approve from your phone | **LLM → Configure → Remote access** | Off by default. Pair with a QR code; the phone sees threads and answers approvals |
+
+- **Threads.** Claude Code runs as one long process per thread, Codex through `codex app-server`, OpenCode through `opencode serve`, and any [Agent Client Protocol](https://agentclientprotocol.com) agent through a full ACP client. Each thread can get its own branch and folder, every turn is checkpointed in hidden git refs, and **Edit from here** takes the files and the conversation back to any turn. The side panel has the diff, a real terminal, files, the plan, a PR tab and a browser that finds your dev server.
+- **Approvals that wait.** A file edit shows the full diff; a shell command shows the command and folder. In a thread the request waits for you instead of timing out, and the pet, the phone and the thread all answer the same request.
+- **Sessions from outside.** A Claude Code or Codex session you ran in a terminal can be imported as a read-only thread and resumed in the right driver.
+- **OmniGet's MCP server comes along.** Each driver session gets its own short-lived token that can search the catalog and install a component after you approve it.
+
+**The Catalog** gathers [claude-code-templates](https://github.com/davila7/claude-code-templates), [anthropics/skills](https://github.com/anthropics/skills), [openai/skills](https://github.com/openai/skills), [obra/superpowers](https://github.com/obra/superpowers) and more, and converts each component for the tool you pick: agents become Codex TOML, Gemini, OpenCode or Copilot agents; commands become Gemini TOML or Copilot prompt files; rules go to `AGENTS.md` with bridges for `CLAUDE.md` and `GEMINI.md`; MCP servers are written in each tool's dialect with secrets as variables; hooks run through a small shim, so a Claude hook script also works in Cursor, Gemini or OpenCode. The plan shows every file's diff and every command a hook or MCP server will run, each component is scanned for prompt injection, credential reads and `curl | sh` before it is installed, and uninstalling removes only what OmniGet wrote. From a terminal: `omniget agentkit search|show|install|uninstall|list|doctor`.
+
+**Usage and sessions** read the logs of Claude Code, Codex, Gemini CLI, OpenCode, Cursor, GitHub Copilot, Zed, Aider and others without changing them: tokens and cost per day, model, tool, account and project, a one-year heatmap, a full-text search across every conversation, and export to Markdown or JSON. Claude Code writes one reply on several lines; OmniGet counts each reply once.
+
+**Arena, catalog loops and the sandbox.** Send one prompt to several agents at once, each in its own worktree from the same base, then compare time, cost, a check command and the diffs, and merge the winner. A catalog loop such as *build-test-fix* becomes an OmniGet Loop with the runner you pick. `omniget-cli agent run <catalog agent> --tool claude "…"` runs a catalog agent as the system prompt of the tool you name, and a Docker sandbox runs a CLI on a copy of your project and returns a per-file diff you apply selectively.
+
 ### Claude Code, Codex and any ACP agent
 
 - **Claude Code and Codex accounts** plug in with the login your terminal already has, and their quota shows on screen.

@@ -1,0 +1,105 @@
+# Warp (app Agent Mode + standalone warp Agent CLI; Oz CLI deprecated). Source: estudo 75/06 0A, 0B.3, 0C.2, 0C.3, 0C.6, 0C.10, Part 5 "Warp" (a)-(k), Part 6 §2.2-§2.4 (warp), §3, §5.2, §6.1, §8.2.
+id = "warp"
+name = "Warp"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://www.warp.dev"
+notes = "Three surfaces: the Warp app, the warp Agent CLI (2026-08-04, separate config under ~/.warp_cli) and the deprecated Oz CLI. Global rules, agent profiles, prompts and conversations are cloud objects in Warp Drive; commands exist only as skills; no hooks, no native subagents."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["warp"]
+home_dirs = ["~/.warp", "~/.warp_cli"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".warp", "WARP.md"]
+global_dir = "~/.warp"
+
+[formats]
+rule = "agents_md"
+agent = "simulated"     # no native subagents (rulesync simulated mode)
+command = "skill"
+skill = "skill_dir"
+
+[reads_claude]
+rules = false           # /init can link CLAUDE.md, but it is not read natively
+agents = false
+commands = false
+hooks = false
+skills = true           # .claude/skills and ~/.claude/skills
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "~/.agents/AGENTS.md"   # Agent CLI; app global rules are cloud-only (Warp Drive)
+project_alt = ["WARP.md"]        # wins over AGENTS.md in the same dir
+
+[paths.commands]
+project = ".warp/skills"
+global = "~/.warp/skills"
+
+[paths.skills]
+project = ".warp/skills"
+global = "~/.warp/skills"
+project_alt = [".agents/skills", ".claude/skills", ".codex/skills", ".cursor/skills", ".gemini/skills", ".copilot/skills", ".factory/skills", ".github/skills", ".opencode/skills"]
+global_alt = ["~/.agents/skills", "~/.claude/skills", "~/.codex/skills", "~/.cursor/skills", "~/.gemini/skills", "~/.copilot/skills", "~/.factory/skills", "~/.github/skills", "~/.opencode/skills"]
+
+[paths.settings]
+global_macos = "~/.warp/settings.toml"
+global_linux = "{xdg_config}/warp-terminal/settings.toml"
+global_windows = "{local_app_data}/warp/Warp/config/settings.toml"
+
+[paths.workflows]
+# Classic Warp YAML workflows (not a Claude format); inventory only.
+project = ".warp/workflows"
+global_macos = "~/.warp/workflows"
+global_linux = "{xdg_data}/warp-terminal/workflows"
+global_windows = "{app_support}/warp/Warp/data/workflows"
+
+# Warp app. Project servers need approval unless auto-spawn is enabled. Also auto-detects Claude, Codex and ~/.agents/.mcp.json configs.
+[[mcp]]
+surface = "app"
+format = "json"
+project = ".warp/.mcp.json"
+global = "~/.warp/.mcp.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"   # Warp uses working_directory instead of cwd
+remote_shape = "url"
+secret_mode = "plain"
+default = true
+
+# warp Agent CLI (separate config).
+[[mcp]]
+surface = "cli"
+format = "json"
+global = "~/.warp_cli/.mcp.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "url"
+secret_mode = "plain"
+default = true
+
+[permissions]
+syntax = "none"   # permissions live in cloud-synced Agent Profiles
+
+[transcripts]
+# Conversations are cloud-only; local SQLite schema UNVERIFIED.
+globs = []
+format = "none"
+
+[acp]
+native = false    # UNVERIFIED
+
+[trust]
+requires_review = true
+how = "Global Warp MCP servers auto-spawn, but third-party and project servers need approval unless auto-spawn is enabled."

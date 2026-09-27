@@ -567,6 +567,7 @@ impl AgentRuntime for AcpRuntime {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_inbound(
     msg: &Inbound,
     session: &Session,

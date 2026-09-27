@@ -1,0 +1,171 @@
+# Devin Desktop (Devin Local agent) + Devin CLI. Source: estudo 75/06 0A, 0B.1, 0C.1-0C.10, Part 2 "Windsurf (now Devin Desktop) + Devin CLI" (a)-(k), Part 5 "Devin CLI (Cognition)" (a)-(k) + cross-tool quick table, Part 6 §2.3/§2.4 (devin), §5.2, §8.1, §8.2, §9.
+id = "devin"
+name = "Devin (Desktop + CLI)"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://cli.devin.ai"
+notes = "Windsurf was rebranded Devin Desktop; its default agent Devin Local is the same harness as Devin CLI (devin). Config dirs moved from ~/.config/cognition to ~/.config/devin (Windows %APPDATA%/devin). .devin/ is read before .windsurf/. The legacy Cascade agent is the separate windsurf adapter."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["devin"]
+home_dirs = ["{xdg_config}/devin", "~/.devin"]
+
+[scopes]
+project = true
+global = true
+local = true                # .devin/config.local.json, .devin/mcp_config.local.json (gitignored)
+managed = true              # enterprise/team settings and MDM system.json; paths not given in the study
+project_markers = [".devin"]
+global_dir = "{xdg_config}/devin"
+
+[formats]
+rule = "devin_rules"
+agent = "devin_md"
+command = "skill"           # skills are the slash commands
+skill = "skill_dir"
+hook = "devin_v1"
+setting = "devin"
+plugin = "devin_plugin"
+
+[reads_claude]
+rules = true                # CLAUDE.md, ~/.claude/CLAUDE.md
+agents = true               # .claude/agents imported as custom subagents (experimental)
+commands = true             # .claude/commands/**/*.md imported as skills
+hooks = true                # .claude/settings*.json, ~/.claude.json when read_config_from.claude is on (default true)
+skills = true
+plugins = true              # falls back to .claude-plugin/plugin.json
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "{xdg_config}/devin/AGENTS.md"
+global_windows = "{app_support}/devin/AGENTS.md"
+project_alt = ["AGENTS.local.md", "AGENT.md", ".windsurfrules", "CLAUDE.md"]
+global_alt = ["~/.claude/CLAUDE.md"]
+
+[paths.scoped_rules]
+project = ".devin/rules"
+global = "~/.devin/rules"
+project_alt = [".windsurf/rules", ".cursor/rules"]
+
+[paths.agents]
+project = ".devin/agents"
+global = "{xdg_config}/devin/agents"
+global_windows = "{app_support}/devin/agents"
+project_alt = [".agents/agents", ".claude/agents"]
+
+[paths.commands]
+# Commands are written as skills.
+project = ".devin/skills"
+global = "{xdg_config}/devin/skills"
+global_windows = "{app_support}/devin/skills"
+project_alt = [".claude/commands"]
+
+[paths.skills]
+project = ".devin/skills"
+global = "{xdg_config}/devin/skills"
+global_windows = "{app_support}/devin/skills"
+project_alt = [".agents/skills", ".windsurf/skills", ".claude/skills", ".github/skills"]
+global_alt = ["~/.agents/skills", "~/.codeium/windsurf/skills", "~/.claude/skills", "~/.copilot/skills"]
+
+[paths.hooks]
+# Project file is the bare hooks object; the user file holds it under the "hooks" key of config.json.
+project = ".devin/hooks.v1.json"
+global = "{xdg_config}/devin/config.json"
+global_windows = "{app_support}/devin/config.json"
+local = ".devin/config.local.json"
+project_alt = [".devin/config.json", ".claude/settings.json", ".claude/settings.local.json"]
+global_alt = ["~/.claude.json", "~/.claude/settings.json", "~/.claude/settings.local.json"]
+
+[paths.settings]
+# Project files may set only permissions, read_config_from and hooks; everything else is user-only. JSON with comments.
+project = ".devin/config.json"
+global = "{xdg_config}/devin/config.json"
+global_windows = "{app_support}/devin/config.json"
+local = ".devin/config.local.json"
+
+# Devin CLI and Devin Local (v3000.3+). Local scope: .devin/mcp_config.local.json. The user file is shared with legacy Cascade.
+[[mcp]]
+surface = "cli"
+format = "json"
+project = ".devin/mcp_config.json"
+global = "{xdg_config}/devin/mcp_config.json"
+global_windows = "{app_support}/devin/mcp_config.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "url"            # url + transport ("http" default with SSE fallback, or "sse") + headers
+transports = ["stdio", "http", "sse"]
+secret_mode = "env_ref"
+env_ref = "${env:VAR}"
+prefer_cli = "devin mcp add -s {scope} {name} -- {command}"   # scope = local|project|user
+default = true
+
+[hook_event_map]
+# Devin also has PostCompaction (after compaction), which has no Claude PreCompact equivalent.
+SessionStart = "SessionStart"
+SessionEnd = "SessionEnd"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"
+PostToolUse = "PostToolUse"
+PermissionRequest = "PermissionRequest"
+Stop = "Stop"
+
+[hooks]
+shape = "devin_v1"
+timeout_unit = "s"
+events_count = 8
+# sets DEVIN_PROJECT_DIR (and DEVIN_PLUGIN_ROOT for plugin hooks), not CLAUDE_PROJECT_DIR
+
+[tool_name_map]
+Bash = "exec"
+Read = "read"
+Edit = "edit"
+Write = "write"
+Glob = "glob"
+Grep = "grep"
+WebFetch = "webfetch"
+Agent = "run_subagent"
+TodoWrite = "todo_write"
+Skill = "skill"
+AskUserQuestion = "ask_user_question"
+mcp = "mcp__{server}__{tool}"
+
+[model_map]
+sonnet = "sonnet"   # the Devin subagent docs example uses "model: sonnet"
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""        # omitted = router-selected subagent model, not the parent's
+
+[permissions]
+syntax = "devin"
+key = ["permissions"]
+lists = ["allow", "ask", "deny"]
+
+[transcripts]
+# Path from third-party tokscale; the study's own section marks the session DB location UNVERIFIED. Usage is cloud-side.
+globs = ["~/.local/share/devin/cli/sessions.db"]   # UNVERIFIED
+parser = "devin_sqlite"
+format = "sqlite"
+
+[runner]
+cmd = "devin"
+headless = ["-p"]              # text output only; no JSON output flag documented
+resume_flag = "--resume"
+model_flag = "--model"
+permission_flags = { accept_edits = ["--permission-mode", "accept-edits"], bypass = ["--permission-mode", "dangerous"] }
+
+[acp]
+native = true
+cmd = "devin"
+args = ["acp"]
+registry_id = "devin"
+
+[trust]
+requires_review = true
+how = "Devin CLI respects workspace trust (CI turns it off with --respect-workspace-trust false), and project config files may only set permissions, read_config_from and hooks."

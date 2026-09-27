@@ -1,0 +1,136 @@
+# Trae (ByteDance): TraeCode IDE + TraeCode CLI 2.0. Source: estudo 75/06 0A, 0B.3, 0C.4, 0C.6, 0C.10, Part 5 "Trae (ByteDance)" (a)-(k), Part 6 §3, §5.1, §5.2, §6.1, §8.2, §8.4.
+id = "trae"
+name = "Trae (TraeCode)"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://docs.trae.ai"
+notes = "International edition uses ~/.trae, the CN edition ~/.trae-cn. TraeCode CLI 2.0 (trae-cli) runs Codex-format plugins and needs hook trust; bytedance/trae-agent is an unrelated open-source agent that also ships a trae-cli binary."
+reads_agents_dir = true        # .agents/skills after a toggle in Settings > Skills & Commands
+reads_agents_md = "opt-in"     # AGENTS.md, CLAUDE.md, CLAUDE.local.md need a toggle in Settings > Rules
+
+[detect]
+binaries = ["trae-cli"]
+home_dirs = ["~/.trae", "~/.trae-cn", "{app_support}/Trae"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".trae"]
+global_dir = "~/.trae"
+
+[formats]
+rule = "trae_rules"    # .md with alwaysApply, description, globs (+ scene: git_message)
+agent = "claude"       # Claude-like frontmatter; model must be a Trae built-in model
+command = "claude"     # {name}.md with Name and Description frontmatter; placeholders not documented
+skill = "skill_dir"
+hook = "claude"
+
+[reads_claude]
+rules = true           # CLAUDE.md / CLAUDE.local.md behind a toggle
+agents = false
+commands = false
+hooks = true           # "Import Hook configuration in CLAUDE" toggle
+skills = false
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "~/.trae/user_rules"   # UNVERIFIED whether file or dir
+project_alt = ["CLAUDE.md", "CLAUDE.local.md"]
+
+[paths.scoped_rules]
+project = ".trae/rules"
+
+[paths.agents]
+# Beta: Settings > Beta > Enable Subagents Directory.
+project = ".trae/agents"
+global = "~/.trae/agents"   # UNVERIFIED (docs show the CN path)
+global_alt = ["~/.trae-cn/agents"]
+
+[paths.commands]
+project = ".trae/commands"
+global = "~/.trae/commands"
+
+[paths.skills]
+project = ".trae/skills"
+global = "~/.trae/skills"
+project_alt = [".agents/skills"]
+global_alt = ["~/.trae-cn/skills"]
+
+[paths.hooks]
+project = ".trae/hooks.json"
+global = "~/.trae/hooks.json"
+project_alt = [".claude/settings.json", ".claude/settings.local.json"]
+global_alt = ["~/.claude/settings.json"]
+
+# Project file must be enabled in Settings > MCP (trae.mcp.enableWorkspaceMcp, default false).
+[[mcp]]
+surface = "ide"
+format = "json"
+project = ".trae/mcp.json"
+global = "{app_support}/Trae/User/mcp.json"   # UNVERIFIED
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "url"
+transports = ["stdio", "http", "sse"]
+secret_mode = "plain"     # the only variable is ${workspaceFolder}
+default = true
+
+[hook_event_map]
+SessionStart = "SessionStart"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"
+PostToolUse = "PostToolUse"
+Stop = "Stop"
+Notification = "Notification"
+
+[hooks]
+shape = "claude"
+timeout_unit = "s"
+version = 1
+env_aliases = ["CLAUDE_PROJECT_DIR", "CLAUDE_ENV_FILE"]
+events_count = 6
+
+[tool_name_map]
+# Hook tool names; subagent tool lists use Bash instead of RunCommand.
+Bash = "RunCommand"
+Read = "Read"
+Edit = "Edit"
+Write = "Write"
+Glob = "Glob"
+Grep = "Grep"
+WebFetch = "WebFetch"
+WebSearch = "WebSearch"
+TodoWrite = "TodoWrite"
+Skill = "Skill"
+AskUserQuestion = "AskUserQuestion"
+mcp = "mcp__{server}__{tool}"
+
+[model_map]
+# Subagents accept Trae built-in models only; omit the field.
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+[permissions]
+syntax = "none"   # sandbox in ~/.trae/sandbox.json; command allowlists are UI-only
+
+[transcripts]
+# Sessions live in an encrypted local DB or the cloud (third-party finding, UNVERIFIED officially).
+globs = []
+format = "none"
+
+[acp]
+native = false    # UNVERIFIED
+
+[trust]
+requires_review = true
+how = "Enabling hooks needs a UI confirmation, workspace MCP must be switched on in settings, and TraeCode CLI hooks must be trusted."

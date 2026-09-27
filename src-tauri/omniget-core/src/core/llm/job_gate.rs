@@ -84,9 +84,14 @@ impl Limits {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WaitReason {
     Slot,
-    AgentCap { cap: usize },
+    AgentCap {
+        cap: usize,
+    },
     /// `holder` is the running job whose folder overlaps this one's.
-    Workspace { holder: String, folder: FolderKey },
+    Workspace {
+        holder: String,
+        folder: FolderKey,
+    },
 }
 
 impl WaitReason {
@@ -450,14 +455,13 @@ mod tests {
 
     /// Admitted at once (within 100 ms of real time)?
     async fn now_or_never<F: Future<Output = JobLease>>(f: F) -> Option<JobLease> {
-        tokio::time::timeout(Duration::from_millis(100), f).await.ok()
+        tokio::time::timeout(Duration::from_millis(100), f)
+            .await
+            .ok()
     }
 
     /// Starts an acquire in the background; `Some(lease)` once admitted.
-    fn waiting(
-        gate: &Arc<Gate>,
-        t: Ticket,
-    ) -> tokio::task::JoinHandle<JobLease> {
+    fn waiting(gate: &Arc<Gate>, t: Ticket) -> tokio::task::JoinHandle<JobLease> {
         let gate = gate.clone();
         tokio::spawn(async move { gate.acquire(t).await })
     }
@@ -487,7 +491,9 @@ mod tests {
     #[tokio::test]
     async fn two_writers_on_one_folder_never_overlap() {
         let gate = Gate::new(limits(4));
-        let a = now_or_never(gate.acquire(ticket("a", "x", Some("/w/shared")))).await.expect("a runs");
+        let a = now_or_never(gate.acquire(ticket("a", "x", Some("/w/shared"))))
+            .await
+            .expect("a runs");
         let b = waiting(&gate, ticket("b", "y", Some("/w/shared")));
         settle().await;
         assert!(!b.is_finished(), "b must wait for the folder");
@@ -501,7 +507,10 @@ mod tests {
             }
         );
         drop(a);
-        let b = tokio::time::timeout(Duration::from_secs(1), b).await.expect("b admitted").unwrap();
+        let b = tokio::time::timeout(Duration::from_secs(1), b)
+            .await
+            .expect("b admitted")
+            .unwrap();
         assert_eq!(gate.snapshot().held.len(), 1);
         drop(b);
         assert_books(&gate);
@@ -510,14 +519,19 @@ mod tests {
     #[tokio::test]
     async fn a_job_in_a_folder_blocks_its_subfolder_and_back() {
         let gate = Gate::new(limits(4));
-        let repo = now_or_never(gate.acquire(ticket("repo", "x", Some("/w/repo")))).await.unwrap();
+        let repo = now_or_never(gate.acquire(ticket("repo", "x", Some("/w/repo"))))
+            .await
+            .unwrap();
         let sub = waiting(&gate, ticket("sub", "x", Some("/w/repo/src")));
         let sibling = now_or_never(gate.acquire(ticket("sib", "x", Some("/w/repo2")))).await;
         assert!(sibling.is_some(), "/w/repo2 is another folder");
         settle().await;
         assert!(!sub.is_finished());
         drop(repo);
-        let sub = tokio::time::timeout(Duration::from_secs(1), sub).await.unwrap().unwrap();
+        let sub = tokio::time::timeout(Duration::from_secs(1), sub)
+            .await
+            .unwrap()
+            .unwrap();
         // And back: the parent waits for the child.
         let parent = waiting(&gate, ticket("parent", "x", Some("/w")));
         settle().await;
@@ -525,7 +539,10 @@ mod tests {
         assert_eq!(gate.snapshot().queued[0].job_id, "parent");
         drop(sub);
         drop(sibling);
-        tokio::time::timeout(Duration::from_secs(1), parent).await.unwrap().unwrap();
+        tokio::time::timeout(Duration::from_secs(1), parent)
+            .await
+            .unwrap()
+            .unwrap();
     }
 
     #[cfg(unix)]
@@ -542,7 +559,9 @@ mod tests {
             class: Class::Manual,
             folder: Some(FolderKey::of(&p)),
         };
-        let a = now_or_never(gate.acquire(t("a", real.clone()))).await.unwrap();
+        let a = now_or_never(gate.acquire(t("a", real.clone())))
+            .await
+            .unwrap();
         let b = waiting(&gate, t("b", root.join("alias")));
         let c = waiting(&gate, t("c", root.join("alias").join("..").join("SHARED")));
         settle().await;
@@ -557,8 +576,12 @@ mod tests {
     #[tokio::test]
     async fn the_cap_holds_and_a_freed_slot_goes_to_the_next() {
         let gate = Gate::new(limits(2));
-        let a = now_or_never(gate.acquire(ticket("a", "x", None))).await.unwrap();
-        let _b = now_or_never(gate.acquire(ticket("b", "y", None))).await.unwrap();
+        let a = now_or_never(gate.acquire(ticket("a", "x", None)))
+            .await
+            .unwrap();
+        let _b = now_or_never(gate.acquire(ticket("b", "y", None)))
+            .await
+            .unwrap();
         let c = waiting(&gate, ticket("c", "z", None));
         settle().await;
         assert!(!c.is_finished());
@@ -566,7 +589,10 @@ mod tests {
         assert_eq!(v.queued[0].reason, WaitReason::Slot);
         assert_eq!(v.queued[0].position, 1);
         drop(a);
-        tokio::time::timeout(Duration::from_secs(1), c).await.unwrap().unwrap();
+        tokio::time::timeout(Duration::from_secs(1), c)
+            .await
+            .unwrap()
+            .unwrap();
         assert_books(&gate);
     }
 
@@ -575,7 +601,11 @@ mod tests {
         let gate = Gate::new(limits(4));
         let mut held = Vec::new();
         for i in 0..4 {
-            held.push(now_or_never(gate.acquire(ticket(&format!("j{i}"), "x", None))).await.unwrap());
+            held.push(
+                now_or_never(gate.acquire(ticket(&format!("j{i}"), "x", None)))
+                    .await
+                    .unwrap(),
+            );
         }
         assert_books(&gate);
         // Shrink with every slot taken: nothing to forget yet, so it is owed.
@@ -590,18 +620,31 @@ mod tests {
         assert!(!fifth.is_finished(), "two still run and the cap is 2");
         assert_books(&gate);
         held.pop();
-        let fifth = tokio::time::timeout(Duration::from_secs(1), fifth).await.unwrap().unwrap();
+        let fifth = tokio::time::timeout(Duration::from_secs(1), fifth)
+            .await
+            .unwrap()
+            .unwrap();
         assert_books(&gate);
         held.clear();
         drop(fifth);
-        assert_eq!(gate.snapshot().available, 2, "after the shrink: exactly the new cap");
+        assert_eq!(
+            gate.snapshot().available,
+            2,
+            "after the shrink: exactly the new cap"
+        );
         // Grow: exactly the new cap, all usable at once.
         gate.set_limits(6, None);
         assert_eq!(gate.snapshot().available, 6);
         for i in 0..6 {
-            held.push(now_or_never(gate.acquire(ticket(&format!("k{i}"), "x", None))).await.unwrap());
+            held.push(
+                now_or_never(gate.acquire(ticket(&format!("k{i}"), "x", None)))
+                    .await
+                    .unwrap(),
+            );
         }
-        assert!(now_or_never(gate.acquire(ticket("k6", "x", None))).await.is_none());
+        assert!(now_or_never(gate.acquire(ticket("k6", "x", None)))
+            .await
+            .is_none());
         assert_books(&gate);
         // Shrink with some free, then grow before the debt is paid.
         held.truncate(3);
@@ -625,7 +668,9 @@ mod tests {
             max_per_agent: Some(1),
             ..limits(4)
         });
-        let _a1 = now_or_never(gate.acquire(ticket("a1", "A", None))).await.unwrap();
+        let _a1 = now_or_never(gate.acquire(ticket("a1", "A", None)))
+            .await
+            .unwrap();
         let a2 = waiting(&gate, ticket("a2", "A", None));
         settle().await;
         let b1 = now_or_never(gate.acquire(ticket("b1", "B", None))).await;
@@ -641,8 +686,12 @@ mod tests {
     #[tokio::test]
     async fn a_mission_never_waits_ahead_of_a_manual_job() {
         let gate = Gate::new(limits(2));
-        let m1 = now_or_never(gate.acquire(mission("m1", None))).await.unwrap();
-        let _m2 = now_or_never(gate.acquire(mission("m2", None))).await.unwrap();
+        let m1 = now_or_never(gate.acquire(mission("m1", None)))
+            .await
+            .unwrap();
+        let _m2 = now_or_never(gate.acquire(mission("m2", None)))
+            .await
+            .unwrap();
         let m3 = waiting(&gate, mission("m3", None));
         let m4 = waiting(&gate, mission("m4", None));
         settle().await;
@@ -651,9 +700,15 @@ mod tests {
         assert_eq!(queued_ids(&gate), vec!["run", "m3", "m4"]);
         assert_eq!(gate.snapshot().queued[0].position, 1);
         drop(m1);
-        let _manual = tokio::time::timeout(Duration::from_secs(1), manual).await.unwrap().unwrap();
+        let _manual = tokio::time::timeout(Duration::from_secs(1), manual)
+            .await
+            .unwrap()
+            .unwrap();
         settle().await;
-        assert!(!m3.is_finished() && !m4.is_finished(), "the cap still holds for the mission");
+        assert!(
+            !m3.is_finished() && !m4.is_finished(),
+            "the cap still holds for the mission"
+        );
         assert_eq!(gate.snapshot().held.len(), 2);
     }
 
@@ -663,8 +718,12 @@ mod tests {
             max_per_agent: Some(1),
             ..limits(2)
         });
-        let _w = now_or_never(gate.acquire(ticket("writer", "A", Some("/w/repo")))).await.unwrap();
-        let _o = now_or_never(gate.acquire(ticket("other", "B", None))).await.unwrap();
+        let _w = now_or_never(gate.acquire(ticket("writer", "A", Some("/w/repo"))))
+            .await
+            .unwrap();
+        let _o = now_or_never(gate.acquire(ticket("other", "B", None)))
+            .await
+            .unwrap();
         let _q1 = waiting(&gate, ticket("same-folder", "C", Some("/w/repo/docs")));
         let _q2 = waiting(&gate, ticket("same-agent", "A", None));
         let _q3 = waiting(&gate, ticket("plain", "D", None));
@@ -673,8 +732,11 @@ mod tests {
         let v = gate.snapshot();
         let positions: Vec<usize> = v.queued.iter().map(|q| q.position).collect();
         assert_eq!(positions, vec![1, 2, 3, 4]);
-        let reasons: Vec<(&str, &WaitReason)> =
-            v.queued.iter().map(|q| (q.job_id.as_str(), &q.reason)).collect();
+        let reasons: Vec<(&str, &WaitReason)> = v
+            .queued
+            .iter()
+            .map(|q| (q.job_id.as_str(), &q.reason))
+            .collect();
         assert_eq!(
             reasons,
             vec![
@@ -700,9 +762,15 @@ mod tests {
             stagger: STAGGER,
             ..limits(4)
         });
-        let a = now_or_never(gate.acquire(ticket("a", "x", None))).await.unwrap();
-        let b = now_or_never(gate.acquire(ticket("b", "x", None))).await.unwrap();
-        let c = now_or_never(gate.acquire(ticket("c", "x", None))).await.unwrap();
+        let a = now_or_never(gate.acquire(ticket("a", "x", None)))
+            .await
+            .unwrap();
+        let b = now_or_never(gate.acquire(ticket("b", "x", None)))
+            .await
+            .unwrap();
+        let c = now_or_never(gate.acquire(ticket("c", "x", None)))
+            .await
+            .unwrap();
         assert_eq!(a.delay, Duration::ZERO);
         let near = |d: Duration, want: u64| d.as_millis().abs_diff(u128::from(want)) <= 30;
         assert!(near(b.delay, 500), "{:?}", b.delay);
@@ -712,16 +780,25 @@ mod tests {
     #[tokio::test]
     async fn a_cancelled_wait_leaves_the_queue() {
         let gate = Gate::new(limits(1));
-        let a = now_or_never(gate.acquire(ticket("a", "x", None))).await.unwrap();
+        let a = now_or_never(gate.acquire(ticket("a", "x", None)))
+            .await
+            .unwrap();
         let ghost = waiting(&gate, ticket("ghost", "x", None));
         settle().await;
         assert_eq!(queued_ids(&gate), vec!["ghost"]);
         ghost.abort();
         settle().await;
-        assert!(queued_ids(&gate).is_empty(), "a cancelled wait is not a queued job");
+        assert!(
+            queued_ids(&gate).is_empty(),
+            "a cancelled wait is not a queued job"
+        );
         drop(a);
         settle().await;
-        assert_eq!(gate.snapshot().available, 1, "the slot went back, not to the ghost");
+        assert_eq!(
+            gate.snapshot().available,
+            1,
+            "the slot went back, not to the ghost"
+        );
         assert!(gate.snapshot().held.is_empty());
     }
 
@@ -729,7 +806,9 @@ mod tests {
     async fn every_change_is_announced() {
         let gate = Gate::new(limits(1));
         let mut rx = gate.subscribe();
-        let a = now_or_never(gate.acquire(ticket("a", "x", None))).await.unwrap();
+        let a = now_or_never(gate.acquire(ticket("a", "x", None)))
+            .await
+            .unwrap();
         assert!(rx.has_changed().unwrap());
         rx.borrow_and_update();
         drop(a);
@@ -762,7 +841,11 @@ mod bn2 {
     fn bench(metric: &str, value: serde_json::Value) {
         if let Ok(path) = std::env::var("OMNIGET_BENCH_OUT") {
             use std::io::Write as _;
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+            {
                 let _ = writeln!(
                     f,
                     "{}",
@@ -773,12 +856,18 @@ mod bn2 {
     }
 
     fn env_num<T: std::str::FromStr>(name: &str, default: T) -> T {
-        std::env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
+        std::env::var(name)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
     }
 
     fn fake() -> Option<PathBuf> {
         let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/llm/fake_claude.py");
-        let python = std::process::Command::new("python3").arg("--version").output().ok()?;
+        let python = std::process::Command::new("python3")
+            .arg("--version")
+            .output()
+            .ok()?;
         (python.status.success() && script.is_file()).then_some(script)
     }
 
@@ -797,7 +886,10 @@ mod bn2 {
                 "--output-format".into(),
                 "stream-json".into(),
             ],
-            env: env.iter().map(|(k, v)| (k.to_string(), v.clone())).collect(),
+            env: env
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect(),
             cwd: Some(cwd.to_path_buf()),
             stdin: Some("User: do the task".into()),
             ..SpawnSpec::default()
@@ -834,7 +926,9 @@ mod bn2 {
         };
         let started = t0.elapsed().as_secs_f64();
         if let Some((ws, conv)) = &snap {
-            snapshot::before_write(ws, conv, &format!("{conv}-req")).await.unwrap();
+            snapshot::before_write(ws, conv, &format!("{conv}-req"))
+                .await
+                .unwrap();
         }
         let mut stream = spawn_turn_with(
             spec,
@@ -845,12 +939,19 @@ mod bn2 {
         .unwrap();
         let mut finished_ok = false;
         while let Some(ev) = stream.next().await {
-            if matches!(ev, TurnEvent::Finished { reason: crate::core::llm::types::FinishReason::Stop }) {
+            if matches!(
+                ev,
+                TurnEvent::Finished {
+                    reason: crate::core::llm::types::FinishReason::Stop
+                }
+            ) {
                 finished_ok = true;
             }
         }
         if let Some((ws, conv)) = &snap {
-            snapshot::after_turn(ws, conv, &format!("{conv}-req")).await.unwrap();
+            snapshot::after_turn(ws, conv, &format!("{conv}-req"))
+                .await
+                .unwrap();
         }
         let ended = t0.elapsed().as_secs_f64();
         drop(lease);
@@ -877,7 +978,11 @@ mod bn2 {
 
     fn max_concurrent(runs: &[Ran]) -> usize {
         runs.iter()
-            .map(|r| runs.iter().filter(|o| o.started <= r.started && r.started < o.ended).count())
+            .map(|r| {
+                runs.iter()
+                    .filter(|o| o.started <= r.started && r.started < o.ended)
+                    .count()
+            })
             .max()
             .unwrap_or(0)
     }
@@ -886,7 +991,10 @@ mod bn2 {
         let mut out = Map::new();
         for e in std::fs::read_dir(dir).unwrap().flatten() {
             if e.path().is_file() {
-                out.insert(e.file_name().to_string_lossy().to_string(), std::fs::read(e.path()).unwrap());
+                out.insert(
+                    e.file_name().to_string_lossy().to_string(),
+                    std::fs::read(e.path()).unwrap(),
+                );
             }
         }
         out
@@ -914,7 +1022,14 @@ mod bn2 {
         vec![shared.to_path_buf(), alias, case, root.to_path_buf()]
     }
 
-    fn write_job(fake: &Path, cwd: &Path, tag: &str, ledger: &Path, own: &Path, hold: f64) -> SpawnSpec {
+    fn write_job(
+        fake: &Path,
+        cwd: &Path,
+        tag: &str,
+        ledger: &Path,
+        own: &Path,
+        hold: f64,
+    ) -> SpawnSpec {
         spec(
             fake,
             cwd,
@@ -941,7 +1056,9 @@ mod bn2 {
     /// in one folder, W4).
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn bn2_a_control_without_the_gate_loses_lines() {
-        let Some(fake) = fake() else { return eprintln!("python3 missing: skipped") };
+        let Some(fake) = fake() else {
+            return eprintln!("python3 missing: skipped");
+        };
         let root = temp("control");
         let shared = root.join("Shared");
         std::fs::create_dir_all(&shared).unwrap();
@@ -952,16 +1069,38 @@ mod bn2 {
             .enumerate()
             .map(|(i, cwd)| {
                 let tag = format!("j{i}");
-                let s = write_job(&fake, &cwd, &tag, &ledger, &shared.join(format!("{tag}.txt")), 0.3);
-                let t = Ticket { job_id: tag, agent_id: "a".into(), class: Class::Manual, folder: None };
+                let s = write_job(
+                    &fake,
+                    &cwd,
+                    &tag,
+                    &ledger,
+                    &shared.join(format!("{tag}.txt")),
+                    0.3,
+                );
+                let t = Ticket {
+                    job_id: tag,
+                    agent_id: "a".into(),
+                    class: Class::Manual,
+                    folder: None,
+                };
                 tokio::spawn(job(None, t, s, None, t0))
             })
             .collect();
-        let runs: Vec<Ran> = futures::future::join_all(handles).await.into_iter().map(Result::unwrap).collect();
+        let runs: Vec<Ran> = futures::future::join_all(handles)
+            .await
+            .into_iter()
+            .map(Result::unwrap)
+            .collect();
         let lost = 4 - ledger_tags(&ledger).len();
         bench("a_control_lost_lines", serde_json::json!(lost));
-        bench("a_control_overlapping_pairs", serde_json::json!(overlapping_pairs(&runs)));
-        assert!(lost >= 1, "without the gate the read-modify-write must lose lines");
+        bench(
+            "a_control_overlapping_pairs",
+            serde_json::json!(overlapping_pairs(&runs)),
+        );
+        assert!(
+            lost >= 1,
+            "without the gate the read-modify-write must lose lines"
+        );
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -969,7 +1108,9 @@ mod bn2 {
     /// 0 overlapping runs, and the undo never touches another job's bytes.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn bn2_a_one_writer_per_folder_and_a_safe_undo() {
-        let Some(fake) = fake() else { return eprintln!("python3 missing: skipped") };
+        let Some(fake) = fake() else {
+            return eprintln!("python3 missing: skipped");
+        };
         if !snapshot::git_available() {
             return eprintln!("git missing: skipped");
         }
@@ -988,7 +1129,11 @@ mod bn2 {
             let shared = root.join("Shared");
             std::fs::create_dir_all(&shared).unwrap();
             let ledger = shared.join("ledger.txt");
-            let gate = Gate::new(Limits { max_parallel: 4, max_per_agent: None, stagger: STAGGER });
+            let gate = Gate::new(Limits {
+                max_parallel: 4,
+                max_per_agent: None,
+                stagger: STAGGER,
+            });
             let t0 = Instant::now();
             let mut conv_of: HashMap<String, (PathBuf, String, PathBuf)> = HashMap::new();
             let mut handles = Vec::new();
@@ -1005,22 +1150,38 @@ mod bn2 {
                     class: Class::Manual,
                     folder: Some(FolderKey::of(&cwd)),
                 };
-                handles.push(tokio::spawn(job(Some(gate.clone()), t, s, Some((canon, conv)), t0)));
+                handles.push(tokio::spawn(job(
+                    Some(gate.clone()),
+                    t,
+                    s,
+                    Some((canon, conv)),
+                    t0,
+                )));
             }
             // While a later job runs, undo the first one that finished.
             let mut tried_live = false;
             while handles.iter().any(|h| !h.is_finished()) {
                 let view = gate.snapshot();
                 waited_workspace = waited_workspace.max(
-                    view.queued.iter().filter(|q| q.reason.code() == "workspace").count(),
+                    view.queued
+                        .iter()
+                        .filter(|q| q.reason.code() == "workspace")
+                        .count(),
                 );
-                let done: Vec<&String> = conv_of.keys().filter(|t| std::fs::read(shared.join(format!("{t}.txt"))).is_ok()).collect();
+                let done: Vec<&String> = conv_of
+                    .keys()
+                    .filter(|t| std::fs::read(shared.join(format!("{t}.txt"))).is_ok())
+                    .collect();
                 if !tried_live && !done.is_empty() && !view.held.is_empty() {
                     let first = done[0].clone();
                     let holder = &view.held[0].job_id;
                     if holder != &first {
                         let (ws, conv, _) = &conv_of[&first];
-                        let live: Vec<PathBuf> = view.held.iter().map(|h| conv_of[&h.job_id].2.clone()).collect();
+                        let live: Vec<PathBuf> = view
+                            .held
+                            .iter()
+                            .map(|h| conv_of[&h.job_id].2.clone())
+                            .collect();
                         let code = match snapshot::undo(ws, conv, &live).await {
                             Ok(_) => "restored".to_string(),
                             Err(e) => e.split(':').next().unwrap_or("").to_string(),
@@ -1053,10 +1214,18 @@ mod bn2 {
                     continue;
                 }
                 if name == "ledger.txt" {
-                    let want: String = tags.iter().filter(|t| **t != last).map(|t| format!("{t}\n")).collect();
-                    last_other_bytes += bytes_changed(want.as_bytes(), after.get(name).map(Vec::as_slice).unwrap_or(&[]));
+                    let want: String = tags
+                        .iter()
+                        .filter(|t| **t != last)
+                        .map(|t| format!("{t}\n"))
+                        .collect();
+                    last_other_bytes += bytes_changed(
+                        want.as_bytes(),
+                        after.get(name).map(Vec::as_slice).unwrap_or(&[]),
+                    );
                 } else {
-                    last_other_bytes += bytes_changed(bytes, after.get(name).map(Vec::as_slice).unwrap_or(&[]));
+                    last_other_bytes +=
+                        bytes_changed(bytes, after.get(name).map(Vec::as_slice).unwrap_or(&[]));
                 }
             }
             // Undo the first job: others wrote the ledger after it, refused.
@@ -1076,21 +1245,43 @@ mod bn2 {
         }
         bench("a_reps", serde_json::json!(reps));
         bench("a_lost_lines", serde_json::json!(lost_total));
-        bench("a_overlapping_pairs_same_folder", serde_json::json!(overlap_total));
-        bench("a_max_waiting_workspace", serde_json::json!(waited_workspace));
+        bench(
+            "a_overlapping_pairs_same_folder",
+            serde_json::json!(overlap_total),
+        );
+        bench(
+            "a_max_waiting_workspace",
+            serde_json::json!(waited_workspace),
+        );
         bench("a_undo_while_live_codes", serde_json::json!(live_codes));
         bench("a_undo_last_restored", serde_json::json!(last_ok));
-        bench("a_undo_last_bytes_of_others_changed", serde_json::json!(last_other_bytes));
+        bench(
+            "a_undo_last_bytes_of_others_changed",
+            serde_json::json!(last_other_bytes),
+        );
         bench("a_undo_first_codes", serde_json::json!(first_codes));
         bench("a_undo_first_bytes_changed", serde_json::json!(first_bytes));
         assert_eq!(lost_total, 0, "an overwrite happened");
         assert_eq!(overlap_total, 0, "two writers ran together in one folder");
-        assert_eq!(live_codes.len(), reps, "one undo attempt per rep while another job ran");
-        assert!(live_codes.iter().all(|c| c == snapshot::ERR_UNDO_SHARED), "{live_codes:?}");
-        assert!(waited_workspace >= 1, "the queue said why: waiting for the folder");
+        assert_eq!(
+            live_codes.len(),
+            reps,
+            "one undo attempt per rep while another job ran"
+        );
+        assert!(
+            live_codes.iter().all(|c| c == snapshot::ERR_UNDO_SHARED),
+            "{live_codes:?}"
+        );
+        assert!(
+            waited_workspace >= 1,
+            "the queue said why: waiting for the folder"
+        );
         assert_eq!(last_ok, reps);
         assert_eq!(last_other_bytes, 0);
-        assert!(first_codes.iter().all(|c| c == snapshot::ERR_UNDO_CONFLICT), "{first_codes:?}");
+        assert!(
+            first_codes.iter().all(|c| c == snapshot::ERR_UNDO_CONFLICT),
+            "{first_codes:?}"
+        );
         assert_eq!(first_bytes, 0);
     }
 
@@ -1132,7 +1323,9 @@ mod bn2 {
     /// that holds when it is sampled.
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
     async fn bn2_c_the_cap_scales_the_wall_time() {
-        let Some(fake) = fake() else { return eprintln!("python3 missing: skipped") };
+        let Some(fake) = fake() else {
+            return eprintln!("python3 missing: skipped");
+        };
         let hold: f64 = env_num("BN2_READ_S", 1.0);
         let caps: Vec<usize> = std::env::var("BN2_CAPS")
             .ok()
@@ -1143,7 +1336,11 @@ mod bn2 {
         let mut samples = 0usize;
         let mut queued_seen = 0usize;
         for cap in caps {
-            let gate = Gate::new(Limits { max_parallel: cap, max_per_agent: None, stagger: STAGGER });
+            let gate = Gate::new(Limits {
+                max_parallel: cap,
+                max_per_agent: None,
+                stagger: STAGGER,
+            });
             let t0 = Instant::now();
             let handles: Vec<_> = (0..8)
                 .map(|i| {
@@ -1156,7 +1353,12 @@ mod bn2 {
                             ("FAKE_CLAUDE_TAG", format!("r{i}")),
                         ],
                     );
-                    let t = Ticket { job_id: format!("r{i}"), agent_id: format!("agent-{}", i % 3), class: Class::Manual, folder: None };
+                    let t = Ticket {
+                        job_id: format!("r{i}"),
+                        agent_id: format!("agent-{}", i % 3),
+                        class: Class::Manual,
+                        folder: None,
+                    };
                     tokio::spawn(job(Some(gate.clone()), t, s, None, t0))
                 })
                 .collect();
@@ -1169,8 +1371,12 @@ mod bn2 {
                 for (i, q) in v.queued.iter().enumerate() {
                     let holds = match &q.reason {
                         WaitReason::Slot => v.available == 0,
-                        WaitReason::AgentCap { cap } => v.held.iter().filter(|h| h.agent_id == q.agent_id).count() >= *cap,
-                        WaitReason::Workspace { holder, .. } => v.held.iter().any(|h| &h.job_id == holder),
+                        WaitReason::AgentCap { cap } => {
+                            v.held.iter().filter(|h| h.agent_id == q.agent_id).count() >= *cap
+                        }
+                        WaitReason::Workspace { holder, .. } => {
+                            v.held.iter().any(|h| &h.job_id == holder)
+                        }
                     };
                     if !holds || q.position != i + 1 {
                         unexplained += 1;
@@ -1189,14 +1395,32 @@ mod bn2 {
             let model = model_wall(8, cap, median, STAGGER.as_secs_f64());
             let concurrent = max_concurrent(&runs);
             bench(&format!("c_wall_s_cap{cap}"), serde_json::json!(wall));
-            bench(&format!("c_median_job_s_cap{cap}"), serde_json::json!(median));
-            bench(&format!("c_ratio_cap{cap}"), serde_json::json!(wall / median));
+            bench(
+                &format!("c_median_job_s_cap{cap}"),
+                serde_json::json!(median),
+            );
+            bench(
+                &format!("c_ratio_cap{cap}"),
+                serde_json::json!(wall / median),
+            );
             bench(&format!("c_model_s_cap{cap}"), serde_json::json!(model));
-            bench(&format!("c_max_concurrent_cap{cap}"), serde_json::json!(concurrent.max(max_held)));
+            bench(
+                &format!("c_max_concurrent_cap{cap}"),
+                serde_json::json!(concurrent.max(max_held)),
+            );
             assert!(runs.iter().all(|r| r.finished_ok));
-            assert!(concurrent <= cap && max_held <= cap, "cap {cap}: {concurrent} ran at once");
-            assert!(wall <= model + 0.6, "cap {cap}: wall {wall:.2} s vs model {model:.2} s");
-            assert!(wall >= model - 0.3, "cap {cap}: wall {wall:.2} s is under the model {model:.2} s");
+            assert!(
+                concurrent <= cap && max_held <= cap,
+                "cap {cap}: {concurrent} ran at once"
+            );
+            assert!(
+                wall <= model + 0.6,
+                "cap {cap}: wall {wall:.2} s vs model {model:.2} s"
+            );
+            assert!(
+                wall >= model - 0.3,
+                "cap {cap}: wall {wall:.2} s is under the model {model:.2} s"
+            );
         }
         bench("c_read_job_s", serde_json::json!(hold));
         bench("c_samples", serde_json::json!(samples));

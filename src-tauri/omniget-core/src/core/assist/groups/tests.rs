@@ -452,9 +452,10 @@ async fn b03_endless_delegation_stops_at_the_backend_limits() {
         coordinator: room.coordinator.clone(),
         ..Default::default()
     };
-    let mut limits = RoomLimits::default();
-    limits.max_concurrency = 8;
-    draft.limits = Some(limits);
+    draft.limits = Some(RoomLimits {
+        max_concurrency: 8,
+        ..RoomLimits::default()
+    });
     store::update_room(&db, &room.id, &draft).unwrap();
     // `curator` is busy (root run), so aim at a free target for the depth check.
     tasks::finish_run(&db, "r1", RunEnd::Completed, "ok", None, Some(10)).unwrap();
@@ -498,9 +499,10 @@ async fn b03_endless_delegation_stops_at_the_backend_limits() {
     assert!(last_err.starts_with(ERR_GROUP_LIMIT), "{last_err}");
 
     // Tokens: a tight token cap refuses before a new turn starts.
-    let mut limits = RoomLimits::default();
-    limits.max_tokens_per_round = Some(100);
-    draft.limits = Some(limits);
+    draft.limits = Some(RoomLimits {
+        max_tokens_per_round: Some(100),
+        ..RoomLimits::default()
+    });
     store::update_room(&db, &room.id, &draft).unwrap();
     let out = tasks::send_user_message(&db, &d, &room.id, "@companion ?", &names())
         .await

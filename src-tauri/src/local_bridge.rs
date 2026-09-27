@@ -240,6 +240,8 @@ pub async fn spawn(app: AppHandle) {
         .merge(crate::local_bridge_jobs::router(
             crate::local_bridge_jobs::JobsBridgeState::from_bridge(&state),
         ))
+        .merge(crate::local_bridge_observe::router(state.app.clone()))
+        .merge(crate::local_bridge_agentkit::router(state.token.clone()))
         .merge(crate::local_bridge_debug::router(
             state.app.clone(),
             state.token.clone(),
@@ -589,18 +591,25 @@ pub fn build_pairing_url(port: u16) -> String {
 
 // ── MCP (Streamable HTTP, só JSON) ─────────────────────────────────────
 
-/// `POST /mcp`: JSON-RPC do MCP. Mesmo bearer da extensão; 403 quando a
-/// tool "Servidor MCP" está desligada; 202 sem corpo para notificações.
+/// `POST /mcp`: JSON-RPC do MCP. Bearer de uma conexão registrada
+/// (`mcp::policy`) ou um token de sessão de driver da Central
+/// (`mcp::mint_session_token`, só o escopo `catalog`, thread no log);
+/// 202 sem corpo para notificações.
 async fn mcp_post(
     State(state): State<BridgeState>,
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Response {
-    let principal =
-        match bearer_of(&headers).and_then(|t| crate::mcp::policy::authenticate(&t).ok()) {
-            Some(p) => p,
-            None => return unauthorized(),
-        };
+    // A connection the owner registered, or the session token the host
+    // minted for one Central thread (catalog scope only).
+    let principal = match bearer_of(&headers).and_then(|t| {
+        crate::mcp::policy::authenticate(&t)
+            .ok()
+            .or_else(|| crate::mcp::session_principal(&t))
+    }) {
+        Some(p) => p,
+        None => return unauthorized(),
+    };
     let host = headers
         .get("host")
         .and_then(|h| h.to_str().ok())
@@ -643,7 +652,9 @@ async fn mcp_post(
         return StatusCode::NOT_ACCEPTABLE.into_response();
     }
 
-    if !crate::mcp::enabled() {
+    // A session token needs no switch: the host minted it for a Central
+    // thread whose MCP is on.
+    if !principal.id.starts_with(crate::mcp::SESSION_PREFIX) && !crate::mcp::enabled() {
         return (StatusCode::FORBIDDEN, Json(serde_json::json!({ "error": "MCP server is disabled in OmniGet → LLM → MCP → Your endpoint" }))).into_response();
     }
     let msg: serde_json::Value = match serde_json::from_slice(&body) {

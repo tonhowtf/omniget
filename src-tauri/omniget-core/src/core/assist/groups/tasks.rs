@@ -585,6 +585,9 @@ pub fn admit_delegation(
 ) -> Result<Task, String> {
     admit_delegation_guarded(db, room_id, creator_bot, creator_run, origin, req, None)
 }
+/// Check run inside the task transaction, right after the task row is written.
+pub(crate) type TaskGuard<'a> = &'a dyn Fn(&rusqlite::Transaction, &Task) -> Result<(), String>;
+
 /// Adds a scoped ownership check/receipt inside the existing task transaction.
 pub(crate) fn admit_delegation_guarded(
     db: &AssistDb,
@@ -593,7 +596,7 @@ pub(crate) fn admit_delegation_guarded(
     creator_run: Option<&str>,
     origin: Option<&str>,
     req: &DelegateRequest,
-    guard: Option<&dyn Fn(&rusqlite::Transaction, &Task) -> Result<(), String>>,
+    guard: Option<TaskGuard<'_>>,
 ) -> Result<Task, String> {
     let room = store::get_room(db, room_id)?;
     // Only the guarded external admission (`external_config::create_task`)

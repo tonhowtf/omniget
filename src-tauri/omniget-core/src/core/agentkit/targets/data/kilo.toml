@@ -1,0 +1,166 @@
+# Kilo Code. Source: estudo 75/06 0B.2, 0C.1-0C.10, Part 3 "Kilo Code" (paths overview, a-k) + cross-tool mapping, Part 6 §2.3/§2.4, §5.4, §6.1, §8.1, §9.
+id = "kilo"
+name = "Kilo Code"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://kilo.ai"
+notes = "Since April 2026 an OpenCode fork: the kilo CLI core is shared by VS Code, JetBrains and cloud agents. The old Roo-style .kilocode/* files are migrated on startup and treated as read-only."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["kilo"]
+home_dirs = ["{xdg_config}/kilo", "~/.kilo"]
+vscode_extensions = ["kilocode.kilo-code"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = true              # managed/enterprise layer in the config precedence
+project_markers = ["kilo.json", "kilo.jsonc", ".kilo", "AGENTS.md"]
+global_dir = "{xdg_config}/kilo"
+
+[formats]
+rule = "agents_md"
+agent = "opencode_md"
+command = "opencode_md"
+skill = "skill_dir"
+hook = "code_plugin"
+setting = "opencode"
+plugin = "code_plugin"
+
+[reads_claude]
+rules = true                # CLAUDE.md supported; ~/.claude/CLAUDE.md until the one-time migration runs
+agents = false
+commands = false
+hooks = false
+skills = true
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "{xdg_config}/kilo/AGENTS.md"
+project_alt = ["AGENT.md", "CLAUDE.md", ".kilocode/rules", ".kilocoderules"]
+global_alt = ["~/.claude/CLAUDE.md"]
+
+# Loaded through the "instructions" globs in kilo.jsonc.
+[paths.scoped_rules]
+project = ".kilo/rules"
+global = "~/.kilo/rules"
+
+[paths.agents]
+project = ".kilo/agents"
+global = "{xdg_config}/kilo/agents"
+project_alt = [".kilo/agent"]
+global_alt = ["{xdg_config}/kilo/agent"]
+
+[paths.commands]
+project = ".kilo/commands"
+global = "{xdg_config}/kilo/commands"
+project_alt = [".kilocode/workflows"]
+
+[paths.skills]
+project = ".kilo/skills"
+global = "~/.kilo/skills"
+project_alt = [".agents/skills", ".claude/skills"]
+global_alt = ["~/.agents/skills", "~/.claude/skills"]
+
+# Directory: hooks are generated as a TS/JS plugin (rulesync writes .kilo/plugins/rulesync-hooks.js).
+[paths.hooks]
+project = ".kilo/plugin"
+global = "{xdg_config}/kilo/plugin"
+project_alt = [".kilo/plugins"]
+
+[paths.settings]
+project = "kilo.jsonc"
+global = "{xdg_config}/kilo/kilo.jsonc"
+project_alt = ["kilo.json", ".kilo/kilo.jsonc", ".kilo/kilo.json", "opencode.json", "opencode.jsonc"]
+global_alt = ["{xdg_config}/kilo/kilo.json", "{xdg_config}/kilo/opencode.json", "{xdg_config}/kilo/opencode.jsonc", "{xdg_config}/kilo/config.json"]
+
+[paths.plugins]
+project = ".kilo/plugin"
+global = "{xdg_config}/kilo/plugin"
+
+[[mcp]]
+surface = "cli"
+format = "jsonc"
+project = "kilo.jsonc"
+global = "{xdg_config}/kilo/kilo.jsonc"
+key = ["mcp"]
+container = "map"
+stdio_shape = "opencode"
+remote_shape = "opencode"
+transports = ["stdio", "http", "sse"]   # remote tries Streamable HTTP then SSE
+secret_mode = "env_ref"
+env_ref = "{env:VAR}"   # UNVERIFIED (inherited from OpenCode, not stated for Kilo)
+default = true
+
+[hook_event_map]
+SessionStart = "session.created"
+SessionEnd = "session.deleted"
+UserPromptSubmit = "chat.message"
+PreToolUse = "tool.execute.before"
+PostToolUse = "tool.execute.after"
+PermissionRequest = "permission.ask"
+Stop = "session.idle"
+PreCompact = "experimental.session.compacting"
+
+[hooks]
+shape = "code_plugin"
+
+[tool_name_map]
+Bash = "bash"
+Read = "read"
+Edit = "edit"
+Write = "write"
+Glob = "glob"
+Grep = "grep"
+WebFetch = "webfetch"
+WebSearch = "websearch"
+Agent = "task"
+TodoWrite = "todowrite"
+Skill = "skill"
+AskUserQuestion = "question"
+mcp = "{server}_{tool}"
+
+[placeholder_map]
+args = "$ARGUMENTS"
+arg = "$N"
+shell = "!`{cmd}`"
+file = "@{path}"
+
+# Models are provider/model (e.g. anthropic/<id>); the study gives no alias table.
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+[permissions]
+syntax = "opencode"
+key = ["permission"]
+lists = ["allow", "ask", "deny"]
+
+[transcripts]
+globs = ["{xdg_data}/kilo/kilo*.db"]
+parser = "kilo_sqlite"      # OpenCode message schema, field names UNVERIFIED for the fork
+format = "sqlite"
+
+[runner]
+cmd = "kilo"
+headless = ["run"]
+json_flag = ["--format", "json"]
+resume_flag = "-s"
+model_flag = "-m"
+permission_flags = { plan = ["--agent", "plan"], bypass = ["--auto"] }
+
+[acp]
+native = true
+cmd = "kilo"
+args = ["acp"]
+registry_id = "kilo"

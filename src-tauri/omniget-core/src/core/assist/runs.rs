@@ -825,8 +825,8 @@ impl Registry {
         let preview = clip(&new.input_preview, 400);
         let run = self.db.tx(|tx| {
             tx.execute(
-                &format!("INSERT OR IGNORE INTO runs_runs (id, conversation_id, bot_id, parent_run_id, state, runtime, instance_id, input_preview, created_ms, updated_ms)
-                 VALUES (?1,?2,?3,?4,'queued',?5,?6,?7,?8,?8)"),
+                "INSERT OR IGNORE INTO runs_runs (id, conversation_id, bot_id, parent_run_id, state, runtime, instance_id, input_preview, created_ms, updated_ms)
+                 VALUES (?1,?2,?3,?4,'queued',?5,?6,?7,?8,?8)",
                 params![new.id, new.conversation_id, new.bot_id, new.parent_run_id, new.runtime, &*self.instance, preview, now],
             )
             .map_err(err)?;

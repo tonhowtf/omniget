@@ -145,8 +145,8 @@ type Fingerprints = Vec<(PathBuf, (u64, u64, u64, i64, i64, i64, i64))>;
 /// each binary and each non-system dylib again (Homebrew ffmpeg: dozens).
 /// A hit is served only when every file of the result, and every requested
 /// binary, still has the same identity; otherwise it is recomputed.
-static CACHE: std::sync::Mutex<Option<BTreeMap<Vec<PathBuf>, (Vec<PathBuf>, Fingerprints)>>> =
-    std::sync::Mutex::new(None);
+type Cache = BTreeMap<Vec<PathBuf>, (Vec<PathBuf>, Fingerprints)>;
+static CACHE: std::sync::Mutex<Option<Cache>> = std::sync::Mutex::new(None);
 fn fingerprints(paths: impl IntoIterator<Item = PathBuf>) -> Option<Fingerprints> {
     paths
         .into_iter()

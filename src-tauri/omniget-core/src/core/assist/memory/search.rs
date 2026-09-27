@@ -253,7 +253,7 @@ pub fn profile(db: &AssistDb, ctx: &AssistCtx, now: i64) -> Result<Profile, Stri
     'outer: for (cat, title, max) in sections {
         let mut items: Vec<&MemoryRecord> = rows.iter().filter(|r| r.category == cat).collect();
         if cat == Category::Observation {
-            items.sort_by(|a, b| b.source.at_ms.cmp(&a.source.at_ms));
+            items.sort_by_key(|r| std::cmp::Reverse(r.source.at_ms));
         }
         let mut header_done = false;
         for rec in items.into_iter().take(max) {
@@ -305,18 +305,17 @@ pub fn augment_text(db: &AssistDb, ctx: &AssistCtx, user_input: &str, now: i64) 
         Vec::new()
     };
     let mut extra = String::new();
-    let mut n = 0;
-    for rec in recalled.iter().filter(|r| !seen.contains(r.id.as_str())) {
-        if n >= AUGMENT_RECALL {
-            break;
-        }
+    for rec in recalled
+        .iter()
+        .filter(|r| !seen.contains(r.id.as_str()))
+        .take(AUGMENT_RECALL)
+    {
         let l = line(rec);
         if prof.text.len() + extra.len() + l.len() + 1 > AUGMENT_BUDGET - 400 {
             break;
         }
         extra.push_str(&l);
         extra.push('\n');
-        n += 1;
     }
     if prof.text.is_empty() && extra.is_empty() {
         return None;

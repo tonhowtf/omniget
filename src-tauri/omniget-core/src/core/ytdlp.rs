@@ -2048,7 +2048,7 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
         && usable_zipapp().await.is_none()
     {
         let managed = managed_ytdlp_path();
-        if managed.as_ref().map_or(true, |p| !p.exists()) {
+        if managed.as_ref().is_none_or(|p| !p.exists()) {
             tracing::info!("[ytdlp] managed binary missing, downloading...");
             match download_ytdlp_binary().await {
                 Ok(path) => {

@@ -1,0 +1,170 @@
+# Factory Droid. Source: estudo 75/06 0A, 0B.3, 0C.1-0C.10, Part 5 "Factory Droid" (a)-(k), Part 6 §2.3/§2.4 (factorydroid), §5.4, §6.1, §8, §9.
+id = "droid"
+name = "Factory Droid"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://docs.factory.ai"
+notes = "Mirrors Claude Code almost 1:1: same 9 hook events and hook JSON shape, custom droids in Markdown, and Claude plugins install unmodified (.claude-plugin auto-translated). Claude agents and commands are imported through the /droids and /commands menus, not read in place."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["droid"]
+home_dirs = ["~/.factory"]
+
+[scopes]
+project = true
+global = true
+local = true
+managed = true
+project_markers = [".factory"]
+global_dir = "~/.factory"
+
+[formats]
+rule = "agents_md"
+agent = "droid_md"
+command = "claude"
+skill = "skill_dir"
+hook = "claude"
+setting = "droid"
+statusline = "droid"
+plugin = "droid_plugin"
+
+[reads_claude]
+rules = true
+agents = false     # imported via /droids
+commands = false   # imported via /commands
+hooks = false
+skills = false
+plugins = true
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "~/.factory/AGENTS.md"
+project_alt = ["CLAUDE.md", ".factory/AGENTS.md", ".agents/AGENTS.md", ".agent/AGENTS.md"]
+global_alt = ["~/.agents/AGENTS.md", "~/.agent/AGENTS.md"]
+
+[paths.agents]
+project = ".factory/droids"
+global = "~/.factory/droids"
+
+[paths.commands]
+project = ".factory/commands"
+global = "~/.factory/commands"
+
+[paths.skills]
+project = ".factory/skills"
+global = "~/.factory/skills"
+project_alt = [".agents/skills", ".agent/skills"]
+
+[paths.hooks]
+project = ".factory/hooks.json"
+global = "~/.factory/hooks.json"
+project_alt = [".factory/hooks/hooks.json", ".factory/settings.json"]
+global_alt = ["~/.factory/settings.json"]
+
+[paths.settings]
+project = ".factory/settings.json"
+global = "~/.factory/settings.json"
+local = ".factory/settings.local.json"
+
+[paths.statusline]
+global = "~/.factory/settings.json"
+
+[paths.statusline_scripts]
+global = "~/.factory"
+
+[[mcp]]
+surface = "cli"
+format = "json"
+project = ".factory/mcp.json"
+global = "~/.factory/mcp.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard_typed"   # UNVERIFIED
+remote_shape = "typed"
+transports = ["stdio", "http", "sse"]
+secret_mode = "env_ref"
+env_ref = "${VAR}"
+prefer_cli = "droid mcp add {name} {command} --type stdio"
+default = true
+
+[hook_event_map]
+SessionStart = "SessionStart"
+SessionEnd = "SessionEnd"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"
+PostToolUse = "PostToolUse"
+Stop = "Stop"
+SubagentStop = "SubagentStop"
+PreCompact = "PreCompact"
+Notification = "Notification"
+
+# Scripts get $FACTORY_PROJECT_DIR (not CLAUDE_PROJECT_DIR). Default timeout 60 s. Adds commandRegex.
+[hooks]
+shape = "claude"
+timeout_unit = "s"
+events_count = 9
+
+[tool_name_map]
+Bash = "Execute"
+Read = "Read"
+Edit = "Edit"
+Write = "Create"
+Glob = "Glob"
+Grep = "Grep"
+WebFetch = "FetchUrl"
+WebSearch = "WebSearch"
+Agent = "Task"
+Task = "Task"
+TodoWrite = "TodoWrite"
+Skill = "Skill"
+AskUserQuestion = "AskUser"
+ExitPlanMode = "ExitSpecMode"
+mcp = "mcp__{server}__{tool}"
+
+# Markdown commands support only $ARGUMENTS ($1/$2 do not work).
+[placeholder_map]
+args = "$ARGUMENTS"
+arg = ""
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = "inherit"
+
+# settings.json statusLine = { command, padding?, maxRows? } (no "type" field).
+[statusline]
+key = ["statusLine"]
+shape = "droid"
+
+# settings.json commandAllowlist / commandDenylist / commandBlocklist plus autonomy levels.
+[permissions]
+syntax = "droid"                       # settings.json commandAllowlist/commandDenylist + sessionDefaultSettings.autonomyLevel
+lists = ["commandAllowlist", "commandDenylist"]
+
+# Layout documented only by third parties. Full log: ~/.factory/sessions/<slug>/<uuid>.jsonl.
+[transcripts]
+globs = ["~/.factory/sessions/*/*.settings.json"]   # UNVERIFIED
+parser = "droid_json"
+format = "json"
+
+# droid exec defaults to read-only spec mode.
+[runner]
+cmd = "droid"
+headless = ["exec"]
+json_flag = ["--output-format", "stream-json"]
+resume_flag = "--session-id"
+model_flag = "-m"
+permission_flags = { plan = [], accept_edits = ["--auto", "low"], bypass = ["--skip-permissions-unsafe"] }
+
+[acp]
+native = true
+cmd = "droid"
+args = ["exec", "--output-format", "acp"]
+registry_id = "factory-droid"

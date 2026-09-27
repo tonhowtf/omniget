@@ -273,6 +273,48 @@ Claude Code、Codex、Gemini CLI 和本地模型在桌面窗口里变成智能�
 | 按计划开始工作 | **LLM → Jobs → Triggers** | 一行 cron 或本地桥接上的一个 webhook 会启动一个 Job |
 | 在智能体里使用其他 MCP 服务器 | **LLM → MCP → 你使用的服务器** | 每个工具按智能体分别授权为 *自动*、*询问* 或 *拒绝* |
 
+<a id="the-central"></a>
+
+### 中控台：你已经付费的每个编程智能体，集中在一处
+
+<p align="center">
+  <img src="assets/readme/central.gif" alt="OmniGet 吉祥物 Loop 坐在有五块显示器的控制台前；每块屏幕上都有一个不同的机器人编程智能体在自己的窗口里打字，带着红绿 diff 行，Loop 举起一张发光的审批卡片" width="900" />
+</p>
+
+**LLM** 区域打开就是中控台：在一个地方配置、驾驭和查看 Claude Code、Codex、Gemini CLI、Cursor、GitHub Copilot、OpenCode、Qwen Code 以及大约 30 个其他编程智能体。所有读写都在你的电脑上。
+
+| 你想要 | 打开 | 会发生什么 |
+|---|---|---|
+| 在真正的界面里驾驭 Claude Code、Codex 或任何 ACP 智能体 | **LLM → Threads** | 每个任务一个线程，各自在独立的 git worktree 上，每一轮都有 diff，审批会等你，还有终端和 PR 按钮 |
+| 把智能体、命令、skill、MCP 服务器或 hook 装进你所有的工具 | **LLM → 目录** | 数千个组件，转换成每个工具自己的格式，写入前先看 diff，卸载干净 |
+| 安装、更新或登录智能体 CLI | **LLM → 工具** | 检测你已有的工具，显示已装版本和最新版本，只更新它能证明是自己装的 |
+| 看每个智能体花了多少钱 | **LLM → 活动 → 用量、会话、年度回顾** | 从工具本来就保存的日志里读出 token 和费用，可搜索的历史，以及全年回放 |
+| 让同一个提示词在多个智能体之间赛跑 | **LLM → Arena** | 每个智能体在自己的 worktree 里干活；并排比较 diff，合并胜出者 |
+| 用手机审批 | **LLM → 配置 → 远程访问** | 默认关闭。用二维码配对；手机能看到线程并回复审批 |
+
+- **线程。** Claude Code 每个线程一个常驻进程，Codex 通过 `codex app-server`，OpenCode 通过 `opencode serve`，任何 [Agent Client Protocol](https://agentclientprotocol.com) 智能体通过完整的 ACP 客户端。每个线程可以有自己的分支和文件夹，每一轮都在隐藏的 git refs 里存检查点，**从这里编辑** 能把文件和对话退回到任意一轮。侧边栏有 diff、真正的终端、文件、计划、PR 标签页，以及一个能找到你开发服务器的浏览器。
+- **会等你的审批。** 改文件会显示完整 diff；shell 命令会显示命令和文件夹。在线程里请求会一直等你而不是超时，宠物、手机和线程回复的是同一个请求。
+- **外部会话。** 你在终端里跑过的 Claude Code 或 Codex 会话可以作为只读线程导入，并在对应的驱动里继续。
+- **OmniGet 的 MCP 服务器随行。** 每个驱动会话都有自己短时有效的 token，可以搜索目录，并在你批准后安装组件。
+
+<p align="center">
+  <img src="assets/readme/illustration-catalog.webp" alt="Loop 经营着一家摆满发光卡片的小店，把卡片递给一队形状各异的机器人；每个机器人的卡片都会变形，正好插进它胸前的插槽" width="820" />
+</p>
+
+**目录** 汇集了 [claude-code-templates](https://github.com/davila7/claude-code-templates)、[anthropics/skills](https://github.com/anthropics/skills)、[openai/skills](https://github.com/openai/skills)、[obra/superpowers](https://github.com/obra/superpowers) 等来源，并把每个组件转换成你选的工具的格式：智能体变成 Codex TOML、Gemini、OpenCode 或 Copilot 智能体；命令变成 Gemini TOML 或 Copilot prompt 文件；规则写进 `AGENTS.md`，并为 `CLAUDE.md` 和 `GEMINI.md` 搭桥；MCP 服务器用各工具自己的方言写入，密钥作为变量；hook 经过一个小 shim，所以 Claude 的 hook 脚本在 Cursor、Gemini 或 OpenCode 里也能用。计划会显示每个文件的 diff 以及 hook 或 MCP 服务器将运行的每条命令，安装前每个组件都会检查提示词注入、读取凭据和 `curl | sh`，卸载只删除 OmniGet 写入的内容。终端里：`omniget agentkit search|show|install|uninstall|list|doctor`。
+
+<p align="center">
+  <img src="assets/readme/illustration-usage.webp" alt="Loop 举着放大镜站在一面墙大小的仪表盘前，上面有柱状图、日历热力图和环形图，一卷卷日志从小小的机器人房子里流进来" width="820" />
+</p>
+
+**用量和会话** 读取 Claude Code、Codex、Gemini CLI、OpenCode、Cursor、GitHub Copilot、Zed、Aider 等工具的日志，不做任何修改：按天、模型、工具、账号和项目统计 token 和费用，全年热力图，跨所有对话的全文搜索，以及导出为 Markdown 或 JSON。Claude Code 会把一条回复写成好几行；OmniGet 每条回复只算一次。
+
+<p align="center">
+  <img src="assets/readme/illustration-arena.webp" alt="Loop 当裁判吹着哨子，看三个机器人智能体沿着三条像 git 分支一样分叉的发光赛道冲向领奖台，台上的屏幕并排比较三个 diff" width="820" />
+</p>
+
+**Arena、目录循环和沙盒。** 把一个提示词同时发给多个智能体，每个都在同一基点的独立 worktree 里，比较耗时、费用、检查命令和 diff，然后合并胜出者。像 *build-test-fix* 这样的目录循环会变成 OmniGet 的 Loop，由你选的执行者运行。`omniget-cli agent run <目录智能体> --tool claude "…"` 会把目录里的智能体作为你指定工具的系统提示词来运行；Docker 沙盒在你项目的副本里运行 CLI，返回按文件的 diff，你可以只应用想要的部分。
+
 ### Claude Code、Codex 和任何 ACP 智能体
 
 - **Claude Code 和 Codex 账号** 直接沿用你终端里已有的登录，额度显示在屏幕上。

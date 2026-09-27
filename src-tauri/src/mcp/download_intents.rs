@@ -503,7 +503,7 @@ fn sized_job_files(i: &Intent) -> Vec<ReceiptFile> {
         .into_iter()
         .filter_map(|name| {
             let meta = std::fs::symlink_metadata(Path::new(&i.destination).join(&name)).ok()?;
-            meta.is_file().then(|| ReceiptFile {
+            meta.is_file().then_some(ReceiptFile {
                 name,
                 bytes: meta.len(),
             })

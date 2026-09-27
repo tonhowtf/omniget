@@ -120,7 +120,8 @@ pub fn email_of(dir: Option<&Path>) -> Option<String> {
     use std::sync::Mutex;
     use std::time::SystemTime;
     type Stamp = (Option<SystemTime>, u64);
-    static CACHE: Mutex<Option<HashMap<PathBuf, (Stamp, Option<String>)>>> = Mutex::new(None);
+    type Entries = HashMap<PathBuf, (Stamp, Option<String>)>;
+    static CACHE: Mutex<Option<Entries>> = Mutex::new(None);
 
     let path = profile_json(dir)?;
     let Ok(meta) = std::fs::metadata(&path) else {

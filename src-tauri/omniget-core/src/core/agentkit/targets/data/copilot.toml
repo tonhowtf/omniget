@@ -1,0 +1,201 @@
+# GitHub Copilot (VS Code + CLI). Source: estudo 75/06 0B.2, 0C.1-0C.10, Part 3 "GitHub Copilot" (a)-(k), Part 6 §2.3/§2.4 (copilot, copilotcli), §5.4, §6.1, §8, §9.
+id = "copilot"
+name = "GitHub Copilot"
+tier = 1
+status = "active"
+beta = false
+homepage = "https://docs.github.com/en/copilot"
+notes = "VS Code agent mode and the copilot CLI share ~/.copilot and .github, and both read most .claude/ files (CLAUDE.md, rules, agents, skills, hooks, plugins). VS Code MCP uses key servers; the CLI uses mcpServers. Prompt files are deprecated for the VS Code Agent Host."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["copilot"]
+home_dirs = ["~/.copilot"]
+
+[scopes]
+project = true
+global = true
+local = true
+managed = true
+project_markers = [".github/copilot-instructions.md", ".github/agents", ".github/hooks", ".github/copilot"]
+global_dir = "~/.copilot"
+config_dir_env = "COPILOT_HOME"
+
+[formats]
+rule = "copilot_instructions"
+agent = "copilot_agent_md"
+command = "copilot_prompt"
+skill = "skill_dir"
+hook = "copilot"
+setting = "copilot_cli"
+statusline = "copilot_cli"  # Claude shape, behind the stdin adapter
+plugin = "claude"
+
+[reads_claude]
+rules = true
+agents = true
+commands = true      # CLI only; VS Code uses .github/prompts
+hooks = true         # CLI always; VS Code Local harness only with chat.useClaudeHooks
+skills = true
+plugins = true
+settings = false     # only the cross-tool subset (hooks, enabledPlugins, extraKnownMarketplaces, disableAllHooks)
+statusline = false
+
+[paths.rules]
+project = ".github/copilot-instructions.md"
+global = "~/.copilot/copilot-instructions.md"
+project_alt = ["AGENTS.md", "CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md", "GEMINI.md"]
+global_alt = ["~/.claude/CLAUDE.md"]
+
+[paths.scoped_rules]
+project = ".github/instructions"
+global = "~/.copilot/instructions"
+project_alt = [".claude/rules"]
+global_alt = ["~/.claude/rules"]
+
+[paths.agents]
+project = ".github/agents"
+global = "~/.copilot/agents"
+project_alt = [".claude/agents"]
+global_alt = ["~/.claude/agents"]
+
+[paths.commands]
+project = ".github/prompts"
+project_alt = [".claude/commands"]
+
+[paths.skills]
+project = ".github/skills"
+global = "~/.copilot/skills"
+project_alt = [".claude/skills", ".agents/skills"]
+global_alt = ["~/.agents/skills", "~/.claude/skills"]
+
+# Any *.json in .github/hooks and ~/.copilot/hooks is loaded; file name follows rulesync.
+# Policy hooks (not written): /etc/github-copilot/policy.d/*.json, C:/ProgramData/GitHub/Copilot/policy.d/*.json
+[paths.hooks]
+project = ".github/hooks/copilot-hooks.json"
+global = "~/.copilot/hooks/copilot-hooks.json"
+project_alt = [".github/copilot/settings.json", ".claude/settings.json", ".claude/settings.local.json"]
+global_alt = ["~/.copilot/settings.json", "~/.claude/settings.json"]
+local = ".github/copilot/settings.local.json"
+
+[paths.settings]
+project = ".github/copilot/settings.json"
+global = "~/.copilot/settings.json"
+local = ".github/copilot/settings.local.json"
+
+[paths.statusline]
+global = "~/.copilot/settings.json"
+
+[paths.statusline_scripts]
+global = "~/.copilot"
+
+[paths.plugins]
+global = "~/.copilot/installed-plugins"
+
+[[mcp]]
+surface = "vscode"
+format = "json"
+project = ".vscode/mcp.json"
+global = "{vscode_user}/mcp.json"
+key = ["servers"]
+container = "map"
+stdio_shape = "standard_typed"
+remote_shape = "typed"
+transports = ["stdio", "http", "sse"]
+secret_mode = "vscode_inputs"
+prefer_cli = "code --add-mcp '{json}'"
+default = true
+
+# CLI also reads .mcp.json from cwd up to the repo root; .github/mcp.json wins on name clash.
+[[mcp]]
+surface = "cli"
+format = "json"
+project = ".github/mcp.json"
+global = "~/.copilot/mcp-config.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "typed"
+transports = ["stdio", "http", "sse"]
+prefer_cli = "copilot mcp add {name} -- {command}"
+default = true
+
+# Native camelCase events (the PascalCase Claude-compatible names also work).
+[hook_event_map]
+SessionStart = "sessionStart"
+SessionEnd = "sessionEnd"
+UserPromptSubmit = "userPromptSubmitted"
+PreToolUse = "preToolUse"
+PostToolUse = "postToolUse"
+PostToolUseFailure = "postToolUseFailure"
+PermissionRequest = "permissionRequest"
+Stop = "agentStop"
+SubagentStart = "subagentStart"
+SubagentStop = "subagentStop"
+PreCompact = "preCompact"
+Notification = "notification"
+
+[hooks]
+shape = "copilot"
+timeout_unit = "s"
+version = 1
+env_aliases = ["CLAUDE_PROJECT_DIR"]
+events_count = 14
+
+# Copilot CLI runtime names.
+[tool_name_map]
+Bash = "bash"
+Read = "view"
+Edit = "edit"
+Write = "create"
+Glob = "glob"
+Grep = "grep"
+WebFetch = "web_fetch"
+WebSearch = "web_search"
+Agent = "task"
+Task = "task"
+TodoWrite = "update_todo"
+Skill = ""
+AskUserQuestion = "ask_user"
+mcp = "{server}-{tool}"   # UNVERIFIED
+
+# VS Code prompt files: ${input:var}, ${selection}, #file:. The CLI reads Claude commands 1:1.
+[placeholder_map]
+args = "${input:args}"
+arg = ""
+shell = ""
+file = "#file:{path}"
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+[statusline]
+key = ["statusLine"]
+shape = "claude"
+
+[permissions]
+syntax = "copilot_flags"
+
+[transcripts]
+globs = ["~/.copilot/session-state/*/events.jsonl"]
+parser = "copilot_jsonl"
+format = "jsonl"
+
+[runner]
+cmd = "copilot"
+headless = ["-p"]
+json_flag = ["--output-format", "json"]
+resume_flag = "--resume"
+model_flag = "--model"
+permission_flags = { accept_edits = ["--allow-tool=write"], bypass = ["--allow-all"] }
+
+[acp]
+native = true
+cmd = "copilot"
+args = ["--acp"]
+registry_id = "github-copilot-cli"

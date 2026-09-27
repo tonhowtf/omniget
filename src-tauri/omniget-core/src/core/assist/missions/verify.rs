@@ -672,7 +672,7 @@ pub fn check_artifact_pinned(
             }
             let keys = str_list(&c.spec, "json_keys");
             if !keys.is_empty() {
-                match serde_json::from_str::<Value>(&text) {
+                match serde_json::from_str::<Value>(text) {
                     Err(e) => problems.push(format!("{path} is not JSON: {e}")),
                     Ok(v) => {
                         for k in keys {

@@ -423,6 +423,7 @@ impl Cli {
             .await
     }
     /// External execution context is supplied by the host, never generation arguments.
+    #[allow(clippy::too_many_arguments)]
     pub async fn submit_authorized(
         &self,
         db: &AssistDb,
@@ -445,6 +446,7 @@ impl Cli {
         )
         .await
     }
+    #[allow(clippy::too_many_arguments)]
     async fn submit_inner(
         &self,
         db: &AssistDb,

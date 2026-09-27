@@ -37,10 +37,10 @@ pub fn all() -> Vec<Arc<dyn UsageProvider>> {
 /// other tick while it runs, so this only matters when it does not.
 const CACHE_TTL: Duration = Duration::from_secs(15);
 
-fn cache() -> &'static std::sync::Mutex<Option<(std::time::Instant, Vec<Arc<dyn UsageProvider>>)>> {
-    static CACHE: std::sync::OnceLock<
-        std::sync::Mutex<Option<(std::time::Instant, Vec<Arc<dyn UsageProvider>>)>>,
-    > = std::sync::OnceLock::new();
+type Cache = std::sync::Mutex<Option<(std::time::Instant, Vec<Arc<dyn UsageProvider>>)>>;
+
+fn cache() -> &'static Cache {
+    static CACHE: std::sync::OnceLock<Cache> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| std::sync::Mutex::new(None))
 }
 

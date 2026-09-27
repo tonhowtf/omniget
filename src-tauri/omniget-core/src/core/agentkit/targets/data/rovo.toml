@@ -1,0 +1,151 @@
+# Atlassian Rovo Dev CLI. Source: estudo 75/06 Part 5 "Atlassian Rovo Dev CLI" (a)-(k) + Built-in tools, 0B.3, 0C.3, 0C.6, 0C.7, Part 5 "Cross-tool mapping (quick table)", Part 6 §2.2-§2.4 (rulesync rovodev), §5.2, §10.
+id = "rovo"
+name = "Rovo Dev CLI"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://support.atlassian.com/rovo/docs/"
+notes = "Part of the Atlassian CLI: run as `acli rovodev`; Python engine; all config under ~/.rovodev/. MCP path conflict: MCP doc says ~/.rovodev/mcp.json, settings doc says mcp.mcpConfigPath defaults to ~/.rovodev/mcp_config.json, so read mcp.mcpConfigPath from config.yml."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["acli"]
+home_dirs = ["~/.rovodev"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".rovodev", "AGENTS.md"]
+global_dir = "~/.rovodev"
+
+[formats]
+rule = "agents_md"
+agent = "rovo"
+command = "rovo_prompts"
+skill = "skill_dir"
+hook = "rovo"
+setting = "rovo"
+statusline = "rovo_prompt_command"
+
+[reads_claude]
+# CLAUDE.md / CLAUDE.local.md are only migrated into AGENTS.md by `/memory init`.
+rules = false
+agents = false
+commands = false
+hooks = false
+skills = false
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+# AGENTS.md / AGENTS.local.md in cwd and parent dirs (closer wins).
+project = "AGENTS.md"
+global = "~/.rovodev/AGENTS.md"
+project_alt = ["AGENTS.local.md"]
+
+[paths.agents]
+project = ".rovodev/subagents"
+global = "~/.rovodev/subagents"
+
+[paths.commands]
+# prompts.yml entries {name, description, content_file}; precedence built-in > repo root > cwd > user.
+project = ".rovodev/prompts.yml"
+global = "~/.rovodev/prompts.yml"
+
+[paths.prompts]
+# Markdown content files referenced by prompts.yml (layout per rulesync output).
+project = ".rovodev/prompts"
+global = "~/.rovodev/prompts"
+
+[paths.skills]
+project = ".rovodev/skills"
+global = "~/.rovodev/skills"
+project_alt = [".agents/skills"]
+global_alt = ["~/.agents/skills"]
+
+[paths.hooks]
+global = "~/.rovodev/config.yml"
+
+[paths.settings]
+# Override with --config-file <path>. rulesync also writes a project .rovodev/config.yml.
+global = "~/.rovodev/config.yml"
+
+[paths.statusline]
+global = "~/.rovodev/config.yml"
+
+[[mcp]]
+surface = "cli"
+format = "json"
+# Alternative default per settings doc: ~/.rovodev/mcp_config.json (mcp.mcpConfigPath). rulesync writes project .rovodev/mcp.json.
+global = "~/.rovodev/mcp.json"
+key = ["mcpServers"]
+container = "map"
+# stdio {command, args, env, transport:"stdio"}
+stdio_shape = "rovo"
+# remote {url, headers, transport:"http"|"sse", enable_instructions}
+remote_shape = "rovo"
+transports = ["stdio", "http", "sse"]
+default = true
+
+[hook_event_map]
+# on_complete / on_error / on_tool_permission confirmed by Atlassian; the rest come from third-party adapters.
+Stop = "on_complete"
+PermissionRequest = "on_tool_permission"
+UserPromptSubmit = "on_user_prompt" # UNVERIFIED
+PreToolUse = "on_tool_start" # UNVERIFIED
+PostToolUse = "on_tool_end" # UNVERIFIED
+SessionStart = "on_session_start" # UNVERIFIED
+SessionEnd = "on_session_end" # UNVERIFIED
+
+[hooks]
+# eventHooks: { events: [ { name, commands: [ { command } ] } ] } in config.yml (shape from 3P adapters). No blocking I/O yet.
+shape = "rovo"
+events_count = 8
+
+[tool_name_map]
+Bash = "bash"
+Read = "open_files"
+Edit = "find_and_replace_code"
+Write = "create_file"
+Grep = "grep"
+Agent = "invoke_subagent"
+
+[model_map]
+# agent.modelId (default "auto"); no alias mapping in the study.
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+[statusline]
+# console.customCommandPrompt = shell command that renders the prompt (e.g. starship).
+key = ["console", "customCommandPrompt"]
+shape = "rovo_prompt_command"
+
+[permissions]
+# toolPermissions: {default, tools: {<tool>: allow|ask|deny}, bash: {default, commands: [{command: <regex>, permission}], runInSandbox}, allowedExternalPaths}
+syntax = "rovo"
+key = ["toolPermissions"]
+lists = ["allow", "ask", "deny"]
+
+[transcripts]
+# Dir configurable with sessions.persistenceDir; token usage JSON field names UNVERIFIED.
+globs = ["~/.rovodev/sessions/*/session_context.json"]
+parser = "rovo_json"
+format = "json"
+
+[runner]
+# No JSON output flag; output follows console.outputFormat. Server mode: `acli rovodev serve <port>` (HTTP REST + SSE).
+cmd = "acli"
+headless = ["rovodev", "run"]
+resume_flag = "--restore"
+permission_flags = { bypass = ["--yolo"] }
+
+[acp]
+# UNVERIFIED: ACP PR #245 listing Rovo Dev was closed; documented integration is the HTTP/SSE server.
+native = false

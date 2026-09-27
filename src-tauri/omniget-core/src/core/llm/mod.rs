@@ -15,6 +15,7 @@ pub mod cli_usage;
 pub mod code_tools;
 pub mod compress;
 pub mod coordinator;
+pub mod drivers;
 pub mod error;
 pub mod folder_key;
 pub mod job_gate;

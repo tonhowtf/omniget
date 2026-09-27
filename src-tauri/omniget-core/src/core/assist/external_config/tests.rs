@@ -1114,10 +1114,7 @@ fn bridge_claim_fails_closed_without_execution_isolation() {
         ("failed", Some(ERR_ISOLATION), None)
     );
     assert!(pending_tasks(&fx.db, 10).unwrap().is_empty());
-    assert_eq!(
-        claim_task_with(&fx.db, r, "A", &t.task_id, "run-2").is_ok(),
-        false
-    );
+    assert!(claim_task_with(&fx.db, r, "A", &t.task_id, "run-2").is_err());
     if execution_isolation_available() {
         let t2 = create_task_with(
             &fx.db,

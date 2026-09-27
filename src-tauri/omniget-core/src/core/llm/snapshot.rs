@@ -214,7 +214,9 @@ async fn git_io(
     if let Some(index) = index {
         cmd.env("GIT_INDEX_FILE", index);
     }
-    let mut child = cmd.spawn().map_err(|e| format!("{ERR_SNAPSHOT}: git: {e}"))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("{ERR_SNAPSHOT}: git: {e}"))?;
     if let (Some(bytes), Some(mut pipe)) = (stdin, child.stdin.take()) {
         pipe.write_all(bytes)
             .await
@@ -386,7 +388,7 @@ pub async fn turn_diff(
         .filter_map(|l| {
             let mut parts = l.split('\t');
             let st = parts.next()?.chars().next()?.to_string();
-            let path = parts.last()?.to_string();
+            let path = parts.next_back()?.to_string();
             Some(FileChange {
                 path,
                 status: st,
@@ -493,7 +495,10 @@ pub async fn job_diff(
 /// running: the shared index belongs to `before_write`/`after_turn`, and a
 /// reader holding its lock could make the turn's own `after_turn` fail.
 async fn stage_tree_private(dir: &Path, workspace: &Path) -> Result<String, String> {
-    let index = dir.join(format!("omniget-jobdiff-{}.index", uuid::Uuid::new_v4().simple()));
+    let index = dir.join(format!(
+        "omniget-jobdiff-{}.index",
+        uuid::Uuid::new_v4().simple()
+    ));
     // Git replaces the index by rename, so a copy is always a whole file.
     if let Err(e) = std::fs::copy(dir.join("index"), &index) {
         tracing::debug!("[snapshot] no index to copy ({e}): staging from scratch");
@@ -635,7 +640,11 @@ pub fn shared_with(workspace: &Path, live: &[PathBuf]) -> Option<PathBuf> {
 /// changed go back: work that other jobs did later in the same folder keeps
 /// every byte, even when they have finished. An entry without `after` (the
 /// turn never ended) falls back to putting the whole tree back.
-pub async fn undo(workspace: &Path, conversation: &str, live: &[PathBuf]) -> Result<Undone, String> {
+pub async fn undo(
+    workspace: &Path,
+    conversation: &str,
+    live: &[PathBuf],
+) -> Result<Undone, String> {
     if let Some(other) = shared_with(workspace, live) {
         return Err(format!(
             "{ERR_UNDO_SHARED}: another conversation or job is working in {} right now, which shares files with this folder; restoring them could erase its work. Revert the conversation only, or undo when it ends",
@@ -739,12 +748,20 @@ async fn graft(
     from: &str,
     paths: &[String],
 ) -> Result<String, String> {
-    let index = dir.join(format!("omniget-undo-{}.index", uuid::Uuid::new_v4().simple()));
+    let index = dir.join(format!(
+        "omniget-undo-{}.index",
+        uuid::Uuid::new_v4().simple()
+    ));
     let out = async {
         git_io(dir, workspace, &["read-tree", now], None, Some(&index)).await?;
-        let listing =
-            git_io(dir, workspace, &["ls-tree", "-r", "-z", "--full-tree", from], None, None)
-                .await?;
+        let listing = git_io(
+            dir,
+            workspace,
+            &["ls-tree", "-r", "-z", "--full-tree", from],
+            None,
+            None,
+        )
+        .await?;
         let wanted: std::collections::HashSet<&str> = paths.iter().map(String::as_str).collect();
         let mut info: Vec<u8> = Vec::new();
         let mut present = std::collections::HashSet::new();
@@ -789,13 +806,16 @@ pub(crate) mod undo_tests {
     pub(crate) fn test_root() {
         static ONCE: std::sync::Once = std::sync::Once::new();
         ONCE.call_once(|| {
-            set_root(std::env::temp_dir().join(format!("omniget-snap-tests-{}", std::process::id())));
+            set_root(
+                std::env::temp_dir().join(format!("omniget-snap-tests-{}", std::process::id())),
+            );
         });
     }
 
     pub(crate) fn folder(name: &str) -> PathBuf {
         test_root();
-        let dir = std::env::temp_dir().join(format!("omniget-undo-{name}-{}", uuid::Uuid::new_v4()));
+        let dir =
+            std::env::temp_dir().join(format!("omniget-undo-{name}-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         dir.canonicalize().unwrap()
     }
@@ -826,9 +846,15 @@ pub(crate) mod undo_tests {
         turn(&ws, "conv-a", "r-a", || put(&ws, "a.txt", "from A\n")).await;
         let parent = ws.parent().unwrap().to_path_buf();
         for live in [ws.clone(), ws.join("sub"), parent] {
-            let err = undo(&ws, "conv-a", std::slice::from_ref(&live)).await.unwrap_err();
+            let err = undo(&ws, "conv-a", std::slice::from_ref(&live))
+                .await
+                .unwrap_err();
             assert!(err.starts_with(ERR_UNDO_SHARED), "{live:?}: {err}");
-            assert_eq!(read(&ws, "a.txt").as_deref(), Some(&b"from A\n"[..]), "nothing touched");
+            assert_eq!(
+                read(&ws, "a.txt").as_deref(),
+                Some(&b"from A\n"[..]),
+                "nothing touched"
+            );
         }
         // A sibling folder is not shared: the undo goes through.
         let sibling = folder("live-sibling");
@@ -864,7 +890,11 @@ pub(crate) mod undo_tests {
         assert_eq!(files, vec!["a.txt".to_string(), "shared.txt".to_string()]);
         assert!(read(&ws, "a.txt").is_none());
         assert_eq!(read(&ws, "shared.txt").as_deref(), Some(&b"base\n"[..]));
-        assert_eq!((read(&ws, "b.txt"), read(&ws, "b-dir/deep.txt")), b_before, "0 bytes of B changed");
+        assert_eq!(
+            (read(&ws, "b.txt"), read(&ws, "b-dir/deep.txt")),
+            b_before,
+            "0 bytes of B changed"
+        );
     }
 
     #[tokio::test]
@@ -879,7 +909,11 @@ pub(crate) mod undo_tests {
         assert!(err.starts_with(ERR_UNDO_CONFLICT), "{err}");
         assert!(err.contains("same.txt"), "{err}");
         assert_eq!(read(&ws, "same.txt").as_deref(), Some(&b"A\nB\n"[..]));
-        assert_eq!(depth(&ws, "conv-a"), 1, "the entry stays for a later decision");
+        assert_eq!(
+            depth(&ws, "conv-a"),
+            1,
+            "the entry stays for a later decision"
+        );
     }
 
     #[tokio::test]
@@ -895,7 +929,10 @@ pub(crate) mod undo_tests {
         assert_eq!(out.messages_before, Some(3));
         assert_eq!(read(&ws, "f.txt").as_deref(), Some(&b"F\n"[..]));
         assert_eq!(depth(&ws, "conv-f"), 0);
-        assert!(forget_last(&ws, "conv-f").await.unwrap_err().starts_with(ERR_NOTHING_TO_UNDO));
+        assert!(forget_last(&ws, "conv-f")
+            .await
+            .unwrap_err()
+            .starts_with(ERR_NOTHING_TO_UNDO));
     }
 
     /// A turn that never ended (no tree after it) keeps the old behaviour:
@@ -937,8 +974,11 @@ mod job_diff_tests {
     }
 
     fn by_path(d: &JobDiff) -> Vec<(String, String)> {
-        let mut v: Vec<(String, String)> =
-            d.files.iter().map(|f| (f.path.clone(), f.status.clone())).collect();
+        let mut v: Vec<(String, String)> = d
+            .files
+            .iter()
+            .map(|f| (f.path.clone(), f.status.clone()))
+            .collect();
         v.sort();
         v
     }
@@ -961,7 +1001,10 @@ mod job_diff_tests {
         let d = job_diff(&ws, "conv-j", &reqs(&["r2", "r1"])).await.unwrap();
         assert_eq!(
             by_path(&d),
-            vec![("a.txt".into(), "A".into()), ("dir/b.txt".into(), "A".into())]
+            vec![
+                ("a.txt".into(), "A".into()),
+                ("dir/b.txt".into(), "A".into())
+            ]
         );
         assert_eq!((d.additions, d.deletions), (3, 0));
         assert!(d.complete && !d.clipped && d.head_oid.is_none());
@@ -970,7 +1013,10 @@ mod job_diff_tests {
         let d2 = job_diff(&ws, "conv-j", &reqs(&["r2"])).await.unwrap();
         assert_eq!(
             by_path(&d2),
-            vec![("a.txt".into(), "M".into()), ("dir/b.txt".into(), "A".into())]
+            vec![
+                ("a.txt".into(), "M".into()),
+                ("dir/b.txt".into(), "A".into())
+            ]
         );
         assert_eq!((d2.additions, d2.deletions), (2, 0));
     }
@@ -990,8 +1036,13 @@ mod job_diff_tests {
         let err = job_diff(&ws, "conv-j", &reqs(&["r9"])).await.unwrap_err();
         assert!(err.starts_with(ERR_DIFF_UNAVAILABLE), "{err}");
         // One turn with a snapshot, one without: not a partial answer.
-        let err = job_diff(&ws, "conv-j", &reqs(&["r1", "r9"])).await.unwrap_err();
-        assert!(err.starts_with(ERR_DIFF_UNAVAILABLE) && err.contains("1 of 2"), "{err}");
+        let err = job_diff(&ws, "conv-j", &reqs(&["r1", "r9"]))
+            .await
+            .unwrap_err();
+        assert!(
+            err.starts_with(ERR_DIFF_UNAVAILABLE) && err.contains("1 of 2"),
+            "{err}"
+        );
         let err = job_diff(&ws, "conv-j", &[]).await.unwrap_err();
         assert!(err.starts_with(ERR_DIFF_UNAVAILABLE), "{err}");
     }
@@ -1022,8 +1073,15 @@ mod job_diff_tests {
         })
         .await;
         let d = job_diff(&ws, "conv-b", &reqs(&["r1"])).await.unwrap();
-        let bin = d.files.iter().find(|f| f.path == "__pycache__/m.pyc").unwrap();
-        assert!(bin.binary && bin.additions.is_none() && bin.deletions.is_none(), "{bin:?}");
+        let bin = d
+            .files
+            .iter()
+            .find(|f| f.path == "__pycache__/m.pyc")
+            .unwrap();
+        assert!(
+            bin.binary && bin.additions.is_none() && bin.deletions.is_none(),
+            "{bin:?}"
+        );
         let txt = d.files.iter().find(|f| f.path == "t.txt").unwrap();
         assert!(!txt.binary && txt.additions == Some(1));
         assert_eq!(d.additions, 1, "binary files add no lines");
@@ -1036,7 +1094,9 @@ mod job_diff_tests {
             return eprintln!("git missing: skipped");
         }
         let ws = folder("jd-big");
-        let big: String = (0..20_000).map(|i| format!("line number {i:08}\n")).collect();
+        let big: String = (0..20_000)
+            .map(|i| format!("line number {i:08}\n"))
+            .collect();
         assert!(big.len() > DIFF_MAX_BYTES);
         turn(&ws, "conv-g", "r1", || put(&ws, "big.txt", big.as_bytes())).await;
         let d = job_diff(&ws, "conv-g", &reqs(&["r1"])).await.unwrap();
@@ -1062,11 +1122,19 @@ mod job_diff_tests {
         let d = job_diff(&ws, "conv-l", &reqs(&["r1"])).await.unwrap();
         assert!(!d.complete);
         assert_eq!(by_path(&d), vec![("b.txt".into(), "A".into())]);
-        assert_eq!(std::fs::read(dir.join("index")).unwrap(), index, "shared index untouched");
+        assert_eq!(
+            std::fs::read(dir.join("index")).unwrap(),
+            index,
+            "shared index untouched"
+        );
         let leftovers: Vec<_> = std::fs::read_dir(&dir)
             .unwrap()
             .flatten()
-            .filter(|e| e.file_name().to_string_lossy().starts_with("omniget-jobdiff-"))
+            .filter(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with("omniget-jobdiff-")
+            })
             .collect();
         assert!(leftovers.is_empty(), "the private index is removed");
     }
@@ -1085,7 +1153,10 @@ mod job_diff_tests {
         let d = job_diff(&ws, "conv-m", &reqs(&["r1"])).await.unwrap();
         assert_eq!(
             by_path(&d),
-            vec![("new.txt".into(), "A".into()), ("old.txt".into(), "D".into())]
+            vec![
+                ("new.txt".into(), "A".into()),
+                ("old.txt".into(), "D".into())
+            ]
         );
         assert_eq!((d.additions, d.deletions), (2, 2));
         assert!(d.patch.contains("deleted file mode") && d.patch.contains("new file mode"));
@@ -1119,7 +1190,11 @@ mod bn4 {
     fn bench(metric: &str, value: serde_json::Value) {
         if let Ok(path) = std::env::var("OMNIGET_BENCH_OUT") {
             use std::io::Write as _;
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+            {
                 let _ = writeln!(
                     f,
                     "{}",
@@ -1131,7 +1206,10 @@ mod bn4 {
 
     fn fake() -> Option<PathBuf> {
         let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/llm/fake_claude.py");
-        let python = std::process::Command::new("python3").arg("--version").output().ok()?;
+        let python = std::process::Command::new("python3")
+            .arg("--version")
+            .output()
+            .ok()?;
         (python.status.success() && script.is_file()).then_some(script)
     }
 
@@ -1149,7 +1227,13 @@ mod bn4 {
 
     /// One CLI turn of a job the way the Coordinator runs it; true when the
     /// stream ended with `Finished{Stop}`.
-    async fn cli_turn(fake: &Path, ws: &Path, conv: &str, req: &str, env: &[(&str, String)]) -> bool {
+    async fn cli_turn(
+        fake: &Path,
+        ws: &Path,
+        conv: &str,
+        req: &str,
+        env: &[(&str, String)],
+    ) -> bool {
         before_write(ws, conv, req).await.unwrap();
         let spec = SpawnSpec {
             program: PathBuf::from("python3"),
@@ -1159,7 +1243,10 @@ mod bn4 {
                 "--output-format".into(),
                 "stream-json".into(),
             ],
-            env: env.iter().map(|(k, v)| (k.to_string(), v.clone())).collect(),
+            env: env
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect(),
             cwd: Some(ws.to_path_buf()),
             stdin: Some("User: do the task".into()),
             ..SpawnSpec::default()
@@ -1173,7 +1260,12 @@ mod bn4 {
         .unwrap();
         let mut ok = false;
         while let Some(ev) = stream.next().await {
-            if matches!(ev, TurnEvent::Finished { reason: FinishReason::Stop }) {
+            if matches!(
+                ev,
+                TurnEvent::Finished {
+                    reason: FinishReason::Stop
+                }
+            ) {
                 ok = true;
             }
         }
@@ -1226,11 +1318,15 @@ mod bn4 {
             return eprintln!("git missing: skipped");
         }
         test_root();
-        let reps: usize = std::env::var("BN4_TIMING_REPS").ok().and_then(|v| v.parse().ok()).unwrap_or(5);
+        let reps: usize = std::env::var("BN4_TIMING_REPS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(5);
         let root = match std::env::var("BN4_FIXTURES") {
             Ok(dir) => PathBuf::from(dir),
             Err(_) => {
-                let dir = std::env::temp_dir().join(format!("omniget-bn4-{}", uuid::Uuid::new_v4()));
+                let dir =
+                    std::env::temp_dir().join(format!("omniget-bn4-{}", uuid::Uuid::new_v4()));
                 builtin(&dir);
                 dir
             }
@@ -1251,14 +1347,20 @@ mod bn4 {
             let _ = std::fs::remove_dir_all(&work);
             copy_dir(&dir.join("seed"), &work);
             let work = work.canonicalize().unwrap();
-            let (conv, req) = (format!("bn4-{name}"), format!("bn4-{name}-{}", uuid::Uuid::new_v4().simple()));
+            let (conv, req) = (
+                format!("bn4-{name}"),
+                format!("bn4-{name}-{}", uuid::Uuid::new_v4().simple()),
+            );
             let changes = dir.join("changes.json").display().to_string();
             let ok = cli_turn(
                 &fake,
                 &work,
                 &conv,
                 &req,
-                &[("FAKE_CLAUDE_MODE", "apply".into()), ("FAKE_CLAUDE_CHANGES", changes)],
+                &[
+                    ("FAKE_CLAUDE_MODE", "apply".into()),
+                    ("FAKE_CLAUDE_CHANGES", changes),
+                ],
             )
             .await;
             let requests = vec![req.clone()];
@@ -1302,13 +1404,27 @@ mod bn4 {
         std::fs::create_dir_all(&read).unwrap();
         std::fs::write(read.join("a.txt"), "a\n").unwrap();
         let read = read.canonicalize().unwrap();
-        let ok = cli_turn(&fake, &read, "bn4-read", "bn4-read-req", &[("FAKE_CLAUDE_MODE", "ok".into())]).await;
-        let d = job_diff(&read, "bn4-read", &["bn4-read-req".to_string()]).await.unwrap();
-        bench("control_readonly_available_files", serde_json::json!({"turn_ok": ok, "files": d.files.len()}));
+        let ok = cli_turn(
+            &fake,
+            &read,
+            "bn4-read",
+            "bn4-read-req",
+            &[("FAKE_CLAUDE_MODE", "ok".into())],
+        )
+        .await;
+        let d = job_diff(&read, "bn4-read", &["bn4-read-req".to_string()])
+            .await
+            .unwrap();
+        bench(
+            "control_readonly_available_files",
+            serde_json::json!({"turn_ok": ok, "files": d.files.len()}),
+        );
         assert!(d.files.is_empty());
         let bare = std::env::temp_dir().join(format!("omniget-bn4-bare-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&bare).unwrap();
-        let err = job_diff(&bare, "bn4-bare", &["r".to_string()]).await.unwrap_err();
+        let err = job_diff(&bare, "bn4-bare", &["r".to_string()])
+            .await
+            .unwrap_err();
         bench("control_nosnap", err.split(':').next().unwrap_or("").into());
         assert!(err.starts_with(ERR_DIFF_UNAVAILABLE));
     }

@@ -1,0 +1,158 @@
+# Kimi Code CLI. Source: estudo 75/06 Part 5 "Kimi Code CLI" (a)-(k) + built-in tools, 0B.3, 0C.2-0C.6, 0C.10, Part 6 §2.3/§2.4 (kimi-code), §5.2, §6.1, §8.1, §9.
+id = "kimi"
+name = "Kimi Code"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://github.com/MoonshotAI/kimi-code"
+notes = "Successor of the archived Python kimi-cli (MoonshotAI/kimi-cli); same `kimi` binary, data root moved from ~/.kimi to ~/.kimi-code (`kimi migrate` copies it, minus OAuth and plugins). Custom slash commands exist only through plugins or skills."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["kimi"]
+home_dirs = ["~/.kimi-code"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".kimi-code", "AGENTS.md"]
+global_dir = "~/.kimi-code"
+config_dir_env = "KIMI_CODE_HOME"
+
+[formats]
+rule = "agents_md"
+agent = "claude"          # Claude agent files load as they are (Claude `model` is ignored)
+command = "skill"         # no standalone commands dir; skills are invoked as /skill:<name>
+skill = "skill_dir"
+hook = "kimi_toml"
+setting = "kimi"
+plugin = "kimi"           # kimi.plugin.json or .kimi-plugin/plugin.json; not Claude-plugin compatible
+
+[reads_claude]
+rules = false
+agents = false
+commands = false
+hooks = false
+skills = false
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "~/.kimi-code/AGENTS.md"
+project_alt = [".kimi-code/AGENTS.md"]
+global_alt = ["~/.agents/AGENTS.md", "~/.kimi-code/SYSTEM.md"]
+
+[paths.agents]
+project = ".kimi-code/agents"
+global = "~/.kimi-code/agents"
+project_alt = [".agents/agents"]
+global_alt = ["~/.agents/agents"]
+
+[paths.skills]
+project = ".kimi-code/skills"
+global = "~/.kimi-code/skills"
+project_alt = [".agents/skills"]
+global_alt = ["~/.agents/skills"]
+
+[paths.hooks]
+global = "~/.kimi-code/config.toml"
+
+[paths.hook_scripts]
+global = "~/.kimi-code/hooks"
+
+[paths.settings]
+global = "~/.kimi-code/config.toml"
+global_alt = ["~/.kimi-code/tui.toml"]
+
+[paths.plugins]
+global = "~/.kimi-code/plugins"      # user scope only; records in plugins/installed.json, copies in plugins/managed/<id>/
+
+[[mcp]]
+surface = "cli"
+format = "json"
+project = ".kimi-code/mcp.json"      # wins on name clashes, needs folder trust
+global = "~/.kimi-code/mcp.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "kimi"
+remote_shape = "kimi"
+transports = ["stdio", "http", "sse"]
+secret_mode = "bearer_env_var"
+default = true
+
+[hook_event_map]
+SessionStart = "SessionStart"
+SessionEnd = "SessionEnd"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"
+PostToolUse = "PostToolUse"
+PostToolUseFailure = "PostToolUseFailure"
+PermissionRequest = "PermissionRequest"
+Stop = "Stop"
+SubagentStart = "SubagentStart"
+SubagentStop = "SubagentStop"
+PreCompact = "PreCompact"            # listed in Part 5 (d); 0C.4 marks it "[check]"
+Notification = "Notification"
+
+[hooks]
+shape = "kimi_toml"
+timeout_unit = "s"
+events_count = 20
+
+[tool_name_map]
+Bash = "Bash"
+Read = "Read"
+Edit = "Edit"
+Write = "Write"
+Glob = "Glob"
+Grep = "Grep"
+WebFetch = "FetchURL"
+WebSearch = "WebSearch"
+Agent = "Agent"
+TodoWrite = "TodoList"
+Skill = "Skill"
+AskUserQuestion = "AskUserQuestion"
+mcp = "mcp__{server}__{tool}"
+
+[placeholder_map]
+args = "$ARGUMENTS"
+arg = "$N"
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""                          # Kimi ignores the Claude `model` field in agent files
+
+[permissions]
+syntax = "kimi"                       # [[permission.rules]] decision + pattern "Bash(rm -rf*)"
+key = ["permission", "rules"]
+
+[transcripts]
+globs = ["~/.kimi-code/sessions/*/*/agents/*/wire.jsonl"]
+parser = "kimi_jsonl"
+format = "jsonl"
+
+[runner]
+cmd = "kimi"
+headless = ["-p"]
+json_flag = ["--output-format", "stream-json"]
+resume_flag = "--session"
+model_flag = "-m"
+permission_flags = { plan = ["--plan"], bypass = ["--yolo"] }
+
+[acp]
+native = true
+cmd = "kimi"
+args = ["acp"]
+registry_id = "kimi"
+
+[trust]
+requires_review = true
+how = "Project .kimi-code/mcp.json only loads after folder trust."

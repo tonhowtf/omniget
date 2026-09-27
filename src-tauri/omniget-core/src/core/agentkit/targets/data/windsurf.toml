@@ -1,0 +1,148 @@
+# Windsurf Cascade, the legacy agent inside Devin Desktop. Source: estudo 75/06 0A, 0B.1, 0C.1-0C.10, Part 2 "Windsurf (now Devin Desktop) + Devin CLI" (a)-(k), Part 5 "Windsurf Cascade, now the legacy Cascade agent" (a)-(k) + cross-tool quick table, Part 6 §5.2, §5.4, §6.1, §8.4, §10.
+id = "windsurf"
+name = "Windsurf Cascade (legacy)"
+tier = 3
+status = "maintenance"
+beta = true
+homepage = "https://windsurf.com"
+notes = "docs.windsurf.com redirects to docs.devin.ai/desktop. New conversations never start on Cascade; Devin Local (see the devin adapter) is the default agent. Cascade prefers .devin/ and falls back to .windsurf/ (hooks: .windsurf/hooks.json is used only when .devin/hooks.json is absent or empty)."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+home_dirs = ["~/.codeium/windsurf", "~/.windsurf"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = true
+project_markers = [".windsurf", ".windsurfrules"]
+global_dir = "~/.codeium/windsurf"
+
+[formats]
+rule = "devin_rules"         # trigger: always_on|model_decision|glob|manual (+ globs, description)
+command = "devin_workflow"   # workflows, manual /<name> only, no placeholders
+skill = "skill_dir"
+hook = "cascade"
+
+[reads_claude]
+rules = false
+agents = false
+commands = false
+hooks = false
+skills = true                # .claude/skills and ~/.claude/skills when Claude config reading is enabled
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "~/.codeium/windsurf/memories/global_rules.md"   # always on, max 6,000 chars
+project_alt = [".windsurfrules"]
+
+[paths.scoped_rules]
+project = ".windsurf/rules"   # max 12,000 chars per file
+project_alt = [".devin/rules"]
+managed_macos = "/Library/Application Support/Devin/rules"
+managed_linux = "/etc/devin/rules"
+managed_windows = "C:/ProgramData/Devin/rules"
+
+[paths.commands]
+project = ".windsurf/workflows"
+global = "~/.codeium/windsurf/global_workflows"
+project_alt = [".devin/workflows"]
+managed_linux = "/etc/devin/workflows"
+
+[paths.skills]
+project = ".windsurf/skills"
+global = "~/.codeium/windsurf/skills"
+project_alt = [".devin/skills", ".agents/skills", ".claude/skills"]
+global_alt = ["{xdg_config}/devin/skills", "~/.agents/skills", "~/.claude/skills"]
+managed_macos = "/Library/Application Support/Devin/skills"
+
+[paths.hooks]
+# Merged system -> user -> workspace.
+project = ".windsurf/hooks.json"
+global = "~/.codeium/windsurf/hooks.json"
+project_alt = [".devin/hooks.json"]
+global_alt = ["~/.codeium/hooks.json"]   # JetBrains plugin
+managed_macos = "/Library/Application Support/Devin/hooks.json"
+managed_linux = "/etc/devin/hooks.json"
+managed_windows = "C:/ProgramData/Devin/hooks.json"
+
+# Current Cascade MCP file (moved from ~/.codeium/windsurf). Shared with Devin CLI, so remote entries use url (Cascade accepts serverUrl or url).
+[[mcp]]
+surface = "ide"
+format = "json"
+global = "{xdg_config}/devin/mcp_config.json"
+global_windows = "{app_support}/devin/mcp_config.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "url"
+transports = ["stdio", "http", "sse"]
+secret_mode = "env_ref"
+env_ref = "${env:VAR}"
+default = true
+
+# Historical Windsurf file: still written by add-mcp/install-mcp/Smithery and imported by Devin CLI from ~/.codeium/<channel>/.
+[[mcp]]
+surface = "ide"
+format = "json"
+global = "~/.codeium/windsurf/mcp_config.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "server_url"
+transports = ["stdio", "http", "sse"]
+secret_mode = "env_ref"
+env_ref = "${env:VAR}"
+default = false
+
+[hook_event_map]
+UserPromptSubmit = "pre_user_prompt"
+PreToolUse = "pre_read_code,pre_write_code,pre_run_command,pre_mcp_tool_use"
+PostToolUse = "post_read_code,post_write_code,post_run_command,post_mcp_tool_use"
+Stop = "post_cascade_response"
+
+[hooks]
+shape = "cascade"
+events_count = 12     # no matcher and no timeout field; entries are {command, powershell, show_output, working_directory}
+
+[tool_name_map]
+# Known only from leaked prompts.
+Bash = "run_command"             # UNVERIFIED
+Read = "view_file"               # UNVERIFIED
+Edit = "replace_file_content"    # UNVERIFIED
+Write = "write_to_file"          # UNVERIFIED
+Glob = "find_by_name"            # UNVERIFIED
+Grep = "grep_search"             # UNVERIFIED
+WebFetch = "read_url_content"    # UNVERIFIED
+WebSearch = "search_web"         # UNVERIFIED
+Agent = ""
+TodoWrite = ""
+Skill = ""
+AskUserQuestion = ""
+
+[placeholder_map]
+args = ""
+arg = ""
+shell = ""
+file = ""
+
+[permissions]
+syntax = "none"      # auto-execution levels and allow/deny lists live in the IDE UI; file keys UNVERIFIED
+
+[transcripts]
+# Written only when a post_cascade_response_with_transcript hook is set; max 100 files; no token or cost fields.
+globs = ["~/.windsurf/transcripts/*.jsonl"]
+parser = "windsurf_jsonl"
+format = "jsonl"
+
+[acp]
+native = false       # Devin Desktop is an ACP client only; Cascade has no headless mode
+
+[trust]
+requires_review = true
+how = "Cascade hooks do not run in Restricted Mode, so the workspace must be trusted before hooks fire."

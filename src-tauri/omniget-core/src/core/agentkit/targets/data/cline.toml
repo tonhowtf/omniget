@@ -1,0 +1,174 @@
+# Cline. Source: estudo 75/06 0B.2, 0C.1-0C.10, Part 3 "Cline" (config root, a-k), Part 6 §2.3/§2.4 (cline), §5 skills table, §6.1, §8.
+id = "cline"
+name = "Cline"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://docs.cline.bot"
+notes = "Monorepo with VS Code extension, CLI, Desktop and SDK converging on ~/.cline. Reads AGENTS.md but not CLAUDE.md. Hooks are one executable per event; the VS Code extension still keeps transcripts in VS Code globalStorage. In the CLI, -p means plan mode, not print."
+reads_agents_dir = true
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["cline"]
+home_dirs = ["~/.cline", "{documents}/Cline"]
+vscode_extensions = ["saoudrizwan.claude-dev"]
+
+[scopes]
+project = true
+global = true
+local = false
+managed = false
+project_markers = [".clinerules", ".cline"]
+global_dir = "~/.cline"
+config_dir_env = "CLINE_DIR"
+
+[formats]
+rule = "cline_rules"
+agent = "cline_md"
+command = "cline_workflow"
+skill = "skill_dir"
+hook = "cline_files"
+
+[reads_claude]
+rules = false
+agents = false
+commands = false
+hooks = false
+skills = true
+plugins = false
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "~/.agents/AGENTS.md"
+
+[paths.scoped_rules]
+project = ".clinerules"
+global = "{documents}/Cline/Rules"
+project_alt = [".cline/rules"]
+global_alt = ["~/.cline/rules", "~/Cline/Rules"]
+
+[paths.agents]
+project = ".cline/agents"
+global = "~/.cline/agents"
+
+[paths.commands]
+project = ".clinerules/workflows"
+global = "{documents}/Cline/Workflows"
+project_alt = [".cline/workflows"]
+global_alt = ["~/.cline/workflows"]
+
+[paths.skills]
+project = ".cline/skills"
+global = "~/.cline/skills"
+project_alt = [".clinerules/skills", ".claude/skills", ".agents/skills"]
+global_alt = ["~/.agents/skills"]
+
+# Directory: one executable per event name (no extension on VS Code; Windows <Event>.ps1).
+[paths.hooks]
+project = ".clinerules/hooks"
+global = "{documents}/Cline/Hooks"
+project_alt = [".cline/hooks"]
+global_alt = ["~/.cline/hooks"]
+
+[paths.settings]
+global = "~/.cline/data/settings/global-settings.json"
+
+[paths.plugins]
+project = ".cline/plugins"
+global = "~/.cline/plugins"
+
+# Canonical MCP file for every surface. Docs also mention project .cline/mcp.json (not confirmed in source).
+[[mcp]]
+surface = "cli"
+format = "json"
+global = "~/.cline/data/settings/cline_mcp_settings.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "cline"
+remote_shape = "cline"
+transports = ["stdio", "http", "sse"]
+default = true
+
+# Legacy VS Code location, migrated into the canonical file on startup.
+[[mcp]]
+surface = "vscode"
+format = "json"
+global = "{vscode_global_storage}/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "cline"
+remote_shape = "cline"
+transports = ["stdio", "http", "sse"]
+default = false
+
+# SessionShutdown exists only in CLI/SDK.
+[hook_event_map]
+SessionStart = "TaskStart,TaskResume"
+SessionEnd = "TaskComplete,TaskCancel,SessionShutdown"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"
+PostToolUse = "PostToolUse"
+Stop = "TaskComplete"
+PreCompact = "PreCompact"
+Notification = "Notification"
+
+# Fixed timeout: 30 s in VS Code, 120 s in CLI/SDK. 9 events in VS Code, 11 in CLI/SDK.
+[hooks]
+shape = "cline_files"
+events_count = 9
+
+# VS Code extension names; the CLI/SDK runtime uses different ones (read_files, run_commands, editor...).
+[tool_name_map]
+Bash = "execute_command"
+Read = "read_file"
+Edit = "replace_in_file"
+Write = "write_to_file"
+Glob = "list_files"
+Grep = "search_files"
+WebFetch = "web_fetch"
+WebSearch = "web_search"
+Agent = "new_task"
+Skill = "use_skill"
+AskUserQuestion = "ask_followup_question"
+mcp = "use_mcp_tool"
+
+# Workflows have no placeholders; typed text is appended.
+[placeholder_map]
+args = ""
+arg = ""
+shell = ""
+file = ""
+
+[model_map]
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = ""
+
+# Auto-approve toggles plus .cline/command-permissions.json / CLINE_COMMAND_PERMISSIONS {allow,deny} globs.
+[permissions]
+syntax = "none"
+
+# CLI/SDK/Desktop sessions live in ~/.cline/data/sessions/sessions.db (SQLite) + per-session JSON.
+[transcripts]
+globs = ["{vscode_global_storage}/saoudrizwan.claude-dev/tasks/*/ui_messages.json"]
+parser = "cline_json"
+format = "json"
+
+# Task is positional: cline "task". Auto-approve defaults to true.
+[runner]
+cmd = "cline"
+headless = []
+json_flag = ["--json"]
+model_flag = "-m"
+permission_flags = { plan = ["-p"] }
+
+[acp]
+native = true
+cmd = "cline"
+args = ["--acp"]
+registry_id = "cline"

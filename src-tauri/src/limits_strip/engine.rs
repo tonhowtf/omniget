@@ -219,7 +219,7 @@ fn build_snapshot_for(inner: &Inner, open: bool, now: i64, for_tray: bool) -> Sn
         .iter()
         .filter(|p| {
             if for_tray {
-                inner.tray_on && inner.tray_ids.iter().any(|t| *t == p.id)
+                inner.tray_on && inner.tray_ids.contains(&p.id)
             } else {
                 inner.prefs.is_on(&p.id)
             }
@@ -565,7 +565,7 @@ pub fn start(app: &AppHandle) {
             if cancel.is_cancelled() || !alive(&app) {
                 break;
             }
-            if tick > 0 && tick % EXTERNAL_EVERY == 0 {
+            if tick > 0 && tick.is_multiple_of(EXTERNAL_EVERY) {
                 // Accounts created or removed in the app show up (or leave)
                 // here, without a restart.
                 if let Ok(fresh) = tokio::task::spawn_blocking(providers::all).await {

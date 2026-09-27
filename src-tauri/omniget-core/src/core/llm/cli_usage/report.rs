@@ -359,10 +359,7 @@ pub async fn report(
         (state, outcome)
     })
     .await;
-    let (state, outcome) = match scanned {
-        Ok(done) => done,
-        Err(_) => (ScanState::default(), Default::default()),
-    };
+    let (state, outcome) = scanned.unwrap_or_default();
     if let Some(p) = &state_path {
         let _ = state.save(p);
     }

@@ -1,0 +1,166 @@
+# Qoder (Alibaba): Qoder IDE + Qoder CLI. Source: estudo 75/06 0A, 0B.3, 0C.4, 0C.9, Part 5 "Qoder (Alibaba)" (a)-(k), Part 6 §5.2, §8.4, §9.
+id = "qoder"
+name = "Qoder"
+tier = 2
+status = "active"
+beta = true
+homepage = "https://docs.qoder.com"
+notes = "Qoder CLI (qoder, formerly qodercli) is Claude-Code-shaped: hooks, permissions, statusline, transcripts and plugins follow Claude formats. The IDE shares the same dirs but runs only 12 hook events; the IDE MCP file path is not documented. Unlike Claude, user commands override project commands."
+reads_agents_dir = false   # UNVERIFIED
+reads_agents_md = "yes"
+
+[detect]
+binaries = ["qoder", "qodercli"]
+home_dirs = ["~/.qoder"]
+
+[scopes]
+project = true
+global = true
+local = true
+managed = false
+project_markers = [".qoder"]
+global_dir = "~/.qoder"
+config_dir_env = "QODER_CONFIG_DIR"
+
+[formats]
+rule = "qoder"          # AGENTS.md + .qoder/rules with trigger/glob (or paths)/description/alwaysApply frontmatter
+agent = "claude"
+command = "claude"      # argument placeholders UNVERIFIED
+skill = "skill_dir"
+hook = "claude"
+setting = "qoder"
+statusline = "qoder"        # Claude shape + colors, behind the stdin adapter
+plugin = "claude"       # loader accepts .claude-plugin/ after .qoder-plugin/
+
+[reads_claude]
+rules = false
+agents = false
+commands = false
+hooks = false           # bundle has an importer for .claude/settings*.json hooks; command UNVERIFIED
+skills = false          # UNVERIFIED
+plugins = true
+settings = false
+statusline = false
+
+[paths.rules]
+project = "AGENTS.md"
+global = "~/.qoder/AGENTS.md"
+project_alt = ["AGENTS.local.md"]
+
+[paths.scoped_rules]
+project = ".qoder/rules"
+global = "~/.qoder/rules"
+
+[paths.agents]
+project = ".qoder/agents"
+global = "~/.qoder/agents"
+
+[paths.commands]
+project = ".qoder/commands"
+global = "~/.qoder/commands"
+
+[paths.skills]
+project = ".qoder/skills"
+global = "~/.qoder/skills"
+
+[paths.hooks]
+project = ".qoder/settings.json"
+global = "~/.qoder/settings.json"
+local = ".qoder/settings.local.json"
+
+[paths.settings]
+project = ".qoder/settings.json"
+global = "~/.qoder/settings.json"
+local = ".qoder/settings.local.json"
+
+[paths.statusline]
+project = ".qoder/settings.json"
+global = "~/.qoder/settings.json"
+local = ".qoder/settings.local.json"
+
+# Qoder CLI. Project servers need approval unless mcp.enableAllProjectMcpServers or mcp.enabledProjectMcpServers is set.
+[[mcp]]
+surface = "cli"
+format = "json"
+project = ".mcp.json"
+global = "~/.qoder/settings.json"
+key = ["mcpServers"]
+container = "map"
+stdio_shape = "standard"
+remote_shape = "typed"          # type sse | http | streamable-http, url, headers
+transports = ["stdio", "http", "sse"]
+prefer_cli = "qoder mcp add {name} -- {command}"
+default = true
+
+[hook_event_map]
+SessionStart = "SessionStart"
+SessionEnd = "SessionEnd"
+UserPromptSubmit = "UserPromptSubmit"
+PreToolUse = "PreToolUse"
+PostToolUse = "PostToolUse"
+PostToolUseFailure = "PostToolUseFailure"
+PermissionRequest = "PermissionRequest"
+Stop = "Stop"
+SubagentStart = "SubagentStart"
+SubagentStop = "SubagentStop"
+PreCompact = "PreCompact"
+Notification = "Notification"
+
+[hooks]
+shape = "claude"
+timeout_unit = "s"
+events_count = 27     # CLI; IDE and JetBrains plugin run 12 and only command/http types
+
+[tool_name_map]
+Bash = "Bash"
+Read = "Read"
+Edit = "Edit"
+Write = "Write"
+Glob = "Glob"
+Grep = "Grep"
+WebFetch = "WebFetch"
+WebSearch = "WebSearch"               # UNVERIFIED
+Agent = "Agent"
+TodoWrite = "TodoWrite"               # UNVERIFIED
+Skill = "Skill"                       # UNVERIFIED
+AskUserQuestion = "AskUserQuestion"   # UNVERIFIED
+
+[model_map]
+# Qoder tier aliases are auto|lite|efficient|performance or a model id.
+sonnet = ""
+opus = ""
+haiku = ""
+fable = ""
+inherit = "inherit"
+
+[statusline]
+key = ["statusLine"]
+shape = "claude"        # same shape plus an optional "colors" map
+
+[permissions]
+syntax = "claude"
+key = ["permissions"]
+lists = ["allow", "ask", "deny"]
+
+[transcripts]
+# <project> = cwd with every non-alphanumeric char replaced by "-" (hashed when long); Claude-style records.
+globs = ["~/.qoder/projects/*/*.jsonl"]
+parser = "qoder_jsonl"
+format = "jsonl"
+
+[runner]
+cmd = "qoder"
+headless = ["-p"]
+json_flag = ["-o", "stream-json"]
+model_flag = "--model"
+permission_flags = { plan = ["--permission-mode", "plan"], accept_edits = ["--permission-mode", "accept_edits"], bypass = ["--yolo"] }
+
+[acp]
+native = true
+cmd = "qoder"
+args = ["--acp"]
+registry_id = "qoder"
+
+[trust]
+requires_review = true
+how = "Project agents load only in trusted folders, and project MCP servers need approval unless enabled in mcp.* settings."

@@ -11,6 +11,7 @@
 //!     does not reopen it (~L590, 0.25 s);
 //!   - a right click opens a short native menu instead (`showContextMenu`,
 //!     ~L630).
+//!
 //! Here the popover is a small undecorated webview (`/usage-panel`) that hides
 //! when it loses focus, and the context menu is the status item's own menu
 //! (`show_menu_on_left_click(false)`). The ring glyph and the forecast are in

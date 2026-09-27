@@ -397,7 +397,12 @@ impl ProcessTreeGuard {
         if let Some(pg) = self.pgid {
             // Our group only ever holds our own descendants; one whose
             // parent already exited still leads to whatever it started.
-            roots.extend(table.iter().filter(|r| r.pgid == pg).map(|r| (r.pid, r.start)));
+            roots.extend(
+                table
+                    .iter()
+                    .filter(|r| r.pgid == pg)
+                    .map(|r| (r.pid, r.start)),
+            );
         }
         roots.extend(self.root);
         let tree = tree_of(&table, &roots);
@@ -568,7 +573,10 @@ fn bsd_row(pid: libc::pid_t) -> Option<ProcRow> {
 }
 
 /// Other Unixes: no table, so the group is the whole tree (`killpg` only).
-#[cfg(all(unix, not(any(target_os = "linux", target_os = "android", target_os = "macos"))))]
+#[cfg(all(
+    unix,
+    not(any(target_os = "linux", target_os = "android", target_os = "macos"))
+))]
 fn process_table() -> Vec<ProcRow> {
     Vec::new()
 }
@@ -665,7 +673,13 @@ mod tree_tests {
         let row = parse_proc_stat(STAT).expect("a valid line");
         assert_eq!(
             row,
-            ProcRow { pid: 4242, ppid: 4200, pgid: 4200, start: 987654, frozen: false }
+            ProcRow {
+                pid: 4242,
+                ppid: 4200,
+                pgid: 4200,
+                start: 987654,
+                frozen: false
+            }
         );
         let stopped = STAT.replacen(") S ", ") T ", 1);
         assert!(parse_proc_stat(&stopped).unwrap().frozen);
@@ -681,19 +695,35 @@ mod tree_tests {
         for comm in ["my (odd) name", "a) R 1 1", "(sd-pam)", " ", ")"] {
             let line = STAT.replacen("(sleep)", &format!("({comm})"), 1);
             let row = parse_proc_stat(&line).unwrap_or_else(|| panic!("{comm:?}"));
-            assert_eq!((row.pid, row.ppid, row.pgid, row.start), (4242, 4200, 4200, 987654), "{comm:?}");
+            assert_eq!(
+                (row.pid, row.ppid, row.pgid, row.start),
+                (4242, 4200, 4200, 987654),
+                "{comm:?}"
+            );
         }
     }
 
     #[test]
     fn a_broken_proc_stat_line_is_none() {
-        for line in ["", "4242", "4242 (sleep)", "x (sleep) S 1 1", "4242 (sleep) S 4200 4200 4100"] {
+        for line in [
+            "",
+            "4242",
+            "4242 (sleep)",
+            "x (sleep) S 1 1",
+            "4242 (sleep) S 4200 4200 4100",
+        ] {
             assert_eq!(parse_proc_stat(line), None, "{line:?}");
         }
     }
 
     fn row(pid: i32, ppid: i32, pgid: i32, start: u64) -> ProcRow {
-        ProcRow { pid, ppid, pgid, start, frozen: false }
+        ProcRow {
+            pid,
+            ppid,
+            pgid,
+            start,
+            frozen: false,
+        }
     }
 
     fn pids(rows: &[ProcRow]) -> Vec<i32> {
@@ -716,9 +746,15 @@ mod tree_tests {
             row(200, 1, 200, 14),
             row(201, 200, 200, 15),
         ];
-        assert_eq!(pids(&tree_of(&table, &[(100, 10)])), vec![100, 101, 102, 103]);
+        assert_eq!(
+            pids(&tree_of(&table, &[(100, 10)])),
+            vec![100, 101, 102, 103]
+        );
         // A member whose parent already died is still reached as a root.
-        assert_eq!(pids(&tree_of(&table, &[(100, 10), (201, 15)])), vec![100, 101, 102, 103, 201]);
+        assert_eq!(
+            pids(&tree_of(&table, &[(100, 10), (201, 15)])),
+            vec![100, 101, 102, 103, 201]
+        );
     }
 
     /// A pid recycled since it was recorded is another process: neither it
@@ -732,7 +768,12 @@ mod tree_tests {
     /// Never init, never a loop: a table read mid-change can be odd.
     #[test]
     fn the_walk_skips_init_and_survives_a_cycle() {
-        let table = [row(1, 1, 1, 1), row(50, 51, 50, 5), row(51, 50, 50, 6), row(52, 1, 52, 7)];
+        let table = [
+            row(1, 1, 1, 1),
+            row(50, 51, 50, 5),
+            row(51, 50, 50, 6),
+            row(52, 1, 52, 7),
+        ];
         assert_eq!(pids(&tree_of(&table, &[(50, 5)])), vec![50, 51]);
         assert!(tree_of(&table, &[(1, 1)]).is_empty());
     }
@@ -777,7 +818,11 @@ mod tree_tests {
         while !pidfile.exists() && since.elapsed() < std::time::Duration::from_secs(10) {
             tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         }
-        let escapee = std::fs::read_to_string(&pidfile).unwrap().trim().parse().unwrap();
+        let escapee = std::fs::read_to_string(&pidfile)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
         (child, escapee, dir)
     }
 
@@ -850,7 +895,16 @@ mod tree_tests {
         // `start /b` leaves a grandchild ping; the second ping keeps cmd up.
         let mut cmd = tokio::process::Command::new("cmd");
         cmd.args([
-            "/c", "start", "/b", "ping", "-t", "127.0.0.1", "&", "ping", "-t", "127.0.0.1",
+            "/c",
+            "start",
+            "/b",
+            "ping",
+            "-t",
+            "127.0.0.1",
+            "&",
+            "ping",
+            "-t",
+            "127.0.0.1",
         ]);
         suspend_on_spawn(&mut cmd);
         cmd.kill_on_drop(true);

@@ -499,7 +499,7 @@ pub async fn ensure_ffmpeg() -> anyhow::Result<PathBuf> {
     // cannot discover system FFmpeg from PATH.
     if !is_flatpak() {
         let managed = managed_bin_dir().map(|d| d.join(bin_name("ffmpeg")));
-        if managed.as_ref().map_or(true, |p| !p.exists()) {
+        if managed.as_ref().is_none_or(|p| !p.exists()) {
             if let Ok(path) = download_ffmpeg().await {
                 crate::core::ytdlp::reset_ffmpeg_location_cache();
                 return Ok(path);

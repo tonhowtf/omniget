@@ -144,7 +144,9 @@ async fn follow(bridge: &Bridge, id: &str, json_out: bool) -> anyhow::Result<()>
                 }
                 if state == "waiting_approval" {
                     eprintln!("  the agent is asking for permission: answer in the app (LLM → Jobs) or on the pet");
-                    eprintln!("  (`omniget agent explain {id}` shows the question and when it expires)");
+                    eprintln!(
+                        "  (`omniget agent explain {id}` shows the question and when it expires)"
+                    );
                 }
                 last_state = state.clone();
             }
@@ -213,7 +215,12 @@ fn explain_text(v: &Value) -> String {
                 .as_u64()
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| "?".into()),
-            a["preview"].as_str().unwrap_or("").chars().take(60).collect::<String>()
+            a["preview"]
+                .as_str()
+                .unwrap_or("")
+                .chars()
+                .take(60)
+                .collect::<String>()
         ));
     }
     if let Some(left) = secs("deadline_left_s") {
@@ -323,7 +330,9 @@ fn status_text(v: &Value) -> String {
             q["id"].as_str().unwrap_or(""),
             q["kind"].as_str().unwrap_or(""),
             q["agent_id"].as_str().unwrap_or(""),
-            q["detail"].as_str().unwrap_or(q["reason"].as_str().unwrap_or(""))
+            q["detail"]
+                .as_str()
+                .unwrap_or(q["reason"].as_str().unwrap_or(""))
         ));
     }
     out
@@ -331,11 +340,41 @@ fn status_text(v: &Value) -> String {
 
 #[derive(clap::Subcommand)]
 pub enum AgentCommand {
-    /// Run one task with an agent of the roster (in the current folder)
+    /// Run one task with an agent of the roster (in the current folder), or,
+    /// with --tool, an agent of the catalog (or an .md file) as the system
+    /// prompt of a coding CLI: `run <agent> --tool claude "<prompt>"`
     Run {
-        prompt: String,
+        /// `<prompt>`; with --tool: `[<agent: catalog id | file.md>] <prompt>`
+        #[arg(required = true, num_args = 1..=2)]
+        args: Vec<String>,
         #[arg(short, long, default_value = "omni")]
         agent: String,
+        #[arg(
+            long,
+            help = "Coding CLI that runs it: claude, codex, gemini, opencode, qwen, cursor … or native"
+        )]
+        tool: Option<String>,
+        #[arg(long, help = "Project folder for --tool (default: current dir)")]
+        project: Option<String>,
+        #[arg(long, help = "Model for --tool (e.g. haiku, sonnet, gpt-5)")]
+        model: Option<String>,
+        #[arg(
+            long,
+            value_parser = ["default", "plan", "accept-edits", "bypass"],
+            help = "Permission level of the CLI (bypass prints the flag it maps to)"
+        )]
+        permission: Option<String>,
+        #[arg(long, value_parser = ["docker", "e2b"], help = "Run the CLI in OmniGet's sandbox on a copy of the project")]
+        sandbox: Option<String>,
+        #[arg(
+            long,
+            help = "Vault key id (LLM → Keys) for the CLI inside the sandbox"
+        )]
+        key: Option<String>,
+        #[arg(long, help = "Vault key id holding the E2B API key")]
+        e2b_key: Option<String>,
+        #[arg(long, help = "Append the detected stack of the project to the prompt")]
+        context: bool,
         #[arg(short, long, help = "Workspace folder (default: current dir)")]
         workspace: Option<String>,
         #[arg(long, help = "Run without a workspace (no file or shell tools)")]
@@ -349,9 +388,32 @@ pub enum AgentCommand {
         )]
         deadline_min: Option<u32>,
     },
-    /// Keep an agent working until a check passes or the budget runs out
+    /// Keep an agent working until a check passes or the budget runs out;
+    /// `--catalog <loop id>` runs a loop of the catalog instead of a prompt
     Loop {
+        #[arg(required_unless_present = "catalog", default_value = "")]
         prompt: String,
+        #[arg(
+            long,
+            help = "Catalog loop id (e.g. cct:loops/engineering/build-test-fix-loop)"
+        )]
+        catalog: Option<String>,
+        #[arg(
+            long,
+            help = "Runner for --catalog: agent:<roster id>, account:<claude|codex>[:<account>], acp:<agent>, tool:<cli>"
+        )]
+        runner: Option<String>,
+        #[arg(
+            long,
+            help = "With --catalog: install the loop's components into these tools (a,b)"
+        )]
+        targets: Option<String>,
+        #[arg(long, help = "Interval (10m, daily) or cron line between rounds")]
+        schedule: Option<String>,
+        #[arg(long, help = "Stop when the rounds cost this much (USD)")]
+        max_cost: Option<f64>,
+        #[arg(long, help = "Model for tool/account runners")]
+        model: Option<String>,
         #[arg(short, long, default_value = "omni")]
         agent: String,
         #[arg(short, long)]
@@ -392,13 +454,83 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
     let bridge = Bridge::open()?;
     match cmd {
         AgentCommand::Run {
-            prompt,
+            args,
+            tool: Some(tool),
+            project,
+            model,
+            permission,
+            sandbox,
+            key,
+            e2b_key,
+            context,
+            detach,
+            ..
+        } => {
+            let (agent_ref, prompt) = match args.as_slice() {
+                [p] => (None, p.clone()),
+                [a, p] => (Some(a.clone()), p.clone()),
+                _ => bail!("give `[<agent>] <prompt>`"),
+            };
+            let project = workspace(project, false);
+            let mut body = json!({
+                "tool": tool,
+                "prompt": prompt,
+                "project": project,
+                "model": model,
+                "permission": permission.map(|p| p.replace('-', "_")),
+                "context": context,
+            });
+            if let Some(a) = agent_ref {
+                let path = std::path::Path::new(&a);
+                if a.ends_with(".md") && path.is_file() {
+                    body["agent_markdown"] = json!(std::fs::read_to_string(path)?);
+                    body["agent_name"] = json!(path
+                        .file_stem()
+                        .map(|s| s.to_string_lossy().to_string())
+                        .unwrap_or_default());
+                } else {
+                    body["agent"] = json!(a);
+                }
+            }
+            if let Some(p) = sandbox {
+                body["sandbox"] =
+                    json!({ "provider": p, "key_id": key, "e2b_key_id": e2b_key, "network": true });
+            }
+            if body["permission"] == "bypass" {
+                let flags = omniget_core::core::agentkit_run::runner::runner_of(&tool)
+                    .ok()
+                    .and_then(|(_, r)| r.permission_flags.get("bypass").cloned())
+                    .unwrap_or_default();
+                eprintln!(
+                    "warning: bypass runs {tool} with {} (no permission prompts)",
+                    if flags.is_empty() {
+                        "its most permissive mode".to_string()
+                    } else {
+                        flags.join(" ")
+                    }
+                );
+            }
+            let job = bridge.post("/v1/agent/run-tool", body).await?;
+            let id = job["id"].as_str().unwrap_or("").to_string();
+            if detach {
+                println!("{id}");
+                return Ok(());
+            }
+            follow(&bridge, &id, json_out).await
+        }
+        AgentCommand::Run {
+            args,
             agent,
             workspace: ws,
             no_workspace,
             detach,
             deadline_min,
+            ..
         } => {
+            let prompt = match args.as_slice() {
+                [p] => p.clone(),
+                _ => bail!("two arguments (`<agent> <prompt>`) need --tool; without it, give only the prompt and pick the roster agent with --agent"),
+            };
             let job = bridge
                 .post("/v1/agent/run", json!({ "agent_id": agent, "prompt": prompt, "workspace": workspace(ws, no_workspace), "deadline_min": deadline_min }))
                 .await?;
@@ -410,12 +542,58 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             follow(&bridge, &id, json_out).await
         }
         AgentCommand::Loop {
+            catalog: Some(id),
+            runner,
+            targets,
+            schedule,
+            max_cost,
+            model,
+            workspace: ws,
+            rounds,
+            minutes,
+            check,
+            agent,
+            ..
+        } => {
+            let spec = runner.unwrap_or_else(|| format!("agent:{agent}"));
+            let mut parts = spec.splitn(3, ':');
+            let kind = parts.next().unwrap_or("agent").to_string();
+            let rid = parts.next().unwrap_or("").to_string();
+            let account = parts.next().map(str::to_string);
+            let body = json!({
+                "id": id,
+                "runner": { "kind": kind, "id": rid, "account": account, "model": model,
+                            "permission": if kind == "tool" { Some("accept_edits") } else { None } },
+                "workspace": workspace(ws, false),
+                "targets": targets.map(|t| t.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect::<Vec<_>>()).unwrap_or_default(),
+                "schedule": schedule,
+                "check_command": check,
+                "max_rounds": rounds,
+                "max_minutes": minutes,
+                "max_cost_usd": max_cost,
+            });
+            let l = bridge.post("/v1/agent/loop-catalog", body).await?;
+            if json_out {
+                println!("{}", serde_json::to_string_pretty(&l)?);
+            } else {
+                println!(
+                    "loop {} ({}) started with {}; check: {}. Follow it with `omniget agent loops` or in LLM → Loops.",
+                    l["id"].as_str().unwrap_or(""),
+                    l["name"].as_str().unwrap_or(""),
+                    l["agent_id"].as_str().unwrap_or(""),
+                    l["check_command"].as_str().unwrap_or("none (DONE or budget)")
+                );
+            }
+            Ok(())
+        }
+        AgentCommand::Loop {
             prompt,
             agent,
             workspace: ws,
             rounds,
             minutes,
             check,
+            ..
         } => {
             let l = bridge
                 .post(
@@ -463,11 +641,18 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             Ok(())
         }
         AgentCommand::Diff { id, patch: true } => {
-            print!("{}", bridge.get_text(&format!("/v1/jobs/{id}/diff?format=patch")).await?);
+            print!(
+                "{}",
+                bridge
+                    .get_text(&format!("/v1/jobs/{id}/diff?format=patch"))
+                    .await?
+            );
             Ok(())
         }
         AgentCommand::Diff { id, patch: false } => {
-            let v = bridge.get(&format!("/v1/jobs/{id}/diff?format=files")).await?;
+            let v = bridge
+                .get(&format!("/v1/jobs/{id}/diff?format=files"))
+                .await?;
             if json_out {
                 println!("{}", serde_json::to_string_pretty(&v)?);
                 return Ok(());
@@ -539,9 +724,18 @@ mod tests {
         let text = status_text(&v);
         assert!(text.contains("2 of 2 slots in use"), "{text}");
         assert!(text.contains("j1"), "{text}");
-        assert!(text.contains("j2") && text.contains("waiting for you"), "{text}");
-        assert!(text.contains("1. j3") && text.contains("folder busy by j1 (/w/repo)"), "{text}");
-        assert!(text.contains("2. j4") && text.contains("all 2 job slots are busy"), "{text}");
+        assert!(
+            text.contains("j2") && text.contains("waiting for you"),
+            "{text}"
+        );
+        assert!(
+            text.contains("1. j3") && text.contains("folder busy by j1 (/w/repo)"),
+            "{text}"
+        );
+        assert!(
+            text.contains("2. j4") && text.contains("all 2 job slots are busy"),
+            "{text}"
+        );
         let idle = status_text(&json!({"running": [], "blocked": [], "queued": [],
             "limits": {"max_parallel": 4, "max_per_agent": 2, "in_use": 0, "available": 4}}));
         assert!(idle.contains("0 of 4 slots in use"), "{idle}");
@@ -568,7 +762,10 @@ mod tests {
         running["complete"] = json!(false);
         running["clipped"] = json!(true);
         let text = diff_text(&running).unwrap();
-        assert!(text.contains("still running") && text.contains("was cut"), "{text}");
+        assert!(
+            text.contains("still running") && text.contains("was cut"),
+            "{text}"
+        );
     }
 
     #[test]
@@ -576,7 +773,11 @@ mod tests {
         let v = json!({"job_id": "j2", "available": false, "reason": "no_snapshot",
             "detail": "no turn of this job took a snapshot", "files": [], "file_count": 0});
         let err = diff_text(&v).unwrap_err();
-        assert!(err.contains("no diff for job j2") && err.contains("no turn of this job took a snapshot"), "{err}");
+        assert!(
+            err.contains("no diff for job j2")
+                && err.contains("no turn of this job took a snapshot"),
+            "{err}"
+        );
     }
 
     #[test]

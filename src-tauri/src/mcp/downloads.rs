@@ -10,7 +10,7 @@ use tauri::{AppHandle, Manager};
 pub fn catalog(p: &Principal) -> Vec<Value> {
     tools(p).into_iter().map(|tool| {
         let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "orchestration_control" | "orchestration_create"))
-            || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create");
+            || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install");
         let open_world = matches!(tool.name, "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list");
         let mut value = serde_json::to_value(&tool).expect("static tool schema serializes");
         // MCP semantics: destructive = may undo or discard existing work
@@ -194,6 +194,12 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
             return Err("TOOL_NOT_AUTHORIZED".into());
         }
         return super::orchestration::call(app, p, name, a).await;
+    }
+    if policy::scope(name) == Some("catalog") {
+        if !policy::allowed(p, name) {
+            return Err("TOOL_NOT_AUTHORIZED".into());
+        }
+        return super::call_catalog(app, p, name, a).await;
     }
     validate(p, name, &a)?;
     if matches!(name, "media_inspect" | "media_collection_list") {
