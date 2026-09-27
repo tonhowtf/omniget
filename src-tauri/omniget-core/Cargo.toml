@@ -54,6 +54,11 @@ tempfile = "=3.25.0"
 zstd = "0.13"
 # Pinning de commits do catálogo (git blob sha1).
 sha1 = "0.10"
+# core/music: tags (read/write), EBU R128 loudness and the FFT behind BPM,
+# key and spectrum analysis. All pure Rust.
+lofty = "0.25"
+ebur128 = "0.1"
+rustfft = "6"
 
 [target.'cfg(windows)'.dependencies]
 # Job Object of the CLI turns (`core::process::ProcessTreeGuard`): the only

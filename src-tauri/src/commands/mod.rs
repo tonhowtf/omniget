@@ -14,6 +14,7 @@ pub mod integration;
 pub mod league;
 pub mod llm;
 pub mod media_history;
+pub mod music;
 pub mod omnidisc;
 pub mod p2p;
 pub mod pet;

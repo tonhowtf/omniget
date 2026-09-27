@@ -108,6 +108,9 @@ export type AppSettings = {
     room_server?: string;
     city_server?: string;
   };
+  music?: {
+    enabled?: boolean;
+  };
   league?: {
     enabled?: boolean;
     auto_accept?: boolean;

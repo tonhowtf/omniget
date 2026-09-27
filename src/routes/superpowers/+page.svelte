@@ -16,6 +16,14 @@
 
   let powers = $derived<Power[]>([
     {
+      id: "music",
+      icon: "music",
+      title: $t("music.title") as string,
+      descKey: "superpowers.music_desc",
+      href: "/music",
+      enabled: getSettings()?.music?.enabled ?? true,
+    },
+    {
       id: "league",
       icon: "league",
       title: "League of Legends",
