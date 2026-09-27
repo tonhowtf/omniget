@@ -20,7 +20,8 @@ use super::format::Frame;
 /// release `digest` and a local download on 2026-09-27.
 pub const VERSION: &str = "2.6.0";
 pub const ASSET: &str = "PresentMon-2.6.0-x64.exe";
-pub const URL: &str = "https://github.com/GameTechDev/PresentMon/releases/download/v2.6.0/PresentMon-2.6.0-x64.exe";
+pub const URL: &str =
+    "https://github.com/GameTechDev/PresentMon/releases/download/v2.6.0/PresentMon-2.6.0-x64.exe";
 pub const SHA256: &str = "b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af";
 pub const LICENSE_FILE: &str = "PresentMon-LICENSE.txt";
 /// `LICENSE.txt` of the PresentMon repository, shipped next to the binary.
@@ -38,7 +39,11 @@ const UNTIL_DISPLAYED: &[&str] = &["MsUntilDisplayed", "DisplayLatency"];
 const IN_PRESENT: &[&str] = &["MsInPresentAPI"];
 const CPU_BUSY: &[&str] = &["MsCPUBusy", "CPUBusy"];
 const GPU_BUSY: &[&str] = &["MsGPUBusy", "GPUBusy", "msGPUActive"];
-const LATENCY: &[&str] = &["MsPCLatency", "MsAllInputToPhotonLatency", "AllInputToPhotonLatency"];
+const LATENCY: &[&str] = &[
+    "MsPCLatency",
+    "MsAllInputToPhotonLatency",
+    "AllInputToPhotonLatency",
+];
 
 /// Column positions read from the header line.
 #[derive(Debug, Clone)]
@@ -73,8 +78,17 @@ pub struct Row {
 
 impl Columns {
     pub fn from_header(line: &str) -> Option<Columns> {
-        let names: Vec<String> = line.trim().trim_start_matches('\u{feff}').split(',').map(|s| s.trim().to_ascii_lowercase()).collect();
-        let find = |cands: &[&str]| cands.iter().find_map(|c| names.iter().position(|n| n == &c.to_ascii_lowercase()));
+        let names: Vec<String> = line
+            .trim()
+            .trim_start_matches('\u{feff}')
+            .split(',')
+            .map(|s| s.trim().to_ascii_lowercase())
+            .collect();
+        let find = |cands: &[&str]| {
+            cands
+                .iter()
+                .find_map(|c| names.iter().position(|n| n == &c.to_ascii_lowercase()))
+        };
         Some(Columns {
             n: names.len(),
             process_id: find(&["ProcessID"]),
@@ -112,7 +126,9 @@ impl Columns {
             c.drain(..extra);
             Some(name)
         } else {
-            self.application.and_then(|i| c.get(i)).map(|s| s.to_string())
+            self.application
+                .and_then(|i| c.get(i))
+                .map(|s| s.to_string())
         };
         let num = |i: Option<usize>| -> Option<f64> {
             let s = c.get(i?)?.trim();
@@ -127,8 +143,14 @@ impl Columns {
         };
         let time_ms = num(self.t_ms).or_else(|| num(self.t_seconds).map(|s| s * 1000.0));
         Some(Row {
-            pid: self.process_id.and_then(|i| c.get(i)).and_then(|s| s.trim().parse().ok()),
-            swap_chain: self.swap_chain.and_then(|i| c.get(i)).map(|s| s.trim().to_string()),
+            pid: self
+                .process_id
+                .and_then(|i| c.get(i))
+                .and_then(|s| s.trim().parse().ok()),
+            swap_chain: self
+                .swap_chain
+                .and_then(|i| c.get(i))
+                .map(|s| s.trim().to_string()),
             application: app,
             time_ms,
             frame: Frame {
@@ -165,7 +187,10 @@ pub struct Parsed {
 pub fn parse_csv(text: &str, pid: Option<u32>) -> Parsed {
     let mut lines = text.lines().skip_while(|l| l.trim().is_empty());
     let Some(cols) = lines.next().and_then(Columns::from_header) else {
-        return Parsed { warnings: vec!["unknown_csv_header".into()], ..Default::default() };
+        return Parsed {
+            warnings: vec!["unknown_csv_header".into()],
+            ..Default::default()
+        };
     };
     let rows: Vec<Row> = lines
         .filter_map(|l| cols.row(l))
@@ -179,8 +204,14 @@ pub fn parse_csv(text: &str, pid: Option<u32>) -> Parsed {
     if by_chain.len() > 1 {
         warnings.push("several_swap_chains".to_string());
     }
-    let best = by_chain.into_iter().max_by_key(|(k, n)| (*n, k.clone())).map(|(k, _)| k);
-    let chosen: Vec<&Row> = rows.iter().filter(|r| Some((r.pid, r.swap_chain.clone())) == best).collect();
+    let best = by_chain
+        .into_iter()
+        .max_by_key(|(k, n)| (*n, k.clone()))
+        .map(|(k, _)| k);
+    let chosen: Vec<&Row> = rows
+        .iter()
+        .filter(|r| Some((r.pid, r.swap_chain.clone())) == best)
+        .collect();
     let application = chosen.first().and_then(|r| r.application.clone());
     let first_t = chosen.iter().find_map(|r| r.time_ms);
     let mut acc = 0.0;
@@ -192,16 +223,30 @@ pub fn parse_csv(text: &str, pid: Option<u32>) -> Parsed {
                 _ => acc,
             };
             acc += r.frame.frametime_ms;
-            Frame { t_ms: super::stats::round(t, 3), ..r.frame.clone() }
+            Frame {
+                t_ms: super::stats::round(t, 3),
+                ..r.frame.clone()
+            }
         })
         .collect();
-    Parsed { frames, application, warnings, has_display: cols.has_display() }
+    Parsed {
+        frames,
+        application,
+        warnings,
+        has_display: cols.has_display(),
+    }
 }
 
 /// Command line for one capture. `session` names the ETW session (so a
 /// crash leaves a session we stop next time); no console, stop by itself
 /// after `max_seconds` or when the game exits.
-pub fn args(session: &str, output: &str, pid: Option<u32>, process_name: Option<&str>, max_seconds: u64) -> Vec<String> {
+pub fn args(
+    session: &str,
+    output: &str,
+    pid: Option<u32>,
+    process_name: Option<&str>,
+    max_seconds: u64,
+) -> Vec<String> {
     let mut a: Vec<String> = vec![
         "--session_name".into(),
         session.into(),
@@ -243,7 +288,10 @@ pub fn user_sid_from_whoami(text: &str) -> Option<String> {
 pub fn valid_sid(s: &str) -> bool {
     s.len() <= 184
         && s.strip_prefix("S-1-").is_some_and(|rest| {
-            !rest.is_empty() && rest.split('-').all(|p| !p.is_empty() && p.len() <= 10 && p.bytes().all(|b| b.is_ascii_digit()))
+            !rest.is_empty()
+                && rest.split('-').all(|p| {
+                    !p.is_empty() && p.len() <= 10 && p.bytes().all(|b| b.is_ascii_digit())
+                })
         })
 }
 
@@ -291,12 +339,20 @@ mod win {
             .timeout(std::time::Duration::from_secs(120))
             .build()
             .map_err(|e| e.to_string())?;
-        let resp = client.get(URL).send().await.map_err(|e| format!("DOWNLOAD_FAILED: {e}"))?;
+        let resp = client
+            .get(URL)
+            .send()
+            .await
+            .map_err(|e| format!("DOWNLOAD_FAILED: {e}"))?;
         if !resp.status().is_success() {
             return Err(format!("DOWNLOAD_FAILED: HTTP {}", resp.status()));
         }
-        let bytes = resp.bytes().await.map_err(|e| format!("DOWNLOAD_FAILED: {e}"))?;
-        crate::core::dependencies::integrity::verify_sha256(&bytes, SHA256, ASSET).map_err(|e| format!("BAD_HASH: {e}"))?;
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| format!("DOWNLOAD_FAILED: {e}"))?;
+        crate::core::dependencies::integrity::verify_sha256(&bytes, SHA256, ASSET)
+            .map_err(|e| format!("BAD_HASH: {e}"))?;
         let dest = dir.join(ASSET);
         let tmp = dir.join(format!("{ASSET}.part"));
         std::fs::write(&tmp, &bytes).map_err(|e| e.to_string())?;
@@ -328,9 +384,15 @@ mod win {
     }
 
     fn output(prog: &str, args: &[&str]) -> Result<String, String> {
-        let o = crate::core::process::std_command(prog).args(args).output().map_err(|e| format!("{prog}: {e}"))?;
+        let o = crate::core::process::std_command(prog)
+            .args(args)
+            .output()
+            .map_err(|e| format!("{prog}: {e}"))?;
         if !o.status.success() {
-            return Err(format!("{prog}: {}", String::from_utf8_lossy(&o.stderr).trim()));
+            return Err(format!(
+                "{prog}: {}",
+                String::from_utf8_lossy(&o.stderr).trim()
+            ));
         }
         Ok(String::from_utf8_lossy(&o.stdout).into_owned())
     }
@@ -338,7 +400,8 @@ mod win {
     /// SID of the signed-in user (read unelevated, before the prompt: an
     /// over-the-shoulder administrator would be another account).
     pub fn current_user_sid() -> Result<String, String> {
-        user_sid_from_whoami(&output("whoami", &["/user", "/fo", "csv"])?).ok_or_else(|| "could not read the user SID".into())
+        user_sid_from_whoami(&output("whoami", &["/user", "/fo", "csv"])?)
+            .ok_or_else(|| "could not read the user SID".into())
     }
 
     /// `DOMAIN\name` of a SID. Fixed script; the SID travels in an
@@ -371,19 +434,35 @@ mod win {
 /// to take effect.
 #[cfg(windows)]
 pub fn elevated_perf_log_users(user_sid: &str, join: bool) -> Result<String, String> {
-    if !valid_sid(user_sid) || !user_sid.starts_with("S-1-5-21-") && !user_sid.starts_with("S-1-12-1-") {
+    if !valid_sid(user_sid)
+        || !user_sid.starts_with("S-1-5-21-") && !user_sid.starts_with("S-1-12-1-")
+    {
         return Err("REFUSED: not a user account SID".into());
     }
     let group = account_of(PERF_LOG_USERS_SID)?;
     let user = account_of(user_sid)?;
     let o = crate::core::process::std_command("net")
-        .args(["localgroup", bare_group(&group), &user, if join { "/add" } else { "/delete" }])
+        .args([
+            "localgroup",
+            bare_group(&group),
+            &user,
+            if join { "/add" } else { "/delete" },
+        ])
         .output()
         .map_err(|e| format!("net: {e}"))?;
-    let text = format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr));
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&o.stdout),
+        String::from_utf8_lossy(&o.stderr)
+    );
     // 1378: already a member; 1377: not a member (undo of an undo).
     if o.status.success() || text.contains("1378") || text.contains("1377") {
-        Ok(format!("{} {} {}; sign out to apply", user, if join { "joined" } else { "left" }, bare_group(&group)))
+        Ok(format!(
+            "{} {} {}; sign out to apply",
+            user,
+            if join { "joined" } else { "left" },
+            bare_group(&group)
+        ))
     } else {
         Err(format!("net localgroup: {}", text.trim()))
     }
@@ -450,7 +529,9 @@ mod tests {
     fn application_with_a_comma_is_folded_back() {
         let head = "Application,ProcessID,SwapChainAddress,PresentRuntime,SyncInterval,PresentFlags,TimeInSeconds,MsBetweenPresents";
         let cols = Columns::from_header(head).unwrap();
-        let r = cols.row("Game, The Sequel.exe,10,0x1,DXGI,0,0,1.5,16.0").unwrap();
+        let r = cols
+            .row("Game, The Sequel.exe,10,0x1,DXGI,0,0,1.5,16.0")
+            .unwrap();
         assert_eq!(r.application.as_deref(), Some("Game, The Sequel.exe"));
         assert_eq!(r.pid, Some(10));
         assert_eq!(r.frame.frametime_ms, 16.0);
@@ -459,33 +540,59 @@ mod tests {
 
     #[test]
     fn unknown_header_is_reported() {
-        assert_eq!(parse_csv("a,b,c\n1,2,3\n", None).warnings, vec!["unknown_csv_header"]);
+        assert_eq!(
+            parse_csv("a,b,c\n1,2,3\n", None).warnings,
+            vec!["unknown_csv_header"]
+        );
     }
 
     #[test]
     fn command_line_targets_one_process_and_ends_itself() {
-        let a = args("OmniGet-ab12", "C:\\x\\pm.csv", Some(77), Some("ignored.exe"), 60);
+        let a = args(
+            "OmniGet-ab12",
+            "C:\\x\\pm.csv",
+            Some(77),
+            Some("ignored.exe"),
+            60,
+        );
         let s = a.join(" ");
         assert!(s.contains("--process_id 77") && !s.contains("--process_name"));
         assert!(s.contains("--timed 60 --terminate_after_timed"));
         assert!(s.contains("--stop_existing_session"));
         let a = args("s", "o", None, Some("League of Legends.exe"), 30);
         let i = a.iter().position(|x| x == "--process_name").unwrap();
-        assert_eq!(a[i + 1], "League of Legends.exe", "one argv item, spaces kept");
+        assert_eq!(
+            a[i + 1],
+            "League of Legends.exe",
+            "one argv item, spaces kept"
+        );
     }
 
     #[test]
     fn whoami_sid_and_sid_checks() {
-        let text = "\"User Name\",\"SID\"\r\n\"desktop-1\\tonho\",\"S-1-5-21-111-222-333-1001\"\r\n";
-        assert_eq!(user_sid_from_whoami(text).as_deref(), Some("S-1-5-21-111-222-333-1001"));
+        let text =
+            "\"User Name\",\"SID\"\r\n\"desktop-1\\tonho\",\"S-1-5-21-111-222-333-1001\"\r\n";
+        assert_eq!(
+            user_sid_from_whoami(text).as_deref(),
+            Some("S-1-5-21-111-222-333-1001")
+        );
         let pt = "\"Nome de usuário\",\"SID\"\n\"pc\\ana\",\"S-1-12-1-1-2-3-4\"\n";
-        assert_eq!(user_sid_from_whoami(pt).as_deref(), Some("S-1-12-1-1-2-3-4"));
+        assert_eq!(
+            user_sid_from_whoami(pt).as_deref(),
+            Some("S-1-12-1-1-2-3-4")
+        );
         assert!(valid_sid(PERF_LOG_USERS_SID));
         assert!(!valid_sid("S-1-5-21-1;calc"));
         assert!(!valid_sid("S-1-"));
         assert!(!valid_sid("X-1-5"));
-        assert_eq!(bare_group("BUILTIN\\Performance Log Users"), "Performance Log Users");
-        assert_eq!(bare_group("VORDEFINIERT\\Leistungsprotokollbenutzer"), "Leistungsprotokollbenutzer");
+        assert_eq!(
+            bare_group("BUILTIN\\Performance Log Users"),
+            "Performance Log Users"
+        );
+        assert_eq!(
+            bare_group("VORDEFINIERT\\Leistungsprotokollbenutzer"),
+            "Leistungsprotokollbenutzer"
+        );
     }
 
     #[test]

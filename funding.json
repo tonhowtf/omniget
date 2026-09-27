@@ -14,7 +14,7 @@
     {
       "guid": "omniget",
       "name": "OmniGet",
-      "description": "A free desktop downloader for Windows, macOS and Linux: paste a link from YouTube, Instagram, TikTok, X, Reddit, Twitch or one of the sites yt-dlp supports and get the file. Its MCP server lets Claude Code, Cursor and VS Code queue downloads, and it runs Claude Code, Codex, Gemini CLI and local models as AI agents in a window. No account, no ads, no telemetry on what anyone downloads. Files stay on the machine that fetched them.",
+      "description": "A free desktop downloader for Windows, macOS and Linux: paste a link from YouTube, Instagram, TikTok, X, Reddit, Twitch or one of the sites yt-dlp supports and get the file. Its MCP server lets Claude Code, Cursor and VS Code queue downloads, and it runs Claude Code, Codex, Gemini CLI and local models as AI agents in a window. Its washmybelly superpower cleans junk, uninstalls apps with their leftovers and handles privacy, power and FPS measurement, always showing a plan and asking first. No account, no ads, no telemetry on what anyone downloads. Files stay on the machine that fetched them.",
       "webpageUrl": {
         "url": "https://getomniget.com"
       },
@@ -22,7 +22,7 @@
         "url": "https://github.com/tonhowtf/omniget"
       },
       "licenses": ["spdx:GPL-3.0-only"],
-      "tags": ["downloader", "desktop", "media", "mcp", "ai-agents", "rust", "tauri", "privacy"]
+      "tags": ["downloader", "desktop", "media", "mcp", "ai-agents", "rust", "tauri", "privacy", "system-cleaner"]
     }
   ],
   "funding": {

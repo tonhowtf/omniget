@@ -1,0 +1,28 @@
+Executable=/bin/ls
+Identifier=com.apple.ls
+Format=Mach-O universal (x86_64 arm64e)
+CodeDirectory v=20400 size=741 flags=0x0(none) hashes=18+2 location=embedded
+Platform identifier=26
+VersionPlatform=1
+VersionMin=720896
+VersionSDK=1705216
+Hash type=sha256 size=32
+CandidateCDHash sha256=e5917984672bb28fa9a5da1bb133ea5f32b630dd
+CandidateCDHashFull sha256=e5917984672bb28fa9a5da1bb133ea5f32b630dd3ae2a2b7f5645828f1e9df31
+Hash choices=sha256
+CMSDigest=e5917984672bb28fa9a5da1bb133ea5f32b630dd3ae2a2b7f5645828f1e9df31
+CMSDigestType=2
+Executable Segment base=0
+Executable Segment limit=32768
+Executable Segment flags=0x1
+Page size=4096
+CDHash=e5917984672bb28fa9a5da1bb133ea5f32b630dd
+Signature size=4442
+Authority=Software Signing
+Authority=Apple Code Signing Certification Authority
+Authority=Apple Root CA
+Signed Time=18 Apr 2026 at 21:01:56
+Info.plist=not bound
+TeamIdentifier=not set
+Sealed Resources=none
+Internal requirements count=1 size=60

@@ -223,7 +223,11 @@ pub struct Stats {
 /// Full statistics of a frametime sequence (ms). `t_ms` (same length, or
 /// empty) places stutters and freezes on the timeline.
 pub fn compute(ft: &[f64], t_ms: &[f64]) -> (Stats, Vec<Event>, Vec<Event>) {
-    let ft: Vec<f64> = ft.iter().copied().filter(|x| x.is_finite() && *x > 0.0).collect();
+    let ft: Vec<f64> = ft
+        .iter()
+        .copied()
+        .filter(|x| x.is_finite() && *x > 0.0)
+        .collect();
     if ft.is_empty() {
         return (Stats::default(), vec![], vec![]);
     }
@@ -369,7 +373,9 @@ pub fn compare(
     noise_before: &[(&str, Option<f64>)],
     noise_after: &[(&str, Option<f64>)],
 ) -> Vec<Delta> {
-    let noise = |list: &[(&str, Option<f64>)], m: &str| list.iter().find(|(k, _)| *k == m).and_then(|(_, v)| *v);
+    let noise = |list: &[(&str, Option<f64>)], m: &str| {
+        list.iter().find(|(k, _)| *k == m).and_then(|(_, v)| *v)
+    };
     COMPARED
         .iter()
         .map(|(m, higher_better)| {
@@ -421,10 +427,19 @@ pub struct Histogram {
 }
 
 pub fn histogram(ft: &[f64], bins: usize) -> Histogram {
-    let clean: Vec<f64> = ft.iter().copied().filter(|x| x.is_finite() && *x > 0.0).collect();
+    let clean: Vec<f64> = ft
+        .iter()
+        .copied()
+        .filter(|x| x.is_finite() && *x > 0.0)
+        .collect();
     let bins = bins.max(1);
     if clean.is_empty() {
-        return Histogram { start_ms: 0.0, width_ms: 1.0, counts: vec![0; bins], overflow: 0 };
+        return Histogram {
+            start_ms: 0.0,
+            width_ms: 1.0,
+            counts: vec![0; bins],
+            overflow: 0,
+        };
     }
     let lo = clean.iter().copied().fold(f64::INFINITY, f64::min);
     let hi = quantile(&clean, 0.999).unwrap_or(lo).max(lo + 0.1);
@@ -444,7 +459,12 @@ pub fn histogram(ft: &[f64], bins: usize) -> Histogram {
             counts[i.max(0) as usize] += 1;
         }
     }
-    Histogram { start_ms: round(start, 2), width_ms: round(width, 4), counts, overflow }
+    Histogram {
+        start_ms: round(start, 2),
+        width_ms: round(width, 4),
+        counts,
+        overflow,
+    }
 }
 
 /// Min/max downsampling for the frametime-over-time chart: at most
@@ -483,14 +503,26 @@ mod tests {
         assert!(close(quantile_sorted(&s, 0.5).unwrap(), 5.5, 1e-12));
         let s: Vec<f64> = (1..=100).map(f64::from).collect();
         // h = (100 + 1/3)·0.99 + 1/3 = 99.6633…
-        assert!(close(quantile_sorted(&s, 0.99).unwrap(), 99.663_333_333, 1e-6));
-        assert!(close(quantile_sorted(&s, 0.01).unwrap(), 1.336_666_666, 1e-6));
+        assert!(close(
+            quantile_sorted(&s, 0.99).unwrap(),
+            99.663_333_333,
+            1e-6
+        ));
+        assert!(close(
+            quantile_sorted(&s, 0.01).unwrap(),
+            1.336_666_666,
+            1e-6
+        ));
         assert_eq!(quantile_sorted(&s, 0.0), Some(1.0));
         assert_eq!(quantile_sorted(&s, 1.0), Some(100.0));
         assert_eq!(quantile_sorted(&[], 0.5), None);
         assert_eq!(quantile_sorted(&s, 1.5), None);
         // Three values: h = 3.3333·0.25 + 0.3333 = 1.1667 → 1 + 0.1667·(2-1)
-        assert!(close(quantile(&[3.0, 1.0, 2.0], 0.25).unwrap(), 1.166_666_667, 1e-6));
+        assert!(close(
+            quantile(&[3.0, 1.0, 2.0], 0.25).unwrap(),
+            1.166_666_667,
+            1e-6
+        ));
     }
 
     // Cases of CapFrameX's FrametimeStatisticProviderTest.cs.
@@ -519,7 +551,10 @@ mod tests {
 
     #[test]
     fn capframex_integral_cases() {
-        assert_eq!(high_integral(&[10.0, 10.0, 10.0, 10.0, 100.0], 0.99), Some(100.0));
+        assert_eq!(
+            high_integral(&[10.0, 10.0, 10.0, 10.0, 100.0], 0.99),
+            Some(100.0)
+        );
         let seq: Vec<f64> = (1..=10).map(|x| x as f64 * 10.0).collect();
         // total 550, 10% = 55: 100 alone is 100 ≥ 55.
         assert_eq!(high_integral(&seq, 0.90), Some(100.0));
@@ -541,7 +576,10 @@ mod tests {
 
     #[test]
     fn capframex_variance_buckets() {
-        assert_eq!(variance_buckets(&[0.0, 1.0, 4.0, 10.0, 20.0, 35.0]), [0.2; 5]);
+        assert_eq!(
+            variance_buckets(&[0.0, 1.0, 4.0, 10.0, 20.0, 35.0]),
+            [0.2; 5]
+        );
         assert_eq!(variance_buckets(&[10.0, f64::NAN, 11.0]), [0.0; 5]);
     }
 
@@ -573,9 +611,19 @@ mod tests {
         assert_eq!(s.stutters, 2);
         assert_eq!(st[0].t_ms, 1600.0);
         assert_eq!(s.freezes, 1);
-        assert_eq!(fr[0], Event { t_ms: 2400.0, frametime_ms: 120.0 });
+        assert_eq!(
+            fr[0],
+            Event {
+                t_ms: 2400.0,
+                frametime_ms: 120.0
+            }
+        );
         let total: f64 = seq.iter().sum();
-        assert!(close(s.stutter_time_pct.unwrap(), round(100.0 * 180.0 / total, 2), 1e-9));
+        assert!(close(
+            s.stutter_time_pct.unwrap(),
+            round(100.0 * 180.0 / total, 2),
+            1e-9
+        ));
         // A frame of 40 ms (25 FPS) is not under 25 FPS; 60 ms is a stutter.
         assert_eq!(s.low_fps_time_pct, Some(0.0));
     }
@@ -612,9 +660,15 @@ mod tests {
         let ft = d.iter().find(|x| x.metric == "frametime_avg_ms").unwrap();
         assert_eq!(ft.verdict, "better"); // lower frametime is better
         let same = compare(&before, &mk(60.3), &flat, &flat);
-        assert_eq!(same.iter().find(|x| x.metric == "fps_avg").unwrap().verdict, "same");
+        assert_eq!(
+            same.iter().find(|x| x.metric == "fps_avg").unwrap().verdict,
+            "same"
+        );
         let worse = compare(&before, &mk(50.0), &flat, &flat);
-        assert_eq!(worse.iter().find(|x| x.metric == "low_1").unwrap().verdict, "worse");
+        assert_eq!(
+            worse.iter().find(|x| x.metric == "low_1").unwrap().verdict,
+            "worse"
+        );
     }
 
     #[test]
@@ -622,7 +676,12 @@ mod tests {
         let mut ft = vec![10.0; 200];
         ft.extend(vec![20.0; 200]);
         let spread = half_spread(&ft);
-        let avg = spread.iter().find(|(m, _)| *m == "fps_avg").unwrap().1.unwrap();
+        let avg = spread
+            .iter()
+            .find(|(m, _)| *m == "fps_avg")
+            .unwrap()
+            .1
+            .unwrap();
         // 100 vs 50 FPS: 200·50/150 = 66.67 %
         assert!(close(avg, 66.67, 0.01));
         assert!(half_spread(&[10.0; 20]).iter().all(|(_, v)| v.is_none()));

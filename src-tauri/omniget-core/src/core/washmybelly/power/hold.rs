@@ -70,6 +70,8 @@ struct Manual {
 struct Inner {
     manual: Option<Manual>,
     auto: BTreeMap<u64, String>,
+    /// Holders that do not depend on the setting (game mode for a PID).
+    tasks: BTreeMap<u64, String>,
     auto_enabled: bool,
     next: u64,
     guard: Option<Box<dyn Send>>,
@@ -157,9 +159,23 @@ impl Holds {
         Some(id)
     }
 
+    /// A holder that ignores the automatic setting (the person asked for
+    /// it, e.g. game mode on a PID).
+    pub fn task_begin(&self, reason: &str) -> Result<u64, String> {
+        let mut g = self.lock();
+        g.next += 1;
+        let id = g.next;
+        g.tasks.insert(id, reason.to_string());
+        if let Err(e) = self.sync(&mut g) {
+            g.tasks.remove(&id);
+            return Err(e);
+        }
+        Ok(id)
+    }
+
     pub fn auto_end(&self, id: u64) {
         let mut g = self.lock();
-        if g.auto.remove(&id).is_some() {
+        if g.auto.remove(&id).is_some() || g.tasks.remove(&id).is_some() {
             let _ = self.sync(&mut g);
         }
     }
@@ -170,7 +186,7 @@ impl Holds {
     }
 
     fn wanted(g: &Inner) -> bool {
-        g.manual.is_some() || !g.auto.is_empty()
+        g.manual.is_some() || !g.auto.is_empty() || !g.tasks.is_empty()
     }
 
     fn sync(&self, g: &mut Inner) -> Result<(), String> {
@@ -187,7 +203,15 @@ impl Holds {
                 m.reason.clone(),
                 Some((m.until - self.clock.now()).max(1) as u64),
             ),
-            None => (g.auto.values().next().cloned().unwrap_or_default(), None),
+            None => (
+                g.auto
+                    .values()
+                    .chain(g.tasks.values())
+                    .next()
+                    .cloned()
+                    .unwrap_or_default(),
+                None,
+            ),
         };
         match self.backend.acquire(&reason, max) {
             Ok(guard) => {
@@ -208,7 +232,7 @@ impl Holds {
             until: g.manual.as_ref().map(|m| m.until),
             started: g.manual.as_ref().map(|m| m.started),
             reason: g.manual.as_ref().map(|m| m.reason.clone()),
-            auto_holders: g.auto.values().cloned().collect(),
+            auto_holders: g.auto.values().chain(g.tasks.values()).cloned().collect(),
             auto_enabled: g.auto_enabled,
             backend: self.backend.name().to_string(),
             error: g.error.clone(),
@@ -282,6 +306,75 @@ pub fn auto_hold_begin(reason: &str) -> HoldToken {
         persist(&h.state());
     }
     HoldToken { id }
+}
+
+/// Hold for as long as the caller keeps the token, whatever the automatic
+/// setting says (the person asked for it). Errors when the system refuses.
+pub fn hold_for(reason: &str) -> Result<HoldToken, String> {
+    let h = global();
+    let id = h.task_begin(reason)?;
+    persist(&h.state());
+    Ok(HoldToken { id: Some(id) })
+}
+
+/// Longest a PID hold may last, in case a PID is reused.
+pub const PID_HOLD_MAX_SECS: u64 = 12 * 3600;
+
+/// Hold while process `pid` runs (game mode): a watcher thread checks it
+/// every two seconds and lets go when it exits, after
+/// [`PID_HOLD_MAX_SECS`], or when `stop` is dropped/sent.
+pub fn hold_while_pid(pid: u32, reason: &str) -> Result<std::sync::mpsc::Sender<()>, String> {
+    if !pid_alive(pid) {
+        return Err(format!("process {pid} is not running"));
+    }
+    let token = hold_for(reason)?;
+    let (tx, rx) = std::sync::mpsc::channel::<()>();
+    std::thread::Builder::new()
+        .name("wmb-power-pid-hold".into())
+        .spawn(move || {
+            let start = std::time::Instant::now();
+            while let Err(std::sync::mpsc::RecvTimeoutError::Timeout) =
+                rx.recv_timeout(std::time::Duration::from_secs(2))
+            {
+                if !pid_alive(pid) || start.elapsed().as_secs() >= PID_HOLD_MAX_SECS {
+                    break;
+                }
+            }
+            drop(token);
+        })
+        .map_err(|e| e.to_string())?;
+    Ok(tx)
+}
+
+/// Is `pid` still running? (Never signals it: `kill(pid, 0)` only checks.)
+pub fn pid_alive(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        let r = unsafe { libc::kill(pid as libc::pid_t, 0) };
+        r == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::Threading::{
+            GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+        };
+        let h = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+        if h.is_null() {
+            return false;
+        }
+        let mut code = 0u32;
+        let ok = unsafe { GetExitCodeProcess(h, &mut code) };
+        unsafe { CloseHandle(h) };
+        ok != 0 && code == 259 // STILL_ACTIVE
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        false
+    }
 }
 
 /// Mirror of the app setting `washmybelly.auto_hold_power`.
@@ -394,6 +487,39 @@ mod tests {
         h.set_auto(false);
         assert_eq!(live.load(Ordering::SeqCst), 0);
         assert!(h.state().auto_holders.is_empty());
+    }
+
+    #[test]
+    fn task_holds_ignore_the_setting_and_survive_turning_it_off() {
+        let (h, _, live, _) = setup(false);
+        let id = h.task_begin("game").unwrap();
+        assert_eq!(live.load(Ordering::SeqCst), 1);
+        h.set_auto(false);
+        assert_eq!(
+            live.load(Ordering::SeqCst),
+            1,
+            "game mode is not an automatic hold"
+        );
+        assert_eq!(h.state().auto_holders, ["game"]);
+        h.auto_end(id);
+        assert_eq!(live.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn pid_alive_sees_ourselves_and_not_a_dead_pid() {
+        assert!(pid_alive(std::process::id()));
+        assert!(!pid_alive(0));
+        let mut child = std::process::Command::new(if cfg!(windows) { "cmd" } else { "true" })
+            .args(if cfg!(windows) {
+                &["/C", "exit"][..]
+            } else {
+                &[][..]
+            })
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+        child.wait().unwrap();
+        assert!(!pid_alive(pid), "a reaped child is gone");
     }
 
     #[test]

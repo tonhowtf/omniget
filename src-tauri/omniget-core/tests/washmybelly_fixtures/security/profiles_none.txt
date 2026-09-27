@@ -1,0 +1,1 @@
+There are no configuration profiles installed for user 'someone'

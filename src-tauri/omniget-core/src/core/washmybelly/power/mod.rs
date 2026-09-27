@@ -33,7 +33,9 @@ use super::receipt::Undo;
 use super::store::Ctx;
 use super::Risk;
 
-pub use hold::{auto_hold_begin, set_auto_hold, HoldState, HoldToken};
+pub use hold::{
+    auto_hold_begin, hold_for, hold_while_pid, pid_alive, set_auto_hold, HoldState, HoldToken,
+};
 
 const MODULE: &str = "power";
 /// Plan kind of the candidates `wmb_power_status` registers.
@@ -831,6 +833,11 @@ pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
                     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
                     let path = dir.join("battery-report.html");
                     windows::battery_report(&path)?;
+                    // Our own file in our own folder: explorer opens it
+                    // with the default browser. Path in argv.
+                    let _ = crate::core::process::std_command("explorer")
+                        .arg(&path)
+                        .spawn();
                     return Ok(json!({ "path": path }));
                 }
                 #[allow(unreachable_code)]

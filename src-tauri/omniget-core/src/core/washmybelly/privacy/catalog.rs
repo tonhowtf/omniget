@@ -18,9 +18,18 @@ use serde::{Deserialize, Serialize};
 use super::compiler::{self, Call, CategoryData, Collection, Compiler, Node, ScriptData, Visit};
 use crate::core::washmybelly::{Os, Risk};
 
-pub const WINDOWS_YAML: &str = include_str!("../../../../../data/washmybelly/privacy-sexy/windows.yaml");
-pub const MACOS_YAML: &str = include_str!("../../../../../data/washmybelly/privacy-sexy/macos.yaml");
-pub const LINUX_YAML: &str = include_str!("../../../../../data/washmybelly/privacy-sexy/linux.yaml");
+pub const WINDOWS_YAML: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/data/washmybelly/privacy-sexy/windows.yaml"
+));
+pub const MACOS_YAML: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/data/washmybelly/privacy-sexy/macos.yaml"
+));
+pub const LINUX_YAML: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/data/washmybelly/privacy-sexy/linux.yaml"
+));
 
 /// Top categories whose items weaken the system or uninstall apps: shown
 /// only on the screen, with their own warning, never in a preset or an
@@ -40,10 +49,19 @@ const LEFT_OUT_FUNCTIONS: &[&str] = &["SetMpPreference"];
 
 /// Functions that only remove files or data: the item is a one-time cleanup.
 const CLEANUP_FUNCTIONS: &[&str] = &[
-    "ClearDirectoryContents", "DeleteFiles", "SoftDeleteFiles", "DeleteDirectory", "DeleteGlob",
-    "DeleteFilesFromFirefoxProfiles", "ClearRegistryValues", "DeleteFileFromThunderbirdProfiles",
-    "DeleteFileFromUserAndRootHome", "ClearDirFromVsCodeUserDataDir", "DeleteFileFromGNOMEWebData",
-    "CleanTableFromFirefoxProfileDatabase", "IterateGlob",
+    "ClearDirectoryContents",
+    "DeleteFiles",
+    "SoftDeleteFiles",
+    "DeleteDirectory",
+    "DeleteGlob",
+    "DeleteFilesFromFirefoxProfiles",
+    "ClearRegistryValues",
+    "DeleteFileFromThunderbirdProfiles",
+    "DeleteFileFromUserAndRootHome",
+    "ClearDirFromVsCodeUserDataDir",
+    "DeleteFileFromGNOMEWebData",
+    "CleanTableFromFirefoxProfileDatabase",
+    "IterateGlob",
 ];
 
 /// What a registry fact does when privacy.sexy reverts it.
@@ -60,9 +78,19 @@ pub enum RegRevert {
 #[serde(tag = "fact", rename_all = "snake_case")]
 pub enum Fact {
     /// Windows registry value set to `data`.
-    RegSet { key: String, name: String, kind: String, data: String, revert: RegRevert },
+    RegSet {
+        key: String,
+        name: String,
+        kind: String,
+        data: String,
+        revert: RegRevert,
+    },
     /// Windows registry value removed.
-    RegDelete { key: String, name: String, revert: RegRevert },
+    RegDelete {
+        key: String,
+        name: String,
+        revert: RegRevert,
+    },
     /// Windows registry key removed or renamed (read only).
     RegKeyGone { key: String },
     /// Windows service start type set to disabled (`sc.exe config`).
@@ -71,13 +99,31 @@ pub enum Fact {
     /// `Name_*` pattern for per-user services).
     ServiceReg { name: String, default_mode: String },
     /// Windows scheduled tasks matching the patterns disabled.
-    Task { path: String, name: String, enable_on_revert: bool },
+    Task {
+        path: String,
+        name: String,
+        enable_on_revert: bool,
+    },
     /// Windows hosts file line (read only; the hosts module writes it).
     HostsBlock { domain: String },
+    /// Windows Store app removed for this user (read only).
+    StoreApp { package: String },
+    /// Windows Explorer `DisallowRun` entry for an executable (read only).
+    DisallowRun { exe: String },
     /// macOS `defaults write` (user domain unless `sudo`).
-    Defaults { domain: String, key: String, kind: Option<String>, value: String, sudo: bool },
+    Defaults {
+        domain: String,
+        key: String,
+        kind: Option<String>,
+        value: String,
+        sudo: bool,
+    },
     /// macOS `defaults delete domain key`.
-    DefaultsDelete { domain: String, key: String, sudo: bool },
+    DefaultsDelete {
+        domain: String,
+        key: String,
+        sudo: bool,
+    },
     /// macOS `tccutil reset <service>`: one-time, cannot be undone.
     TccReset { service: String },
     /// Linux systemd unit disabled.
@@ -89,7 +135,11 @@ pub enum Fact {
     /// VS Code `settings.json` value (read only).
     VsCodeSetting { name: String, json: String },
     /// A configuration file line (read only).
-    ConfigLine { path: String, on: String, off: String },
+    ConfigLine {
+        path: String,
+        on: String,
+        off: String,
+    },
     /// The item only applies when this command exists.
     CommandExists { command: String },
     /// Something no fact describes.
@@ -100,10 +150,20 @@ impl Fact {
     /// The fact can be changed by a typed operation (not free code).
     pub fn executable(&self, os: Os) -> bool {
         match self {
-            Fact::RegSet { key, .. } | Fact::RegDelete { key, .. } => os == Os::Windows && hive(key).is_some() && !key.contains('$'),
+            Fact::RegSet { key, .. } | Fact::RegDelete { key, .. } => {
+                os == Os::Windows && hive(key).is_some() && !key.contains('$')
+            }
             Fact::Service { .. } | Fact::ServiceReg { .. } | Fact::Task { .. } => os == Os::Windows,
-            Fact::Defaults { sudo, .. } | Fact::DefaultsDelete { sudo, .. } => os == Os::Macos && !sudo,
-            Fact::TccReset { .. } => os == Os::Macos,
+            Fact::Defaults { sudo, .. } | Fact::DefaultsDelete { sudo, .. } => {
+                os == Os::Macos && !sudo
+            }
+            // A reset of every permission at once stays copy-only.
+            Fact::TccReset { service } => {
+                os == Os::Macos
+                    && service != "All"
+                    && !service.is_empty()
+                    && service.bytes().all(|b| b.is_ascii_alphanumeric())
+            }
             Fact::Systemd { .. } | Fact::FirefoxPref { .. } => os == Os::Linux,
             Fact::CommandExists { .. } => true,
             _ => false,
@@ -114,9 +174,13 @@ impl Fact {
     pub fn admin(&self) -> bool {
         match self {
             Fact::RegSet { key, .. } | Fact::RegDelete { key, .. } => hive(key) != Some(Hive::User),
-            Fact::Service { .. } | Fact::ServiceReg { .. } | Fact::Task { .. } | Fact::Systemd { .. } | Fact::Package { .. } => true,
+            Fact::Service { .. }
+            | Fact::ServiceReg { .. }
+            | Fact::Task { .. }
+            | Fact::Systemd { .. }
+            | Fact::Package { .. } => true,
             Fact::Defaults { sudo, .. } | Fact::DefaultsDelete { sudo, .. } => *sudo,
-            Fact::HostsBlock { .. } => true,
+            Fact::HostsBlock { .. } | Fact::StoreApp { .. } => true,
             _ => false,
         }
     }
@@ -138,7 +202,9 @@ pub fn hive(key: &str) -> Option<Hive> {
     let root = key.split('\\').next()?.to_ascii_uppercase();
     match root.as_str() {
         "HKCU" | "HKEY_CURRENT_USER" => Some(Hive::User),
-        "HKLM" | "HKEY_LOCAL_MACHINE" | "HKU" | "HKEY_USERS" | "HKCR" | "HKEY_CLASSES_ROOT" => Some(Hive::Machine),
+        "HKLM" | "HKEY_LOCAL_MACHINE" | "HKU" | "HKEY_USERS" | "HKCR" | "HKEY_CLASSES_ROOT" => {
+            Some(Hive::Machine)
+        }
         _ => None,
     }
 }
@@ -221,7 +287,10 @@ impl Item {
     /// Every part is a typed operation (nothing free-form to run).
     pub fn executable(&self) -> bool {
         self.opaque_reason.is_none()
-            && self.parts.iter().any(|p| !matches!(p.fact, Fact::CommandExists { .. }))
+            && self
+                .parts
+                .iter()
+                .any(|p| !matches!(p.fact, Fact::CommandExists { .. }))
             && self.parts.iter().all(|p| p.fact.executable(self.os))
     }
 
@@ -246,15 +315,23 @@ impl Item {
     /// Typed parts of "back to the default" (privacy.sexy's revert code).
     pub fn default_parts(&self) -> Option<Vec<Part>> {
         if let Some(r) = &self.revert_parts {
-            return (!r.is_empty() && r.iter().all(|p| p.fact.executable(self.os))).then(|| r.clone());
+            return (!r.is_empty() && r.iter().all(|p| p.fact.executable(self.os)))
+                .then(|| r.clone());
         }
         if !self.has_revert || !self.executable() {
             return None;
         }
         let reverts = self.parts.iter().any(|p| match &p.fact {
-            Fact::RegSet { revert, .. } | Fact::RegDelete { revert, .. } => *revert != RegRevert::None,
-            Fact::Service { .. } | Fact::ServiceReg { .. } | Fact::Systemd { .. } | Fact::FirefoxPref { .. } => true,
-            Fact::Task { enable_on_revert, .. } => *enable_on_revert,
+            Fact::RegSet { revert, .. } | Fact::RegDelete { revert, .. } => {
+                *revert != RegRevert::None
+            }
+            Fact::Service { .. }
+            | Fact::ServiceReg { .. }
+            | Fact::Systemd { .. }
+            | Fact::FirefoxPref { .. } => true,
+            Fact::Task {
+                enable_on_revert, ..
+            } => *enable_on_revert,
             _ => false,
         });
         reverts.then(|| self.parts.clone())
@@ -280,7 +357,8 @@ impl Catalog {
     }
 }
 
-static CATALOGS: [OnceLock<Result<Catalog, String>>; 3] = [OnceLock::new(), OnceLock::new(), OnceLock::new()];
+static CATALOGS: [OnceLock<Result<Catalog, String>>; 3] =
+    [OnceLock::new(), OnceLock::new(), OnceLock::new()];
 
 /// The catalog of a system (parsed on first use, then kept).
 pub fn catalog(os: Os) -> Result<&'static Catalog, String> {
@@ -289,7 +367,9 @@ pub fn catalog(os: Os) -> Result<&'static Catalog, String> {
         Os::Macos => (&CATALOGS[1], MACOS_YAML),
         Os::Linux => (&CATALOGS[2], LINUX_YAML),
     };
-    slot.get_or_init(|| build(os, yaml)).as_ref().map_err(Clone::clone)
+    slot.get_or_init(|| build(os, yaml))
+        .as_ref()
+        .map_err(Clone::clone)
 }
 
 pub fn build(os: Os, yaml: &str) -> Result<Catalog, String> {
@@ -302,10 +382,22 @@ pub fn build(os: Os, yaml: &str) -> Result<Catalog, String> {
             walk_category(os, &comp, top, &mut Vec::new(), &mut items, &mut left_out)?;
         }
     }
-    Ok(Catalog { os, collection, items, left_out })
+    Ok(Catalog {
+        os,
+        collection,
+        items,
+        left_out,
+    })
 }
 
-fn walk_category(os: Os, comp: &Compiler, cat: &CategoryData, path: &mut Vec<String>, out: &mut Vec<Item>, left_out: &mut usize) -> Result<(), String> {
+fn walk_category(
+    os: Os,
+    comp: &Compiler,
+    cat: &CategoryData,
+    path: &mut Vec<String>,
+    out: &mut Vec<Item>,
+    left_out: &mut usize,
+) -> Result<(), String> {
     path.push(cat.category.clone());
     for child in &cat.children {
         match child {
@@ -321,7 +413,12 @@ fn walk_category(os: Os, comp: &Compiler, cat: &CategoryData, path: &mut Vec<Str
 }
 
 /// One script as an item; `None` when it is on the left-out list.
-pub fn item(os: Os, comp: &Compiler, s: &ScriptData, path: &[String]) -> Result<Option<Item>, String> {
+pub fn item(
+    os: Os,
+    comp: &Compiler,
+    s: &ScriptData,
+    path: &[String],
+) -> Result<Option<Item>, String> {
     if path.iter().any(|p| LEFT_OUT.is_match(p)) || LEFT_OUT.is_match(&s.name) {
         return Ok(None);
     }
@@ -330,11 +427,22 @@ pub fn item(os: Os, comp: &Compiler, s: &ScriptData, path: &[String]) -> Result<
     let mut revert_parts = None;
     if let Some(calls) = &s.call {
         let calls = compiler::parse_calls(calls).map_err(|e| format!("{}: {e}", s.name))?;
-        comp.walk(&calls, &mut |c, inline| x.visit(c, inline)).map_err(|e| format!("{}: {e}", s.name))?;
-        has_revert = !comp.compile_calls(&calls).map_err(|e| format!("{}: {e}", s.name))?.revert.is_empty();
+        for c in &calls {
+            x.root = c.function.clone();
+            comp.walk(std::slice::from_ref(c), &mut |c, inline| x.visit(c, inline))
+                .map_err(|e| format!("{}: {e}", s.name))?;
+        }
+        has_revert = !comp
+            .compile_calls(&calls)
+            .map_err(|e| format!("{}: {e}", s.name))?
+            .revert
+            .is_empty();
     } else {
         x.shell(s.code.as_deref().unwrap_or(""), Builds::default());
-        has_revert = s.revert_code.as_deref().is_some_and(|r| !r.trim().is_empty());
+        has_revert = s
+            .revert_code
+            .as_deref()
+            .is_some_and(|r| !r.trim().is_empty());
         if has_revert {
             let mut r = Extract::new(os);
             r.shell(s.revert_code.as_deref().unwrap_or(""), Builds::default());
@@ -343,6 +451,13 @@ pub fn item(os: Os, comp: &Compiler, s: &ScriptData, path: &[String]) -> Result<
     }
     if x.left_out {
         return Ok(None);
+    }
+    if let Some(probe) = config_probes(os, &s.name) {
+        x.parts = vec![Part {
+            fact: probe,
+            builds: Builds::default(),
+        }];
+        x.not_ours("edits a system file with sed");
     }
     let cleanup = x.cleanup || path.first().is_some_and(|t| t == "Privacy cleanup");
     Ok(Some(Item {
@@ -370,6 +485,8 @@ struct Extract {
     cleanup: bool,
     left_out: bool,
     opaque_reason: Option<String>,
+    /// The function the script called directly (names opaque pieces).
+    root: String,
 }
 
 fn arg<'a>(c: &'a Call, name: &str) -> Option<&'a str> {
@@ -396,6 +513,7 @@ impl Extract {
             cleanup: false,
             left_out: false,
             opaque_reason: None,
+            root: String::new(),
         }
     }
 
@@ -404,7 +522,12 @@ impl Extract {
     }
 
     fn opaque(&mut self, what: &str) {
-        self.push(Fact::Opaque { what: what.to_string() }, Builds::default());
+        let what = if self.root.is_empty() || self.root == what {
+            what.to_string()
+        } else {
+            format!("{} ({what})", self.root)
+        };
+        self.push(Fact::Opaque { what }, Builds::default());
     }
 
     fn not_ours(&mut self, why: &str) {
@@ -440,24 +563,49 @@ impl Extract {
                 let revert = if truthy(arg(c, "deleteOnRevert")) {
                     RegRevert::Delete
                 } else if let Some(d) = arg(c, "dataOnRevert") {
-                    RegRevert::Set { kind: a("dataType"), data: d.to_string() }
+                    RegRevert::Set {
+                        kind: a("dataType"),
+                        data: d.to_string(),
+                    }
                 } else {
                     RegRevert::None
                 };
-                self.push(Fact::RegSet { key: a("keyPath"), name: a("valueName"), kind: a("dataType"), data: a("data"), revert }, builds);
+                self.push(
+                    Fact::RegSet {
+                        key: a("keyPath"),
+                        name: a("valueName"),
+                        kind: a("dataType"),
+                        data: a("data"),
+                        revert,
+                    },
+                    builds,
+                );
             }
             (Os::Windows, "DeleteRegistryValue") => {
-                if truthy(arg(c, "evaluateDataAsPowerShell")) || truthy(arg(c, "matchDataBeforeDelete")) || truthy(arg(c, "grantPermissions")) {
+                if truthy(arg(c, "evaluateDataAsPowerShell"))
+                    || truthy(arg(c, "matchDataBeforeDelete"))
+                    || truthy(arg(c, "grantPermissions"))
+                {
                     self.not_ours("deletes the value under conditions only PowerShell checks");
                 }
                 if truthy(arg(c, "elevateToTrustedInstaller")) {
                     self.not_ours("needs TrustedInstaller");
                 }
                 let revert = match (arg(c, "dataOnRevert"), arg(c, "dataTypeOnRevert")) {
-                    (Some(d), Some(k)) => RegRevert::Set { kind: k.to_string(), data: d.to_string() },
+                    (Some(d), Some(k)) => RegRevert::Set {
+                        kind: k.to_string(),
+                        data: d.to_string(),
+                    },
                     _ => RegRevert::None,
                 };
-                self.push(Fact::RegDelete { key: a("keyPath"), name: a("valueName"), revert }, builds);
+                self.push(
+                    Fact::RegDelete {
+                        key: a("keyPath"),
+                        name: a("valueName"),
+                        revert,
+                    },
+                    builds,
+                );
             }
             (Os::Windows, "DeleteRegistryKey" | "SoftDeleteRegistryKey") => {
                 if truthy(arg(c, "replaceSid")) {
@@ -466,38 +614,127 @@ impl Extract {
                     self.push(Fact::RegKeyGone { key: a("keyPath") }, builds);
                 }
             }
-            (Os::Windows, "DisableService") => self.push(Fact::Service { name: a("serviceName"), default_mode: a("defaultStartupMode").trim().to_string() }, builds),
+            (Os::Windows, "DisableService") => self.push(
+                Fact::Service {
+                    name: a("serviceName"),
+                    default_mode: a("defaultStartupMode").trim().to_string(),
+                },
+                builds,
+            ),
             (Os::Windows, "DisableServiceInRegistry") => {
                 if truthy(arg(c, "elevateToTrustedInstaller")) {
                     self.not_ours("needs TrustedInstaller");
                 }
-                self.push(Fact::ServiceReg { name: a("serviceName"), default_mode: a("defaultStartupMode").trim().to_string() }, builds);
+                self.push(
+                    Fact::ServiceReg {
+                        name: a("serviceName"),
+                        default_mode: a("defaultStartupMode").trim().to_string(),
+                    },
+                    builds,
+                );
             }
             (Os::Windows, "DisableScheduledTask") => {
                 if truthy(arg(c, "grantPermissions")) {
                     self.not_ours("changes the permissions of the task file first");
                 }
-                self.push(Fact::Task { path: a("taskPathPattern"), name: a("taskNamePattern"), enable_on_revert: !truthy(arg(c, "disableOnRevert")) }, builds);
+                self.push(
+                    Fact::Task {
+                        path: a("taskPathPattern"),
+                        name: a("taskNamePattern"),
+                        enable_on_revert: !truthy(arg(c, "disableOnRevert")),
+                    },
+                    builds,
+                );
             }
-            (Os::Windows, "BlockViaHostsFile") => self.push(Fact::HostsBlock { domain: a("domain") }, builds),
-            (Os::Macos, "ResetServicePermissions") => self.push(Fact::TccReset { service: a("serviceId") }, builds),
+            (Os::Windows, "BlockViaHostsFile") => self.push(
+                Fact::HostsBlock {
+                    domain: a("domain"),
+                },
+                builds,
+            ),
+            (
+                Os::Windows,
+                "UninstallStoreApp"
+                | "UninstallNonRemovableStoreApp"
+                | "UninstallNonRemovableStoreAppWithCleanup",
+            ) => self.push(
+                Fact::StoreApp {
+                    package: a("packageName"),
+                },
+                builds,
+            ),
+            // Ends a running process: nothing stays to read or undo.
+            (Os::Windows, "TerminateRunningProcess") => {}
+            (Os::Windows, "BlockExecutablesFromRunningViaShell") => self.push(
+                Fact::DisallowRun {
+                    exe: a("executableNameWithExtension"),
+                },
+                builds,
+            ),
+            (Os::Macos, "ResetServicePermissions") => self.push(
+                Fact::TccReset {
+                    service: a("serviceId"),
+                },
+                builds,
+            ),
             (Os::Linux, "DisableSystemdService") => {
-                self.push(Fact::CommandExists { command: "systemctl".into() }, builds);
-                self.push(Fact::Systemd { unit: a("serviceName") }, builds);
+                self.push(
+                    Fact::CommandExists {
+                        command: "systemctl".into(),
+                    },
+                    builds,
+                );
+                self.push(
+                    Fact::Systemd {
+                        unit: a("serviceName"),
+                    },
+                    builds,
+                );
             }
-            (Os::Linux, "UninstallAptPackage" | "UninstallPacmanPackage" | "UninstallRPMPackage") => {
+            (
+                Os::Linux,
+                "UninstallAptPackage" | "UninstallPacmanPackage" | "UninstallRPMPackage",
+            ) => {
                 let (cmd, manager) = match f {
                     "UninstallAptPackage" => ("apt-get", "apt"),
                     "UninstallPacmanPackage" => ("pacman", "pacman"),
                     _ => ("rpm", "rpm"),
                 };
-                self.push(Fact::CommandExists { command: cmd.into() }, builds);
-                self.push(Fact::Package { manager: manager.into(), name: a("packageName") }, builds);
+                self.push(
+                    Fact::CommandExists {
+                        command: cmd.into(),
+                    },
+                    builds,
+                );
+                self.push(
+                    Fact::Package {
+                        manager: manager.into(),
+                        name: a("packageName"),
+                    },
+                    builds,
+                );
             }
-            (Os::Linux, "AddFirefoxPrefs") => self.push(Fact::FirefoxPref { name: a("prefName"), value: a("jsonValue") }, builds),
-            (Os::Linux, "SetVsCodeSetting") => self.push(Fact::VsCodeSetting { name: a("setting"), json: a("jsonValue") }, builds),
+            (Os::Linux, "AddFirefoxPrefs") => self.push(
+                Fact::FirefoxPref {
+                    name: a("prefName"),
+                    value: a("jsonValue"),
+                },
+                builds,
+            ),
+            (Os::Linux, "SetVsCodeSetting") => self.push(
+                Fact::VsCodeSetting {
+                    name: a("setting"),
+                    json: a("jsonValue"),
+                },
+                builds,
+            ),
             (_, "RunIfCommandExists") => {
-                self.push(Fact::CommandExists { command: a("command") }, builds);
+                self.push(
+                    Fact::CommandExists {
+                        command: a("command"),
+                    },
+                    builds,
+                );
                 self.shell(&a("code"), builds);
             }
             (_, "RunInlineCode") => self.shell(&a("code"), builds),
@@ -564,13 +801,7 @@ pub fn shell_words(line: &str) -> Option<Vec<String>> {
                     match chars.next()? {
                         '"' => break,
                         '\\' => cur.push(chars.next()?),
-                        '$' | '`' => {
-                            // Only $USER/$HOME style variables are kept for expansion later.
-                            if c == '"' {
-                                cur.push('$');
-                            }
-                            return None;
-                        }
+                        '$' | '`' => return None,
                         x => cur.push(x),
                     }
                 }
@@ -606,21 +837,31 @@ fn shell_fact(line: &str) -> Option<ShellLine> {
     };
     let w: Vec<&str> = rest.iter().map(String::as_str).collect();
     match w.as_slice() {
-        ["killall", proc] | ["killall", "-HUP", proc] => Some(ShellLine::Restart((*proc).to_string())),
-        ["defaults", "write", domain, key, flag, value] if flag.starts_with('-') && simple_defaults_type(flag) => Some(ShellLine::Fact(Fact::Defaults {
-            domain: (*domain).to_string(),
-            key: (*key).to_string(),
-            kind: Some(flag.trim_start_matches('-').to_ascii_lowercase()),
-            value: (*value).to_string(),
-            sudo,
-        })),
-        ["defaults", "write", domain, key, value] if !value.starts_with('-') && !value.starts_with('(') && !value.starts_with('{') => Some(ShellLine::Fact(Fact::Defaults {
-            domain: (*domain).to_string(),
-            key: (*key).to_string(),
-            kind: None,
-            value: (*value).to_string(),
-            sudo,
-        })),
+        ["killall", proc] | ["killall", "-HUP", proc] => {
+            Some(ShellLine::Restart((*proc).to_string()))
+        }
+        ["defaults", "write", domain, key, flag, value]
+            if flag.starts_with('-') && simple_defaults_type(flag) =>
+        {
+            Some(ShellLine::Fact(Fact::Defaults {
+                domain: (*domain).to_string(),
+                key: (*key).to_string(),
+                kind: Some(flag.trim_start_matches('-').to_ascii_lowercase()),
+                value: (*value).to_string(),
+                sudo,
+            }))
+        }
+        ["defaults", "write", domain, key, value]
+            if !value.starts_with('-') && !value.starts_with('(') && !value.starts_with('{') =>
+        {
+            Some(ShellLine::Fact(Fact::Defaults {
+                domain: (*domain).to_string(),
+                key: (*key).to_string(),
+                kind: None,
+                value: (*value).to_string(),
+                sudo,
+            }))
+        }
         ["defaults", "delete", domain, key] => Some(ShellLine::Fact(Fact::DefaultsDelete {
             domain: (*domain).to_string(),
             key: (*key).to_string(),
@@ -630,15 +871,24 @@ fn shell_fact(line: &str) -> Option<ShellLine> {
     }
     .filter(|l| match l {
         // A `$VAR` we cannot resolve makes the line free-form.
-        ShellLine::Fact(Fact::Defaults { domain, key, .. }) | ShellLine::Fact(Fact::DefaultsDelete { domain, key, .. }) => {
-            !key.contains('$') && domain.replace("$USER", "").replace("$HOME", "").chars().all(|c| c != '$')
+        ShellLine::Fact(Fact::Defaults { domain, key, .. })
+        | ShellLine::Fact(Fact::DefaultsDelete { domain, key, .. }) => {
+            !key.contains('$')
+                && domain
+                    .replace("$USER", "")
+                    .replace("$HOME", "")
+                    .chars()
+                    .all(|c| c != '$')
         }
         _ => true,
     })
 }
 
 fn simple_defaults_type(flag: &str) -> bool {
-    matches!(flag.to_ascii_lowercase().as_str(), "-bool" | "-boolean" | "-int" | "-integer" | "-float" | "-string")
+    matches!(
+        flag.to_ascii_lowercase().as_str(),
+        "-bool" | "-boolean" | "-int" | "-integer" | "-float" | "-string"
+    )
 }
 
 /// Configuration-file probes for inline Linux scripts that edit a known key.
@@ -647,12 +897,26 @@ pub fn config_probes(os: Os, name: &str) -> Option<Fact> {
         return None;
     }
     let (path, on, off) = match name {
-        "Disable participation in Popularity Contest" => ("/etc/popularity-contest.conf", "PARTICIPATE=no", "PARTICIPATE=yes"),
-        "Disable participation in Apport error messaging system" => ("/etc/default/apport", "enabled=0", "enabled=1"),
-        "Disable crash report submissions" => ("/etc/default/whoopsie", "report_crashes=false", "report_crashes=true"),
+        "Disable participation in Popularity Contest" => (
+            "/etc/popularity-contest.conf",
+            "PARTICIPATE=no",
+            "PARTICIPATE=yes",
+        ),
+        "Disable participation in Apport error messaging system" => {
+            ("/etc/default/apport", "enabled=0", "enabled=1")
+        }
+        "Disable crash report submissions" => (
+            "/etc/default/whoopsie",
+            "report_crashes=false",
+            "report_crashes=true",
+        ),
         _ => return None,
     };
-    Some(Fact::ConfigLine { path: path.into(), on: on.into(), off: off.into() })
+    Some(Fact::ConfigLine {
+        path: path.into(),
+        on: on.into(),
+        off: off.into(),
+    })
 }
 
 /// Counts by kind of fact, for the coverage report.
@@ -660,11 +924,41 @@ pub fn coverage(c: &Catalog) -> BTreeMap<&'static str, usize> {
     let mut m = BTreeMap::new();
     m.insert("items", c.items.len());
     m.insert("left_out", c.left_out);
-    m.insert("executable", c.items.iter().filter(|i| i.executable()).count());
-    m.insert("code_only", c.items.iter().filter(|i| i.code_only()).count());
-    m.insert("state_readable", c.items.iter().filter(|i| super::state::readable(i)).count());
+    m.insert(
+        "executable",
+        c.items.iter().filter(|i| i.executable()).count(),
+    );
+    m.insert(
+        "code_only",
+        c.items.iter().filter(|i| i.code_only()).count(),
+    );
+    m.insert(
+        "state_readable",
+        c.items.iter().filter(|i| super::state::readable(i)).count(),
+    );
     m.insert("extreme", c.items.iter().filter(|i| i.extreme()).count());
     m.insert("cleanup", c.items.iter().filter(|i| i.cleanup).count());
+    m
+}
+
+/// What keeps settings (not cleanups) from being read: opaque pieces by
+/// function, for the coverage report.
+pub fn blockers(c: &Catalog) -> BTreeMap<String, usize> {
+    let mut m = BTreeMap::new();
+    for it in c
+        .items
+        .iter()
+        .filter(|i| !i.cleanup && !super::state::readable(i))
+    {
+        for p in &it.parts {
+            let key = match &p.fact {
+                Fact::Opaque { what } => what.clone(),
+                Fact::TccReset { .. } => "TccReset".into(),
+                _ => continue,
+            };
+            *m.entry(key).or_default() += 1;
+        }
+    }
     m
 }
 
@@ -689,16 +983,30 @@ mod tests {
         for it in &c.items {
             let text = format!("{} {}", it.path.join(" / "), it.name);
             assert!(!LEFT_OUT.is_match(&text), "{text}");
-            assert!(!it.parts.iter().any(|p| matches!(&p.fact, Fact::Opaque { what } if what == "SetMpPreference")));
+            assert!(!it
+                .parts
+                .iter()
+                .any(|p| matches!(&p.fact, Fact::Opaque { what } if what == "SetMpPreference")));
         }
-        assert!(c.items.iter().any(|i| i.top() == "Privacy over security"), "the rest of the category stays, as extreme");
-        assert!(c.items.iter().filter(|i| i.top() == "Remove bloatware").all(|i| i.risk() == Risk::Extreme));
+        assert!(
+            c.items.iter().any(|i| i.top() == "Privacy over security"),
+            "the rest of the category stays, as extreme"
+        );
+        assert!(c
+            .items
+            .iter()
+            .filter(|i| i.top() == "Remove bloatware")
+            .all(|i| i.risk() == Risk::Extreme));
     }
 
     #[test]
     fn registry_calls_through_wrappers_become_facts() {
         let c = catalog(Os::Windows).unwrap();
-        let it = c.items.iter().find(|i| i.name == "Disable diagnostic and usage telemetry").unwrap();
+        let it = c
+            .items
+            .iter()
+            .find(|i| i.name == "Disable diagnostic and usage telemetry")
+            .unwrap();
         assert!(it.executable());
         assert!(it.admin());
         assert_eq!(it.recommend.as_deref(), Some("standard"));
@@ -706,48 +1014,105 @@ mod tests {
             .parts
             .iter()
             .filter_map(|p| match &p.fact {
-                Fact::RegSet { key, name, data, .. } => Some(format!("{key}!{name}={data}")),
+                Fact::RegSet {
+                    key, name, data, ..
+                } => Some(format!("{key}!{name}={data}")),
                 _ => None,
             })
             .collect();
-        assert!(keys.iter().any(|k| k.ends_with("DataCollection!AllowTelemetry=0")), "{keys:?}");
+        assert!(
+            keys.iter()
+                .any(|k| k.ends_with("DataCollection!AllowTelemetry=0")),
+            "{keys:?}"
+        );
         // An Edge policy goes through SetEdgePolicyViaRegistry → SetRegistryValue.
         assert!(c.items.iter().any(|i| i.parts.iter().any(|p| matches!(&p.fact, Fact::RegSet { key, .. } if key.contains("Policies\\Microsoft\\Edge")))));
-        let diag = c.items.iter().find(|i| i.name.contains("DiagTrack")).unwrap();
-        assert!(matches!(&diag.parts[0].fact, Fact::Service { name, default_mode } if name == "DiagTrack" && default_mode == "Automatic"));
+        let diag = c
+            .items
+            .iter()
+            .find(|i| i.name.contains("DiagTrack"))
+            .unwrap();
+        assert!(
+            matches!(&diag.parts[0].fact, Fact::Service { name, default_mode } if name == "DiagTrack" && default_mode == "Automatic")
+        );
     }
 
     #[test]
     fn macos_defaults_lines_become_facts() {
         let c = catalog(Os::Macos).unwrap();
-        let it = c.items.iter().find(|i| i.name == "Disable online spell correction").unwrap();
+        let it = c
+            .items
+            .iter()
+            .find(|i| i.name == "Disable online spell correction")
+            .unwrap();
         assert_eq!(
             it.parts[0].fact,
-            Fact::Defaults { domain: "NSGlobalDomain".into(), key: "WebAutomaticSpellingCorrectionEnabled".into(), kind: Some("bool".into()), value: "false".into(), sudo: false }
+            Fact::Defaults {
+                domain: "NSGlobalDomain".into(),
+                key: "WebAutomaticSpellingCorrectionEnabled".into(),
+                kind: Some("bool".into()),
+                value: "false".into(),
+                sudo: false
+            }
         );
         assert!(it.executable());
         assert!(it.default_parts().is_some());
-        let shot = c.items.iter().find(|i| i.name == "Disable date and time in screenshot filenames").unwrap();
+        let shot = c
+            .items
+            .iter()
+            .find(|i| i.name == "Disable date and time in screenshot filenames")
+            .unwrap();
         assert_eq!(shot.restart, vec!["SystemUIServer".to_string()]);
-        let sudo = c.items.iter().find(|i| i.name == "Enable password requirement for waking from sleep or screen saver").unwrap();
-        assert!(sudo.code_only(), "sudo defaults need an elevated defaults operation");
-        let cam = c.items.iter().find(|i| i.name == "Clear Camera permissions").unwrap();
-        assert!(cam.parts.iter().any(|p| matches!(&p.fact, Fact::TccReset { service } if service == "Camera")));
+        let sudo = c
+            .items
+            .iter()
+            .find(|i| i.name == "Enable password requirement for waking from sleep or screen saver")
+            .unwrap();
+        assert!(
+            sudo.code_only(),
+            "sudo defaults need an elevated defaults operation"
+        );
+        let cam = c
+            .items
+            .iter()
+            .find(|i| i.name == "Clear \"Camera\" permissions")
+            .unwrap();
+        assert!(cam
+            .parts
+            .iter()
+            .any(|p| matches!(&p.fact, Fact::TccReset { service } if service == "Camera")));
         assert_eq!(cam.risk(), Risk::Destructive);
     }
 
     #[test]
     fn linux_functions_become_facts() {
         let c = catalog(Os::Linux).unwrap();
-        assert!(c.items.iter().any(|i| i.parts.iter().any(|p| matches!(&p.fact, Fact::Systemd { .. }))));
-        let ff = c.items.iter().find(|i| i.parts.iter().any(|p| matches!(p.fact, Fact::FirefoxPref { .. }))).unwrap();
+        assert!(c.items.iter().any(|i| i
+            .parts
+            .iter()
+            .any(|p| matches!(&p.fact, Fact::Systemd { .. }))));
+        let ff = c
+            .items
+            .iter()
+            .find(|i| {
+                i.parts
+                    .iter()
+                    .any(|p| matches!(p.fact, Fact::FirefoxPref { .. }))
+            })
+            .unwrap();
         assert!(ff.executable());
     }
 
     #[test]
     fn shell_words_handle_quotes_and_refuse_expansion() {
-        assert_eq!(shell_words("defaults write 'com.a b' \"K y\" -bool no").unwrap(), vec!["defaults", "write", "com.a b", "K y", "-bool", "no"]);
-        assert_eq!(shell_words(r"rm -rf ~/a\ b").unwrap(), vec!["rm", "-rf", "~/a b"]);
+        assert_eq!(
+            shell_words("defaults write 'com.a b' \"K y\" -bool no").unwrap(),
+            vec!["defaults", "write", "com.a b", "K y", "-bool", "no"]
+        );
+        assert_eq!(
+            shell_words(r"rm -rf ~/a\ b").unwrap(),
+            vec!["rm", "-rf", "~/a b"]
+        );
         assert!(shell_words("rm -rf ~/x/*").is_none());
         assert!(shell_words("echo $(id)").is_none());
         assert!(shell_words("a | b").is_none());
@@ -755,10 +1120,16 @@ mod tests {
 
     #[test]
     fn windows_builds_follow_the_upstream_table() {
-        let b = Builds { min: windows_build("Windows11-22H2", false), max: None };
+        let b = Builds {
+            min: windows_build("Windows11-22H2", false),
+            max: None,
+        };
         assert!(!b.contains(22000));
         assert!(b.contains(22631));
-        let b = Builds { min: None, max: windows_build("Windows10-MostRecent", true) };
+        let b = Builds {
+            min: None,
+            max: windows_build("Windows10-MostRecent", true),
+        };
         assert!(b.contains(19045));
         assert!(!b.contains(22000));
     }

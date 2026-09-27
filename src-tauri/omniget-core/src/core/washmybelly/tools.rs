@@ -26,6 +26,7 @@ pub const PLAN_KINDS: &[&str] = &[
     "packages",
     "hosts",
     "maintenance",
+    "power",
 ];
 
 fn obj(props: Value, required: &[&str]) -> Value {
@@ -129,7 +130,7 @@ fn defs() -> Vec<Def> {
         // ── Performance measurement ───────────────────────────────────
         d("wmb_perf_capabilities", "Whether FPS and frametime can be measured here and how (PresentMon, MangoHud, Metal HUD), and what setup is missing.",
             obj(json!({}), &[]), body!("wmb_perf_capabilities"), Cheap, EVERY_OS, Read),
-        d("wmb_perf_capture_start", "Start measuring frametimes and sensors of a running game (pid or process name). Reads only; never injects into the game on Windows.",
+        d("wmb_perf_capture_start", "Start measuring a running game (pid or process_name). Windows: PresentMon, reads Windows events and never injects. Linux: call without pid to get the MangoHud launch command; the game must be started with it. macOS: sensors only for a running game (frames need the game opened from the OmniGet screen).",
             obj(json!({ "pid": { "type": "integer", "minimum": 1 }, "process_name": { "type": "string" }, "max_seconds": { "type": "integer", "minimum": 5, "maximum": 3600 }, "label": { "type": "string" } }), &[]), body!("wmb_perf_capture_start"), Local, EVERY_OS, Reversible),
         d("wmb_perf_capture_stop", "Stop the running capture and compute its summary.",
             obj(json!({ "session_id": { "type": "string" } }), &[]), body!("wmb_perf_capture_stop"), Local, EVERY_OS, Read),

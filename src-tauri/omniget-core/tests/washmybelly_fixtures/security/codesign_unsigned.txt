@@ -1,0 +1,1 @@
+/Users/someone/Library/LaunchAgents/com.example.agent.plist: code object is not signed at all

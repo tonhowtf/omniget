@@ -47,6 +47,7 @@ pub fn sync_settings(s: &omniget_core::models::settings::WashMyBellySettings) {
         protected_paths_extra: s.protected_paths_extra.clone(),
         perf_tool_path: s.perf_tool_path.clone(),
     });
+    wmb::power::set_auto_hold(s.enabled && s.auto_hold_power);
     if let Ok(mut cache) = SETTINGS_CACHE.lock() {
         *cache = None;
     }
@@ -71,6 +72,8 @@ pub fn start_background(app: AppHandle) {
     }));
     let days = s.quarantine_days.max(1);
     tauri::async_runtime::spawn_blocking(move || {
+        // Undo a game mode a crash left on (power plan, priorities).
+        wmb::game::recover();
         if let Ok(ctx) = wmb::store::Ctx::app() {
             wmb::quarantine::purge_expired(&ctx, days);
         }

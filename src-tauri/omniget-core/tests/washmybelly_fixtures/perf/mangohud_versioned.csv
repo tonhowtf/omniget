@@ -1,0 +1,10 @@
+v1
+0.7.2
+---------------------SYSTEM INFO---------------------
+os,cpu,gpu,ram,kernel,driver,cpuscheduler
+Arch Linux,Intel Core i5-12400,NVIDIA GeForce RTX 3060,16384,6.10.3-arch1-1,NVIDIA 560.35.03,schedutil
+--------------------FRAME METRICS--------------------
+fps,frametime,cpu_load,cpu_power,gpu_load,cpu_temp,gpu_temp,gpu_core_clock,gpu_mem_clock,gpu_vram_used,gpu_power,ram_used,swap_used,process_rss,cpu_mhz,elapsed
+60.024,16.66,22,35.0,71,58,61,1882,7501,3.9,120,6.1,0,1.8,4000,16660000
+59.988,16.67,23,35.2,72,58,61,1882,7501,3.9,121,6.1,0,1.8,4000,33330000
+60.000,16.67,22,35.1,71,58,61,1882,7501,3.9,120,6.1,0,1.8,4000,50000000

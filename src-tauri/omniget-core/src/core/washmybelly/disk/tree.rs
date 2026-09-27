@@ -21,10 +21,10 @@ use serde_json::{json, Map, Value};
 use super::super::fsops;
 
 /// Folder entries with their metadata.
-type Entries = Vec<(OsString, Metadata)>;
-
 /// Files kept by name per folder; the rest fold into `rest_*`.
 const KEEP_FILES: usize = 24;
+/// Folder entries with their metadata.
+type Entries = Vec<(OsString, Metadata)>;
 /// Levels listed on the calling thread before the rest splits into jobs.
 const SPLIT_DEPTH: usize = 2;
 /// Children shown per folder in the output, whatever the fraction.

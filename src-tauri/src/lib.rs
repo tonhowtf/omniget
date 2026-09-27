@@ -1590,6 +1590,9 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app_handle, event| {
             if let tauri::RunEvent::ExitRequested { .. } = &event {
+                // Game mode never outlives OmniGet (Windows power plan,
+                // priorities, screen kept awake).
+                omniget_core::core::washmybelly::game::shutdown();
                 // The managed llama-server dies with the app (phase 2).
                 tauri::async_runtime::block_on(omniget_core::core::llm::local_servers::stop());
                 // Central: terminal shells and the CLI driver sessions of the

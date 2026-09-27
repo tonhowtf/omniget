@@ -1206,6 +1206,8 @@ impl Jobs {
             }
         }
         let _lease = lease;
+        // The computer stays awake while an agent job runs (washmybelly).
+        let _power_hold = omniget_core::core::washmybelly::power::auto_hold_begin("agent job");
         let mut job = self.job(id)?;
         if job.state == "cancelled" {
             return Some(job);
@@ -2023,6 +2025,7 @@ impl Jobs {
         let Some(mut l) = self.loop_get(&id) else {
             return;
         };
+        let _power_hold = omniget_core::core::washmybelly::power::auto_hold_begin("agent loop");
         // A scheduled loop counts the minutes spent in rounds, not the wall clock.
         let deadline = if l.schedule.is_some() {
             None

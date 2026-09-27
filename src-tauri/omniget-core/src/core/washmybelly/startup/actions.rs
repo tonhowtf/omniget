@@ -389,7 +389,7 @@ fn trim_trailing_blank(v: &mut Vec<String>) {
 // ── Reading the state before a change ────────────────────────────────
 
 fn launchd_disabled(sys: &dyn Sys, uid: u32, label: &str) -> bool {
-    sys.run(&argv_ref![
+    sys.run(&argv_array![
         "launchctl",
         "print-disabled",
         format!("gui/{uid}")
@@ -400,7 +400,9 @@ fn launchd_disabled(sys: &dyn Sys, uid: u32, label: &str) -> bool {
 }
 
 fn reg_value(sys: &dyn Sys, key: &str, name: &str) -> Option<String> {
-    let o = sys.run(&argv_ref!["reg", "query", key, "/v", name]).ok()?;
+    let o = sys
+        .run(&argv_array!["reg", "query", key, "/v", name])
+        .ok()?;
     if !o.ok {
         return None;
     }
@@ -544,7 +546,7 @@ pub fn execute(
         Action::SystemdUser { unit, enable, .. } => {
             check_unit(unit)?;
             let active = sys
-                .run(&argv_ref![
+                .run(&argv_array![
                     "systemctl",
                     "--user",
                     "is-active",
@@ -772,7 +774,7 @@ pub fn elevated(
         Action::WinService { name, mode } => {
             super::service_argv(name, mode, true)?;
             let previous = sys
-                .run(&argv_ref!["sc.exe", "qc", name.as_str()])
+                .run(&argv_array!["sc.exe", "qc", name.as_str()])
                 .ok()
                 .and_then(|o| super::windows_start_mode(&o.stdout))
                 .ok_or_else(|| format!("{name}: could not read its start type"))?;

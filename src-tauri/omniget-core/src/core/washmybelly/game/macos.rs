@@ -18,16 +18,26 @@ use super::{Active, Applied, ApplyFn, Exec, ExitWaiter, PollWaiter, Target, Undo
 const PRIO_DARWIN_PROCESS: libc::c_int = 4;
 const PRIO_DARWIN_BG: libc::c_int = 0x1000;
 
+// <sys/proc_info.h>: `pbi_flags` bits of `PROC_PIDTBSDINFO`.
+const PROC_FLAG_DARWINBG: u32 = 0x8000;
+const PROC_FLAG_EXT_DARWINBG: u32 = 0x10000;
+
 /// Whether `pid` is in the background band. `None` when it cannot be read.
+/// `getpriority(PRIO_DARWIN_PROCESS)` only answers for the caller itself,
+/// so the state of another process comes from `proc_pidinfo`.
 pub fn get_bg(pid: u32) -> Option<bool> {
-    unsafe {
-        *libc::__error() = 0;
-        let r = libc::getpriority(PRIO_DARWIN_PROCESS, pid as libc::id_t);
-        if r == -1 && *libc::__error() != 0 {
-            return None;
-        }
-        Some(r != 0)
-    }
+    let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
+    let size = std::mem::size_of::<libc::proc_bsdinfo>() as libc::c_int;
+    let n = unsafe {
+        libc::proc_pidinfo(
+            pid as libc::c_int,
+            libc::PROC_PIDTBSDINFO,
+            0,
+            &mut info as *mut _ as *mut libc::c_void,
+            size,
+        )
+    };
+    (n == size).then_some(info.pbi_flags & (PROC_FLAG_DARWINBG | PROC_FLAG_EXT_DARWINBG) != 0)
 }
 
 pub fn set_bg(pid: u32, on: bool) -> Result<(), String> {

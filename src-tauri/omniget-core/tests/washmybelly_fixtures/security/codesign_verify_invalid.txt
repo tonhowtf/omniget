@@ -1,0 +1,1 @@
+/Library/PrivilegedHelperTools/com.example.helper: a sealed resource is missing or invalid

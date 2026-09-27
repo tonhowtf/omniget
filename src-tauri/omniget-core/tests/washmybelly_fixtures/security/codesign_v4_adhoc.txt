@@ -1,0 +1,23 @@
+Executable=/Users/someone/.cache/omniget/target/debug/omniget-elevate
+Identifier=omniget_elevate-e1c82900a0f8f30a
+Format=Mach-O thin (arm64)
+CodeDirectory v=20400 size=15720 flags=0x20002(adhoc,linker-signed) hashes=487+0 location=embedded
+VersionPlatform=1
+VersionMin=720896
+VersionSDK=1705216
+Hash type=sha256 size=32
+CandidateCDHash sha256=3608c449a15cab8a5696e3ec5730a46ce68f3878
+CandidateCDHashFull sha256=3608c449a15cab8a5696e3ec5730a46ce68f38789c34c8977d018ecc924d4ce1
+Hash choices=sha256
+CMSDigest=3608c449a15cab8a5696e3ec5730a46ce68f38789c34c8977d018ecc924d4ce1
+CMSDigestType=2
+Executable Segment base=0
+Executable Segment limit=1753088
+Executable Segment flags=0x1
+Page size=4096
+CDHash=3608c449a15cab8a5696e3ec5730a46ce68f3878
+Signature=adhoc
+Info.plist=not bound
+TeamIdentifier=not set
+Sealed Resources=none
+Internal requirements=none

@@ -792,10 +792,11 @@ struct Built {
     preview: Option<RemovePreview>,
 }
 
-/// Asks the package manager what a removal would take along.
-type Previewer<'a> = dyn Fn(&str, &str, &[String]) -> Result<RemovePreview, String> + 'a;
+/// Asks a package manager what removing a package would take:
+/// (manager, installation, names).
+type PreviewFn<'a> = dyn Fn(&str, &str, &[String]) -> Result<RemovePreview, String> + 'a;
 
-fn build(app: &App, home: &Path, preview: &Previewer<'_>) -> Built {
+fn build(app: &App, home: &Path, preview: &PreviewFn<'_>) -> Built {
     let mut b = Built {
         ticked: Vec::new(),
         unticked: Vec::new(),

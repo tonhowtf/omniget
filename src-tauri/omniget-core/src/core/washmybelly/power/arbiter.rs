@@ -203,7 +203,7 @@ mod tests {
             Option<&'a str>,
             Option<&'a str>,
         );
-        let cases: &[Case] = &[
+        let cases: &[Case<'_>] = &[
             (&[], None, 0, None, Some("power-profiles-daemon")),
             (
                 &[PowerProfilesDaemon],

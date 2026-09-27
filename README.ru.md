@@ -75,7 +75,7 @@ or export a GIF/WebP to assets/readme/hero.webp and use an <img>.
 4. [Мир: смотрите, как работают ваши агенты](#the-world)
 5. [Инструменты вернутся](#tools-coming-back)
 
-Ещё: [Скачать и установить](#download-and-install) · [Суперсилы](#superpowers) · [Всё остальное](#everything-else-in-the-box) · [Приватность](#privacy-and-what-omniget-refuses-to-do) · [Поддержать OmniGet](#support-omniget) · [Частые вопросы](#frequently-asked-questions) · [Командная строка](#command-line) · [Сборка из исходников](#build-from-source) · [Владельцам платформ](#notice-to-platform-owners) · [Участие и переводы](#contributing-and-translations)
+Ещё: [Скачать и установить](#download-and-install) · [Суперсилы](#superpowers) · [washmybelly](#washmybelly) · [Всё остальное](#everything-else-in-the-box) · [Приватность](#privacy-and-what-omniget-refuses-to-do) · [Поддержать OmniGet](#support-omniget) · [Частые вопросы](#frequently-asked-questions) · [Командная строка](#command-line) · [Сборка из исходников](#build-from-source) · [Владельцам платформ](#notice-to-platform-owners) · [Участие и переводы](#contributing-and-translations)
 
 ---
 
@@ -132,6 +132,7 @@ claude mcp add --transport http --scope project omniget <address from the page> 
 | Когда что-то не получилось | Очищенные логи движка, диагноз по тому, что осталось от загрузки, варианты восстановления |
 | После загрузки | Сведения о готовых файлах и временный доступ к ним |
 | Ваши агенты | Список агентов и папок; запуск, пауза, продолжение или отмена миссии; её события и результаты; ожидающие одобрения |
+| Ваш компьютер (washmybelly) | Состояние системы, поиск мусора, приложений, элементов автозагрузки и настроек приватности, составление плана; запуск или отмена плана требуют вашего одобрения в окне OmniGet |
 
 ### Всё под вашим контролем
 
@@ -469,11 +470,48 @@ sudo pacman -S gst-plugins-good gst-plugins-bad gst-libav   # Arch
 
 ## Суперсилы
 
-Дополнительные возможности, которые включаются, когда нужны, в разделе **Суперсилы** на боковой панели. Каждую можно выключить в **Настройки → Дополнительно**.
+Дополнительные возможности в разделе **Суперсилы** на боковой панели. Каждую можно выключить в **Настройки → Дополнительно**.
+
+### Музыка
 
 **Музыка** — полноценное приложение для музыки на вашем компьютере. Оно индексирует папки с музыкой, играет без пауз между треками или с кроссфейдом, выравнивает громкость между песнями (ReplayGain 2.0), а также даёт 10-полосный эквалайзер и живой визуализатор. Показывает синхронизированные тексты (ваши файлы .lrc, тексты внутри файла или найденные на LRCLIB) и играет интернет-радио — тысячи станций. Песни, скачанные по ссылке или через поиск, сразу попадают в библиотеку. Пакетные инструменты измеряют громкость, темп и тональность, конвертируют форматы, переименовывают файлы по тегам, находят дубликаты и распознают поддельный lossless по спектрограмме.
 
-Вторая — помощник для **League of Legends**. Он локально читает запущенный клиент игры, собирает сведения о соперниках в матче, показывает золото и уровни по ходу игры, применяет руны в один клик и, если вы разрешите, берёт на себя мелочи вроде принятия матча. Ничего не работает, пока вы не включите это в **Настройки → Дополнительно**.
+### League of Legends
+
+Помощник, который читает запущенный клиент League прямо на вашем компьютере: сведения о соперниках в матче, золото и уровни по ходу игры, руны в один клик. Он что-то делает, только пока клиент открыт, а любая автоматизация, например принятие матча, выключена, пока вы сами её не включите.
+
+<a id="washmybelly"></a>
+
+### washmybelly: очистка, удаление программ, приватность и производительность
+
+<p align="center">
+  <img src="assets/readme/washmybelly-clean-up.webp" alt="Экран очистки washmybelly в macOS: найдено 39,2 ГБ мусора, разбитого на категории «Разработка», «Приложения», «Браузеры», «Приватность», «Пакеты», «Система», «Логи» и «Ваши файлы», слева список модулей" width="900" />
+</p>
+
+То, для чего обычно нужен десяток отдельных программ, на одном экране. Он показывает только то, что есть на вашем компьютере: на Mac — пункты для Mac, на Windows — для Windows, на Linux — для Linux, и никакой очистки Steam, если Steam не установлен.
+
+- **Очистка**: кэши, логи, остатки браузеров и менеджеров пакетов, папки сборки проектов вроде `node_modules` и `target`, дубликаты файлов и пустые папки. Файлы открытых приложений не трогаются.
+- **Диск**: что занимает место, в виде карты, по которой можно спускаться вглубь, и состояние каждого накопителя.
+- **Удаление**: приложение удаляется вместе с тем, что оно оставляет (настройки, кэши, помощники автозапуска), и у каждого остатка указано, насколько OmniGet уверен, что он принадлежит этому приложению. Находит и остатки уже удалённых программ; понимает Homebrew, winget, MSI, Steam, Flatpak, Snap и менеджеры пакетов Linux.
+- **Автозагрузка**: что открывается при входе или работает в фоне; выключается, а не удаляется.
+- **Приватность**: каталог [privacy.sexy](https://privacy.sexy) для вашей системы, где текущее состояние каждой настройки читается из системы и любое изменение можно откатить; разрешения приложений на Mac; блокировка трекеров через файл hosts.
+- **Настройки Windows**: удаление лишнего и настройки из Win11Debloat, winutil и Sophia Script, у каждой есть «Вернуть как в Windows по умолчанию».
+- **Обновления**: ожидающие обновления из ваших менеджеров пакетов в одном списке.
+- **Питание и батарея**: профиль питания, что не даёт компьютеру уснуть, и износ батареи.
+- **Игровой режим** и **FPS и время кадра**: игровой режим, который сам выключается, когда игра закрывается, и честные цифры FPS, 1% low и фризов от PresentMon в Windows или MangoHud в Linux, со сравнением «до» и «после».
+- **Автозапуск в фоне** (Mac): перечень всего, что настроено работать в фоне.
+- **Обслуживание** и **История**: системные задачи, от которых есть реальный толк, и все изменения, которые сделал washmybelly, с кнопкой «Отменить».
+
+Почему это безопасно:
+
+- **Ничего не запускается само.** Он сканирует, показывает план (что удаляется, сколько места освободится, насколько это рискованно), вы одобряете, он выполняет и выдаёт квитанцию. Большинство изменений можно отменить в **Истории**: файлы попадают в карантин или в Корзину, а настройки сохраняются до изменения.
+- **Ничего не уходит с компьютера.** Списки правил поставляются внутри приложения, никакие скрипты не скачиваются и не запускаются. Единственная загрузка — PresentMon: его берут с официального релиза при первом замере FPS в Windows и сверяют с фиксированным хешем.
+- **Права администратора — только через маленький помощник,** который принимает лишь закрытый список операций, один запрос пароля на пакет. Всегда можно скопировать точные команды и выполнить их самому.
+- **Никакого плацебо.** Никакого «ускорителя памяти» и «чистильщика реестра»: всё, что он показывает, измерено. Модули, которые ещё проходят проверку, отмечены на боковой панели как **Beta**.
+
+Для агентов те же сканирования и планы доступны как инструменты `wmb_*` — агенту в разделе **LLM** и MCP-клиентам вроде Claude Code и Codex. Читать и составлять планы можно свободно; выполнение или отмена плана всегда требует вашего одобрения в окне OmniGet. Внешнему клиенту нужно разрешение `system_read` или `system_change` в его токене. Из терминала: `omniget-cli wmb status|caps|scan|plan|show|execute|restore|receipts`.
+
+washmybelly включён по умолчанию, потому что ничего не происходит, пока вы его не откроете. Выключить его можно в **Настройки → Дополнительно → washmybelly**. Его талисман, Пиббл, — оригинальный рисунок для OmniGet по мотивам мема «Pibble». <!-- TODO(owner): creator credit (имя и ссылка на автора мема Pibble) --> Проекты, чьи данные и идеи он использует, и их лицензии перечислены в [THIRD_PARTY.md](THIRD_PARTY.md).
 
 <a id="everything-else-in-the-box"></a>
 
@@ -596,6 +634,9 @@ omniget-cli usage                          # окна расхода и трат
 omniget-cli agent run "<prompt>"           # текущая папка становится рабочей
 omniget-cli agent loop "<prompt>" --check "npm test" --minutes 30
 omniget-cli agent jobs                     # также: agent loops, agent agents
+omniget-cli wmb status                     # оценка состояния и сводка по этому компьютеру
+omniget-cli wmb scan junk                  # также: artifacts, large, duplicates, empty, apps, startup, privacy, updates
+omniget-cli wmb execute <plan_id> --wait   # просит вашего одобрения в окне OmniGet
 ```
 
 Добавьте `--json` к любой команде, чтобы получить машиночитаемый вывод.
@@ -659,7 +700,7 @@ Loop — маскот OmniGet. Фан-арт приветствуется; ор�
 
 ## Опираясь на открытый код
 
-OmniGet построен на [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [SponsorBlock](https://sponsor.ajay.app/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [cat-catch](https://github.com/xifangczy/cat-catch) (части медиасниффера в расширении), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (в плагине для Claude Code), [Tauri](https://tauri.app) и [Svelte](https://svelte.dev). Агенты, задачи и Мир позаимствовали идеи у [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [ai-town](https://github.com/a16z-infra/ai-town) и статьи о [generative agents](https://github.com/joonspk-research/generative_agents). Спасибо всем, кто их поддерживает.
+OmniGet построен на [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [SponsorBlock](https://sponsor.ajay.app/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [cat-catch](https://github.com/xifangczy/cat-catch) (части медиасниффера в расширении), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (в плагине для Claude Code), [Tauri](https://tauri.app) и [Svelte](https://svelte.dev). Агенты, задачи и Мир позаимствовали идеи у [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [ai-town](https://github.com/a16z-infra/ai-town) и статьи о [generative agents](https://github.com/joonspk-research/generative_agents). Спасибо всем, кто их поддерживает. washmybelly использует данные и идеи из [privacy.sexy](https://github.com/undergroundwires/privacy.sexy), [BleachBit](https://github.com/bleachbit/bleachbit), [Win11Debloat](https://github.com/Raphire/Win11Debloat), [winutil](https://github.com/ChrisTitusTech/winutil), [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows), [Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller), [Kudu](https://github.com/AdventDevInc/kudu), [kondo](https://github.com/tbillington/kondo), [czkawka](https://github.com/qarmin/czkawka), [Stats](https://github.com/exelban/stats), [CapFrameX](https://github.com/CXWorld/CapFrameX) и других проектов; полный список с лицензиями — в [THIRD_PARTY.md](THIRD_PARTY.md).
 
 <p align="center">
   <a href="https://github.com/tonhowtf/omniget/releases/latest"><b>Скачать OmniGet</b></a> · <a href="LICENSE">GPL-3.0</a>

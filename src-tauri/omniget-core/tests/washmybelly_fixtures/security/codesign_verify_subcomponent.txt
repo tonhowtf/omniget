@@ -1,0 +1,2 @@
+/Applications/Example.app/Contents/MacOS/Example: code object is not signed at all
+In subcomponent: /Applications/Example.app/Contents/Frameworks/Plugin/x64/model.kef

@@ -22,8 +22,8 @@ macro_rules! argv {
     ($($x:expr),* $(,)?) => { vec![$(String::from($x)),*] };
 }
 
-/// The same argv as an array, for a command that is only borrowed.
-macro_rules! argv_ref {
+/// The same argv as a fixed array, for commands that are only borrowed.
+macro_rules! argv_array {
     ($($x:expr),* $(,)?) => { [$(String::from($x)),*] };
 }
 

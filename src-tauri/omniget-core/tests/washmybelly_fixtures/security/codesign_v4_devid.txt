@@ -1,0 +1,28 @@
+Executable=/Library/PrivilegedHelperTools/dev.orbstack.OrbStack.privhelper
+Identifier=dev.orbstack.OrbStack.privhelper
+Format=Mach-O thin (arm64)
+CodeDirectory v=20500 size=3244 flags=0x10000(runtime) hashes=90+7 location=embedded
+VersionPlatform=1
+VersionMin=917504
+VersionSDK=1704960
+Hash type=sha256 size=32
+CandidateCDHash sha256=d37311958cb2d958ffeb59ac3449ab8fd20e7034
+CandidateCDHashFull sha256=d37311958cb2d958ffeb59ac3449ab8fd20e7034ef07f51dd31418042294921d
+Hash choices=sha256
+CMSDigest=d37311958cb2d958ffeb59ac3449ab8fd20e7034ef07f51dd31418042294921d
+CMSDigestType=2
+Executable Segment base=0
+Executable Segment limit=1097728
+Executable Segment flags=0x1
+Page size=16384
+CDHash=d37311958cb2d958ffeb59ac3449ab8fd20e7034
+Signature size=8997
+Authority=Developer ID Application: Orbital Labs, LLC (U.S.) (HUAQ24HBR6)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+Timestamp=4 Jun 2026 at 14:09:33
+Info.plist entries=14
+TeamIdentifier=HUAQ24HBR6
+Runtime Version=26.4.0
+Sealed Resources=none
+Internal requirements count=1 size=224

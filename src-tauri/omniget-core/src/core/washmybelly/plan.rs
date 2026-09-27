@@ -548,13 +548,20 @@ pub fn execute(ctx: &Ctx, plan_id: &str) -> Result<Receipt, String> {
                     let failed: Vec<_> = mine.iter().filter(|r| !r.ok).collect();
                     let bytes = mine.iter().map(|r| r.bytes).sum();
                     if failed.is_empty() {
-                        result(
-                            it,
-                            ItemStatus::Done,
-                            "done as administrator".into(),
-                            bytes,
-                            undo,
-                        )
+                        // The helper's own summary (sfc, DISM, fstrim...)
+                        // goes into the receipt.
+                        let detail = mine
+                            .iter()
+                            .map(|r| r.detail.trim())
+                            .filter(|d| !d.is_empty())
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        let detail = if detail.is_empty() {
+                            "done as administrator".to_string()
+                        } else {
+                            detail
+                        };
+                        result(it, ItemStatus::Done, detail, bytes, undo)
                     } else {
                         result(
                             it,

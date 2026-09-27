@@ -1,0 +1,2 @@
+/Library/PrivilegedHelperTools/dev.orbstack.OrbStack.privhelper: rejected (the code is valid but does not seem to be an app)
+origin=Developer ID Application: Orbital Labs, LLC (U.S.) (HUAQ24HBR6)

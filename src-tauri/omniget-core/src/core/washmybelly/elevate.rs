@@ -71,6 +71,9 @@ pub enum ElevatedOp {
         program: String,
         args: Vec<String>,
     },
+    /// Windows one-time setup for frame capture: join (or leave) the
+    /// Performance Log Users group (S-1-5-32-559). The user must sign out.
+    PerfLogUsers { user_sid: String, join: bool },
     /// macOS: forget a `.pkg` receipt after its files are gone.
     PkgForget { id: String },
     /// macOS: stop a LaunchDaemon before its plist leaves.
@@ -359,6 +362,9 @@ pub fn execute_local(op: &ElevatedOp) -> OpResult {
             args,
         } => super::apps::windows::elevated_win_uninstall(app_id, kind, program, args)
             .map(|d| (d, 0)),
+        ElevatedOp::PerfLogUsers { user_sid, join } => {
+            super::perf::presentmon::elevated_perf_log_users(user_sid, *join).map(|d| (d, 0))
+        }
         ElevatedOp::PkgForget { id } => super::apps::elevated_pkg_forget(id).map(|d| (d, 0)),
         ElevatedOp::LaunchctlBootout { domain, label } => {
             super::startup::elevated_bootout(domain, label).map(|d| (d, 0))
@@ -373,6 +379,9 @@ pub fn execute_local(op: &ElevatedOp) -> OpResult {
         ElevatedOp::WriteHosts { staged } => super::hosts::elevated_write(staged).map(|d| (d, 0)),
         ElevatedOp::PowerSetting { key, value } => {
             super::power::elevated_setting(key, value).map(|d| (d, 0))
+        }
+        ElevatedOp::Maintenance { id } if id == super::tweaks::RESTORE_POINT_ID => {
+            super::tweaks::elevated_restore_point().map(|d| (d, 0))
         }
         ElevatedOp::Maintenance { id } if id.starts_with("win_") => windows_maintenance(id),
         ElevatedOp::Maintenance { id } => super::maintenance::elevated_run(id).map(|d| (d, 0)),
@@ -465,6 +474,7 @@ pub fn copy_command(ops: &[ElevatedOp]) -> Vec<String> {
                     format!("{sudo}rm -rf -- {}", q(&p))
                 }
             }
+            ElevatedOp::RegSet { key, kind, .. } if kind == "KEY" => format!("reg add {} /f", q(key)),
             ElevatedOp::RegSet { key, name, kind, data } => format!("reg add {} /v {} /t {} /d {} /f", q(key), q(name), kind, q(data)),
             ElevatedOp::RegDelete { key, name: Some(n) } => format!("reg delete {} /v {} /f", q(key), q(n)),
             ElevatedOp::RegDelete { key, name: None } => format!("reg delete {} /f", q(key)),
@@ -475,6 +485,7 @@ pub fn copy_command(ops: &[ElevatedOp]) -> Vec<String> {
             ElevatedOp::PackageUpgrade { manager, .. } if manager == "pacman" => format!("{sudo}{}", super::packages::upgrade_command(manager)),
             ElevatedOp::PackageUpgrade { manager, names } => format!("{sudo}{} {}", super::packages::upgrade_command(manager), names.iter().map(|n| q(n)).collect::<Vec<_>>().join(" ")),
             ElevatedOp::WinUninstall { program, args, .. } => std::iter::once(q(program)).chain(args.iter().map(|a| q(a))).collect::<Vec<_>>().join(" "),
+            ElevatedOp::PerfLogUsers { user_sid, join } => format!("net localgroup \"Performance Log Users\" <user {user_sid}> /{}", if *join { "add" } else { "delete" }),
             ElevatedOp::PkgForget { id } => format!("{sudo}pkgutil --forget {}", q(id)),
             ElevatedOp::LaunchctlBootout { domain, label } => format!("{sudo}launchctl bootout {}/{}", domain, q(label)),
             ElevatedOp::LaunchctlState { domain, label, enabled } => format!("{sudo}launchctl {} {}/{}", if *enabled { "enable" } else { "disable" }, domain, q(label)),
@@ -487,7 +498,8 @@ pub fn copy_command(ops: &[ElevatedOp]) -> Vec<String> {
                     format!("{sudo}cp {} /etc/hosts", q(&staged.to_string_lossy()))
                 }
             }
-            ElevatedOp::PowerSetting { key, value } => format!("# power setting {key} = {value}"),
+            ElevatedOp::PowerSetting { key, value } => super::power::command_line(key, value),
+            ElevatedOp::Maintenance { id } if id == super::tweaks::RESTORE_POINT_ID => super::tweaks::restore_point_argv().join(" "),
             ElevatedOp::Maintenance { id } if id.starts_with("win_") => {
                 let root = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into());
                 super::clean::rules_windows::maintenance_argv(id, &root)

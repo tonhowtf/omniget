@@ -1,0 +1,18 @@
+Started file system verification on disk3s1s1 (Macintosh HD)
+Verifying file system
+Performing fsck_apfs -n -x -l -S /dev/rdisk3s1s1
+Checking the container superblock
+Checking the checkpoint with transaction ID 4815162
+Checking the space manager
+Checking the space manager free queue trees
+Checking the object map
+Checking the snapshot metadata tree
+Checking the snapshot metadata
+Checking the volume superblock
+Checking the object map
+Checking the fsroot tree
+Checking the extent ref tree
+Verifying volume object map space
+The volume /dev/rdisk3s1s1 with UUID 4A1B2C3D-0000-1111-2222-333344445555 appears to be OK
+File system check exit code is 0
+Finished file system verification on disk3s1s1 (Macintosh HD)
