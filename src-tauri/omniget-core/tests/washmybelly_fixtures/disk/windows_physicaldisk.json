@@ -1,0 +1,34 @@
+[
+    {
+        "DeviceId":  "0",
+        "FriendlyName":  "Samsung SSD 980 PRO 1TB",
+        "MediaType":  "SSD",
+        "BusType":  "NVMe",
+        "HealthStatus":  "Healthy",
+        "OperationalStatus":  "OK",
+        "Size":  1000204886016,
+        "Temperature":  41,
+        "TemperatureMax":  82,
+        "Wear":  3,
+        "PowerOnHours":  5120,
+        "ReadErrorsTotal":  0,
+        "WriteErrorsTotal":  0,
+        "StartStopCycleCount":  null
+    },
+    {
+        "DeviceId":  "1",
+        "FriendlyName":  "WDC WD20EZRZ-00Z5HB0",
+        "MediaType":  "HDD",
+        "BusType":  "SATA",
+        "HealthStatus":  "Warning",
+        "OperationalStatus":  "Predictive Failure",
+        "Size":  2000398934016,
+        "Temperature":  null,
+        "TemperatureMax":  null,
+        "Wear":  null,
+        "PowerOnHours":  null,
+        "ReadErrorsTotal":  12,
+        "WriteErrorsTotal":  0,
+        "StartStopCycleCount":  1830
+    }
+]

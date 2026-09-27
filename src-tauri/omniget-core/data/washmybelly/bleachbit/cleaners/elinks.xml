@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="elinks" os="linux">
+  <label>ELinks</label>
+  <description>Web browser</description>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the cookies, visited URLs, and search history</description>
+    <action command="delete" search="file" path="~/.elinks/cookies"/>
+    <action command="delete" search="file" path="~/.elinks/globhist"/>
+    <action command="delete" search="file" path="~/.elinks/gotohist"/>
+    <action command="delete" search="file" path="~/.elinks/searchhist"/>
+  </option>
+</cleaner>

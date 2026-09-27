@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+Ubuntu Resolute Raccoon (26.04 LTS)
+fish, version 4.2.1
+has ~/.local/share/fish/fish_history
+
+"fish" is lowercase even at the beginning of a sentence.
+https://fishshell.com/
+https://github.com/fish-shell/fish-shell
+
+-->
+<cleaner id="fish" os="unix">
+  <label>fish</label>
+  <description>Shell</description>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the command history</description>
+    <action command="delete" search="file" path="~/.local/share/fish/fish_history"/>
+  </option>
+</cleaner>

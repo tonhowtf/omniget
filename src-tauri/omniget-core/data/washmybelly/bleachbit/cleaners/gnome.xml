@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="gnome" os="unix">
+  <label>GNOME</label>
+  <description>Desktop environment</description>
+  <option id="run">
+    <label translators="In GNOME 'Run' is the dialog shown when typing ALT+F2'">Run</label>
+    <description>Delete the usage history</description>
+    <!-- In GNOME 2.26.3 on Fedora 11 press ALT+F2 and click the down arrow -->
+    <action command="delete" search="file" path="~/.gconf/apps/gnome-settings/gnome-panel/%gconf.xml"/>
+  </option>
+  <option id="search_history">
+    <label>Search history</label>
+    <description>Delete the search history</description>
+    <!-- In GNOME 2.26.3 on Fedora 11 click Places (toolbar) - Search For Files, and then click the down arrow -->
+    <action command="delete" search="file" path="~/.gconf/apps/gnome-settings/gnome-search-tool/%gconf.xml"/>
+    <action command="delete" search="file" path="$XDG_DATA_HOME/gnome-shell/application_state"/>
+  </option>
+</cleaner>

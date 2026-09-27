@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<!-- Tested by Gogeden on Trisquel with BleachBit 0.9.1 (2011-11-19) -->
+<!-- Tested by AZ on Warzone 2100 3.1, Ubuntu 12.10, BleachBit 0.9.5 (2013-01-13) -->
+<cleaner id="warzone2100">
+  <label>Warzone2100</label>
+  <description>Game</description>
+  <option id="logs">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action command="delete" search="walk.all" os="linux" path="~/.warzone2100*/logs/"/>
+    <action command="delete" search="walk.all" os="windows" path="$USERPROFILE\My Documents\Warzone 2100*\logs\"/>
+  </option>
+</cleaner>

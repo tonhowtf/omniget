@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="epiphany" os="linux">
+  <label>Epiphany</label>
+  <description>Web browser</description>
+  <running type="exe" same_user="true">epiphany</running>
+  <running type="pathname">~/.gnome2/epiphany/mozilla/epiphany/lock</running>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the web cache, which reduces time to display revisited pages</description>
+    <action command="delete" search="file" path="~/.gnome2/epiphany/ephy-favicon-cache.xml"/>
+    <action command="delete" search="walk.files" path="~/.gnome2/epiphany/favicon_cache/"/>
+    <action command="delete" search="walk.files" path="~/.gnome2/epiphany/mozilla/epiphany/Cache/"/>
+    <action command="delete" search="walk.files" path="$XDG_CACHE_HOME/epiphany-browser/"/>
+  </option>
+  <option id="cookies">
+    <label>Cookies</label>
+    <description>Delete cookies, which store login information, website preferences, and tracking identifiers</description>
+    <action command="delete" search="file" path="~/.gnome2/epiphany/mozilla/epiphany/cookies.txt"/>
+    <action command="delete" search="file" path="~/.gnome2/epiphany/mozilla/epiphany/cookies.sqlite"/>
+    <action command="delete" search="file" path="~/.gnome2/epiphany/mozilla/epiphany/cookies.sqlite-journal"/>
+    <action command="delete" search="file" path="$XDG_CONFIG_HOME/epiphany/cookies.sqlite"/>
+  </option>
+  <option id="passwords">
+    <label>Passwords</label>
+    <description>A database of usernames and passwords as well as a list of sites that should not store passwords</description>
+    <warning>This option will delete your saved passwords.</warning>
+    <action command="delete" search="file" path="~/.gnome2/epiphany/mozilla/epiphany/signons3.txt"/>
+  </option>
+  <option id="places">
+    <label>Places</label>
+    <description>A database of URLs including bookmarks, favicons, and a history of visited websites</description>
+    <warning>This option deletes all bookmarks.</warning>
+    <action command="delete" search="file" path="~/.gnome2/epiphany/mozilla/epiphany/places.sqlite"/>
+    <action command="delete" search="file" path="~/.gnome2/epiphany/mozilla/epiphany/places.sqlite-journal"/>
+    <action command="delete" search="file" path="~/.gnome2/epiphany/ephy-history.xml"/>
+    <action command="delete" search="file" path="$XDG_CONFIG_HOME/epiphany/bookmarks.rdf"/>
+    <action command="delete" search="file" path="$XDG_CONFIG_HOME/epiphany/ephy-bookmarks.xml"/>
+    <action command="delete" search="file" path="$XDG_CONFIG_HOME/epiphany/ephy-history.db"/>
+    <action command="delete" search="file" path="$XDG_CONFIG_HOME/epiphany/session_state.xml"/>
+    <action command="delete" search="file" path="$XDG_CONFIG_HOME/epiphany/session_state.xml~"/>
+  </option>
+  <option id="site_data">
+    <label>Site data</label>
+    <description>Delete LocalStorage, IndexedDB, and other data stored by websites</description>
+    <action command="delete" search="walk.files" path="$XDG_DATA_HOME/webkitgtk/localstorage/"/>
+  </option>
+</cleaner>

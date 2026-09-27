@@ -1,6 +1,5 @@
 // Tauri sidecar preparation. No install, signing, upload or publication.
 import { spawnSync } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
 import { copyChanged } from '../dev/artifacts.mjs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -12,16 +11,20 @@ if (rust.status !== 0) throw new Error('Cannot determine Rust host target');
 const triple = process.env.TAURI_ENV_TARGET_TRIPLE || rust.stdout.match(/^host: (.+)$/m)?.[1];
 if (!triple || !/^[a-zA-Z0-9_-]+$/.test(triple)) throw new Error('Invalid Rust target');
 if (triple === 'universal-apple-darwin') throw new Error('Build the worker separately for each macOS architecture');
-const args = ['build', '--manifest-path', path.join(root, 'src-tauri/Cargo.toml'), '-p', 'omniget-cli', '--bin', 'omniget-worker', '--target', triple];
-if (release) args.push('--release');
+// Every sidecar in tauri.conf.json `externalBin`: the confined download
+// worker and the washmybelly administrator helper.
 const metadata = spawnSync('cargo', ['metadata', '--no-deps', '--format-version', '1'], { cwd: cargoRoot, encoding: 'utf8' });
 if (metadata.status !== 0) throw new Error('Cannot resolve Cargo target directory');
 const target = JSON.parse(metadata.stdout).target_directory;
-const result = spawnSync('cargo', args, { cwd: cargoRoot, stdio: 'inherit' });
-if (result.status !== 0) process.exit(result.status || 1);
 const ext = triple.includes('windows') ? '.exe' : '';
-const source = path.join(target, triple, release ? 'release' : 'debug', `omniget-worker${ext}`);
-const dest = path.join(root, 'src-tauri/binaries', `omniget-worker-${triple}${ext}`);
-mkdirSync(path.dirname(dest), { recursive: true });
-const resultCopy = copyChanged(source, dest);
-console.log(JSON.stringify({target: triple, ...resultCopy}));
+for (const bin of ['omniget-worker', 'omniget-elevate']) {
+  const args = ['build', '--manifest-path', path.join(root, 'src-tauri/Cargo.toml'), '-p', 'omniget-cli', '--bin', bin, '--target', triple];
+  if (release) args.push('--release');
+  const result = spawnSync('cargo', args, { cwd: cargoRoot, stdio: 'inherit' });
+  if (result.status !== 0) process.exit(result.status || 1);
+  const source = path.join(target, triple, release ? 'release' : 'debug', `${bin}${ext}`);
+  const dest = path.join(root, 'src-tauri/binaries', `${bin}-${triple}${ext}`);
+  // Only a changed binary is copied, so an unchanged sidecar does not make
+  // the dev app rebuild.
+  console.log(JSON.stringify({ bin, target: triple, ...copyChanged(source, dest) }));
+}

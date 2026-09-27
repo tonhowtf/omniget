@@ -1,0 +1,6 @@
+{"type":"sync","status-code":200,"status":"OK","result":[
+ {"id":"a","name":"firefox","version":"131.0","revision":"4955","status":"active","installed-size":265289728},
+ {"id":"a","name":"firefox","version":"130.0","revision":"4793","status":"installed","installed-size":262144000},
+ {"id":"b","name":"core22","version":"20240904","revision":"1621","status":"active","installed-size":77910016},
+ {"id":"c","name":"bad;name","version":"1","revision":"1","status":"installed","installed-size":1}
+]}

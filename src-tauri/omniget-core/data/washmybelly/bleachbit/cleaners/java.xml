@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="java">
+  <label>Java</label>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.files" path="~/.java/deployment/cache/"/>
+    <action command="delete" search="walk.all" path="~/.icedteaplugin/cache/"/>
+    <action command="delete" search="walk.files" path="$APPDATA\Sun\Java\Deployment\cache\"/>
+    <action command="delete" search="walk.files" path="$USERPROFILE\AppData\LocalLow\Sun\Java\Deployment\cache\"/>
+    <!-- Ubuntu 12.10 and 13.04 has ~/.icedtea/cache/ -->
+    <action command="delete" search="walk.all" path="~/.icedtea/cache"/>
+  </option>
+</cleaner>

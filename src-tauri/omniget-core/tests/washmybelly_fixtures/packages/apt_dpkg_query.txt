@@ -1,0 +1,18 @@
+adduser	3.134	686	ii 	add and remove users and groups
+apt	2.6.1	4668	ii 	commandline package manager
+base-files	12.4+deb12u15	341	ii 	Debian base system miscellaneous files
+base-passwd	3.6.1	275	ii 	Debian base system master password and group files
+bash	5.2.15-2+b13	7295	ii 	GNU Bourne Again SHell
+bsdutils	1:2.38.1-5+deb12u3	539	ii 	basic utilities from 4.4BSD-Lite
+coreutils	9.1-1	20272	ii 	GNU core utilities
+dash	0.5.12-2	199	ii 	POSIX-compliant shell
+dbus	1.14.10-1~deb12u1	197	ii 	simple interprocess messaging system (system message bus)
+dbus-bin	1.14.10-1~deb12u1	445	ii 	simple interprocess messaging system (command line utilities)
+dbus-daemon	1.14.10-1~deb12u1	447	ii 	simple interprocess messaging system (reference message bus)
+dbus-session-bus-common	1.14.10-1~deb12u1	107	ii 	simple interprocess messaging system (session bus configuration)
+less	590-2.1~deb12u2	424	ii 	pager program similar to more
+libgpm2	1.20.7-10+b1	85	ii 	General Purpose Mouse - shared library
+libncursesw6	6.4-4	568	ii 	shared libraries for terminal handling (wide character support)
+nano	7.2-1+deb12u1	2848	ii 	small, friendly text editor inspired by Pico
+tzdata	2026b-0+deb12u1	2573	ii 	time zone and daylight-saving time data
+oldpkg	1.0	12	rc 	removed but config remains

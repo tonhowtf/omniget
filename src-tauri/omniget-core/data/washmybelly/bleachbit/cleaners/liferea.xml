@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="liferea" os="linux">
+  <label>Liferea</label>
+  <running type="exe" same_user="true">liferea-bin</running>
+  <!-- Newer releases have a liferea binary instead of a wrapper around liferea-bin -->
+  <running type="exe" same_user="true">liferea</running>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.files" path="~/.liferea_1.4/cache/"/>
+    <action command="delete" search="walk.files" path="~/.liferea_1.6/cache/"/>
+    <action command="delete" search="walk.files" path="~/.liferea_1.8/cache/"/>
+    <action command="delete" search="walk.files" path="~/.liferea_1.4/mozilla/liferea/Cache/"/>
+    <!-- Liferea 1.6 switched from Mozilla to WebKitGTK -->
+    <!-- ~/.cache/liferea/ seen in 1.10.17 -->
+    <action command="delete" search="walk.files" path="~/.cache/liferea/"/>
+  </option>
+  <option id="cookies">
+    <label>Cookies</label>
+    <description>Delete cookies, which store login information, website preferences, and tracking identifiers</description>
+    <action command="delete" search="file" path="~/.liferea_1.4/mozilla/liferea/cookies.sqlite"/>
+    <!-- WebKitGTK, used since 1.6, does not persist cookies and auth -->
+    <!-- ~/.config/liferea/cookies.txt seen in 1.10.17 -->
+    <action command="delete" search="file" path="~/.config/liferea/cookies.txt"/>
+  </option>
+  <option id="vacuum">
+    <label>Vacuum</label>
+    <description>Clean database fragmentation to reduce space and improve speed without removing any data</description>
+    <action command="sqlite.vacuum" search="file" path="~/.liferea_1.4/liferea.db"/>
+    <action command="sqlite.vacuum" search="file" path="~/.liferea_1.4/mozilla/liferea/cookies.sqlite"/>
+    <action command="sqlite.vacuum" search="file" path="~/.liferea_1.4/mozilla/liferea/permissions.sqlite"/>
+    <action command="sqlite.vacuum" search="file" path="~/.liferea_1.4/mozilla/liferea/places.sqlite"/>
+    <action command="sqlite.vacuum" search="file" path="~/.liferea_1.6/liferea.db"/>
+    <action command="sqlite.vacuum" search="file" path="~/.liferea_1.8/liferea.db"/>
+    <!-- since 1.10 Liferea follows XDG paths -->
+    <action command="sqlite.vacuum" search="file" path="$XDG_DATA_HOME/liferea/liferea.db"/>
+  </option>
+</cleaner>

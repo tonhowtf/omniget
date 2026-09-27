@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="teamviewer" os="windows">
+  <label>TeamViewer</label>
+  <description>Remote control software</description>
+  <var name="Profile">
+    <value os="windows">%AppData%\TeamViewer</value>
+  </var>
+  <option id="logs">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action command="delete" search="glob" path="$$Profile$$\TeamViewer*_Logfile.log"/>
+  </option>
+  <option id="mru">
+    <label>Most recently used</label>
+    <description>Delete the most recently used list</description>
+    <action command="delete" search="walk.files" path="$$Profile$$\MRU\"/>
+    <action command="delete" search="file" path="$$Profile$$\MRU\"/>
+    <action command="delete" search="file" path="$$Profile$$\Connections.txt"/>
+    <action command="winreg" path="HKCU\Software\TeamViewer\Version4" name="Last_Machine_Connections"/>
+  </option>
+</cleaner>

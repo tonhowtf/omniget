@@ -1,0 +1,35 @@
+2026-09-27 09:51:39 -0300 
+Assertion status system-wide:
+   BackgroundTask                 0
+   ApplePushServiceTask           0
+   UserIsActive                   1
+   PreventUserIdleDisplaySleep    0
+   SoftwareUpdateTask             0
+   PreventSystemSleep             0
+   ExternalMedia                  0
+   PreventUserIdleSystemSleep     1
+   NetworkClientActive            0
+Listed by owning process:
+   pid 13724(native-core): [0x00065b320001815b] 00:11:52 PreventUserIdleSystemSleep named: "UIIntelligenceSupport"  
+   pid 13724(native-core): [0x00065b3100018151] 00:11:53 PreventUserIdleSystemSleep named: "UIIntelligenceSupport"  
+   pid 1253(caffeinate): [0x00065de9000181d3] 00:00:18 PreventUserIdleSystemSleep named: "caffeinate command-line tool"  
+	Details: caffeinate asserting for 300 secs
+	Localized=THE CAFFEINATE TOOL IS PREVENTING SLEEP.
+	Timeout will fire in 282 secs Action=TimeoutActionRelease
+   pid 742(caffeinate): [0x00065dd9000181cf] 00:00:33 PreventUserIdleSystemSleep named: "caffeinate command-line tool"  
+	Details: caffeinate asserting for 300 secs
+	Localized=THE CAFFEINATE TOOL IS PREVENTING SLEEP.
+	Timeout will fire in 266 secs Action=TimeoutActionRelease
+   pid 7480(Claude): [0x0005cba200018e72] 10:24:24 NoIdleSleepAssertion named: "Electron"  
+   pid 408(WindowServer): [0x00064d9f0009a647] 00:00:07 UserIsActive named: "com.apple.iohideventsystem.queue.tickle serviceID:10003edbd service:AppleUserHIDEventService product:PRO X 2 eventType:17"  
+	Timeout will fire in 592 secs Action=TimeoutActionRelease
+   pid 421(coreaudiod): [0x0006531e00019488] 00:46:20 PreventUserIdleSystemSleep named: "com.apple.audio.BuiltInHeadphoneOutputDevice.context.preventuseridlesleep"  
+	Created for PID: 13473. 
+	Resources: audio-out BuiltInHeadphoneOutputDevice 
+   pid 349(powerd): [0x00064d9f0001a648] 01:09:47 PreventUserIdleSystemSleep named: "Powerd - Prevent sleep while display is on"  
+Kernel Assertions: 0x104=USB,MAGICWAKE
+   id=619  level=255 0x100=MAGICWAKE creat=22/09/26, 14:47  mod=25/09/26, 16:11 description=en0 owner=IOSkywalkNetworkBSDClient
+   id=656  level=255 0x4=USB creat=23/09/26, 13:32 description=com.apple.usb.externaldevice.01100000 owner=USB2.0 HUB
+   id=658  level=255 0x4=USB creat=23/09/26, 13:37 description=com.apple.usb.externaldevice.01110000 owner=USB2.0 Device
+   id=659  level=255 0x4=USB creat=23/09/26, 13:38 description=com.apple.usb.externaldevice.01150000 owner=USB 10/100 LAN
+   id=670  level=255 0x4=USB creat=25/09/26, 20:26 description=com.apple.usb.externaldevice.01120000 owner=PRO X 2

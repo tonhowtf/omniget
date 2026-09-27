@@ -1,0 +1,32 @@
+
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\AdobeARMservice
+    Type    REG_DWORD    0x10
+    Start    REG_DWORD    0x2
+    ImagePath    REG_EXPAND_SZ    "C:\Program Files (x86)\Common Files\Adobe\ARM\1.0\armsvc.exe"
+    DisplayName    REG_SZ    Adobe Acrobat Update Service
+    DelayedAutostart    REG_DWORD    0x1
+
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Appinfo
+    Type    REG_DWORD    0x20
+    Start    REG_DWORD    0x3
+    ImagePath    REG_EXPAND_SZ    %SystemRoot%\system32\svchost.exe -k netsvcs -p
+    DisplayName    REG_SZ    @%systemroot%\system32\appinfo.dll,-100
+
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\SharedAccess
+    Type    REG_DWORD    0x20
+    Start    REG_DWORD    0x2
+    ImagePath    REG_EXPAND_SZ    %SystemRoot%\System32\svchost.exe -k netsvcs -p
+    DisplayName    REG_SZ    @%SystemRoot%\System32\ipnathlp.dll,-106
+
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm
+    Type    REG_DWORD    0x1
+    Start    REG_DWORD    0x3
+    ImagePath    REG_EXPAND_SZ    \SystemRoot\System32\DriverStore\FileRepository\nv.inf\nvlddmkm.sys
+
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\LGHUBUpdaterService
+    Type    REG_DWORD    0x10
+    Start    REG_DWORD    0x2
+    ImagePath    REG_EXPAND_SZ    "C:\Program Files\LGHUB\lghub_updater.exe" --run-as-service
+    DisplayName    REG_SZ    LGHUB Updater Service
+
+End of search: 20 match(es) found.

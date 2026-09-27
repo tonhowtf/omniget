@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="gedit" os="linux">
+  <label>gedit</label>
+  <description>Editor</description>
+  <option id="recent_documents">
+    <label>Recent documents list</label>
+    <description>Delete the list of recently used documents</description>
+    <!-- gedit 2.26.1 on Ubuntu 9.04 -->
+    <action command="delete" search="file" path="$XDG_CACHE_HOME/gedit/gedit-metadata.xml"/>
+    <!-- gedit 2.24.3 on Fedora 10, gedit 2.30.4 on Fedora 14 -->
+    <action command="delete" search="file" path="~/.gnome2/gedit-metadata.xml"/>
+  </option>
+</cleaner>

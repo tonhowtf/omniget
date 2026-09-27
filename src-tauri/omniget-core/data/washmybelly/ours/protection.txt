@@ -1,0 +1,63 @@
+# OmniGet's own additions to the cleanup protection list (GPL-3.0, same as OmniGet).
+# Same format as ../mole/protection.txt: `name <glob>` (last component),
+# `path <glob>` (whole path, `*` crosses `/`, leading `~` is the home),
+# `ipath <glob>` (same, ignoring case).
+#
+# Cloud-synced folders and file providers (idea from PureMac's provider list):
+# a "cache" there may be the only copy of a file that has not uploaded yet.
+path */Library/CloudStorage
+path */Library/CloudStorage/*
+path */Library/Application Support/FileProvider*
+path */Library/Application Support/CloudDocs*
+path */Library/Caches/com.apple.bird*
+path */Library/Application Support/Google/DriveFS*
+path */Library/Application Support/Dropbox*
+path */.dropbox*
+ipath */onedrive*
+ipath */google drive*
+# Credentials and account state that live in dot folders.
+path ~/.netrc
+path ~/.npmrc
+path ~/.pypirc
+path ~/.docker/config.json
+path ~/.config/gh
+path ~/.config/gh/*
+path ~/.config/gcloud*
+path ~/.azure*
+path ~/.terraform.d*
+path ~/.claude
+path ~/.claude.json*
+path ~/.claude/projects*
+path ~/.claude/settings*
+path ~/.codex
+path ~/.gitconfig*
+path */.local/share/keyrings*
+path */.cache/keyring*
+# Models, interpreters and environments: they look like cache, cost hours
+# or gigabytes to bring back, and are not junk.
+path */.cache/huggingface*
+path */.cache/torch*
+path */.cache/whisper*
+path */.cache/lm-studio*
+path */.lmstudio/models*
+path */.ollama/models*
+path */.cache/pypoetry/virtualenvs*
+path */Library/Caches/pypoetry/virtualenvs*
+path */.local/share/virtualenvs*
+path */.pyenv/versions*
+path */.rustup/toolchains*
+path */.cache/ms-playwright*
+path */.cache/JetBrains/*/index*
+# Games: saves and installed games next to caches.
+path */Steam/userdata*
+path */steamapps/common*
+path */steamapps/compatdata*
+# OmniGet itself (its data folder and tool caches).
+ipath *wtf.tonho.omniget*
+path */.cache/omniget*
+path */Library/Caches/omniget*
+# Flatpak and snap app data (only their cache folders are rules).
+path */.var/app/*/data
+path */.var/app/*/data/*
+path ~/snap/*/*/.local/share*
+path ~/.claude/plugins/marketplaces*

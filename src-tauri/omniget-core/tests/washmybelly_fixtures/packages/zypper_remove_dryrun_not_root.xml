@@ -1,0 +1,4 @@
+<?xml version='1.0'?>
+<stream>
+<message type="error">Root privileges are required to run this command.</message>
+</stream>

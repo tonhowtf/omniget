@@ -1,0 +1,837 @@
+//! Project build artifacts: `target/`, `node_modules`, `.gradle`,
+//! `__pycache__`... that a build or an install brings back.
+//!
+//! The project table (marker files and artifact folders) is ported from
+//! kondo-lib 0.9, <https://github.com/tbillington/kondo>, MIT License,
+//! Copyright (c) 2020 Trent Billington. Changes from upstream:
+//!
+//! - One table finds and cleans. Upstream `clean()` has its own marker list
+//!   and forgets Gradle, Unreal, Jupyter, Python, .NET and Turborepo.
+//! - A loose `.py` does not make a Python project: it takes `pyproject.toml`,
+//!   `setup.py`, `setup.cfg`, `requirements*.txt`, `Pipfile` or `tox.ini`.
+//! - Sizes are allocated blocks with hardlinks counted once across the whole
+//!   scan (a pnpm `node_modules` is not counted once per link).
+//! - Every marker in a folder counts (a Tauri app is Node and Cargo), and the
+//!   walk goes on inside a project (monorepos) but never into its artifacts,
+//!   hidden folders, `node_modules` or links.
+//! - Age is the newest mtime inside the project outside its artifacts.
+//! - Python also lists `.hypothesis`, and `__pycache__` folders nested in a
+//!   Python project are offered too.
+
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
+
+use serde_json::{json, Value};
+
+use super::super::fsops;
+use super::super::plan::{self, Op, PlanItem, Source};
+use super::super::protect::{self, Guard};
+use super::super::store::Ctx;
+use super::super::tools::blocking;
+use super::super::{Destination, Risk};
+
+/// One project type: its display name and the folders a build regenerates.
+pub struct Kind {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub dirs: &'static [&'static str],
+}
+
+/// kondo-lib's table (`lib.rs:36-94`), in its order. The first kind that
+/// lists a folder claims it when several kinds share a project folder.
+pub const KINDS: &[Kind] = &[
+    Kind {
+        id: "cargo",
+        name: "Cargo",
+        dirs: &["target", ".xwin-cache"],
+    },
+    Kind {
+        id: "node",
+        name: "Node",
+        dirs: &["node_modules", ".angular"],
+    },
+    Kind {
+        id: "react_native",
+        name: "Node (React Native)",
+        dirs: &[
+            "node_modules",
+            "android/build",
+            "android/.gradle",
+            "ios/build",
+            "ios/DerivedData",
+            "ios/Pods",
+            ".expo",
+            ".metro",
+        ],
+    },
+    Kind {
+        id: "unity",
+        name: "Unity",
+        dirs: &[
+            "Library",
+            "Temp",
+            "Obj",
+            "Logs",
+            "MemoryCaptures",
+            "Build",
+            "Builds",
+        ],
+    },
+    Kind {
+        id: "stack",
+        name: "Stack",
+        dirs: &[".stack-work"],
+    },
+    Kind {
+        id: "cabal",
+        name: "Cabal",
+        dirs: &["dist-newstyle"],
+    },
+    Kind {
+        id: "sbt",
+        name: "SBT",
+        dirs: &["target", "project/target"],
+    },
+    Kind {
+        id: "maven",
+        name: "Maven",
+        dirs: &["target"],
+    },
+    Kind {
+        id: "gradle",
+        name: "Gradle",
+        dirs: &["build", ".gradle"],
+    },
+    Kind {
+        id: "cmake",
+        name: "CMake",
+        dirs: &["build", "cmake-build-debug", "cmake-build-release"],
+    },
+    Kind {
+        id: "unreal",
+        name: "Unreal",
+        dirs: &[
+            "Binaries",
+            "Build",
+            "Saved",
+            "DerivedDataCache",
+            "Intermediate",
+        ],
+    },
+    Kind {
+        id: "jupyter",
+        name: "Jupyter",
+        dirs: &[".ipynb_checkpoints"],
+    },
+    Kind {
+        id: "python",
+        name: "Python",
+        dirs: &[
+            ".mypy_cache",
+            ".nox",
+            ".pytest_cache",
+            ".ruff_cache",
+            ".tox",
+            ".hypothesis",
+            "__pycache__",
+            "__pypackages__",
+        ],
+    },
+    Kind {
+        id: "pixi",
+        name: "Pixi",
+        dirs: &[".pixi"],
+    },
+    Kind {
+        id: "composer",
+        name: "Composer",
+        dirs: &["vendor"],
+    },
+    Kind {
+        id: "pub",
+        name: "Pub",
+        dirs: &[
+            "build",
+            ".dart_tool",
+            "linux/flutter/ephemeral",
+            "windows/flutter/ephemeral",
+        ],
+    },
+    Kind {
+        id: "elixir",
+        name: "Elixir",
+        dirs: &["_build", ".elixir-tools", ".elixir_ls", ".lexical"],
+    },
+    Kind {
+        id: "swift",
+        name: "Swift",
+        dirs: &[".build", ".swiftpm"],
+    },
+    Kind {
+        id: "zig",
+        name: "Zig",
+        dirs: &["zig-cache", ".zig-cache", "zig-out"],
+    },
+    Kind {
+        id: "godot4",
+        name: "Godot 4.x",
+        dirs: &[".godot"],
+    },
+    Kind {
+        id: "dotnet",
+        name: ".NET",
+        dirs: &["bin", "obj"],
+    },
+    Kind {
+        id: "turborepo",
+        name: "Turborepo",
+        dirs: &[".turbo"],
+    },
+    Kind {
+        id: "terraform",
+        name: "Terraform",
+        dirs: &[".terraform"],
+    },
+    Kind {
+        id: "cocoapods",
+        name: "CocoaPods",
+        dirs: &["Pods"],
+    },
+];
+
+fn kind(id: &str) -> usize {
+    KINDS
+        .iter()
+        .position(|k| k.id == id)
+        .expect("kind in table")
+}
+
+/// Kinds a folder is, from the names of its files and subfolders. Pure, so
+/// the table is tested without a disk.
+pub fn detect(files: &[String], subdirs: &[String]) -> Vec<usize> {
+    let has = |n: &str| files.iter().any(|f| f == n);
+    let ends = |s: &str| files.iter().any(|f| f.ends_with(s));
+    let sub = |n: &str| subdirs.iter().any(|d| d == n);
+    let mut out = Vec::new();
+    let mut add = |id: &str| {
+        let i = kind(id);
+        if !out.contains(&i) {
+            out.push(i);
+        }
+    };
+    if has("Cargo.toml") {
+        add("cargo");
+    }
+    if has("package.json") {
+        add(if sub("ios") || sub("android") {
+            "react_native"
+        } else {
+            "node"
+        });
+    }
+    if has("Assembly-CSharp.csproj") {
+        add("unity");
+    }
+    if has("stack.yaml") {
+        add("stack");
+    }
+    if has("cabal.project") {
+        add("cabal");
+    }
+    if has("build.sbt") {
+        add("sbt");
+    }
+    if has("pom.xml") {
+        add("maven");
+    }
+    if has("build.gradle") || has("build.gradle.kts") {
+        add("gradle");
+    }
+    if has("CMakeLists.txt") {
+        add("cmake");
+    }
+    if ends(".uproject") {
+        add("unreal");
+    }
+    if ends(".ipynb") {
+        add("jupyter");
+    }
+    let python = [
+        "pyproject.toml",
+        "setup.py",
+        "setup.cfg",
+        "Pipfile",
+        "tox.ini",
+    ]
+    .iter()
+    .any(|n| has(n))
+        || files
+            .iter()
+            .any(|f| f.starts_with("requirements") && f.ends_with(".txt"));
+    if python {
+        add("python");
+    }
+    if has("pixi.toml") {
+        add("pixi");
+    }
+    if has("composer.json") {
+        add("composer");
+    }
+    if has("pubspec.yaml") {
+        add("pub");
+    }
+    if has("mix.exs") {
+        add("elixir");
+    }
+    if has("Package.swift") {
+        add("swift");
+    }
+    if has("build.zig") {
+        add("zig");
+    }
+    if has("project.godot") {
+        add("godot4");
+    }
+    // A .csproj next to project.godot is Godot; next to Assembly-CSharp it is Unity.
+    if (ends(".csproj") || ends(".fsproj"))
+        && !has("project.godot")
+        && !has("Assembly-CSharp.csproj")
+    {
+        add("dotnet");
+    }
+    if has("turbo.json") {
+        add("turborepo");
+    }
+    if has(".terraform.lock.hcl") {
+        add("terraform");
+    }
+    if has("Podfile") {
+        add("cocoapods");
+    }
+    out
+}
+
+struct Project {
+    path: PathBuf,
+    kinds: Vec<usize>,
+    newest: SystemTime,
+    /// (kind that claims it, artifact folder)
+    artifacts: Vec<(usize, PathBuf)>,
+}
+
+fn is_artifact_of(p: &Project, path: &Path) -> bool {
+    let Ok(rel) = path.strip_prefix(&p.path) else {
+        return false;
+    };
+    p.kinds
+        .iter()
+        .any(|&k| KINDS[k].dirs.iter().any(|d| rel == Path::new(d)))
+}
+
+fn is_hidden(name: &str) -> bool {
+    name.starts_with('.')
+}
+
+fn list(dir: &Path) -> (Vec<String>, Vec<String>) {
+    let mut files = Vec::new();
+    let mut dirs = Vec::new();
+    if let Ok(rd) = std::fs::read_dir(dir) {
+        for e in rd.flatten() {
+            let Ok(ft) = e.file_type() else { continue };
+            let Some(name) = e.file_name().to_str().map(str::to_string) else {
+                continue;
+            };
+            if ft.is_file() {
+                files.push(name);
+            } else if ft.is_dir() {
+                dirs.push(name);
+            }
+        }
+    }
+    (files, dirs)
+}
+
+fn real_dir(p: &Path) -> bool {
+    std::fs::symlink_metadata(p).is_ok_and(|m| m.is_dir() && !fsops::is_link(&m))
+}
+
+/// Walk one root and collect projects with their artifact folders.
+fn walk_root(
+    root: &Path,
+    projects: &mut Vec<Project>,
+    claimed: &mut HashSet<PathBuf>,
+    visited: &mut u64,
+) {
+    let python = kind("python");
+    let mut it = walkdir::WalkDir::new(root)
+        .follow_links(false)
+        .same_file_system(true)
+        .into_iter();
+    let mut stack: Vec<usize> = Vec::new();
+    let pop = |stack: &mut Vec<usize>, projects: &mut Vec<Project>| {
+        if let Some(child) = stack.pop() {
+            if let Some(&parent) = stack.last() {
+                let t = projects[child].newest;
+                if t > projects[parent].newest {
+                    projects[parent].newest = t;
+                }
+            }
+        }
+    };
+    while let Some(entry) = it.next() {
+        let Ok(e) = entry else { continue };
+        let path = e.path();
+        while let Some(&top) = stack.last() {
+            if path.starts_with(&projects[top].path) {
+                break;
+            }
+            pop(&mut stack, projects);
+        }
+        let ft = e.file_type();
+        if ft.is_symlink() {
+            continue;
+        }
+        let mtime = e.metadata().ok().and_then(|m| m.modified().ok());
+        let bump = |projects: &mut Vec<Project>, stack: &[usize]| {
+            if let (Some(&top), Some(t)) = (stack.last(), mtime) {
+                if t > projects[top].newest {
+                    projects[top].newest = t;
+                }
+            }
+        };
+        if !ft.is_dir() {
+            bump(projects, &stack);
+            continue;
+        }
+        let name = e.file_name().to_string_lossy().to_string();
+        if e.depth() > 0 {
+            if is_hidden(&name) || name == "node_modules" {
+                it.skip_current_dir();
+                continue;
+            }
+            if stack.iter().any(|&i| is_artifact_of(&projects[i], path)) {
+                it.skip_current_dir();
+                continue;
+            }
+            if name == "__pycache__" {
+                // Nested caches of the innermost Python project.
+                if let Some(&owner) = stack
+                    .iter()
+                    .rev()
+                    .find(|&&i| projects[i].kinds.contains(&python))
+                {
+                    if claimed.insert(path.to_path_buf()) {
+                        projects[owner].artifacts.push((python, path.to_path_buf()));
+                    }
+                }
+                it.skip_current_dir();
+                continue;
+            }
+        }
+        *visited += 1;
+        if (*visited).is_multiple_of(500) {
+            super::super::progress(
+                "dev_artifacts_scan",
+                "walk",
+                *visited,
+                0,
+                path.to_string_lossy(),
+            );
+        }
+        bump(projects, &stack);
+        let (files, subdirs) = list(path);
+        let kinds = detect(&files, &subdirs);
+        if kinds.is_empty() {
+            continue;
+        }
+        let mut artifacts = Vec::new();
+        for &k in &kinds {
+            for d in KINDS[k].dirs {
+                let p = path.join(d);
+                if real_dir(&p) && claimed.insert(p.clone()) {
+                    artifacts.push((k, p));
+                }
+            }
+        }
+        projects.push(Project {
+            path: path.to_path_buf(),
+            kinds,
+            newest: mtime.unwrap_or(SystemTime::UNIX_EPOCH),
+            artifacts,
+        });
+        stack.push(projects.len() - 1);
+    }
+    while !stack.is_empty() {
+        pop(&mut stack, projects);
+    }
+}
+
+/// Code folders that exist in the home, used when no roots are given.
+pub fn default_roots() -> Vec<PathBuf> {
+    let Some(home) = dirs::home_dir() else {
+        return Vec::new();
+    };
+    [
+        "Documents",
+        "Developer",
+        "Projects",
+        "code",
+        "src",
+        "dev",
+        "repos",
+        "workspace",
+        "git",
+    ]
+    .iter()
+    .map(|d| home.join(d))
+    .filter(|p| real_dir(p))
+    .collect()
+}
+
+/// Roots from the arguments (`~` expanded), or the defaults. Nested roots
+/// collapse into the outer one; links and missing folders are skipped.
+pub fn roots_from(a: &Value, defaults: fn() -> Vec<PathBuf>) -> (Vec<PathBuf>, Vec<String>) {
+    let mut skipped = Vec::new();
+    let given: Vec<String> = a["roots"]
+        .as_array()
+        .map(|v| {
+            v.iter()
+                .filter_map(|s| s.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut roots: Vec<PathBuf> = if given.is_empty() {
+        defaults()
+    } else {
+        let home = dirs::home_dir();
+        given
+            .into_iter()
+            .filter_map(|s| {
+                let p = match (s.strip_prefix("~/"), &home) {
+                    (Some(rest), Some(h)) => h.join(rest),
+                    _ if s == "~" => home.clone()?,
+                    _ => PathBuf::from(&s),
+                };
+                if p.is_absolute() && real_dir(&p) && protect::normalize(&p).is_some() {
+                    Some(p)
+                } else {
+                    skipped.push(s);
+                    None
+                }
+            })
+            .collect()
+    };
+    roots.sort();
+    roots.dedup();
+    let all = roots.clone();
+    roots.retain(|r| !all.iter().any(|o| o != r && r.starts_with(o)));
+    (roots, skipped)
+}
+
+pub fn source_of(a: &Value) -> Source {
+    match a["_source"].as_str() {
+        Some("ui") => Source::Ui,
+        Some("external") => Source::External,
+        Some("cli") => Source::Cli,
+        _ => Source::Agent,
+    }
+}
+
+fn age_days(t: SystemTime) -> u64 {
+    t.elapsed().map(|d| d.as_secs() / 86_400).unwrap_or(0)
+}
+
+/// The scan with an explicit store (tests hand in a temporary one).
+pub fn scan_with(ctx: &Ctx, a: &Value) -> Result<Value, String> {
+    let (roots, skipped_roots) = roots_from(a, default_roots);
+    let older = a["older_than_days"].as_u64().unwrap_or(0);
+    super::super::progress("dev_artifacts_scan", "start", 0, roots.len() as u64, "");
+    let mut projects = Vec::new();
+    let mut claimed = HashSet::new();
+    let mut visited = 0u64;
+    for r in &roots {
+        walk_root(r, &mut projects, &mut claimed, &mut visited);
+    }
+    projects.retain(|p| !p.artifacts.is_empty() && age_days(p.newest) >= older);
+
+    let total = projects
+        .iter()
+        .map(|p| p.artifacts.len() as u64)
+        .sum::<u64>();
+    let mut seen = HashSet::new();
+    let mut items = Vec::new();
+    let mut out_projects = Vec::new();
+    let mut done = 0u64;
+    for p in &projects {
+        let age = age_days(p.newest);
+        let project_name = p
+            .path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let mut bytes = 0u64;
+        for (k, dir) in &p.artifacts {
+            done += 1;
+            super::super::progress(
+                "dev_artifacts_scan",
+                "measure",
+                done,
+                total,
+                dir.to_string_lossy(),
+            );
+            if protect::check(dir, Guard::Picked, Some(&p.path)).is_err() {
+                continue;
+            }
+            let Ok(fp) = fsops::fingerprint(dir) else {
+                continue;
+            };
+            let (b, _) = fsops::measure_with(dir, &mut seen);
+            bytes += b;
+            let rel = dir
+                .strip_prefix(&p.path)
+                .unwrap_or(dir)
+                .to_string_lossy()
+                .to_string();
+            items.push(PlanItem {
+                id: format!("dev_artifacts:{}:{}", KINDS[*k].id, dir.display()),
+                label: format!("{project_name}/{rel}"),
+                detail: Some(format!(
+                    "{} · {} days since last change",
+                    p.path.display(),
+                    age
+                )),
+                group: KINDS[*k].name.to_string(),
+                bytes: b,
+                risk: Risk::Destructive,
+                admin: false,
+                op: Op::RemovePath {
+                    path: dir.clone(),
+                    destination: Destination::Unlink,
+                    fp,
+                    root: Some(p.path.clone()),
+                    guard: Guard::Picked,
+                    contents_only: false,
+                },
+            });
+        }
+        out_projects.push(json!({
+            "path": p.path,
+            "kind": KINDS[p.kinds[0]].name,
+            "kinds": p.kinds.iter().map(|&k| KINDS[k].name).collect::<Vec<_>>(),
+            "bytes": bytes,
+            "age_days": age,
+        }));
+    }
+    items.sort_by_key(|i| std::cmp::Reverse(i.bytes));
+    out_projects.sort_by_key(|p| std::cmp::Reverse(p["bytes"].as_u64()));
+    let total_bytes: u64 = items.iter().map(|i| i.bytes).sum();
+    super::super::progress("dev_artifacts_scan", "done", total, total, "");
+    let preview: Vec<Value> = items
+        .iter()
+        .map(|it| json!({ "id": it.id, "label": it.label, "detail": it.detail, "group": it.group, "bytes": it.bytes, "risk": it.risk }))
+        .collect();
+    let plan_id = if items.is_empty() {
+        None
+    } else {
+        Some(plan::offer(ctx, "dev_artifacts", items, source_of(a))?.id)
+    };
+    Ok(json!({
+        "items": preview,
+        "total_bytes": total_bytes,
+        "plan_id": plan_id,
+        "projects": out_projects,
+        "roots": roots,
+        "skipped_roots": skipped_roots,
+    }))
+}
+
+pub async fn tool_scan(a: Value) -> Result<Value, String> {
+    blocking(move || scan_with(&Ctx::app()?, &a)).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn touch(p: &Path) {
+        fs::create_dir_all(p.parent().unwrap()).unwrap();
+        fs::write(p, b"x").unwrap();
+    }
+
+    /// `<marker path> <artifact path>` per line; `-` means no project.
+    const CASES: &str =
+        include_str!("../../../../tests/washmybelly_fixtures/files/kondo_cases.txt");
+
+    #[test]
+    fn every_kind_in_the_table_is_found_and_offered() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("code");
+        let mut expected = Vec::new();
+        let mut not_projects = Vec::new();
+        for line in CASES
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        {
+            let mut parts = line.split_whitespace();
+            let (name, marker, artifact) = (
+                parts.next().unwrap(),
+                parts.next().unwrap(),
+                parts.next().unwrap(),
+            );
+            let dir = root.join(name);
+            for m in marker.split(',') {
+                touch(&dir.join(m));
+            }
+            if artifact == "-" {
+                fs::create_dir_all(dir.join("__pycache__")).unwrap();
+                touch(&dir.join("__pycache__/x.pyc"));
+                not_projects.push(dir.join("__pycache__"));
+            } else {
+                touch(&dir.join(artifact).join("blob"));
+                expected.push(dir.join(artifact));
+            }
+        }
+        let ctx = Ctx::at(&tmp.path().join("db"));
+        let out = scan_with(&ctx, &json!({ "roots": [root] })).unwrap();
+        let paths: Vec<String> = out["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["id"].as_str().unwrap().to_string())
+            .collect();
+        for e in &expected {
+            assert!(
+                paths.iter().any(|p| p.ends_with(&e.display().to_string())),
+                "missing {}",
+                e.display()
+            );
+        }
+        for n in &not_projects {
+            assert!(
+                !paths.iter().any(|p| p.ends_with(&n.display().to_string())),
+                "loose .py became a project: {}",
+                n.display()
+            );
+        }
+        assert_eq!(paths.len(), expected.len(), "{paths:#?}");
+        assert!(out["plan_id"].as_str().unwrap().starts_with("plan_"));
+        // Every kind in the table has a case.
+        let kinds: HashSet<&str> = out["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["group"].as_str().unwrap())
+            .collect();
+        assert_eq!(kinds.len(), KINDS.len(), "{kinds:?}");
+    }
+
+    #[test]
+    fn detect_needs_real_python_markers() {
+        assert!(detect(&["main.py".into()], &[]).is_empty());
+        assert_eq!(
+            detect(&["requirements-dev.txt".into()], &[]),
+            vec![kind("python")]
+        );
+        assert_eq!(
+            detect(&["Game.csproj".into(), "project.godot".into()], &[]),
+            vec![kind("godot4")]
+        );
+        assert_eq!(
+            detect(&["package.json".into(), "Cargo.toml".into()], &[]),
+            vec![kind("cargo"), kind("node")]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pnpm_hardlinks_count_once_across_projects() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("code");
+        let store = tmp.path().join("store/pkg.js");
+        fs::create_dir_all(store.parent().unwrap()).unwrap();
+        fs::write(&store, vec![7u8; 1 << 20]).unwrap();
+        for p in ["a", "b"] {
+            let dir = root.join(p);
+            touch(&dir.join("package.json"));
+            fs::create_dir_all(dir.join("node_modules/.pnpm/pkg")).unwrap();
+            fs::hard_link(&store, dir.join("node_modules/.pnpm/pkg/index.js")).unwrap();
+            fs::create_dir_all(dir.join("node_modules/pkg")).unwrap();
+            fs::hard_link(&store, dir.join("node_modules/pkg/index.js")).unwrap();
+        }
+        let ctx = Ctx::at(&tmp.path().join("db"));
+        let out = scan_with(&ctx, &json!({ "roots": [root] })).unwrap();
+        assert_eq!(out["items"].as_array().unwrap().len(), 2);
+        let total = out["total_bytes"].as_u64().unwrap();
+        assert!(
+            ((1 << 20)..(1 << 20) + (256 << 10)).contains(&total),
+            "total {total}"
+        );
+    }
+
+    #[test]
+    fn nested_projects_links_and_age() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("code");
+        // Monorepo: the walk goes on inside a project, not inside its artifacts.
+        touch(&root.join("mono/package.json"));
+        touch(&root.join("mono/node_modules/dep/package.json"));
+        touch(&root.join("mono/node_modules/dep/node_modules/x/y"));
+        touch(&root.join("mono/packages/web/package.json"));
+        touch(&root.join("mono/packages/web/node_modules/z"));
+        // A hidden folder is not entered.
+        touch(&root.join(".hidden/Cargo.toml"));
+        fs::create_dir_all(root.join(".hidden/target")).unwrap();
+        #[cfg(unix)]
+        {
+            touch(&root.join("real/Cargo.toml"));
+            touch(&root.join("real/target/t"));
+            std::os::unix::fs::symlink(root.join("real"), root.join("linked")).unwrap();
+        }
+        let ctx = Ctx::at(&tmp.path().join("db"));
+        let out = scan_with(&ctx, &json!({ "roots": [root] })).unwrap();
+        let ids: Vec<&str> = out["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["id"].as_str().unwrap())
+            .collect();
+        let n = if cfg!(unix) { 3 } else { 2 };
+        assert_eq!(ids.len(), n, "{ids:#?}");
+        assert!(ids.iter().all(|i| !i.contains("linked")
+            && !i.contains(".hidden")
+            && !i.contains("dep/node_modules")));
+        for p in out["projects"].as_array().unwrap() {
+            assert_eq!(p["age_days"], 0);
+        }
+        // Everything is fresh: an age filter leaves nothing and no plan.
+        let old = scan_with(&ctx, &json!({ "roots": [root], "older_than_days": 30 })).unwrap();
+        assert!(old["items"].as_array().unwrap().is_empty());
+        assert!(old["plan_id"].is_null());
+    }
+
+    #[test]
+    fn nested_pycache_belongs_to_the_python_project() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("code");
+        touch(&root.join("py/pyproject.toml"));
+        touch(&root.join("py/pkg/__pycache__/m.pyc"));
+        touch(&root.join("py/__pycache__/n.pyc"));
+        touch(&root.join("loose/pkg/__pycache__/m.pyc"));
+        touch(&root.join("loose/script.py"));
+        let ctx = Ctx::at(&tmp.path().join("db"));
+        let out = scan_with(&ctx, &json!({ "roots": [root] })).unwrap();
+        let ids: Vec<&str> = out["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(ids.len(), 2, "{ids:#?}");
+        assert!(ids
+            .iter()
+            .all(|i| i.starts_with("dev_artifacts:python:") && i.contains("/py/")));
+    }
+}

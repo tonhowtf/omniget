@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="vlc">
+  <label>VLC media player</label>
+  <description>Media player</description>
+  <running type="exe" os="windows" same_user="true">vlc.exe</running>
+  <running type="exe" os="linux" same_user="true">vlc</running>
+  <var name="Profile">
+    <value os="windows">%AppData%\vlc</value>
+    <value os="linux">$XDG_CONFIG_HOME/vlc</value>
+  </var>
+  <var name="Config-File">
+    <value os="windows">vlc-qt-interface.ini</value>
+    <value os="linux">vlc-qt-interface.conf</value>
+  </var>
+  <option id="mru">
+    <label>Most recently used</label>
+    <description>Delete the most recently used list</description>
+    <action search="file" path="$$Profile$$/$$Config-File$$" command="ini" section="General" parameter="filedialog-path"/>
+    <action search="file" path="$$Profile$$/$$Config-File$$" command="ini" section="RecentsMRL"/>
+    <action search="file" path="$$Profile$$/$$Config-File$$" command="ini" section="OpenDialog" parameter="netMRL"/>
+    <!-- On VLC 3.0.7.1 Vetinari under Ubuntu 19.04, album art is under ~/.cache/vlc/art/artistalbum/ -->
+    <action command="delete" search="walk.files" path="$$Profile$$/art/artistalbum/"/>
+    <action command="delete" search="walk.files" path="$XDG_CACHE_HOME/vlc/art/artistalbum/"/>
+  </option>
+  <option id="memory_dump">
+    <label>Memory dump</label>
+    <description>Delete the file</description>
+    <action command="delete" search="file" path="$$Profile$$/crashdump"/>
+  </option>
+</cleaner>

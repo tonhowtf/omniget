@@ -1,0 +1,60 @@
+gui/501/com.setapp.DesktopClient.SetappAgent = {
+	active count = 14
+	path = /Users/alex/Library/LaunchAgents/com.setapp.DesktopClient.SetappAgent.plist
+	type = LaunchAgent
+	state = running
+
+	program = /Users/alex/Library/Application Support/Setapp/LaunchAgents/Setapp.app/Contents/MacOS/SetappAgent
+	arguments = {
+		/Users/alex/Library/Application Support/Setapp/LaunchAgents/Setapp.app/Contents/MacOS/SetappAgent
+		-xpcServer
+	}
+
+	inherited environment = {
+		SSH_AUTH_SOCK => /var/run/com.apple.launchd.NoRbvNuqcH/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		XPC_SERVICE_NAME => com.setapp.DesktopClient.SetappAgent
+	}
+
+	domain = gui/501 [100024]
+	asid = 100024
+	minimum runtime = 1
+	exit timeout = 5
+	runs = 2
+	pid = 84873
+	immediate reason = semaphore
+	forks = 1
+	execs = 1
+	initialized = 1
+	trampolined = 1
+	started suspended = 0
+	proxy started suspended = 0
+	checked allocations = 0 (queried = 1)
+	checked allocations reason = no host
+	checked allocations flags = 0x0
+	last terminating signal = Terminated: 15
+
+	semaphores = {
+		successful exit => 0
+		after crash => 1
+	}
+
+	endpoints = {
+		"com.setapp.UIManagementService" = {
+			port = 0xa464b
+			active = 1
+			managed = 1
+			reset = 0
+			hide = 0
+			watching = 0
+		}
+		"com.setapp.RecommendationsService" = {
+			port = 0xe09c3
+			active = 1

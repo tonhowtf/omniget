@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="x11" os="linux">
+  <label>X11</label>
+  <description>Windowing system</description>
+  <option id="debug_logs">
+    <label>Debug logs</label>
+    <description>Delete the debug logs</description>
+    <action command="delete" search="file" path="~/.xsession-errors"/>
+    <action command="delete" search="file" path="~/.xsession-errors.old"/>
+    <action command="delete" search="walk.files" path="$XDG_DATA_HOME/xorg/"/>
+  </option>
+</cleaner>

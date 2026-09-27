@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem, nodiscc.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="journald" os="linux">
+  <label>journald</label>
+  <description>System journals</description>
+  <running type="exe" same_user="false">journalctl</running>
+  <option id="clean">
+    <label translate="false">clean</label>
+    <description>Clean old system journals</description>
+    <action command="journald.clean"/>
+  </option>
+</cleaner>

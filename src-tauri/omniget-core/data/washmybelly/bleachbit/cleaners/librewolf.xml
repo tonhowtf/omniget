@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+LibreWolf 150.0.1-1 installed by .deb from its official repository uses
+~/.config/librewolf/librewolf, for example
+/home/username/.config/librewolf/librewolf/z52q68c1.default-default/cookies.sqlite
+
+-->
+<cleaner id="librewolf">
+  <label>LibreWolf</label>
+  <description>Web browser</description>
+  <running type="exe" os="unix">librewolf</running>
+  <running type="exe" os="unix">librewolf-bin</running>
+  <running type="pathname">~/.librewolf/*.default/lock</running>
+  <running type="pathname">~/.librewolf/*.default/lock</running>
+  <var name="base">
+    <value os="windows">%AppData%\librewolf</value>
+    <value os="unix">~/.librewolf</value>
+  </var>
+  <var name="profile">
+    <value search="glob" os="windows">%AppData%\librewolf\Profiles\*</value>
+    <value search="glob" os="unix">~/.librewolf/*</value>
+    <value search="glob" os="unix">~/.config/librewolf/librewolf/*</value>
+    <value search="glob" os="linux">~/.var/app/io.gitlab.librewolf-community/.librewolf/*</value>
+  </var>
+  <option id="backup">
+    <label>Backup files</label>
+    <description>Delete the backup files</description>
+    <action command="delete" search="glob" path="$$profile$$/bookmarkbackups/*.json"/>
+    <action command="delete" search="glob" path="$$profile$$/bookmarkbackups/*.jsonlz4"/>
+  </option>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <!--
+This Linux path is whitelisted by the System - Cache cleaner, so it is not
+redundant. It also contains the cache2 and OfflineCache directories.
+-->
+    <action command="delete" search="walk.all" path="~/.cache/librewolf/"/>
+    <action command="delete" search="walk.all" path="~/.var/app/io.gitlab.librewolf-community/cache"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\librewolf\Profiles\*\cache2"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\librewolf\Profiles\*\jumpListCache"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\librewolf\Profiles\*\OfflineCache"/>
+    <!--
+This file no longer exists in Firefox <=62
+
+Necko Predictive Network Actions
+https://wiki.mozilla.org/Privacy/Reviews/Necko
+-->
+    <action command="delete" search="file" path="$$profile$$/netpredictions.sqlite"/>
+  </option>
+  <option id="cookies">
+    <label>Cookies</label>
+    <description>Delete cookies, which store login information, website preferences, and tracking identifiers</description>
+    <action command="delete" search="file" path="$$profile$$/cookies.txt"/>
+    <action command="cookie" search="file" path="$$profile$$/cookies.sqlite"/>
+  </option>
+  <option id="crash_reports">
+    <label>Crash reports</label>
+    <description>Delete the files</description>
+    <action command="delete" search="walk.all" path="$$base$$/Crash Reports/"/>
+    <action command="delete" search="glob" path="$$profile$$/minidumps/*.dmp"/>
+  </option>
+  <option id="forms">
+    <label>Form history</label>
+    <description>Saved form entries and search bar history</description>
+    <action command="delete" search="file" path="$$profile$$/formhistory.dat"/>
+    <action command="delete" search="file" path="$$profile$$/formhistory.sqlite"/>
+  </option>
+  <option id="passwords">
+    <label>Passwords</label>
+    <description>A database of usernames and passwords as well as a list of sites that should not store passwords</description>
+    <warning>This option will delete your saved passwords.</warning>
+    <!-- https://kb.mozillazine.org/Password_Manager -->
+    <action command="delete" search="file" path="$$profile$$/signons.txt"/>
+    <action command="delete" search="file" path="$$profile$$/signons2.txt"/>
+    <action command="delete" search="file" path="$$profile$$/signons3.txt"/>
+    <action command="delete" search="file" path="$$profile$$/signons.sqlite"/>
+    <action command="delete" search="file" path="$$profile$$/logins.json"/>
+  </option>
+  <option id="session">
+    <label>Session</label>
+    <description>Previously open tabs and windows</description>
+    <!--
+Example names
+sessionstore.js
+sessionstore.jsonlz4
+sessionstore.bak
+sessionstore.bak-20140715214327
+sessionstore-1.js
+upgrade.jsonlz4-20180905220717
+sessionCheckpoints.json
+sessionstore-backups/recovery.bak
+sessionstore-backups/recovery.baklz4
+sessionstore-backups/recovery.js
+sessionstore-backups/recovery.jsonlz4
+-->
+    <action command="delete" search="file" path="$$profile$$/sessionCheckpoints.json"/>
+    <action command="delete" search="glob" path="$$profile$$/sessionstore*.js*"/>
+    <action command="delete" search="glob" path="$$profile$$/sessionstore.bak*"/>
+    <action command="delete" search="glob" path="$$profile$$/sessionstore-backups/previous.js*"/>
+    <action command="delete" search="glob" path="$$profile$$/sessionstore-backups/recovery.js*"/>
+    <action command="delete" search="glob" path="$$profile$$/sessionstore-backups/recovery.bak*"/>
+    <action command="delete" search="file" path="$$profile$$/sessionstore-backups/previous.bak"/>
+    <action command="delete" search="glob" path="$$profile$$/sessionstore-backups/upgrade.js*-20*"/>
+  </option>
+  <option id="site_data">
+    <label>Site data</label>
+    <description>Delete LocalStorage, IndexedDB, and other data stored by websites</description>
+    <action command="delete" search="walk.all" path="$$profile$$/storage/default/http*"/>
+    <action command="delete" search="glob" path="$$profile$$/storage/default/http*"/>
+    <action command="delete" search="file" path="$$profile$$/webappsstore.sqlite"/>
+    <action command="delete" search="file" path="$$profile$$/storage.sqlite"/>
+  </option>
+  <option id="site_preferences">
+    <label>Site preferences</label>
+    <description>Settings for individual sites</description>
+    <action command="delete" search="file" path="$$profile$$/content-prefs.sqlite"/>
+    <action command="delete" search="file" path="$$profile$$/permissions.sqlite"/>
+  </option>
+  <option id="url_history">
+    <label>URL history</label>
+    <description>List of visited web pages</description>
+    <action command="delete" search="file" path="$$profile$$/bounce-tracking-protection.sqlite"/>
+    <action command="delete" search="file" path="$$profile$$/SiteSecurityServiceState.txt"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\librewolf\Profiles\*\thumbnails"/>
+    <!-- Firefox versions 1 and 2 -->
+    <action command="delete" search="file" path="$$profile$$/history.dat"/>
+    <action command="delete" search="file" path="$$profile$$/downloads.rdf"/>
+    <!-- Firefox 3 introduced downloads.sqlite and places.sqlite -->
+    <action command="delete" search="file" path="$$profile$$/downloads.sqlite"/>
+    <action command="mozilla.url.history" search="file" path="$$profile$$/places.sqlite"/>
+    <!-- Firefox 78 (or earlier) moved icons from places.sqlite to favicons.sqlite -->
+    <action command="mozilla.favicons" search="file" path="$$profile$$/favicons.sqlite"/>
+    <!-- Firefox 108 has alternative services with visited domains -->
+    <action command="delete" search="file" path="$$profile$$/AlternateServices.txt"/>
+    <action command="delete" search="file" path="$$profile$$/AlternateServices.bin"/>
+  </option>
+  <option id="vacuum">
+    <label>Vacuum</label>
+    <description>Clean database fragmentation to reduce space and improve speed without removing any data</description>
+    <action command="sqlite.vacuum" search="glob" path="$$profile$$/*.sqlite"/>
+  </option>
+</cleaner>

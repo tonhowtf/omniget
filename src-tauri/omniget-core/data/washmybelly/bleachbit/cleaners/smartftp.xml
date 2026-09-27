@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="smartftp" os="windows">
+  <label>SmartFTP</label>
+  <description>File transfer client</description>
+  <option id="mru">
+    <label>Most recently used</label>
+    <description>Delete the most recently used list</description>
+    <action command="winreg" path="HKCU\Software\SmartFTP\Client 2.0\Settings\History"/>
+  </option>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.all" path="$LOCALAPPDATA\SmartFTP\Client 2.0\Cache\"/>
+  </option>
+  <option id="log">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action command="delete" search="walk.all" path="$LOCALAPPDATA\SmartFTP\Client 2.0\Log\"/>
+  </option>
+</cleaner>

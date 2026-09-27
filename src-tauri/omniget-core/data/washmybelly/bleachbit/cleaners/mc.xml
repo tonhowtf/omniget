@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+Windows port at https://sourceforge.net/projects/mcwin32/
+
+-->
+<cleaner id="midnightcommander">
+  <label>Midnight Commander</label>
+  <description>File manager</description>
+  <var name="profile">
+    <value os="windows">%UserProfile%\Midnight Commander</value>
+    <value os="linux">~/.mc</value>
+    <value os="linux">$XDG_DATA_HOME/mc</value>
+  </var>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the usage history</description>
+    <action command="delete" search="file" path="$$profile$$/history"/>
+    <action command="delete" search="file" path="$$profile$$/filepos"/>
+  </option>
+</cleaner>

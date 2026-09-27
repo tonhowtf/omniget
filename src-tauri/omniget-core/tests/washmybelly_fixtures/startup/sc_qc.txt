@@ -1,0 +1,12 @@
+[SC] QueryServiceConfig SUCCESS
+
+SERVICE_NAME: AdobeARMservice
+        TYPE               : 10  WIN32_OWN_PROCESS
+        START_TYPE         : 2   AUTO_START  (DELAYED)
+        ERROR_CONTROL      : 1   NORMAL
+        BINARY_PATH_NAME   : "C:\Program Files (x86)\Common Files\Adobe\ARM\1.0\armsvc.exe"
+        LOAD_ORDER_GROUP   :
+        TAG                : 0
+        DISPLAY_NAME       : Adobe Acrobat Update Service
+        DEPENDENCIES       :
+        SERVICE_START_NAME : LocalSystem

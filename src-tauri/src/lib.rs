@@ -32,6 +32,7 @@ pub mod local_bridge_jobs;
 pub mod local_bridge_llm;
 pub mod local_bridge_observe;
 pub mod local_bridge_remote;
+pub mod local_bridge_wmb;
 pub mod mcp;
 pub mod missions;
 pub mod models;
@@ -646,6 +647,7 @@ pub fn run() {
             core::channel_poller::start(app.handle().clone());
             core::queue::start_scheduler(app.handle().clone());
             commands::league::start_background(app.handle().clone());
+            commands::washmybelly::start_background(app.handle().clone());
             {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
@@ -924,6 +926,13 @@ pub fn run() {
             commands::music::music_radio_remove,
             commands::music::music_radio_played,
             commands::music::music_radio_resolve,
+            commands::washmybelly::washmybelly_capabilities,
+            commands::washmybelly::washmybelly_call,
+            commands::washmybelly::washmybelly_ui,
+            commands::washmybelly::washmybelly_monitor_start,
+            commands::washmybelly::washmybelly_monitor_stop,
+            commands::washmybelly::washmybelly_approvals,
+            commands::washmybelly::washmybelly_approval_answer,
             commands::league::league_status,
             commands::league::league_get,
             commands::league::league_set_positions,

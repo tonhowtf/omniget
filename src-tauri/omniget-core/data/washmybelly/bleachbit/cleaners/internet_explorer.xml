@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="internet_explorer" os="windows">
+  <label>Internet Explorer</label>
+  <description>Web browser</description>
+  <var name="IELocalAppData">
+    <!-- Windows 7 -->
+    <value>%LocalAppData%\Microsoft\Windows</value>
+    <!-- Windows XP, English -->
+    <value>%UserProfile%\Local Settings</value>
+    <!-- Windows XP, Polish -->
+    <value>%UserProfile%\Ustawienia lokalne</value>
+  </var>
+  <option id="cookies">
+    <label>Cookies</label>
+    <description>Delete cookies, which store login information, website preferences, and tracking identifiers</description>
+    <action command="delete" search="walk.files" path="%UserProfile%\Cookies\"/>
+    <action command="delete" search="walk.files" path="%AppData%\Microsoft\Windows\Cookies\"/>
+    <action command="delete" search="walk.files" path="%LocalAppData%\Microsoft\Internet Explorer\DOMStore\"/>
+    <action command="delete" search="walk.files" path="$$IELocalAppData$$\INetCookies\"/>
+    <action command="delete" search="walk.files" path="%LocalAppDataLow%\Microsoft\Internet Explorer\DOMStore\"/>
+  </option>
+  <option id="forms">
+    <label>Form history</label>
+    <!-- Internet Explorer 7 and 8 -->
+    <description>Saved form entries and search bar history</description>
+    <action command="winreg" path="HKCU\Software\Microsoft\Internet Explorer\IntelliForms\Storage1"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Internet Explorer\IntelliForms\Storage2"/>
+  </option>
+  <option id="history">
+    <label>History</label>
+    <description>List of visited web pages</description>
+    <action command="delete" search="walk.files" path="$$IELocalAppData$$\History\"/>
+    <action command="delete" search="walk.files" path="%LocalAppData%\Microsoft\Internet Explorer\Recovery\Active\"/>
+    <action command="delete" search="walk.files" path="%LocalAppData%\Microsoft\Internet Explorer\Recovery\Immersive\Active\"/>
+    <action command="delete" search="walk.files" path="%LocalAppData%\Microsoft\Internet Explorer\Recovery\Last Active\"/>
+    <!-- "How to clear the History entries in Internet Explorer", https://web.archive.org/web/20160527050453/https://support.microsoft.com/en-us/kb/157729 -->
+    <action command="winreg" path="HKCU\Software\Microsoft\Internet Explorer\TypedURLs"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Internet Explorer\TypedURLsTime"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Internet Explorer\TabbedBrowsing\NewTabPage"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Internet Explorer\Explorer Bars\{C4EE31F3-4768-11D2-BE5C-00A0C9A83DA1}\FilesNamedMRU"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Internet Explorer\Explorer Bars\{C4EE31F3-4768-11D2-BE5C-00A0C9A83DA1}\ContainingTextMRU"/>
+    <action command="delete" search="walk.files" path="%LocalAppData%\Packages\windows_ie_ac_*\AC\Microsoft\CLR_v4.0\UsageLogs\"/>
+    <action command="delete" search="walk.files" path="%LocalAppData%\Packages\windows_ie_ac_*\AC\Microsoft\CryptnetUrlCache\"/>
+    <action command="delete" search="walk.files" path="%LocalAppData%\Packages\windows_ie_ac_*\LocalState\navigationHistory\"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Internet Explorer\Main\FeatureControl"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Internet Explorer\Recovery\PendingDelete"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Windows\CurrentVersion\Ext\Stats"/>
+  </option>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.all" path="$$IELocalAppData$$\Temporary Internet Files\"/>
+    <!-- Windows 7 -->
+    <action command="delete" search="walk.all" path="%AppData%\Microsoft\Internet Explorer\UserData\"/>
+    <action command="delete" search="walk.all" path="%AppData%\Microsoft\Windows\IETldCache\"/>
+    <action command="delete" search="walk.all" path="%AppData%\Microsoft\Windows\IECompatCache\"/>
+    <action command="delete" search="walk.all" path="%AppData%\Microsoft\Windows\IECompatUACache\"/>
+    <action command="delete" search="walk.all" path="%AppData%\Microsoft\Windows\IECompat*Cache\"/>
+    <action command="delete" search="walk.all" path="$$IELocalAppData$$\INetCache\"/>
+    <action command="delete" search="walk.all" path="$$IELocalAppData$$\WebCache\"/>
+    <action command="delete" search="walk.top" path="$$IELocalAppData$$\WebCache.old\"/>
+    <action command="delete" search="walk.all" path="%LocalAppDataLow%\Microsoft\Internet Explorer\iconcache\"/>
+    <action command="delete" search="walk.all" path="$$IELocalAppData$$\AppCache\"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Packages\windows_ie_ac_*\AC\AppCache\"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Packages\windows_ie_ac_*\AC\IECompat*Cache\"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Packages\windows_ie_ac_*\AC\INet*\"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Packages\windows_ie_ac_*\AC\Microsoft\Internet Explorer\DOMStore\"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Packages\windows_ie_ac_*\AC\Microsoft\Internet Explorer\Emie*List\"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Packages\windows_ie_ac_*\AC\PRICache\"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Packages\windows_ie_ac_*\AC\Temp\"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Packages\windows_ie_ac_*\LocalState\Cache\"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Packages\windows_ie_ac_*\TempState\"/>
+    <action command="delete" search="walk.all" path="%WindowsSystem%\config\systemprofile\AppData\Local\Microsoft\Windows\INetCache\"/>
+    <action command="winreg" path="HKCR\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppContainer\Storage\windows_ie_ac_001\Internet Explorer\DOMStorage"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Internet Explorer\LowRegistry\DOMStorage"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Microsoft\Feeds Cache\"/>
+  </option>
+  <option id="downloads">
+    <label>Download history</label>
+    <description>Delete the usage history</description>
+    <action command="delete" search="walk.all" path="%AppData%\Microsoft\Windows\IEDownloadHistory\"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Packages\windows_ie_ac_*\AC\IEDownloadHistory\"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Internet Explorer" name="Download Directory"/>
+    <action command="winreg" path="HKCU\Software\Microsoft\Internet Explorer\Main" name="Save Directory"/>
+  </option>
+  <option id="logs">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action command="delete" search="file" path="%LocalAppData%\Microsoft\Internet Explorer\brndlog.bak"/>
+    <action command="delete" search="file" path="%LocalAppData%\Microsoft\Internet Explorer\brndlog.txt"/>
+    <action command="delete" search="file" path="%WindowsSystem%\config\systemprofile\Application Data\Microsoft\Internet Explorer\brndlog.bak"/>
+    <action command="delete" search="file" path="%WindowsSystem%\config\systemprofile\Application Data\Microsoft\Internet Explorer\brndlog.txt"/>
+  </option>
+</cleaner>

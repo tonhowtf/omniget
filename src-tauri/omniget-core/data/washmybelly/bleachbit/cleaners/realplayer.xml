@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="realplayer">
+  <label>RealPlayer</label>
+  <description>Media player</description>
+  <option id="cookies">
+    <label>Cookies</label>
+    <description>Delete cookies, which store login information, website preferences, and tracking identifiers</description>
+    <action command="delete" search="file" path="$XDG_CONFIG_HOME/real/rpcookies.txt"/>
+    <action command="delete" search="file" path="$APPDATA\Real\RealPlayer\cookies.txt"/>
+  </option>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the usage history</description>
+    <!-- $XDG_CONFIG_HOME/real/realplayerrc has recent_urls, but in an .ini dialect the ini command cannot parse -->
+    <action command="delete" search="file" path="$APPDATA\Real\RealPlayer\realplayer.ste"/>
+    <action command="delete" search="glob" path="$APPDATA\Real\RealPlayer\History\*.lnk"/>
+  </option>
+  <option id="logs">
+    <label>Logs</label>
+    <description>Delete the logs</description>
+    <action command="delete" search="file" path="$APPDATA\Real\RealPlayer\RealPlayer-log.txt"/>
+    <action command="delete" search="walk.files" path="$APPDATA\Real\RealPlayer\ErrorLogs\"/>
+  </option>
+</cleaner>

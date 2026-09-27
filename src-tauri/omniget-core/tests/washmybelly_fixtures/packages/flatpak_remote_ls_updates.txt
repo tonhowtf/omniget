@@ -1,0 +1,2 @@
+org.videolan.VLC	3.0.21	stable	24.1 MB	app/org.videolan.VLC/x86_64/stable
+org.freedesktop.Platform.GL.default	24.2.3	24.08	130.5 MB	runtime/org.freedesktop.Platform.GL.default/x86_64/24.08

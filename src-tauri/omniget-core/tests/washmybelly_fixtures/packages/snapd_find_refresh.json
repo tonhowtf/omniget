@@ -1,0 +1,3 @@
+{"type":"sync","status-code":200,"status":"OK","result":[
+ {"id":"3wdHCAVyZEmYsCMFDE9qt92UV8rC8Wdk","title":"firefox","summary":"Mozilla Firefox web browser","download-size":273000000,"name":"firefox","publisher":{"display-name":"Mozilla"},"status":"available","type":"app","version":"132.0-1","channel":"stable","revision":"5010"}
+],"sources":["store"],"suggested-currency":"USD"}

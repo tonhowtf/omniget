@@ -16,13 +16,14 @@
 
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock};
 
 use async_trait::async_trait;
 use serde::Serialize;
 use serde_json::{json, Value};
 
 use super::types::ToolSpec;
+use crate::core::washmybelly::Os;
 
 /// The future a [`ToolImpl::Core`] call returns. Boxed so the table can hold
 /// plain `fn` pointers instead of one type per tool.
@@ -78,6 +79,28 @@ pub struct ToolEntry {
     /// The group this tool belongs to (help, code, downloads).
     pub category: &'static str,
     pub cost_hint: CostHint,
+    /// Systems the tool exists on; empty means every system. A tool of
+    /// another system is never listed nor dispatched.
+    pub platforms: &'static [Os],
+    /// Setting that switches the tool on (`washmybelly`); `None` = always.
+    pub feature: Option<&'static str>,
+    /// What one call can do to the machine, for the grant UI and the MCP
+    /// annotations. `None` for tools that predate the field.
+    pub risk: Option<ToolRisk>,
+    /// Never runs on `Auto`: every call asks, and "Always" is not stored.
+    pub always_ask: bool,
+}
+
+/// What a tool can do to the machine (washmybelly and later tools).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolRisk {
+    /// Only reads.
+    Read,
+    /// Changes something a receipt can undo.
+    Reversible,
+    /// Cannot be undone.
+    Destructive,
 }
 
 impl ToolEntry {
@@ -93,6 +116,40 @@ impl ToolEntry {
     pub fn needs_host(&self) -> bool {
         matches!(self.call, ToolImpl::Host)
     }
+
+    /// Listed and callable on this system with its feature switched on.
+    pub fn available(&self) -> bool {
+        (self.platforms.is_empty()
+            || self
+                .platforms
+                .contains(&crate::core::washmybelly::current_os()))
+            && self.feature.is_none_or(feature_enabled)
+    }
+}
+
+static DISABLED_FEATURES: RwLock<Vec<&'static str>> = RwLock::new(Vec::new());
+
+/// The app mirrors a feature switch here (`washmybelly.enabled`), so every
+/// consumer of the table hides the feature's tools while it is off.
+pub fn set_feature_enabled(feature: &'static str, on: bool) {
+    if let Ok(mut off) = DISABLED_FEATURES.write() {
+        off.retain(|f| *f != feature);
+        if !on {
+            off.push(feature);
+        }
+    }
+}
+
+pub fn feature_enabled(feature: &str) -> bool {
+    DISABLED_FEATURES
+        .read()
+        .map(|off| !off.contains(&feature))
+        .unwrap_or(true)
+}
+
+/// A tool that must ask on every call, whatever the grant says.
+pub fn always_asks(name: &str) -> bool {
+    table().iter().any(|e| e.name == name && e.always_ask)
 }
 
 fn obj(props: Value, required: &[&str]) -> Value {
@@ -166,6 +223,10 @@ fn entry(
         call,
         category,
         cost_hint,
+        platforms: &[],
+        feature: None,
+        risk: None,
+        always_ask: false,
     }
 }
 
@@ -176,7 +237,7 @@ fn core(f: CoreCall) -> ToolImpl {
 /// Every internal tool. Built once; call [`table`] to read it.
 fn build() -> Vec<ToolEntry> {
     use CostHint::{Cheap, Local, Network, Paid};
-    vec![
+    let mut all = vec![
         entry("omniget_app_export", "Export up to 20 owned PNG/MP4 artifacts as a local ZIP with manifest, storyboard and contact sheet. No remote upload.", obj(json!({"artifactIds":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":20},"storyboard":{"type":"string","maxLength":20000}}), &["artifactIds","storyboard"]), ToolImpl::Host, "native_app", Local),
         entry("omniget_app_record", "Record native WebView snapshots asynchronously at a target of 5 fps, maximum 60 seconds. Requires FFmpeg, app_capture and transfer. No audio/cursor. Start requires a unique requestId. Stop returns immediately; poll status until complete.", obj(json!({"requestId":{"type":"string","minLength":1,"maxLength":100},"action":{"type":"string","enum":["start","status","stop","cancel"]},"windowId":{"type":"string"},"jobId":{"type":"string"}}), &["action"]), ToolImpl::Host, "native_app", Local),
         entry("omniget_app_catalog", "Discover all native screens, windows and blocked surfaces.", obj(json!({}), &[]), ToolImpl::Host, "native_app", Local),
@@ -326,7 +387,9 @@ fn build() -> Vec<ToolEntry> {
         entry("preview_type", "Type into an input, textarea, select or contenteditable of the preview page (React-safe value setter + input/change events). clear defaults to true; submit presses Enter and submits the form.", obj(json!({"selector":{"type":"string"},"text":{"type":"string"},"submit":{"type":"boolean"},"clear":{"type":"boolean"},"threadId":{"type":"string"}}), &["selector", "text"]), ToolImpl::Host, "code", Local),
         entry("preview_console", "Console messages, page errors and failed resource loads captured in the preview since the last page load (drained by default).", obj(json!({"level":{"type":"string","enum":["error","warn","log","info","debug"]},"limit":{"type":"integer","maximum":500},"clear":{"type":"boolean"},"threadId":{"type":"string"}}), &[]), ToolImpl::Host, "code", Cheap),
         entry("preview_screenshot", "PNG screenshot of the preview page; returns {path, width, height}. Shows the preview for a moment when it is hidden.", obj(json!({"threadId":{"type":"string"}}), &[]), ToolImpl::Host, "code", Local),
-    ]
+    ];
+    all.extend(crate::core::washmybelly::tools::entries());
+    all
 }
 
 /// The table, built once.
@@ -335,20 +398,26 @@ pub fn table() -> &'static [ToolEntry] {
     TABLE.get_or_init(build)
 }
 
-/// One entry by name.
+/// The tools this system has, with their features switched on: what every
+/// consumer lists.
+pub fn available() -> impl Iterator<Item = &'static ToolEntry> {
+    table().iter().filter(|e| e.available())
+}
+
+/// One available entry by name.
 pub fn find(name: &str) -> Option<&'static ToolEntry> {
-    table().iter().find(|e| e.name == name)
+    available().find(|e| e.name == name)
 }
 
-/// Every tool as a `ToolSpec`, in table order: what the broker registers and
-/// what a provider sees.
+/// Every available tool as a `ToolSpec`, in table order: what the broker
+/// registers and what a provider sees.
 pub fn specs() -> Vec<ToolSpec> {
-    table().iter().map(ToolEntry::spec).collect()
+    available().map(ToolEntry::spec).collect()
 }
 
-/// Tool names in table order.
+/// Available tool names in table order.
 pub fn names() -> Vec<&'static str> {
-    table().iter().map(|e| e.name).collect()
+    available().map(|e| e.name).collect()
 }
 
 /// Run one tool. `host` is the desktop half; without it, a
@@ -380,7 +449,9 @@ mod tests {
     #[test]
     fn the_table_has_every_tool_once_with_an_object_schema() {
         let t = table();
-        assert_eq!(t.len(), 45, "the table lost or gained a tool");
+        let legacy = t.iter().filter(|e| !e.name.starts_with("wmb_")).count();
+        assert_eq!(legacy, 45, "the table lost or gained a tool");
+        assert_eq!(t.len(), legacy + 34, "washmybelly has 34 tools");
         let names: std::collections::HashSet<_> = t.iter().map(|e| e.name).collect();
         assert_eq!(names.len(), t.len(), "duplicate tool name");
         for e in t {
@@ -450,8 +521,8 @@ mod tests {
     #[test]
     fn specs_mirror_the_table_in_order() {
         let specs = specs();
-        assert_eq!(specs.len(), table().len());
-        for (spec, e) in specs.iter().zip(table()) {
+        assert_eq!(specs.len(), available().count());
+        for (spec, e) in specs.iter().zip(available()) {
             assert_eq!(spec.name, e.name);
             assert_eq!(spec.input_schema, e.input_schema);
         }
@@ -465,6 +536,25 @@ mod tests {
             json!(QUEUE_STATUS_KEYS)
         );
         assert_eq!(q.input_schema["required"], json!([]));
+    }
+
+    #[test]
+    fn tools_of_another_system_are_never_listed() {
+        let names = names();
+        let win_only = table()
+            .iter()
+            .find(|e| e.name == "wmb_tweaks_list")
+            .unwrap();
+        assert_eq!(
+            names.contains(&"wmb_tweaks_list"),
+            cfg!(windows),
+            "{:?}",
+            win_only.platforms
+        );
+        assert_eq!(
+            names.contains(&"wmb_persistence_list"),
+            cfg!(target_os = "macos")
+        );
     }
 
     #[tokio::test]

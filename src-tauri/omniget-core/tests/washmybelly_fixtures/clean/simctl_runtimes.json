@@ -1,0 +1,35 @@
+{
+  "5B8B3E3E-1111-4AAA-8BBB-000000000001" : {
+    "build" : "21F79",
+    "deletable" : true,
+    "identifier" : "5B8B3E3E-1111-4AAA-8BBB-000000000001",
+    "kind" : "Disk Image",
+    "platformIdentifier" : "com.apple.platform.iphonesimulator",
+    "runtimeIdentifier" : "com.apple.CoreSimulator.SimRuntime.iOS-17-5",
+    "sizeBytes" : 7461298176,
+    "state" : "Ready",
+    "version" : "17.5"
+  },
+  "5B8B3E3E-1111-4AAA-8BBB-000000000002" : {
+    "build" : "22A3351",
+    "deletable" : true,
+    "identifier" : "5B8B3E3E-1111-4AAA-8BBB-000000000002",
+    "kind" : "Disk Image",
+    "platformIdentifier" : "com.apple.platform.iphonesimulator",
+    "runtimeIdentifier" : "com.apple.CoreSimulator.SimRuntime.iOS-18-0",
+    "sizeBytes" : 8123456789,
+    "state" : "Ready",
+    "version" : "18.0"
+  },
+  "5B8B3E3E-1111-4AAA-8BBB-000000000003" : {
+    "build" : "21R355",
+    "deletable" : false,
+    "identifier" : "5B8B3E3E-1111-4AAA-8BBB-000000000003",
+    "kind" : "Bundled with Xcode",
+    "platformIdentifier" : "com.apple.platform.watchsimulator",
+    "runtimeIdentifier" : "com.apple.CoreSimulator.SimRuntime.watchOS-10-5",
+    "sizeBytes" : 3000000000,
+    "state" : "Ready",
+    "version" : "10.5"
+  }
+}

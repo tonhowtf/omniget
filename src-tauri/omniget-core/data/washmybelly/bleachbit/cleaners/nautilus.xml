@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="nautilus" os="linux">
+  <label>Nautilus</label>
+  <description>File manager</description>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the usage history</description>
+    <warning>Custom folders will be reset.</warning>
+    <action command="delete" search="glob" path="~/.nautilus/saved-session-??????"/>
+    <action command="delete" search="glob" path="~/.nautilus/metafiles/*:*.xml"/>
+  </option>
+</cleaner>

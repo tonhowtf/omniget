@@ -1,0 +1,403 @@
+{
+ "formulae": [],
+ "casks": [
+  {
+   "token": "azure-cli-preview",
+   "full_token": "azure/azure-cli/azure-cli-preview",
+   "old_tokens": [],
+   "tap": "azure/azure-cli",
+   "name": [
+    "Azure CLI"
+   ],
+   "desc": "Microsoft Azure CLI 2.0",
+   "homepage": "https://docs.microsoft.com/cli/azure/overview",
+   "url": "https://github.com/Azure/azure-cli/releases/download/azure-cli-2.90.0/azure-cli-2.90.0-macos-arm64.tar.gz",
+   "url_specs": {},
+   "version": "2.90.0",
+   "autobump": true,
+   "no_autobump_message": null,
+   "skip_livecheck": false,
+   "installed": "2.87.0",
+   "installed_time": 1781462996,
+   "bundle_version": null,
+   "bundle_short_version": null,
+   "pinned": false,
+   "pinned_version": null,
+   "outdated": true,
+   "sha256": "1cdcf8dc99ece8c10d198d9451d7ac0905a4d63aea5fac5fcf903bdf2aba93b3",
+   "artifacts": [
+    {
+     "binary": [
+      "bin/az"
+     ],
+     "target": "/opt/homebrew/bin/az"
+    },
+    {
+     "bash_completion": [
+      "completions/bash/az"
+     ],
+     "target": "/opt/homebrew/etc/bash_completion.d/az"
+    },
+    {
+     "fish_completion": [
+      "completions/fish/az.fish"
+     ],
+     "target": "/opt/homebrew/share/fish/vendor_completions.d/az.fish"
+    },
+    {
+     "zsh_completion": [
+      "completions/zsh/_az"
+     ],
+     "target": "/opt/homebrew/share/zsh/site-functions/_az"
+    },
+    {
+     "zap": [
+      {
+       "trash": "~/.azure"
+      }
+     ]
+    }
+   ],
+   "caveats": null,
+   "caveats_rosetta": null,
+   "depends_on": {
+    "formula": [
+     "python@3.14"
+    ]
+   },
+   "conflicts_with": null,
+   "container": null,
+   "rename": [],
+   "auto_updates": null,
+   "deprecated": false,
+   "deprecation_date": null,
+   "deprecation_reason": null,
+   "deprecation_replacement_formula": null,
+   "deprecation_replacement_cask": null,
+   "deprecate_args": null,
+   "disabled": false,
+   "disable_date": null,
+   "disable_reason": null,
+   "disable_replacement_formula": null,
+   "disable_replacement_cask": null,
+   "disable_args": null,
+   "tap_git_head": "2de03083882e29b747726ac9785c99d749fdc56f",
+   "languages": [],
+   "ruby_source_path": "Casks/a/azure-cli-preview.rb",
+   "ruby_source_checksum": {
+    "sha256": "bf424aefb986b4de1b4695c0aff5f6d9f9040bf8a68a319cedd015ba60bb522f"
+   }
+  },
+  {
+   "token": "firefox",
+   "full_token": "firefox",
+   "old_tokens": [],
+   "tap": "homebrew/cask",
+   "name": [
+    "Mozilla Firefox"
+   ],
+   "desc": "Web browser",
+   "homepage": "https://www.mozilla.org/firefox/",
+   "url": "https://download-installer.cdn.mozilla.net/pub/firefox/releases/156.0.1/mac/en-US/Firefox%20156.0.1.dmg",
+   "url_specs": {},
+   "version": "156.0.1",
+   "autobump": true,
+   "no_autobump_message": null,
+   "skip_livecheck": false,
+   "installed": "151.0.1",
+   "installed_time": 1780000000,
+   "bundle_version": null,
+   "bundle_short_version": null,
+   "pinned": false,
+   "pinned_version": null,
+   "outdated": false,
+   "sha256": "7eda94829670b892524eddfee575d16fe74b9329d3d0795367cce035207d34a4",
+   "artifacts": [
+    {
+     "uninstall": [
+      {
+       "quit": "org.mozilla.firefox"
+      }
+     ]
+    },
+    {
+     "app": [
+      "Firefox.app"
+     ],
+     "target": "/Applications/Firefox.app"
+    },
+    {
+     "command_wrapper": [
+      "firefox",
+      {
+       "executable": "/Applications/Firefox.app/Contents/MacOS/firefox"
+      }
+     ],
+     "target": "/opt/homebrew/bin/firefox"
+    },
+    {
+     "zap": [
+      {
+       "trash": [
+        "/Library/Logs/DiagnosticReports/firefox_*",
+        "~/Library/Application Support/com.apple.sharedfilelist/com.apple.LSSharedFileList.ApplicationRecentDocuments/org.mozilla.firefox.sfl*",
+        "~/Library/Application Support/CrashReporter/firefox_*",
+        "~/Library/Application Support/Firefox",
+        "~/Library/Caches/Firefox",
+        "~/Library/Caches/Mozilla/updates/Applications/Firefox",
+        "~/Library/Caches/org.mozilla.crashreporter",
+        "~/Library/Caches/org.mozilla.firefox",
+        "~/Library/Preferences/org.mozilla.crashreporter.plist",
+        "~/Library/Preferences/org.mozilla.firefox.plist",
+        "~/Library/Saved Application State/org.mozilla.firefox.savedState",
+        "~/Library/WebKit/org.mozilla.firefox"
+       ],
+       "rmdir": [
+        "~/Library/Application Support/Mozilla",
+        "~/Library/Caches/Mozilla",
+        "~/Library/Caches/Mozilla/updates",
+        "~/Library/Caches/Mozilla/updates/Applications"
+       ]
+      }
+     ]
+    }
+   ],
+   "caveats": null,
+   "caveats_rosetta": null,
+   "depends_on": {
+    "macos": {}
+   },
+   "conflicts_with": {
+    "cask": [
+     "firefox@beta",
+     "firefox@cn",
+     "firefox@esr"
+    ]
+   },
+   "container": null,
+   "rename": [],
+   "auto_updates": true,
+   "deprecated": false,
+   "deprecation_date": null,
+   "deprecation_reason": null,
+   "deprecation_replacement_formula": null,
+   "deprecation_replacement_cask": null,
+   "deprecate_args": null,
+   "disabled": false,
+   "disable_date": null,
+   "disable_reason": null,
+   "disable_replacement_formula": null,
+   "disable_replacement_cask": null,
+   "disable_args": null,
+   "tap_git_head": "b8007ca6491609f69374d094e5dd21f6474a9ce4",
+   "languages": [
+    "ach",
+    "af",
+    "an",
+    "ar",
+    "ast",
+    "az",
+    "be",
+    "bg",
+    "bn",
+    "br",
+    "bs",
+    "ca",
+    "cak",
+    "cs",
+    "cy",
+    "da",
+    "de",
+    "dsb",
+    "el",
+    "en-CA",
+    "en-GB",
+    "en",
+    "eo",
+    "es-AR",
+    "es-CL",
+    "es-ES",
+    "es-MX",
+    "et",
+    "eu",
+    "fa",
+    "ff",
+    "fi",
+    "fr",
+    "fur",
+    "fy",
+    "ga",
+    "gd",
+    "gl",
+    "gn",
+    "gu",
+    "he",
+    "hi",
+    "hr",
+    "hsb",
+    "hu",
+    "hy",
+    "ia",
+    "id",
+    "in",
+    "is",
+    "it",
+    "ja",
+    "ka",
+    "kab",
+    "kk",
+    "km",
+    "kn",
+    "ko",
+    "lij",
+    "lt",
+    "lv",
+    "mk",
+    "mr",
+    "ms",
+    "my",
+    "nb",
+    "ne",
+    "nl",
+    "nn",
+    "oc",
+    "pa-IN",
+    "pl",
+    "pt-BR",
+    "pt",
+    "rm",
+    "ro",
+    "ru",
+    "sat",
+    "sc",
+    "sco",
+    "si",
+    "sk",
+    "skr",
+    "sl",
+    "son",
+    "sq",
+    "sr",
+    "sv",
+    "szl",
+    "ta",
+    "te",
+    "tg",
+    "th",
+    "tl",
+    "tr",
+    "trs",
+    "uk",
+    "ur",
+    "uz",
+    "vi",
+    "xh",
+    "zh-TW",
+    "zh"
+   ],
+   "ruby_source_path": "Casks/f/firefox.rb",
+   "ruby_source_checksum": {
+    "sha256": "97b302613e971ecd82db72d8651c1a0fe0a5da9fc63f3b3fdff244e1d0d5a995"
+   }
+  },
+  {
+   "token": "visual-studio-code",
+   "full_token": "visual-studio-code",
+   "old_tokens": [],
+   "tap": "homebrew/cask",
+   "name": [
+    "Microsoft Visual Studio Code",
+    "VS Code"
+   ],
+   "desc": "Open-source code editor",
+   "homepage": "https://code.visualstudio.com/",
+   "url": "https://update.code.visualstudio.com/1.139.1/darwin-arm64/stable",
+   "url_specs": {},
+   "version": "1.139.1",
+   "autobump": true,
+   "no_autobump_message": null,
+   "skip_livecheck": false,
+   "installed": null,
+   "installed_time": null,
+   "bundle_version": "1.138.0",
+   "bundle_short_version": "1.138.0",
+   "pinned": false,
+   "pinned_version": null,
+   "outdated": false,
+   "sha256": "923080bebc194ec178c2a06b61bcb138376776406c23b8bd3e4fc3286f91cba2",
+   "artifacts": [
+    {
+     "uninstall": [
+      {
+       "launchctl": "com.microsoft.VSCode.ShipIt",
+       "quit": "com.microsoft.VSCode"
+      }
+     ]
+    },
+    {
+     "app": [
+      "Visual Studio Code.app"
+     ],
+     "target": "/Applications/Visual Studio Code.app"
+    },
+    {
+     "binary": [
+      "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
+     ],
+     "target": "/opt/homebrew/bin/code"
+    },
+    {
+     "binary": [
+      "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code-tunnel"
+     ],
+     "target": "/opt/homebrew/bin/code-tunnel"
+    },
+    {
+     "zap": [
+      {
+       "trash": [
+        "~/.vscode",
+        "~/Library/Application Support/Code",
+        "~/Library/Application Support/com.apple.sharedfilelist/com.apple.LSSharedFileList.ApplicationRecentDocuments/com.microsoft.vscode.sfl*",
+        "~/Library/Caches/com.microsoft.VSCode",
+        "~/Library/Caches/com.microsoft.VSCode.ShipIt",
+        "~/Library/HTTPStorages/com.microsoft.VSCode",
+        "~/Library/Preferences/ByHost/com.microsoft.VSCode.ShipIt.*.plist",
+        "~/Library/Preferences/com.microsoft.VSCode.helper.plist",
+        "~/Library/Preferences/com.microsoft.VSCode.plist",
+        "~/Library/Saved Application State/com.microsoft.VSCode.savedState"
+       ]
+      }
+     ]
+    }
+   ],
+   "caveats": null,
+   "caveats_rosetta": null,
+   "depends_on": {
+    "macos": {}
+   },
+   "conflicts_with": null,
+   "container": null,
+   "rename": [],
+   "auto_updates": true,
+   "deprecated": false,
+   "deprecation_date": null,
+   "deprecation_reason": null,
+   "deprecation_replacement_formula": null,
+   "deprecation_replacement_cask": null,
+   "deprecate_args": null,
+   "disabled": false,
+   "disable_date": null,
+   "disable_reason": null,
+   "disable_replacement_formula": null,
+   "disable_replacement_cask": null,
+   "disable_args": null,
+   "tap_git_head": "b8007ca6491609f69374d094e5dd21f6474a9ce4",
+   "languages": [],
+   "ruby_source_path": "Casks/v/visual-studio-code.rb",
+   "ruby_source_checksum": {
+    "sha256": "6edc77dd6512862e972d33791ab0e88758f3f481d86ebe51f82727aed0a5c147"
+   }
+  }
+ ]
+}

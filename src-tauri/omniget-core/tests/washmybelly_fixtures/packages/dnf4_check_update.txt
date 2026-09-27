@@ -1,0 +1,8 @@
+Last metadata expiration check: 0:12:03 ago on Sat 27 Sep 2026 08:00:00 AM UTC.
+
+curl.x86_64                        7.76.1-29.el9_4.1          baseos
+firefox.x86_64                     128.3.0-1.el9_4            appstream
+kernel.x86_64                      5.14.0-427.37.1.el9_4      baseos
+Obsoleting Packages
+grub2-tools.x86_64                 1:2.06-82.el9_4            baseos
+    grub2-tools.x86_64             1:2.06-77.el9              @baseos

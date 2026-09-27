@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="recoll" os="linux">
+  <label>Recoll</label>
+  <description>Search tool</description>
+  <option id="index">
+    <label>Index</label>
+    <description>Delete the search index, a database of words and the files they contain</description>
+    <action command="delete" search="walk.files" path="~/.recoll/xapiandb/"/>
+  </option>
+</cleaner>

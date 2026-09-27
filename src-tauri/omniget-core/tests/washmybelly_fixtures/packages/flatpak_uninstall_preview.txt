@@ -1,0 +1,8 @@
+
+
+        ID                                     Branch          Op
+ 1.     org.gimp.GIMP.Locale                   stable          r
+ 2.     org.gimp.GIMP                          stable          r
+
+
+Proceed with these changes to the system installation? [Y/n]: n

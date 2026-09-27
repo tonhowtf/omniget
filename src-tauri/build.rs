@@ -1,8 +1,9 @@
 /// tauri-build requires every `externalBin` to exist at compile time. The
-/// worker sidecar is produced by `scripts/mcp/build-worker.mjs` (the release
+/// sidecars (the confined worker and the washmybelly `omniget-elevate`
+/// helper) are produced by `scripts/mcp/build-worker.mjs` (the release
 /// `beforeBuildCommand`); `cargo test`/`clippy` in CI never run it. An empty
 /// placeholder lets those compile; a release build overwrites it first.
-fn ensure_worker_sidecar() {
+fn ensure_sidecar(name: &str) {
     let (Ok(dir), Ok(target)) = (std::env::var("CARGO_MANIFEST_DIR"), std::env::var("TARGET"))
     else {
         return;
@@ -14,12 +15,12 @@ fn ensure_worker_sidecar() {
     };
     let path = std::path::Path::new(&dir)
         .join("binaries")
-        .join(format!("omniget-worker-{target}{ext}"));
+        .join(format!("{name}-{target}{ext}"));
     if !path.exists() {
         let _ = std::fs::create_dir_all(path.parent().unwrap());
         if std::fs::write(&path, b"").is_ok() {
             println!(
-                "cargo:warning=omniget-worker sidecar missing; wrote an empty placeholder at {} (run scripts/mcp/build-worker.mjs for a working worker)",
+                "cargo:warning={name} sidecar missing; wrote an empty placeholder at {} (run scripts/mcp/build-worker.mjs for a working one)",
                 path.display()
             );
         }
@@ -27,7 +28,8 @@ fn ensure_worker_sidecar() {
 }
 
 fn main() {
-    ensure_worker_sidecar();
+    ensure_sidecar("omniget-worker");
+    ensure_sidecar("omniget-elevate");
     // The bundled SQLite (libsqlite3-sys "bundled") defines sqlite3_* symbols
     // in this executable. When a linked shared library (webkit2gtk and its
     // deps reference sqlite3_open_v2, sqlite3_prepare_v2, ...) has an

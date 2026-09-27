@@ -494,5 +494,196 @@
       "actions": "Only actions returned by inspect",
       "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
     }
+  },
+  {
+    "screenId": "/llm/threads",
+    "route": "/llm/threads",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/catalog",
+    "route": "/llm/catalog",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/catalog/wizard",
+    "route": "/llm/catalog/wizard",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/catalog/[...id]",
+    "route": "/llm/catalog/[...id]",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "from-parent",
+    "preconditions": [
+      "Detail page: open it from /llm/catalog; direct navigation is not available."
+    ],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/installed",
+    "route": "/llm/installed",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/tools",
+    "route": "/llm/tools",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Sensitive: pixels, inspection and UI actions blocked."
+    ],
+    "capabilities": {
+      "inspect": false,
+      "capture": false,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/usage",
+    "route": "/llm/usage",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/sessions",
+    "route": "/llm/sessions",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Sensitive: pixels, inspection and UI actions blocked."
+    ],
+    "capabilities": {
+      "inspect": false,
+      "capture": false,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/sessions/[tool]/[id]",
+    "route": "/llm/sessions/[tool]/[id]",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "from-parent",
+    "preconditions": [
+      "Sensitive: pixels, inspection and UI actions blocked.",
+      "Detail page: open it from /llm/sessions."
+    ],
+    "capabilities": {
+      "inspect": false,
+      "capture": false,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/retro",
+    "route": "/llm/retro",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/remote",
+    "route": "/llm/remote",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Sensitive: pixels, inspection and UI actions blocked."
+    ],
+    "capabilities": {
+      "inspect": false,
+      "capture": false,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/washmybelly",
+    "route": "/washmybelly",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
   }
 ]

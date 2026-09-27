@@ -1,0 +1,22 @@
+DISPLAY:
+[PROCESS] \Device\HarddiskVolume3\Program Files\Mozilla Firefox\firefox.exe
+Playing video
+
+SYSTEM:
+[DRIVER] Realtek High Definition Audio (HDAUDIO\FUNC_01&VEN_10EC&DEV_0295&SUBSYS_10280A2E&REV_1000\4&1a2b3c4d&0&0001)
+An audio stream is currently in use.
+[PROCESS] \Device\HarddiskVolume3\Program Files\OmniGet\omniget.exe
+OmniGet: download in progress
+
+AWAYMODE:
+None.
+
+EXECUTION:
+None.
+
+PERFBOOST:
+None.
+
+ACTIVELOCKSCREEN:
+None.
+

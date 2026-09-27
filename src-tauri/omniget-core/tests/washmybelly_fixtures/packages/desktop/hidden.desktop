@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Helper
+Exec=/usr/libexec/helper
+NoDisplay=true

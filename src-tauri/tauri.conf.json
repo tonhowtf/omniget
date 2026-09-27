@@ -65,14 +65,21 @@
     },
     "linux": {
       "deb": {
-        "desktopTemplate": "./desktop.template"
+        "desktopTemplate": "./desktop.template",
+        "files": {
+          "/usr/share/polkit-1/actions/wtf.tonho.omniget.washmybelly.policy": "linux/wtf.tonho.omniget.washmybelly.policy"
+        }
       },
       "rpm": {
-        "desktopTemplate": "./desktop.template"
+        "desktopTemplate": "./desktop.template",
+        "files": {
+          "/usr/share/polkit-1/actions/wtf.tonho.omniget.washmybelly.policy": "linux/wtf.tonho.omniget.washmybelly.policy"
+        }
       }
     },
     "externalBin": [
-      "binaries/omniget-worker"
+      "binaries/omniget-worker",
+      "binaries/omniget-elevate"
     ]
   }
 }

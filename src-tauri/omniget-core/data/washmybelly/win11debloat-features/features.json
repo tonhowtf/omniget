@@ -1,0 +1,1623 @@
+{
+ "source": "https://github.com/Raphire/Win11Debloat",
+ "commit": "32024662f3c602442e7af82bbf52c89143b31aeb",
+ "license": "MIT",
+ "generated_by": "scripts/washmybelly/tweaks-convert.mjs",
+ "upstream_file": "Config/Features.json",
+ "count": 86,
+ "excluded": [
+  {
+   "id": "DisableTelemetry",
+   "why": "privacy module (privacy.sexy) owns telemetry"
+  },
+  {
+   "id": "DisableLocationServices",
+   "why": "privacy module owns location"
+  },
+  {
+   "id": "DisableFindMyDevice",
+   "why": "privacy module owns Find My Device"
+  },
+  {
+   "id": "ClearStart",
+   "why": "implemented in PowerShell upstream, no typed op"
+  },
+  {
+   "id": "ClearStartAllUsers",
+   "why": "implemented in PowerShell upstream, no typed op"
+  },
+  {
+   "id": "DisableStoreSearchSuggestions",
+   "why": "implemented in PowerShell upstream, no typed op"
+  },
+  {
+   "id": "DisableWidgets",
+   "why": "implemented in PowerShell upstream, no typed op"
+  },
+  {
+   "id": "DisableBitlockerAutoEncryption",
+   "why": "BitLocker stays out of washmybelly"
+  },
+  {
+   "id": "DisableDeliveryOptimization",
+   "why": "writes the NetworkService hive (HKU\\S-1-5-20); the winutil policy is used instead"
+  }
+ ],
+ "groups": [
+  {
+   "id": "w11d.DesktopSpotlight",
+   "label": "Windows spotlight on the desktop",
+   "description": "This setting controls the Windows spotlight desktop background option. Keep the rotating wallpaper with or without the 'Learn about this picture' shortcut, or disable Windows spotlight entirely.",
+   "members": [
+    "w11d.EnableDesktopSpotlight",
+    "w11d.HideDesktopSpotlightIcon",
+    "w11d.DisableDesktopSpotlight"
+   ],
+   "default": "w11d.EnableDesktopSpotlight"
+  },
+  {
+   "id": "w11d.SearchIcon",
+   "label": "Taskbar search style",
+   "description": "This setting allows you to customize the appearance of the search box on the taskbar.",
+   "members": [
+    "w11d.ShowSearchBoxTb",
+    "w11d.ShowSearchLabelTb",
+    "w11d.ShowSearchIconTb",
+    "w11d.HideSearchTb"
+   ],
+   "default": "w11d.ShowSearchBoxTb"
+  },
+  {
+   "id": "w11d.MultiMon",
+   "label": "Show taskbar apps on",
+   "description": "This setting allows you to choose where taskbar app buttons are shown when using multiple monitors.",
+   "members": [
+    "w11d.MMTaskbarModeAll",
+    "w11d.MMTaskbarModeMainActive",
+    "w11d.MMTaskbarModeActive"
+   ],
+   "default": "w11d.MMTaskbarModeAll"
+  },
+  {
+   "id": "w11d.CombineButtons",
+   "label": "Combine taskbar buttons on the main display",
+   "description": "This setting allows you to choose how taskbar buttons are combined on the main display.",
+   "members": [
+    "w11d.CombineTaskbarAlways",
+    "w11d.CombineTaskbarWhenFull",
+    "w11d.CombineTaskbarNever"
+   ],
+   "default": "w11d.CombineTaskbarAlways"
+  },
+  {
+   "id": "w11d.CombineMMButtons",
+   "label": "Combine taskbar buttons on secondary displays",
+   "description": "This setting allows you to choose how taskbar buttons are combined on secondary displays.",
+   "members": [
+    "w11d.CombineMMTaskbarAlways",
+    "w11d.CombineMMTaskbarWhenFull",
+    "w11d.CombineMMTaskbarNever"
+   ],
+   "default": "w11d.CombineMMTaskbarAlways"
+  },
+  {
+   "id": "w11d.ExplorerLocation",
+   "label": "Open File Explorer to",
+   "description": "This setting allows you to choose the default location that File Explorer opens to.",
+   "members": [
+    "w11d.ExplorerToHome",
+    "w11d.ExplorerToThisPC",
+    "w11d.ExplorerToDownloads",
+    "w11d.ExplorerToOneDrive"
+   ],
+   "default": "w11d.ExplorerToHome"
+  },
+  {
+   "id": "w11d.DriveLetterPosition",
+   "label": "Drive letter position",
+   "description": "This setting allows you to choose where drive letters are shown in File Explorer.",
+   "members": [
+    "w11d.ShowDriveLettersLast",
+    "w11d.ShowDriveLettersFirst",
+    "w11d.ShowNetworkDriveLettersFirst",
+    "w11d.HideDriveLetters"
+   ],
+   "default": "w11d.ShowDriveLettersLast"
+  },
+  {
+   "id": "w11d.ShowTabsInAltTab",
+   "label": "Show tabs from apps when snapping or pressing Alt+Tab",
+   "description": "This setting allows you to choose whether to show tabs from apps (such as Edge browser tabs) when snapping windows or pressing Alt+Tab.",
+   "members": [
+    "w11d.HideTabsInAltTab",
+    "w11d.Show3TabsInAltTab",
+    "w11d.Show5TabsInAltTab",
+    "w11d.Show20TabsInAltTab"
+   ],
+   "default": "w11d.Show3TabsInAltTab"
+  },
+  {
+   "id": "w11d.StartAllAppsView",
+   "label": "Start menu 'All Apps' view",
+   "description": "This setting allows you to change the layout of the 'All Apps' section in the start menu, or hide it entirely. Hiding this section may make it harder to find installed apps on your system. This feature uses policies, which will lock down certain settings.",
+   "members": [
+    "w11d.DisableStartAllApps",
+    "w11d.StartAllAppsCategory",
+    "w11d.StartAllAppsGrid",
+    "w11d.StartAllAppsList"
+   ],
+   "default": "w11d.StartAllAppsCategory"
+  }
+ ],
+ "items": [
+  {
+   "id": "w11d.DisableSuggestions",
+   "label": "Disable tips, tricks & suggested content throughout Windows",
+   "description": "This setting removes many annoying distractions from Windows. This includes things like notifications, reminders and sync provider ads. It also prevents automated installation of suggested apps.",
+   "category": "bloat",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Windows_Suggestions.reg",
+   "default_reg": "Undo/Enable_Windows_Suggestions.reg"
+  },
+  {
+   "id": "w11d.DisableNotifications",
+   "label": "Disable Windows Notifications (From apps and other senders)",
+   "description": "Disables native Windows notifications from apps and other senders, this includes notifications from apps like Discord, WhatsApp, Teams, and Slack.",
+   "category": "appearance",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "warning": "Hides every notification, including calendar reminders.",
+   "ops_reg": "Disable_Notifications.reg",
+   "default_reg": "Undo/Enable_Notifications.reg"
+  },
+  {
+   "id": "w11d.DisableLockscreenTips",
+   "label": "Disable tips & tricks on the lock screen",
+   "description": "This will turn off the lockscreen spotlight option and disable the tips, tricks and fun facts that appear on the lock screen.",
+   "category": "bloat",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Lockscreen_Tips.reg",
+   "default_reg": "Undo/Enable_Lockscreen_Tips.reg"
+  },
+  {
+   "id": "w11d.EnableDesktopSpotlight",
+   "label": "Enable Windows spotlight desktop background and shortcut",
+   "description": "Restores the Windows spotlight desktop background and the 'Learn about this picture' shortcut.",
+   "category": "appearance",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": "w11d.DesktopSpotlight",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Enable_Desktop_Spotlight.reg"
+  },
+  {
+   "id": "w11d.DisableDesktopSpotlight",
+   "label": "Disable Windows spotlight desktop background",
+   "description": "Turns off Windows spotlight for the desktop background, which displays rotating images and may show tips and fun facts. This feature uses policies, which will lock down certain settings.",
+   "category": "appearance",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": "w11d.DesktopSpotlight",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Desktop_Spotlight.reg",
+   "default_reg": "Undo/Enable_Desktop_Spotlight.reg"
+  },
+  {
+   "id": "w11d.HideDesktopSpotlightIcon",
+   "label": "Hide the 'Learn about this picture' desktop shortcut",
+   "description": "Hides the 'Learn about this picture' desktop shortcut while keeping Windows spotlight wallpaper rotation enabled. It does not disable Windows spotlight.",
+   "category": "appearance",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": "w11d.DesktopSpotlight",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Hide_Desktop_Spotlight_Icon.reg",
+   "default_reg": "Undo/Show_Desktop_Spotlight_Icon.reg"
+  },
+  {
+   "id": "w11d.DisableEdgeAds",
+   "label": "Disable ads, suggestions and newsfeed in Edge",
+   "description": "This will turn off various distractions from Microsoft Edge such as ads, suggestions and the MSN news feed. This feature uses policies, which will lock down certain settings.",
+   "category": "bloat",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Edge_Ads_And_Suggestions.reg",
+   "default_reg": "Undo/Enable_Edge_Ads_And_Suggestions.reg"
+  },
+  {
+   "id": "w11d.DisableCopilot",
+   "label": "Disable Microsoft Copilot",
+   "description": "This will disable and uninstall Microsoft Copilot, Windows' built-in AI assistant.",
+   "category": "ai",
+   "applies": {
+    "min_build": 22621,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Copilot.reg",
+   "default_reg": "Undo/Enable_Copilot.reg"
+  },
+  {
+   "id": "w11d.DisableRecall",
+   "label": "Disable Windows Recall",
+   "description": "This will disable Windows Recall, an AI-powered feature that provides quick access to recently used files, apps and activities. This feature uses policies, which will lock down certain settings.",
+   "category": "ai",
+   "applies": {
+    "min_build": 22621,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_AI_Recall.reg",
+   "default_reg": "Undo/Enable_AI_Recall.reg"
+  },
+  {
+   "id": "w11d.DisableClickToDo",
+   "label": "Disable Click To Do, AI text & image analysis",
+   "description": "This will disable Click To Do, which provides AI-powered text and image analysis features in Windows. This feature uses policies, which will lock down certain settings.",
+   "category": "ai",
+   "applies": {
+    "min_build": 22621,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Click_to_Do.reg",
+   "default_reg": "Undo/Enable_Click_to_Do.reg"
+  },
+  {
+   "id": "w11d.DisableAISvcAutoStart",
+   "label": "Prevent AI service from starting automatically",
+   "description": "This will set the WSAIFabricSvc service to manual startup, preventing the service from starting automatically with Windows.",
+   "category": "ai",
+   "applies": {
+    "min_build": 22621,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_AI_Service_Auto_Start.reg",
+   "default_reg": "Undo/Enable_AI_Service_Auto_Start.reg"
+  },
+  {
+   "id": "w11d.DisableDVR",
+   "label": "Disable Xbox game/screen recording",
+   "description": "This will disable the Xbox game/screen recording features included with the Game Bar app. This feature uses policies, which will lock down certain settings.",
+   "category": "gaming",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_DVR.reg",
+   "default_reg": "Undo/Enable_DVR.reg"
+  },
+  {
+   "id": "w11d.DisableGameBarIntegration",
+   "label": "Disable Game Bar integration",
+   "description": "This will disable the Game Bar integration with games and controllers. This stops annoying ms-gamebar popups when launching games or connecting a controller.",
+   "category": "gaming",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Game_Bar_Integration.reg",
+   "default_reg": "Undo/Enable_Game_Bar_Integration.reg"
+  },
+  {
+   "id": "w11d.DisableStartRecommended",
+   "label": "Hide recommended section in the start menu",
+   "description": "This will hide the recommended section in the start menu, which shows recently added apps, recently opened files and app recommendations. This feature uses policies, which will lock down certain settings.",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22621,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Start_Recommended.reg",
+   "default_reg": "Undo/Enable_Start_Recommended.reg"
+  },
+  {
+   "id": "w11d.DisableStartAllApps",
+   "label": "Hide 'All Apps' section in the start menu",
+   "description": "This will hide the 'All Apps' section in the start menu, which shows all installed apps. WARNING: Hiding this section may make it harder to find installed apps on your system. This feature uses policies, which will lock down certain settings.",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 26200,
+    "max_build": null
+   },
+   "group": "w11d.StartAllAppsView",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "warning": "Harder to find installed apps from Start.",
+   "ops_reg": "Disable_Start_All_Apps.reg",
+   "default_reg": "Undo/Enable_Start_All_Apps.reg"
+  },
+  {
+   "id": "w11d.DisableStartPhoneLink",
+   "label": "Disable Phone Link integration in the start menu",
+   "description": "This will remove the Phone Link integration in the start menu when you have a mobile device linked to your PC.",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22621,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Phone_Link_In_Start.reg",
+   "default_reg": "Undo/Enable_Phone_Link_In_Start.reg"
+  },
+  {
+   "id": "w11d.DisableBing",
+   "label": "Disable Bing web search & Copilot integration in search",
+   "description": "This will turn off Bing web search results and Copilot integration in the Windows search experience. This feature uses policies, which will lock down certain settings.",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Bing_Cortana_In_Search.reg",
+   "default_reg": "Undo/Enable_Bing_Cortana_In_Search.reg"
+  },
+  {
+   "id": "w11d.DisableSettings365Ads",
+   "label": "Hide Microsoft 365 Copilot ads in Settings Home",
+   "description": "This will turn off the Microsoft 365 Copilot ads that appear in the Settings Home page.",
+   "category": "bloat",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Settings_365_Ads.reg",
+   "default_reg": "Undo/Enable_Settings_365_Ads.reg"
+  },
+  {
+   "id": "w11d.DisableSettingsHome",
+   "label": "Hide Settings 'Home' page",
+   "description": "Removes the 'Home' page from the Settings app.",
+   "category": "bloat",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Settings_Home.reg",
+   "default_reg": "Undo/Enable_Settings_Home.reg"
+  },
+  {
+   "id": "w11d.DisableEdgeAI",
+   "label": "Disable AI features in Microsoft Edge",
+   "description": "This will turn off AI features in Microsoft Edge, such as the AI-powered sidebar and Copilot features. This feature uses policies, which will lock down certain settings.",
+   "category": "ai",
+   "applies": {
+    "min_build": 22621,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Edge_AI_Features.reg",
+   "default_reg": "Undo/Enable_Edge_AI_Features.reg"
+  },
+  {
+   "id": "w11d.DisablePaintAI",
+   "label": "Disable AI features in Paint",
+   "description": "This will turn off AI features in Paint, such as the AI-powered image generation and editing tools. This feature uses policies, which will lock down certain settings.",
+   "category": "ai",
+   "applies": {
+    "min_build": 22621,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Paint_AI_Features.reg",
+   "default_reg": "Undo/Enable_Paint_AI_Features.reg"
+  },
+  {
+   "id": "w11d.DisableNotepadAI",
+   "label": "Disable AI features in Notepad",
+   "description": "This will turn off AI features in Notepad, such as the AI-powered writing suggestions. This feature uses policies, which will lock down certain settings.",
+   "category": "ai",
+   "applies": {
+    "min_build": 22621,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Notepad_AI_Features.reg",
+   "default_reg": "Undo/Enable_Notepad_AI_Features.reg"
+  },
+  {
+   "id": "w11d.EnableDarkMode",
+   "label": "Enable dark theme for system and apps",
+   "description": "This will set the app and system theme to dark mode.",
+   "category": "appearance",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Enable_Dark_Mode.reg",
+   "default_reg": "Undo/Enable_Light_Mode.reg"
+  },
+  {
+   "id": "w11d.DisableDragTray",
+   "label": "Disable 'Drag Tray' for sharing & moving files",
+   "description": "The Drag Tray is a new feature for sharing & moving files in Windows 11, it appears at the top of the screen when dragging files.",
+   "category": "system",
+   "applies": {
+    "min_build": 26200,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Share_Drag_Tray.reg",
+   "default_reg": "Undo/Enable_Share_Drag_Tray.reg"
+  },
+  {
+   "id": "w11d.RevertContextMenu",
+   "label": "Use classic Windows 10 context menu style",
+   "description": "This will restore the classic Windows 10 style context menu, which is normally hidden behind the 'Show more options' entry in the new Windows 11 context menu.",
+   "category": "system",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Show_More_Options_Context_Menu.reg",
+   "default_reg": "Undo/Enable_W11_Style_Context_Menu.reg"
+  },
+  {
+   "id": "w11d.DisableMouseAcceleration",
+   "label": "Disable Enhance Pointer Precision (mouse acceleration)",
+   "description": "This will disable mouse acceleration which is enabled by default in Windows. This makes mouse movement more consistent and predictable.",
+   "category": "system",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": true,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Enhance_Pointer_Precision.reg",
+   "default_reg": "Undo/Enable_Enhance_Pointer_Precision.reg"
+  },
+  {
+   "id": "w11d.DisableStickyKeys",
+   "label": "Disable Sticky Keys keyboard shortcut (5x shift)",
+   "description": "This will prevent the Sticky Keys dialog from appearing when you press the Shift key 5 times in a row.",
+   "category": "system",
+   "applies": {
+    "min_build": 26100,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": true,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Sticky_Keys_Shortcut.reg",
+   "default_reg": "Undo/Enable_Sticky_Keys_Shortcut.reg"
+  },
+  {
+   "id": "w11d.DisableWindowSnapping",
+   "label": "Disable window snapping",
+   "description": "This will turn off the ability to snap windows to the sides or corners of the screen.",
+   "category": "appearance",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": true,
+   "source": "win11debloat",
+   "license": "MIT",
+   "warning": "Windows no longer snap to the screen edges.",
+   "ops_reg": "Disable_Window_Snapping.reg",
+   "default_reg": "Undo/Enable_Window_Snapping.reg"
+  },
+  {
+   "id": "w11d.DisableSnapAssist",
+   "label": "Disable showing app suggestions when snapping windows",
+   "description": "This will turn off app suggestions when you snap windows to the sides or corners of the screen.",
+   "category": "appearance",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Snap_Assist.reg",
+   "default_reg": "Undo/Enable_Snap_Assist.reg"
+  },
+  {
+   "id": "w11d.DisableSnapLayouts",
+   "label": "Hide snap layout flyout at top of screen and on maximize button",
+   "description": "This will turn off the snap layout flyout that appears when you hover over the maximize button or drag windows to the top of the screen.",
+   "category": "appearance",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Snap_Layouts.reg",
+   "default_reg": "Undo/Enable_Snap_Layouts.reg"
+  },
+  {
+   "id": "w11d.HideTabsInAltTab",
+   "label": "Hide tabs from apps when snapping or pressing Alt+Tab",
+   "description": "",
+   "category": "appearance",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.ShowTabsInAltTab",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Hide_Tabs_In_Alt_Tab.reg"
+  },
+  {
+   "id": "w11d.Show3TabsInAltTab",
+   "label": "Show 3 tabs from apps when snapping or pressing Alt+Tab",
+   "description": "",
+   "category": "appearance",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.ShowTabsInAltTab",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Show_3_Tabs_In_Alt_Tab.reg"
+  },
+  {
+   "id": "w11d.Show5TabsInAltTab",
+   "label": "Show 5 tabs from apps when snapping or pressing Alt+Tab",
+   "description": "",
+   "category": "appearance",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.ShowTabsInAltTab",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Show_5_Tabs_In_Alt_Tab.reg"
+  },
+  {
+   "id": "w11d.Show20TabsInAltTab",
+   "label": "Show 20 tabs from apps when snapping or pressing Alt+Tab",
+   "description": "",
+   "category": "appearance",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.ShowTabsInAltTab",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Show_20_Tabs_In_Alt_Tab.reg"
+  },
+  {
+   "id": "w11d.TaskbarAlignLeft",
+   "label": "Align taskbar to the left",
+   "description": "By default, Windows 11 has the taskbar buttons centered. Enabling this setting will move the taskbar buttons to the left, similar to previous versions of Windows.",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Align_Taskbar_Left.reg",
+   "default_reg": "Undo/Align_Taskbar_Center.reg"
+  },
+  {
+   "id": "w11d.HideSearchTb",
+   "label": "Hide search icon from the taskbar",
+   "description": "",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.SearchIcon",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Hide_Search_Taskbar.reg",
+   "default_reg": "Show_Search_Box.reg"
+  },
+  {
+   "id": "w11d.ShowSearchIconTb",
+   "label": "Show search icon on the taskbar",
+   "description": "",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.SearchIcon",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Show_Search_Icon.reg",
+   "default_reg": "Show_Search_Box.reg"
+  },
+  {
+   "id": "w11d.ShowSearchLabelTb",
+   "label": "Show search icon with label on the taskbar",
+   "description": "",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.SearchIcon",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Show_Search_Icon_And_Label.reg",
+   "default_reg": "Show_Search_Box.reg"
+  },
+  {
+   "id": "w11d.ShowSearchBoxTb",
+   "label": "Show search box on the taskbar",
+   "description": "",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.SearchIcon",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Show_Search_Box.reg"
+  },
+  {
+   "id": "w11d.HideTaskview",
+   "label": "Hide 'Task view' button on the taskbar",
+   "description": "This will disable the 'Task view' button on the taskbar, which allows you to see all your open windows and virtual desktops.",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Hide_Taskview_Taskbar.reg",
+   "default_reg": "Undo/Show_Taskview_Taskbar.reg"
+  },
+  {
+   "id": "w11d.HideChat",
+   "label": "Hide Chat (meet now) icon on the taskbar",
+   "description": "This will disable the Chat (meet now) icon on the taskbar.",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": null,
+    "max_build": 22621
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Chat_Taskbar.reg",
+   "default_reg": "Undo/Enable_Chat_Taskbar.reg"
+  },
+  {
+   "id": "w11d.DisableStorageSense",
+   "label": "Disable Storage Sense automatic disk cleanup",
+   "description": "This will disable Storage Sense, which automatically frees up disk space by deleting temporary files, emptying the recycle bin and cleaning up files in the Downloads folder.",
+   "category": "system",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Storage_Sense.reg",
+   "default_reg": "Undo/Enable_Storage_Sense.reg"
+  },
+  {
+   "id": "w11d.DisableFastStartup",
+   "label": "Disable fast start-up",
+   "description": "Fast Start-up helps your PC start faster after shutdown by saving a system image to disk. Disabling Fast Start-up can help with certain issues, but may result in slightly longer boot times.",
+   "category": "performance",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "warning": "Startup from a full shutdown gets slower.",
+   "ops_reg": "Disable_Fast_Startup.reg",
+   "default_reg": "Undo/Enable_Fast_Startup.reg"
+  },
+  {
+   "id": "w11d.DisableModernStandbyNetworking",
+   "label": "Disable Modern Standby network connectivity",
+   "description": "By default, devices that support Modern Standby maintain network connectivity while in sleep mode. Disabling network connectivity during Modern Standby can help save battery life.",
+   "category": "system",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Modern_Standby_Networking.reg",
+   "default_reg": "Undo/Enable_Modern_Standby_Networking.reg"
+  },
+  {
+   "id": "w11d.EnableEndTask",
+   "label": "Show 'End Task' option in taskbar context menu",
+   "description": "When enabled, adds an 'End Task' option to the right-click context menu for apps in the taskbar, allowing you to quickly force close apps.",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22631,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Enable_End_Task.reg",
+   "default_reg": "Undo/Disable_End_Task.reg"
+  },
+  {
+   "id": "w11d.EnableLastActiveClick",
+   "label": "Enable 'Last Active Click' behavior for taskbar apps",
+   "description": "When enabled, clicking on an app in the taskbar will switch to the last active window of that app, instead of only showing the thumbnail preview.",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Enable_Last_Active_Click.reg",
+   "default_reg": "Undo/Disable_Last_Active_Click.reg"
+  },
+  {
+   "id": "w11d.CombineTaskbarAlways",
+   "label": "Always combine taskbar buttons and hide labels for the main display",
+   "description": "",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.CombineButtons",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Combine_Taskbar_Always.reg"
+  },
+  {
+   "id": "w11d.CombineMMTaskbarAlways",
+   "label": "Always combine taskbar buttons and hide labels for secondary displays",
+   "description": "",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.CombineMMButtons",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Combine_MMTaskbar_Always.reg"
+  },
+  {
+   "id": "w11d.CombineTaskbarWhenFull",
+   "label": "Combine taskbar buttons and hide labels when taskbar is full for the main display",
+   "description": "",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.CombineButtons",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Combine_Taskbar_When_Full.reg",
+   "default_reg": "Combine_Taskbar_Always.reg"
+  },
+  {
+   "id": "w11d.CombineMMTaskbarWhenFull",
+   "label": "Combine taskbar buttons and hide labels when taskbar is full for secondary displays",
+   "description": "",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.CombineMMButtons",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Combine_MMTaskbar_When_Full.reg",
+   "default_reg": "Combine_MMTaskbar_Always.reg"
+  },
+  {
+   "id": "w11d.CombineTaskbarNever",
+   "label": "Never combine taskbar buttons and show labels for the main display",
+   "description": "",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.CombineButtons",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Combine_Taskbar_Never.reg",
+   "default_reg": "Combine_Taskbar_Always.reg"
+  },
+  {
+   "id": "w11d.CombineMMTaskbarNever",
+   "label": "Never combine taskbar buttons and show labels for secondary displays",
+   "description": "",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.CombineMMButtons",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Combine_MMTaskbar_Never.reg",
+   "default_reg": "Combine_MMTaskbar_Always.reg"
+  },
+  {
+   "id": "w11d.MMTaskbarModeAll",
+   "label": "Show app icons on all taskbars",
+   "description": "",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.MultiMon",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "MMTaskbarMode_All.reg"
+  },
+  {
+   "id": "w11d.MMTaskbarModeMainActive",
+   "label": "Show app icons on main taskbar and on taskbar where the windows is open",
+   "description": "",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.MultiMon",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "MMTaskbarMode_Main_Active.reg",
+   "default_reg": "MMTaskbarMode_All.reg"
+  },
+  {
+   "id": "w11d.MMTaskbarModeActive",
+   "label": "Show app icons only on taskbar where the window is open",
+   "description": "",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": "w11d.MultiMon",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "MMTaskbarMode_Active.reg",
+   "default_reg": "MMTaskbarMode_All.reg"
+  },
+  {
+   "id": "w11d.ExplorerToHome",
+   "label": "Change the default location that File Explorer opens to 'Home'",
+   "description": "",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": "w11d.ExplorerLocation",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Launch_File_Explorer_To_Home.reg"
+  },
+  {
+   "id": "w11d.ExplorerToThisPC",
+   "label": "Change the default location that File Explorer opens to 'This PC'",
+   "description": "",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": "w11d.ExplorerLocation",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Launch_File_Explorer_To_This_PC.reg",
+   "default_reg": "Launch_File_Explorer_To_Home.reg"
+  },
+  {
+   "id": "w11d.ExplorerToDownloads",
+   "label": "Change the default location that File Explorer opens to 'Downloads'",
+   "description": "",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": "w11d.ExplorerLocation",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Launch_File_Explorer_To_Downloads.reg",
+   "default_reg": "Launch_File_Explorer_To_Home.reg"
+  },
+  {
+   "id": "w11d.ExplorerToOneDrive",
+   "label": "Change the default location that File Explorer opens to 'OneDrive'",
+   "description": "",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": "w11d.ExplorerLocation",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Launch_File_Explorer_To_OneDrive.reg",
+   "default_reg": "Launch_File_Explorer_To_Home.reg"
+  },
+  {
+   "id": "w11d.ShowKnownFileExt",
+   "label": "Show file extensions for known file types",
+   "description": "This will show file extensions for known file types. By default, Windows hides file extensions for known file types which can lead to confusion and security risks.",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Show_Extensions_For_Known_File_Types.reg",
+   "default_reg": "Undo/Hide_Extensions_For_Known_File_Types.reg"
+  },
+  {
+   "id": "w11d.ShowHiddenFolders",
+   "label": "Show hidden files, folders and drives",
+   "description": "By default, Windows hides certain files, folders and drives to prevent accidental modification or deletion. Turn this on to show all files in File Explorer.",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Show_Hidden_Folders.reg",
+   "default_reg": "Undo/Hide_Hidden_Folders.reg"
+  },
+  {
+   "id": "w11d.HideDupliDrive",
+   "label": "Hide duplicate removable drive entries",
+   "description": "By default, Windows shows removable drives both under 'This PC' and in the navigation pane with its own entry. Enable this setting to only show removable drives under 'This PC'.",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Hide_duplicate_removable_drives_from_navigation_pane_of_File_Explorer.reg",
+   "default_reg": "Undo/Show_duplicate_removable_drives_in_navigation_pane_of_File_Explorer.reg"
+  },
+  {
+   "id": "w11d.HideHome",
+   "label": "Hide 'Home' from navigation pane",
+   "description": "Hides the 'Home' section from the File Explorer navigation pane.",
+   "category": "explorer",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Hide_Home_from_Explorer.reg",
+   "default_reg": "Undo/Show_Home_in_Explorer.reg"
+  },
+  {
+   "id": "w11d.HideGallery",
+   "label": "Hide 'Gallery' from navigation pane",
+   "description": "Hides the 'Gallery' section from the File Explorer navigation pane.",
+   "category": "explorer",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Hide_Gallery_from_Explorer.reg",
+   "default_reg": "Undo/Show_Gallery_in_Explorer.reg"
+  },
+  {
+   "id": "w11d.DisableTransparency",
+   "label": "Disable transparency effects",
+   "description": "This will disable transparency effects on Windows and interfaces. Which can help improve performance on older hardware.",
+   "category": "performance",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Transparency.reg",
+   "default_reg": "Undo/Enable_Transparency.reg"
+  },
+  {
+   "id": "w11d.DisableAnimations",
+   "label": "Disable animations and visual effects",
+   "description": "This will disable animations and some visual effects in Windows, which can make the interface feel snappier, especially on older hardware.",
+   "category": "performance",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": true,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Animations.reg",
+   "default_reg": "Undo/Enable_Animations.reg"
+  },
+  {
+   "id": "w11d.DisableUpdateASAP",
+   "label": "Prevent getting updates as soon as they're available",
+   "description": "This will prevent your PC from being among the first to receive new non-security updates. Your PC will still receive these updates eventually.",
+   "category": "updates",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Update_ASAP.reg",
+   "default_reg": "Undo/Enable_Update_ASAP.reg"
+  },
+  {
+   "id": "w11d.PreventUpdateAutoReboot",
+   "label": "Prevent automatic restarts after updates while signed in",
+   "description": "This will prevent your PC from automatically restarting after updates while any user is signed in.",
+   "category": "updates",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Prevent_Auto_Reboot.reg",
+   "default_reg": "Undo/Allow_Auto_Reboot.reg"
+  },
+  {
+   "id": "w11d.DisableDeviceAutoAppDownload",
+   "label": "Prevent Windows from auto-installing device companion apps",
+   "description": "Stops Windows from silently installing device companion apps via Windows Update when you connect certain devices, like monitors from LG and Alienware. These devices will still work as expected, this only stops Windows Update from automatically installing additional apps without consent.",
+   "category": "updates",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Device_Auto_App_Download.reg",
+   "default_reg": "Undo/Enable_Device_Auto_App_Download.reg"
+  },
+  {
+   "id": "w11d.HideOnedrive",
+   "label": "Hide 'OneDrive' from navigation pane",
+   "description": "Hides the 'OneDrive' section from the File Explorer navigation pane.",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Hide_Onedrive_Folder.reg",
+   "default_reg": "Undo/Show_Onedrive_Folder.reg"
+  },
+  {
+   "id": "w11d.Hide3dObjects",
+   "label": "Hide '3D objects' folder under 'This PC'",
+   "description": "Hides the '3D objects' folder from the File Explorer navigation pane.",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": 21999
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Hide_3D_Objects_Folder.reg",
+   "default_reg": "Undo/Show_3D_Objects_Folder.reg"
+  },
+  {
+   "id": "w11d.HideMusic",
+   "label": "Hide 'Music' folder under 'This PC'",
+   "description": "Hides the 'Music' folder from the File Explorer navigation pane.",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": 21999
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Hide_Music_Folder.reg",
+   "default_reg": "Undo/Show_Music_Folder.reg"
+  },
+  {
+   "id": "w11d.AddFoldersToThisPC",
+   "label": "Add common folders back to 'This PC' page",
+   "description": "This setting will add common folders like Desktop, Documents, Downloads, Music, Pictures and Videos back to the 'This PC' page in File Explorer.",
+   "category": "explorer",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Add_All_Folders_Under_This_PC.reg",
+   "default_reg": "Undo/Remove_All_Folders_Under_This_PC.reg"
+  },
+  {
+   "id": "w11d.HideIncludeInLibrary",
+   "label": "Hide 'Include in library' option in the context menu",
+   "description": "Hides the 'Include in library' option from the File Explorer context menu.",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": 21999
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Include_in_library_from_context_menu.reg",
+   "default_reg": "Undo/Enable_Include_in_library_in_context_menu.reg"
+  },
+  {
+   "id": "w11d.HideGiveAccessTo",
+   "label": "Hide 'Give access to' option in the context menu",
+   "description": "Hides the 'Give access to' option from the File Explorer context menu.",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": 21999
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Give_access_to_context_menu.reg",
+   "default_reg": "Undo/Enable_Give_access_to_context_menu.reg"
+  },
+  {
+   "id": "w11d.HideShare",
+   "label": "Hide 'Share' option in the context menu",
+   "description": "Hides the 'Share' option from the File Explorer context menu.",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": 21999
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Share_from_context_menu.reg",
+   "default_reg": "Undo/Enable_Share_in_context_menu.reg"
+  },
+  {
+   "id": "w11d.DisableBraveBloat",
+   "label": "Disable bloat in Brave browser (AI, Crypto, etc.)",
+   "description": "This will disable Brave's built-in AI features, Crypto wallet, News, Rewards, Talk and VPN. This feature uses policies, which will lock down certain settings.",
+   "category": "bloat",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Disable_Brave_Bloat.reg",
+   "default_reg": "Undo/Enable_Brave_Bloat.reg"
+  },
+  {
+   "id": "w11d.EnableWindowsSandbox",
+   "label": "Enable Windows Sandbox",
+   "description": "Windows Sandbox is a lightweight desktop environment for safely running applications in isolation. Software installed inside the Windows Sandbox environment remains 'sandboxed' and runs separately from the host machine. Only supported on Windows 11 Pro, Workstation, and Enterprise editions.",
+   "category": "features",
+   "applies": {
+    "min_build": 22483,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": true,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops": [
+    {
+     "op": "optional_feature",
+     "name": "Containers-DisposableClientVM",
+     "enabled": true
+    }
+   ]
+  },
+  {
+   "id": "w11d.EnableWindowsSubsystemForLinux",
+   "label": "Enable Windows Subsystem for Linux",
+   "description": "Windows Subsystem for Linux allows you to run a Linux environment directly on Windows without the need for a virtual machine.",
+   "category": "features",
+   "applies": {
+    "min_build": 22000,
+    "max_build": null
+   },
+   "group": null,
+   "risk": "reversible",
+   "needs_restart": true,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops": [
+    {
+     "op": "optional_feature",
+     "name": "Microsoft-Windows-Subsystem-Linux",
+     "enabled": true
+    },
+    {
+     "op": "optional_feature",
+     "name": "VirtualMachinePlatform",
+     "enabled": true
+    }
+   ]
+  },
+  {
+   "id": "w11d.ShowDriveLettersFirst",
+   "label": "Show drive letters before drive label",
+   "description": "This setting will show drive letters before the drive label in File Explorer.",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": "w11d.DriveLetterPosition",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Show_Drive_Letters_First.reg",
+   "default_reg": "Undo/Show_Drive_Letters_Last.reg"
+  },
+  {
+   "id": "w11d.ShowDriveLettersLast",
+   "label": "Show drive letters after drive label",
+   "description": "This setting will show drive letters after the drive label in File Explorer (Default Windows behavior).",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": "w11d.DriveLetterPosition",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Show_Drive_Letters_Last.reg"
+  },
+  {
+   "id": "w11d.ShowNetworkDriveLettersFirst",
+   "label": "Show network drive letters before drive label",
+   "description": "This setting will show only network drive letters before the drive label in File Explorer.",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": "w11d.DriveLetterPosition",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Show_Network_Drive_Letters_First.reg",
+   "default_reg": "Undo/Show_Drive_Letters_Last.reg"
+  },
+  {
+   "id": "w11d.HideDriveLetters",
+   "label": "Hide all drive letters",
+   "description": "This setting will hide all drive letters from the File Explorer navigation pane and 'This PC'.",
+   "category": "explorer",
+   "applies": {
+    "min_build": null,
+    "max_build": null
+   },
+   "group": "w11d.DriveLetterPosition",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Hide_Drive_Letters.reg",
+   "default_reg": "Undo/Show_Drive_Letters_Last.reg"
+  },
+  {
+   "id": "w11d.StartAllAppsCategory",
+   "label": "Show All Apps in Category view (Default)",
+   "description": "This will set the All Apps section in the start menu to show apps grouped by category.",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 26200,
+    "max_build": null
+   },
+   "group": "w11d.StartAllAppsView",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Start_AllApps_Category.reg"
+  },
+  {
+   "id": "w11d.StartAllAppsGrid",
+   "label": "Show All Apps in Grid view",
+   "description": "This will set the All Apps section in the start menu to show apps in an alphabetical grid layout.",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 26200,
+    "max_build": null
+   },
+   "group": "w11d.StartAllAppsView",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Start_AllApps_Grid.reg",
+   "default_reg": "Start_AllApps_Category.reg"
+  },
+  {
+   "id": "w11d.StartAllAppsList",
+   "label": "Show All Apps in List view",
+   "description": "This will set the All Apps section in the start menu to show apps in an alphabetical list layout.",
+   "category": "taskbar_start",
+   "applies": {
+    "min_build": 26200,
+    "max_build": null
+   },
+   "group": "w11d.StartAllAppsView",
+   "risk": "reversible",
+   "needs_restart": false,
+   "source": "win11debloat",
+   "license": "MIT",
+   "ops_reg": "Start_AllApps_List.reg",
+   "default_reg": "Start_AllApps_Category.reg"
+  }
+ ]
+}

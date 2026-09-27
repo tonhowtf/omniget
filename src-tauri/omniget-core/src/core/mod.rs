@@ -49,4 +49,5 @@ pub mod subtitle_merge;
 pub mod threads;
 pub mod tools;
 pub mod vcs;
+pub mod washmybelly;
 pub mod ytdlp;

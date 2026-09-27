@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="deepscan">
+  <label translate="true">Deep scan</label>
+  <description>Clean files widely scattered across the disk</description>
+  <option id="angular">
+    <label translate="false">.angular</label>
+    <description>Delete the files</description>
+    <warning>This option is slow.</warning>
+    <action command="delete" search="deep" wholeregex="[/\\]\.angular"/>
+  </option>
+  <option id="backup">
+    <label>Backup files</label>
+    <description>Delete the backup files</description>
+    <warning>Inspect the preview for any files you want to keep.</warning>
+    <action command="delete" search="deep" regex="\.[Bb][Aa][Kk]$"/>
+    <action command="delete" search="deep" regex="[a-zA-Z]{1,4}~$"/>
+  </option>
+  <option id="ds_store">
+    <label translate="false">.DS_Store</label>
+    <description>Delete the files</description>
+    <warning>This option is slow.</warning>
+    <action command="delete" search="deep" regex="^\.DS_Store$"/>
+  </option>
+  <option id="node_modules">
+    <label translate="false">node_modules</label>
+    <description>Delete the files</description>
+    <warning>This option is slow. Inspect the preview for files you want to keep, like those bundled with applications.</warning>
+    <action command="delete" search="deep" wholeregex="[/\\]node_modules[/\\]" nwholeregex="[\\/]AppData[\\/]|[\\/]home[\\/][^\\/]+[\\/]\.[^\\/]+[\\/]|[\\/]Users[\\/][^\\/]+[\\/]\.[^\\/]+[\\/]"/>
+  </option>
+  <option id="venv">
+    <label translate="false">venv</label>
+    <description>Delete the files</description>
+    <warning>This option is slow.</warning>
+    <action command="delete" search="deep" wholeregex="[/\\]\.?venv[/\\]" nwholeregex="[\\/]AppData[\\/]|[\\/]home[\\/][^\\/]+[\\/]\.[^\\/]+[\\/]|[\\/]Users[\\/][^\\/]+[\\/]\.[^\\/]+[\\/]|[\\/]pipx[\\/]venvs[\\/]"/>
+  </option>
+  <option id="pycache">
+    <label translate="false">__pycache__</label>
+    <description>Delete the files</description>
+    <warning>This option is slow.</warning>
+    <action command="delete" search="deep" wholeregex="[/\\]__pycache__"/>
+  </option>
+  <option id="thumbs_db">
+    <label translate="false">Thumbs.db</label>
+    <description>Delete the files</description>
+    <warning>This option is slow.</warning>
+    <action command="delete" search="deep" regex="^Thumbs\.db$"/>
+    <action command="delete" search="deep" regex="^Thumbs\.db:encryptable$"/>
+  </option>
+  <option id="tmp">
+    <label>Temporary files</label>
+    <description>Delete the temporary files</description>
+    <warning>This option is slow.</warning>
+    <!-- https://web.archive.org/web/20210503033432/https://support.microsoft.com/en-us/topic/description-of-how-word-creates-temporary-files-66b112fb-d2c0-8f40-a0be-70a367cc4c85 -->
+    <action command="delete" search="deep" regex="^~wr[a-z][0-9]{4}\.tmp$"/>
+    <!-- https://web.archive.org/web/20150228161650/http://support.microsoft.com/kb/826810 -->
+    <action command="delete" search="deep" regex="^ppt[0-9]{4}\.tmp$"/>
+  </option>
+  <option id="vim_swap_user">
+    <label>VIM swap files under user profile</label>
+    <description>Delete the backup files</description>
+    <warning>This option is slow.</warning>
+    <!--
+When editing foo.txt, VIM makes .foo.txt.swp. If that exists, it cycles back
+through the alphabet (.swo, .swn, ...), but more than three is unlikely.
+https://groups.google.com/forum/#!msg/vim_use/JBHSs3kPPJU/X9WeMsZcfWAJ
+
+Be careful not to match files such as ~/.htpasswd
+https://github.com/bleachbit/bleachbit/issues/683
+
+-->
+    <action command="delete" search="deep" regex="^.*\.sw[nop]$"/>
+  </option>
+  <option id="vim_swap_root">
+    <label>VIM swap files across system</label>
+    <description>Delete the backup files</description>
+    <warning>This option is slow.</warning>
+    <action command="delete" search="deep" regex="^.*\.sw[nop]$" path="/" os="linux"/>
+  </option>
+</cleaner>

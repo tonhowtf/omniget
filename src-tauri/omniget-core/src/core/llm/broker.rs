@@ -590,6 +590,11 @@ impl ToolBroker {
                 Some(super::perm::Action::Deny) => mode = GrantMode::Deny,
                 None => {}
             }
+            // Tools that change the machine (washmybelly plans) ask every
+            // time: neither a grant nor a stored rule turns them into Auto.
+            if super::tool_table::always_asks(name) && matches!(mode, GrantMode::Auto) {
+                mode = GrantMode::Ask;
+            }
             // A path outside the workspace is its own question, whatever the
             // grant says; a yes covers this one call.
             let path = input.get("path").and_then(Value::as_str).unwrap_or("");
@@ -636,7 +641,10 @@ impl ToolBroker {
                 let answer = end.answer();
                 // An external run's "Always" covers this call only: it never
                 // becomes a permanent local rule of the executor (L2).
-                if matches!(answer, Answer::Always) && external_context.is_none() {
+                if matches!(answer, Answer::Always)
+                    && external_context.is_none()
+                    && !super::tool_table::always_asks(name)
+                {
                     super::perm::add_rule(agent_id, super::perm::always_rule(name, &input));
                 }
                 if matches!(answer, Answer::Deny) {

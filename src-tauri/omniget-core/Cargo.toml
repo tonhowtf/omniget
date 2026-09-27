@@ -59,16 +59,44 @@ sha1 = "0.10"
 lofty = "0.25"
 ebur128 = "0.1"
 rustfft = "6"
+# washmybelly: Trash for files the person recognises (apps, documents).
+trash = "5"
+# washmybelly: monitor (sysinfo), CleanerML (roxmltree), privacy.sexy YAML,
+# duplicate hashing (xxh3).
+sysinfo = "0.39.6"
+roxmltree = "0.21.1"
+serde_yaml = "0.9.34"
+xxhash-rust = { version = "0.8.18", features = ["xxh3"] }
 
 [target.'cfg(windows)'.dependencies]
 # Job Object of the CLI turns (`core::process::ProcessTreeGuard`): the only
-# reliable way to kill a whole process tree on Windows. Already in the lock.
+# reliable way to kill a whole process tree on Windows; washmybelly also uses
+# it for elevation (UAC), registry, services, power and the Restart Manager.
 windows-sys = { version = "0.61", features = [
+    "Win32_Devices_DeviceAndDriverInstallation",
     "Win32_Foundation",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_NetworkManagement_Ndis",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_ApplicationInstallationAndServicing",
     "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_IO",
+    "Win32_System_Ioctl",
     "Win32_System_JobObjects",
+    "Win32_System_Performance",
+    "Win32_System_Power",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Registry",
+    "Win32_System_RestartManager",
+    "Win32_System_Services",
+    "Win32_System_SystemInformation",
     "Win32_System_Threading",
+    "Win32_UI_Shell",
 ] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "5"

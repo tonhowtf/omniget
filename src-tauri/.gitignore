@@ -6,5 +6,6 @@
 # will have schema files for capabilities auto-completion
 /gen/schemas
 
-# Generated platform-specific MCP worker sidecars.
+# Generated platform-specific sidecars (MCP worker, washmybelly elevate).
 /binaries/omniget-worker-*
+/binaries/omniget-elevate-*

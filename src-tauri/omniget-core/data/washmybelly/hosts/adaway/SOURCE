@@ -1,0 +1,8 @@
+AdAway default blocklist (hosts.txt), unmodified.
+Project: https://github.com/AdAway/adaway.github.io
+File:    https://raw.githubusercontent.com/AdAway/adaway.github.io/master/hosts.txt
+Commit:  7b5368f03b35ec74e3984a8958494c6b88aa256b (2023-04-29)
+License: Creative Commons Attribution 3.0 (CC BY 3.0), as stated in the file header.
+         https://creativecommons.org/licenses/by/3.0/
+Attribution: AdAway contributors (Kicelo, Dominik Schuermann and others).
+Embedded at build time with include_str!; OmniGet never downloads it at run time.

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+The path ~/.pythonhist is used by bpython but not CPython.
+
+## Ubuntu Resolute Raccoon (26.04 LTS)
+
+Python 3.14.4
+- has ~/.python_history
+- does not have ~/.pythonhist
+
+## macOS Tahoe (26)
+
+Python 3.9.6 with readline
+- has ~/.python_history
+- does not have ~/.pythonhist
+
+## Windows 11
+
+Python 3.14.3 vanilla 64-bit
+- has %userprofile%\.python_history
+- does not have ~/.pythonhist
+
+Python 3.12 vcpkg 32-bit
+- does not keep history after the console is closed.
+
+-->
+<cleaner id="python">
+  <label>Python</label>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the command history</description>
+    <action command="delete" search="file" path="~/.python_history"/>
+    <action command="delete" search="file" path="~/.pythonhist"/>
+  </option>
+</cleaner>

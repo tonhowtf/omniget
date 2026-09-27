@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="hexchat">
+  <label>HexChat</label>
+  <description>Chat client</description>
+  <option id="logs">
+    <label>Chat logs</label>
+    <description>Delete the chat logs</description>
+    <action command="delete" search="walk.all" path="~/.xchat2/scrollback/"/>
+    <action command="delete" search="glob" path="~/.xchat2/logs/*log"/>
+    <!-- ~/.xchat2/logs/*log seen before XChat 2.8.6, but not in XChat 2.4.0 on Windows -->
+    <action command="delete" search="glob" path="~/.xchat2/xchatlogs/*log"/>
+    <!-- ~/.xchat2/xchatlogs/*log seen first in XChat 2.8.6 -->
+    <action command="delete" search="walk.all" path="$APPDATA\X-Chat 2\scrollback\"/>
+    <action command="delete" search="glob" path="$APPDATA\X-Chat 2\xchatlogs\*log"/>
+  </option>
+</cleaner>

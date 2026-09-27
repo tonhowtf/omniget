@@ -111,6 +111,13 @@ export type AppSettings = {
   music?: {
     enabled?: boolean;
   };
+  washmybelly?: {
+    enabled?: boolean;
+    quarantine_days?: number;
+    protected_paths_extra?: string[];
+    auto_hold_power?: boolean;
+    perf_tool_path?: string;
+  };
   league?: {
     enabled?: boolean;
     auto_accept?: boolean;

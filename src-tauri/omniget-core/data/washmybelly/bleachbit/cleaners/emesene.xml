@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="emesene" os="linux">
+  <label>emesene</label>
+  <description>Chat client</description>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the avatars and emoticons cache</description>
+    <action command="delete" search="glob" path="$XDG_CONFIG_HOME/emesene1.0/*/cache/*.tmp"/>
+    <action command="delete" search="glob" path="$XDG_CONFIG_HOME/emesene1.0/*/cache/.*_*.tmp"/>
+    <action command="delete" search="glob" path="$XDG_CONFIG_HOME/emesene1.0/*/cache/*_[0-9a-f]*[0-9a-f]" regex="_[0-9a-f]{40}$"/>
+  </option>
+  <option id="logs">
+    <label>Chat logs</label>
+    <description>Delete the chat logs</description>
+    <action command="delete" search="glob" path="$XDG_CONFIG_HOME/emesene1.0/*/logs/*"/>
+    <action command="delete" search="glob" path="$XDG_CONFIG_HOME/emesene2/*/log"/>
+    <action command="delete" search="glob" path="$XDG_CONFIG_HOME/emesene2/*/log-journal"/>
+  </option>
+</cleaner>

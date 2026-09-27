@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="pacman" os="linux">
+  <label>pacman</label>
+  <description>Package manager</description>
+  <running type="exe" same_user="false">pacman</running>
+  <running type="exe" same_user="false">paccache</running>
+  <running type="pathname" same_user="false">/var/lib/pacman/db.lck</running>
+  <option id="cache">
+    <label translate="false">Clean cache</label>
+    <description>Delete the cache</description>
+    <action command="pacman.cache"/>
+  </option>
+</cleaner>

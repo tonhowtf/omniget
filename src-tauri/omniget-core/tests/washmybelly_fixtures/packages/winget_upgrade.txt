@@ -1,0 +1,14 @@
+   -    \    | Name                              Id                          Version        Available      Source
+--------------------------------------------------------------------------------------------------
+Git                               Git.Git                     2.44.0         2.46.0         winget
+Microsoft Visual Studio Code      Microsoft.VisualStudioCode  1.91.1         1.92.0         winget
+7-Zip 23.01 (x64)                 7zip.7zip                   23.01          24.08          winget
+微信                              Tencent.WeChat              3.9.10         3.9.11         winget
+Microsoft Edge WebView2 Runtime   Microsoft.EdgeWebView2Run…  127.0.2651.74  128.0.2739.42  winget
+Spotify                           Spotify.Spotify             Unknown        1.2.45         winget
+6 upgrades available.
+
+The following packages have an upgrade available, but require explicit targeting for upgrade:
+Name    Id              Version  Available Source
+-------------------------------------------------
+Discord Discord.Discord 1.0.9150 1.0.9160  winget

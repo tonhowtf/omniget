@@ -34,3 +34,19 @@ export function modKey(): string {
 export function shortcut(...keys: string[]): string {
   return isMac() ? `${modKey()}${keys.join("")}` : [modKey(), ...keys].join("+");
 }
+
+/** The three systems OmniGet ships on. */
+export type Os = "macos" | "windows" | "linux";
+
+/**
+ * Current system from the WebView, synchronous. Only a fallback until a
+ * backend answer (washmybelly_capabilities) arrives: the backend knows.
+ */
+export function currentOs(): Os {
+  if (typeof navigator === "undefined") return "linux";
+  const uaData = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData;
+  const raw = `${uaData?.platform || ""} ${navigator.platform || ""} ${navigator.userAgent || ""}`;
+  if (/mac/i.test(raw)) return "macos";
+  if (/win/i.test(raw)) return "windows";
+  return "linux";
+}

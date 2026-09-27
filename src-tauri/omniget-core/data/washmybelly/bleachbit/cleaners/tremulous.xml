@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="tremulous" os="linux">
+  <label>Tremulous</label>
+  <description>Game</description>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the list of game servers</description>
+    <action command="delete" search="file" path="~/.tremulous/servercache.dat"/>
+  </option>
+</cleaner>

@@ -9,14 +9,14 @@ use tauri::{AppHandle, Manager};
 
 pub fn catalog(p: &Principal) -> Vec<Value> {
     tools(p).into_iter().map(|tool| {
-        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture"))
+        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change"))
             || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install");
         let open_world = matches!(tool.name, "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list");
         let mut value = serde_json::to_value(&tool).expect("static tool schema serializes");
         // MCP semantics: destructive = may undo or discard existing work
         // (cancel/pause); creating or enqueueing is additive and, with its
         // idempotency key, idempotent.
-        let destructive = writes && matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause");
+        let destructive = writes && matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause" | "wmb_execute");
         value["annotations"] = json!({"readOnlyHint":!writes,"destructiveHint":destructive,"idempotentHint":!matches!(tool.name,"omniget_app_capture"|"omniget_app_export"),"openWorldHint":open_world});
         value
     }).collect()
@@ -206,6 +206,9 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
         return super::call_catalog(app, p, name, a).await;
     }
     validate(p, name, &a)?;
+    if name.starts_with("wmb_") {
+        return super::washmybelly::call(app, p, name, a).await;
+    }
     if matches!(name, "media_inspect" | "media_collection_list") {
         check_network(p, &checked_url(&a)?).await?;
     }

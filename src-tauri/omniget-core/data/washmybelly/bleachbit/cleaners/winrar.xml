@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="winrar" os="windows">
+  <label>WinRAR</label>
+  <description>File archiver</description>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the usage history</description>
+    <action command="winreg" path="HKCU\Software\WinRAR\ArcHistory"/>
+    <action command="winreg" path="HKCU\Software\WinRAR\DialogEditHistory\ArcName"/>
+    <action command="winreg" path="HKCU\Software\WinRAR\DialogEditHistory\ArcCmtName"/>
+    <action command="winreg" path="HKCU\Software\WinRAR\DialogEditHistory\ExtrPath"/>
+    <action command="winreg" path="HKCU\Software\WinRAR\DialogEditHistory\FindArcNames"/>
+    <action command="winreg" path="HKCU\Software\WinRAR\DialogEditHistory\FindNames"/>
+    <action command="winreg" path="HKCU\Software\WinRAR\DialogEditHistory\FindText"/>
+    <action command="winreg" path="HKCU\Software\WinRAR\DialogEditHistory\WizArcName"/>
+    <action command="winreg" path="HKCU\Software\WinRAR\General" name="LastFolder"/>
+    <action command="winreg" path="HKCU\Software\WinRAR\General\Info" name="CommentFile"/>
+    <action command="winreg" path="HKCU\Software\WinRAR SFX"/>
+  </option>
+  <option id="temp">
+    <label>Temporary files</label>
+    <description>Delete the temporary files</description>
+    <action command="delete" search="walk.files" path="%LocalAppData%\VirtualStore\Program Files*\WinRAR\" regex="\.[Tt][Mm][Pp]$"/>
+    <action command="delete" search="walk.files" path="%ProgramFiles%\WinRAR\" regex="\.[Tt][Mm][Pp]$"/>
+  </option>
+</cleaner>

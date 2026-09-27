@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="transmission" os="linux">
+  <label>Transmission</label>
+  <description>File transfer client</description>
+  <running type="exe" same_user="true">transmission</running>
+  <option id="blocklists">
+    <label translators="Torrent software can block a list of IP addresses, such as those that may belong to malware or anti-piracy organizations">Blocklists</label>
+    <description>Delete the files</description>
+    <warning>Blocklists will need to be updated to work.</warning>
+    <action command="delete" search="walk.files" path="$XDG_CONFIG_HOME/transmission/blocklists/"/>
+    <action command="delete" search="walk.files" path="~/.var/app/com.transmissionbt.Transmission/config/transmission/blocklists/"/>
+  </option>
+  <option id="torrents">
+    <label>Torrents</label>
+    <description>Delete the torrents (just the metadata but not the files described)</description>
+    <action command="delete" search="walk.files" path="$XDG_CONFIG_HOME/transmission/resume/"/>
+    <action command="delete" search="walk.files" path="~/.var/app/com.transmissionbt.Transmission/config/transmission/resume/"/>
+    <action command="delete" search="walk.files" path="$XDG_CONFIG_HOME/transmission/torrents/"/>
+    <action command="delete" search="walk.files" path="~/.var/app/com.transmissionbt.Transmission/config/transmission/torrents/"/>
+  </option>
+  <option id="history">
+    <label>Statistics</label>
+    <description>Delete the file</description>
+    <action command="delete" search="file" path="$XDG_CONFIG_HOME/transmission/stats.json"/>
+    <action command="delete" search="file" path="~/.var/app/com.transmissionbt.Transmission/config/transmission/stats.json"/>
+  </option>
+</cleaner>

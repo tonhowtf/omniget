@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Nextcloud
+Name[pt_BR]=Nextcloud (cliente)
+GenericName=File Synchronizer
+Exec="/usr/bin/nextcloud" --background
+Icon=Nextcloud
+Terminal=false
+Type=Application
+X-GNOME-Autostart-Delay=10

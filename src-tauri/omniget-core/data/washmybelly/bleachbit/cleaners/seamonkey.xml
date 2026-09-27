@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="seamonkey">
+  <label>SeaMonkey</label>
+  <description>Web browser</description>
+  <running type="exe" same_user="true">seamonkey.exe</running>
+  <running type="exe" same_user="true">seamonkey</running>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the web cache, which reduces time to display revisited pages</description>
+    <!--
+      /home/bob/.mozilla/default/Cache/B4D1D17Fd01
+      /home/bob/.mozilla/default/Cache/_CACHE_MAP_
+      /home/bob/.mozilla/test/Cache/7CD2831Ed01
+      /home/bob/.mozilla/seamonkey/eh6d1237.default/Cache (SeaMonkey 2.0, Fedora 14)
+      C:\Documents and Settings\bob\Local Settings\Application Data\Mozilla\Profiles\default\Cache
+      C:\Documents and Settings\bob\Local Settings\Application Data\Mozilla\SeaMonkey\Profiles\mpt1tdce.default\Cache (SeaMonkey 2.4.1, Windows XP)
+    For old SeaMonkey, '*' instead of 'default' would also catch non-SeaMonkey
+      profiles such as 'eclipse' and 'firefox', and extra profiles are rare.
+    -->
+    <action command="delete" search="walk.files" path="~/.mozilla/default/Cache/"/>
+    <action command="delete" search="walk.files" path="~/.mozilla/seamonkey/*/Cache/"/>
+    <action command="delete" search="walk.files" path="$localappdata\Mozilla\Profiles\default\Cache\"/>
+    <action command="delete" search="walk.files" path="$localappdata\Mozilla\Profiles\default\cache2\"/>
+    <action command="delete" search="walk.files" path="$localappdata\Mozilla\SeaMonkey\Profiles\*\Cache\"/>
+    <action command="delete" search="walk.files" path="$localappdata\Mozilla\SeaMonkey\Profiles\*\cache2\"/>
+    <action command="delete" search="walk.files" path="$localappdata\Mozilla\SeaMonkey\Profiles\*\startupCache\"/>
+  </option>
+  <option id="chat_logs">
+    <label>Chat logs</label>
+    <description>Delete the chat logs</description>
+    <!-- /home/bob/.mozilla/default/1oq1wrww.slt/chatzilla/logs/client.2009-07-03.log -->
+    <!-- C:\Documents and Settings\bob\Application Data\Mozilla\SeaMonkey\Profiles\mpt1tdce.default\chatzilla\logs (SeaMonkey 2.4.1, Windows XP) -->
+    <action command="delete" search="glob" path="$APPDATA\Mozilla\Profiles\default\????????.slt\chatzilla\logs\*log"/>
+    <action command="delete" search="glob" path="$APPDATA\Mozilla\SeaMonkey\Profiles\*\chatzilla\inputHistory.txt"/>
+    <action command="delete" search="glob" path="$APPDATA\Mozilla\SeaMonkey\Profiles\*\chatzilla\urls.txt"/>
+    <action command="delete" search="glob" path="~/.mozilla/*/????????.slt/chatzilla/logs/*log"/>
+    <action command="delete" search="walk.files" path="$APPDATA\Mozilla\SeaMonkey\Profiles\*\chatzilla\logs\"/>
+  </option>
+  <option id="cookies">
+    <label>Cookies</label>
+    <description>Delete cookies, which store login information, website preferences, and tracking identifiers</description>
+    <!-- /home/bob/.mozilla/default/1oq1wrww.slt/cookies.txt -->
+    <!-- /home/bob/.mozilla/test/pfr72dbv.slt/cookies.txt -->
+    <!-- /home/bob/.mozilla/seamonkey/*.default/cookies.sqlite (SeaMonkey 2.0, Fedora 14) -->
+    <!-- C:\Documents and Settings\bob\Application Data\Mozilla\SeaMonkey\Profiles\mpt1tdce.default (SeaMonkey 2.4.1, Windows XP) -->
+    <action command="delete" search="glob" path="~/.mozilla/*/????????.slt/cookies.txt"/>
+    <action command="cookie" search="glob" path="~/.mozilla/seamonkey/*.default/cookies.sqlite"/>
+    <action command="cookie" search="glob" path="$APPDATA\Mozilla\SeaMonkey\Profiles\*\cookies.sqlite"/>
+    <action command="delete" search="glob" path="$APPDATA\Mozilla\Profiles\default\????????.slt\cookies.txt"/>
+  </option>
+  <option id="download_history">
+    <label>Download history</label>
+    <description>List of files downloaded</description>
+    <action command="delete" search="glob" path="~/.mozilla/seamonkey/*.default/downloads.sqlite"/>
+    <action command="delete" search="glob" path="$APPDATA\Mozilla\SeaMonkey\Profiles\*\downloads.sqlite"/>
+  </option>
+  <option id="history">
+    <label>History</label>
+    <description>Delete the list of visited web pages</description>
+    <action command="delete" search="glob" path="$APPDATA\Mozilla\Profiles\default\????????.slt\history.dat"/>
+    <action command="delete" search="glob" path="~/.mozilla/*/????????.slt/history.dat"/>
+    <action command="delete" search="glob" path="~/.mozilla/seamonkey/*.default/urlbarhistory.sqlite"/>
+    <action command="delete" search="glob" path="$APPDATA\Mozilla\SeaMonkey\Profiles\*\urlbarhistory.sqlite"/>
+    <action command="delete" search="glob" path="$APPDATA\Mozilla\SeaMonkey\Profiles\*\sessionstore.bak"/>
+  </option>
+</cleaner>

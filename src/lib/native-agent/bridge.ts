@@ -93,7 +93,7 @@ async function dispatch(operation: string, args: Record<string, unknown>) {
   if (operation === 'inspect') return inspect(args);
   if (operation === 'navigate') {
     const screen = catalog.find(s => s.screenId === args.screenId);
-    if (!screen || screen.windowId !== 'main' || screen.kind === 'development') throw new Error('TARGET_NOT_ACTIONABLE');
+    if (!screen || screen.windowId !== 'main' || screen.kind === 'development' || screen.navigation !== 'main-route') throw new Error('TARGET_NOT_ACTIONABLE');
     await goto(screen.route);
     await tick();
     await waitForPaint();

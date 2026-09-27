@@ -1,0 +1,1400 @@
+{
+  "rules": [
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "browser",
+      "description": "Delete the web cache, which reduces time to display revisited pages",
+      "destination": "unlink",
+      "exclude": [],
+      "id": "bleachbit.chromium.cache",
+      "include": [],
+      "label": "Chromium: Cache",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "macos"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chrome"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CACHE_HOME/chromium",
+        "~/.var/app/org.chromium.Chromium/cache",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/cache",
+        "~/snap/chromium/common/.cache/mesa_shader_cache_db",
+        "~/snap/chromium/common/.cache/mesa_shader_cache",
+        "~/snap/chromium/common/.cache/chromium"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete"
+      },
+      "category": "browser",
+      "description": "Delete the web cache, which reduces time to display revisited pages",
+      "destination": "unlink",
+      "exclude": [],
+      "id": "bleachbit.chromium.cache",
+      "include": [],
+      "label": "Chromium: Cache",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/Safe Browsing Channel IDs-journal",
+        "~/snap/chromium/common/chromium/Safe Browsing Channel IDs-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Safe Browsing Channel IDs-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Safe Browsing Channel IDs-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/Network Persistent State",
+        "~/snap/chromium/common/chromium/Default/Network Persistent State",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Network Persistent State",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Network Persistent State",
+        "$XDG_CONFIG_HOME/chromium/Default/Network/Network Persistent State",
+        "~/snap/chromium/common/chromium/Default/Network/Network Persistent State",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Network/Network Persistent State",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Network/Network Persistent State"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "browser",
+      "description": "Delete the web cache, which reduces time to display revisited pages",
+      "destination": "unlink",
+      "exclude": [],
+      "id": "bleachbit.chromium.cache.2",
+      "include": [],
+      "label": "Chromium: Cache",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/component_crx_cache",
+        "~/snap/chromium/common/chromium/component_crx_cache",
+        "~/.var/app/org.chromium.Chromium/config/chromium/component_crx_cache",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/component_crx_cache",
+        "$XDG_CONFIG_HOME/chromium/extensions_crx_cache",
+        "~/snap/chromium/common/chromium/extensions_crx_cache",
+        "~/.var/app/org.chromium.Chromium/config/chromium/extensions_crx_cache",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/extensions_crx_cache",
+        "$XDG_CONFIG_HOME/chromium/GraphiteDawnCache",
+        "~/snap/chromium/common/chromium/GraphiteDawnCache",
+        "~/.var/app/org.chromium.Chromium/config/chromium/GraphiteDawnCache",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/GraphiteDawnCache",
+        "$XDG_CONFIG_HOME/chromium/GrShaderCache",
+        "~/snap/chromium/common/chromium/GrShaderCache",
+        "~/.var/app/org.chromium.Chromium/config/chromium/GrShaderCache",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/GrShaderCache",
+        "$XDG_CONFIG_HOME/chromium/ShaderCache",
+        "~/snap/chromium/common/chromium/ShaderCache",
+        "~/.var/app/org.chromium.Chromium/config/chromium/ShaderCache",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/ShaderCache",
+        "$XDG_CONFIG_HOME/chromium/Default/Code Cache",
+        "~/snap/chromium/common/chromium/Default/Code Cache",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Code Cache",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Code Cache",
+        "$XDG_CONFIG_HOME/chromium/Default/DawnCache",
+        "~/snap/chromium/common/chromium/Default/DawnCache",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/DawnCache",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/DawnCache",
+        "$XDG_CONFIG_HOME/chromium/Default/GPUCache",
+        "~/snap/chromium/common/chromium/Default/GPUCache",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/GPUCache",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/GPUCache",
+        "$XDG_CONFIG_HOME/chromium/Default/Storage/ext/*/*def/GPUCache",
+        "~/snap/chromium/common/chromium/Default/Storage/ext/*/*def/GPUCache",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Storage/ext/*/*def/GPUCache",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Storage/ext/*/*def/GPUCache",
+        "$XDG_CACHE_HOME/chromium",
+        "$XDG_CONFIG_HOME/chromium/Default/Cache",
+        "~/snap/chromium/common/chromium/Default/Cache",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Cache",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Cache",
+        "~/.var/app/org.chromium.Chromium/cache",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/cache",
+        "~/snap/chromium/common/.cache/mesa_shader_cache_db",
+        "~/snap/chromium/common/.cache/mesa_shader_cache",
+        "~/snap/chromium/common/.cache/chromium"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete"
+      },
+      "category": "privacy",
+      "description": "Delete cookies, which store login information, website preferences, and tracking identifiers",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.cookies",
+      "include": [],
+      "label": "Chromium: Cookies",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/Default/Cookies-journal",
+        "~/snap/chromium/common/chromium/Default/Cookies-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Cookies-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Cookies-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/Network/Cookies-journal",
+        "~/snap/chromium/common/chromium/Default/Network/Cookies-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Network/Cookies-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Network/Cookies-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/Extension Cookies-journal",
+        "~/snap/chromium/common/chromium/Default/Extension Cookies-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Extension Cookies-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Extension Cookies-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/TransportSecurity",
+        "~/snap/chromium/common/chromium/Default/TransportSecurity",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/TransportSecurity",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/TransportSecurity"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "logs",
+      "description": "Delete the files",
+      "destination": "unlink",
+      "exclude": [],
+      "id": "bleachbit.chromium.crash_reports",
+      "include": [],
+      "label": "Chromium: Crash reports",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/Crash Reports",
+        "~/snap/chromium/common/chromium/Crash Reports",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Crash Reports",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Crash Reports"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete"
+      },
+      "category": "privacy",
+      "description": "A history of forms entered in websites",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.form_history",
+      "include": [],
+      "label": "Chromium: Form history",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/Default/Web Data-journal",
+        "~/snap/chromium/common/chromium/Default/Web Data-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Web Data-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Web Data-journal"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete"
+      },
+      "category": "privacy",
+      "description": "Delete the history which includes visited sites, downloads, and thumbnails",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.history",
+      "include": [],
+      "label": "Chromium: History",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/chrome_shutdown_ms.txt",
+        "~/snap/chromium/common/chromium/chrome_shutdown_ms.txt",
+        "~/.var/app/org.chromium.Chromium/config/chromium/chrome_shutdown_ms.txt",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/chrome_shutdown_ms.txt",
+        "$XDG_CONFIG_HOME/chromium/Safe Browsing Cookies-journal",
+        "~/snap/chromium/common/chromium/Safe Browsing Cookies-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Safe Browsing Cookies-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Safe Browsing Cookies-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/Archived History-journal",
+        "~/snap/chromium/common/chromium/Default/Archived History-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Archived History-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Archived History-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/Archived History",
+        "~/snap/chromium/common/chromium/Default/Archived History",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Archived History",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Archived History",
+        "$XDG_CONFIG_HOME/chromium/Default/DownloadMetadata",
+        "~/snap/chromium/common/chromium/Default/DownloadMetadata",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/DownloadMetadata",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/DownloadMetadata",
+        "$XDG_CONFIG_HOME/chromium/Default/DIPS",
+        "~/snap/chromium/common/chromium/Default/DIPS",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/DIPS",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/DIPS",
+        "$XDG_CONFIG_HOME/chromium/Default/History Provider Cache",
+        "~/snap/chromium/common/chromium/Default/History Provider Cache",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/History Provider Cache",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/History Provider Cache",
+        "$XDG_CONFIG_HOME/chromium/Default/History-journal",
+        "~/snap/chromium/common/chromium/Default/History-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/History-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/History-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/MediaDeviceSalts-journal",
+        "~/snap/chromium/common/chromium/Default/MediaDeviceSalts-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/MediaDeviceSalts-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/MediaDeviceSalts-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/MediaDeviceSalts",
+        "~/snap/chromium/common/chromium/Default/MediaDeviceSalts",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/MediaDeviceSalts",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/MediaDeviceSalts",
+        "$XDG_CONFIG_HOME/chromium/Default/Network Action Predictor-journal",
+        "~/snap/chromium/common/chromium/Default/Network Action Predictor-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Network Action Predictor-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Network Action Predictor-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/Network Action Predictor",
+        "~/snap/chromium/common/chromium/Default/Network Action Predictor",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Network Action Predictor",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Network Action Predictor",
+        "$XDG_CONFIG_HOME/chromium/Default/Origin Bound Certs-journal",
+        "~/snap/chromium/common/chromium/Default/Origin Bound Certs-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Origin Bound Certs-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Origin Bound Certs-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/Reporting and NEL-journal",
+        "~/snap/chromium/common/chromium/Default/Reporting and NEL-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Reporting and NEL-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Reporting and NEL-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/Reporting and NEL",
+        "~/snap/chromium/common/chromium/Default/Reporting and NEL",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Reporting and NEL",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Reporting and NEL",
+        "$XDG_CONFIG_HOME/chromium/Default/Shortcuts-journal",
+        "~/snap/chromium/common/chromium/Default/Shortcuts-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Shortcuts-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Shortcuts-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/Shortcuts",
+        "~/snap/chromium/common/chromium/Default/Shortcuts",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Shortcuts",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Shortcuts",
+        "$XDG_CONFIG_HOME/chromium/Default/History Index ????-??-journal",
+        "~/snap/chromium/common/chromium/Default/History Index ????-??-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/History Index ????-??-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/History Index ????-??-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/History Index ????-??",
+        "~/snap/chromium/common/chromium/Default/History Index ????-??",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/History Index ????-??",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/History Index ????-??",
+        "$XDG_CONFIG_HOME/chromium/Default/Thumbnails",
+        "~/snap/chromium/common/chromium/Default/Thumbnails",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Thumbnails",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Thumbnails",
+        "$XDG_CONFIG_HOME/chromium/Default/Thumbnails-journal",
+        "~/snap/chromium/common/chromium/Default/Thumbnails-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Thumbnails-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Thumbnails-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/Top Sites-journal",
+        "~/snap/chromium/common/chromium/Default/Top Sites-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Top Sites-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Top Sites-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/Top Sites",
+        "~/snap/chromium/common/chromium/Default/Top Sites",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Top Sites",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Top Sites",
+        "$XDG_CONFIG_HOME/chromium/Default/Visited Links",
+        "~/snap/chromium/common/chromium/Default/Visited Links",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Visited Links",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Visited Links",
+        "$XDG_CONFIG_HOME/chromium/Default/WebStorage/QuotaManager",
+        "~/snap/chromium/common/chromium/Default/WebStorage/QuotaManager",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/WebStorage/QuotaManager",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/WebStorage/QuotaManager",
+        "$XDG_CONFIG_HOME/chromium/Default/WebStorage/QuotaManager-journal",
+        "~/snap/chromium/common/chromium/Default/WebStorage/QuotaManager-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/WebStorage/QuotaManager-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/WebStorage/QuotaManager-journal"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "privacy",
+      "description": "Delete the history which includes visited sites, downloads, and thumbnails",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.history.2",
+      "include": [
+        "type:f"
+      ],
+      "label": "Chromium: History",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/Default/Thumbnails",
+        "~/snap/chromium/common/chromium/Default/Thumbnails",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Thumbnails",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Thumbnails"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete"
+      },
+      "category": "privacy",
+      "description": "Previously open tabs and windows",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.session",
+      "include": [],
+      "label": "Chromium: Session",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/Default/Current Session",
+        "~/snap/chromium/common/chromium/Default/Current Session",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Current Session",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Current Session",
+        "$XDG_CONFIG_HOME/chromium/Default/Current Tabs",
+        "~/snap/chromium/common/chromium/Default/Current Tabs",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Current Tabs",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Current Tabs",
+        "$XDG_CONFIG_HOME/chromium/Default/Last Session",
+        "~/snap/chromium/common/chromium/Default/Last Session",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Last Session",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Last Session",
+        "$XDG_CONFIG_HOME/chromium/Default/Last Tabs",
+        "~/snap/chromium/common/chromium/Default/Last Tabs",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Last Tabs",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Last Tabs"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "privacy",
+      "description": "Previously open tabs and windows",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.session.2",
+      "include": [],
+      "label": "Chromium: Session",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/Default/Sessions",
+        "~/snap/chromium/common/chromium/Default/Sessions",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Sessions",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Sessions"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "privacy",
+      "description": "Delete LocalStorage, IndexedDB, and other data stored by websites",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.site_data",
+      "include": [],
+      "label": "Chromium: Site data",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/Default/databases/http*",
+        "~/snap/chromium/common/chromium/Default/databases/http*",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/databases/http*",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/databases/http*",
+        "$XDG_CONFIG_HOME/chromium/Default/File System",
+        "~/snap/chromium/common/chromium/Default/File System",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/File System",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/File System",
+        "$XDG_CONFIG_HOME/chromium/Default/IndexedDB",
+        "~/snap/chromium/common/chromium/Default/IndexedDB",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/IndexedDB",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/IndexedDB",
+        "$XDG_CONFIG_HOME/chromium/Default/Local Storage",
+        "~/snap/chromium/common/chromium/Default/Local Storage",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Local Storage",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Local Storage",
+        "$XDG_CONFIG_HOME/chromium/Default/Service Worker",
+        "~/snap/chromium/common/chromium/Default/Service Worker",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Service Worker",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Service Worker",
+        "$XDG_CONFIG_HOME/chromium/Default/WebStorage",
+        "~/snap/chromium/common/chromium/Default/WebStorage",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/WebStorage",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/WebStorage",
+        "$XDG_CONFIG_HOME/chromium/Default/Extension State",
+        "~/snap/chromium/common/chromium/Default/Extension State",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Extension State",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Extension State"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete"
+      },
+      "category": "privacy",
+      "description": "Delete LocalStorage, IndexedDB, and other data stored by websites",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.site_data.2",
+      "include": [],
+      "label": "Chromium: Site data",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/Default/QuotaManager",
+        "~/snap/chromium/common/chromium/Default/QuotaManager",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/QuotaManager",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/QuotaManager",
+        "$XDG_CONFIG_HOME/chromium/Default/QuotaManager-journal",
+        "~/snap/chromium/common/chromium/Default/QuotaManager-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/QuotaManager-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/QuotaManager-journal"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "privacy",
+      "description": "Delete LocalStorage, IndexedDB, and other data stored by websites",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.site_data.3",
+      "include": [
+        "type:f"
+      ],
+      "label": "Chromium: Site data",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/Default/Session Storage",
+        "~/snap/chromium/common/chromium/Default/Session Storage",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Session Storage",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Session Storage"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "privacy",
+      "description": "Delete the sync data (including web apps) and sign out of the browser",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.sync",
+      "include": [
+        "type:f"
+      ],
+      "label": "Chromium: Sync",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/Default/Sync Data",
+        "~/snap/chromium/common/chromium/Default/Sync Data",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Sync Data",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Sync Data"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete"
+      },
+      "category": "privacy",
+      "description": "A database of usernames and passwords as well as a list of sites that should not store passwords Warning: This option will delete your saved passwords.",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.passwords",
+      "include": [],
+      "label": "Chromium: Passwords",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/Default/Login Data",
+        "~/snap/chromium/common/chromium/Default/Login Data",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Login Data",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Login Data",
+        "$XDG_CONFIG_HOME/chromium/Default/Login Data-journal",
+        "~/snap/chromium/common/chromium/Default/Login Data-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Login Data-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Login Data-journal",
+        "$XDG_CONFIG_HOME/chromium/Default/Login Data For Account",
+        "~/snap/chromium/common/chromium/Default/Login Data For Account",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Login Data For Account",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Login Data For Account",
+        "$XDG_CONFIG_HOME/chromium/Default/Login Data For Account-journal",
+        "~/snap/chromium/common/chromium/Default/Login Data For Account-journal",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Login Data For Account-journal",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Login Data For Account-journal"
+      ]
+    },
+    {
+      "action": {
+        "type": "sqlite_vacuum"
+      },
+      "category": "database",
+      "description": "Clean database fragmentation to reduce space and improve speed without removing any data",
+      "destination": "unlink",
+      "exclude": [],
+      "id": "bleachbit.chromium.vacuum",
+      "include": [],
+      "label": "Chromium: Vacuum",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "reversible",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/Default/Cookies",
+        "~/snap/chromium/common/chromium/Default/Cookies",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Cookies",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Cookies",
+        "$XDG_CONFIG_HOME/chromium/Default/Network/Cookies",
+        "~/snap/chromium/common/chromium/Default/Network/Cookies",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Network/Cookies",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Network/Cookies",
+        "$XDG_CONFIG_HOME/chromium/Default/Extension Cookies",
+        "~/snap/chromium/common/chromium/Default/Extension Cookies",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Extension Cookies",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Extension Cookies",
+        "$XDG_CONFIG_HOME/chromium/Default/History",
+        "~/snap/chromium/common/chromium/Default/History",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/History",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/History",
+        "$XDG_CONFIG_HOME/chromium/Default/History Index ????-??",
+        "~/snap/chromium/common/chromium/Default/History Index ????-??",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/History Index ????-??",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/History Index ????-??",
+        "$XDG_CONFIG_HOME/chromium/Default/Login Data",
+        "~/snap/chromium/common/chromium/Default/Login Data",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Login Data",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Login Data",
+        "$XDG_CONFIG_HOME/chromium/Default/Login Data For Account",
+        "~/snap/chromium/common/chromium/Default/Login Data For Account",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Login Data For Account",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Login Data For Account",
+        "$XDG_CONFIG_HOME/chromium/Default/Origin Bound Certs",
+        "~/snap/chromium/common/chromium/Default/Origin Bound Certs",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Origin Bound Certs",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Origin Bound Certs",
+        "$XDG_CONFIG_HOME/chromium/Default/Network Action Predictor",
+        "~/snap/chromium/common/chromium/Default/Network Action Predictor",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Network Action Predictor",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Network Action Predictor",
+        "$XDG_CONFIG_HOME/chromium/Default/Reporting and NEL",
+        "~/snap/chromium/common/chromium/Default/Reporting and NEL",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Reporting and NEL",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Reporting and NEL",
+        "$XDG_CONFIG_HOME/chromium/Default/MediaDeviceSalts",
+        "~/snap/chromium/common/chromium/Default/MediaDeviceSalts",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/MediaDeviceSalts",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/MediaDeviceSalts",
+        "$XDG_CONFIG_HOME/chromium/Default/previews_opt_out.db",
+        "~/snap/chromium/common/chromium/Default/previews_opt_out.db",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/previews_opt_out.db",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/previews_opt_out.db",
+        "$XDG_CONFIG_HOME/chromium/Default/QuotaManager",
+        "~/snap/chromium/common/chromium/Default/QuotaManager",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/QuotaManager",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/QuotaManager",
+        "$XDG_CONFIG_HOME/chromium/Default/WebStorage/QuotaManager",
+        "~/snap/chromium/common/chromium/Default/WebStorage/QuotaManager",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/WebStorage/QuotaManager",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/WebStorage/QuotaManager",
+        "$XDG_CONFIG_HOME/chromium/Default/Shortcuts",
+        "~/snap/chromium/common/chromium/Default/Shortcuts",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Shortcuts",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Shortcuts",
+        "$XDG_CONFIG_HOME/chromium/Default/Top Sites",
+        "~/snap/chromium/common/chromium/Default/Top Sites",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Top Sites",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Top Sites",
+        "$XDG_CONFIG_HOME/chromium/Default/Web Data",
+        "~/snap/chromium/common/chromium/Default/Web Data",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Web Data",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Web Data",
+        "$XDG_CONFIG_HOME/chromium/Default/databases/Databases.db",
+        "~/snap/chromium/common/chromium/Default/databases/Databases.db",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/databases/Databases.db",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/databases/Databases.db",
+        "$XDG_CONFIG_HOME/chromium/Default/databases/http*/?",
+        "~/snap/chromium/common/chromium/Default/databases/http*/?",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/databases/http*/?",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/databases/http*/?",
+        "$XDG_CONFIG_HOME/chromium/Default/databases/http*/??",
+        "~/snap/chromium/common/chromium/Default/databases/http*/??",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/databases/http*/??",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/databases/http*/??",
+        "$XDG_CONFIG_HOME/chromium/Default/Sync Data/SyncData.sqlite3",
+        "~/snap/chromium/common/chromium/Default/Sync Data/SyncData.sqlite3",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Sync Data/SyncData.sqlite3",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Sync Data/SyncData.sqlite3"
+      ]
+    },
+    {
+      "action": {
+        "type": "sqlite_vacuum"
+      },
+      "category": "database",
+      "description": "Clean database fragmentation to reduce space and improve speed without removing any data",
+      "destination": "unlink",
+      "exclude": [],
+      "id": "bleachbit.chromium.vacuum.2",
+      "include": [
+        "type:f"
+      ],
+      "label": "Chromium: Vacuum",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "linux"
+      ],
+      "requires": [],
+      "risk": "reversible",
+      "running": [
+        "chromium-browser"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "$XDG_CONFIG_HOME/chromium/Default/Thumbnails",
+        "~/snap/chromium/common/chromium/Default/Thumbnails",
+        "~/.var/app/org.chromium.Chromium/config/chromium/Default/Thumbnails",
+        "~/.var/app/io.github.ungoogled_software.ungoogled_chromium/config/chromium/Default/Thumbnails"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete"
+      },
+      "category": "browser",
+      "description": "Delete the web cache, which reduces time to display revisited pages",
+      "destination": "unlink",
+      "exclude": [],
+      "id": "bleachbit.chromium.cache",
+      "include": [],
+      "label": "Chromium: Cache",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data/Safe Browsing Channel IDs-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Network Persistent State",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Network/Network Persistent State",
+        "%LocalAppData%\\Chromium\\User Data\\B*.tmp"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "browser",
+      "description": "Delete the web cache, which reduces time to display revisited pages",
+      "destination": "unlink",
+      "exclude": [],
+      "id": "bleachbit.chromium.cache.2",
+      "include": [],
+      "label": "Chromium: Cache",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data/component_crx_cache",
+        "%LocalAppData%\\Chromium\\User Data/extensions_crx_cache",
+        "%LocalAppData%\\Chromium\\User Data/GraphiteDawnCache",
+        "%LocalAppData%\\Chromium\\User Data/GrShaderCache",
+        "%LocalAppData%\\Chromium\\User Data/ShaderCache",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Code Cache",
+        "%LocalAppData%\\Chromium\\User Data\\Default/DawnCache",
+        "%LocalAppData%\\Chromium\\User Data\\Default/GPUCache",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Storage/ext/*/*def/GPUCache",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Cache",
+        "%LocalAppData%\\Chromium\\User Data\\Default\\Default\\Application Cache",
+        "%LocalAppData%\\Chromium\\User Data\\Default\\Cache",
+        "%LocalAppData%\\Chromium\\User Data\\Default\\Media Cache"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete"
+      },
+      "category": "privacy",
+      "description": "Delete cookies, which store login information, website preferences, and tracking identifiers",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.cookies",
+      "include": [],
+      "label": "Chromium: Cookies",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data\\Default/Cookies-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Network/Cookies-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Extension Cookies-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/TransportSecurity"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "logs",
+      "description": "Delete the files",
+      "destination": "unlink",
+      "exclude": [],
+      "id": "bleachbit.chromium.crash_reports",
+      "include": [],
+      "label": "Chromium: Crash reports",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data/Crash Reports"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete"
+      },
+      "category": "privacy",
+      "description": "A history of forms entered in websites",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.form_history",
+      "include": [],
+      "label": "Chromium: Form history",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data\\Default/Web Data-journal"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete"
+      },
+      "category": "privacy",
+      "description": "Delete the history which includes visited sites, downloads, and thumbnails",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.history",
+      "include": [],
+      "label": "Chromium: History",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data/chrome_shutdown_ms.txt",
+        "%LocalAppData%\\Chromium\\User Data/Safe Browsing Cookies-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Archived History-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Archived History",
+        "%LocalAppData%\\Chromium\\User Data\\Default/DownloadMetadata",
+        "%LocalAppData%\\Chromium\\User Data\\Default/DIPS",
+        "%LocalAppData%\\Chromium\\User Data\\Default/History Provider Cache",
+        "%LocalAppData%\\Chromium\\User Data\\Default/History-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/MediaDeviceSalts-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/MediaDeviceSalts",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Network Action Predictor-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Network Action Predictor",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Origin Bound Certs-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Reporting and NEL-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Reporting and NEL",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Shortcuts-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Shortcuts",
+        "%LocalAppData%\\Chromium\\User Data\\Default/History Index ????-??-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/History Index ????-??",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Thumbnails",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Thumbnails-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Top Sites-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Top Sites",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Visited Links",
+        "%LocalAppData%\\Chromium\\User Data\\Default/WebStorage/QuotaManager",
+        "%LocalAppData%\\Chromium\\User Data\\Default/WebStorage/QuotaManager-journal"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "privacy",
+      "description": "Delete the history which includes visited sites, downloads, and thumbnails",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.history.2",
+      "include": [
+        "type:f"
+      ],
+      "label": "Chromium: History",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data\\Default/Thumbnails",
+        "%LocalAppData%\\Chromium\\User Data\\Default\\JumpListIconsMostVisited",
+        "%LocalAppData%\\Chromium\\User Data\\Default\\JumpListIconsOld",
+        "%LocalAppData%\\Chromium\\User Data\\Default\\JumpListIconsRecentClosed",
+        "%LocalAppData%\\Chromium\\User Data\\Default\\JumpListIcons"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete"
+      },
+      "category": "privacy",
+      "description": "Previously open tabs and windows",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.session",
+      "include": [],
+      "label": "Chromium: Session",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data\\Default/Current Session",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Current Tabs",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Last Session",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Last Tabs"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "privacy",
+      "description": "Previously open tabs and windows",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.session.2",
+      "include": [],
+      "label": "Chromium: Session",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data\\Default/Sessions"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "privacy",
+      "description": "Delete LocalStorage, IndexedDB, and other data stored by websites",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.site_data",
+      "include": [],
+      "label": "Chromium: Site data",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data\\Default/databases/http*",
+        "%LocalAppData%\\Chromium\\User Data\\Default/File System",
+        "%LocalAppData%\\Chromium\\User Data\\Default/IndexedDB",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Local Storage",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Service Worker",
+        "%LocalAppData%\\Chromium\\User Data\\Default/WebStorage",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Extension State"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete"
+      },
+      "category": "privacy",
+      "description": "Delete LocalStorage, IndexedDB, and other data stored by websites",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.site_data.2",
+      "include": [],
+      "label": "Chromium: Site data",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data\\Default/QuotaManager",
+        "%LocalAppData%\\Chromium\\User Data\\Default/QuotaManager-journal"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "privacy",
+      "description": "Delete LocalStorage, IndexedDB, and other data stored by websites",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.site_data.3",
+      "include": [
+        "type:f"
+      ],
+      "label": "Chromium: Site data",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data\\Default/Session Storage"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete_contents"
+      },
+      "category": "privacy",
+      "description": "Delete the sync data (including web apps) and sign out of the browser",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.sync",
+      "include": [
+        "type:f"
+      ],
+      "label": "Chromium: Sync",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data\\Default/Sync Data"
+      ]
+    },
+    {
+      "action": {
+        "type": "delete"
+      },
+      "category": "privacy",
+      "description": "A database of usernames and passwords as well as a list of sites that should not store passwords Warning: This option will delete your saved passwords.",
+      "destination": "quarantine",
+      "exclude": [],
+      "id": "bleachbit.chromium.passwords",
+      "include": [],
+      "label": "Chromium: Passwords",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "destructive",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data\\Default/Login Data",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Login Data-journal",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Login Data For Account",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Login Data For Account-journal"
+      ]
+    },
+    {
+      "action": {
+        "type": "sqlite_vacuum"
+      },
+      "category": "database",
+      "description": "Clean database fragmentation to reduce space and improve speed without removing any data",
+      "destination": "unlink",
+      "exclude": [],
+      "id": "bleachbit.chromium.vacuum",
+      "include": [],
+      "label": "Chromium: Vacuum",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "reversible",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data\\Default/Cookies",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Network/Cookies",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Extension Cookies",
+        "%LocalAppData%\\Chromium\\User Data\\Default/History",
+        "%LocalAppData%\\Chromium\\User Data\\Default/History Index ????-??",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Login Data",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Login Data For Account",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Origin Bound Certs",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Network Action Predictor",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Reporting and NEL",
+        "%LocalAppData%\\Chromium\\User Data\\Default/MediaDeviceSalts",
+        "%LocalAppData%\\Chromium\\User Data\\Default/previews_opt_out.db",
+        "%LocalAppData%\\Chromium\\User Data\\Default/QuotaManager",
+        "%LocalAppData%\\Chromium\\User Data\\Default/WebStorage/QuotaManager",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Shortcuts",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Top Sites",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Web Data",
+        "%LocalAppData%\\Chromium\\User Data\\Default/databases/Databases.db",
+        "%LocalAppData%\\Chromium\\User Data\\Default/databases/http*/?",
+        "%LocalAppData%\\Chromium\\User Data\\Default/databases/http*/??",
+        "%LocalAppData%\\Chromium\\User Data\\Default/Sync Data/SyncData.sqlite3"
+      ]
+    },
+    {
+      "action": {
+        "type": "sqlite_vacuum"
+      },
+      "category": "database",
+      "description": "Clean database fragmentation to reduce space and improve speed without removing any data",
+      "destination": "unlink",
+      "exclude": [],
+      "id": "bleachbit.chromium.vacuum.2",
+      "include": [
+        "type:f"
+      ],
+      "label": "Chromium: Vacuum",
+      "label_key": null,
+      "license": "GPL-3.0",
+      "min_age_days": 0,
+      "os": [
+        "windows"
+      ],
+      "requires": [],
+      "risk": "reversible",
+      "running": [
+        "chrome.exe"
+      ],
+      "source": "BleachBit",
+      "targets": [
+        "%LocalAppData%\\Chromium\\User Data\\Default/Thumbnails"
+      ]
+    }
+  ],
+  "skipped": [
+    {
+      "cleaner": "chromium",
+      "option": "cache",
+      "reason": "edits a settings file or the registry (not ported yet)",
+      "what": "json"
+    },
+    {
+      "cleaner": "chromium",
+      "option": "cookies",
+      "reason": "partial SQL cleanup of browser data from Special.py (not ported yet)",
+      "what": "cookie"
+    },
+    {
+      "cleaner": "chromium",
+      "option": "form_history",
+      "reason": "partial SQL cleanup of browser data from Special.py (not ported yet)",
+      "what": "chrome.autofill"
+    },
+    {
+      "cleaner": "chromium",
+      "option": "history",
+      "reason": "partial SQL cleanup of browser data from Special.py (not ported yet)",
+      "what": "chrome.favicons"
+    },
+    {
+      "cleaner": "chromium",
+      "option": "history",
+      "reason": "partial SQL cleanup of browser data from Special.py (not ported yet)",
+      "what": "chrome.history"
+    },
+    {
+      "cleaner": "chromium",
+      "option": "history",
+      "reason": "edits a settings file or the registry (not ported yet)",
+      "what": "json"
+    },
+    {
+      "cleaner": "chromium",
+      "option": "search_engines",
+      "reason": "partial SQL cleanup of browser data from Special.py (not ported yet)",
+      "what": "chrome.keywords"
+    },
+    {
+      "cleaner": "chromium",
+      "option": "site_data",
+      "reason": "partial SQL cleanup of browser data from Special.py (not ported yet)",
+      "what": "chrome.databases_db"
+    },
+    {
+      "cleaner": "chromium",
+      "option": "site_preferences",
+      "reason": "edits a settings file or the registry (not ported yet)",
+      "what": "json"
+    },
+    {
+      "cleaner": "chromium",
+      "option": "sync",
+      "reason": "edits a settings file or the registry (not ported yet)",
+      "what": "json"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="dnf" os="linux">
+  <label>DNF</label>
+  <description>Package manager</description>
+  <option id="clean_all">
+    <label translate="false">clean all</label>
+    <description>Delete the cache</description>
+    <action command="dnf.clean_all"/>
+  </option>
+  <option id="autoremove">
+    <label translate="false">autoremove</label>
+    <description>Remove packages that were formerly dependencies</description>
+    <warning>Carefully review the list of packages that will be removed by running "dnf list autoremove".</warning>
+    <action command="dnf.autoremove"/>
+  </option>
+</cleaner>

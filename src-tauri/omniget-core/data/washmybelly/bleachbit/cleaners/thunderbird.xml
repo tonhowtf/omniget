@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="thunderbird">
+  <label>Thunderbird</label>
+  <description>Email client</description>
+  <running type="exe" os="windows" same_user="true">thunderbird.exe</running>
+  <running type="exe" os="linux" same_user="true">thunderbird</running>
+  <running type="exe" os="freebsd">thunderbird</running>
+  <var name="profile">
+    <!-- Fedora 11 Thunderbird 3.0 has ~/.thunderbird/default/????????.slt/ -->
+    <!-- Ubuntu 10.04 Thunderbird 3 has ~/.thunderbird/????????.default/ -->
+    <!-- Ubuntu 9.10 Thunderbird 2.0 has ~/.mozilla-thunderbird/????????.default/ -->
+    <!-- openSUSE 11.3 Thunderbird 3 has ~/.thunderbird/Profiles/????????.default/ -->
+    <value search="glob" os="linux">~/.thunderbird/*</value>
+    <value search="glob" os="linux">~/.mozilla-thunderbird/*</value>
+    <value search="glob" os="linux">~/.thunderbird/Profiles/*</value>
+    <value search="glob" os="linux">~/.var/app/org.mozilla.Thunderbird/.thunderbird/*</value>
+    <value search="glob" os="windows">%AppData%\Thunderbird\Profiles\*</value>
+  </var>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the web cache, which reduces time to display revisited pages</description>
+    <action command="delete" search="walk.all" path="$$profile$$/Cache/"/>
+    <action command="delete" search="walk.all" path="~/.cache/thunderbird/"/>
+    <action command="delete" search="walk.all" path="~/.var/app/org.mozilla.Thunderbird/cache/thunderbird/"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Thunderbird\Profiles\*\cache2\"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\Thunderbird\Profiles\*\startupCache\"/>
+    <!-- Ubuntu 10.04 Thunderbird 3 has ~/.thunderbird/????????.default/Cache/ -->
+    <!-- openSUSE 11.3 Thunderbird 3 has ~/.thunderbird/Profiles/????????.default/Cache/ -->
+    <!-- Ubuntu 19.04 Thunderbird 60.0.80 has ~/.cache/thunderbird/, no longer under $$profile$$ -->
+  </option>
+  <option id="cookies">
+    <label>Cookies</label>
+    <description>Delete cookies, which store login information, website preferences, and tracking identifiers</description>
+    <action command="delete" search="file" path="$$profile$$/cookies.sqlite"/>
+  </option>
+  <option id="index">
+    <label>Index</label>
+    <description>Delete the files</description>
+    <warning>Deleting the index will reset the configuration of columns in the message list.</warning>
+    <action command="delete" search="walk.files" path="$$profile$$" regex="\.msf$"/>
+  </option>
+  <option id="sessionjson">
+    <label>Session restore</label>
+    <description>Restores the previous session when the browser next starts</description>
+    <action command="delete" search="file" path="$$profile$$/session.json"/>
+  </option>
+  <option id="passwords">
+    <label>Passwords</label>
+    <description>A database of usernames and passwords as well as a list of sites that should not store passwords</description>
+    <warning>This option will delete your saved passwords.</warning>
+    <action command="delete" search="file" path="$$profile$$/signons.sqlite"/>
+    <action command="delete" search="file" path="$$profile$$/signons.txt"/>
+    <action command="delete" search="file" path="$$profile$$/signons3.txt"/>
+  </option>
+  <option id="vacuum">
+    <label>Vacuum</label>
+    <description>Clean database fragmentation to reduce space and improve speed without removing any data</description>
+    <action command="sqlite.vacuum" search="glob" path="$$profile$$/*.sqlite"/>
+  </option>
+</cleaner>

@@ -1,0 +1,27 @@
+Updating and loading repositories:
+Repositories loaded.
+Upgrades
+ca-certificates.noarch              2026.2.90_v9.0.317-1.fc44 updates
+curl.aarch64                        8.18.0-10.fc44            updates
+dnf5.aarch64                        5.4.5.0-1.fc44            updates
+dnf5-plugins.aarch64                5.4.5.0-1.fc44            updates
+elfutils-default-yama-scope.noarch  0.196-1.fc44              updates
+elfutils-libelf.aarch64             0.196-1.fc44              updates
+elfutils-libs.aarch64               0.196-1.fc44              updates
+fedora-gpg-keys.noarch              44-2                      updates
+fedora-repos.noarch                 44-2                      updates
+libcap-ng.aarch64                   0.9.6-1.fc44              updates
+libcurl.aarch64                     8.18.0-10.fc44            updates
+libdnf5.aarch64                     5.4.5.0-1.fc44            updates
+libdnf5-cli.aarch64                 5.4.5.0-1.fc44            updates
+libevent.aarch64                    2.1.13-1.fc44             updates
+librepo.aarch64                     1.21.0-2.fc44             updates
+libselinux.aarch64                  3.11-2.fc44               updates
+libtirpc.aarch64                    1.3.8-0.fc44              updates
+openldap.aarch64                    2.6.14-1.fc44             updates
+openssl-libs.aarch64                1:3.5.8-1.fc44            updates
+rpm-sequoia.aarch64                 1.10.3-1.fc44             updates
+systemd-libs.aarch64                259.9-1.fc44              updates
+systemd-standalone-sysusers.aarch64 259.9-1.fc44              updates
+tar.aarch64                         2:1.35-9.fc44             updates
+tzdata.noarch                       2026c-2.fc44              updates

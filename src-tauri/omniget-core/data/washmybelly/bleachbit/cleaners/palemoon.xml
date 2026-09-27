@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+-->
+<cleaner id="palemoon">
+  <label>Pale Moon</label>
+  <description>Web browser</description>
+  <running type="exe" os="unix" same_user="true">palemoon</running>
+  <running type="exe" os="windows" same_user="true">palemoon.exe</running>
+  <running type="pathname">~/.moonchild productions/pale moon/*/lock</running>
+  <var name="base">
+    <value os="windows">%AppData%\moonchild productions\pale moon</value>
+    <value os="linux">~/.moonchild productions/pale moon</value>
+    <value os="freebsd">~/.moonchild productions/pale moon</value>
+    <value os="openbsd">~/.moonchild productions/pale moon</value>
+  </var>
+  <var name="profile">
+    <value search="glob" os="windows">%AppData%\moonchild productions\pale moon\Profiles\*</value>
+    <value search="glob" os="linux">~/.moonchild productions/pale moon/*</value>
+    <value search="glob" os="freebsd">~/.moonchild productions/pale moon/*</value>
+    <value search="glob" os="openbsd">~/.moonchild productions/pale moon/*</value>
+  </var>
+  <option id="backup">
+    <label>Backup files</label>
+    <description>Delete the backup files</description>
+    <action command="delete" search="glob" path="$$profile$$/bookmarkbackups/*.json"/>
+    <action command="delete" search="glob" path="$$profile$$/bookmarkbackups/*.jsonlz4"/>
+  </option>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <action command="delete" search="walk.all" path="~/.cache/moonchild productions/"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\moonchild productions\pale moon\Profiles\*\cache2"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\moonchild productions\pale moon\Profiles\*\jumpListCache"/>
+    <action command="delete" search="walk.all" path="%LocalAppData%\moonchild productions\pale moon\Profiles\*\OfflineCache"/>
+  </option>
+  <option id="cookies">
+    <label>Cookies</label>
+    <description>Delete cookies, which store login information, website preferences, and tracking identifiers</description>
+    <action command="cookie" search="file" path="$$profile$$/cookies.sqlite"/>
+  </option>
+  <option id="crash_reports">
+    <label>Crash reports</label>
+    <description>Delete the files</description>
+    <action command="delete" search="walk.all" path="$$base$$/Crash Reports/"/>
+    <action command="delete" search="glob" path="$$profile$$/minidumps/*.dmp"/>
+  </option>
+  <option id="forms">
+    <label>Form history</label>
+    <description>Saved form entries and search bar history</description>
+    <action command="delete" search="file" path="$$profile$$/formhistory.sqlite"/>
+  </option>
+  <option id="passwords">
+    <label>Passwords</label>
+    <description>A database of usernames and passwords as well as a list of sites that should not store passwords</description>
+    <warning>This option will delete your saved passwords.</warning>
+    <action command="delete" search="file" path="$$profile$$/logins.json"/>
+  </option>
+  <option id="session">
+    <label>Session</label>
+    <description>Previously open tabs and windows</description>
+    <!--
+Example names
+sessionstore.js
+sessionstore.jsonlz4
+sessionstore.bak
+sessionstore.bak-20140715214327
+sessionstore-1.js
+upgrade.jsonlz4-20180905220717
+sessionCheckpoints.json
+-->
+    <action command="delete" search="file" path="$$profile$$/sessionCheckpoints.json"/>
+    <action command="delete" search="glob" path="$$profile$$/sessionstore*.js*"/>
+    <action command="delete" search="glob" path="$$profile$$/sessionstore.bak*"/>
+    <action command="delete" search="glob" path="$$profile$$/sessionstore-backups/previous.js*"/>
+    <action command="delete" search="file" path="$$profile$$/sessionstore-backups/recovery.js"/>
+    <action command="delete" search="file" path="$$profile$$/sessionstore-backups/previous.bak"/>
+    <action command="delete" search="glob" path="$$profile$$/sessionstore-backups/upgrade.js*-20*"/>
+  </option>
+  <option id="site_data">
+    <label>Site data</label>
+    <description>Delete LocalStorage, IndexedDB, and other data stored by websites</description>
+    <action command="delete" search="walk.all" path="$$profile$$/storage/default/http*"/>
+    <action command="delete" search="walk.all" path="$$profile$$/storage/temporary/http*"/>
+    <action command="delete" search="glob" path="$$profile$$/storage/default/http*"/>
+    <action command="delete" search="file" path="$$profile$$/webappsstore.sqlite"/>
+    <action command="delete" search="file" path="$$profile$$/webappsstore.sqlite-shm"/>
+    <action command="delete" search="file" path="$$profile$$/webappsstore.sqlite-wal"/>
+  </option>
+  <option id="site_preferences">
+    <label>Site preferences</label>
+    <description>Settings for individual sites</description>
+    <action command="delete" search="file" path="$$profile$$/content-prefs.sqlite"/>
+  </option>
+  <option id="url_history">
+    <label>URL history</label>
+    <description>List of visited web pages</description>
+    <action command="delete" search="file" path="$$profile$$/SiteSecurityServiceState.txt"/>
+    <action command="delete" search="file" path="$$profile$$/downloads.sqlite"/>
+    <action command="mozilla.url.history" search="file" path="$$profile$$/places.sqlite"/>
+  </option>
+  <option id="vacuum">
+    <label>Vacuum</label>
+    <description>Clean database fragmentation to reduce space and improve speed without removing any data</description>
+    <action command="sqlite.vacuum" search="glob" path="$$profile$$/*.sqlite"/>
+  </option>
+</cleaner>

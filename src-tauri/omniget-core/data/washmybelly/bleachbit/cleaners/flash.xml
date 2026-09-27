@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2008-2026 Andrew Ziem.
+
+This work is licensed under the terms of the GNU GPL, version 3 or
+later.  See the COPYING file in the top-level directory.
+
+Adobe ended support for Flash Player in 2020.
+
+-->
+<cleaner id="flash">
+  <label>Flash Player</label>
+  <description>Multimedia viewer</description>
+  <var name="adobe">
+    <value os="windows">%AppData%\Adobe\Flash Player</value>
+    <value os="linux">~/.adobe/Flash_Player</value>
+  </var>
+  <var name="macromedia">
+    <value os="windows">%AppData%\Macromedia\Flash Player</value>
+    <value os="linux">~/.macromedia/Flash_Player</value>
+  </var>
+  <option id="cache">
+    <label>Cache</label>
+    <description>Delete the cache</description>
+    <!-- https://web.archive.org/web/20200421072223/https://helpx.adobe.com/flash-player/kb/flash-player-11-problems-playing.html -->
+    <!-- https://web.archive.org/web/20200501100520/https://helpx.adobe.com/flash-player/kb/protected-video-content-play.html -->
+    <action command="delete" search="walk.all" path="$$adobe$$/AssetCache/"/>
+    <action command="delete" search="walk.all" path="$$adobe$$/APSPrivateData2/"/>
+    <action command="delete" search="walk.all" path="$$adobe$$/NativeCache/"/>
+    <action command="delete" search="walk.all" path="$$adobe$$/AFCache/"/>
+    <action command="delete" search="walk.all" path="$$adobe$$/Icon Cache/"/>
+  </option>
+  <option id="cookies">
+    <label>Cookies</label>
+    <description>Delete cookies, which store login information, website preferences, and tracking identifiers</description>
+    <action command="delete" search="walk.all" path="$$macromedia$$/#SharedObjects/"/>
+    <action command="delete" search="walk.all" path="$$macromedia$$/macromedia.com/support/flashplayer/sys/"/>
+  </option>
+</cleaner>

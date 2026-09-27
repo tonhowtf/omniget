@@ -64,6 +64,8 @@ pub const SCOPES: &[&str] = &[
     "orchestration_create",
     "auth",
     "catalog",
+    "system_read",
+    "system_change",
 ];
 pub fn create(name: String, scopes: Vec<String>) -> Result<ConnectionGrant, String> {
     if name.trim().is_empty()
@@ -227,6 +229,16 @@ pub fn scope(name: &str) -> Option<&'static str> {
         "agents_derived_list" | "groups_get" => "orchestration_read",
         "agents_prepare" | "groups_prepare" | "group_tasks_create" => "orchestration_create",
         "catalog_search" | "catalog_get" | "catalog_plan_install" | "catalog_install" => "catalog",
+        // washmybelly: wmb_execute and wmb_restore from outside only create
+        // an approval request the person answers in the OmniGet window.
+        "wmb_plan"
+        | "wmb_execute"
+        | "wmb_restore"
+        | "wmb_power_hold"
+        | "wmb_game_mode"
+        | "wmb_perf_capture_start"
+        | "wmb_perf_capture_stop" => "system_change",
+        n if n.starts_with("wmb_") => "system_read",
         _ => return None,
     })
 }
