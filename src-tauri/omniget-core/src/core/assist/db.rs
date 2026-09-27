@@ -72,10 +72,20 @@ impl AssistDb {
 
     /// [`open`] with an explicit migration list (tests inject failures here).
     pub fn open_with(path: &Path, migrations: &[Migration]) -> Result<Self, String> {
+        // The first launch opens the file from two threads at once; SQLite
+        // does not always wait for the lock while switching a new file to
+        // WAL, so openers in this process take turns. Another process (the
+        // CLI) is covered by the immediate transaction of each migration.
+        static OPENING: Mutex<()> = Mutex::new(());
+        let _turn = OPENING.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(|e| err("creating the folder", e))?;
         }
         let conn = Connection::open(path).map_err(|e| err("opening", e))?;
+        // Before any pragma: switching to WAL needs the lock too, and another
+        // opener may hold it on the first launch.
+        conn.busy_timeout(std::time::Duration::from_secs(5))
+            .map_err(|e| err("opening", e))?;
         let db = Self {
             conn: Mutex::new(conn),
             path: Some(path.to_path_buf()),
@@ -148,7 +158,24 @@ impl AssistDb {
             self.backup_now()?;
         }
         for m in pending {
-            self.tx(|tx| {
+            // Another connection may be migrating the same file at the same
+            // time (two parts of the app open it on the first launch): take
+            // the write lock first and skip what it already applied.
+            let mut conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
+            let tx = conn
+                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                .map_err(|e| err("begin", e))?;
+            let done: bool = tx
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE module=?1 AND version=?2)",
+                    rusqlite::params![m.module, m.version],
+                    |r| r.get(0),
+                )
+                .map_err(|e| err("reading the migrations", e))?;
+            if done {
+                continue;
+            }
+            (|| -> Result<(), String> {
                 tx.execute_batch(m.sql)
                     .map_err(|e| err(&format!("migration {}#{}", m.module, m.version), e))?;
                 tx.execute(
@@ -157,7 +184,8 @@ impl AssistDb {
                 )
                 .map_err(|e| err("recording the migration", e))?;
                 Ok(())
-            })?;
+            })()?;
+            tx.commit().map_err(|e| err("commit", e))?;
         }
         Ok(())
     }
@@ -293,6 +321,31 @@ mod tests {
         version: 2,
         sql: "ALTER TABLE t_items ADD COLUMN w TEXT;",
     };
+
+    /// The first launch opens `assist.db` from two places at once: every
+    /// opener must succeed and each migration must run exactly once.
+    #[test]
+    fn concurrent_opens_of_a_new_file_all_succeed() {
+        let path = temp_path();
+        let barrier = Arc::new(std::sync::Barrier::new(4));
+        let handles: Vec<_> = (0..4)
+            .map(|_| {
+                let (path, barrier) = (path.clone(), barrier.clone());
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    AssistDb::open(&path).map(|_| ())
+                })
+            })
+            .collect();
+        for h in handles {
+            h.join().unwrap().unwrap();
+        }
+        let db = AssistDb::open(&path).unwrap();
+        let rows: i64 = db
+            .with(|c| c.query_row("SELECT count(*) FROM schema_migrations", [], |r| r.get(0)))
+            .unwrap();
+        assert_eq!(rows as usize, all_migrations().len());
+    }
 
     #[test]
     fn every_module_migration_applies_on_a_new_file_and_reopening_is_a_no_op() {
