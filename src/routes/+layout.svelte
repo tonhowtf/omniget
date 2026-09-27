@@ -49,6 +49,7 @@
   import AppToolbar from "$components/shell/AppToolbar.svelte";
   import CommandPalette from "$components/shell/CommandPalette.svelte";
   import DownloadStatusBar from "$components/download/DownloadStatusBar.svelte";
+  import MusicHost from "$components/music/MusicHost.svelte";
   import { shellLayout } from "$lib/stores/shell-layout.svelte";
   import { setCommandPaletteItems } from "$lib/stores/command-palette-store.svelte";
   import { accountPaletteItems, activateAccount, getAccounts } from "$lib/stores/llm-accounts-store.svelte";
@@ -146,11 +147,13 @@
     page.url.pathname.startsWith("/settings") ||
     page.url.pathname.startsWith("/superpowers") ||
     page.url.pathname.startsWith("/league") ||
+    page.url.pathname.startsWith("/music") ||
     page.url.pathname.startsWith("/about"),
   );
 
   let isFlushRoute = $derived(
     page.url.pathname === "/" ||
+    page.url.pathname.startsWith("/music") ||
     page.url.pathname.startsWith("/downloads") ||
     page.url.pathname.startsWith("/settings"),
   );
@@ -290,6 +293,13 @@
         group: get(t)("command_palette.group_nav"),
         keywords: "superpowers superpoderes league of legends lol extras",
         action: () => goto("/superpowers"),
+      },
+      {
+        id: "nav-music",
+        label: get(t)("music.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "music musica player library biblioteca radio lyrics letras playlist",
+        action: () => goto("/music"),
       },
       { id: "nav-help", label: get(t)("nav.help"), group: get(t)("command_palette.group_nav"), keywords: "help ajuda guias docs assinatura agente monitor", action: () => goto("/help") },
       {
@@ -434,6 +444,7 @@
 
 {#if !bareWindow}
 <Toast />
+{#if settings?.music?.enabled ?? true}<MusicHost />{/if}
 <McpAuthPrompt />
 <NativeAgentActivity />
 <CommandPalette />

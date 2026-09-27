@@ -423,7 +423,11 @@ sudo pacman -S gst-plugins-good gst-plugins-bad gst-libav   # Arch
 
 ## Superpoderes
 
-Habilidades extras que você liga quando precisa, em **Superpoderes** na barra lateral. Hoje tem uma: um assistente de **League of Legends** que lê o seu cliente aberto, localmente, com scouting da partida, ouro e níveis ao vivo, runas aplicadas com um clique e automação opcional, como aceitar partidas. Nada roda até você ligar em **Configurações → Avançado**.
+Habilidades extras que você liga quando precisa, em **Superpoderes** na barra lateral. Cada uma pode ser desligada em **Configurações → Avançado**.
+
+**Música** é um app de música completo para as músicas do seu computador. Ele indexa suas pastas de música, toca sem pausa entre faixas ou com crossfade, iguala o volume entre as músicas (ReplayGain 2.0) e tem equalizador de 10 bandas e visualizador ao vivo. Mostra letras sincronizadas (seus arquivos .lrc, as que estão dentro do arquivo ou encontradas para você no LRCLIB) e toca rádio pela internet, com milhares de estações. As músicas que você baixa por link ou busca caem direto na biblioteca. Ferramentas em lote medem volume, andamento e tom, convertem formatos, renomeiam arquivos pelas tags, acham duplicatas e mostram FLAC falso com um espectrograma.
+
+O outro é um assistente de **League of Legends** que lê o seu cliente aberto, localmente, com scouting da partida, ouro e níveis ao vivo, runas aplicadas com um clique e automação opcional, como aceitar partidas. Nada roda até você ligar em **Configurações → Avançado**.
 
 <a id="everything-else-in-the-box"></a>
 

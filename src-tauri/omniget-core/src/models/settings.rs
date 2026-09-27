@@ -34,6 +34,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub league: LeagueSettings,
     #[serde(default)]
+    pub music: MusicSettings,
+    #[serde(default)]
     pub accessibility: AccessibilitySettings,
     #[serde(default)]
     pub omnidisc: OmnidiscSettings,
@@ -272,6 +274,26 @@ pub struct AccessibilitySettings {
     pub reduce_transparency: bool,
     #[serde(default)]
     pub disable_haptics: bool,
+}
+
+/// `/music` superpower. Player preferences (EQ, crossfade, volume) are per
+/// device and live in the webview; only the on/off switch is here.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MusicSettings {
+    #[serde(default = "default_music_enabled")]
+    pub enabled: bool,
+}
+
+fn default_music_enabled() -> bool {
+    true
+}
+
+impl Default for MusicSettings {
+    fn default() -> Self {
+        Self {
+            enabled: default_music_enabled(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -922,6 +944,7 @@ impl Default for AppSettings {
             rpc: RpcSettings::default(),
             bridge: BridgeSettings::default(),
             league: LeagueSettings::default(),
+            music: MusicSettings::default(),
             accessibility: AccessibilitySettings::default(),
             omnidisc: OmnidiscSettings::default(),
             world: WorldSettings::default(),

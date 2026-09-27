@@ -1008,6 +1008,16 @@ pub async fn ensure_aria2c() -> Option<PathBuf> {
     None
 }
 
+/// SHA-256 do zip oficial do aria2c para Windows. A release 1.37.0 nao publica
+/// hashes (sem SHA256SUMS e com `digest` nulo na API), entao o valor e fixado
+/// aqui, calculado sobre o asset de 2.475.379 bytes baixado do GitHub em
+/// 27/09/2026. Trocar a URL exige trocar este hash junto.
+#[cfg(any(target_os = "windows", test))]
+const ARIA2C_WIN64_ZIP: (&str, &str) = (
+    "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip",
+    "67d015301eef0b612191212d564c5bb0a14b5b9c4796b76454276a4d28d9b288",
+);
+
 #[cfg(target_os = "windows")]
 async fn download_aria2c() -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
@@ -1016,7 +1026,7 @@ async fn download_aria2c() -> anyhow::Result<PathBuf> {
     let aria2c_name = bin_name("aria2c");
     let aria2c_target = bin_dir.join(&aria2c_name);
 
-    let url = "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip";
+    let (url, expected_sha256) = ARIA2C_WIN64_ZIP;
 
     let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
         .timeout(std::time::Duration::from_secs(120))
@@ -1031,6 +1041,8 @@ async fn download_aria2c() -> anyhow::Result<PathBuf> {
     }
 
     let bytes = response.bytes().await?;
+    // Fail-closed como os outros binarios: zip que nao confere nem e aberto.
+    integrity::verify_sha256(&bytes, expected_sha256, "aria2c")?;
 
     let data = bytes.to_vec();
     let bin_dir_clone = bin_dir.clone();
@@ -1077,6 +1089,17 @@ mod integrity_tests {
     #[test]
     fn sha256_de_vetor_conhecido() {
         assert_eq!(sha256_hex(b""), VAZIO);
+    }
+
+    #[test]
+    fn aria2c_do_windows_tem_hash_fixado() {
+        let (url, hash) = super::ARIA2C_WIN64_ZIP;
+        assert!(
+            url.contains("release-1.37.0"),
+            "trocou a versao sem trocar o hash?"
+        );
+        assert!(parse_single_sha256(hash).as_deref() == Some(hash));
+        assert!(verify_sha256(b"zip trocado", hash, "aria2c").is_err());
     }
 
     #[test]

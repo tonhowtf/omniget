@@ -49,6 +49,11 @@ ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "n
 # (mesma versão/feature do crate do app, então compila uma vez só).
 rusqlite = { version = "0.32", features = ["bundled"] }
 tempfile = "=3.25.0"
+# core/music: tags (read/write), EBU R128 loudness and the FFT behind BPM,
+# key and spectrum analysis. All pure Rust.
+lofty = "0.25"
+ebur128 = "0.1"
+rustfft = "6"
 
 [target.'cfg(windows)'.dependencies]
 # Job Object of the CLI turns (`core::process::ProcessTreeGuard`): the only

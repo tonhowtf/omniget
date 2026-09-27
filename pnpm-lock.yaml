@@ -32,6 +32,9 @@ importers:
       bot-avatars:
         specifier: ^0.1.1
         version: 0.1.1(react@19.3.0)
+      hls.js:
+        specifier: ^1.7.3
+        version: 1.7.3
       marked:
         specifier: ^14.1.3
         version: 14.1.4
@@ -706,6 +709,9 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
+
+  hls.js@1.7.3:
+    resolution: {integrity: sha512-MsPlx6yVW4Qv4C7mEVou4/gk/5cN2dVxOTnrNjPSmyH2f0Ln+/UkG10Ax1PE6OvrmTVPKgQYozTtBaPOuCzq7A==}
 
   is-reference@3.0.3:
     resolution: {integrity: sha512-ixkJoqQvAP88E6wLydLGGqCJsrFUnqoH6HnaczB8XmDH1oaWU+xxdptvikTgaEhtZ53Ky6YXiBuUI2WXLMCwjw==}
@@ -1424,6 +1430,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  hls.js@1.7.3: {}
 
   is-reference@3.0.3:
     dependencies:

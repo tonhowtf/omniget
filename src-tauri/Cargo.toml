@@ -42,7 +42,7 @@ anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 uuid = { version = "1", features = ["v4"] }
-axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
 tower-http = { version = "0.6", features = ["cors"] }
 constant_time_eq = "0.4"
 socket2 = "0.6"
@@ -50,7 +50,7 @@ chrono = { version = "0.4", features = ["serde"] }
 dirs = "6"
 sanitize-filename = "0.6"
 unicode-normalization = "0.1"
-tokio-util = { version = "0.7", features = ["rt"] }
+tokio-util = { version = "0.7", features = ["rt", "io"] }
 url = "2"
 urlencoding = "2"
 rand = "0.10.0"
@@ -64,6 +64,8 @@ hmac = "0.12"
 omniget-core = { path = "omniget-core" }
 omniget-world = { path = "omniget-world" }
 which = "7"
+# /music: walking the library folders
+walkdir = "2"
 librqbit = "8.1.1"
 keepawake = "0.5"
 discord-rich-presence = "0.2"
