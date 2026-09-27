@@ -46,7 +46,18 @@
     "extension:sync": "node browser-extension/sync.mjs",
     "test": "vitest run",
     "test:fast": "node scripts/test-fast.mjs",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dev:app": "node scripts/dev/session.mjs start",
+    "dev:status": "node scripts/dev/session.mjs status",
+    "dev:doctor": "node scripts/dev/session.mjs doctor",
+    "dev:revision": "node scripts/dev/session.mjs revision",
+    "dev:wait": "node scripts/dev/session.mjs wait",
+    "dev:capture": "node scripts/dev/session.mjs capture",
+    "dev:stop": "node scripts/dev/session.mjs stop",
+    "bench:prepare": "python3 scripts/llm/prepared.py",
+    "bench:run": "python3 scripts/llm/bench.py",
+    "test:dev": "node --test scripts/dev/contracts.test.mjs && python3 -m unittest discover -s scripts/llm -p test_prepared.py",
+    "dev:prepare": "node scripts/dev/session.mjs prepare"
   },
   "license": "GPL-3.0",
   "dependencies": {

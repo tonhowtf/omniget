@@ -21,6 +21,7 @@ Exit code 0 only when every bench that ran passed.
 
 Python 3.9, stdlib only.
 """
+from prepared import prepare
 import argparse
 import json
 import os
@@ -77,9 +78,20 @@ B0_TOLERANCE = 0.10
 
 
 def changed_files():
-    out = subprocess.run(["git", "status", "--porcelain", "--untracked-files=all"], cwd=ROOT,
-                         capture_output=True, text=True).stdout
-    return [line[3:].split(" -> ")[-1] for line in out.splitlines() if line.strip()]
+    result = subprocess.run(["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"], cwd=ROOT,
+                            capture_output=True, check=True)
+    entries = result.stdout.decode().split('\0')
+    files = []
+    i = 0
+    while i < len(entries):
+        entry = entries[i]
+        if entry:
+            files.append(entry[3:])
+            if 'R' in entry[:2] or 'C' in entry[:2]:
+                i += 1
+                files.append(entries[i])
+        i += 1
+    return files
 
 
 def select(files, only, everything):
@@ -87,21 +99,19 @@ def select(files, only, everything):
         return sorted(only), "--only"
     if everything or any(f in EVERYTHING for f in files):
         return sorted(BENCHES), "all"
+    known = [p for _, prefixes, _, _ in BENCHES.values() for p in prefixes]
+    if any(f.startswith(('src/', 'src-tauri/', 'static/', 'scripts/')) and not any(f.startswith(p) for p in known) for f in files):
+        return sorted(BENCHES), 'unmapped-conservative'
     picked = [n for n, (_, prefixes, _, _) in BENCHES.items() if any(f.startswith(p) for f in files for p in prefixes)]
     return sorted(picked), "diff"
 
 
-def build(crates):
-    """Compile the test binaries once, so the parallel benches only run them."""
+def build(crates, run_dir):
     if not crates:
         return 0.0
-    t0 = time.time()
-    cmd = ["cargo", "test", "--no-run", "--lib"] + [a for c in sorted(crates) for a in ("-p", c)]
-    p = subprocess.run(cmd, cwd=TAURI, capture_output=True, text=True)
-    if p.returncode != 0:
-        sys.stderr.write(p.stderr[-4000:])
-        raise SystemExit("bench: the test build failed")
-    return time.time() - t0
+    manifest, seconds = prepare(run_dir / 'prepared')
+    os.environ['OMNIGET_PREPARED_TESTS'] = str(manifest)
+    return seconds
 
 
 def run_bench(name, quick, run_dir):
@@ -139,6 +149,7 @@ def run_b0(run_dir, reps, jobs):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--prepared", help="immutable prepared.json; execute without Cargo")
     ap.add_argument("--all", action="store_true", help="every fake bench, whatever changed")
     ap.add_argument("--quick", action="store_true", help="fewer repetitions (iteration, not a gate)")
     ap.add_argument("--only", default="", help="comma-separated: bn1,bn2,bn3,bn4")
@@ -150,7 +161,7 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="print the selection and stop")
     args = ap.parse_args()
 
-    files = changed_files()
+    files = [] if args.only or args.all else changed_files()
     only = {x.strip().lower() for x in args.only.split(",") if x.strip()}
     unknown = only - set(BENCHES)
     if unknown:
@@ -165,7 +176,11 @@ def main():
     run_dir = ROOT / "estudos" / "bench" / time.strftime("%Y%m%d-%H%M%S")
     run_dir.mkdir(parents=True, exist_ok=True)
     t_all = time.time()
-    build_s = build({c for n in names for c in BENCHES[n][3]})
+    if args.prepared:
+        os.environ['OMNIGET_PREPARED_TESTS'] = str(pathlib.Path(args.prepared).resolve())
+        build_s = 0.0
+    else:
+        build_s = build({c for n in names for c in BENCHES[n][3]}, run_dir)
     results = []
     # B0 talks to the network and the fake benches to the CPU: run them together.
     with ThreadPoolExecutor(max_workers=len(names) + 1) as pool:
@@ -179,6 +194,7 @@ def main():
                      + ("  (above the gate, within tolerance)" if r.get("warning") else "")) if r["bench"] == "b0" else ""
             print(f"  {r['bench']:4} {'PASS' if r['ok'] else 'FAIL'} {r['seconds']:7.1f}s  {r['json']}{extra}", flush=True)
     summary = {"when": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "selection": why, "quick": args.quick,
+               "prepared": os.environ.get("OMNIGET_PREPARED_TESTS"), "mode": "iterate",
                "build_s": round(build_s, 1), "wall_s": round(time.time() - t_all, 1),
                "all_pass": all(r["ok"] for r in results), "results": results, "changed_files": files}
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False))

@@ -4362,7 +4362,12 @@
     "derived_external": "Внешний · {{name}}",
     "derived_retired": "Отозван",
     "derived_from": "Бот, производный от {{name}}",
-    "derived_read_only": "здесь только для чтения"
+    "derived_read_only": "здесь только для чтения",
+    "app_observe": "Observe native app",
+    "app_control": "Control presentation and navigation",
+    "app_capture": "Capture and record native app (also select file transfer)",
+    "native_active": "Native access",
+    "native_revoke": "Revoke access"
   },
   "mcp_auth": {
     "title": "ИИ-клиент просит вас войти в аккаунт",

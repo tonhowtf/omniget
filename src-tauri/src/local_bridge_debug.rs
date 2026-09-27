@@ -17,23 +17,30 @@ use tokio::sync::oneshot;
 
 use crate::local_bridge_llm::check_bearer;
 
-static PENDING: OnceLock<Mutex<HashMap<String, oneshot::Sender<Value>>>> = OnceLock::new();
+type PendingReplies = HashMap<String, (String, oneshot::Sender<Value>)>;
+static PENDING: OnceLock<Mutex<PendingReplies>> = OnceLock::new();
 
-fn pending() -> &'static Mutex<HashMap<String, oneshot::Sender<Value>>> {
+fn pending() -> &'static Mutex<PendingReplies> {
     PENDING.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 pub fn enabled() -> bool {
-    std::env::var("OMNIGET_TEST_DRIVER").ok().as_deref() == Some("1")
+    cfg!(debug_assertions) && std::env::var("OMNIGET_TEST_DRIVER").ok().as_deref() == Some("1")
 }
 
 #[tauri::command]
-pub fn debug_report(id: String, value: Value) {
+pub fn debug_report(window: tauri::WebviewWindow, id: String, value: Value) {
     if !enabled() {
         return;
     }
-    if let Some(tx) = pending().lock().unwrap().remove(&id) {
-        let _ = tx.send(value);
+    let mut pending = pending().lock().unwrap();
+    if pending
+        .get(&id)
+        .is_some_and(|(label, _)| label == window.label())
+    {
+        if let Some((_, tx)) = pending.remove(&id) {
+            let _ = tx.send(value);
+        }
     }
 }
 
@@ -57,7 +64,7 @@ where
             };
             let id = uuid::Uuid::new_v4().to_string();
             let (tx, rx) = oneshot::channel();
-            pending().lock().unwrap().insert(id.clone(), tx);
+            pending().lock().unwrap().insert(id.clone(), (label, tx));
             let script = format!(
                 "(async()=>{{let r;try{{r=await (async()=>{{{body}\n}})();}}catch(e){{r={{error:String(e&&e.stack||e)}};}}\
                  if(r===undefined)r=null;window.__TAURI_INTERNALS__.invoke('debug_report',{{id:'{id}',value:r}});}})()"
@@ -66,7 +73,7 @@ where
                 pending().lock().unwrap().remove(&id);
                 return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
             }
-            let secs = head("x-timeout").and_then(|t| t.parse().ok()).unwrap_or(20u64);
+            let secs = head("x-timeout").and_then(|t| t.parse().ok()).unwrap_or(20u64).clamp(1, 60);
             let out: Response = match tokio::time::timeout(Duration::from_secs(secs), rx).await {
                 Ok(Ok(v)) => Json(v).into_response(),
                 _ => {
@@ -77,4 +84,15 @@ where
             out
         }),
     )
+}
+
+/// Development-only capture probe. No caller-controlled output path.
+#[tauri::command]
+pub async fn debug_native_snapshot(window: tauri::WebviewWindow) -> Result<String, String> {
+    if !enabled() {
+        return Err("CAPABILITY_UNAVAILABLE".into());
+    }
+    use base64::Engine;
+    let bytes = crate::native_capture::snapshot(&window).await?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
 }

@@ -37,6 +37,7 @@ ends (unit-tested in `jobs::diff_tests`); the HTTP route is the measured
 
 Usage: python3 scripts/llm/diff_eval.py [--fake] [--reps 20] [--out FILE]
 """
+from prepared import run_tests as run_prepared_tests
 import argparse
 import base64
 import datetime as dt
@@ -270,8 +271,7 @@ def compare(fx, tmp):
 
 def run_tests(crate, filter_, env_extra, out_file):
     env = dict(os.environ, OMNIGET_BENCH_OUT=str(out_file), **env_extra)
-    cmd = ["cargo", "test", "-p", crate, "--lib", filter_, "--", "--test-threads=1"]
-    p = subprocess.run(cmd, cwd=TAURI, env=env, capture_output=True, text=True)
+    cmd, p = run_prepared_tests(crate, filter_, env)
     summary = [l for l in p.stdout.splitlines() if l.startswith("test result") or l.startswith("test ")]
     return {"cmd": " ".join(f"{k}={v}" for k, v in env_extra.items()) + " " + " ".join(cmd),
             "exit": p.returncode, "summary": summary, "stderr_tail": p.stderr[-2000:] if p.returncode else ""}

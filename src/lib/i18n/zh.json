@@ -4362,7 +4362,12 @@
     "derived_external": "外部 · {{name}}",
     "derived_retired": "已撤销",
     "derived_from": "派生自 {{name}} 的机器人",
-    "derived_read_only": "此处只读"
+    "derived_read_only": "此处只读",
+    "app_observe": "Observe native app",
+    "app_control": "Control presentation and navigation",
+    "app_capture": "Capture and record native app (also select file transfer)",
+    "native_active": "Native access",
+    "native_revoke": "Revoke access"
   },
   "mcp_auth": {
     "title": "AI 客户端请求你登录",

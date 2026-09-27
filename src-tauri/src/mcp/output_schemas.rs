@@ -29,6 +29,7 @@ pub fn apply(mut tools: Vec<Value>) -> Vec<Value> {
 /// Output schema of one tool, with the error envelope admitted.
 pub fn for_tool(name: &str) -> Option<Value> {
     own(name)
+        .or_else(|| crate::native_agent::output_schema(name))
         .or_else(|| super::auth::output_schema(name))
         .or_else(|| super::bundle::output_schema(name))
         .or_else(|| super::artifact_access::output_schema(name))

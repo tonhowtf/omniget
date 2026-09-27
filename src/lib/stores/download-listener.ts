@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { get } from "svelte/store";
 import { t } from "$lib/i18n";
@@ -69,6 +70,7 @@ const loggedQueueTerminal = new Set<number>();
 const queueToastEligibleIds = new Set<number>();
 const seenGenericIds = new Set<number>();
 let queueStateInitialized = false;
+export const queueDataReady = () => queueStateInitialized;
 
 let throttleTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingPayload: QueueItemInfo[] | null = null;
@@ -201,6 +203,16 @@ export async function initDownloadListener(): Promise<() => void> {
     } catch {}
   }, 5000);
 
+  // Subscribe first. Do not overwrite a newer event with the initial response.
+  if (!queueStateInitialized) {
+    try {
+      const initial = await invoke<QueueItemInfo[]>("get_download_queue");
+      if (!queueStateInitialized) {
+        syncQueueState(initial);
+        queueStateInitialized = true;
+      }
+    } catch { /* Remains observably loading; later queue events may recover. */ }
+  }
   return () => {
     unlistenQueueState();
     unlistenQueueItemProgress();

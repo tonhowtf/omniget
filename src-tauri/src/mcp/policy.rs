@@ -48,6 +48,9 @@ fn digest(value: &str) -> String {
     format!("{:x}", Sha256::digest(value.as_bytes()))
 }
 pub const SCOPES: &[&str] = &[
+    "app_observe",
+    "app_control",
+    "app_capture",
     "discover",
     "enqueue",
     "control",
@@ -184,6 +187,9 @@ pub fn principal(id: &str) -> Result<Principal, String> {
 }
 pub fn scope(name: &str) -> Option<&'static str> {
     Some(match name {
+        "omniget_app_status" | "omniget_app_inspect" | "omniget_app_catalog" => "app_observe",
+        "omniget_app_navigate" | "omniget_app_interact" => "app_control",
+        "omniget_app_capture" | "omniget_app_record" | "omniget_app_export" => "app_capture",
         "omniget_capabilities"
         | "omniget_health"
         | "destinations_list"
@@ -495,5 +501,59 @@ mod persistence_tests {
         assert!(authority::get(&assist, &grant, &a.principal.id).is_err());
         assert!(active(&a.principal).is_err());
         std::fs::remove_dir_all(dir).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod native_app_tests {
+    use super::*;
+    #[test]
+    fn native_grants_are_distinct_and_cannot_elevate_business_authority() {
+        for (scope, allowed_tools) in [
+            (
+                "app_observe",
+                vec![
+                    "omniget_app_status",
+                    "omniget_app_catalog",
+                    "omniget_app_inspect",
+                ],
+            ),
+            (
+                "app_control",
+                vec!["omniget_app_navigate", "omniget_app_interact"],
+            ),
+            (
+                "app_capture",
+                vec![
+                    "omniget_app_capture",
+                    "omniget_app_record",
+                    "omniget_app_export",
+                ],
+            ),
+        ] {
+            let p = Principal {
+                id: "test".into(),
+                name: "test".into(),
+                scopes: vec![scope.into()],
+            };
+            for tool in &allowed_tools {
+                assert!(allowed(&p, tool));
+            }
+            for tool in [
+                "missions_create",
+                "download_enqueue",
+                "auth_connection_request",
+                "tool_mcp_client_create",
+            ] {
+                assert!(!allowed(&p, tool));
+            }
+            for tool in [
+                "omniget_app_status",
+                "omniget_app_interact",
+                "omniget_app_capture",
+            ] {
+                assert_eq!(allowed(&p, tool), allowed_tools.contains(&tool));
+            }
+        }
     }
 }

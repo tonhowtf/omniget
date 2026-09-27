@@ -1,0 +1,483 @@
+[
+  {
+    "screenId": "/",
+    "route": "/",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/_kitchen-sink",
+    "route": "/_kitchen-sink",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "development",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/about",
+    "route": "/about",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/about/changelog",
+    "route": "/about/changelog",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/about/debug",
+    "route": "/about/debug",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Sensitive: pixels, inspection and UI actions blocked."
+    ],
+    "capabilities": {
+      "inspect": false,
+      "capture": false,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/about/project",
+    "route": "/about/project",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/about/terms",
+    "route": "/about/terms",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/downloads",
+    "route": "/downloads",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/help",
+    "route": "/help",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/league",
+    "route": "/league",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/limits-strip",
+    "route": "/limits-strip",
+    "windowId": "limits-strip",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "open-existing-product-window",
+    "preconditions": [
+      "Opening does not enable credential readers or change provider preferences. Configure providers locally when needed."
+    ],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm",
+    "route": "/llm",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/accounts",
+    "route": "/llm/accounts",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Sensitive: pixels, inspection and UI actions blocked."
+    ],
+    "capabilities": {
+      "inspect": false,
+      "capture": false,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/arena",
+    "route": "/llm/arena",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/jobs",
+    "route": "/llm/jobs",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/local",
+    "route": "/llm/local",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/loops",
+    "route": "/llm/loops",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/mcp",
+    "route": "/llm/mcp",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Sensitive: pixels, inspection and UI actions blocked."
+    ],
+    "capabilities": {
+      "inspect": false,
+      "capture": false,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/memory",
+    "route": "/llm/memory",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/missions",
+    "route": "/llm/missions",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/models",
+    "route": "/llm/models",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Sensitive: pixels, inspection and UI actions blocked."
+    ],
+    "capabilities": {
+      "inspect": false,
+      "capture": false,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/observatory",
+    "route": "/llm/observatory",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/reading",
+    "route": "/llm/reading",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/roster",
+    "route": "/llm/roster",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Sensitive: pixels, inspection and UI actions blocked."
+    ],
+    "capabilities": {
+      "inspect": false,
+      "capture": false,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/skills",
+    "route": "/llm/skills",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/pet",
+    "route": "/pet",
+    "windowId": "pet",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "open-pet",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/settings",
+    "route": "/settings",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Sensitive: pixels, inspection and UI actions blocked."
+    ],
+    "capabilities": {
+      "inspect": false,
+      "capture": false,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/superpowers",
+    "route": "/superpowers",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/usage-panel",
+    "route": "/usage-panel",
+    "windowId": "usage-panel",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "open-existing-product-window",
+    "preconditions": [
+      "Opening does not enable credential readers or change provider preferences. Configure providers locally when needed."
+    ],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/world",
+    "route": "/world",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/world/yard",
+    "route": "/world/yard",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  }
+]

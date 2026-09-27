@@ -547,7 +547,7 @@ fn toggle_panel(app: &AppHandle, rect: Rect) {
 
 /// Shows the panel under `rect` (the icon), or under the icon's current
 /// place when no click told us where it is.
-fn show_panel(app: &AppHandle, rect: Option<Rect>) {
+pub(crate) fn show_panel(app: &AppHandle, rect: Option<Rect>) {
     let rect = rect.or_else(|| {
         app.tray_by_id(TRAY_ID)
             .and_then(|t| t.rect().ok().flatten())
@@ -733,11 +733,19 @@ pub async fn usage_tray_view(app: AppHandle) -> Result<Panel, String> {
         republish(&app);
     }
     let p = state().prefs.clone();
-    Ok(Panel {
-        view: state().view.clone(),
-        catalog: catalog(&p),
+    Ok(panel_snapshot(p))
+}
+
+fn panel_snapshot(p: TrayPrefs) -> Panel {
+    // `catalog` reads translated strings under the same mutex. Release the
+    // view's temporary guard before evaluating the next struct field.
+    let view = state().view.clone();
+    let catalog = catalog(&p);
+    Panel {
+        view,
+        catalog,
         prefs: p,
-    })
+    }
 }
 
 #[tauri::command]
@@ -884,5 +892,20 @@ mod tests {
         ] {
             assert!(!english(key).is_empty(), "{key}");
         }
+    }
+}
+
+#[cfg(test)]
+mod native_panel_tests {
+    use super::*;
+    #[test]
+    fn panel_snapshot_releases_state_before_translating_catalog() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = panel_snapshot(TrayPrefs::default());
+            let _ = tx.send(());
+        });
+        rx.recv_timeout(std::time::Duration::from_secs(2))
+            .expect("panel must not lock state recursively");
     }
 }

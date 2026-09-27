@@ -177,6 +177,14 @@ fn core(f: CoreCall) -> ToolImpl {
 fn build() -> Vec<ToolEntry> {
     use CostHint::{Cheap, Local, Network, Paid};
     vec![
+        entry("omniget_app_export", "Export up to 20 owned PNG/MP4 artifacts as a local ZIP with manifest, storyboard and contact sheet. No remote upload.", obj(json!({"artifactIds":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":20},"storyboard":{"type":"string","maxLength":20000}}), &["artifactIds","storyboard"]), ToolImpl::Host, "native_app", Local),
+        entry("omniget_app_record", "Record native WebView snapshots asynchronously at a target of 5 fps, maximum 60 seconds. Requires FFmpeg, app_capture and transfer. No audio/cursor. Start requires a unique requestId. Stop returns immediately; poll status until complete.", obj(json!({"requestId":{"type":"string","minLength":1,"maxLength":100},"action":{"type":"string","enum":["start","status","stop","cancel"]},"windowId":{"type":"string"},"jobId":{"type":"string"}}), &["action"]), ToolImpl::Host, "native_app", Local),
+        entry("omniget_app_catalog", "Discover all native screens, windows and blocked surfaces.", obj(json!({}), &[]), ToolImpl::Host, "native_app", Local),
+        entry("omniget_app_navigate", "Navigate the real main window to a catalog screen. Sensitive screens remain blocked for inspection and control.", obj(json!({"requestId":{"type":"string","minLength":1,"maxLength":100},"screenId":{"type":"string"},"windowId":{"type":"string"}}), &["screenId","requestId"]), ToolImpl::Host, "native_app", Local),
+        entry("omniget_app_interact", "Use explicitly allowed presentation actions. Never sends messages or grants permissions. Reinspect after every mutation.", obj(json!({"requestId":{"type":"string","minLength":1,"maxLength":100},"windowId":{"type":"string"},"stateRevision":{"type":"string"},"ref":{"type":"string"},"action":{"type":"string","enum":["click","fill","scroll"]},"value":{}}), &["stateRevision","ref","action","requestId"]), ToolImpl::Host, "native_app", Local),
+        entry("omniget_app_capture", "Capture native WebView pixels and return an inline preview plus transferable original. Requires app_capture and transfer. Crop coordinates use CSS pixels.", obj(json!({"windowId":{"type":"string"},"region":{"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"width":{"type":"number"},"height":{"type":"number"}},"required":["x","y","width","height"],"additionalProperties":false}}), &[]), ToolImpl::Host, "native_app", Local),
+        entry("omniget_app_status", "Inspect native app windows and available capabilities. Requires an authenticated connection with app_observe.", obj(json!({}), &[]), ToolImpl::Host, "native_app", Local),
+        entry("omniget_app_inspect", "Inspect native WebView HTML/ARIA controls with revision-bound refs. Sensitive surfaces are blocked.", obj(json!({"windowId":{"type":"string"},"cursor":{"type":"integer","minimum":0,"maximum":10000},"limit":{"type":"integer","minimum":1,"maximum":200}}), &[]), ToolImpl::Host, "native_app", Local),
         entry("help_connection_check", "Check local installation evidence without login or paid requests. Unknown authentication is not success.", obj(json!({"connectionId":{"type":"string"}}), &["connectionId"]), ToolImpl::Host, "help", Local),
         entry("help_diagnostic_run", "Run a selected, allowlisted local check. Never runs a paid model probe.", obj(json!({"checkId":{"type":"string","enum":["connection","documentation"]},"targetId":{"type":"string"},"locale":{"type":"string"}}), &["checkId"]), ToolImpl::Host, "help", Local),
         entry("help_docs_search", "Search bundled OmniGet help. Returns versioned citation sources.", obj(json!({"query":{"type":"string"},"locale":{"type":"string"},"limit":{"type":"integer","maximum":8}}), &["query"]), ToolImpl::Host, "help", Cheap),
@@ -331,7 +339,7 @@ mod tests {
     #[test]
     fn the_table_has_every_tool_once_with_an_object_schema() {
         let t = table();
-        assert_eq!(t.len(), 26, "the table lost or gained a tool");
+        assert_eq!(t.len(), 34, "the table lost or gained a tool");
         let names: std::collections::HashSet<_> = t.iter().map(|e| e.name).collect();
         assert_eq!(names.len(), t.len(), "duplicate tool name");
         for e in t {
@@ -360,6 +368,14 @@ mod tests {
         assert_eq!(
             host,
             vec![
+                "omniget_app_export",
+                "omniget_app_record",
+                "omniget_app_catalog",
+                "omniget_app_navigate",
+                "omniget_app_interact",
+                "omniget_app_capture",
+                "omniget_app_status",
+                "omniget_app_inspect",
                 "help_connection_check",
                 "help_diagnostic_run",
                 "help_docs_search",

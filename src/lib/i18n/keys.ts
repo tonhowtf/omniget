@@ -2324,6 +2324,9 @@ export type TranslationKeys =
   | 'mcp_auth.reason_label'
   | 'mcp_auth.title'
 
+  | 'mcp_connections.app_capture'
+  | 'mcp_connections.app_control'
+  | 'mcp_connections.app_observe'
   | 'mcp_connections.artifacts'
   | 'mcp_connections.auth'
   | 'mcp_connections.claude_code_hint'
@@ -2388,6 +2391,8 @@ export type TranslationKeys =
   | 'mcp_connections.media_mission_id'
   | 'mcp_connections.media_tools'
   | 'mcp_connections.name'
+  | 'mcp_connections.native_active'
+  | 'mcp_connections.native_revoke'
   | 'mcp_connections.no_executor'
   | 'mcp_connections.orchestration_control'
   | 'mcp_connections.orchestration_create'

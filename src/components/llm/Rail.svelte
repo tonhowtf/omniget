@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { agentActions } from "$lib/native-agent/actions";
   /**
    * Left rail: the roster grouped by role, with the agents that have no
    * conversation yet under "Unassigned", and a footer with the local profile.
@@ -169,7 +170,7 @@
     <p class="rail-demo" role="status">{$t("llm.demo_banner")}</p>
   {/if}
 
-  <div class="rail-scroll" bind:this={viewport} onscroll={onScroll}>
+  <div data-agent-actions="scroll" use:agentActions={["scroll"]} data-agent-region="agent-list" class="rail-scroll" bind:this={viewport} onscroll={onScroll}>
     {#if rows.length === 0}
       <p class="rail-empty">{$t("llm.rail.empty")}</p>
     {:else}

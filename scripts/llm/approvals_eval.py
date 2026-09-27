@@ -25,6 +25,7 @@ Nothing here opens the app or a window. Wave-2 goals (approve via CLI, restart
 
 Usage: python3 scripts/llm/approvals_eval.py [--fake] [--out FILE]
 """
+from prepared import run_tests as run_prepared_tests
 import argparse
 import datetime as dt
 import json
@@ -40,8 +41,7 @@ TAURI = ROOT / "src-tauri"
 
 def run_tests(crate, filter_, out_file):
     env = dict(os.environ, OMNIGET_BENCH_OUT=str(out_file))
-    cmd = ["cargo", "test", "-p", crate, "--lib", filter_, "--", "--test-threads=1"]
-    p = subprocess.run(cmd, cwd=TAURI, env=env, capture_output=True, text=True)
+    cmd, p = run_prepared_tests(crate, filter_, env)
     summary = [l for l in p.stdout.splitlines() if l.startswith("test result")]
     return {"cmd": " ".join(cmd), "exit": p.returncode, "summary": summary,
             "stderr_tail": p.stderr[-1500:] if p.returncode else ""}

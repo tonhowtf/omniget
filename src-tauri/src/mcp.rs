@@ -201,6 +201,9 @@ impl HostTools for AppHost {
     async fn call(&self, name: &str, a: Value) -> Result<Value, String> {
         let app = &self.app;
         match name {
+            n if n.starts_with("omniget_app_") => {
+                Err("PERMISSION_REQUIRED: use an authenticated MCP connection".into())
+            }
             n if n.starts_with("help_") => crate::commands::llm::help::dispatch(app, n, a).await,
             "download_url" => {
                 let url = s(&a, "url");
@@ -589,15 +592,24 @@ pub async fn handle(app: &AppHandle, principal: &policy::Principal, msg: &Value)
                 ));
             }
             match downloads::call(app, principal, name, args).await {
-                Ok(v) => {
+                Ok(mut v) => {
+                    let preview = if name.starts_with("omniget_app_") {
+                        v.as_object_mut().and_then(|o| o.remove("_mcpImage"))
+                    } else {
+                        None
+                    };
                     let text = if let Some(t) = v.as_str() {
                         t.to_string()
                     } else {
                         serde_json::to_string_pretty(&v).unwrap_or_default()
                     };
+                    let mut content = vec![json!({"type":"text","text":text})];
+                    if let Some(image) = preview {
+                        content.push(image);
+                    }
                     rpc_ok(
                         id,
-                        json!({ "content": [{ "type": "text", "text": text }], "structuredContent": v, "isError": false }),
+                        json!({ "content": content, "structuredContent": v, "isError": false }),
                     )
                 }
                 Err(e) if is_protocol_error(operation_code(&e)) => rpc_error(
@@ -930,7 +942,7 @@ mod tests {
     fn a_lista_do_servidor_e_a_tabela_do_core() {
         let table = omniget_core::core::llm::tool_table::table();
         let list = tools();
-        assert_eq!(list.len(), 26, "a tabela mudou de tamanho");
+        assert_eq!(list.len(), 34, "a tabela mudou de tamanho");
         assert_eq!(list.len(), table.len());
         for (def, entry) in list.iter().zip(table) {
             assert_eq!(def.name, entry.name);
@@ -947,7 +959,7 @@ mod tests {
             .filter(|e| e.needs_host())
             .map(|e| e.name)
             .collect();
-        assert_eq!(host.len(), 15, "{:?}", host);
+        assert_eq!(host.len(), 23, "{:?}", host);
     }
 
     #[test]

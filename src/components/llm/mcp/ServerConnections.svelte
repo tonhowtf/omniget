@@ -81,7 +81,7 @@
   let reveal = $state(false);
   let snippets = $state<[string,string][]>([]);
   let client = $state(0);
-  const options = ["discover", "enqueue", "control", "diagnostics", "artifacts", "history", "local_network", "transfer", "orchestration_read", "orchestration_control", "orchestration_create", "auth"];
+  const options = ["app_observe", "app_control", "app_capture", "discover", "enqueue", "control", "diagnostics", "artifacts", "history", "local_network", "transfer", "orchestration_read", "orchestration_control", "orchestration_create", "auth"];
   async function chooseFolder() {
     const selected = await open({ directory: true, multiple: false });
     if (typeof selected === "string") folder = selected;
@@ -126,15 +126,15 @@
   onMount(refresh);
   async function create() {
     folder = folder.trim(); workspace = workspace.trim();
-    if (scopes.includes("transfer") && !folder) { message = $t("mcp_connections.folder_required"); return; }
-    if (scopes.includes("transfer") && !isAbsolutePath(folder)) { message = $t("mission.path.err_absolute"); return; }
+    if (scopes.includes("transfer") && !scopes.includes("app_capture") && !folder) { message = $t("mcp_connections.folder_required"); return; }
+    if (scopes.includes("transfer") && folder && !isAbsolutePath(folder)) { message = $t("mission.path.err_absolute"); return; }
     if (scopes.includes("orchestration_create") && workspace && !isAbsolutePath(workspace)) { message = $t("mission.path.err_absolute"); return; }
     if (scopes.includes("local_network") && !endpoints.trim()) { message = $t("mcp_connections.endpoints_required"); return; }
     if (scopes.includes("orchestration_create") && (!workspace || !selectedExecutors.length || !Number.isSafeInteger(maxTokens) || maxTokens < 1)) { message = $t("mcp_connections.execution_required"); return; }
     const remoteWrite = gatewayWrite && gatewayCanWrite;
     const remoteTransfer = gatewayTransfer && gatewayCanTransfer;
     busy = true; message = "";
-    try { grant = await invoke("tool_mcp_client_create", { name: name.trim(), scopes }); if (scopes.includes("transfer")) {
+    try { grant = await invoke("tool_mcp_client_create", { name: name.trim(), scopes }); if (scopes.includes("transfer") && folder) {
       try { await invoke("tool_mcp_root_grant", { principal: grant!.principal.id, path: folder }); }
       catch (error) { await invoke("tool_mcp_client_revoke", { id: grant!.principal.id }); grant = null; throw error; }
     }

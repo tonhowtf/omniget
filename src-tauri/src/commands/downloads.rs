@@ -1285,3 +1285,12 @@ mod recovery_outcome_tests {
         );
     }
 }
+
+/// Initial presentation snapshot, including an empty queue after a WebView remount.
+#[tauri::command]
+pub async fn get_download_queue(app: tauri::AppHandle) -> Vec<crate::core::queue::QueueItemInfo> {
+    use tauri::Manager;
+    let state = app.state::<crate::AppState>();
+    let queue = state.download_queue.lock().await;
+    crate::core::queue::redacted_for_display(queue.get_state())
+}

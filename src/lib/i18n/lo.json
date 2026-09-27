@@ -4362,7 +4362,12 @@
     "derived_external": "ພາຍນອກ · {{name}}",
     "derived_retired": "ຖອນແລ້ວ",
     "derived_from": "ບອດທີ່ສືບມາຈາກ {{name}}",
-    "derived_read_only": "ອ່ານຢ່າງດຽວຢູ່ນີ້"
+    "derived_read_only": "ອ່ານຢ່າງດຽວຢູ່ນີ້",
+    "app_observe": "Observe native app",
+    "app_control": "Control presentation and navigation",
+    "app_capture": "Capture and record native app (also select file transfer)",
+    "native_active": "Native access",
+    "native_revoke": "Revoke access"
   },
   "mcp_auth": {
     "title": "ລູກຂ່າຍ AI ຂໍໃຫ້ທ່ານເຂົ້າສູ່ລະບົບ",

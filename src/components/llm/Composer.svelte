@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { agentActions } from "$lib/native-agent/actions";
   // Presentation follows 21st AI Input by Hayden Bleasel (1887): one autosizing input and a compact action row. Original Svelte implementation with no simulated attachments or capabilities.
   /**
    * Composer: one auto-growing textarea, Enter sends, Shift+Enter breaks the
@@ -126,7 +127,7 @@
   {/if}
 
   <div class="composer-field">
-    <textarea
+    <textarea data-agent-actions="fill" use:agentActions={["fill"]}
       bind:this={textarea}
       bind:value
       class="input composer-input"

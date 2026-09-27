@@ -4362,7 +4362,12 @@
     "derived_external": "خارجی · {{name}}",
     "derived_retired": "لغوشده",
     "derived_from": "ربات مشتق از {{name}}",
-    "derived_read_only": "اینجا فقط‌خواندنی"
+    "derived_read_only": "اینجا فقط‌خواندنی",
+    "app_observe": "Observe native app",
+    "app_control": "Control presentation and navigation",
+    "app_capture": "Capture and record native app (also select file transfer)",
+    "native_active": "Native access",
+    "native_revoke": "Revoke access"
   },
   "mcp_auth": {
     "title": "یک کلاینت هوش مصنوعی از شما می‌خواهد وارد شوید",

@@ -30,6 +30,7 @@ slot) as soon as the turn stream ends, which the report measures as
 
 Usage: python3 scripts/llm/watchdog_eval.py [--fake] [--reps N] [--out FILE]
 """
+from prepared import run_tests as run_prepared_tests
 import argparse
 import datetime as dt
 import json
@@ -47,8 +48,7 @@ START_S = 2.0
 
 def run_tests(filter_, crate, out_file):
     env = dict(os.environ, OMNIGET_BENCH_OUT=str(out_file))
-    cmd = ["cargo", "test", "-p", crate, "--lib", filter_, "--", "--test-threads=1"]
-    p = subprocess.run(cmd, cwd=TAURI, env=env, capture_output=True, text=True)
+    cmd, p = run_prepared_tests(crate, filter_, env)
     summary = [l for l in p.stdout.splitlines() if l.startswith("test result")]
     return {"cmd": " ".join(cmd), "exit": p.returncode, "summary": summary,
             "stderr_tail": p.stderr[-1500:] if p.returncode else ""}
