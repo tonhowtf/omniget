@@ -20,8 +20,8 @@ transcription option (captions, local model, or a cloud key) is enough.
 In a Claude Code session:
 
 ```
-/plugin marketplace add /path/to/omniget/claude-plugin
-/plugin install omniget
+/plugin marketplace add tonhowtf/omniget
+/plugin install omniget@omniget
 ```
 
 ## 2. Install the tools — one step

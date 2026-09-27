@@ -140,8 +140,8 @@ O token nunca vai na linha de comando, então ele fica fora do histórico do she
 A pasta [`claude-plugin/`](claude-plugin/omniget) é um plugin para o [Claude Code](https://claude.com/claude-code) que funciona sem o app. Cole o link de um vídeo ou de um post de rede social junto com um pedido, e as skills dele baixam ou transcrevem. Os comandos estão lá para quando você quiser ser explícito:
 
 ```text
-/plugin marketplace add /path/to/omniget/claude-plugin
-/plugin install omniget
+/plugin marketplace add tonhowtf/omniget
+/plugin install omniget@omniget
 /omniget:setup                       # instala yt-dlp, ffmpeg e omniget-cli depois de uma confirmação
 /omniget:fetch <url> [--audio]       # o arquivo de mídia, em ~/Downloads/omniget
 /omniget:transcribe <url|file>       # legendas, depois whisper.cpp local, depois Gemini ou OpenAI se você adicionou uma chave
@@ -484,7 +484,7 @@ Habilidades extras que você liga quando precisa, em **Superpoderes** na barra l
 ## Privacidade e o que o OmniGet se recusa a fazer
 
 <p align="center">
-  <img src="assets/readme/illustration-privacy.png" alt="O Loop abraçando um notebook com o ícone de download do OmniGet e um cadeado verde, dentro de um escudo brilhante" width="700" />
+  <img src="assets/readme/illustration-privacy.webp" alt="O Loop segurando um notebook com o ícone de download do OmniGet e um cadeado verde, na frente de um escudo laranja" width="700" />
 </p>
 
 Tudo roda no seu computador. Não há conta, não há servidor nosso no meio e não há telemetria do que você baixa. Cookies e chaves de API ficam no seu perfil local. O OmniGet só acessa a internet por conta própria para chegar aos sites de onde você pediu para baixar, ao GitHub para buscar atualizações e ao provedor de IA que você configurou, quando você usa.

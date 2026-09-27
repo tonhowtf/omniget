@@ -83,8 +83,8 @@ The token never goes on the command line, so it stays out of your shell history.
 The [`claude-plugin/`](https://github.com/tonhowtf/omniget/blob/main/claude-plugin/omniget) folder is a plugin for [Claude Code](https://claude.com/claude-code) that works without the app. Paste a video or social post link with a request, and its skills fetch or transcribe it. The commands are there when you want to be explicit:
 
 ```text
-/plugin marketplace add /path/to/omniget/claude-plugin
-/plugin install omniget
+/plugin marketplace add tonhowtf/omniget
+/plugin install omniget@omniget
 /omniget:setup                       # installs yt-dlp, ffmpeg and omniget-cli after one confirmation
 /omniget:fetch <url> [--audio]       # the media file, to ~/Downloads/omniget
 /omniget:transcribe <url|file>       # captions, then local whisper.cpp, then Gemini or OpenAI if you added a key

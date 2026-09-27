@@ -142,7 +142,7 @@ Use images from [`assets/readme/`](assets/readme/), linked from the repository. 
 - `downloads.png`: the download queue
 - `extension.png`: the browser extension
 - `agents-loop.gif`: a Loop running until the tests pass
-- `illustration-privacy.png`: privacy
+- `illustration-privacy.webp`: privacy
 
 The illustrations use the new Loop sticker style; screenshots and videos of the app are being redone. Use only the images the README itself shows.
 

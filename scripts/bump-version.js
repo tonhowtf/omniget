@@ -156,6 +156,30 @@ if (fs.existsSync(aboutProjectPath)) {
   );
 }
 
+// MCP Registry entry: the release workflow fills in fileSha256 and uploads
+// the final server.json next to omniget-mcp.mcpb.
+const serverJsonPath = path.join(root, "server.json");
+if (fs.existsSync(serverJsonPath)) {
+  writeJson(serverJsonPath, (server) => {
+    server.version = version;
+    for (const pkg of server.packages ?? []) {
+      if (pkg.registryType === "mcpb") {
+        pkg.identifier = pkg.identifier.replace(
+          /\/releases\/download\/v[^/]+\//,
+          `/releases/download/v${version}/`
+        );
+      }
+    }
+  });
+}
+
+const mcpbManifestPath = path.join(root, "src-tauri", "omniget-cli", "mcpb", "manifest.json");
+if (fs.existsSync(mcpbManifestPath)) {
+  writeJson(mcpbManifestPath, (manifest) => {
+    manifest.version = version;
+  });
+}
+
 if (changed.length === 0) {
   console.error("No files changed — aborting.");
   process.exit(1);

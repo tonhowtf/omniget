@@ -17,8 +17,8 @@ Three steps. The first is the only one that's always required.
 **1. Install the plugin** (in a Claude Code session):
 
 ```
-/plugin marketplace add /path/to/omniget/claude-plugin
-/plugin install omniget
+/plugin marketplace add tonhowtf/omniget
+/plugin install omniget@omniget
 ```
 
 **2. Install the tools** — one step, on any OS:

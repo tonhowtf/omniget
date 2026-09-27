@@ -144,8 +144,8 @@ claude mcp add --transport http --scope project omniget <address from the page> 
 Папка [`claude-plugin/`](claude-plugin/omniget) — это плагин для [Claude Code](https://claude.com/claude-code), который работает без приложения. Вставьте ссылку на видео или пост из соцсети вместе с просьбой, и его навыки скачают файл или сделают транскрипцию. Команды тоже есть, на случай если хочется указать всё явно:
 
 ```text
-/plugin marketplace add /path/to/omniget/claude-plugin
-/plugin install omniget
+/plugin marketplace add tonhowtf/omniget
+/plugin install omniget@omniget
 /omniget:setup                       # ставит yt-dlp, ffmpeg и omniget-cli после одного подтверждения
 /omniget:fetch <url> [--audio]       # медиафайл, в ~/Downloads/omniget
 /omniget:transcribe <url|file>       # субтитры, затем локальный whisper.cpp, затем Gemini или OpenAI, если вы добавили ключ
@@ -488,7 +488,7 @@ sudo pacman -S gst-plugins-good gst-plugins-bad gst-libav   # Arch
 ## Приватность и то, чего OmniGet делать не станет
 
 <p align="center">
-  <img src="assets/readme/illustration-privacy.png" alt="Loop обнимает ноутбук со значком загрузки OmniGet и зелёным замком внутри светящегося щита" width="700" />
+  <img src="assets/readme/illustration-privacy.webp" alt="Loop держит ноутбук со значком загрузки OmniGet и зелёным замком на фоне оранжевого щита" width="700" />
 </p>
 
 Всё работает на вашем компьютере. Нет аккаунта, нет нашего сервера посередине и нет телеметрии о том, что вы скачиваете. Куки и API-ключи хранятся в вашем локальном профиле. Сам по себе OmniGet выходит в сеть только к сайтам, с которых вы попросили скачать, к GitHub за обновлениями и к ИИ-провайдеру, которого вы настроили, когда вы им пользуетесь.

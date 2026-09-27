@@ -140,8 +140,8 @@ The token never goes on the command line, so it stays out of your shell history.
 The [`claude-plugin/`](claude-plugin/omniget) folder is a plugin for [Claude Code](https://claude.com/claude-code) that works without the app. Paste a video or social post link with a request, and its skills fetch or transcribe it. The commands are there when you want to be explicit:
 
 ```text
-/plugin marketplace add /path/to/omniget/claude-plugin
-/plugin install omniget
+/plugin marketplace add tonhowtf/omniget
+/plugin install omniget@omniget
 /omniget:setup                       # installs yt-dlp, ffmpeg and omniget-cli after one confirmation
 /omniget:fetch <url> [--audio]       # the media file, to ~/Downloads/omniget
 /omniget:transcribe <url|file>       # captions, then local whisper.cpp, then Gemini or OpenAI if you added a key
@@ -474,7 +474,7 @@ Extra abilities you switch on when you need them, in **Superpowers** in the side
 ## Privacy and what OmniGet refuses to do
 
 <p align="center">
-  <img src="assets/readme/illustration-privacy.png" alt="Loop hugging a laptop with the OmniGet download icon and a green padlock, inside a glowing shield" width="700" />
+  <img src="assets/readme/illustration-privacy.webp" alt="Loop holding a laptop with the OmniGet download icon and a green padlock, in front of an orange shield" width="700" />
 </p>
 
 Everything runs on your computer. There is no account, no server of ours in the middle and no telemetry about what you download. Cookies and API keys live in your local profile. OmniGet only goes online by itself to reach the sites you asked it to download from, GitHub for updates, and the AI provider you configured when you use it.

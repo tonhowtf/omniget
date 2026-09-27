@@ -6,17 +6,30 @@
 //! so a batch behaves exactly as over HTTP. When the desktop does not answer,
 //! the adapter itself replies once per request (an array for a batch) and
 //! never to notifications or to the client's own responses.
+//!
+//! Without a token, or while the desktop is closed, the adapter still speaks
+//! MCP: `initialize`, `ping` and `tools/list` are answered from the catalog
+//! snapshot the desktop's tests keep in sync (`mcp-catalog.json`), and every
+//! tool call fails with `TOKEN_MISSING` or `APP_NOT_RUNNING` and how to fix it.
 use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
+use std::sync::LazyLock;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 const MAX_MESSAGE: u64 = 65536;
 /// Same bound as the desktop's HTTP batch limit (`mcp::BATCH_MAX`).
 const BATCH_MAX: usize = 32;
 const ADAPTER_VERSION: &str = env!("CARGO_PKG_VERSION");
+const DEFAULT_ENDPOINT: &str = "http://127.0.0.1:47720/mcp";
+/// Revisions, instructions and full tool catalog of the desktop, written and
+/// checked by its `adapter_catalog_matches_the_desktop` test.
+static CATALOG: LazyLock<Value> = LazyLock::new(|| {
+    serde_json::from_str(include_str!("../../mcp-catalog.json")).expect("valid mcp-catalog.json")
+});
 #[tokio::main]
 async fn main() -> Result<()> {
-    let endpoint =
-        std::env::var("OMNIGET_MCP_URL").unwrap_or_else(|_| "http://127.0.0.1:47720/mcp".into());
+    // An empty value counts as unset: MCPB hosts pass blank optional fields.
+    let env = |name: &str| std::env::var(name).ok().filter(|v| !v.trim().is_empty());
+    let endpoint = env("OMNIGET_MCP_URL").unwrap_or_else(|| DEFAULT_ENDPOINT.into());
     let url = reqwest::Url::parse(&endpoint).context("INVALID_LOCAL_ENDPOINT")?;
     if url.scheme() != "http"
         || !matches!(url.host_str(), Some("127.0.0.1" | "[::1]" | "localhost"))
@@ -27,12 +40,16 @@ async fn main() -> Result<()> {
     {
         bail!("INVALID_LOCAL_ENDPOINT");
     }
-    let token = std::env::var("OMNIGET_MCP_TOKEN")
-        .context("MCP_CONNECTION_REQUIRED: create a connection in OmniGet")?;
+    let token = env("OMNIGET_MCP_TOKEN");
     let input = tokio::io::BufReader::new(tokio::io::stdin());
     run(input, tokio::io::stdout(), url, token).await
 }
-async fn run<R, W>(mut input: R, mut output: W, url: reqwest::Url, token: String) -> Result<()>
+async fn run<R, W>(
+    mut input: R,
+    mut output: W,
+    url: reqwest::Url,
+    token: Option<String>,
+) -> Result<()>
 where
     R: AsyncBufRead + Unpin,
     W: AsyncWrite + Unpin,
@@ -65,44 +82,52 @@ where
                 continue;
             }
         };
-        let reply = client
-            .post(url.clone())
-            .bearer_auth(&token)
-            .header("Accept", "application/json, text/event-stream")
-            .header("MCP-Protocol-Version", &version)
-            .json(&msg)
-            .send()
-            .await;
-        let value = match reply {
-            Ok(response) if response.status() == reqwest::StatusCode::ACCEPTED => continue,
-            Ok(mut response) if response.status().is_success() => {
-                if response.content_length().is_some_and(|n| n > 1024 * 1024) {
-                    bail!("MCP_RESPONSE_TOO_LARGE");
-                }
-                let mut bytes = Vec::new();
-                while let Some(chunk) =
-                    response.chunk().await.context("MCP_RESPONSE_READ_FAILED")?
-                {
-                    if bytes.len() + chunk.len() > 1024 * 1024 {
-                        bail!("MCP_RESPONSE_TOO_LARGE");
+        let value = match token.as_deref() {
+            // Without a token the desktop could only answer 401: stay local.
+            None => local_reply(&msg, Failure::TokenMissing, &version),
+            Some(token) => {
+                let reply = client
+                    .post(url.clone())
+                    .bearer_auth(token)
+                    .header("Accept", "application/json, text/event-stream")
+                    .header("MCP-Protocol-Version", &version)
+                    .json(&msg)
+                    .send()
+                    .await;
+                match reply {
+                    Ok(response) if response.status() == reqwest::StatusCode::ACCEPTED => continue,
+                    Ok(mut response) if response.status().is_success() => {
+                        if response.content_length().is_some_and(|n| n > 1024 * 1024) {
+                            bail!("MCP_RESPONSE_TOO_LARGE");
+                        }
+                        let mut bytes = Vec::new();
+                        while let Some(chunk) =
+                            response.chunk().await.context("MCP_RESPONSE_READ_FAILED")?
+                        {
+                            if bytes.len() + chunk.len() > 1024 * 1024 {
+                                bail!("MCP_RESPONSE_TOO_LARGE");
+                            }
+                            bytes.extend_from_slice(&chunk);
+                        }
+                        let mut value = serde_json::from_slice::<Value>(&bytes)
+                            .context("INVALID_MCP_RESPONSE")?;
+                        annotate_health(&msg, &mut value, &version);
+                        Some(value)
                     }
-                    bytes.extend_from_slice(&chunk);
+                    Ok(response) => {
+                        local_reply(&msg, Failure::Http(response.status().as_u16()), &version)
+                    }
+                    Err(e) => local_reply(
+                        &msg,
+                        if e.is_connect() {
+                            Failure::NotRunning
+                        } else {
+                            Failure::OutcomeUnknown
+                        },
+                        &version,
+                    ),
                 }
-                let mut value =
-                    serde_json::from_slice::<Value>(&bytes).context("INVALID_MCP_RESPONSE")?;
-                annotate_health(&msg, &mut value, &version);
-                Some(value)
             }
-            Ok(response) => local_reply(&msg, Failure::Http(response.status().as_u16()), &version),
-            Err(e) => local_reply(
-                &msg,
-                if e.is_connect() {
-                    Failure::NotRunning
-                } else {
-                    Failure::OutcomeUnknown
-                },
-                &version,
-            ),
         };
         let Some(value) = value else { continue };
         if let Some(v) = value["result"]["protocolVersion"].as_str() {
@@ -115,6 +140,7 @@ where
 /// Why the desktop produced no JSON-RPC answer.
 #[derive(Clone, Copy)]
 enum Failure {
+    TokenMissing,
     NotRunning,
     Http(u16),
     OutcomeUnknown,
@@ -122,7 +148,12 @@ enum Failure {
 impl Failure {
     fn message(self) -> &'static str {
         match self {
-            Failure::NotRunning => "APP_NOT_RUNNING",
+            Failure::TokenMissing => {
+                "TOKEN_MISSING: OMNIGET_MCP_TOKEN is not set. Open OmniGet, go to LLM → MCP → Your endpoint, turn the server on, create a connection and set its token as OMNIGET_MCP_TOKEN in this MCP server's environment."
+            }
+            Failure::NotRunning => {
+                "APP_NOT_RUNNING: the OmniGet desktop app is not reachable. Open OmniGet and keep the server on in LLM → MCP → Your endpoint; OMNIGET_MCP_URL must match the address shown there."
+            }
             Failure::Http(401) => "UNAUTHORIZED",
             Failure::Http(403) => "MCP_DISABLED_OR_ACCESS_DENIED",
             Failure::Http(_) => "MCP_HTTP_ERROR",
@@ -131,9 +162,20 @@ impl Failure {
             }
         }
     }
+    /// Machine-readable part of the message, before the first `:`.
+    fn code(self) -> &'static str {
+        self.message().split(':').next().unwrap_or_default()
+    }
+    /// Nothing reached the desktop: the adapter answers the handshake itself.
+    fn offline(self) -> bool {
+        matches!(self, Failure::TokenMissing | Failure::NotRunning)
+    }
 }
 fn rpc_error(id: Value, code: i64, message: &str) -> Value {
     json!({"jsonrpc":"2.0","id":id,"error":{"code":code,"message":message}})
+}
+fn rpc_ok(id: Value, result: Value) -> Value {
+    json!({"jsonrpc":"2.0","id":id,"result":result})
 }
 /// Request id of a message that expects an answer: a JSON-RPC request with a
 /// string or integer id. Notifications and client responses have none.
@@ -197,20 +239,81 @@ fn local_single(msg: &Value, failure: Failure, version: &str, in_batch: bool) ->
             "initialize cannot be part of a batch",
         ));
     }
-    if matches!(failure, Failure::NotRunning) && is_health_call(msg) {
-        let health = json!({
-            "app": "not_running",
-            "reachable": false,
-            "queue": "unavailable",
-            "message": "OmniGet is not running. Open the desktop app and keep the MCP server enabled.",
-            "adapter": adapter_info(version, false),
-        });
-        let text = serde_json::to_string_pretty(&health).unwrap_or_default();
-        return Some(
-            json!({"jsonrpc":"2.0","id":id,"result":{"content":[{"type":"text","text":text}],"structuredContent":health,"isError":false}}),
-        );
+    if failure.offline() {
+        return Some(offline_single(id, msg, failure, version));
     }
     Some(rpc_error(id, -32000, failure.message()))
+}
+/// What the desktop would answer, minus anything that needs it: the
+/// handshake and the catalog work, a tool call says what is missing.
+fn offline_single(id: Value, msg: &Value, failure: Failure, version: &str) -> Value {
+    let params = &msg["params"];
+    match msg["method"].as_str().unwrap_or_default() {
+        "initialize" => {
+            let supported = CATALOG["protocolVersions"].as_array();
+            let requested = params["protocolVersion"].as_str();
+            // Same rule as the desktop: the client's revision when supported,
+            // otherwise the newest one.
+            let negotiated = supported
+                .and_then(|all| all.iter().find(|v| v.as_str() == requested))
+                .or_else(|| supported.and_then(|all| all.first()))
+                .cloned()
+                .unwrap_or_else(|| json!(version));
+            let instructions = format!(
+                "{} {}",
+                CATALOG["instructions"].as_str().unwrap_or_default(),
+                failure.message()
+            );
+            rpc_ok(
+                id,
+                json!({
+                    "protocolVersion": negotiated,
+                    "capabilities": { "tools": { "listChanged": false } },
+                    "serverInfo": { "name": "OmniGet", "version": ADAPTER_VERSION },
+                    "instructions": instructions,
+                }),
+            )
+        }
+        "ping" => rpc_ok(id, json!({})),
+        "tools/list" => rpc_ok(id, json!({ "tools": CATALOG["tools"] })),
+        "resources/list" => rpc_ok(id, json!({ "resources": [] })),
+        "prompts/list" => rpc_ok(id, json!({ "prompts": [] })),
+        "tools/call" => {
+            let Some(name) = params["name"].as_str() else {
+                return rpc_error(id, -32602, "invalid params: `name` is required");
+            };
+            let known = CATALOG["tools"]
+                .as_array()
+                .is_some_and(|tools| tools.iter().any(|t| t["name"] == name));
+            if !known {
+                return rpc_error(id, -32602, "unknown tool");
+            }
+            if matches!(failure, Failure::NotRunning) && name == "omniget_health" {
+                return offline_health(id, version);
+            }
+            // The desktop's error envelope, so output schemas still validate.
+            let error = json!({"error":{"code":failure.code(),"message":failure.message()}});
+            rpc_ok(
+                id,
+                json!({"content":[{"type":"text","text":failure.message()}],"structuredContent":error,"isError":true}),
+            )
+        }
+        _ => rpc_error(id, -32000, failure.message()),
+    }
+}
+fn offline_health(id: Value, version: &str) -> Value {
+    let health = json!({
+        "app": "not_running",
+        "reachable": false,
+        "queue": "unavailable",
+        "message": "OmniGet is not running. Open the desktop app and keep the MCP server enabled.",
+        "adapter": adapter_info(version, false),
+    });
+    let text = serde_json::to_string_pretty(&health).unwrap_or_default();
+    rpc_ok(
+        id,
+        json!({"content":[{"type":"text","text":text}],"structuredContent":health,"isError":false}),
+    )
 }
 fn is_health_call(msg: &Value) -> bool {
     msg["method"] == "tools/call" && msg["params"]["name"] == "omniget_health"
@@ -317,13 +420,17 @@ mod tests {
     }
 
     async fn drive(url: reqwest::Url, lines: &[Value]) -> Vec<Value> {
+        drive_with(url, Some("t"), lines).await
+    }
+
+    async fn drive_with(url: reqwest::Url, token: Option<&str>, lines: &[Value]) -> Vec<Value> {
         let input: String = lines.iter().map(|l| format!("{l}\n")).collect();
         let mut out = Vec::new();
         run(
             tokio::io::BufReader::new(input.as_bytes()),
             &mut out,
             url,
-            "t".into(),
+            token.map(str::to_string),
         )
         .await
         .unwrap();
@@ -396,7 +503,7 @@ mod tests {
                 json!({"jsonrpc":"2.0","id":5,"result":{}}),
                 json!({"jsonrpc":"2.0","id":6,"error":{"code":1,"message":"x"}}),
                 json!([
-                    {"jsonrpc":"2.0","id":"b1","method":"tools/list"},
+                    {"jsonrpc":"2.0","id":"b1","method":"tools/call","params":{"name":"downloads_queue","arguments":{}}},
                     {"jsonrpc":"2.0","id":7,"result":{}},
                     {"jsonrpc":"2.0","method":"notifications/x"}
                 ]),
@@ -405,16 +512,110 @@ mod tests {
         )
         .await;
         assert_eq!(out.len(), 2, "{out:?}");
-        assert_eq!(
-            (&out[0]["id"], &out[0]["error"]["message"]),
-            (&json!(1), &json!("APP_NOT_RUNNING"))
-        );
+        assert_eq!(out[0]["id"], 1);
+        assert_eq!(out[0]["result"]["protocolVersion"], "2025-06-18");
         let batch = out[1].as_array().unwrap();
         assert_eq!(batch.len(), 1);
+        assert_eq!(batch[0]["id"], "b1");
         assert_eq!(
-            (&batch[0]["id"], &batch[0]["error"]["message"]),
-            (&json!("b1"), &json!("APP_NOT_RUNNING"))
+            batch[0]["result"]["structuredContent"]["error"]["code"],
+            "APP_NOT_RUNNING"
         );
+    }
+
+    /// What a registry's introspection does: no token, no desktop, just the
+    /// handshake and the catalog. Nothing may reach the network.
+    #[tokio::test]
+    async fn handshake_and_catalog_work_without_token_or_app() {
+        let (url, mut seen) = fake_desktop(desktop_rules).await;
+        let out = drive_with(
+            url,
+            None,
+            &[
+                json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}),
+                json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
+                json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}),
+                json!({"jsonrpc":"2.0","id":3,"method":"ping"}),
+                json!({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"download_enqueue","arguments":{}}}),
+                json!({"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"omniget_health","arguments":{}}}),
+                json!({"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"no_such_tool"}}),
+                json!({"jsonrpc":"2.0","id":7,"method":"resources/templates/list"}),
+            ],
+        )
+        .await;
+        assert_eq!(out.len(), 7, "{out:?}");
+        let init = &out[0]["result"];
+        assert_eq!(init["protocolVersion"], "2025-03-26");
+        assert_eq!(init["serverInfo"]["name"], "OmniGet");
+        assert_eq!(init["capabilities"]["tools"]["listChanged"], false);
+        assert!(init["instructions"]
+            .as_str()
+            .unwrap()
+            .contains("TOKEN_MISSING"));
+        let tools = out[1]["result"]["tools"].as_array().unwrap();
+        assert_eq!(tools, CATALOG["tools"].as_array().unwrap());
+        assert!(tools.len() >= 20);
+        assert!(tools
+            .iter()
+            .all(|t| t["name"].is_string() && t["inputSchema"]["type"] == "object"));
+        assert!(tools.iter().any(|t| t["name"] == "download_enqueue"));
+        assert_eq!(out[2]["result"], json!({}));
+        for call in &out[3..5] {
+            let result = &call["result"];
+            assert_eq!(result["isError"], true, "{call}");
+            assert_eq!(
+                result["structuredContent"]["error"]["code"],
+                "TOKEN_MISSING"
+            );
+            let text = result["content"][0]["text"].as_str().unwrap();
+            assert!(text.contains("LLM → MCP → Your endpoint"), "{text}");
+            assert!(text.contains("OMNIGET_MCP_TOKEN"), "{text}");
+        }
+        assert_eq!(out[5]["error"]["code"], -32602);
+        assert_eq!(out[6]["error"]["code"], -32000);
+        assert!(out[6]["error"]["message"]
+            .as_str()
+            .unwrap()
+            .starts_with("TOKEN_MISSING:"));
+        assert!(seen.try_recv().is_err(), "nothing is sent without a token");
+    }
+
+    #[tokio::test]
+    async fn offline_initialize_negotiates_like_the_desktop() {
+        let init = |v: &str| json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":v}});
+        for (asked, got) in [
+            ("2025-06-18", "2025-06-18"),
+            ("2025-03-26", "2025-03-26"),
+            ("1999-01-01", "2025-06-18"),
+        ] {
+            let out = drive(closed_port_url(), &[init(asked)]).await;
+            assert_eq!(out[0]["result"]["protocolVersion"], got, "{asked}");
+            assert!(out[0]["result"]["instructions"]
+                .as_str()
+                .unwrap()
+                .contains("APP_NOT_RUNNING"));
+        }
+        // The offline catalog carries the desktop's revisions, newest first.
+        assert_eq!(CATALOG["protocolVersions"][0], "2025-06-18");
+    }
+
+    #[tokio::test]
+    async fn offline_tool_call_says_the_app_is_not_running() {
+        let out = drive(
+            closed_port_url(),
+            &[json!({"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"download_enqueue","arguments":{"url":"https://example.com"}}})],
+        )
+        .await;
+        let result = &out[0]["result"];
+        assert_eq!(result["isError"], true);
+        assert_eq!(
+            result["structuredContent"]["error"]["code"],
+            "APP_NOT_RUNNING"
+        );
+        assert!(result["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("Open OmniGet"));
     }
 
     #[tokio::test]

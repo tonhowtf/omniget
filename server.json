@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.tonhowtf/omniget",
+  "title": "OmniGet",
+  "description": "Queue, track and diagnose media downloads (yt-dlp sites, torrents) in the OmniGet app",
+  "version": "0.10.1",
+  "websiteUrl": "https://getomniget.com",
+  "repository": {
+    "url": "https://github.com/tonhowtf/omniget",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/tonhowtf/omniget/releases/download/v0.10.1/omniget-mcp.mcpb",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "OMNIGET_MCP_TOKEN",
+          "description": "Token from OmniGet → LLM → MCP → Your endpoint. Without it the server starts and lists its tools, but tool calls return TOKEN_MISSING.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "OMNIGET_MCP_URL",
+          "description": "Local endpoint (default http://127.0.0.1:47720/mcp)",
+          "isRequired": false,
+          "default": "http://127.0.0.1:47720/mcp"
+        }
+      ]
+    }
+  ]
+}

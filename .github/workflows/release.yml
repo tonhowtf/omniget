@@ -188,6 +188,15 @@ jobs:
         working-directory: src-tauri
         run: cargo build -p omniget-cli --release --target ${{ matrix.target }}
 
+      # The package-mcpb job bundles the adapter from every target.
+      - name: Keep the MCP adapter for the .mcpb bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: omniget-mcp-${{ matrix.target }}
+          path: src-tauri/target/${{ matrix.target }}/release/omniget-mcp${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Package and upload (unix)
         if: matrix.os != 'windows-latest'
         env:
@@ -227,6 +236,61 @@ jobs:
           Compress-Archive -Path $BIN, $MCP, $GATEWAY, $WORKER -DestinationPath $OUT -Force
           gh release upload $TAG $OUT --repo ${{ github.repository }} --clobber
         shell: pwsh
+
+  package-mcpb:
+    # One omniget-mcp.mcpb for every OS: server.json has no per-platform
+    # package field, so the bundle carries one binary per OS and the manifest
+    # picks it with platform_overrides (macOS gets a universal binary). The
+    # server.json uploaded next to it carries the real fileSha256, ready for
+    # `mcp-publisher publish` once the release is published.
+    needs: build-cli
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: omniget-mcp-*
+          path: mcp-bin
+
+      - name: Build omniget-mcp.mcpb and server.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          B=mcpb-build
+          mkdir -p "$B/server/darwin" "$B/server/linux" "$B/server/win32"
+          lipo -create -output "$B/server/darwin/omniget-mcp" \
+            mcp-bin/omniget-mcp-aarch64-apple-darwin/omniget-mcp \
+            mcp-bin/omniget-mcp-x86_64-apple-darwin/omniget-mcp
+          cp mcp-bin/omniget-mcp-x86_64-unknown-linux-gnu/omniget-mcp "$B/server/linux/omniget-mcp"
+          cp mcp-bin/omniget-mcp-x86_64-pc-windows-msvc/omniget-mcp.exe "$B/server/win32/omniget-mcp.exe"
+          # Artifacts drop the execute bit; mcpb pack keeps the file mode.
+          chmod +x "$B/server/darwin/omniget-mcp" "$B/server/linux/omniget-mcp"
+          cp src-tauri/icons/icon.png "$B/icon.png"
+          # Tool list from the same catalog the adapter answers with offline.
+          jq --arg v "$VERSION" --slurpfile c src-tauri/omniget-cli/mcp-catalog.json \
+            '.version = $v | .tools = [$c[0].tools[] | {name, description}]' \
+            src-tauri/omniget-cli/mcpb/manifest.json > "$B/manifest.json"
+          npx -y @anthropic-ai/mcpb@2 validate "$B/manifest.json"
+          npx -y @anthropic-ai/mcpb@2 pack "$B" omniget-mcp.mcpb
+          SHA=$(shasum -a 256 omniget-mcp.mcpb | cut -d' ' -f1)
+          mkdir -p registry
+          jq --arg v "$VERSION" --arg sha "$SHA" \
+            --arg url "https://github.com/${{ github.repository }}/releases/download/${TAG}/omniget-mcp.mcpb" \
+            '.version = $v | .packages[0].identifier = $url | .packages[0].fileSha256 = $sha' \
+            server.json > registry/server.json
+          cat registry/server.json
+          gh release upload "$TAG" omniget-mcp.mcpb registry/server.json --repo "${{ github.repository }}" --clobber
 
   package-chrome-extension:
     needs: publish-tauri
