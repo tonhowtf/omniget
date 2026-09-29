@@ -54,7 +54,8 @@ BENCHES = {
     "bn3": (
         "approvals_eval.py",
         [CORE_LLM + "broker.rs", "src-tauri/src/llm_manager.rs", "src-tauri/src/llm_attention.rs",
-         "src-tauri/src/jobs.rs", "scripts/llm/approvals_eval.py"],
+         "src-tauri/src/jobs.rs", "src-tauri/src/approvals.rs", "src-tauri/omniget-core/src/core/assist/runs.rs",
+         "src-tauri/src/local_bridge_jobs.rs", "src-tauri/src/bridge_tokens.rs", "scripts/llm/approvals_eval.py"],
         [],
         ["omniget-core", "omniget"],
     ),

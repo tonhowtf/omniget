@@ -66,6 +66,10 @@ pub const SCOPES: &[&str] = &[
     "catalog",
     "system_read",
     "system_change",
+    // Item 2.2: answering an owned mission's permission questions. Never part
+    // of any default: the person ticks it explicitly (the MCP connections
+    // card says what it allows).
+    "approvals_respond",
 ];
 pub fn create(name: String, scopes: Vec<String>) -> Result<ConnectionGrant, String> {
     if name.trim().is_empty()
@@ -225,6 +229,7 @@ pub fn scope(name: &str) -> Option<&'static str> {
         | "approvals_list"
         | "job_diff" => "orchestration_read",
         "missions_cancel" | "missions_pause" | "missions_resume" => "orchestration_control",
+        "approval_respond" => "approvals_respond",
         "missions_create" => "orchestration_create",
         "agents_derived_list" | "groups_get" => "orchestration_read",
         "agents_prepare" | "groups_prepare" | "group_tasks_create" => "orchestration_create",
@@ -398,6 +403,28 @@ mod tests {
         ] {
             assert!(!allowed(&p, n));
         }
+    }
+
+    /// 2.2: answering an ask is its own grant; no other scope (not even
+    /// orchestration control) carries it.
+    #[test]
+    fn approval_respond_needs_its_own_explicit_grant() {
+        assert_eq!(scope("approval_respond"), Some("approvals_respond"));
+        let everything_else = Principal {
+            id: "x".into(),
+            name: "X".into(),
+            scopes: SCOPES
+                .iter()
+                .filter(|s| **s != "approvals_respond")
+                .map(|s| s.to_string())
+                .collect(),
+        };
+        assert!(!allowed(&everything_else, "approval_respond"));
+        let granted = Principal {
+            scopes: vec!["approvals_respond".into()],
+            ..everything_else
+        };
+        assert!(allowed(&granted, "approval_respond"));
     }
 
     /// A job's diff is a read of orchestration data: only with that scope

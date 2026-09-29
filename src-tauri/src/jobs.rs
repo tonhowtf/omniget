@@ -1766,6 +1766,19 @@ impl Jobs {
         job_ask_timeout(now_ms(), deadline, ask_job)
     }
 
+    /// The job whose turn is `request_id` (the run id of its asks, 2.2).
+    pub fn job_of_request(&self, request_id: &str) -> Option<String> {
+        self.db()
+            .query_row(
+                "SELECT id FROM jobs WHERE request_id=?1 ORDER BY created_ms DESC LIMIT 1",
+                params![request_id],
+                |r| r.get::<_, String>(0),
+            )
+            .optional()
+            .ok()
+            .flatten()
+    }
+
     /// `GET /v1/jobs/{id}/explain` and `omniget agent explain`.
     pub fn explain(&self, id: &str) -> Option<Value> {
         let job = self.job(id)?;
@@ -4380,9 +4393,12 @@ mod watchdog_tests {
             deadline_ms: Some(70_000),
         };
         let asks = vec![
-            json!({"request_id": "r1", "tool": "cli:Bash", "tool_call_id": "c1", "asked_ms": 25_000u64}),
+            json!({"id": "apr_0123456789abcdef0123456789abcdef", "request_id": "r1", "tool": "cli:Bash", "tool_call_id": "c1", "asked_ms": 25_000u64}),
         ];
         let v = explain_view(&job, Some(&live), 30_000, &asks, Some(4242));
+        // 2.2: a job's own token reads its explain; the ask id (what answers
+        // it) never goes there.
+        assert!(!v.to_string().contains("apr_"), "{v}");
         assert_eq!(v["id"], "j1");
         assert_eq!(v["state"], "waiting_approval");
         assert_eq!(v["state_seq"], 3);

@@ -1,4 +1,4 @@
-//! `omniget agent run|loop|jobs|explain|status|diff|agents`: talks to the running desktop app
+//! `omniget agent run|loop|jobs|explain|status|diff|approvals|approve|agents`: talks to the running desktop app
 //! through the local bridge (`127.0.0.1:<port>` from `settings.json`) with a
 //! scoped token (2.1): `OMNIGET_TOKEN` if set, else the CLI token the app
 //! keeps in `<app_data>/llm/cli-token`. The browser extension's key in
@@ -171,9 +171,9 @@ async fn follow(bridge: &Bridge, id: &str, json_out: bool) -> anyhow::Result<()>
                     }
                 }
                 if state == "waiting_approval" {
-                    eprintln!("  the agent is asking for permission: answer in the app (LLM → Jobs) or on the pet");
+                    eprintln!("  the agent is asking for permission: answer in the app (LLM → Jobs), on the pet,");
                     eprintln!(
-                        "  (`omniget agent explain {id}` shows the question and when it expires)"
+                        "  or here: `omniget agent approvals --job {id}`, then `omniget agent approve <approval id>`"
                     );
                 }
                 last_state = state.clone();
@@ -343,7 +343,7 @@ fn status_text(v: &Value) -> String {
     }
     for j in v["blocked"].as_array().into_iter().flatten() {
         out.push_str(&format!(
-            "  blocked  {}  (waiting for you: answer in the app)\n",
+            "  blocked  {}  (waiting for you: `omniget agent approvals`)\n",
             line(j).trim_end()
         ));
     }
@@ -362,6 +362,50 @@ fn status_text(v: &Value) -> String {
                 .as_str()
                 .unwrap_or(q["reason"].as_str().unwrap_or(""))
         ));
+    }
+    out
+}
+
+/// The decision `omniget agent approve` sends: accept by default, one flag
+/// for anything else (clap refuses two of them together).
+fn approve_decision(session: bool, always: bool, deny: bool, cancel: bool) -> &'static str {
+    match (session, always, deny, cancel) {
+        (true, ..) => "accept_session",
+        (_, true, ..) => "accept_always",
+        (_, _, true, _) => "decline",
+        (.., true) => "cancel",
+        _ => "accept",
+    }
+}
+
+/// `omniget agent approvals` in plain lines: one per question, with the id
+/// to pass to `approve`.
+fn approvals_text(v: &Value) -> String {
+    let rows: Vec<&Value> = v.as_array().into_iter().flatten().collect();
+    if rows.is_empty() {
+        return "nothing is waiting for you\n".to_string();
+    }
+    let mut out = String::new();
+    for a in rows {
+        out.push_str(&format!(
+            "{}  {:<9} job {:<12} {:<14} {}\n",
+            a["id"].as_str().unwrap_or(""),
+            a["state"].as_str().unwrap_or(""),
+            a["job_id"].as_str().unwrap_or("-"),
+            a["tool"].as_str().unwrap_or("?"),
+            a["preview"]
+                .as_str()
+                .unwrap_or("")
+                .lines()
+                .next()
+                .unwrap_or("")
+                .chars()
+                .take(60)
+                .collect::<String>()
+        ));
+        if let Some(note) = a["note"].as_str() {
+            out.push_str(&format!("    {note}\n"));
+        }
     }
     out
 }
@@ -471,6 +515,39 @@ pub enum AgentCommand {
         id: String,
         #[arg(long, help = "Print the unified diff instead of the file list")]
         patch: bool,
+    },
+    /// Permission questions waiting for you (their ids answer them)
+    Approvals {
+        #[arg(long, help = "Only the questions of this job")]
+        job: Option<String>,
+        #[arg(
+            long,
+            default_value = "pending",
+            value_parser = ["pending", "stale", "resolved", "cancelled", "expired", "all"],
+            help = "Which questions to list"
+        )]
+        state: String,
+    },
+    /// Answer a permission question: allow once (default), or --session,
+    /// --always, --deny, --cancel (deny and stop the turn)
+    Approve {
+        id: String,
+        #[arg(
+            long,
+            help = "Allow this tool for the rest of the turn",
+            group = "decision"
+        )]
+        session: bool,
+        #[arg(
+            long,
+            help = "Allow and stop asking for this kind of call",
+            group = "decision"
+        )]
+        always: bool,
+        #[arg(long, help = "Refuse this call", group = "decision")]
+        deny: bool,
+        #[arg(long, help = "Refuse and stop the turn that asked", group = "decision")]
+        cancel: bool,
     },
     /// List the running and finished Loops
     Loops,
@@ -659,6 +736,45 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             }
             Ok(())
         }
+        AgentCommand::Approvals { job, state } => {
+            let mut path = format!("/v1/approvals?state={state}");
+            if let Some(j) = job {
+                path.push_str(&format!("&job_id={j}"));
+            }
+            let v = bridge.get(&path).await?;
+            if json_out {
+                println!("{}", serde_json::to_string_pretty(&v)?);
+            } else {
+                print!("{}", approvals_text(&v));
+            }
+            Ok(())
+        }
+        AgentCommand::Approve {
+            id,
+            session,
+            always,
+            deny,
+            cancel,
+        } => {
+            let decision = approve_decision(session, always, deny, cancel);
+            let v = bridge
+                .post(
+                    &format!("/v1/approvals/{id}"),
+                    json!({ "decision": decision, "channel": "cli" }),
+                )
+                .await?;
+            if json_out {
+                println!("{}", serde_json::to_string_pretty(&v)?);
+            } else {
+                println!(
+                    "{}: {} ({})",
+                    v["id"].as_str().unwrap_or(&id),
+                    v["state"].as_str().unwrap_or("?"),
+                    v["decision"].as_str().unwrap_or(decision)
+                );
+            }
+            Ok(())
+        }
         AgentCommand::Explain { id } => {
             let v = bridge.get(&format!("/v1/jobs/{id}/explain")).await?;
             if json_out {
@@ -737,6 +853,37 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn approve_flags_pick_one_decision() {
+        assert_eq!(approve_decision(false, false, false, false), "accept");
+        assert_eq!(
+            approve_decision(true, false, false, false),
+            "accept_session"
+        );
+        assert_eq!(approve_decision(false, true, false, false), "accept_always");
+        assert_eq!(approve_decision(false, false, true, false), "decline");
+        assert_eq!(approve_decision(false, false, false, true), "cancel");
+        // The flags are one clap group: two together never parse.
+        use clap::Parser;
+        #[derive(Parser)]
+        struct T {
+            #[command(subcommand)]
+            c: AgentCommand,
+        }
+        assert!(T::try_parse_from(["t", "approve", "apr_1", "--deny", "--always"]).is_err());
+        assert!(T::try_parse_from(["t", "approve", "apr_1", "--session"]).is_ok());
+    }
+
+    #[test]
+    fn approvals_print_the_id_to_answer_with() {
+        let v = json!([{"id": "apr_1", "state": "pending", "job_id": "j1", "tool": "shell_exec", "preview": "npm test"},
+                       {"id": "apr_2", "state": "stale", "job_id": null, "tool": "cli:Bash", "preview": "ls", "note": "Restart the turn"}]);
+        let text = approvals_text(&v);
+        assert!(text.contains("apr_1  pending"), "{text}");
+        assert!(text.contains("Restart the turn"));
+        assert_eq!(approvals_text(&json!([])), "nothing is waiting for you\n");
+    }
 
     #[test]
     fn the_token_comes_from_env_then_file_then_the_extension_key() {

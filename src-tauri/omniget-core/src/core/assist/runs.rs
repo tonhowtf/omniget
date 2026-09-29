@@ -43,10 +43,11 @@ pub const EVENT_PAYLOAD_MAX: usize = 4 * 1024;
 /// Events kept per run; later ones only bump the run's `events_dropped`.
 pub const EVENTS_PER_RUN_MAX: i64 = 2_000;
 
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    module: "runs",
-    version: 1,
-    sql: "
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        module: "runs",
+        version: 1,
+        sql: "
 CREATE TABLE runs_sessions (
     id TEXT PRIMARY KEY,
     conversation_id TEXT NOT NULL,
@@ -132,7 +133,27 @@ CREATE TABLE runs_permissions (
 );
 CREATE INDEX runs_permissions_run ON runs_permissions(run_id, state);
 ",
-}];
+    },
+    Migration {
+        // Item 2.2 (S09): `runs_permissions` is the one table of asks, answerable
+        // from the window, the bridge, the CLI, MCP and a paired phone. `channel`
+        // and `decided_by` say who answered and through what; `instance_id` is
+        // the boot that holds the waiter (another boot's pending ask is `stale`
+        // after a restart); `payload` is the question in MCP `elicitation/create`
+        // shape; `note` is the plain reason of a stale/cancelled ending.
+        module: "runs",
+        version: 2,
+        sql: "
+ALTER TABLE runs_permissions ADD COLUMN agent_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE runs_permissions ADD COLUMN instance_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE runs_permissions ADD COLUMN payload TEXT NOT NULL DEFAULT '{}';
+ALTER TABLE runs_permissions ADD COLUMN channel TEXT;
+ALTER TABLE runs_permissions ADD COLUMN decided_by TEXT;
+ALTER TABLE runs_permissions ADD COLUMN note TEXT;
+CREATE INDEX runs_permissions_state ON runs_permissions(state, created_ms);
+",
+    },
+];
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -374,6 +395,10 @@ pub enum PermissionState {
     Denied,
     Expired,
     Cancelled,
+    /// The process that waited on it is gone (the app closed or crashed):
+    /// nothing can release that call any more. The person restarts the turn
+    /// or dismisses it (`cancelled`); it never turns into a silent "no".
+    Stale,
 }
 
 impl PermissionState {
@@ -384,6 +409,7 @@ impl PermissionState {
             PermissionState::Denied => "denied",
             PermissionState::Expired => "expired",
             PermissionState::Cancelled => "cancelled",
+            PermissionState::Stale => "stale",
         }
     }
     pub fn parse(s: &str) -> Self {
@@ -392,6 +418,7 @@ impl PermissionState {
             "denied" => PermissionState::Denied,
             "expired" => PermissionState::Expired,
             "cancelled" => PermissionState::Cancelled,
+            "stale" => PermissionState::Stale,
             _ => PermissionState::Pending,
         }
     }
@@ -409,11 +436,78 @@ pub struct PermissionRequest {
     pub options: Vec<String>,
     pub deadline_ms: i64,
     pub state: PermissionState,
-    /// `once|always|deny` once answered.
+    /// `once|session|always|deny|cancel` once answered.
     pub answer: Option<String>,
     pub version: i64,
     pub created_ms: i64,
     pub resolved_ms: Option<i64>,
+    /// The agent that asked.
+    #[serde(default)]
+    pub agent_id: String,
+    /// The boot that holds the waiter ([`instance_id`]).
+    #[serde(default)]
+    pub instance_id: String,
+    /// The question in MCP `elicitation/create` shape (`85#P2`).
+    #[serde(default)]
+    pub payload: Value,
+    /// Where the answer came from: `window|http|cli|mcp|remote`, or
+    /// `timeout|boot` for an ending nobody chose.
+    #[serde(default)]
+    pub channel: Option<String>,
+    /// Who answered: the principal (`token:<id>`, `mcp:<client>`,
+    /// `device:<id>`, `window`).
+    #[serde(default)]
+    pub decided_by: Option<String>,
+    /// Why it ended without an answer (stale: "restart the turn").
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+/// Who answers a permission request and through what (item 2.2): recorded
+/// in `channel` / `decided_by` with the answer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Actor {
+    pub channel: String,
+    pub decided_by: String,
+}
+
+impl Actor {
+    pub fn new(channel: &str, decided_by: &str) -> Self {
+        Self {
+            channel: channel.to_string(),
+            decided_by: decided_by.to_string(),
+        }
+    }
+
+    /// A person at the desktop window.
+    pub fn window() -> Self {
+        Self::new("window", "window")
+    }
+}
+
+/// What a new permission request carries besides the run it belongs to.
+#[derive(Debug, Clone, Default)]
+pub struct NewAsk {
+    pub run_id: String,
+    pub tool_call_id: String,
+    pub action: String,
+    pub preview: String,
+    pub options: Vec<String>,
+    pub deadline_ms: i64,
+    pub agent_id: String,
+    pub payload: Value,
+}
+
+/// The note a stale request carries: the app closed while it waited.
+pub const STALE_NOTE: &str =
+    "the app closed while this question waited; nothing ran. Restart the turn to ask again";
+
+/// A fresh request id: 128 random bits (`apr_` + 32 hex). Never derived
+/// from the run or the tool call, and never shown to the agent that asked.
+pub fn new_ask_id() -> String {
+    let mut buf = [0u8; 16];
+    rand::Rng::fill_bytes(&mut rand::rng(), &mut buf);
+    format!("apr_{}", hex::encode(buf))
 }
 
 // ── Process-wide wiring ───────────────────────────────────────────────────
@@ -582,7 +676,7 @@ fn row_session(r: &rusqlite::Row<'_>) -> rusqlite::Result<RuntimeSession> {
     })
 }
 
-const PERM_COLS: &str = "id, run_id, tool_call_id, action, scope, preview, options, deadline_ms, state, answer, version, created_ms, resolved_ms";
+const PERM_COLS: &str = "id, run_id, tool_call_id, action, scope, preview, options, deadline_ms, state, answer, version, created_ms, resolved_ms, agent_id, instance_id, payload, channel, decided_by, note";
 
 fn row_perm(r: &rusqlite::Row<'_>) -> rusqlite::Result<PermissionRequest> {
     let options: String = r.get(6)?;
@@ -600,6 +694,12 @@ fn row_perm(r: &rusqlite::Row<'_>) -> rusqlite::Result<PermissionRequest> {
         version: r.get(10)?,
         created_ms: r.get(11)?,
         resolved_ms: r.get(12)?,
+        agent_id: r.get(13)?,
+        instance_id: r.get(14)?,
+        payload: serde_json::from_str(&r.get::<_, String>(15)?).unwrap_or(Value::Null),
+        channel: r.get(16)?,
+        decided_by: r.get(17)?,
+        note: r.get(18)?,
     })
 }
 
@@ -635,7 +735,9 @@ pub struct NewRun {
 pub struct Reconciled {
     pub interrupted: Vec<String>,
     pub unknown: Vec<String>,
-    pub permissions_expired: usize,
+    /// Pending asks another boot held: now `stale` (2.2), never expired
+    /// silently.
+    pub permissions_stale: usize,
     pub receipts_unknown: usize,
 }
 
@@ -1071,12 +1173,6 @@ impl Registry {
                     out.unknown.push(r.id.clone());
                 }
             }
-            out.permissions_expired += self.db.with(|c| {
-                c.execute(
-                    "UPDATE runs_permissions SET state='expired', resolved_ms=?2, version=version+1 WHERE run_id=?1 AND state='pending'",
-                    params![run.id, now],
-                )
-            })?;
             out.receipts_unknown += self.db.with(|c| {
                 c.execute(
                     "UPDATE runs_receipts SET state='unknown', updated_ms=?2 WHERE run_id=?1 AND state='admitted'",
@@ -1084,6 +1180,16 @@ impl Registry {
                 )
             })?;
         }
+        // Every ask another boot was waiting on: its waiter died with that
+        // process, so it can never release the call. It becomes `stale` with
+        // the reason (restart the turn), and the person sees it (2.2, focus
+        // of review 2) — whatever state its run is in now.
+        out.permissions_stale += self.db.with(|c| {
+            c.execute(
+                "UPDATE runs_permissions SET state='stale', channel='boot', note=?3, resolved_ms=?2, version=version+1 WHERE state='pending' AND instance_id <> ?1",
+                params![&*self.instance, now, STALE_NOTE],
+            )
+        })?;
         Ok(out)
     }
 
@@ -1273,13 +1379,33 @@ impl Registry {
         options: &[&str],
         deadline_ms: i64,
     ) -> Result<PermissionRequest, String> {
-        let id = format!("perm-{}", super::new_id());
+        self.open_ask(NewAsk {
+            run_id: run_id.into(),
+            tool_call_id: tool_call_id.into(),
+            action: action.into(),
+            preview: preview.into(),
+            options: options.iter().map(|o| o.to_string()).collect(),
+            deadline_ms,
+            ..NewAsk::default()
+        })
+    }
+
+    /// [`Self::open_permission`] with everything a durable ask carries (2.2):
+    /// the agent, the elicitation payload, and this boot as its holder. The
+    /// run need not exist (an MCP owner ask has none): the row is the ask.
+    pub fn open_ask(&self, ask: NewAsk) -> Result<PermissionRequest, String> {
+        let id = new_ask_id();
         let now = super::now_ms();
-        let options = serde_json::to_string(options).unwrap_or_else(|_| "[]".into());
+        let options = serde_json::to_string(&ask.options).unwrap_or_else(|_| "[]".into());
+        let payload = if ask.payload.is_null() {
+            "{}".to_string()
+        } else {
+            ask.payload.to_string()
+        };
         let req = self.db.tx(|tx| {
             tx.execute(
-                "INSERT INTO runs_permissions (id, run_id, tool_call_id, action, preview, options, deadline_ms, state, created_ms) VALUES (?1,?2,?3,?4,?5,?6,?7,'pending',?8)",
-                params![id, run_id, tool_call_id, action, clip(preview, 2000), options, deadline_ms, now],
+                "INSERT INTO runs_permissions (id, run_id, tool_call_id, action, preview, options, deadline_ms, state, created_ms, agent_id, instance_id, payload) VALUES (?1,?2,?3,?4,?5,?6,?7,'pending',?8,?9,?10,?11)",
+                params![id, ask.run_id, ask.tool_call_id, ask.action, clip(&ask.preview, 2000), options, ask.deadline_ms, now, ask.agent_id, &*self.instance, clip(&payload, 8000)],
             )
             .map_err(err)?;
             tx.query_row(
@@ -1289,17 +1415,17 @@ impl Registry {
             )
             .map_err(err)
         })?;
-        if let Some(run) = self.run(run_id) {
+        if let Some(run) = self.run(&ask.run_id) {
             if matches!(run.state, RunState::Running) {
-                let _ = self.transition(run_id, RunState::WaitingUser, None);
+                let _ = self.transition(&ask.run_id, RunState::WaitingUser, None);
             }
+            let _ = self.add_event(
+                &ask.run_id,
+                "permission_requested",
+                Some(&format!("perm:{}", req.id)),
+                json!({ "permission": req.id, "action": ask.action, "tool_call_id": ask.tool_call_id }),
+            );
         }
-        let _ = self.add_event(
-            run_id,
-            "permission_requested",
-            Some(&format!("perm:{}", req.id)),
-            json!({ "permission": req.id, "action": action, "tool_call_id": tool_call_id }),
-        );
         Ok(req)
     }
 
@@ -1330,10 +1456,39 @@ impl Registry {
             .unwrap_or_default()
     }
 
+    /// Requests in one state (newest first, at most `limit`), any run.
+    pub fn permissions_in(&self, state: PermissionState, limit: usize) -> Vec<PermissionRequest> {
+        self.db
+            .with(|c| {
+                let sql = format!(
+                    "SELECT {PERM_COLS} FROM runs_permissions WHERE state=?1 ORDER BY created_ms DESC LIMIT ?2"
+                );
+                let mut stmt = c.prepare(&sql)?;
+                let rows = stmt.query_map(params![state.as_str(), limit as i64], row_perm)?;
+                rows.collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// The pending request of one tool call held by this boot, if any.
+    pub fn pending_of_call(&self, tool_call_id: &str) -> Option<PermissionRequest> {
+        self.db
+            .with(|c| {
+                c.query_row(
+                    &format!("SELECT {PERM_COLS} FROM runs_permissions WHERE tool_call_id=?1 AND state='pending' AND instance_id=?2 ORDER BY created_ms DESC LIMIT 1"),
+                    params![tool_call_id, &*self.instance],
+                    row_perm,
+                )
+                .optional()
+            })
+            .ok()
+            .flatten()
+    }
+
     /// The one answer of a request. Applies only while it is pending and
     /// before its deadline; a late answer marks it expired and is refused
     /// (`ERR_PERMISSION_EXPIRED`), a second answer is refused
-    /// (`ERR_PERMISSION_RESOLVED`). `answer` ∈ `once|always|deny`.
+    /// (`ERR_PERMISSION_RESOLVED`). `answer` ∈ `once|session|always|deny|cancel`.
     pub fn answer_permission(&self, id: &str, answer: &str) -> Result<PermissionRequest, String> {
         self.answer_permission_at(id, answer, super::now_ms())
     }
@@ -1344,9 +1499,30 @@ impl Registry {
         answer: &str,
         now: i64,
     ) -> Result<PermissionRequest, String> {
+        self.answer_permission_by_at(id, answer, &Actor::window(), now)
+    }
+
+    /// [`Self::answer_permission`], recording who answered and through what.
+    pub fn answer_permission_by(
+        &self,
+        id: &str,
+        answer: &str,
+        actor: &Actor,
+    ) -> Result<PermissionRequest, String> {
+        self.answer_permission_by_at(id, answer, actor, super::now_ms())
+    }
+
+    pub fn answer_permission_by_at(
+        &self,
+        id: &str,
+        answer: &str,
+        actor: &Actor,
+        now: i64,
+    ) -> Result<PermissionRequest, String> {
         let state = match answer {
-            "once" | "always" => PermissionState::Approved,
+            "once" | "session" | "always" => PermissionState::Approved,
             "deny" => PermissionState::Denied,
+            "cancel" => PermissionState::Cancelled,
             other => return Err(format!("{ERR_RUNS}: unknown answer `{other}`")),
         };
         let out = self.db.tx(|tx| {
@@ -1372,7 +1548,7 @@ impl Registry {
             }
             if now >= cur.deadline_ms {
                 tx.execute(
-                    "UPDATE runs_permissions SET state='expired', resolved_ms=?2, version=version+1 WHERE id=?1",
+                    "UPDATE runs_permissions SET state='expired', channel='timeout', resolved_ms=?2, version=version+1 WHERE id=?1",
                     params![id, now],
                 )
                 .map_err(err)?;
@@ -1381,8 +1557,8 @@ impl Registry {
                 )));
             }
             tx.execute(
-                "UPDATE runs_permissions SET state=?2, answer=?3, resolved_ms=?4, version=version+1 WHERE id=?1 AND state='pending'",
-                params![id, state.as_str(), answer, now],
+                "UPDATE runs_permissions SET state=?2, answer=?3, resolved_ms=?4, channel=?5, decided_by=?6, version=version+1 WHERE id=?1 AND state='pending'",
+                params![id, state.as_str(), answer, now, clip(&actor.channel, 40), clip(&actor.decided_by, 200)],
             )
             .map_err(err)?;
             tx.query_row(
@@ -1398,12 +1574,34 @@ impl Registry {
         Ok(req)
     }
 
+    /// A person closes a `stale` request (it can no longer be answered: its
+    /// waiter is gone). It becomes `cancelled`, with who closed it.
+    pub fn dismiss_stale(&self, id: &str, actor: &Actor) -> Result<PermissionRequest, String> {
+        let now = super::now_ms();
+        let n = self.db.with(|c| {
+            c.execute(
+                "UPDATE runs_permissions SET state='cancelled', answer='cancel', channel=?3, decided_by=?4, resolved_ms=?2, version=version+1 WHERE id=?1 AND state='stale'",
+                params![id, now, clip(&actor.channel, 40), clip(&actor.decided_by, 200)],
+            )
+        })?;
+        let req = self
+            .permission(id)
+            .ok_or_else(|| format!("{ERR_RUNS_NOT_FOUND}: permission {id}"))?;
+        if n == 0 {
+            return Err(format!(
+                "{ERR_PERMISSION_RESOLVED}: permission {id} is {}",
+                req.state.as_str()
+            ));
+        }
+        Ok(req)
+    }
+
     /// The wait ran out with no answer.
     pub fn expire_permission(&self, id: &str) -> Result<Option<PermissionRequest>, String> {
         let now = super::now_ms();
         let n = self.db.with(|c| {
             c.execute(
-                "UPDATE runs_permissions SET state='expired', resolved_ms=?2, version=version+1 WHERE id=?1 AND state='pending'",
+                "UPDATE runs_permissions SET state='expired', channel='timeout', resolved_ms=?2, version=version+1 WHERE id=?1 AND state='pending'",
                 params![id, now],
             )
         })?;
@@ -1421,7 +1619,7 @@ impl Registry {
         let now = super::now_ms();
         let n = self.db.with(|c| {
             c.execute(
-                "UPDATE runs_permissions SET state='cancelled', resolved_ms=?2, version=version+1 WHERE run_id=?1 AND state='pending'",
+                "UPDATE runs_permissions SET state='cancelled', note='the turn ended before an answer', resolved_ms=?2, version=version+1 WHERE run_id=?1 AND state='pending'",
                 params![run_id, now],
             )
         })?;
@@ -1633,9 +1831,53 @@ mod tests {
         assert!(r.answer_permission(&p4.id, "once").is_err());
     }
 
+    #[test]
+    /// 2.2: an ask id is 128 random bits; the answer records who and how;
+    /// the session answer is an approval; the row needs no run.
+    fn ask_rows_record_who_answered_and_through_what() {
+        let r = reg();
+        let far = super::super::now_ms() + 60_000;
+        let a = r
+            .open_ask(NewAsk {
+                run_id: "no-such-run".into(),
+                tool_call_id: "t1".into(),
+                action: "shell_exec".into(),
+                preview: "npm test".into(),
+                deadline_ms: far,
+                agent_id: "omni".into(),
+                payload: json!({"method": "elicitation/create"}),
+                ..NewAsk::default()
+            })
+            .unwrap();
+        assert!(a.id.starts_with("apr_") && a.id.len() == 4 + 32, "{}", a.id);
+        assert!(a.id[4..].chars().all(|c| c.is_ascii_hexdigit()));
+        assert_ne!(
+            a.id,
+            r.open_permission("x", "t2", "a", "", &[], far).unwrap().id
+        );
+        assert_eq!(a.instance_id, r.instance());
+        assert_eq!(a.agent_id, "omni");
+        assert_eq!(a.payload["method"], "elicitation/create");
+        assert_eq!(r.pending_of_call("t1").unwrap().id, a.id);
+        let done = r
+            .answer_permission_by(&a.id, "session", &Actor::new("cli", "token:abc"))
+            .unwrap();
+        assert_eq!(done.state, PermissionState::Approved);
+        assert_eq!(done.answer.as_deref(), Some("session"));
+        assert_eq!(done.channel.as_deref(), Some("cli"));
+        assert_eq!(done.decided_by.as_deref(), Some("token:abc"));
+        assert!(r.pending_of_call("t1").is_none());
+        let c = r.open_permission("x", "t3", "a", "", &[], far).unwrap();
+        assert_eq!(
+            r.answer_permission(&c.id, "cancel").unwrap().state,
+            PermissionState::Cancelled
+        );
+        assert_eq!(r.permissions_in(PermissionState::Cancelled, 10).len(), 1);
+    }
+
     /// A09 at the record level: another boot's live runs become unknown or
-    /// interrupted, receipts unknown, permissions expired; unknown is never
-    /// queued again.
+    /// interrupted, receipts unknown, pending permissions stale (2.2);
+    /// unknown is never queued again.
     #[test]
     fn reconcile_marks_what_another_boot_left_in_flight() {
         let (db, _path) = super::super::db::tests_support::temp_db();
@@ -1643,22 +1885,39 @@ mod tests {
         run(&old, "sent");
         old.transition("sent", RunState::Running, None).unwrap();
         old.admit("op-sent", Some("sent"), "fp").unwrap();
-        old.open_permission(
-            "sent",
-            "t",
-            "shell_exec",
-            "x",
-            &[],
-            super::super::now_ms() + 60_000,
-        )
-        .unwrap();
+        let asked = old
+            .open_permission(
+                "sent",
+                "t",
+                "shell_exec",
+                "x",
+                &[],
+                super::super::now_ms() + 60_000,
+            )
+            .unwrap();
         run(&old, "not-sent");
         let fresh = Registry::with_instance(db, "boot-new");
         let out = fresh.reconcile().unwrap();
         assert_eq!(out.unknown, vec!["sent".to_string()]);
         assert_eq!(out.interrupted, vec!["not-sent".to_string()]);
         assert_eq!(out.receipts_unknown, 1);
-        assert_eq!(out.permissions_expired, 1);
+        assert_eq!(out.permissions_stale, 1);
+        // 2.2: stale, with the reason, never a silent expiry; no answer can
+        // apply to it any more, and a person can close it.
+        let stale = fresh.permission(&asked.id).unwrap();
+        assert_eq!(stale.state, PermissionState::Stale);
+        assert_eq!(stale.channel.as_deref(), Some("boot"));
+        assert!(stale.note.as_deref().unwrap().contains("Restart the turn"));
+        assert!(fresh
+            .answer_permission(&asked.id, "once")
+            .unwrap_err()
+            .starts_with(ERR_PERMISSION_RESOLVED));
+        let closed = fresh
+            .dismiss_stale(&asked.id, &Actor::new("http", "token:t1"))
+            .unwrap();
+        assert_eq!(closed.state, PermissionState::Cancelled);
+        assert_eq!(closed.decided_by.as_deref(), Some("token:t1"));
+        assert!(fresh.dismiss_stale(&asked.id, &Actor::window()).is_err());
         assert_eq!(fresh.run("sent").unwrap().state, RunState::Unknown);
         assert_eq!(fresh.receipt("op-sent").unwrap().state, "unknown");
         // Idempotent.

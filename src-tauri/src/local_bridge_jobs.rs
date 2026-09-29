@@ -8,7 +8,8 @@
 //! the CLI read) as the system prompt of a coding CLI (`omniget agent run
 //! <agent> --tool <x>`); `POST /v1/agent/loop-catalog` starts a catalog loop
 //! on the Loops engine (`omniget agent loop --catalog <id>`); `GET
-//! /v1/playbooks` lists the playbook runs.
+//! /v1/playbooks` lists the playbook runs; `GET /v1/approvals` and `POST
+//! /v1/approvals/{id}` read and answer the durable asks (2.2).
 
 use axum::extract::{Path, RawQuery};
 use axum::http::{header, HeaderMap, StatusCode};
@@ -101,6 +102,7 @@ where
     }
     let guard = state.guard();
     let (c1, c2, c3) = (state.clone(), state.clone(), state.clone());
+    let (a1, a2) = (state.clone(), state.clone());
     let (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12) = (
         state.clone(),
         state.clone(),
@@ -327,6 +329,36 @@ where
                     guarded!(s7, headers, |j: std::sync::Arc<jobs::Jobs>| ok(
                         j.cancel(&id)
                     ))
+                },
+            ),
+        )
+        // Item 2.2: the one table of asks, answerable from outside the window
+        // (`omniget agent approvals|approve`). Listing needs `jobs:read`,
+        // answering `approvals:respond` (the guard maps both).
+        .route(
+            "/v1/approvals",
+            get(move |RawQuery(query): RawQuery| async move {
+                match crate::approvals::from_app(&a1.app) {
+                    Ok(a) => crate::approvals::http_list(&a, query.as_deref()),
+                    Err(e) => fail(StatusCode::SERVICE_UNAVAILABLE, e),
+                }
+            }),
+        )
+        .route(
+            "/v1/approvals/{id}",
+            post(
+                move |Path(id): Path<String>,
+                      principal: Option<axum::Extension<crate::mcp::policy::Principal>>,
+                      Json(body): Json<Value>| async move {
+                    match crate::approvals::from_app(&a2.app) {
+                        Ok(a) => crate::approvals::http_respond(
+                            &a,
+                            &id,
+                            &body,
+                            principal.as_ref().map(|p| &p.0),
+                        ),
+                        Err(e) => fail(StatusCode::SERVICE_UNAVAILABLE, e),
+                    }
                 },
             ),
         )

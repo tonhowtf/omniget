@@ -56,6 +56,12 @@ struct JobDiffArgs {
     #[serde(default)]
     format: Option<String>,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct ApprovalArgs {
+    approval_id: String,
+    decision: String,
+}
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct ArtifactCriterion {
@@ -160,7 +166,8 @@ pub fn tools() -> Vec<ToolDef> {
         ("missions_artifacts","Current digest and latest verification receipt of each artifact of an owned mission; with the transfer scope, a short-lived artifact link bound to that exact revision (same rules as download artifacts). Optional extra paths inside the granted workspace.",json!({"missionId":id_schema,"paths":{"type":"array","maxItems":16,"items":{"type":"string","minLength":1,"maxLength":1024}}}),json!(["missionId"])),
         ("missions_diagnostics","Redacted diagnosis of an owned mission: state, block reason with suggested actions, criteria verdict, task errors, job/effect references. No private settings, memory or other clients' data.",mission.clone(),json!(["missionId"])),
         ("job_diff","What a job of an owned mission changed in its folder, from the host's own snapshots (no agent tokens): files with status and +/- (binary files marked), totals, and with format=patch the unified diff (redacted, cut at 32 KB). A job whose turns took no snapshot answers available=false with the reason, never an empty diff. No host paths.",json!({"jobId":id_schema,"format":{"type":"string","enum":["files","patch"],"default":"files"}}),json!(["jobId"])),
-        ("approvals_list","Pending permission questions of an owned mission's runs. Read-only: approvals are given by a person in the OmniGet window, never through this API.",json!({"missionId":id_schema}),json!(["missionId"])),
+        ("approvals_list","Pending permission questions of an owned mission's runs. Answering one needs approval_respond, a separate grant the person gives in OmniGet (off by default).",json!({"missionId":id_schema}),json!(["missionId"])),
+        ("approval_respond","Answer one pending permission question of an owned mission's run, as the person would in the OmniGet window: accept (this call), accept_session (this tool for the rest of the turn), decline, or cancel (decline and stop the turn). Exactly one answer applies; a second one is ERR_NO_ASK. accept_always stays a desktop decision. Needs the approvals_respond grant; an agent session can never answer.",json!({"approvalId":{"type":"string","minLength":1,"maxLength":64},"decision":{"type":"string","enum":["accept","accept_session","decline","cancel"]}}),json!(["approvalId","decision"])),
         ("missions_create","Create a bounded native mission using a local execution grant. File tools create new files or edit existing ones only against the SHA-256 of the revision last read; shell and arbitrary executors are unavailable.",json!({
             "grantId":id_schema,"workspaceId":id_schema,"executorId":id_schema,"objective":{"type":"string","minLength":1,"maxLength":8192},"budgetTokens":{"type":"integer","minimum":1},"maxMinutes":{"type":"integer","minimum":1,"maximum":240,"description":"Active work minutes before the mission blocks for a person (default 15)."},"idempotencyKey":{"type":"string","minLength":1,"maxLength":100},
             "criteria":{"type":"array","minItems":1,"maxItems":16,"items":{"type":"object","additionalProperties":false,"properties":{"path":{"type":"string","minLength":1,"maxLength":1024},"contains":{"type":"array","maxItems":8,"items":{"type":"string","minLength":1,"maxLength":512}}},"required":["path"]}},
@@ -594,8 +601,44 @@ fn approvals(app: &AppHandle, db: &AssistDb, mission: &str) -> Result<Value, Str
         "preview": text(&q.preview, 400), "deadlineMs": q.deadline_ms,
     })).collect();
     Ok(
-        json!({"missionId": mission, "pending": pending, "remoteApproval": false, "approveIn": "OmniGet window → LLM → Activity"}),
+        json!({"missionId": mission, "pending": pending, "remoteApproval": false, "approveIn": "OmniGet window → LLM → Tasks, or approval_respond with its grant"}),
     )
+}
+
+/// `approval_respond` (2.2): the same door as the window, the bridge and
+/// the CLI (`crate::approvals::respond`), for the asks of the principal's
+/// own missions only. Refused to an agent session (an agent must never
+/// answer its own questions, `85#P2`) and without `accept_always` (a
+/// permanent rule stays a desktop decision, like on a paired phone).
+fn approval_respond(
+    app: &AppHandle,
+    db: &AssistDb,
+    p: &Principal,
+    request: &ApprovalArgs,
+) -> Result<Value, String> {
+    if p.id.starts_with(crate::mcp::SESSION_PREFIX) {
+        return Err("APPROVAL_NOT_AUTHORIZED".into());
+    }
+    if !matches!(
+        request.decision.as_str(),
+        "accept" | "accept_session" | "decline" | "cancel"
+    ) {
+        return Err("INVALID_ARGUMENTS".into());
+    }
+    let door = crate::approvals::from_app(app).map_err(|_| "ORCHESTRATION_UNAVAILABLE")?;
+    // Unknown id and someone else's ask look the same from outside.
+    let job = door
+        .registry
+        .permission(&request.approval_id)
+        .and_then(|q| (door.job_of)(&q.run_id))
+        .ok_or("APPROVAL_NOT_AUTHORIZED")?;
+    owned_job(db, p, &job).map_err(|_| "APPROVAL_NOT_AUTHORIZED")?;
+    let actor = omniget_core::core::assist::runs::Actor::new("mcp", &format!("mcp:{}", p.id));
+    let v = crate::approvals::respond(&door, &request.approval_id, &request.decision, &actor)
+        .map_err(|r| r.code.to_string())?;
+    Ok(json!({
+        "approvalId": v["id"], "state": v["state"], "decision": v["decision"], "jobId": v["job_id"],
+    }))
 }
 
 pub async fn call(
@@ -716,7 +759,13 @@ pub async fn call(
         "approvals_list" => {
             let request: MissionId = parse(args)?;
             owned(&db, p, &request.mission_id)?;
-            approvals(app, &db, &request.mission_id)?
+            let mut v = approvals(app, &db, &request.mission_id)?;
+            v["remoteApproval"] = json!(policy::allowed(p, "approval_respond"));
+            v
+        }
+        "approval_respond" => {
+            let request: ApprovalArgs = parse(args)?;
+            approval_respond(app, &db, p, &request)?
         }
         "missions_create" => {
             let request: Create = parse(args)?;

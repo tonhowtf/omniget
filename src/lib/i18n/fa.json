@@ -3345,7 +3345,10 @@
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "اجازه برای این نوبت",
+        "stop": "رد و توقف",
+        "cli": "از ترمینال: omniget agent approve {{id}}"
       },
       "trigger": {
         "title": "Triggers",
@@ -6201,9 +6204,6 @@
       "tool_calls": "{{count}} ابزار",
       "permissions_title": "منتظر پاسخ شما",
       "permission_label": "می‌خواهد از {{action}} استفاده کند",
-      "answer_once": "یک بار اجازه",
-      "answer_always": "همیشه اجازه",
-      "answer_deny": "رد",
       "expires_in": "انقضا تا {{seconds}} ثانیه",
       "request_title": "آنچه خواستید",
       "summary_title": "پاسخ",
@@ -6237,7 +6237,8 @@
         "approved": "مجاز",
         "denied": "ردشده",
         "expired": "منقضی",
-        "cancelled": "لغوشده"
+        "cancelled": "لغوشده",
+        "stale": "باقی‌مانده از راه‌اندازی دوباره"
       },
       "unknown_hint": "OmniGet هنگام کار این اجرا بسته شد، پس نتیجه‌اش نامعلوم است. چیزی خودبه‌خود دوباره فرستاده نشد: تغییرات زیر را بررسی کنید و تصمیم بگیرید.",
       "interrupted_hint": "OmniGet پیش از رسیدن این اجرا به مدل بسته شد. کاری انجام نشد.",
@@ -6272,7 +6273,11 @@
       "routine_app_open": "فقط وقتی OmniGet باز است اجرا می‌شود",
       "routine_mute": "بی‌صدا",
       "routine_unmute": "باصدا",
-      "routine_muted": "بی‌صدا شده"
+      "routine_muted": "بی‌صدا شده",
+      "stale_title": "پرسش‌هایی که یک راه‌اندازی دوباره بی‌پاسخ گذاشت",
+      "stale_hint": "برنامه وقتی این‌ها منتظر بودند بسته شد. هیچ چیزی اجرا نشد. برای پرسیدن دوباره، نوبت را از نو شروع کنید.",
+      "dismiss": "نادیده گرفتن",
+      "answer_on_card": "در کارت خودش، بالای همین صفحه، پاسخ دهید."
     },
     "conversation": {
       "status_working": "در حال کار…",
@@ -7040,7 +7045,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "خواندن وضعیت، اسکن‌ها و برنامه‌های این رایانه (washmybelly)",
-    "system_change": "آماده‌سازی برنامه‌های پاک‌سازی، نگه‌داشتن برق، حالت گیم و ضبط FPS (washmybelly)"
+    "system_change": "آماده‌سازی برنامه‌های پاک‌سازی، نگه‌داشتن برق، حالت گیم و ضبط FPS (washmybelly)",
+    "approvals_respond": "پاسخ به پرسش‌های مجوز مأموریت‌های خودش",
+    "approvals_respond_help": "با این، کلاینت می‌تواند فراخوانی ابزارهای مأموریت‌های خودش را، از جمله فرمان‌های shell، مجاز کند؛ مثل اینکه شما اینجا «اجازه» را زده باشید. آن را فقط به کلاینتی بدهید که به اندازهٔ خودتان به آن اعتماد دارید. هرگز نمی‌تواند قانون «همیشه اجازه بده» بسازد و هیچ عاملی به پرسش‌های خودش پاسخ نمی‌دهد."
   },
   "mcp_auth": {
     "title": "یک کلاینت هوش مصنوعی از شما می‌خواهد وارد شوید",

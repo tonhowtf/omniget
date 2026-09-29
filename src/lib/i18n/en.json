@@ -3345,7 +3345,10 @@
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "Allow for this turn",
+        "stop": "Deny and stop",
+        "cli": "From a terminal: omniget agent approve {{id}}"
       },
       "trigger": {
         "title": "Triggers",
@@ -6201,9 +6204,6 @@
       "tool_calls": "{{count}} tools",
       "permissions_title": "Waiting for your answer",
       "permission_label": "Wants to use {{action}}",
-      "answer_once": "Allow once",
-      "answer_always": "Always allow",
-      "answer_deny": "Deny",
       "expires_in": "Expires in {{seconds}} s",
       "request_title": "What you asked",
       "summary_title": "Answer",
@@ -6237,7 +6237,8 @@
         "approved": "allowed",
         "denied": "denied",
         "expired": "expired",
-        "cancelled": "cancelled"
+        "cancelled": "cancelled",
+        "stale": "left by a restart"
       },
       "unknown_hint": "OmniGet closed while this run was working, so its result is unknown. Nothing was sent again on its own: check the changes below and choose what to do.",
       "interrupted_hint": "OmniGet closed before this run reached the model. Nothing was done.",
@@ -6272,7 +6273,11 @@
       "routine_app_open": "runs only while OmniGet is open",
       "routine_mute": "Silence",
       "routine_unmute": "Unsilence",
-      "routine_muted": "silenced"
+      "routine_muted": "silenced",
+      "stale_title": "Questions a restart left unanswered",
+      "stale_hint": "The app closed while these waited. Nothing ran. Restart the turn to ask again.",
+      "dismiss": "Dismiss",
+      "answer_on_card": "Answer it on its card at the top of this page."
     },
     "conversation": {
       "status_working": "Working…",
@@ -7040,7 +7045,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "Read this computer's status, scans and plans (washmybelly)",
-    "system_change": "Prepare cleanup plans, hold power, game mode and FPS captures (washmybelly)"
+    "system_change": "Prepare cleanup plans, hold power, game mode and FPS captures (washmybelly)",
+    "approvals_respond": "Answer permission questions of owned missions",
+    "approvals_respond_help": "With this, the client can allow the tool calls of its own missions, shell commands included, as if you pressed Allow here. Give it only to a client you trust like yourself. It can never create an “always allow” rule, and an agent can never answer its own questions."
   },
   "mcp_auth": {
     "title": "An AI client asks you to sign in",

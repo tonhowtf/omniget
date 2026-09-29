@@ -59,7 +59,9 @@ use omniget_core::core::tools::ai_keys;
 
 pub const ERR_NO_AGENT: &str = "ERR_LLM_NO_AGENT";
 pub const ERR_NO_TURN: &str = "ERR_LLM_NO_TURN";
-pub const ERR_NO_ASK: &str = "ERR_LLM_NO_ASK";
+/// No question waits under this id (answered, expired, cancelled): the same
+/// code the approvals API returns (2.2).
+pub const ERR_NO_ASK: &str = "ERR_NO_ASK";
 pub const ERR_STORE: &str = "ERR_LLM_STORE";
 pub const ERR_NO_PROVIDER: &str = "ERR_LLM_NO_PROVIDER";
 
@@ -782,11 +784,7 @@ struct TurnHandle {
     agent_id: String,
 }
 
-/// Tool asks still waiting for an answer, so a window opened in the middle of
-/// a turn (the pet) can catch up. Cleared entry by entry on answer and
-/// wholesale whenever the broker says nothing is pending any more.
 static PRUNE_RECEIPTS: Mutex<Vec<serde_json::Value>> = Mutex::new(Vec::new());
-static PENDING_ASKS: Mutex<Vec<serde_json::Value>> = Mutex::new(Vec::new());
 
 /// The roster editor's skill checklist (`AgentDef::skills`) is a mirror of
 /// the bot's bindings in `assist.db`; saving the agent brings the bindings in
@@ -1553,23 +1551,9 @@ impl LlmManager {
             .ok_or_else(|| format!("{ERR_NO_TURN}: {request_id}"))?;
         handle.cancel.cancel();
         // Pending permission requests of this turn resolve as cancelled, not
-        // denied, and a late answer can no longer apply to them.
+        // denied, and a late answer can no longer apply to them (no ghost
+        // approval is left in the list: the table is the list).
         inner.broker.cancel_request(request_id);
-        // A question of a turn that no longer exists must not wait out its
-        // 120 s: it would sit in the jobs list as a ghost approval.
-        let orphans: Vec<String> = {
-            let mut asks = PENDING_ASKS.lock().unwrap_or_else(|e| e.into_inner());
-            let (gone, keep): (Vec<_>, Vec<_>) = asks
-                .drain(..)
-                .partition(|a| a["request_id"].as_str() == Some(request_id));
-            *asks = keep;
-            gone.iter()
-                .filter_map(|a| a["tool_call_id"].as_str().map(str::to_string))
-                .collect()
-        };
-        for id in orphans {
-            inner.broker.answer(&id, false);
-        }
         inner
             .telemetry
             .with(&handle.agent_id, &handle.agent_id, |t| {
@@ -1600,18 +1584,46 @@ impl LlmManager {
             .clone()
     }
 
+    /// Asks waiting for a person now, for the window (the pet, the jobs
+    /// page, missions): the pending rows of `runs_permissions` this boot
+    /// holds (2.2: the one table of asks), each still waited on by the
+    /// broker. `id` is the approval id the window answers with; it never
+    /// goes to the agent (`explain` drops it).
     pub fn pending_ask_list(&self) -> Vec<serde_json::Value> {
+        use omniget_core::core::assist::runs::{self, PermissionState};
         let broker = self.inner().broker.clone();
-        let mut asks = PENDING_ASKS.lock().unwrap_or_else(|e| e.into_inner());
-        // The broker is the truth: whatever it no longer waits on (answered,
-        // expired, cancelled) is gone, however it ended.
-        asks.retain(|a| {
-            a["tool_call_id"]
-                .as_str()
-                .map(|id| broker.has_pending_call(id))
-                .unwrap_or(false)
+        let Some(reg) = runs::active() else {
+            // No run record (no assistant database): what the broker holds.
+            return broker
+                .pending_calls()
+                .into_iter()
+                .map(|(request_id, tool_call_id, tool)| {
+                    serde_json::json!({
+                        "request_id": request_id, "tool_call_id": tool_call_id,
+                        "tool": tool, "preview": "", "agent": "",
+                    })
+                })
+                .collect();
+        };
+        let mut rows = reg.permissions_in(PermissionState::Pending, 200);
+        rows.retain(|p| {
+            p.instance_id == reg.instance() && broker.has_pending_call(&p.tool_call_id)
         });
-        asks.clone()
+        rows.sort_by_key(|p| p.created_ms);
+        rows.into_iter()
+            .map(|p| {
+                serde_json::json!({
+                    "id": p.id,
+                    "agent": p.agent_id,
+                    "request_id": p.run_id,
+                    "tool_call_id": p.tool_call_id,
+                    "tool": p.action,
+                    "preview": p.preview,
+                    "asked_ms": p.created_ms,
+                    "deadline_ms": (p.deadline_ms < i64::MAX / 2).then_some(p.deadline_ms),
+                })
+            })
+            .collect()
     }
 
     /// Whether a question of this turn waits for a person right now. The turn
@@ -1657,20 +1669,22 @@ impl LlmManager {
         allow: bool,
         always: bool,
     ) -> Result<(), String> {
-        use omniget_core::core::llm::broker::Answer;
-        if let Ok(mut asks) = PENDING_ASKS.lock() {
-            asks.retain(|a| a["tool_call_id"] != tool_call_id);
-        }
-        let answer = match (allow, always) {
-            (false, _) => Answer::Deny,
-            (true, true) => Answer::Always,
-            (true, false) => Answer::Once,
+        use omniget_core::core::llm::broker::Decision;
+        let decision = match (allow, always) {
+            (false, _) => Decision::Decline,
+            (true, true) => Decision::AcceptAlways,
+            (true, false) => Decision::Accept,
         };
-        if self.inner().broker.answer_with(tool_call_id, answer) {
-            Ok(())
-        } else {
-            Err(format!("{ERR_NO_ASK}: {tool_call_id}"))
-        }
+        // The same door as every other channel: the durable row records the
+        // answer, once (2.2).
+        self.inner()
+            .broker
+            .answer_call_by(
+                tool_call_id,
+                decision,
+                &omniget_core::core::assist::runs::Actor::window(),
+            )
+            .map_err(|_| format!("{ERR_NO_ASK}: {tool_call_id}"))
     }
 
     pub fn pending_asks(&self) -> usize {
@@ -1779,32 +1793,9 @@ impl LlmManager {
     pub fn note_bus(&self, event: &BusEvent) {
         let inner = self.inner();
         match event {
-            BusEvent::ToolAsk {
-                agent,
-                request_id,
-                tool_call_id,
-                tool,
-                preview,
-            } => {
-                if let Ok(mut asks) = PENDING_ASKS.lock() {
-                    asks.push(serde_json::json!({
-                        "agent": agent,
-                        "request_id": request_id,
-                        "tool_call_id": tool_call_id,
-                        "tool": tool,
-                        "preview": preview,
-                        "asked_ms": now_ms(),
-                    }));
-                }
-                inner.telemetry.with(agent, agent, |t| {
-                    t.state = AgentState::WaitingTool;
-                })
-            }
-            BusEvent::ToolAskResolved { tool_call_id, .. } => {
-                if let Ok(mut asks) = PENDING_ASKS.lock() {
-                    asks.retain(|a| a["tool_call_id"] != tool_call_id.as_str());
-                }
-            }
+            BusEvent::ToolAsk { agent, .. } => inner.telemetry.with(agent, agent, |t| {
+                t.state = AgentState::WaitingTool;
+            }),
             BusEvent::ToolCalled { agent, ok, .. } => inner.telemetry.with(agent, agent, |t| {
                 if !*ok {
                     t.errors += 1;

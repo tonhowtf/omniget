@@ -3345,7 +3345,10 @@
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "Permitir en este turno",
+        "stop": "Denegar y detener",
+        "cli": "Desde una terminal: omniget agent approve {{id}}"
       },
       "trigger": {
         "title": "Triggers",
@@ -6201,9 +6204,6 @@
       "tool_calls": "{{count}} herramientas",
       "permissions_title": "Esperando tu respuesta",
       "permission_label": "Quiere usar {{action}}",
-      "answer_once": "Permitir una vez",
-      "answer_always": "Permitir siempre",
-      "answer_deny": "Denegar",
       "expires_in": "Caduca en {{seconds}} s",
       "request_title": "Lo que pediste",
       "summary_title": "Respuesta",
@@ -6237,7 +6237,8 @@
         "approved": "permitido",
         "denied": "denegado",
         "expired": "caducado",
-        "cancelled": "cancelado"
+        "cancelled": "cancelado",
+        "stale": "dejada por un reinicio"
       },
       "unknown_hint": "OmniGet se cerró mientras esta ejecución trabajaba, así que su resultado es desconocido. No se volvió a enviar nada por sí solo: revisa los cambios de abajo y elige qué hacer.",
       "interrupted_hint": "OmniGet se cerró antes de que esta ejecución llegara al modelo. No se hizo nada.",
@@ -6272,7 +6273,11 @@
       "routine_app_open": "solo se ejecuta mientras OmniGet está abierto",
       "routine_mute": "Silenciar",
       "routine_unmute": "Quitar silencio",
-      "routine_muted": "silenciada"
+      "routine_muted": "silenciada",
+      "stale_title": "Preguntas que un reinicio dejó sin respuesta",
+      "stale_hint": "La app se cerró mientras esperaban. No se ejecutó nada. Reinicia el turno para volver a preguntar.",
+      "dismiss": "Descartar",
+      "answer_on_card": "Respóndela en su tarjeta, arriba en esta página."
     },
     "conversation": {
       "status_working": "Trabajando…",
@@ -7040,7 +7045,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "Leer el estado, los escaneos y los planes de este equipo (washmybelly)",
-    "system_change": "Preparar planes de limpieza, mantener energía, modo juego y capturas de FPS (washmybelly)"
+    "system_change": "Preparar planes de limpieza, mantener energía, modo juego y capturas de FPS (washmybelly)",
+    "approvals_respond": "Responder las preguntas de permiso de sus misiones",
+    "approvals_respond_help": "Con esto, el cliente puede permitir las llamadas a herramientas de sus propias misiones, incluidos comandos de shell, como si pulsaras Permitir aquí. Dáselo solo a un cliente en el que confíes como en ti. Nunca puede crear una regla “siempre permitir”, y un agente nunca responde sus propias preguntas."
   },
   "mcp_auth": {
     "title": "Un cliente de IA te pide iniciar sesión",

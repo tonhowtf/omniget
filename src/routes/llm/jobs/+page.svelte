@@ -1,6 +1,7 @@
 <script lang="ts">
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
   import RunsPanel from "$components/llm/activity/RunsPanel.svelte";
+  import AskCard from "$components/llm/activity/AskCard.svelte";
   import DiffView from "$components/llm/activity/DiffView.svelte";
   import { promptTitle } from "$components/llm/activity/run-status";
   /**
@@ -15,7 +16,6 @@
   import { getAgents, loadRoster } from "$lib/stores/llm-store.svelte";
   import { setLlmFocus } from "$lib/llm/ui-focus.svelte";
   import {
-    answerAsk,
     cancelJob,
     CATCH_UP_CAP,
     deleteJob,
@@ -377,21 +377,7 @@
             </button>
 
             {#if ask}
-              <div class="ask">
-                <div class="ask-title">{$t("llm.jobs.ask.title", { tool: ask.tool })}</div>
-                <pre class="pre">{ask.preview}</pre>
-                <div class="actions">
-                  <button type="button" class="button active" onclick={() => void answerAsk(ask, true, false)}>
-                    {$t("llm.jobs.ask.allow")}
-                  </button>
-                  <button type="button" class="button" onclick={() => void answerAsk(ask, true, true)}>
-                    {$t("llm.jobs.ask.always")}
-                  </button>
-                  <button type="button" class="button" onclick={() => void answerAsk(ask, false, false)}>
-                    {$t("llm.jobs.ask.deny")}
-                  </button>
-                </div>
-              </div>
+              <div class="ask-slot"><AskCard {ask} /></div>
             {/if}
 
             {#if openId === job.id}
@@ -953,7 +939,6 @@
     background: color-mix(in srgb, var(--red) 14%, transparent);
   }
 
-  .ask,
   .detail {
     display: flex;
     flex-direction: column;
@@ -961,15 +946,8 @@
     padding: var(--space-2) var(--space-3) var(--space-3);
   }
 
-  .ask {
+  .ask-slot {
     margin: 0 var(--space-3) var(--space-3);
-    border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--orange) 8%, transparent);
-  }
-
-  .ask-title {
-    font-size: var(--text-sm);
-    font-weight: 600;
   }
 
   .text {

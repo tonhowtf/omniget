@@ -306,6 +306,11 @@ struct Running {
 pub trait RemoteBackend: Send + Sync + 'static {
     async fn engine(&self) -> Result<Arc<ThreadsEngine>, String>;
     async fn diff(&self, thread_id: &str, turn: Option<u32>) -> Result<Value, String>;
+    /// The door of the durable asks (item 2.2): the jobs' questions, next
+    /// to the threads' own approvals. `None` = not offered by this backend.
+    fn approvals(&self) -> Option<crate::approvals::Approvals> {
+        None
+    }
 }
 
 pub struct AppBackend(pub AppHandle);
@@ -325,6 +330,10 @@ impl RemoteBackend for AppBackend {
         };
         let d = host.git.diff(thread_id, turn, &opts).await?;
         serde_json::to_value(d).map_err(|e| format!("REMOTE_JSON: {e}"))
+    }
+
+    fn approvals(&self) -> Option<crate::approvals::Approvals> {
+        crate::approvals::from_app(&self.0).ok()
     }
 }
 
@@ -1430,6 +1439,8 @@ fn http_router(ctx: Ctx) -> Router {
         .route("/remote/api/dispatch", post(api_dispatch))
         .route("/remote/api/sessions", get(api_sessions))
         .route("/remote/api/sessions/{tool}/{id}", get(api_session_get))
+        .route("/remote/api/approvals", get(api_approvals))
+        .route("/remote/api/approvals/{id}", post(api_approval_respond))
         .fallback(|| async { unauthorized() })
         .layer(middleware::from_fn_with_state(ctx.clone(), access_log))
         .with_state(ctx)
@@ -1711,6 +1722,71 @@ async fn api_dispatch(
         Err(e) => Err(e),
     };
     json_result(r, &d)
+}
+
+/// The jobs' pending questions (2.2), for any paired device.
+async fn api_approvals(
+    State(ctx): State<Ctx>,
+    ConnectInfo(peer): ConnectInfo<Peer>,
+    headers: HeaderMap,
+) -> Response {
+    let d = match authed(&ctx, &headers, &peer) {
+        Ok(d) => d,
+        Err(r) => return r,
+    };
+    let r = match ctx.backend.approvals() {
+        Some(a) => crate::approvals::list(&a, &crate::approvals::Filter::default()),
+        None => Ok(Vec::new()),
+    };
+    json_result(r, &d)
+}
+
+/// Answers a job's question from the phone: a `drive` device only, and
+/// never `accept_always` (a permanent rule stays a desktop decision, the
+/// same rule as the threads' `acceptAlways`). Recorded as `remote` by
+/// `device:<id>`.
+async fn api_approval_respond(
+    State(ctx): State<Ctx>,
+    ConnectInfo(peer): ConnectInfo<Peer>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(body): Json<Value>,
+) -> Response {
+    let d = match authed(&ctx, &headers, &peer) {
+        Ok(d) => d,
+        Err(r) => return r,
+    };
+    let decision = body["decision"].as_str().unwrap_or("");
+    if let Err(why) = approval_allowed(d.scope, decision) {
+        return tagged(fail(StatusCode::FORBIDDEN, "insufficient_scope", why), &d);
+    }
+    let Some(a) = ctx.backend.approvals() else {
+        return tagged(
+            fail(
+                StatusCode::SERVICE_UNAVAILABLE,
+                crate::approvals::ERR_NO_ASK,
+                "approvals are not available",
+            ),
+            &d,
+        );
+    };
+    let actor = omniget_core::core::assist::runs::Actor::new("remote", &format!("device:{}", d.id));
+    let resp = match crate::approvals::respond(&a, &id, decision, &actor) {
+        Ok(v) => Json(v).into_response(),
+        Err(r) => fail(r.status, r.code, r.message),
+    };
+    tagged(resp, &d)
+}
+
+/// What a device may answer on a job's question.
+pub fn approval_allowed(scope: Scope, decision: &str) -> Result<(), &'static str> {
+    if scope != Scope::Drive {
+        return Err("read-only device");
+    }
+    if decision == "accept_always" {
+        return Err("accept_always is only available on the desktop");
+    }
+    Ok(())
 }
 
 async fn api_sessions(
@@ -2079,6 +2155,15 @@ mod tests {
     fn tmp_hub() -> (Arc<RemoteHub>, PathBuf) {
         let dir = std::env::temp_dir().join(format!("omniget-remote-test-{}", random_hex(6)));
         (RemoteHub::new(Some(dir.clone())), dir)
+    }
+
+    #[test]
+    fn job_approval_scope_rules() {
+        assert!(approval_allowed(Scope::Read, "accept").is_err());
+        assert!(approval_allowed(Scope::Drive, "accept_always").is_err());
+        for d in ["accept", "accept_session", "decline", "cancel"] {
+            assert!(approval_allowed(Scope::Drive, d).is_ok());
+        }
     }
 
     #[test]

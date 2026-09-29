@@ -445,6 +445,15 @@ pub fn route_need(method: &Method, path: &str) -> Option<Need> {
             need(SCOPE_JOBS_OPERATE, None)
         }
         ["v1", "hooks", _] if post => need(SCOPE_JOBS_OPERATE, None),
+        // Item 2.2: reading the asks is a read of the jobs; answering one is
+        // shell power, so it has its own scope, which neither a job's own
+        // token nor the extension key ever has.
+        ["v1", "approvals"] if get => need(SCOPE_JOBS_READ, None),
+        ["v1", "approvals", _] if post => Some(Need {
+            scope: SCOPE_APPROVALS_RESPOND,
+            job: None,
+            legacy_ok: false,
+        }),
         // Creating an agent (with any account) was never something the
         // extension did: its bearer is refused here right away (S2).
         ["v1", "agents", "cli"] if post => Some(Need {
@@ -792,7 +801,7 @@ mod tests {
             let end = rest[q + 1..].find('"').unwrap();
             paths.push(rest[q + 1..q + 1 + end].to_string());
         }
-        assert_eq!(paths.len(), 15, "{paths:?}");
+        assert_eq!(paths.len(), 17, "{paths:?}");
         for p in &paths {
             let concrete = p.replace("{id}", "j1");
             let ok = route_need(&Method::GET, &concrete).is_some()
@@ -816,6 +825,11 @@ mod tests {
         let cli = p("/v1/agents/cli");
         assert_eq!(cli.scope, SCOPE_JOBS_OPERATE);
         assert!(!cli.legacy_ok);
+        assert_eq!(g("/v1/approvals").scope, SCOPE_JOBS_READ);
+        let answer = p("/v1/approvals/apr_1");
+        assert_eq!(answer.scope, SCOPE_APPROVALS_RESPOND);
+        assert!(!answer.legacy_ok);
+        assert!(route_need(&Method::POST, "/v1/approvals").is_none());
         assert!(route_need(&Method::POST, "/v1/jobs").is_none());
         assert!(route_need(&Method::GET, "/v1/nope").is_none());
     }

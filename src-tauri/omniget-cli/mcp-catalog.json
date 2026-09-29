@@ -5554,7 +5554,7 @@
         "openWorldHint": false,
         "readOnlyHint": true
       },
-      "description": "Pending permission questions of an owned mission's runs. Read-only: approvals are given by a person in the OmniGet window, never through this API.",
+      "description": "Pending permission questions of an owned mission's runs. Answering one needs approval_respond, a separate grant the person gives in OmniGet (off by default).",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -5635,6 +5635,91 @@
           },
           "remoteApproval": {
             "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Answer one pending permission question of an owned mission's run, as the person would in the OmniGet window: accept (this call), accept_session (this tool for the rest of the turn), decline, or cancel (decline and stop the turn). Exactly one answer applies; a second one is ERR_NO_ASK. accept_always stays a desktop decision. Needs the approvals_respond grant; an agent session can never answer.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "approvalId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "decision": {
+            "enum": [
+              "accept",
+              "accept_session",
+              "decline",
+              "cancel"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "approvalId",
+          "decision"
+        ],
+        "type": "object"
+      },
+      "name": "approval_respond",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "approvalId",
+              "state"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "approvalId": {
+            "type": "string"
+          },
+          "decision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "jobId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
           }
         },
         "type": "object"

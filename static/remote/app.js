@@ -25,6 +25,7 @@
         pairing: "Pareando…", pairFailed: "Não deu para parear: o código expirou ou já foi usado. Gere outro QR code.",
         offline: "Sem conexão: mostrando o último estado salvo.", noThreads: "Nenhuma thread ainda.",
         approvals: "Aprovações", approve: "Aprovar", approveSession: "Aprovar na sessão", decline: "Recusar",
+        jobApprovals: "Tarefas esperando você", stopTask: "Recusar e parar",
         answer: "Responder", older: "Carregar anteriores", diff: "Diff", diffAll: "Diff da thread inteira", noDiff: "Sem mudanças.",
         readOnly: "Somente leitura", drive: "Pode pilotar", unpair: "Desparear este aparelho",
         search: "Buscar", noSessions: "Nenhuma sessão.", pending: "pendente(s)", revoked: "Este aparelho foi revogado.",
@@ -39,6 +40,7 @@
         pairing: "Pairing…", pairFailed: "Pairing failed: the code expired or was already used. Make a new QR code.",
         offline: "Offline: showing the last saved state.", noThreads: "No threads yet.",
         approvals: "Approvals", approve: "Approve", approveSession: "Approve for session", decline: "Decline",
+        jobApprovals: "Tasks waiting for you", stopTask: "Decline and stop",
         answer: "Answer", older: "Load older", diff: "Diff", diffAll: "Whole thread diff", noDiff: "No changes.",
         readOnly: "Read only", drive: "Can drive", unpair: "Unpair this device",
         search: "Search", noSessions: "No sessions.", pending: "pending", revoked: "This device was revoked.",
@@ -59,6 +61,9 @@
     online: true,
     sessions: null,
     sessionQuery: "",
+    // The jobs' pending questions (/remote/api/approvals): they raise no
+    // thread event, so they are polled while the page is visible.
+    jobAsks: [],
   };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -151,7 +156,43 @@
 
   // ── data ──
   var snapTimer = null, threadTimer = null;
+  function loadApprovals() {
+    return api("approvals").then(function (list) {
+      var before = JSON.stringify(S.jobAsks);
+      S.jobAsks = Array.isArray(list) ? list : [];
+      if (JSON.stringify(S.jobAsks) !== before && S.route.name === "threads") render();
+    }, function () { /* offline: keep the last list */ });
+  }
+  setInterval(function () { if (S.token && !document.hidden) loadApprovals(); }, 5000);
+  function answerJob(id, decision) {
+    return api("approvals/" + encodeURIComponent(id), { body: { decision: decision } }).then(function () {
+      banner(T.sent); setTimeout(function () { banner(null); }, 1500);
+      return loadApprovals();
+    }, function (e) { banner(e.message, true); return loadApprovals(); });
+  }
+  function renderJobAsks(view) {
+    if (!S.jobAsks.length) return;
+    view.appendChild(h("div", { class: "group-label", text: T.jobApprovals }));
+    S.jobAsks.forEach(function (a) {
+      var card = h("div", { class: "card" }, [
+        h("h3", { text: T.approvals + ": " + (a.tool || "") }),
+        h("div", { class: "muted small", text: [a.agent, a.job_id].filter(Boolean).join(" · ") }),
+        a.preview ? h("pre", { class: "box", text: String(a.preview) }) : null,
+      ]);
+      if (canDrive()) {
+        card.appendChild(h("div", { class: "btns" }, [
+          h("button", { class: "btn primary", text: T.approve, onclick: function () { answerJob(a.id, "accept"); } }),
+          h("button", { class: "btn", text: T.approveSession, onclick: function () { answerJob(a.id, "accept_session"); } }),
+          h("button", { class: "btn danger", text: T.decline, onclick: function () { answerJob(a.id, "decline"); } }),
+          h("button", { class: "btn ghost", text: T.stopTask, onclick: function () { answerJob(a.id, "cancel"); } }),
+        ]));
+      } else card.appendChild(h("div", { class: "muted small", text: T.readOnly }));
+      view.appendChild(card);
+    });
+  }
+
   function loadSnapshot() {
+    loadApprovals();
     return api("snapshot").then(function (snap) {
       S.snapshot = snap;
       lsSet(LS_SNAPSHOT, JSON.stringify(snap));
@@ -295,8 +336,9 @@
   function renderThreads(view) {
     $("title").textContent = "OmniGet";
     var snap = S.snapshot;
-    var pend = snap ? (snap.pendingApprovals || []).length + (snap.pendingUserInputs || []).length : 0;
+    var pend = (snap ? (snap.pendingApprovals || []).length + (snap.pendingUserInputs || []).length : 0) + S.jobAsks.length;
     $("subtitle").textContent = pend ? pend + " " + T.pending : (S.device ? S.device.name : "");
+    renderJobAsks(view);
     if (!snap) { view.appendChild(h("div", { class: "empty", text: "…" })); return; }
     var threads = (snap.threads || []).filter(function (t) { return !t.archivedAt; });
     if (!threads.length) { view.appendChild(h("div", { class: "empty", text: T.noThreads })); return; }

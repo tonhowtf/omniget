@@ -3345,7 +3345,10 @@
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "Consenti per questo turno",
+        "stop": "Nega e ferma",
+        "cli": "Da un terminale: omniget agent approve {{id}}"
       },
       "trigger": {
         "title": "Triggers",
@@ -6201,9 +6204,6 @@
       "tool_calls": "{{count}} strumenti",
       "permissions_title": "In attesa della tua risposta",
       "permission_label": "Vuole usare {{action}}",
-      "answer_once": "Consenti una volta",
-      "answer_always": "Consenti sempre",
-      "answer_deny": "Nega",
       "expires_in": "Scade tra {{seconds}} s",
       "request_title": "Cosa hai chiesto",
       "summary_title": "Risposta",
@@ -6237,7 +6237,8 @@
         "approved": "consentito",
         "denied": "negato",
         "expired": "scaduto",
-        "cancelled": "annullato"
+        "cancelled": "annullato",
+        "stale": "lasciata da un riavvio"
       },
       "unknown_hint": "OmniGet si è chiuso mentre questa esecuzione era in corso, quindi il risultato è sconosciuto. Nulla è stato reinviato da solo: controlla le modifiche qui sotto e scegli cosa fare.",
       "interrupted_hint": "OmniGet si è chiuso prima che questa esecuzione raggiungesse il modello. Non è stato fatto nulla.",
@@ -6272,7 +6273,11 @@
       "routine_app_open": "gira solo mentre OmniGet è aperto",
       "routine_mute": "Silenzia",
       "routine_unmute": "Riattiva",
-      "routine_muted": "silenziata"
+      "routine_muted": "silenziata",
+      "stale_title": "Domande lasciate senza risposta da un riavvio",
+      "stale_hint": "L’app si è chiusa mentre aspettavano. Non è stato eseguito nulla. Riavvia il turno per chiedere di nuovo.",
+      "dismiss": "Ignora",
+      "answer_on_card": "Rispondi sulla sua scheda, in cima a questa pagina."
     },
     "conversation": {
       "status_working": "In corso…",
@@ -7040,7 +7045,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "Legge lo stato di questo computer, le scansioni e i piani (washmybelly)",
-    "system_change": "Prepara piani di pulizia, gestisce l'alimentazione, la modalità gioco e le rilevazioni FPS (washmybelly)"
+    "system_change": "Prepara piani di pulizia, gestisce l'alimentazione, la modalità gioco e le rilevazioni FPS (washmybelly)",
+    "approvals_respond": "Rispondere alle richieste di permesso delle sue missioni",
+    "approvals_respond_help": "Con questo, il client può consentire le chiamate agli strumenti delle proprie missioni, comandi shell inclusi, come se premessi Consenti qui. Concedilo solo a un client di cui ti fidi come di te stesso. Non può mai creare una regola “consenti sempre”, e un agente non risponde mai alle proprie domande."
   },
   "mcp_auth": {
     "title": "Un client IA ti chiede di accedere",

@@ -3345,7 +3345,10 @@
         "title": "Quer usar {{tool}}",
         "allow": "Permitir",
         "always": "Permitir sempre",
-        "deny": "Negar"
+        "deny": "Negar",
+        "session": "Permitir neste turno",
+        "stop": "Negar e parar",
+        "cli": "Pelo terminal: omniget agent approve {{id}}"
       },
       "trigger": {
         "title": "Gatilhos",
@@ -6201,9 +6204,6 @@
       "tool_calls": "{{count}} ferramentas",
       "permissions_title": "Aguardando sua resposta",
       "permission_label": "Quer usar {{action}}",
-      "answer_once": "Permitir uma vez",
-      "answer_always": "Sempre permitir",
-      "answer_deny": "Negar",
       "expires_in": "Expira em {{seconds}} s",
       "request_title": "O que você pediu",
       "summary_title": "Resposta",
@@ -6237,7 +6237,8 @@
         "approved": "permitida",
         "denied": "negada",
         "expired": "expirada",
-        "cancelled": "cancelada"
+        "cancelled": "cancelada",
+        "stale": "deixada por um reinício"
       },
       "unknown_hint": "O OmniGet fechou enquanto esta execução trabalhava, então o resultado é desconhecido. Nada foi reenviado sozinho: confira as mudanças abaixo e escolha o que fazer.",
       "interrupted_hint": "O OmniGet fechou antes de esta execução chegar ao modelo. Nada foi feito.",
@@ -6272,7 +6273,11 @@
       "routine_app_open": "só roda com o OmniGet aberto",
       "routine_mute": "Silenciar",
       "routine_unmute": "Reativar avisos",
-      "routine_muted": "silenciada"
+      "routine_muted": "silenciada",
+      "stale_title": "Perguntas que um reinício deixou sem resposta",
+      "stale_hint": "O app fechou enquanto elas esperavam. Nada rodou. Reinicie o turno para perguntar de novo.",
+      "dismiss": "Descartar",
+      "answer_on_card": "Responda no cartão dela, no topo desta página."
     },
     "conversation": {
       "status_working": "Trabalhando…",
@@ -7040,7 +7045,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "Ler o status, as varreduras e os planos deste computador (washmybelly)",
-    "system_change": "Preparar planos de limpeza, manter o desempenho, modo jogo e capturas de FPS (washmybelly)"
+    "system_change": "Preparar planos de limpeza, manter o desempenho, modo jogo e capturas de FPS (washmybelly)",
+    "approvals_respond": "Responder às perguntas de permissão das missões dele",
+    "approvals_respond_help": "Com isso, o cliente pode permitir as chamadas de ferramenta das próprias missões, inclusive comandos de shell, como se você apertasse Permitir aqui. Dê só a um cliente em que você confia como em si mesmo. Ele nunca cria uma regra “sempre permitir”, e um agente nunca responde às próprias perguntas."
   },
   "mcp_auth": {
     "title": "Um cliente de IA pede que você entre na conta",

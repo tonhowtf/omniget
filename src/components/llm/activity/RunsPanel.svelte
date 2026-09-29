@@ -9,14 +9,17 @@
   import { t } from "$lib/i18n";
   import { getAgents, loadRoster } from "$lib/stores/llm-store.svelte";
   import {
-    answerPermission,
     duration,
-    getPermissions,
+    getAsks,
+    getJobs,
     getRuns,
+    getStaleAsks,
     initJobsStore,
+    respondApproval,
     shortTime,
     type RunView,
   } from "$lib/stores/llm-jobs-store.svelte";
+  import AskCard from "./AskCard.svelte";
   import RunDetail from "./RunDetail.svelte";
   import { matchesFilter, promptTitle, runStatus, statusTone, type RunFilter } from "./run-status";
 
@@ -24,7 +27,17 @@
 
   let agents = $derived(getAgents());
   let all = $derived(getRuns().filter((r) => !conversationId || r.conversation_id === conversationId));
-  let pending = $derived(getPermissions().filter((p) => all.some((r) => r.id === p.run_id)));
+  // One card per question (A6): a question of a task shows on its row in the
+  // task list; here only the ones no task row carries (Help, an MCP owner
+  // ask) — from the same list, answered through the same door.
+  let pending = $derived(
+    getAsks().filter(
+      (a) => !getJobs().some((j) => j.request_id === a.request_id && j.state === "waiting_approval"),
+    ),
+  );
+  // Questions a restart left behind: nothing ran, the turn has to be started
+  // again. Shown until dismissed, never dropped silently (2.2).
+  let stale = $derived(getStaleAsks());
   let filter = $state<RunFilter>("all");
   const filters: RunFilter[] = ["all", "active", "attention", "done"];
   let visible = $derived(all.filter((r) => matchesFilter(r, filter)));
@@ -51,22 +64,25 @@
   {#if pending.length > 0}
     <div class="asks" role="region" aria-label={$t("assist.runs.permissions_title")}>
       <div class="field-label">{$t("assist.runs.permissions_title")}</div>
-      {#each pending as p (p.id)}
-        {@const run = all.find((r) => r.id === p.run_id)}
-        <div class="ask">
+      {#each pending as a (a.id ?? a.tool_call_id)}
+        <AskCard ask={a} agentName={agentName(a.agent)} />
+      {/each}
+    </div>
+  {/if}
+
+  {#if stale.length > 0}
+    <div class="asks" role="region" aria-label={$t("assist.runs.stale_title")}>
+      <div class="field-label">{$t("assist.runs.stale_title")}</div>
+      <p class="hint">{$t("assist.runs.stale_hint")}</p>
+      {#each stale as a (a.id)}
+        <div class="ask stale">
           <div class="ask-title">
-            {run ? agentName(run.bot_id) : ""} · {$t("assist.runs.permission_label", { action: p.action })}
+            {agentName(a.agent)} · {$t("assist.runs.permission_label", { action: a.tool })}
           </div>
-          <pre class="pre">{p.preview}</pre>
+          {#if a.preview}<pre class="pre">{a.preview}</pre>{/if}
           <div class="actions">
-            <button type="button" class="button active" onclick={() => void answerPermission(p.id, "once")}>
-              {$t("assist.runs.answer_once")}
-            </button>
-            <button type="button" class="button" onclick={() => void answerPermission(p.id, "always")}>
-              {$t("assist.runs.answer_always")}
-            </button>
-            <button type="button" class="button" onclick={() => void answerPermission(p.id, "deny")}>
-              {$t("assist.runs.answer_deny")}
+            <button type="button" class="button" onclick={() => void respondApproval(a.id, "cancel")}>
+              {$t("assist.runs.dismiss")}
             </button>
           </div>
         </div>
@@ -158,6 +174,10 @@
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-sm);
     background: color-mix(in srgb, var(--orange) 8%, transparent);
+  }
+
+  .ask.stale {
+    background: var(--fill-1);
   }
 
   .ask-title {

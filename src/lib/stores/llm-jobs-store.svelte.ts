@@ -213,12 +213,41 @@ export function queueLines(entry: QueuedEntry, state: QueueState): { position: I
   };
 }
 
+/**
+ * A question waiting for a person: a pending row of `runs_permissions`, the
+ * one table of asks (2.2). `id` is the approval id every channel answers
+ * with (window, `omniget agent approve`, MCP, a paired phone).
+ */
 export type PendingAsk = {
+  id?: string;
   agent: string;
   request_id: string;
   tool_call_id: string;
   tool: string;
   preview: string;
+  asked_ms?: number;
+  deadline_ms?: number | null;
+};
+
+/** `accept | accept_session | accept_always | decline | cancel` (2.2). */
+export type ApprovalDecision = "accept" | "accept_session" | "accept_always" | "decline" | "cancel";
+
+/** An approval as `llm_approvals_list` returns it (the bridge's view). */
+export type Approval = {
+  id: string;
+  state: "pending" | "resolved" | "cancelled" | "stale" | "expired";
+  decision: ApprovalDecision | null;
+  job_id: string | null;
+  run_id: string;
+  agent: string;
+  tool: string;
+  preview: string;
+  asked_ms: number;
+  deadline_ms: number | null;
+  resolved_ms: number | null;
+  channel: string | null;
+  decided_by: string | null;
+  note: string | null;
 };
 
 export type LoopInput = {
@@ -329,7 +358,7 @@ export type PermissionRequest = {
   preview: string;
   options: string[];
   deadline_ms: number;
-  state: "pending" | "approved" | "denied" | "expired" | "cancelled";
+  state: "pending" | "approved" | "denied" | "expired" | "cancelled" | "stale";
   answer: string | null;
   version: number;
   created_ms: number;
@@ -427,7 +456,8 @@ export type RunUpdate = {
 };
 
 let runs = $state<RunView[]>([]);
-let permissions = $state<PermissionRequest[]>([]);
+/** Asks a restart left behind (`stale`): shown until dismissed (2.2). */
+let staleAsks = $state<Approval[]>([]);
 /** Bumped on every `assist://run`, so an open detail can refresh. */
 let runTick = $state(0);
 let runsReload: ReturnType<typeof setTimeout> | null = null;
@@ -435,8 +465,8 @@ let runsReload: ReturnType<typeof setTimeout> | null = null;
 export function getRuns(): RunView[] {
   return runs;
 }
-export function getPermissions(): PermissionRequest[] {
-  return permissions;
+export function getStaleAsks(): Approval[] {
+  return staleAsks;
 }
 export function getRunTick(): number {
   return runTick;
@@ -444,12 +474,12 @@ export function getRunTick(): number {
 
 export async function reloadRuns(): Promise<void> {
   try {
-    const [list, pending] = await Promise.all([
+    const [list, stale] = await Promise.all([
       invoke<RunView[]>("assist_runs_list", { limit: 150 }),
-      invoke<PermissionRequest[]>("assist_permissions_pending"),
+      invoke<Approval[]>("llm_approvals_list", { state: "stale" }).catch(() => [] as Approval[]),
     ]);
     runs = list;
-    permissions = pending;
+    staleAsks = stale;
   } catch {
     // The run record may be unavailable (no assistant database): the rest
     // of the page still works.
@@ -482,16 +512,22 @@ export async function fetchRunDiff(id: string): Promise<RunDiff | null> {
   }
 }
 
-/** `answer`: once | always | deny. A late answer is refused (expired). */
-export async function answerPermission(id: string, answer: "once" | "always" | "deny"): Promise<boolean> {
+/**
+ * Answers an approval by its id: the same door as the bridge, the CLI and
+ * MCP. A second answer is refused (`ERR_NO_ASK`); `cancel` on a stale one
+ * dismisses it.
+ */
+export async function respondApproval(id: string, decision: ApprovalDecision): Promise<boolean> {
   try {
-    await invoke("assist_permission_answer", { permissionId: id, answer });
-    permissions = permissions.filter((p) => p.id !== id);
+    await invoke("llm_approval_respond", { id, decision });
+    asks = asks.filter((a) => a.id !== id);
+    staleAsks = staleAsks.filter((a) => a.id !== id);
     scheduleRunsReload();
     return true;
   } catch (e) {
     fail(e);
     scheduleRunsReload();
+    void pollAsks();
     return false;
   }
 }
@@ -836,7 +872,12 @@ export async function markJobSeen(id: string): Promise<void> {
   }
 }
 
+/** One card, one answer: by approval id when the row has one (2.2). */
 export async function answerAsk(ask: PendingAsk, allow: boolean, always: boolean): Promise<void> {
+  if (ask.id) {
+    await respondApproval(ask.id, !allow ? "decline" : always ? "accept_always" : "accept");
+    return;
+  }
   try {
     await invoke("llm_tool_answer", {
       requestId: ask.request_id,

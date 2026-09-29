@@ -91,6 +91,22 @@ describe("asks follow events, not a timer (A5)", () => {
   });
 });
 
+describe("one door for every answer (2.2)", () => {
+  it("answers a durable ask by its approval id, and a stale one is dismissed", async () => {
+    invoke.mockReset();
+    invoke.mockImplementation(async () => ({}) as unknown);
+    await store.answerAsk({ id: "apr_1", agent: "a", request_id: "r1", tool_call_id: "c1", tool: "Bash", preview: "ls" }, true, false);
+    expect(invoke).toHaveBeenCalledWith("llm_approval_respond", { id: "apr_1", decision: "accept" });
+    await store.answerAsk({ id: "apr_2", agent: "a", request_id: "r1", tool_call_id: "c2", tool: "Bash", preview: "ls" }, false, false);
+    expect(invoke).toHaveBeenCalledWith("llm_approval_respond", { id: "apr_2", decision: "decline" });
+    await store.respondApproval("apr_3", "cancel");
+    expect(invoke).toHaveBeenCalledWith("llm_approval_respond", { id: "apr_3", decision: "cancel" });
+    // A row without an id (no run record) still answers by its tool call.
+    await store.answerAsk({ agent: "a", request_id: "r1", tool_call_id: "c4", tool: "Bash", preview: "" }, true, true);
+    expect(invoke).toHaveBeenCalledWith("llm_tool_answer", { requestId: "r1", toolCallId: "c4", allow: true, always: true });
+  });
+});
+
 describe("the queue is explained (1.6)", () => {
   const state = {
     running: [{ id: "j1", agent_id: "a", kind: "run", state: "running", workspace: "/w/repo" }],

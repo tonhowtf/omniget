@@ -1,6 +1,7 @@
 //! Commands for `assist::runs`: the Activity screen (runs, their state, the
 //! tools they really ran, the diff they left, pending permissions) and the
-//! actions a person takes on an interrupted run. Owner: worker W4.
+//! actions a person takes on an interrupted run. Owner: worker W4. Answering
+//! a permission goes through `crate::approvals` (the one door, item 2.2).
 //!
 //! Also [`install`], called once at boot (from `jobs::boot`): it turns the
 //! durable registry on, sends `assist://run` to the window after every
@@ -14,7 +15,6 @@ use tauri::{AppHandle, Emitter, State};
 use omniget_core::core::assist::runs::{
     self, PermissionRequest, Registry, RunEvent, RunRecord, RunResolution, RunState,
 };
-use omniget_core::core::llm::broker::{Answer, AnswerRefused};
 
 use crate::AppState;
 
@@ -226,63 +226,6 @@ pub async fn assist_run_diff(run_id: String) -> Result<Value, String> {
         Ok(Some(diff)) => Ok(json!({ "available": true, "workspace": ws, "diff": diff })),
         Ok(None) => Ok(json!({ "available": false, "reason": "no_changes", "workspace": ws })),
         Err(e) => Ok(json!({ "available": false, "reason": "error", "error": e })),
-    }
-}
-
-#[tauri::command]
-pub async fn assist_permissions_pending() -> Result<Vec<PermissionRequest>, String> {
-    let reg = registry()?;
-    let now = omniget_core::core::assist::now_ms();
-    // A request past its deadline was already denied by the broker: mark it
-    // expired instead of offering buttons that can only fail.
-    let mut out = Vec::new();
-    for p in reg.permissions(None, true) {
-        if p.deadline_ms <= now {
-            let _ = reg.expire_permission(&p.id);
-        } else {
-            out.push(p);
-        }
-    }
-    Ok(out)
-}
-
-/// Answers one durable permission request. `answer` ∈ `once|always|deny`.
-/// A late answer is refused as expired and releases nothing.
-#[tauri::command]
-pub async fn assist_permission_answer(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    permission_id: String,
-    answer: String,
-) -> Result<Value, String> {
-    let a = match answer.as_str() {
-        "once" => Answer::Once,
-        "always" => Answer::Always,
-        "deny" => Answer::Deny,
-        other => return Err(format!("{ERR_ASSIST_RUNS}: unknown answer `{other}`")),
-    };
-    let perm = registry()?.permission(&permission_id);
-    match state.llm.broker().answer_permission(&permission_id, a) {
-        Ok(()) => {
-            if let Some(p) = perm {
-                let _ = app.emit(
-                    "omni://tool-resolved",
-                    json!({ "request_id": p.run_id, "tool_call_id": p.tool_call_id, "allow": !matches!(a, Answer::Deny) }),
-                );
-            }
-            Ok(json!({ "ok": true }))
-        }
-        Err(AnswerRefused::Expired) => Err(format!(
-            "{}: this request expired before the answer",
-            runs::ERR_PERMISSION_EXPIRED
-        )),
-        Err(AnswerRefused::Resolved) => Err(format!(
-            "{}: this request was already answered or cancelled",
-            runs::ERR_PERMISSION_RESOLVED
-        )),
-        Err(AnswerRefused::Unknown) => Err(format!(
-            "{ERR_ASSIST_RUNS}: nothing is waiting for this answer"
-        )),
     }
 }
 

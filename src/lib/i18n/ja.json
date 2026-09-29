@@ -3345,7 +3345,10 @@
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "このターンは許可",
+        "stop": "拒否して停止",
+        "cli": "ターミナルから: omniget agent approve {{id}}"
       },
       "trigger": {
         "title": "Triggers",
@@ -6201,9 +6204,6 @@
       "tool_calls": "ツール {{count}} 件",
       "permissions_title": "あなたの応答待ち",
       "permission_label": "{{action}} を使用しようとしています",
-      "answer_once": "今回のみ許可",
-      "answer_always": "常に許可",
-      "answer_deny": "拒否",
       "expires_in": "{{seconds}} 秒後に期限切れ",
       "request_title": "依頼内容",
       "summary_title": "回答",
@@ -6237,7 +6237,8 @@
         "approved": "許可",
         "denied": "拒否",
         "expired": "期限切れ",
-        "cancelled": "キャンセル"
+        "cancelled": "キャンセル",
+        "stale": "再起動で残ったもの"
       },
       "unknown_hint": "この実行の作業中に OmniGet が終了したため、結果は不明です。自動で再送信はしていません。下の変更を確認し、どうするか選んでください。",
       "interrupted_hint": "この実行がモデルに届く前に OmniGet が終了しました。何も行われていません。",
@@ -6272,7 +6273,11 @@
       "routine_app_open": "OmniGet の起動中のみ実行",
       "routine_mute": "通知をミュート",
       "routine_unmute": "ミュートを解除",
-      "routine_muted": "ミュート中"
+      "routine_muted": "ミュート中",
+      "stale_title": "再起動で未回答のまま残った質問",
+      "stale_hint": "待っている間にアプリが閉じました。何も実行されていません。もう一度尋ねるにはターンをやり直してください。",
+      "dismiss": "閉じる",
+      "answer_on_card": "このページ上部のカードで回答してください。"
     },
     "conversation": {
       "status_working": "作業中…",
@@ -7040,7 +7045,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "このコンピューターの状態、スキャン結果、計画を読み取る（washmybelly）",
-    "system_change": "クリーンアップ計画の作成、電源保持、ゲームモード、FPS計測を実行する（washmybelly）"
+    "system_change": "クリーンアップ計画の作成、電源保持、ゲームモード、FPS計測を実行する（washmybelly）",
+    "approvals_respond": "自分のミッションの許可の質問に回答する",
+    "approvals_respond_help": "これを許可すると、クライアントは自分のミッションのツール呼び出し（シェルコマンドを含む）を、ここで「許可」を押したのと同じように許可できます。自分と同じくらい信頼できるクライアントにだけ与えてください。「常に許可」のルールは作れず、エージェントが自分の質問に答えることもできません。"
   },
   "mcp_auth": {
     "title": "AI クライアントがサインインを求めています",

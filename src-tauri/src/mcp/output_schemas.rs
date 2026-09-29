@@ -509,6 +509,10 @@ fn own(name: &str) -> Option<Value> {
             }),
             &["missionId", "pending"],
         ),
+        "approval_respond" => obj(
+            json!({"approvalId": ty("string"), "state": ty("string"), "decision": nullable("string"), "jobId": nullable("string")}),
+            &["approvalId", "state"],
+        ),
         "agents_prepare" => derived_bot(),
         "agents_derived_list" => obj(json!({"items": arr(derived_bot())}), &["items"]),
         "groups_prepare" => room(),
@@ -856,6 +860,10 @@ mod tests {
         check(
             "approvals_list",
             &json!({"missionId":"m","pending":[{"requestId":"r","runId":"u","action":"a","scope":"s","preview":"p","deadlineMs":null}],"remoteApproval":false,"approveIn":"OmniGet window"}),
+        );
+        check(
+            "approval_respond",
+            &json!({"approvalId":"apr_0","state":"resolved","decision":"accept","jobId":"j1"}),
         );
         // `orchestration::job_diff_reply` literals: available with a patch,
         // and unavailable (no patch key).

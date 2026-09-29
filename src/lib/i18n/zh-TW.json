@@ -3345,7 +3345,10 @@
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "本輪允許",
+        "stop": "拒絕並停止",
+        "cli": "在終端機中：omniget agent approve {{id}}"
       },
       "trigger": {
         "title": "Triggers",
@@ -6201,9 +6204,6 @@
       "tool_calls": "{{count}} 個工具",
       "permissions_title": "等待你的回覆",
       "permission_label": "想要使用 {{action}}",
-      "answer_once": "允許一次",
-      "answer_always": "一律允許",
-      "answer_deny": "拒絕",
       "expires_in": "{{seconds}} 秒後過期",
       "request_title": "你的要求",
       "summary_title": "回答",
@@ -6237,7 +6237,8 @@
         "approved": "已允許",
         "denied": "已拒絕",
         "expired": "已過期",
-        "cancelled": "已取消"
+        "cancelled": "已取消",
+        "stale": "重新啟動遺留"
       },
       "unknown_hint": "OmniGet 在這次執行進行中關閉，因此結果不明。系統沒有自動重新傳送任何內容：請檢查下方的變更，再決定要怎麼做。",
       "interrupted_hint": "OmniGet 在這次執行送達模型前就關閉了。沒有做任何事。",
@@ -6272,7 +6273,11 @@
       "routine_app_open": "僅在 OmniGet 開啟時執行",
       "routine_mute": "靜音",
       "routine_unmute": "取消靜音",
-      "routine_muted": "已靜音"
+      "routine_muted": "已靜音",
+      "stale_title": "重新啟動後未回答的問題",
+      "stale_hint": "這些問題等待時應用程式關閉了。沒有執行任何動作。請重新開始這一輪以再次詢問。",
+      "dismiss": "忽略",
+      "answer_on_card": "請在本頁頂端它的卡片上回答。"
     },
     "conversation": {
       "status_working": "處理中…",
@@ -7040,7 +7045,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "讀取這台電腦的狀態、掃描與計畫（washmybelly）",
-    "system_change": "準備清理計畫、維持效能電源、遊戲模式與 FPS 擷取（washmybelly）"
+    "system_change": "準備清理計畫、維持效能電源、遊戲模式與 FPS 擷取（washmybelly）",
+    "approvals_respond": "回答自己任務的權限請求",
+    "approvals_respond_help": "授予後，用戶端可以核准其自身任務的工具呼叫（包括 shell 指令），就像你在這裡按了「允許」。只授予你像信任自己一樣信任的用戶端。它永遠不能建立「永遠允許」規則，代理也永遠不能回答自己的問題。"
   },
   "mcp_auth": {
     "title": "AI 用戶端請求你登入",

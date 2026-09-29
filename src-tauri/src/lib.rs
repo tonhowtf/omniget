@@ -14,6 +14,7 @@ pub struct P2pSendHandle {
 pub type ActiveP2pSends = Arc<tokio::sync::Mutex<HashMap<String, P2pSendHandle>>>;
 
 pub mod agentkit_boot;
+pub mod approvals;
 pub mod bridge_tokens;
 pub mod commands;
 pub mod cookies;
@@ -1350,6 +1351,8 @@ pub fn run() {
             commands::llm::chat::llm_turn_cancel,
             commands::llm::chat::llm_tool_answer,
             commands::llm::chat::llm_tool_asks_pending,
+            approvals::llm_approvals_list,
+            approvals::llm_approval_respond,
             commands::llm::chat::llm_workspace_set,
             commands::llm::chat::llm_workspace_get,
             commands::llm::chat::llm_turn_undo,
@@ -1513,8 +1516,6 @@ pub fn run() {
             commands::assist::runs::assist_runs_list,
             commands::assist::runs::assist_run_get,
             commands::assist::runs::assist_run_diff,
-            commands::assist::runs::assist_permissions_pending,
-            commands::assist::runs::assist_permission_answer,
             commands::assist::runs::assist_run_cancel,
             commands::assist::runs::assist_run_resolve,
             commands::llm::jobs::llm_job_resume,

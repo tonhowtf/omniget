@@ -3345,7 +3345,10 @@
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "Autoriser pour ce tour",
+        "stop": "Refuser et arrêter",
+        "cli": "Depuis un terminal : omniget agent approve {{id}}"
       },
       "trigger": {
         "title": "Triggers",
@@ -6201,9 +6204,6 @@
       "tool_calls": "{{count}} outils",
       "permissions_title": "En attente de votre réponse",
       "permission_label": "Veut utiliser {{action}}",
-      "answer_once": "Autoriser une fois",
-      "answer_always": "Toujours autoriser",
-      "answer_deny": "Refuser",
       "expires_in": "Expire dans {{seconds}} s",
       "request_title": "Votre demande",
       "summary_title": "Réponse",
@@ -6237,7 +6237,8 @@
         "approved": "autorisée",
         "denied": "refusée",
         "expired": "expirée",
-        "cancelled": "annulée"
+        "cancelled": "annulée",
+        "stale": "laissée par un redémarrage"
       },
       "unknown_hint": "OmniGet s'est fermé pendant cette exécution, son résultat est donc inconnu. Rien n'a été relancé automatiquement : vérifiez les modifications ci-dessous et choisissez quoi faire.",
       "interrupted_hint": "OmniGet s'est fermé avant que cette exécution n'atteigne le modèle. Rien n'a été fait.",
@@ -6272,7 +6273,11 @@
       "routine_app_open": "s'exécute uniquement quand OmniGet est ouvert",
       "routine_mute": "Mettre en sourdine",
       "routine_unmute": "Réactiver le son",
-      "routine_muted": "en sourdine"
+      "routine_muted": "en sourdine",
+      "stale_title": "Questions laissées sans réponse par un redémarrage",
+      "stale_hint": "L’app s’est fermée pendant qu’elles attendaient. Rien ne s’est exécuté. Relancez le tour pour redemander.",
+      "dismiss": "Ignorer",
+      "answer_on_card": "Répondez sur sa carte, en haut de cette page."
     },
     "conversation": {
       "status_working": "En cours…",
@@ -7040,7 +7045,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "Lire l'état de cet ordinateur, les analyses et les plans (washmybelly)",
-    "system_change": "Préparer des plans de nettoyage, maintenir l'alimentation, le mode jeu et les captures FPS (washmybelly)"
+    "system_change": "Préparer des plans de nettoyage, maintenir l'alimentation, le mode jeu et les captures FPS (washmybelly)",
+    "approvals_respond": "Répondre aux demandes d’autorisation de ses missions",
+    "approvals_respond_help": "Avec ceci, le client peut autoriser les appels d’outils de ses propres missions, y compris des commandes shell, comme si vous appuyiez sur Autoriser ici. Ne l’accordez qu’à un client en qui vous avez autant confiance qu’en vous. Il ne peut jamais créer de règle « toujours autoriser », et un agent ne répond jamais à ses propres questions."
   },
   "mcp_auth": {
     "title": "Un client IA vous demande de vous connecter",
