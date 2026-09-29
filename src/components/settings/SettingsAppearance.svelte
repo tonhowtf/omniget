@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import RichPresencePanel from "./RichPresencePanel.svelte";
@@ -6,7 +7,7 @@
   import SettingsDrillItem from "./SettingsDrillItem.svelte";
   import {
     getSettings,
-    updateSettings,
+    saveSettings as updateSettings,
     changeTheme,
     changeLanguage,
     CORE_THEMES,
@@ -14,27 +15,24 @@
     MORE_THEME_IDS,
   } from "./settings-helpers";
 
-  let { searchActive = false }: { searchActive?: boolean } = $props();
+  let { searchActive = false, section = "" }: { searchActive?: boolean; section?: string } = $props();
 
   let settings = $derived(getSettings());
   let selectedInMore = $derived(MORE_THEME_IDS.has(settings?.appearance?.theme ?? ""));
   let moreThemesOpen = $state(false);
-  let rpcDrillOpen = $state(false);
+  let rpcDrillOpen = $derived(section === "rpc");
 
   $effect(() => {
     if (selectedInMore) moreThemesOpen = true;
   });
 
-  $effect(() => {
-    if (searchActive) rpcDrillOpen = false;
-  });
 </script>
 
 {#if settings}
   <section class="section">
     <h5 class="section-title">{$t('settings.general.title')}</h5>
     <div class="card">
-      <div class="setting-row">
+      <div class="setting-row" data-setting-key="settings.general.start_with_system">
         <div class="setting-col">
           <span class="setting-label">{$t('settings.general.start_with_system')}</span>
           <span class="setting-path">{$t('settings.general.start_with_system_desc')}</span>
@@ -51,7 +49,7 @@
         </button>
       </div>
       <div class="divider"></div>
-      <div class="setting-row">
+      <div class="setting-row" data-setting-key="settings.general.start_minimized">
         <div class="setting-col">
           <span class="setting-label">{$t('settings.general.start_minimized')}</span>
           <span class="setting-path">{$t('settings.general.start_minimized_desc')}</span>
@@ -68,7 +66,7 @@
         </button>
       </div>
       <div class="divider"></div>
-      <div class="setting-row">
+      <div class="setting-row" data-setting-key="settings.general.exit_on_close">
         <div class="setting-col">
           <span class="setting-label">{$t('settings.general.exit_on_close')}</span>
           <span class="setting-path">{$t('settings.general.exit_on_close_desc')}</span>
@@ -90,7 +88,7 @@
   <section class="section">
     <h5 class="section-title">{$t('settings.appearance.accessibility_title')}</h5>
     <div class="card">
-      <div class="setting-row">
+      <div class="setting-row" data-setting-key="settings.appearance.reduce_motion">
         <div class="setting-col">
           <span class="setting-label">{$t('settings.appearance.reduce_motion')}</span>
           <span class="setting-path">{$t('settings.appearance.reduce_motion_desc')}</span>
@@ -107,7 +105,7 @@
         </button>
       </div>
       <div class="divider"></div>
-      <div class="setting-row">
+      <div class="setting-row" data-setting-key="settings.appearance.reduce_transparency">
         <div class="setting-col">
           <span class="setting-label">{$t('settings.appearance.reduce_transparency')}</span>
           <span class="setting-path">{$t('settings.appearance.reduce_transparency_desc')}</span>
@@ -128,7 +126,7 @@
 
   <section class="section">
     <h5 class="section-title">{$t('settings.appearance.title')}</h5>
-    <div class="card">
+    <div class="card" data-setting-key="settings.appearance.theme">
       <div class="setting-row">
         <span class="setting-label">{$t('settings.appearance.theme')}</span>
       </div>
@@ -137,6 +135,7 @@
           <button
             class="theme-card"
             class:active={settings.appearance.theme === theme.id}
+            aria-pressed={settings.appearance.theme === theme.id}
             onclick={() => changeTheme(theme.id)}
           >
             {#if theme.colors}
@@ -166,6 +165,7 @@
               <button
                 class="theme-card"
                 class:active={settings.appearance.theme === theme.id}
+                aria-pressed={settings.appearance.theme === theme.id}
                 onclick={() => changeTheme(theme.id)}
               >
                 <div class="theme-preview">
@@ -182,8 +182,8 @@
       {/if}
       <div class="divider"></div>
       <div class="setting-row">
-        <span class="setting-label">{$t('settings.appearance.language')}</span>
-        <select class="select" value={settings.appearance.language} onchange={changeLanguage}>
+        <label class="setting-label" for="settings-language">{$t('settings.appearance.language')}</label>
+        <select data-setting-key="settings.appearance.language" id="settings-language" class="select" value={settings.appearance.language} onchange={changeLanguage}>
           <option value="en">{$t('settings.appearance.lang_en')}</option>
 		  <option value="ru">{$t('settings.appearance.lang_ru')}</option>
           <option value="pt">{$t('settings.appearance.lang_pt')}</option>
@@ -203,7 +203,7 @@
 
   <section class="section">
     <div class="card">
-      <div class="setting-row">
+      <div class="setting-row" data-setting-key="settings.general.reset_hints">
         <div class="setting-col">
           <span class="setting-label">{$t('settings.general.reset_hints')}</span>
           <span class="setting-path">{$t('settings.general.reset_hints_desc')}</span>
@@ -225,16 +225,16 @@
       <SettingsDrillBack
         title={$t('settings.rpc.title')}
         hint={$t('settings.rpc.desc')}
-        onBack={() => { rpcDrillOpen = false; }}
+        onBack={() => { void goto("/settings?tab=appearance"); }}
       />
     {/if}
-    <RichPresencePanel />
+    <div id="settings-section-rpc"><RichPresencePanel /></div>
   {:else}
     <nav class="settings-drill-list">
       <SettingsDrillItem
         title={$t('settings.rpc.title')}
         hint={$t('settings.rpc.desc')}
-        onclick={() => { rpcDrillOpen = true; }}
+        onclick={() => { void goto("/settings?tab=appearance&section=rpc"); }}
       />
     </nav>
   {/if}

@@ -1335,7 +1335,8 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ"
+      "lang_lo": "ລາວ",
+      "preview_pending": "Preview only. Apply appearance to save these changes."
     },
     "download": {
       "default_output_dir": "默认文件夹",
@@ -1456,7 +1457,9 @@
       "copy_to_clipboard_on_hotkey_desc": "自动将下载的文件复制到剪贴板以便粘贴",
       "filename_template": "文件名模板",
       "filename_template_desc": "yt-dlp 下载文件的输出模板",
-      "filename_template_preview": "预览：{{preview}}"
+      "filename_template_preview": "预览：{{preview}}",
+      "filename_template_invalid": "Not saved. Enter a filename template containing %(ext)s for the file extension.",
+      "filename_template_save_failed": "Could not save this template. Your edit is still shown."
     },
     "update_available": "OmniGet {{version}} 可用",
     "update_button": "立即更新",
@@ -1471,7 +1474,12 @@
       "unavailable": "不可用",
       "hint_chrome": "chrome://extensions → 开发者模式 → “加载已解压的扩展程序” → 选择导出的文件夹。",
       "hint_firefox": "about:debugging#/runtime/this-firefox → “临时载入附加组件” → 选择导出文件夹中的 manifest.json。Firefox 重启后会移除临时附加组件，因此在我们上架 AMO 之前需要重复此操作。",
-      "hint_safari": "自 Safari 14 起，扩展必须通过 Mac App Store 分发。OmniGet 扩展的 Safari 版本尚未发布。"
+      "hint_safari": "自 Safari 14 起，扩展必须通过 Mac App Store 分发。OmniGet 扩展的 Safari 版本尚未发布。",
+      "install_title": "Install or update extension — {{browser}}",
+      "extracted_to": "The extension was extracted to:",
+      "open_folder": "Open folder",
+      "install_steps": "Installation steps",
+      "reload_hint": "If the extension is already installed, reload it at {{page}} using this folder, or remove the old copy and add this one."
     },
     "rules": {
       "title": "规则",
@@ -1498,7 +1506,13 @@
       "test_title": "测试链接",
       "test_placeholder": "粘贴一个链接，看看哪条规则会命中",
       "test_run": "测试",
-      "test_no_match": "没有规则命中这个链接"
+      "test_no_match": "没有规则命中这个链接",
+      "load_failed": "Could not load download rules. Try again before changing them.",
+      "save_failed": "Could not save rules. Your edits are still shown; use Save to try again.",
+      "unnamed": "Unnamed rule",
+      "removed": "Removed “{{name}}”.",
+      "undo_remove": "Undo removal",
+      "test_failed": "Could not test this URL. Try again; this does not mean no rule matches."
     },
     "storage": {
       "title": "存储",
@@ -1523,7 +1537,9 @@
       "silence_done": "发现 {{saved}} 的静音 —— 播放时可以跳过",
       "portable_label": "Portable Mode",
       "portable_active": "Portable mode is active. OmniGet's data is stored in {{dir}}.",
-      "portable_macos_notice": "On macOS the WebView still stores its session data under ~/Library, and portable mode cannot redirect it. Only OmniGet's own data is portable here — see github.com/tonhowtf/omniget/issues/227."
+      "portable_macos_notice": "On macOS the WebView still stores its session data under ~/Library, and portable mode cannot redirect it. Only OmniGet's own data is portable here — see github.com/tonhowtf/omniget/issues/227.",
+      "stats_load_failed": "Could not read storage statistics.",
+      "portable_load_failed": "Could not check portable mode."
     },
     "dependencies": {
       "title": "依赖项",
@@ -1555,7 +1571,8 @@
       "filter_all_files": "所有文件",
       "set_file_failed": "设置文件失败：{{msg}}",
       "open_folder_failed": "打开文件夹失败：{{msg}}",
-      "system_font_suffix": "系统"
+      "system_font_suffix": "系统",
+      "load_failed": "Could not check installed components. Try again."
     },
     "typography": {
       "section_title": "排版",
@@ -1593,7 +1610,8 @@
       "host": "主机",
       "port": "端口",
       "username": "用户名",
-      "password": "密码"
+      "password": "密码",
+      "save_failed": "Could not save the proxy fields. Your edits are still shown; try again."
     },
     "advanced": {
       "max_concurrent_downloads": "并发下载数",
@@ -1684,7 +1702,11 @@
       "copy": "复制",
       "copied_url": "端点 URL 已复制到剪贴板。",
       "copied_token": "令牌已复制到剪贴板。",
-      "unavailable": "桥接不可用。请重启应用。"
+      "unavailable": "桥接不可用。请重启应用。",
+      "load_failed": "Could not read the browser connection status.",
+      "pair_listener_failed": "Could not monitor pairing. Reopen this section to try again.",
+      "rotate_confirm": "Generate a new pairing token? Previously paired browsers will lose access until you pair them again or update their token.",
+      "rotate_confirm_action": "Generate new token"
     },
     "cat_cookies": "Cookies",
     "cat_channels": "频道",
@@ -1765,7 +1787,10 @@
       "remove_confirm": "停止关注此频道？",
       "enabled": "已启用",
       "auto_download": "自动下载",
-      "interval": "间隔（分钟）"
+      "interval": "间隔（分钟）",
+      "load_failed": "Could not load followed channels. Try again.",
+      "checking": "Checking…",
+      "interval_invalid": "Choose a whole number from 5 to 1440 minutes."
     },
     "cookies": {
       "title": "Cookies",
@@ -1864,7 +1889,20 @@
       }
     },
     "cat_profile": "Profile",
-    "cat_world": "World"
+    "cat_world": "World",
+    "save_failed": "Could not save this change. Try again.",
+    "retry": "Try again",
+    "search": {
+      "clear": "Clear search",
+      "title": "Search settings",
+      "count": "{{count}} results",
+      "empty": "No settings found. Try another word or choose a category.",
+      "destination_hint": "Options may require enabling the related feature or choosing a provider first. Nothing was enabled by this search.",
+      "back": "Back to results"
+    },
+    "world": {
+      "pet_load_failed": "Could not check desktop pet availability. Try again."
+    }
   },
   "omnibox": {
     "placeholder": "粘贴链接或搜索",

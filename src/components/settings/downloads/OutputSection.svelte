@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import {
@@ -35,12 +36,18 @@
   });
 
   let templateInput = $state("");
+  let templateEdited = $state(false);
+  let templateSaving = $state(false);
+  let templateSaveError = $state(false);
   let templateTimer: ReturnType<typeof setTimeout> | null = null;
+  let templateSave: Promise<void> = Promise.resolve();
+  let templateRevision = 0;
+  let queuedTemplateRevision = -1;
+  let templateInvalid = $derived(templateEdited && (!templateInput.trim() || !templateInput.includes("%(ext)s")));
 
   $effect(() => {
-    if (settings) {
-      templateInput = settings.download.filename_template;
-    }
+    const saved = settings?.download.filename_template;
+    if (saved !== undefined && !templateEdited) templateInput = saved;
   });
 
   function previewTemplate(template: string): string {
@@ -56,16 +63,44 @@
       .replace("%(duration)s", "212");
   }
 
-  function handleTemplateInput(e: Event) {
-    const value = (e.target as HTMLInputElement).value;
-    templateInput = value;
-    if (templateTimer) clearTimeout(templateTimer);
-    templateTimer = setTimeout(async () => {
-      if (value.trim() && value.includes("%(ext)s")) {
+  function saveTemplate() {
+    if (!templateEdited || !templateInput.trim() || !templateInput.includes("%(ext)s")) return;
+    const value = templateInput;
+    const revision = templateRevision;
+    if (queuedTemplateRevision === revision) return;
+    queuedTemplateRevision = revision;
+    templateSaving = true;
+    templateSave = templateSave.then(async () => {
+      try {
         await updateSettings({ download: { filename_template: value } });
+        if (templateRevision === revision) {
+          templateEdited = false;
+          templateSaveError = false;
+        }
+      } catch {
+        if (templateRevision === revision) templateSaveError = true;
       }
-    }, 800);
+    }).finally(() => {
+      if (queuedTemplateRevision === revision) {
+        queuedTemplateRevision = -1;
+        templateSaving = false;
+      }
+    });
   }
+
+  function handleTemplateInput(e: Event) {
+    templateInput = (e.target as HTMLInputElement).value;
+    templateEdited = true;
+    templateRevision += 1;
+    templateSaveError = false;
+    if (templateTimer) clearTimeout(templateTimer);
+    templateTimer = setTimeout(saveTemplate, 800);
+  }
+
+  onDestroy(() => {
+    if (templateTimer) clearTimeout(templateTimer);
+    saveTemplate();
+  });
 </script>
 
 {#if settings}
@@ -77,7 +112,7 @@
   {/if}
 
   <div class="card">
-    <div class="setting-row">
+    <div class="setting-row" data-setting-key="settings.download.default_output_dir">
       <div class="setting-col">
         <span class="setting-label">{$t('settings.download.default_output_dir')}</span>
         <span class="setting-path">{settings.download.default_output_dir}</span>
@@ -95,7 +130,7 @@
       <button class="button" onclick={chooseFolder}>{$t('settings.download.choose_folder')}</button>
     </div>
     <div class="divider"></div>
-    <div class="setting-row">
+    <div class="setting-row" data-setting-key="settings.download.organize_by_platform">
       <div class="setting-col">
         <span class="setting-label">{$t('settings.download.organize_by_platform')}</span>
         <span class="setting-path">{$t('settings.download.organize_by_platform_desc')}</span>
@@ -103,7 +138,7 @@
       <button class="toggle" class:on={settings.download.organize_by_platform} onclick={() => toggleBool("download", "organize_by_platform", settings.download.organize_by_platform)} role="switch" aria-checked={settings.download.organize_by_platform} aria-label={$t('settings.download.organize_by_platform') as string}><span class="toggle-knob"></span></button>
     </div>
 
-    <div class="setting-row">
+    <div class="setting-row" data-setting-key="settings.download.skip_existing">
       <div class="setting-col">
         <span class="setting-label">{$t('settings.download.skip_existing')}</span>
         <span class="setting-path">{$t('settings.download.skip_existing_desc')}</span>
@@ -111,17 +146,32 @@
       <button class="toggle" class:on={settings.download.skip_existing} onclick={() => toggleBool("download", "skip_existing", settings.download.skip_existing)} role="switch" aria-checked={settings.download.skip_existing} aria-label={$t('settings.download.skip_existing') as string}><span class="toggle-knob"></span></button>
     </div>
     <div class="divider"></div>
-    <div class="setting-row template-row">
+    <div class="setting-row template-row" data-setting-key="settings.download.filename_template">
       <div class="setting-col">
-        <span class="setting-label">{$t('settings.download.filename_template')}</span>
+        <label class="setting-label" for="download-filename-template">{$t('settings.download.filename_template')}</label>
         <span class="setting-path">{$t('settings.download.filename_template_desc')}</span>
       </div>
-      <input type="text" class="input-template" value={templateInput} oninput={handleTemplateInput} spellcheck="false" />
+      <input id="download-filename-template" type="text" class="input-template" value={templateInput} oninput={handleTemplateInput} spellcheck="false" aria-invalid={templateInvalid} aria-describedby="filename-template-feedback" />
     </div>
-    {#if templateInput}
+    <div id="filename-template-feedback" class="template-feedback" aria-live="polite">
+      {#if templateInvalid}
+        <span class="template-error">{$t('settings.download.filename_template_invalid')}</span>
+      {:else if templateSaveError}
+        <span class="template-error">{$t('settings.download.filename_template_save_failed')}</span>
+        <button class="button" onclick={saveTemplate}>{$t('error.remedy.retry')}</button>
+      {:else if templateSaving}
+        <span class="setting-path">{$t('settings.ai.saving')}</span>
+      {/if}
+    </div>
+    {#if templateInput && !templateInvalid}
       <div class="template-preview">
         <span class="setting-path">{$t('settings.download.filename_template_preview', { preview: previewTemplate(templateInput) })}</span>
       </div>
     {/if}
   </div>
 {/if}
+
+<style>
+  .template-feedback { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .template-error { color: var(--error); font-size: 13px; line-height: 1.5; }
+</style>

@@ -8,9 +8,10 @@
   let notice = $state("");
   $effect(() => { preset = current.preset; mode = current.mode; });
   let previewMode = $derived(mode === "system" ? current.systemDark ? "dark" : "light" : mode);
+  let changed = $derived(preset !== current.preset || mode !== current.mode);
   function apply() { notice = saveWorkspaceDesign(preset, mode) ? "design.applied" : "design.error"; }
 </script>
-<section class="workspace-appearance">
+<section class="workspace-appearance" data-setting-key="design.title">
   <h2>{$t("design.title")}</h2>
   <p>{$t("design.hint")}</p>
   <div class="presets">
@@ -22,17 +23,18 @@
     {/each}
   </div>
   <div class="modes">
-    {#each ["system", "light", "dark"] as item}<button type="button" class="button" aria-pressed={mode === item} onclick={() => mode = item as Mode}>{$t(`design.${item}`)}</button>{/each}
+    {#each ["system", "light", "dark"] as item}<button type="button" class="button" aria-pressed={mode === item} data-setting-key={`design.${item}`} onclick={() => { mode = item as Mode; notice = ""; }}>{$t(`design.${item}`)}</button>{/each}
   </div>
   <div class="preview ds-scope" data-ds-preset={preset} data-ds-mode={previewMode}>
     <strong>{$t("design.preview")}</strong><p>{$t("design.preview_body")}</p>
     <span class="preview-action">{$t("llm.roster.new")}</span>
   </div>
   <div class="modes">
-    <button type="button" class="button primary" onclick={apply}>{$t("design.apply")}</button>
+    <button type="button" class="button primary" disabled={!changed} onclick={apply}>{$t("design.apply")}</button>
     <button type="button" class="button" onclick={() => { preset = "amber-minimal"; mode = "system"; notice = ""; }}>{$t("design.reset")}</button>
   </div>
-  {#if notice}<p role="status">{$t(notice)}</p>{/if}
+  {#if changed}<p role="status">{$t("settings.appearance.preview_pending")}</p>{/if}
+  {#if notice}<p role={notice === "design.error" ? "alert" : "status"}>{$t(notice)}</p>{/if}
 </section>
 <style>
   .workspace-appearance { margin-bottom: var(--space-6); max-width: 800px; }

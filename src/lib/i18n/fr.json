@@ -1335,7 +1335,8 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ"
+      "lang_lo": "ລາວ",
+      "preview_pending": "Preview only. Apply appearance to save these changes."
     },
     "download": {
       "default_output_dir": "Dossier par défaut",
@@ -1456,7 +1457,9 @@
       "copy_to_clipboard_on_hotkey_desc": "Copier automatiquement le fichier téléchargé dans le presse-papiers pour un collage facile",
       "filename_template": "Modèle de nom de fichier",
       "filename_template_desc": "Modèle de sortie yt-dlp pour les fichiers téléchargés",
-      "filename_template_preview": "Aperçu : {{preview}}"
+      "filename_template_preview": "Aperçu : {{preview}}",
+      "filename_template_invalid": "Not saved. Enter a filename template containing %(ext)s for the file extension.",
+      "filename_template_save_failed": "Could not save this template. Your edit is still shown."
     },
     "update_available": "OmniGet {{version}} est disponible",
     "update_button": "mettre à jour",
@@ -1471,7 +1474,12 @@
       "unavailable": "Indisponible",
       "hint_chrome": "chrome://extensions → Mode développeur → « Charger l'extension non empaquetée » → sélectionnez le dossier extrait.",
       "hint_firefox": "about:debugging#/runtime/this-firefox → « Charger un module temporaire » → sélectionnez manifest.json dans le dossier extrait. Firefox supprime les modules temporaires au redémarrage, il faudra donc recommencer tant que nous n'aurons pas publié sur AMO.",
-      "hint_safari": "Depuis Safari 14, les extensions doivent passer par le Mac App Store. Une version Safari de l'extension OmniGet n'est pas encore publiée."
+      "hint_safari": "Depuis Safari 14, les extensions doivent passer par le Mac App Store. Une version Safari de l'extension OmniGet n'est pas encore publiée.",
+      "install_title": "Install or update extension — {{browser}}",
+      "extracted_to": "The extension was extracted to:",
+      "open_folder": "Open folder",
+      "install_steps": "Installation steps",
+      "reload_hint": "If the extension is already installed, reload it at {{page}} using this folder, or remove the old copy and add this one."
     },
     "rules": {
       "title": "Règles",
@@ -1498,7 +1506,13 @@
       "test_title": "Tester un lien",
       "test_placeholder": "Collez un lien pour voir quelle règle l'attrape",
       "test_run": "Tester",
-      "test_no_match": "Aucune règle n'attrape ce lien"
+      "test_no_match": "Aucune règle n'attrape ce lien",
+      "load_failed": "Could not load download rules. Try again before changing them.",
+      "save_failed": "Could not save rules. Your edits are still shown; use Save to try again.",
+      "unnamed": "Unnamed rule",
+      "removed": "Removed “{{name}}”.",
+      "undo_remove": "Undo removal",
+      "test_failed": "Could not test this URL. Try again; this does not mean no rule matches."
     },
     "storage": {
       "title": "Stockage",
@@ -1523,7 +1537,9 @@
       "silence_done": "{{saved}} de silence trouvé — le lecteur peut le sauter",
       "portable_label": "Portable Mode",
       "portable_active": "Portable mode is active. OmniGet's data is stored in {{dir}}.",
-      "portable_macos_notice": "On macOS the WebView still stores its session data under ~/Library, and portable mode cannot redirect it. Only OmniGet's own data is portable here — see github.com/tonhowtf/omniget/issues/227."
+      "portable_macos_notice": "On macOS the WebView still stores its session data under ~/Library, and portable mode cannot redirect it. Only OmniGet's own data is portable here — see github.com/tonhowtf/omniget/issues/227.",
+      "stats_load_failed": "Could not read storage statistics.",
+      "portable_load_failed": "Could not check portable mode."
     },
     "dependencies": {
       "title": "Dépendances",
@@ -1555,7 +1571,8 @@
       "filter_all_files": "Tous les fichiers",
       "set_file_failed": "Échec de la définition du fichier : {{msg}}",
       "open_folder_failed": "Échec de l'ouverture du dossier : {{msg}}",
-      "system_font_suffix": "système"
+      "system_font_suffix": "système",
+      "load_failed": "Could not check installed components. Try again."
     },
     "typography": {
       "section_title": "Typographie",
@@ -1593,7 +1610,8 @@
       "host": "Hôte",
       "port": "Port",
       "username": "Nom d’utilisateur",
-      "password": "Mot de passe"
+      "password": "Mot de passe",
+      "save_failed": "Could not save the proxy fields. Your edits are still shown; try again."
     },
     "advanced": {
       "max_concurrent_downloads": "Téléchargements simultanés",
@@ -1684,7 +1702,11 @@
       "copy": "Copier",
       "copied_url": "URL copiée dans le presse-papier.",
       "copied_token": "Jeton copié dans le presse-papier.",
-      "unavailable": "Pont indisponible. Redémarrez l'application."
+      "unavailable": "Pont indisponible. Redémarrez l'application.",
+      "load_failed": "Could not read the browser connection status.",
+      "pair_listener_failed": "Could not monitor pairing. Reopen this section to try again.",
+      "rotate_confirm": "Generate a new pairing token? Previously paired browsers will lose access until you pair them again or update their token.",
+      "rotate_confirm_action": "Generate new token"
     },
     "cat_cookies": "Cookies",
     "cat_channels": "Chaînes",
@@ -1765,7 +1787,10 @@
       "remove_confirm": "Arrêter de suivre cette chaîne ?",
       "enabled": "Activé",
       "auto_download": "Téléchargement auto",
-      "interval": "Toutes les (min)"
+      "interval": "Toutes les (min)",
+      "load_failed": "Could not load followed channels. Try again.",
+      "checking": "Checking…",
+      "interval_invalid": "Choose a whole number from 5 to 1440 minutes."
     },
     "cookies": {
       "title": "Cookies",
@@ -1864,7 +1889,20 @@
       }
     },
     "cat_profile": "Profile",
-    "cat_world": "World"
+    "cat_world": "World",
+    "save_failed": "Could not save this change. Try again.",
+    "retry": "Try again",
+    "search": {
+      "clear": "Clear search",
+      "title": "Search settings",
+      "count": "{{count}} results",
+      "empty": "No settings found. Try another word or choose a category.",
+      "destination_hint": "Options may require enabling the related feature or choosing a provider first. Nothing was enabled by this search.",
+      "back": "Back to results"
+    },
+    "world": {
+      "pet_load_failed": "Could not check desktop pet availability. Try again."
+    }
   },
   "omnibox": {
     "placeholder": "Collez un lien ou recherchez",

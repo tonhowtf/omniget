@@ -1335,7 +1335,8 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ"
+      "lang_lo": "ລາວ",
+      "preview_pending": "Preview only. Apply appearance to save these changes."
     },
     "download": {
       "default_output_dir": "ໂຟລເດີເລີ່ມຕົ້ນ",
@@ -1456,7 +1457,9 @@
       "copy_to_clipboard_on_hotkey_desc": "ສຳເນົາໄຟລ໌ທີ່ດາວໂຫຼດໄປຄລິບບອດອັດຕະໂນມັດ ເພື່ອວາງໄດ້ງ່າຍ",
       "filename_template": "ແມ່ແບບຊື່ໄຟລ໌",
       "filename_template_desc": "ແມ່ແບບຜົນລັບ yt-dlp ສຳລັບໄຟລ໌ທີ່ດາວໂຫຼດ",
-      "filename_template_preview": "ຕົວຢ່າງ: {{preview}}"
+      "filename_template_preview": "ຕົວຢ່າງ: {{preview}}",
+      "filename_template_invalid": "Not saved. Enter a filename template containing %(ext)s for the file extension.",
+      "filename_template_save_failed": "Could not save this template. Your edit is still shown."
     },
     "update_available": "OmniGet {{version}} ພ້ອມໃຫ້ອັບເດດແລ້ວ",
     "update_button": "ອັບເດດດຽວນີ້",
@@ -1471,7 +1474,12 @@
       "unavailable": "ບໍ່ພ້ອມໃຊ້ງານ",
       "hint_chrome": "chrome://extensions → Developer mode → \"Load unpacked\" → ເລືອກໂຟລເດີທີ່ແຕກໄຟລ໌ແລ້ວ.",
       "hint_firefox": "about:debugging#/runtime/this-firefox → \"Load Temporary Add-on\" → ເລືອກ manifest.json ໃນໂຟລເດີທີ່ແຕກໄຟລ໌ແລ້ວ. Firefox ຈະລຶບສ່ວນເສີມຊົ່ວຄາວເມື່ອປິດເປີດໃໝ່ ສະນັ້ນຕ້ອງເຮັດຊ້ຳຈົນກວ່າພວກເຮົາຈະເຜີຍແຜ່ໃນ AMO.",
-      "hint_safari": "ຕັ້ງແຕ່ Safari 14, Safari ກຳນົດໃຫ້ສ່ວນຂະຫຍາຍຕ້ອງເຜີຍແຜ່ຜ່ານ Mac App Store. ສ່ວນຂະຫຍາຍ OmniGet ສຳລັບ Safari ຍັງບໍ່ໄດ້ເຜີຍແຜ່."
+      "hint_safari": "ຕັ້ງແຕ່ Safari 14, Safari ກຳນົດໃຫ້ສ່ວນຂະຫຍາຍຕ້ອງເຜີຍແຜ່ຜ່ານ Mac App Store. ສ່ວນຂະຫຍາຍ OmniGet ສຳລັບ Safari ຍັງບໍ່ໄດ້ເຜີຍແຜ່.",
+      "install_title": "Install or update extension — {{browser}}",
+      "extracted_to": "The extension was extracted to:",
+      "open_folder": "Open folder",
+      "install_steps": "Installation steps",
+      "reload_hint": "If the extension is already installed, reload it at {{page}} using this folder, or remove the old copy and add this one."
     },
     "rules": {
       "title": "ກົດ",
@@ -1498,7 +1506,13 @@
       "test_title": "ທົດສອບລິ້ງ",
       "test_placeholder": "ວາງລິ້ງເພື່ອເບິ່ງວ່າກົດໃດຈັບໄດ້",
       "test_run": "ທົດສອບ",
-      "test_no_match": "ບໍ່ມີກົດໃດກົງກັບລິ້ງນີ້"
+      "test_no_match": "ບໍ່ມີກົດໃດກົງກັບລິ້ງນີ້",
+      "load_failed": "Could not load download rules. Try again before changing them.",
+      "save_failed": "Could not save rules. Your edits are still shown; use Save to try again.",
+      "unnamed": "Unnamed rule",
+      "removed": "Removed “{{name}}”.",
+      "undo_remove": "Undo removal",
+      "test_failed": "Could not test this URL. Try again; this does not mean no rule matches."
     },
     "storage": {
       "title": "ບ່ອນເກັບຂໍ້ມູນ",
@@ -1523,7 +1537,9 @@
       "silence_done": "ພົບຊ່ວງງຽບ {{saved}} — ການຫຼິ້ນສາມາດຂ້າມໄດ້",
       "portable_label": "ໂໝດພົກພາ",
       "portable_active": "ໂໝດພົກພາເປີດໃຊ້ຢູ່. ຂໍ້ມູນຂອງ OmniGet ຖືກເກັບໄວ້ໃນ {{dir}}.",
-      "portable_macos_notice": "ໃນ macOS, WebView ຍັງເກັບຂໍ້ມູນເຊສຊັນໄວ້ພາຍໃຕ້ ~/Library ແລະ ໂໝດພົກພາບໍ່ສາມາດປ່ຽນເສັ້ນທາງໄດ້. ມີແຕ່ຂໍ້ມູນຂອງ OmniGet ເອງທີ່ພົກພາໄດ້ — ເບິ່ງ github.com/tonhowtf/omniget/issues/227."
+      "portable_macos_notice": "ໃນ macOS, WebView ຍັງເກັບຂໍ້ມູນເຊສຊັນໄວ້ພາຍໃຕ້ ~/Library ແລະ ໂໝດພົກພາບໍ່ສາມາດປ່ຽນເສັ້ນທາງໄດ້. ມີແຕ່ຂໍ້ມູນຂອງ OmniGet ເອງທີ່ພົກພາໄດ້ — ເບິ່ງ github.com/tonhowtf/omniget/issues/227.",
+      "stats_load_failed": "Could not read storage statistics.",
+      "portable_load_failed": "Could not check portable mode."
     },
     "dependencies": {
       "title": "ສ່ວນປະກອບທີ່ຈຳເປັນ",
@@ -1555,7 +1571,8 @@
       "filter_all_files": "ໄຟລ໌ທັງໝົດ",
       "set_file_failed": "ຕັ້ງໄຟລ໌ບໍ່ສຳເລັດ: {{msg}}",
       "open_folder_failed": "ເປີດໂຟລເດີບໍ່ສຳເລັດ: {{msg}}",
-      "system_font_suffix": "ລະບົບ"
+      "system_font_suffix": "ລະບົບ",
+      "load_failed": "Could not check installed components. Try again."
     },
     "typography": {
       "section_title": "ຕົວອັກສອນ",
@@ -1593,7 +1610,8 @@
       "host": "ໂຮສ",
       "port": "ພອດ",
       "username": "ຊື່ຜູ້ໃຊ້",
-      "password": "ລະຫັດຜ່ານ"
+      "password": "ລະຫັດຜ່ານ",
+      "save_failed": "Could not save the proxy fields. Your edits are still shown; try again."
     },
     "advanced": {
       "max_concurrent_downloads": "ການດາວໂຫຼດພ້ອມກັນ",
@@ -1684,7 +1702,11 @@
       "copy": "ສຳເນົາ",
       "copied_url": "ສຳເນົາ URL ປາຍທາງໄປຄລິບບອດແລ້ວ.",
       "copied_token": "ສຳເນົາໂທເຄັນໄປຄລິບບອດແລ້ວ.",
-      "unavailable": "Bridge ບໍ່ພ້ອມໃຊ້ງານ. ລອງເປີດແອັບໃໝ່."
+      "unavailable": "Bridge ບໍ່ພ້ອມໃຊ້ງານ. ລອງເປີດແອັບໃໝ່.",
+      "load_failed": "Could not read the browser connection status.",
+      "pair_listener_failed": "Could not monitor pairing. Reopen this section to try again.",
+      "rotate_confirm": "Generate a new pairing token? Previously paired browsers will lose access until you pair them again or update their token.",
+      "rotate_confirm_action": "Generate new token"
     },
     "cat_cookies": "ຄຸກກີ້",
     "cat_channels": "ຊ່ອງ",
@@ -1765,7 +1787,10 @@
       "remove_confirm": "ຢຸດຕິດຕາມຊ່ອງນີ້ບໍ່?",
       "enabled": "ເປີດໃຊ້",
       "auto_download": "ດາວໂຫຼດອັດຕະໂນມັດ",
-      "interval": "ທຸກໆ (ນາທີ)"
+      "interval": "ທຸກໆ (ນາທີ)",
+      "load_failed": "Could not load followed channels. Try again.",
+      "checking": "Checking…",
+      "interval_invalid": "Choose a whole number from 5 to 1440 minutes."
     },
     "cookies": {
       "title": "ຄຸກກີ້",
@@ -1864,7 +1889,20 @@
       }
     },
     "cat_profile": "Profile",
-    "cat_world": "World"
+    "cat_world": "World",
+    "save_failed": "Could not save this change. Try again.",
+    "retry": "Try again",
+    "search": {
+      "clear": "Clear search",
+      "title": "Search settings",
+      "count": "{{count}} results",
+      "empty": "No settings found. Try another word or choose a category.",
+      "destination_hint": "Options may require enabling the related feature or choosing a provider first. Nothing was enabled by this search.",
+      "back": "Back to results"
+    },
+    "world": {
+      "pet_load_failed": "Could not check desktop pet availability. Try again."
+    }
   },
   "omnibox": {
     "placeholder": "ວາງລິ້ງ ຫຼື ຄົ້ນຫາ",

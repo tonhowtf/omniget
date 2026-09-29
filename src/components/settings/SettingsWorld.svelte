@@ -23,6 +23,20 @@
   const CORNERS = ["top-left", "top-right", "bottom-left", "bottom-right"];
   let pet = $state<PetCaps | null>(null);
   let petBusy = $state(false);
+  let petLoading = $state(true);
+  let petError = $state(false);
+
+  async function loadPet() {
+    petLoading = true;
+    petError = false;
+    try {
+      pet = await invoke<PetCaps>("pet_capabilities");
+    } catch {
+      petError = true;
+    } finally {
+      petLoading = false;
+    }
+  }
 
   async function petCall(command: string, args?: Record<string, unknown>) {
     if (petBusy) return;
@@ -31,17 +45,14 @@
       await invoke(command, args);
       pet = (await invoke("pet_capabilities")) as PetCaps;
     } catch (error) {
+      petError = true;
       showToast("error", String(error));
     } finally {
       petBusy = false;
     }
   }
 
-  onMount(() => {
-    invoke("pet_capabilities")
-      .then((caps) => (pet = caps as PetCaps))
-      .catch(() => (pet = null));
-  });
+  onMount(loadPet);
 </script>
 
 <WorldSettings />
@@ -49,7 +60,14 @@
 <section class="settings-section" id="settings-pet">
   <h5 class="section-title">{$t("pet.title")}</h5>
   <div class="card">
-    {#if pet?.fallback_recommended}
+    {#if petLoading}
+      <p role="status">{$t("common.loading")}</p>
+    {:else if petError}
+      <div role="alert">
+        <p>{$t("settings.world.pet_load_failed")}</p>
+        <button class="button" onclick={loadPet}>{$t("error.remedy.retry")}</button>
+      </div>
+    {:else if pet?.fallback_recommended}
       <div class="setting-row">
         <div class="setting-col">
           <span class="setting-path">{$t("pet.unsupported")}</span>
@@ -92,9 +110,10 @@
 
       <div class="setting-row">
         <div class="setting-col">
-          <span class="setting-label">{$t("pet.menu.corner")}</span>
+          <label class="setting-label" for="settings-pet-corner">{$t("pet.menu.corner")}</label>
         </div>
         <select
+          id="settings-pet-corner"
           class="input-text select"
           disabled={pet === null || petBusy}
           value={pet?.corner ?? "bottom-right"}

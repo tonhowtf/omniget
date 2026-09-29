@@ -1335,7 +1335,8 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ"
+      "lang_lo": "ລາວ",
+      "preview_pending": "Preview only. Apply appearance to save these changes."
     },
     "download": {
       "default_output_dir": "Εξ'ορισμού φάκελος",
@@ -1456,7 +1457,9 @@
       "copy_to_clipboard_on_hotkey_desc": "Αντιγράψτε αυτόματα το ληφθέν αρχείο στο πρόχειρο για εύκολη επικόλληση",
       "filename_template": "Πρότυπο ονόματος αρχείου",
       "filename_template_desc": "Πρότυπο εξόδου του yt-dlp για τα ληφθέντα αρχεία",
-      "filename_template_preview": "Προεπισκόπηση: {{preview}}"
+      "filename_template_preview": "Προεπισκόπηση: {{preview}}",
+      "filename_template_invalid": "Not saved. Enter a filename template containing %(ext)s for the file extension.",
+      "filename_template_save_failed": "Could not save this template. Your edit is still shown."
     },
     "update_available": "Η έκδοση {{version}} του OmniGet είναι διαθέσιμη",
     "update_button": "ενημέρωση τώρα",
@@ -1471,7 +1474,12 @@
       "unavailable": "Μη διαθέσιμο",
       "hint_chrome": "chrome://extensions → Λειτουργία προγραμματιστή → «Φόρτωση χωρίς συμπίεση» → επιλέξτε τον φάκελο που εξαγάγατε.",
       "hint_firefox": "about:debugging#/runtime/this-firefox → «Φόρτωση προσωρινού προσθέτου» → επιλέξτε το manifest.json στον φάκελο που εξαγάγατε. Ο Firefox απορρίπτει τα προσωρινά πρόσθετα σε κάθε επανεκκίνηση, οπότε η διαδικασία πρέπει να επαναλαμβάνεται μέχρι να δημοσιεύσουμε στο AMO.",
-      "hint_safari": "Από το Safari 14 και μετά, οι επεκτάσεις πρέπει να διανέμονται μέσω του Mac App Store. Δεν έχει δημοσιευτεί ακόμη έκδοση της επέκτασης OmniGet για Safari."
+      "hint_safari": "Από το Safari 14 και μετά, οι επεκτάσεις πρέπει να διανέμονται μέσω του Mac App Store. Δεν έχει δημοσιευτεί ακόμη έκδοση της επέκτασης OmniGet για Safari.",
+      "install_title": "Install or update extension — {{browser}}",
+      "extracted_to": "The extension was extracted to:",
+      "open_folder": "Open folder",
+      "install_steps": "Installation steps",
+      "reload_hint": "If the extension is already installed, reload it at {{page}} using this folder, or remove the old copy and add this one."
     },
     "rules": {
       "title": "Κανόνες",
@@ -1498,7 +1506,13 @@
       "test_title": "Δοκιμή συνδέσμου",
       "test_placeholder": "Επικολλήστε έναν σύνδεσμο για να δείτε ποιος κανόνας τον πιάνει",
       "test_run": "Δοκιμή",
-      "test_no_match": "Κανένας κανόνας δεν πιάνει αυτόν τον σύνδεσμο"
+      "test_no_match": "Κανένας κανόνας δεν πιάνει αυτόν τον σύνδεσμο",
+      "load_failed": "Could not load download rules. Try again before changing them.",
+      "save_failed": "Could not save rules. Your edits are still shown; use Save to try again.",
+      "unnamed": "Unnamed rule",
+      "removed": "Removed “{{name}}”.",
+      "undo_remove": "Undo removal",
+      "test_failed": "Could not test this URL. Try again; this does not mean no rule matches."
     },
     "storage": {
       "title": "Αποθήκευση",
@@ -1523,7 +1537,9 @@
       "silence_done": "Βρέθηκε σιωπή {{saved}} — ο player μπορεί να την προσπερνά",
       "portable_label": "Portable Mode",
       "portable_active": "Portable mode is active. OmniGet's data is stored in {{dir}}.",
-      "portable_macos_notice": "On macOS the WebView still stores its session data under ~/Library, and portable mode cannot redirect it. Only OmniGet's own data is portable here — see github.com/tonhowtf/omniget/issues/227."
+      "portable_macos_notice": "On macOS the WebView still stores its session data under ~/Library, and portable mode cannot redirect it. Only OmniGet's own data is portable here — see github.com/tonhowtf/omniget/issues/227.",
+      "stats_load_failed": "Could not read storage statistics.",
+      "portable_load_failed": "Could not check portable mode."
     },
     "dependencies": {
       "title": "Εξαρτήσεις",
@@ -1555,7 +1571,8 @@
       "filter_all_files": "Όλα τα αρχεία",
       "set_file_failed": "Αποτυχία ορισμού αρχείου: {{msg}}",
       "open_folder_failed": "Αποτυχία ανοίγματος φακέλου: {{msg}}",
-      "system_font_suffix": "σύστημα"
+      "system_font_suffix": "σύστημα",
+      "load_failed": "Could not check installed components. Try again."
     },
     "typography": {
       "section_title": "Τυπογραφία",
@@ -1593,7 +1610,8 @@
       "host": "Εξυπηρετητής",
       "port": "Θύρα",
       "username": "Όνομα χρήση",
-      "password": "Κωδικός"
+      "password": "Κωδικός",
+      "save_failed": "Could not save the proxy fields. Your edits are still shown; try again."
     },
     "advanced": {
       "max_concurrent_downloads": "Ταυτόχρονες λήψεις",
@@ -1684,7 +1702,11 @@
       "copy": "Copy",
       "copied_url": "Endpoint URL copied to clipboard.",
       "copied_token": "Token copied to clipboard.",
-      "unavailable": "Bridge unavailable. Try restarting the app."
+      "unavailable": "Bridge unavailable. Try restarting the app.",
+      "load_failed": "Could not read the browser connection status.",
+      "pair_listener_failed": "Could not monitor pairing. Reopen this section to try again.",
+      "rotate_confirm": "Generate a new pairing token? Previously paired browsers will lose access until you pair them again or update their token.",
+      "rotate_confirm_action": "Generate new token"
     },
     "cat_cookies": "Cookies",
     "cat_channels": "Κανάλια",
@@ -1765,7 +1787,10 @@
       "remove_confirm": "Διακοπή παρακολούθησης αυτού του καναλιού;",
       "enabled": "Ενεργό",
       "auto_download": "Αυτόματη λήψη",
-      "interval": "Κάθε (λεπτά)"
+      "interval": "Κάθε (λεπτά)",
+      "load_failed": "Could not load followed channels. Try again.",
+      "checking": "Checking…",
+      "interval_invalid": "Choose a whole number from 5 to 1440 minutes."
     },
     "cookies": {
       "title": "Cookies",
@@ -1864,7 +1889,20 @@
       }
     },
     "cat_profile": "Profile",
-    "cat_world": "World"
+    "cat_world": "World",
+    "save_failed": "Could not save this change. Try again.",
+    "retry": "Try again",
+    "search": {
+      "clear": "Clear search",
+      "title": "Search settings",
+      "count": "{{count}} results",
+      "empty": "No settings found. Try another word or choose a category.",
+      "destination_hint": "Options may require enabling the related feature or choosing a provider first. Nothing was enabled by this search.",
+      "back": "Back to results"
+    },
+    "world": {
+      "pet_load_failed": "Could not check desktop pet availability. Try again."
+    }
   },
   "omnibox": {
     "placeholder": "Επικολλήστε σύνδεσμο ή αναζητήστε",

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";
   import { getSettings } from "./settings-helpers";
   import SettingsDrillBack from "./SettingsDrillBack.svelte";
@@ -9,10 +10,9 @@
   import ClipboardHotkeysSection from "./downloads/ClipboardHotkeysSection.svelte";
   import PlatformOptionsSection from "./downloads/PlatformOptionsSection.svelte";
 
-  let { searchActive = false }: { searchActive?: boolean } = $props();
+  let { searchActive = false, section = "" }: { searchActive?: boolean; section?: string } = $props();
 
   type DownloadDrill = "output" | "quality" | "subtitles" | "hotkeys" | "platforms";
-  let subView = $state<DownloadDrill | null>(null);
 
   let settings = $derived(getSettings());
 
@@ -24,9 +24,8 @@
     { id: "platforms", titleKey: "settings.download.section_per_platform", hintKey: "settings.download.section_per_platform_desc" },
   ];
 
-  $effect(() => {
-    if (searchActive) subView = null;
-  });
+  let subView = $derived(DRILL_ITEMS.some(item => item.id === section) ? section as DownloadDrill : null);
+
 </script>
 
 {#if settings}
@@ -42,7 +41,7 @@
         <SettingsDrillItem
           title={$t(item.titleKey)}
           hint={$t(item.hintKey)}
-          onclick={() => { subView = item.id; }}
+          onclick={() => { void goto(`/settings?tab=downloads&section=${item.id}`); }}
         />
       {/each}
     </nav>
@@ -52,10 +51,10 @@
       <SettingsDrillBack
         title={$t(active.titleKey)}
         hint={$t(active.hintKey)}
-        onBack={() => { subView = null; }}
+        onBack={() => { void goto("/settings?tab=downloads"); }}
       />
     {/if}
-    <section class="section">
+    <section class="section" id={`settings-section-${subView}`}>
       {#if subView === "output"}
         <OutputSection embedded />
       {:else if subView === "quality"}

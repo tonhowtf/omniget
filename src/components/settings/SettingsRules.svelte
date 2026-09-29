@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
@@ -26,6 +27,16 @@
 
   let rules = $state<Rule[]>([]);
   let loading = $state(true);
+  let loadError = $state(false);
+  let saveFailed = $state(false);
+  let saving = $state(false);
+  let testing = $state(false);
+  let testError = $state(false);
+  let removed = $state<{ rule: Rule; index: number } | null>(null);
+  let savedRules = $state("[]");
+  let dirty = $derived(JSON.stringify(rules) !== savedRules);
+  let saveRequested = false;
+  let savePromise: Promise<boolean> | null = null;
   let testUrl = $state("");
   let testResult = $state<string | null>(null);
 
@@ -49,23 +60,41 @@
 
   async function load() {
     loading = true;
+    loadError = false;
     try {
       rules = await invoke<Rule[]>("list_rules");
+      savedRules = JSON.stringify(rules);
     } catch {
-      rules = [];
+      loadError = true;
     } finally {
       loading = false;
     }
   }
 
-  async function persist() {
-    try {
-      await invoke("save_rules", { rules });
-      showToast("success", $t("settings.rules.saved") as string);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      showToast("error", msg);
-    }
+  function persist(): Promise<boolean> {
+    if (loadError || loading) return Promise.resolve(false);
+    saveRequested = true;
+    if (savePromise) return savePromise;
+    saving = true;
+    saveFailed = false;
+    savePromise = (async () => {
+      while (saveRequested) {
+        saveRequested = false;
+        const snapshot = JSON.stringify(rules);
+        try {
+          await invoke("save_rules", { rules: JSON.parse(snapshot) });
+          savedRules = snapshot;
+        } catch {
+          saveFailed = true;
+          return false;
+        }
+      }
+      return true;
+    })().finally(() => {
+      saving = false;
+      savePromise = null;
+    });
+    return savePromise;
   }
 
   function addRule() {
@@ -81,7 +110,17 @@
   }
 
   function removeRule(i: number) {
+    if (saving) return;
+    removed = { rule: structuredClone($state.snapshot(rules[i])), index: i };
     rules = rules.filter((_, idx) => idx !== i);
+    void persist();
+  }
+
+  function undoRemove() {
+    if (!removed || saving) return;
+    const { rule, index } = removed;
+    rules = [...rules.slice(0, index), rule, ...rules.slice(index)];
+    removed = null;
     void persist();
   }
 
@@ -97,35 +136,48 @@
   }
 
   async function pickFolder(i: number) {
-    const chosen = await open({ directory: true, title: $t("settings.rules.pick_folder") as string });
-    if (typeof chosen !== "string") return;
-    rules[i].then.output_dir = chosen;
-    void persist();
-  }
-
-  async function runTest() {
-    testResult = null;
-    if (!testUrl.trim()) return;
+    const rule = rules[i];
     try {
-      const hit = await invoke<Rule | null>("preview_rule_match", { url: testUrl, platform: null });
-      testResult = hit ? hit.name : ($t("settings.rules.test_no_match") as string);
+      const chosen = await open({ directory: true, title: $t("settings.rules.pick_folder") as string });
+      if (typeof chosen !== "string" || !rules.includes(rule)) return;
+      rule.then.output_dir = chosen;
+      void persist();
     } catch {
-      testResult = $t("settings.rules.test_no_match") as string;
+      showToast("error", $t("common.error"));
     }
   }
 
-  $effect(() => {
-    void load();
-  });
+  async function runTest() {
+    if (!testUrl.trim() || testing || loadError || loading) return;
+    testResult = null;
+    testError = false;
+    testing = true;
+    try {
+      if ((dirty || saving) && !(await persist())) return;
+      const hit = await invoke<Rule | null>("preview_rule_match", { url: testUrl.trim(), platform: null });
+      testResult = hit ? hit.name || $t("settings.rules.unnamed") : $t("settings.rules.test_no_match");
+    } catch {
+      testError = true;
+    } finally {
+      testing = false;
+    }
+  }
+
+  onMount(load);
 </script>
 
-<section class="section">
+<section class="section" data-setting-key="settings.rules.title">
   <h5 class="section-title">{$t("settings.rules.title")}</h5>
   <p class="muted">{$t("settings.rules.description")}</p>
 
   <div class="card">
     {#if loading}
       <div class="rules-empty">{$t("common.loading")}</div>
+    {:else if loadError}
+      <div class="rules-empty" role="alert">
+        <p>{$t("settings.rules.load_failed")}</p>
+        <button type="button" class="button" onclick={load}>{$t("error.remedy.retry")}</button>
+      </div>
     {:else if rules.length === 0}
       <!-- Empty state que direciona a primeira ação de valor, em vez de card vazio. -->
       <div class="rules-empty">
@@ -147,6 +199,7 @@
 
             <input
               class="rule-name"
+              aria-label={$t("settings.rules.name_placeholder")}
               type="text"
               bind:value={rule.name}
               onblur={() => persist()}
@@ -157,20 +210,21 @@
               <button
                 type="button"
                 class="icon-btn"
-                disabled={i === 0}
+                disabled={saving || i === 0}
                 onclick={() => move(i, -1)}
                 aria-label={$t("settings.rules.move_up") as string}
               >↑</button>
               <button
                 type="button"
                 class="icon-btn"
-                disabled={i === rules.length - 1}
+                disabled={saving || i === rules.length - 1}
                 onclick={() => move(i, 1)}
                 aria-label={$t("settings.rules.move_down") as string}
               >↓</button>
               <button
                 type="button"
                 class="icon-btn danger"
+                disabled={saving}
                 onclick={() => removeRule(i)}
                 aria-label={$t("settings.rules.remove") as string}
               >×</button>
@@ -181,7 +235,7 @@
             <div class="rule-field">
               <span class="rule-label">{$t("settings.rules.when")}</span>
               <select
-                value={kindOf(rule.when)}
+                aria-label={$t("settings.rules.when")} value={kindOf(rule.when)}
                 onchange={(e) => {
                   rule.when = buildCondition(e.currentTarget.value as CondKind, valueOf(rule.when));
                   void persist();
@@ -193,7 +247,7 @@
               </select>
               <input
                 type="text"
-                value={valueOf(rule.when)}
+                aria-label={$t("settings.rules.value_placeholder")} value={valueOf(rule.when)}
                 oninput={(e) => {
                   rule.when = buildCondition(kindOf(rule.when), e.currentTarget.value);
                 }}
@@ -209,6 +263,7 @@
               </button>
               <input
                 class="rule-quality"
+                aria-label={$t("settings.rules.quality_placeholder")}
                 type="text"
                 bind:value={rule.then.quality}
                 onblur={() => persist()}
@@ -233,30 +288,45 @@
   </div>
 
   <div class="rules-actions">
-    <button type="button" class="button" onclick={addRule}>
+    <button type="button" class="button" disabled={loading || loadError || saving} onclick={addRule}>
       {$t("settings.rules.add")}
     </button>
+    {#if dirty || saving}
+      <button type="button" class="button" disabled={saving} onclick={persist}>
+        {saving ? $t("settings.ai.saving") : $t("settings.ai.save")}
+      </button>
+    {/if}
   </div>
+  {#if saveFailed}<p class="feedback-error" role="alert">{$t("settings.rules.save_failed")}</p>{/if}
+  {#if removed}
+    <div class="rules-actions" role="status">
+      <span>{$t("settings.rules.removed", { name: removed.rule.name || $t("settings.rules.unnamed") })}</span>
+      <button type="button" class="button" disabled={saving} onclick={undoRemove}>{$t("settings.rules.undo_remove")}</button>
+    </div>
+  {/if}
 
   <!-- Responder "esta regra pega o que eu espero?" antes de descobrir no
        download errado. -->
   <div class="card rules-test">
-    <span class="rule-label">{$t("settings.rules.test_title")}</span>
+    <label class="rule-label" for="rules-test-url">{$t("settings.rules.test_title")}</label>
     <input
       type="text"
-      bind:value={testUrl}
+      id="rules-test-url" bind:value={testUrl}
       placeholder={$t("settings.rules.test_placeholder") as string}
     />
-    <button type="button" class="button ghost" onclick={runTest}>
-      {$t("settings.rules.test_run")}
+    <button type="button" class="button ghost" disabled={testing || loading || loadError || !testUrl.trim()} onclick={runTest}>
+      {testing ? $t("common.loading") : $t("settings.rules.test_run")}
     </button>
+    {#if testError}<span class="feedback-error" role="alert">{$t("settings.rules.test_failed")}</span>{/if}
     {#if testResult}
-      <span class="test-result">{testResult}</span>
+      <span class="test-result" role="status">{testResult}</span>
     {/if}
   </div>
 </section>
 
 <style>
+  .feedback-error { color: var(--error); }
+
   .rules-empty {
     padding: var(--space-5, 16px);
     text-align: center;

@@ -1335,7 +1335,8 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ"
+      "lang_lo": "ລາວ",
+      "preview_pending": "Preview only. Apply appearance to save these changes."
     },
     "download": {
       "default_output_dir": "Папка по умолчанию",
@@ -1456,7 +1457,9 @@
       "copy_to_clipboard_on_hotkey_desc": "Автоматически копировать скачанный файл в буфер обмена для удобной вставки",
       "filename_template": "Шаблон имени файла",
       "filename_template_desc": "Шаблон вывода yt-dlp для скачиваемых файлов",
-      "filename_template_preview": "Предпросмотр: {{preview}}"
+      "filename_template_preview": "Предпросмотр: {{preview}}",
+      "filename_template_invalid": "Not saved. Enter a filename template containing %(ext)s for the file extension.",
+      "filename_template_save_failed": "Could not save this template. Your edit is still shown."
     },
     "update_available": "Доступен OmniGet {{version}}",
     "update_button": "обновить сейчас",
@@ -1471,7 +1474,12 @@
       "unavailable": "Недоступно",
       "hint_chrome": "chrome://extensions → Режим разработчика → «Загрузить распакованное расширение» → выберите распакованную папку.",
       "hint_firefox": "about:debugging#/runtime/this-firefox → «Загрузить временное дополнение» → выберите manifest.json в распакованной папке. Firefox удаляет временные дополнения при перезапуске, так что это придётся повторять, пока мы не опубликуем расширение на AMO.",
-      "hint_safari": "Начиная с Safari 14 расширения распространяются только через Mac App Store. Версия расширения OmniGet для Safari пока не опубликована."
+      "hint_safari": "Начиная с Safari 14 расширения распространяются только через Mac App Store. Версия расширения OmniGet для Safari пока не опубликована.",
+      "install_title": "Install or update extension — {{browser}}",
+      "extracted_to": "The extension was extracted to:",
+      "open_folder": "Open folder",
+      "install_steps": "Installation steps",
+      "reload_hint": "If the extension is already installed, reload it at {{page}} using this folder, or remove the old copy and add this one."
     },
     "rules": {
       "title": "Правила",
@@ -1498,7 +1506,13 @@
       "test_title": "Проверить ссылку",
       "test_placeholder": "Вставьте ссылку, чтобы увидеть, какое правило её поймает",
       "test_run": "Проверить",
-      "test_no_match": "Ни одно правило не подходит к этой ссылке"
+      "test_no_match": "Ни одно правило не подходит к этой ссылке",
+      "load_failed": "Could not load download rules. Try again before changing them.",
+      "save_failed": "Could not save rules. Your edits are still shown; use Save to try again.",
+      "unnamed": "Unnamed rule",
+      "removed": "Removed “{{name}}”.",
+      "undo_remove": "Undo removal",
+      "test_failed": "Could not test this URL. Try again; this does not mean no rule matches."
     },
     "storage": {
       "title": "Хранилище",
@@ -1523,7 +1537,9 @@
       "silence_done": "Найдено тишины: {{saved}} — плеер может её пропускать",
       "portable_label": "Портативный режим",
       "portable_active": "Портативный режим активен. Данные OmniGet хранятся в {{dir}}.",
-      "portable_macos_notice": "На macOS WebView всё равно хранит сессионные данные в ~/Library, и портативный режим не может это перенаправить. Портативны только собственные данные OmniGet — см. github.com/tonhowtf/omniget/issues/227."
+      "portable_macos_notice": "На macOS WebView всё равно хранит сессионные данные в ~/Library, и портативный режим не может это перенаправить. Портативны только собственные данные OmniGet — см. github.com/tonhowtf/omniget/issues/227.",
+      "stats_load_failed": "Could not read storage statistics.",
+      "portable_load_failed": "Could not check portable mode."
     },
     "dependencies": {
       "title": "Зависимости",
@@ -1555,7 +1571,8 @@
       "filter_all_files": "Все файлы",
       "set_file_failed": "Не удалось установить файл: {{msg}}",
       "open_folder_failed": "Не удалось открыть папку: {{msg}}",
-      "system_font_suffix": "системный"
+      "system_font_suffix": "системный",
+      "load_failed": "Could not check installed components. Try again."
     },
     "typography": {
       "section_title": "Типографика",
@@ -1593,7 +1610,8 @@
       "host": "Хост",
       "port": "Порт",
       "username": "Имя пользователя",
-      "password": "Пароль"
+      "password": "Пароль",
+      "save_failed": "Could not save the proxy fields. Your edits are still shown; try again."
     },
     "advanced": {
       "max_concurrent_downloads": "Параллельных загрузок",
@@ -1684,7 +1702,11 @@
       "copy": "Копировать",
       "copied_url": "URL конечной точки скопирован в буфер обмена.",
       "copied_token": "Токен скопирован в буфер обмена.",
-      "unavailable": "Мост недоступен. Попробуйте перезапустить приложение."
+      "unavailable": "Мост недоступен. Попробуйте перезапустить приложение.",
+      "load_failed": "Could not read the browser connection status.",
+      "pair_listener_failed": "Could not monitor pairing. Reopen this section to try again.",
+      "rotate_confirm": "Generate a new pairing token? Previously paired browsers will lose access until you pair them again or update their token.",
+      "rotate_confirm_action": "Generate new token"
     },
     "cat_cookies": "Куки",
     "cat_channels": "Каналы",
@@ -1765,7 +1787,10 @@
       "remove_confirm": "Отписаться от этого канала?",
       "enabled": "Включён",
       "auto_download": "Автозагрузка",
-      "interval": "Каждые (мин)"
+      "interval": "Каждые (мин)",
+      "load_failed": "Could not load followed channels. Try again.",
+      "checking": "Checking…",
+      "interval_invalid": "Choose a whole number from 5 to 1440 minutes."
     },
     "cookies": {
       "title": "Куки",
@@ -1864,7 +1889,20 @@
       }
     },
     "cat_profile": "Профиль",
-    "cat_world": "Мир"
+    "cat_world": "Мир",
+    "save_failed": "Could not save this change. Try again.",
+    "retry": "Try again",
+    "search": {
+      "clear": "Clear search",
+      "title": "Search settings",
+      "count": "{{count}} results",
+      "empty": "No settings found. Try another word or choose a category.",
+      "destination_hint": "Options may require enabling the related feature or choosing a provider first. Nothing was enabled by this search.",
+      "back": "Back to results"
+    },
+    "world": {
+      "pet_load_failed": "Could not check desktop pet availability. Try again."
+    }
   },
   "omnibox": {
     "placeholder": "Вставьте ссылку или введите запрос",
