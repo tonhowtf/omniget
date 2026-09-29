@@ -2111,6 +2111,7 @@ export type TranslationKeys =
   | 'llm.rules.pattern'
   | 'llm.rules.remove'
   | 'llm.rules.save'
+  | 'llm.rules.scope_required'
   | 'llm.rules.title'
   | 'llm.rules.tool'
   | 'llm.skills.allowed_tools'

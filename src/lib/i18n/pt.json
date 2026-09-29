@@ -3311,7 +3311,8 @@
       "save": "Salvar",
       "cancel": "Cancelar",
       "hint": "O padrão casa com o comando do shell ou com o caminho de uma ferramenta de arquivo; * casa com tudo. Vale a última regra que casar.",
-      "failed": "Não foi possível salvar as regras."
+      "failed": "Não foi possível salvar as regras.",
+      "scope_required": "Informe uma ferramenta e um escopo. Use * somente se quiser abranger todos os destinos."
     },
     "prune": {
       "title": "Poda de contexto",

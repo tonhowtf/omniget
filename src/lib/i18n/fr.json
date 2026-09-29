@@ -3311,7 +3311,8 @@
       "save": "Save",
       "cancel": "Cancel",
       "hint": "The pattern matches the command of the shell or the path of a file tool; * matches anything. The last matching rule wins.",
-      "failed": "The rules could not be saved."
+      "failed": "The rules could not be saved.",
+      "scope_required": "Indiquez un outil et une portée. Utilisez * uniquement pour toutes les cibles."
     },
     "prune": {
       "title": "Context pruning",

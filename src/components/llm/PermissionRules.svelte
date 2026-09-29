@@ -7,8 +7,9 @@
    */
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
+  import { emptyPermissionRuleDraft, normalizePermissionRule, type PermissionRuleAction } from "$lib/llm/permission-rules";
 
-  type Action = "allow" | "ask" | "deny";
+  type Action = PermissionRuleAction;
   type Rule = { tool: string; pattern: string; action: Action };
 
   let { agentId = null, refreshKey = 0 }: { agentId?: string | null; refreshKey?: number } = $props();
@@ -16,7 +17,8 @@
   let rules = $state<Rule[]>([]);
   let failed = $state(false);
   let adding = $state(false);
-  let draft = $state<Rule>({ tool: "shell_exec", pattern: "", action: "allow" });
+  let invalidDraft = $state(false);
+  let draft = $state<Rule>(emptyPermissionRuleDraft());
 
   async function load(id: string | null) {
     if (!id) {
@@ -60,10 +62,14 @@
   }
 
   function add() {
-    const rule = { ...draft, tool: draft.tool.trim(), pattern: draft.pattern.trim() || "*" };
-    if (!rule.tool) return;
+    const rule = normalizePermissionRule(draft);
+    if (!rule) {
+      invalidDraft = true;
+      return;
+    }
+    invalidDraft = false;
     void save([...rules, rule]);
-    draft = { tool: "shell_exec", pattern: "", action: "allow" };
+    draft = emptyPermissionRuleDraft();
     adding = false;
   }
 </script>
@@ -112,8 +118,8 @@
 
     {#if adding}
       <div class="add-form">
-        <input class="input mono" bind:value={draft.tool} aria-label={$t("llm.rules.tool")} placeholder="shell_exec" />
-        <input class="input mono" bind:value={draft.pattern} aria-label={$t("llm.rules.pattern")} placeholder="git status *" />
+        <input class="input mono" bind:value={draft.tool} aria-label={$t("llm.rules.tool")} aria-invalid={invalidDraft && !draft.tool.trim()} oninput={() => invalidDraft = false} placeholder="shell_exec" />
+        <input class="input mono" bind:value={draft.pattern} aria-label={$t("llm.rules.pattern")} aria-invalid={invalidDraft && !draft.pattern.trim()} aria-describedby={invalidDraft ? "llm-rule-scope-error" : undefined} oninput={() => invalidDraft = false} placeholder="git status *" />
         <select class="input" bind:value={draft.action} aria-label={$t("llm.rules.action")}>
           <option value="allow">{$t("llm.rules.allow")}</option>
           <option value="ask">{$t("llm.rules.ask")}</option>
@@ -123,6 +129,7 @@
           <button type="button" class="button primary" onclick={add}>{$t("llm.rules.save")}</button>
           <button type="button" class="button" onclick={() => (adding = false)}>{$t("llm.rules.cancel")}</button>
         </div>
+        {#if invalidDraft}<p id="llm-rule-scope-error" class="rule-error" role="alert">{$t("llm.rules.scope_required")}</p>{/if}
       </div>
     {:else}
       <button type="button" class="button add" onclick={() => (adding = true)}>{$t("llm.rules.add")}</button>
@@ -146,6 +153,7 @@
     margin: 0;
     font-size: var(--text-sm);
   }
+  .rule-error { color: var(--text); margin: 0; font-size: var(--text-sm); }
 
   .dim {
     color: var(--text-dim);
