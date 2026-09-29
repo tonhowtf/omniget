@@ -3338,7 +3338,8 @@
       "key_forget": "Esquecer chave",
       "key_saved": "Chave salva.",
       "key_missing": "Sem chave nada é enviado e a poda fica desligada.",
-      "not_wired": "A mudança não chegou ao backend."
+      "not_wired": "A mudança não chegou ao backend.",
+      "save_failed": "Não foi possível confirmar estas configurações. Recarregue para verificar os valores salvos."
     },
     "workspace": {
       "pick": "Anexar pasta",

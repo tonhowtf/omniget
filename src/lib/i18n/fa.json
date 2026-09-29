@@ -3338,7 +3338,8 @@
       "key_forget": "Forget key",
       "key_saved": "Key saved.",
       "key_missing": "Without a key nothing is sent and pruning stays off.",
-      "not_wired": "The change did not reach the backend."
+      "not_wired": "The change did not reach the backend.",
+      "save_failed": "Could not confirm these settings. Reload to check the saved values."
     },
     "workspace": {
       "pick": "Attach a folder",

@@ -2047,6 +2047,7 @@ export type TranslationKeys =
   | 'llm.prune.receipts'
   | 'llm.prune.receipts_empty'
   | 'llm.prune.refresh'
+  | 'llm.prune.save_failed'
   | 'llm.prune.subtitle'
   | 'llm.prune.title'
   | 'llm.quota.active'

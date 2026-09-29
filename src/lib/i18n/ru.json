@@ -3338,7 +3338,8 @@
       "key_forget": "Забыть ключ",
       "key_saved": "Ключ сохранён.",
       "key_missing": "Без ключа ничего не отправляется, и сокращение остаётся выключенным.",
-      "not_wired": "Изменение не дошло до бэкенда."
+      "not_wired": "Изменение не дошло до бэкенда.",
+      "save_failed": "Could not confirm these settings. Reload to check the saved values."
     },
     "workspace": {
       "pick": "Прикрепить папку",
