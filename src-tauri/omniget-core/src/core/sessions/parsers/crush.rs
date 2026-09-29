@@ -26,6 +26,9 @@ pub const TOOL: &str = "crush";
 pub struct CrushSource {
     extra_projects: Vec<PathBuf>,
     registry: Vec<PathBuf>,
+    /// `~/.crush/crush.db`: `None` keeps a source built from given projects
+    /// off the person's real data (the tests).
+    home: Option<PathBuf>,
 }
 
 impl Default for CrushSource {
@@ -49,13 +52,16 @@ impl CrushSource {
         Self {
             extra_projects: crate::core::sessions::index::known_projects(),
             registry,
+            home: util::home(),
         }
     }
 
+    /// Only these projects (and their siblings): no registry, no home.
     pub fn with_projects(projects: Vec<PathBuf>) -> Self {
         Self {
             extra_projects: projects,
             registry: Vec::new(),
+            home: None,
         }
     }
 
@@ -106,8 +112,8 @@ impl CrushSource {
                 }
             }
         }
-        if let Some(h) = util::home() {
-            push(h.join(".crush").join("crush.db"), h);
+        if let Some(h) = &self.home {
+            push(h.join(".crush").join("crush.db"), h.clone());
         }
         out
     }
@@ -362,7 +368,18 @@ mod tests {
 
     #[test]
     fn per_project_db_with_wrapped_parts() {
-        let proj = std::env::temp_dir().join(format!("omniget-crush-{}", std::process::id()));
+        // Hermetic: the project sits alone in its own folder, so the sibling
+        // scan sees nothing else of `$TMPDIR`, and `with_projects` never
+        // reads `~/.crush` (the person's real sessions).
+        let root = std::env::temp_dir().join(format!(
+            "omniget-crush-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let proj = root.join("proj");
         let data = proj.join(".crush");
         std::fs::create_dir_all(&data).unwrap();
         let db = data.join("crush.db");
@@ -391,6 +408,6 @@ mod tests {
         assert_eq!(c.ms, Some(2000));
         assert_eq!(s.turns[1].usage.input, 1000);
         assert_eq!(s.turns[1].cost_usd, Some(0.05));
-        std::fs::remove_dir_all(&proj).ok();
+        std::fs::remove_dir_all(&root).ok();
     }
 }

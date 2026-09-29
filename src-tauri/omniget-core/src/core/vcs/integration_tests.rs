@@ -10,12 +10,10 @@ use std::sync::Arc;
 use super::diff::DiffOptions;
 use super::*;
 
-fn data_dir() -> PathBuf {
-    // One data dir for every test of this module (the env var is global).
-    let d = std::env::temp_dir().join("omniget-vcs-tests-data");
-    std::fs::create_dir_all(&d).unwrap();
-    unsafe { std::env::set_var("OMNIGET_DATA_DIR", &d) };
-    d
+/// The data dir the git tests share, held for the whole test: the env var
+/// is process-wide (`test_env`).
+fn data_dir() -> crate::core::test_env::Shared {
+    crate::core::test_env::shared_data_dir()
 }
 
 fn scratch(name: &str) -> PathBuf {
@@ -56,7 +54,7 @@ fn write(p: &Path, bytes: &[u8]) {
 
 #[tokio::test]
 async fn worktree_checkpoints_diff_restore() {
-    data_dir();
+    let _data = data_dir();
     let repo_dir = scratch("repo");
     git(&repo_dir, &["init", "-q", "-b", "main"]);
     git(&repo_dir, &["config", "user.name", "Test"]);
@@ -256,7 +254,7 @@ async fn worktree_checkpoints_diff_restore() {
 
 #[tokio::test]
 async fn shadow_checkpoints_for_plain_folder() {
-    data_dir();
+    let _data = data_dir();
     let dir = scratch("plain");
     write(&dir.join("notes.txt"), b"v0\n");
     checkpoint::capture(&dir, "t", 0).await.unwrap();
@@ -286,7 +284,7 @@ async fn shadow_checkpoints_for_plain_folder() {
 
 #[tokio::test]
 async fn worktree_setup_script_and_cancel() {
-    data_dir();
+    let _data = data_dir();
     let repo_dir = scratch("setup");
     git(&repo_dir, &["init", "-q", "-b", "main"]);
     write(

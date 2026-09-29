@@ -2531,16 +2531,34 @@ mod tests {
         assert_eq!((s[1].runs, s[1].failures), (1, 1));
     }
 
-    /// Uma pasta de dados para todos os testes do módulo (a env é global e o
-    /// banco da arena é aberto uma vez só).
-    pub(super) fn test_data() -> PathBuf {
+    /// Uma pasta de dados para todos os testes do módulo (o banco da arena é
+    /// aberto uma vez só).
+    fn data_path() -> PathBuf {
         static D: OnceLock<PathBuf> = OnceLock::new();
-        D.get_or_init(|| {
-            let d = scratch("data");
-            unsafe { std::env::set_var("OMNIGET_DATA_DIR", &d) };
-            d
-        })
-        .clone()
+        D.get_or_init(|| scratch("data")).clone()
+    }
+
+    /// A pasta de dados na env durante o teste inteiro. A env é global ao
+    /// processo: o guarda segura a trava de env do crate
+    /// (`secrets::test_env`), a mesma dos outros testes que mexem nela, e
+    /// devolve o valor anterior no fim.
+    pub(super) struct TestData {
+        path: PathBuf,
+        _env: crate::secrets::test_env::EnvGuard,
+    }
+
+    impl std::ops::Deref for TestData {
+        type Target = PathBuf;
+        fn deref(&self) -> &PathBuf {
+            &self.path
+        }
+    }
+
+    pub(super) fn test_data() -> TestData {
+        let env = crate::secrets::test_env::EnvGuard::acquire();
+        let path = data_path();
+        env.set("OMNIGET_DATA_DIR", Some(path.to_str().expect("utf-8 path")));
+        TestData { path, _env: env }
     }
 
     pub(super) fn scratch(name: &str) -> PathBuf {
@@ -2734,7 +2752,8 @@ mod tests {
         use omniget_core::core::threads::git::{GitHooks, ThreadGit};
         static E: OnceLock<Arc<ThreadsEngine>> = OnceLock::new();
         E.get_or_init(|| {
-            let data = test_data();
+            // Quem chama já segura `test_data()` (a trava não é reentrante).
+            let data = data_path();
             let engine = ThreadsEngine::open(
                 &data.join(format!("threads-{}.db", uuid::Uuid::new_v4().simple())),
             )

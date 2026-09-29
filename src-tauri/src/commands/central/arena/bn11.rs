@@ -418,7 +418,7 @@ async fn bn11_three_agents_four_code_tasks() {
         eprintln!("BN11_FIXTURES not set: run scripts/llm/arena_eval.py");
         return;
     };
-    let _ = test_data();
+    let _data = test_data();
     let root = PathBuf::from(fixtures);
     let tasks: Vec<String> =
         serde_json::from_str(&std::fs::read_to_string(root.join("tasks.json")).unwrap()).unwrap();

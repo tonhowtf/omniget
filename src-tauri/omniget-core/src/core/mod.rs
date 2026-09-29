@@ -46,6 +46,8 @@ pub mod sessions;
 pub mod shell_words;
 pub mod skills;
 pub mod subtitle_merge;
+#[cfg(test)]
+pub mod test_env;
 pub mod threads;
 pub mod tools;
 pub mod vcs;

@@ -709,7 +709,8 @@ mod tests {
         let dir =
             std::env::temp_dir().join(format!("omniget-sessions-load-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        std::env::set_var("OMNIGET_DATA_DIR", &dir);
+        let env = crate::core::test_env::exclusive();
+        env.set_data_dir(&dir);
         fresh().unwrap();
         let metas = index::with_reader(|idx| {
             idx.list(
@@ -761,7 +762,8 @@ mod tests {
         let dir =
             std::env::temp_dir().join(format!("omniget-sessions-perf-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        std::env::set_var("OMNIGET_DATA_DIR", &dir);
+        let env = crate::core::test_env::exclusive();
+        env.set_data_dir(&dir);
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(8)
             .enable_all()
@@ -858,7 +860,8 @@ mod tests {
     fn real_pipeline() {
         let dir = std::env::temp_dir().join(format!("omniget-sessions-api-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        std::env::set_var("OMNIGET_DATA_DIR", &dir);
+        let env = crate::core::test_env::exclusive();
+        env.set_data_dir(&dir);
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let t = Instant::now();

@@ -1537,9 +1537,8 @@ mod bn2 {
         let Some(fake) = fake() else {
             return eprintln!("python3 missing: skipped");
         };
-        let data = std::env::temp_dir().join("omniget-vcs-tests-data");
-        std::fs::create_dir_all(&data).unwrap();
-        unsafe { std::env::set_var("OMNIGET_DATA_DIR", &data) };
+        // Held for the whole test: the env var is process-wide (`test_env`).
+        let _data = crate::core::test_env::shared_data_dir();
         // Long enough that the job keeping the folder has not written yet
         // when the last worktree is cut (3 staggers + creation): a worktree
         // carries the folder as it is at that instant, the shared job's

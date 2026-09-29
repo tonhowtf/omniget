@@ -1549,9 +1549,8 @@ mod bn4 {
         if !git_available() {
             return eprintln!("git missing: skipped");
         }
-        let data = std::env::temp_dir().join("omniget-vcs-tests-data");
-        std::fs::create_dir_all(&data).unwrap();
-        unsafe { std::env::set_var("OMNIGET_DATA_DIR", &data) };
+        // Held for the whole test: the env var is process-wide (`test_env`).
+        let _data = crate::core::test_env::shared_data_dir();
         let reps: usize = std::env::var("BN4_TIMING_REPS")
             .ok()
             .and_then(|v| v.parse().ok())
