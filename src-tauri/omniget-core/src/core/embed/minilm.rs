@@ -102,11 +102,11 @@ pub fn model_path() -> Option<PathBuf> {
     model_dir().map(|d| d.join(MODEL.file))
 }
 
-fn asset_path(a: &Asset) -> Option<PathBuf> {
+pub(crate) fn asset_path(a: &Asset) -> Option<PathBuf> {
     model_dir().map(|d| d.join(a.file))
 }
 
-fn has_asset(a: &Asset) -> bool {
+pub(crate) fn has_asset(a: &Asset) -> bool {
     asset_path(a)
         .and_then(|p| std::fs::metadata(p).ok())
         .map(|m| m.is_file() && m.len() == a.bytes)
@@ -143,7 +143,7 @@ pub fn sha256_of(path: &Path) -> Result<String, EmbedError> {
     Ok(hex::encode(hasher.finalize()))
 }
 
-async fn fetch_asset(a: &Asset, progress: &ProgressFn) -> Result<PathBuf, EmbedError> {
+pub(crate) async fn fetch_asset(a: &Asset, progress: &ProgressFn) -> Result<PathBuf, EmbedError> {
     let dest = asset_path(a).ok_or_else(|| {
         EmbedError::new(ERR_EMBED_MODEL, "no app data directory to store the model")
     })?;

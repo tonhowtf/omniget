@@ -12,6 +12,8 @@
 pub mod minilm;
 pub mod ollama_embed;
 pub mod tokenizer;
+pub mod unigram;
+pub mod xlmr;
 
 use std::borrow::Cow;
 

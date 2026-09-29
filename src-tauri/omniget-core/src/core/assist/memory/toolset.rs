@@ -27,7 +27,7 @@ fn specs() -> Vec<ToolSpec> {
     vec![
         spec(
             "memory_recall",
-            "Search what you remember about this person (only the scopes this conversation may read). Returns notes with their source.",
+            "Search what you remember about this person (only the scopes this conversation may read). Finds notes by words, by meaning, by the people and things they mention and by time ('last month', 'em março'). Returns notes with their source and when they happened.",
             json!({"type":"object","properties":{
                 "query":{"type":"string","description":"Words to look for"},
                 "limit":{"type":"integer","minimum":1,"maximum":20}
@@ -71,6 +71,22 @@ fn specs() -> Vec<ToolSpec> {
             "The compact profile of this person for this conversation, with sources.",
             json!({"type":"object","properties":{}}),
         ),
+        spec(
+            "memory_reflect",
+            "Answer a question by reasoning over everything you remember about this person (facts with dates, notes about the people and things they mention). Use it for questions that need several memories at once: 'what has changed in my diet this year?', 'when did I last talk to Ana?'. Returns an answer with the ids of the facts behind it.",
+            json!({"type":"object","properties":{
+                "question":{"type":"string"},
+                "keep_insights":{"type":"boolean","description":"Save strong new patterns as unconfirmed guesses in your own notes (default true)"}
+            },"required":["question"]}),
+        ),
+        spec(
+            "memory_retain",
+            "Read a longer text the person shared about themselves (a journal entry, notes, a transcript) and save the facts worth remembering, with dates and the people, places and things they mention. Do not use it for web pages or documents that are not about the person.",
+            json!({"type":"object","properties":{
+                "content":{"type":"string"},
+                "context":{"type":"string","description":"What this text is (e.g. 'the person's travel diary')"}
+            },"required":["content"]}),
+        ),
     ]
 }
 
@@ -86,7 +102,75 @@ impl AssistToolset for MemoryTools {
 
     async fn call(&self, ctx: &AssistCtx, tool: &str, input: Value) -> Result<Value, String> {
         let db = db::global()?;
-        call_tool(&db, ctx, tool, input, super::super::now_ms())
+        match tool {
+            "memory_reflect" => {
+                let q = need_str(&input, "question")?.to_string();
+                let keep = input
+                    .get("keep_insights")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true);
+                let r =
+                    super::reflect::reflect(db, ctx.clone(), q, keep, super::retain::default_llm())
+                        .await?;
+                Ok(serde_json::to_value(r).unwrap_or(Value::Null))
+            }
+            "memory_retain" => {
+                let content = need_str(&input, "content")?.to_string();
+                let r = super::retain::retain(
+                    db.clone(),
+                    ctx.clone(),
+                    super::retain::RetainInput {
+                        person: String::new(),
+                        other: content,
+                        event_ms: super::super::now_ms(),
+                        source_kind: "document".into(),
+                        source_id: ctx.run_id.clone(),
+                        context: opt_str(&input, "context").map(str::to_string),
+                    },
+                    super::retain::default_llm(),
+                )
+                .await?;
+                spawn_upkeep(db);
+                Ok(json!({
+                    "saved": r.created.len(),
+                    "confirmed_again": r.reinforced.len(),
+                    "skipped": r.skipped,
+                }))
+            }
+            "memory_recall" => {
+                let q = need_str(&input, "query")?.to_string();
+                let limit = input
+                    .get("limit")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(8)
+                    .min(20) as usize;
+                let q2 = q.clone();
+                let qvec = tokio::task::spawn_blocking(move || super::retrieve::embed_query(&q2))
+                    .await
+                    .ok()
+                    .flatten();
+                let now = super::super::now_ms();
+                let probe = super::retrieve::hybrid(&db, ctx, &q, qvec.as_deref(), limit, now)?;
+                let ids: Vec<String> = probe.hits.iter().map(|h| h.record.id.clone()).collect();
+                let _ = db.with(|c| super::graph::touch(c, &ids, now));
+                let notes = super::retrieve::notes_for(&db, ctx, &q).unwrap_or_default();
+                Ok(json!({
+                    "results": probe.hits.iter().map(|h| {
+                        let mut v = view(&h.record);
+                        v["found_by"] = json!(h.why.arms);
+                        if let Some(s) = h.why.occurred_start {
+                            v["happened"] = json!(super::search::day(s));
+                        }
+                        if h.why.proofs > 1 {
+                            v["times_stated"] = json!(h.why.proofs);
+                        }
+                        v
+                    }).collect::<Vec<_>>(),
+                    "about": notes.iter().map(|(n, t)| json!({"name": n, "note": t})).collect::<Vec<_>>(),
+                }))
+            }
+            _ => call_tool(&db, ctx, tool, input, super::super::now_ms()),
+        }
     }
 }
 
@@ -293,6 +377,71 @@ impl crate::core::llm::coordinator::TurnAugment for MemoryAugment {
         let ctx = super::super::ctx::resolve(&agent.id, Some(conversation_id));
         search::augment_text(&db, &ctx, user_input, super::super::now_ms())
     }
+
+    fn after_turn(&self, agent: &AgentDef, conversation_id: &str, user_input: &str, reply: &str) {
+        if !may_retain(agent) || !super::retain::worth_retaining(user_input) {
+            return;
+        }
+        let Ok(db) = db::global() else { return };
+        if !super::retain::setting(&db, "auto_retain") {
+            return;
+        }
+        let Ok(rt) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let ctx = super::super::ctx::resolve(&agent.id, Some(conversation_id));
+        let input = super::retain::RetainInput {
+            person: user_input
+                .chars()
+                .take(super::retain::CHUNK_CHARS * 6)
+                .collect(),
+            other: reply.chars().take(4000).collect(),
+            event_ms: super::super::now_ms(),
+            source_kind: "conversation".into(),
+            source_id: None,
+            context: Some(format!("a chat with the assistant \"{}\"", agent.name)),
+        };
+        rt.spawn(async move {
+            match super::retain::retain(db.clone(), ctx, input, super::retain::default_llm()).await
+            {
+                Ok(r) if !r.created.is_empty() || !r.reinforced.is_empty() => {
+                    tracing::debug!(
+                        "[memory] retained {} new, {} confirmed again",
+                        r.created.len(),
+                        r.reinforced.len()
+                    );
+                    spawn_upkeep(db);
+                }
+                Ok(_) => {}
+                Err(e) => tracing::debug!("[memory] retain failed: {e}"),
+            }
+        });
+    }
+}
+
+/// Vectors for records written without one, then the entity notes.
+pub(super) fn spawn_upkeep(db: Arc<AssistDb>) {
+    let Ok(rt) = tokio::runtime::Handle::try_current() else {
+        return;
+    };
+    rt.spawn(async move {
+        let d = db.clone();
+        let _ = tokio::task::spawn_blocking(move || super::retain::backfill_vectors(&d, 256)).await;
+        if super::retain::setting(&db, "consolidate") {
+            if let Err(e) = super::consolidate::run(db, super::retain::default_llm()).await {
+                tracing::debug!("[memory] consolidation: {e}");
+            }
+        }
+    });
+}
+
+/// True when the agent may save memories on its own (the `Remember` policy
+/// gives `memory_remember` an automatic grant; `Ask` and read-only do not).
+fn may_retain(agent: &AgentDef) -> bool {
+    agent.tools.iter().any(|g| {
+        g.mode == GrantMode::Auto
+            && matches!(&g.source, ToolSource::Internal { name } if name == "memory_remember")
+    })
 }
 
 /// Per-turn hook: profile + relevant recollections, only for agents that

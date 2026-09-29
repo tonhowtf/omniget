@@ -632,6 +632,8 @@ pub fn forget(db: &AssistDb, ctx: &AssistCtx, id: &str, now: i64) -> Result<usiz
                 }
                 tx.execute("DELETE FROM memory_fts WHERE record_id = ?1", [rid]).map_err(db_err)?;
             }
+            let ids: Vec<String> = rows.iter().map(|r| r.0.clone()).collect();
+            super::graph::purge(tx, &ids).map_err(db_err)?;
             removed += tx
                 .execute("DELETE FROM memory_records WHERE principal = ?1 AND chain = ?2", params![principal, chain])
                 .map_err(db_err)?;
