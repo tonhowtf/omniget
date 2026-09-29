@@ -3539,14 +3539,46 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "blocked": "Bloccato",
+        "budget_limited": "Budget raggiunto"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "Nessun comando di verifica: dopo ogni giro un revisore indipendente (il modello più piccolo dell'agente) decide se il lavoro è finito, fino a 20 giri.",
       "review": "Review loop",
       "edit": "Edit configuration",
-      "run_mode_hint": "Ogni giro del loop usa questa modalità. Con «Chiedi prima di tutto», ogni giro si ferma e ti aspetta prima di qualsiasi modifica o comando."
+      "run_mode_hint": "Ogni giro del loop usa questa modalità. Con «Chiedi prima di tutto», ogni giro si ferma e ti aspetta prima di qualsiasi modifica o comando.",
+      "stop": {
+        "audit_complete": "Verificato dal revisore",
+        "audit_blocked": "Il revisore ha visto l'agente bloccato per 3 giri di fila",
+        "audit_unavailable": "Revisione non disponibile due volte di fila",
+        "token_budget": "Budget di token raggiunto",
+        "max_rounds": "Limite di giri raggiunto",
+        "round_failed": "Un giro è fallito: {{error}}",
+        "audit_disagrees": "L'agente ha detto di aver finito e il revisore ha dissentito 3 volte di fila: decidi tu"
+      },
+      "token_budget": "Budget di token",
+      "tokens": "{{used}} / {{budget}} token",
+      "guided": "{{count}} giri hanno inviato solo la continuazione (il compito non è stato reinviato).",
+      "audits": "Verdetti del revisore",
+      "verdict": {
+        "continue": "Continua",
+        "complete": "Completato",
+        "blocked": "Bloccato",
+        "none": "Nessun verdetto"
+      },
+      "claimed_done": "ha detto di aver finito",
+      "claimed_done_hint": "L'agente ha detto di aver finito; solo il verdetto del revisore chiude il loop.",
+      "side_reason": {
+        "provider_small": "Modello più piccolo dello stesso account",
+        "session_model": "Nessun modello più piccolo noto: quello dell'agente",
+        "requested": "Scelto per questo loop",
+        "setting": "Impostazione del modello secondario"
+      },
+      "overhead": "Revisore {{audit}} per giri da {{rounds}} ({{percent}}%).",
+      "blocked_hint": "Il loop si è fermato e ha bisogno di te. Riprendi avvia un nuovo giro, di nuovo revisionato.",
+      "note": "Avanzamento"
     },
     "limits": {
       "title": "Limits strip",

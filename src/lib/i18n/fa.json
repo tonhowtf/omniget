@@ -3539,14 +3539,46 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "blocked": "مسدود",
+        "budget_limited": "بودجه تمام شد"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "بدون فرمان بررسی: پس از هر دور یک ممیز مستقل (کوچک‌ترین مدل عامل) تصمیم می‌گیرد که آیا کار تمام شده است، حداکثر تا ۲۰ دور.",
       "review": "Review loop",
       "edit": "Edit configuration",
-      "run_mode_hint": "هر دور حلقه با این حالت اجرا می‌شود. با «پیش از هر کاری بپرس»، هر دور پیش از هر ویرایش یا فرمانی می‌ایستد و منتظر شما می‌ماند."
+      "run_mode_hint": "هر دور حلقه با این حالت اجرا می‌شود. با «پیش از هر کاری بپرس»، هر دور پیش از هر ویرایش یا فرمانی می‌ایستد و منتظر شما می‌ماند.",
+      "stop": {
+        "audit_complete": "تأییدشده توسط ممیز",
+        "audit_blocked": "ممیز عامل را ۳ دور پشت سر هم مسدود دید",
+        "audit_unavailable": "ممیزی دو بار پشت سر هم در دسترس نبود",
+        "token_budget": "بودجه توکن تمام شد",
+        "max_rounds": "به سقف دورها رسید",
+        "round_failed": "یک دور شکست خورد: {{error}}",
+        "audit_disagrees": "عامل ۳ بار پشت سر هم گفت کار تمام است و ممیز مخالفت کرد: شما تصمیم بگیرید"
+      },
+      "token_budget": "بودجه توکن",
+      "tokens": "{{used}} / {{budget}} توکن",
+      "guided": "{{count}} دور فقط ادامه را فرستادند (کار دوباره فرستاده نشد).",
+      "audits": "رأی‌های ممیز",
+      "verdict": {
+        "continue": "ادامه",
+        "complete": "کامل",
+        "blocked": "مسدود",
+        "none": "بدون رأی"
+      },
+      "claimed_done": "گفت تمام شد",
+      "claimed_done_hint": "عامل گفت کار تمام شده است؛ فقط رأی ممیز حلقه را تمام می‌کند.",
+      "side_reason": {
+        "provider_small": "کوچک‌ترین مدل همان حساب",
+        "session_model": "مدل کوچک‌تری شناخته نشده: مدل خود عامل",
+        "requested": "برای این حلقه انتخاب شده",
+        "setting": "تنظیم مدل جانبی"
+      },
+      "overhead": "ممیز {{audit}} برای دورهایی به هزینه {{rounds}} ({{percent}}٪).",
+      "blocked_hint": "حلقه متوقف شد و به شما نیاز دارد. ادامه یک دور تازه اجرا می‌کند که دوباره ممیزی می‌شود.",
+      "note": "پیشرفت"
     },
     "limits": {
       "title": "Limits strip",

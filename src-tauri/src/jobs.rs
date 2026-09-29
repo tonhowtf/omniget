@@ -31,7 +31,10 @@ use tokio_util::sync::CancellationToken;
 
 use crate::llm_manager::{now_ms, sanitize_id, LlmManager};
 
+mod loop_audit;
 mod review;
+
+pub use loop_audit::LoopAudit;
 
 pub const EVENT_JOB: &str = "llm://job";
 pub const EVENT_LOOP: &str = "llm://loop";
@@ -387,7 +390,8 @@ pub struct LoopDef {
     /// Ceiling of each round (one job), in minutes; `None` = the setting.
     #[serde(default)]
     pub deadline_min: Option<u32>,
-    /// `running|done|failed|cancelled|interrupted`
+    /// `running|done|failed|cancelled|interrupted|blocked|budget_limited`
+    /// (`blocked` and `budget_limited` come from the auditor's rules, 3.7).
     #[serde(default)]
     pub state: String,
     #[serde(default)]
@@ -428,6 +432,39 @@ pub struct LoopDef {
     /// `approval_required` when the caller sends none.
     #[serde(default)]
     pub run_mode: Option<RunMode>,
+    /// Stop when the rounds and their audits spent this many billable tokens
+    /// (`billable_of`: input weighted by cache, plus output) → state
+    /// `budget_limited` (3.7, 84#P1).
+    #[serde(default)]
+    pub token_budget: Option<u64>,
+    #[serde(default)]
+    pub tokens_used: u64,
+    /// The auditor's model; `None` = the side model of the agent's own
+    /// provider/account (`router::resolve_side`).
+    #[serde(default)]
+    pub audit_model: Option<String>,
+    /// `blocked` verdicts in a row (3 end the Loop).
+    #[serde(default)]
+    pub blocked_streak: u32,
+    /// Audits in a row without a verdict (2 end the Loop).
+    #[serde(default)]
+    pub audit_fail_streak: u32,
+    /// Rounds in a row the agent said done and the auditor `continue` (3
+    /// end the Loop as `blocked`: a person settles it).
+    #[serde(default)]
+    pub disagree_streak: u32,
+    /// The auditor's last note: the Loop's progress line.
+    #[serde(default)]
+    pub note: Option<String>,
+    /// One entry per audited round, newest last.
+    #[serde(default)]
+    pub audits: Vec<LoopAudit>,
+    /// What the audits cost together (also inside `spent_usd`).
+    #[serde(default)]
+    pub audit_usd: f64,
+    /// Rounds that went out as the short continuation guide (83#P7).
+    #[serde(default)]
+    pub rounds_guided: u32,
 }
 
 /// One step of a running playbook.
@@ -2788,6 +2825,14 @@ impl Jobs {
         }
         def.rounds_done = 0;
         def.spent_usd = 0.0;
+        def.tokens_used = 0;
+        def.audit_usd = 0.0;
+        def.blocked_streak = 0;
+        def.audit_fail_streak = 0;
+        def.disagree_streak = 0;
+        def.note = None;
+        def.audits.clear();
+        def.rounds_guided = 0;
         def.active_ms = 0;
         def.next_round_ms = None;
         def.created_ms = now_ms();
@@ -2894,6 +2939,19 @@ impl Jobs {
                 Some(ws.into()),
             );
         }
+        // No check command and an agent to ask: an independent auditor
+        // decides when the work is done (84#P1), never the agent's own "DONE".
+        let audited = !l.agent_id.starts_with(TOOL_PREFIX)
+            && l.check_command
+                .as_deref()
+                .is_none_or(|c| c.trim().is_empty());
+        let max_rounds = omniget_core::core::llm::goal_audit::effective_max(l.max_rounds, audited);
+        let mut streaks = omniget_core::core::llm::goal_audit::Streaks {
+            blocked: l.blocked_streak,
+            failed: l.audit_fail_streak,
+            disagree: l.disagree_streak,
+        };
+        let mut last_audit = loop_audit::last_audit(&l);
         // Already green? Then there is nothing to do.
         if l.rounds_done == 0 {
             if let Some((true, out)) = self.run_check(&l).await {
@@ -2911,8 +2969,17 @@ impl Jobs {
                 Some(cur) if cur.state == "running" => {}
                 _ => return,
             }
-            if l.max_rounds.map(|m| l.rounds_done >= m).unwrap_or(false) {
+            if max_rounds.map(|m| l.rounds_done >= m).unwrap_or(false) {
                 l.stop_reason = Some("max_rounds".into());
+                // The auditor never said `complete`: not done, needs a person.
+                if audited {
+                    l.state = "blocked".into();
+                }
+                break;
+            }
+            if l.token_budget.is_some_and(|b| l.tokens_used >= b) {
+                l.state = "budget_limited".into();
+                l.stop_reason = Some(omniget_core::core::llm::goal_audit::STOP_TOKEN_BUDGET.into());
                 break;
             }
             if deadline.map(|d| now_ms() >= d).unwrap_or(false) {
@@ -2949,17 +3016,24 @@ impl Jobs {
                 }
             }
             let round = l.rounds_done + 1;
-            let prompt = if round == 1 {
-                match &l.check_command {
-                    Some(c) if !c.trim().is_empty() => format!("{}\n\nYou are done when this command exits 0: `{c}`. Run it yourself before you stop.", l.prompt),
-                    _ => l.prompt.clone(),
-                }
-            } else {
-                match &l.last_check {
-                    Some(out) => format!("Round {round}. The check still fails:\n```\n{out}\n```\nKeep working on the task: {}", l.prompt),
-                    None => format!("Round {round}. Continue the task; say DONE on a line of its own when nothing is left. Task: {}", l.prompt),
-                }
-            };
+            // Round 2+ on a runtime that resumes its session: the task is in
+            // the conversation already, only the guide goes (83#P7).
+            let resumed = round > 1 && self.loop_resumable(&l);
+            let (prompt, guided) = omniget_core::core::llm::goal_audit::round_prompt(
+                &omniget_core::core::llm::goal_audit::Round {
+                    round,
+                    max: max_rounds,
+                    prompt: &l.prompt,
+                    check_command: l.check_command.as_deref(),
+                    last_check: l.last_check.as_deref(),
+                    last_audit: last_audit.as_ref(),
+                    audited,
+                    resumed,
+                },
+            );
+            if guided {
+                l.rounds_guided += 1;
+            }
             let mut job = match self.new_job(
                 "loop",
                 &l.agent_id,
@@ -2988,13 +3062,27 @@ impl Jobs {
                 .as_deref()
                 .and_then(|s| next_round_at(s, now_ms()));
             let Some(done) = done else { break };
-            if let Some(c) = done.usage.as_ref().and_then(|u| u["cost_usd"].as_f64()) {
+            let round_cost = done.usage.as_ref().and_then(|u| u["cost_usd"].as_f64());
+            if let Some(c) = round_cost {
                 l.spent_usd += c;
             }
+            let round_tokens = done.usage.as_ref().map(billable_of).unwrap_or(0);
+            l.tokens_used += round_tokens;
             match done.state.as_str() {
                 "cancelled" => {
                     l.state = "cancelled".into();
                     l.stop_reason = Some("cancelled".into());
+                    break;
+                }
+                "failed" if audited => {
+                    // 84#P1: a failed turn blocks an audited Loop (a person
+                    // looks), it is never retried blind.
+                    l.state = "blocked".into();
+                    l.stop_reason = Some(format!(
+                        "{}: {}",
+                        omniget_core::core::llm::goal_audit::STOP_ROUND_FAILED,
+                        done.error.clone().unwrap_or_default()
+                    ));
                     break;
                 }
                 "failed" => {
@@ -3016,6 +3104,44 @@ impl Jobs {
                     break;
                 }
                 Some((false, out)) => l.last_check = Some(out),
+                None if audited => {
+                    use omniget_core::core::llm::goal_audit::{self, Step};
+                    let reply = done.result.as_deref().unwrap_or("");
+                    let (audit, mut entry) = self
+                        .audit_round(&l, round, reply, last_audit.as_ref())
+                        .await;
+                    entry.round_cost_usd = round_cost;
+                    entry.round_tokens = round_tokens;
+                    entry.guided = guided;
+                    l.tokens_used += entry.tokens;
+                    if let Some(c) = entry.cost_usd {
+                        l.spent_usd += c;
+                        l.audit_usd += c;
+                    }
+                    let step = goal_audit::step(&mut streaks, audit.as_ref(), entry.claimed_done);
+                    l.blocked_streak = streaks.blocked;
+                    l.audit_fail_streak = streaks.failed;
+                    l.disagree_streak = streaks.disagree;
+                    if let Some(a) = &audit {
+                        if !a.note.is_empty() {
+                            l.note = Some(a.note.clone());
+                        }
+                    }
+                    loop_audit::push_audit(&mut l, entry);
+                    last_audit = audit;
+                    match step {
+                        Step::Complete => {
+                            l.stop_reason = Some(goal_audit::STOP_COMPLETE.into());
+                            break;
+                        }
+                        Step::Blocked(why) => {
+                            l.state = "blocked".into();
+                            l.stop_reason = Some(why.into());
+                            break;
+                        }
+                        Step::Continue => {}
+                    }
+                }
                 None => {
                     let said_done = done
                         .result
@@ -3046,7 +3172,10 @@ impl Jobs {
         self.save_loop(&l);
         // A Loop is one piece of background work: it says so once, when it
         // ends, not after every round.
-        if matches!(l.state.as_str(), "done" | "failed") {
+        if matches!(
+            l.state.as_str(),
+            "done" | "failed" | "blocked" | "budget_limited"
+        ) {
             let target = crate::llm_attention::AttentionTarget {
                 job_id: l.id.clone(),
                 conversation_id: l.conversation_id.clone(),
@@ -3555,14 +3684,20 @@ impl Jobs {
         let mut l = self
             .loop_get(id)
             .ok_or_else(|| format!("{ERR_JOBS}: no loop {id}"))?;
-        if l.state != "interrupted" {
+        // A blocked Loop resumes too: the next round is audited again, with
+        // the streaks from zero (84#P1: "blocked is resumable").
+        if l.state != "interrupted" && l.state != "blocked" {
             return Err(format!(
-                "{ERR_JOBS}: loop {id} is {}, not interrupted",
+                "{ERR_JOBS}: loop {id} is {}, not interrupted or blocked",
                 l.state
             ));
         }
         l.state = "running".into();
         l.stop_reason = None;
+        l.finished_ms = None;
+        l.blocked_streak = 0;
+        l.audit_fail_streak = 0;
+        l.disagree_streak = 0;
         self.save_loop(&l);
         let this = self.clone();
         let lid = l.id.clone();

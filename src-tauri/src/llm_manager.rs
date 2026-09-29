@@ -1311,6 +1311,93 @@ impl LlmManager {
             .await
     }
 
+    /// A side call (3.7, `TaskKind::Side`, 84#P3): a short, tool-less turn
+    /// of the agent's own provider/account on its smallest model, for the
+    /// Loop auditor. `conversation_id` must start with `side-` (the CLI
+    /// runtime launches it lean from that). `system` replaces the agent's
+    /// prompt; the agent's skills, tools and memory stay out. Returns the
+    /// model it runs on and why.
+    pub async fn side_turn_stream(
+        &self,
+        conversation_id: &str,
+        source_agent_id: &str,
+        system: &str,
+        input: &str,
+        requested_model: Option<&str>,
+    ) -> Result<
+        (
+            String,
+            CancellationToken,
+            BoxStream<'static, TurnEvent>,
+            router::SideModel,
+        ),
+        String,
+    > {
+        if !router::is_side_conversation(conversation_id) {
+            return Err(format!(
+                "ERR_SIDE_SESSION: `{conversation_id}` is not a side conversation"
+            ));
+        }
+        let mut agent = self
+            .agent(source_agent_id)
+            .ok_or_else(|| format!("{ERR_NO_AGENT}: no agent {source_agent_id}"))?;
+        let side = self.side_agent(&mut agent, system, requested_model);
+        let (request, cancel, stream) = self
+            .turn_with_agent(conversation_id, agent, input, CancellationToken::new())
+            .await?;
+        Ok((request, cancel, stream, side))
+    }
+
+    /// Turns `agent` into its side agent in place: same runtime, account and
+    /// provider (never another provider's subscription), the side model of
+    /// [`router::resolve_side`], no tools, no skills, `system` as its prompt.
+    pub fn side_agent(
+        &self,
+        agent: &mut AgentDef,
+        system: &str,
+        requested_model: Option<&str>,
+    ) -> router::SideModel {
+        use omniget_core::core::llm::agent::{AgentRole, RuntimeKind};
+        let session = self.model_of(agent);
+        let family = match &agent.runtime {
+            RuntimeKind::Cli { cli, .. } => format!("{}-cli", cli.trim().to_ascii_lowercase()),
+            RuntimeKind::Native => session.provider.as_str().to_ascii_lowercase(),
+            RuntimeKind::Acp { .. } => "acp".to_string(),
+        };
+        let side = router::resolve_side(requested_model, None, &family, &session.model);
+        agent.model = match &agent.model {
+            ModelPolicy::Fixed { model } => ModelPolicy::Fixed {
+                model: ModelRef {
+                    provider: model.provider.clone(),
+                    model: side.model.clone(),
+                },
+            },
+            ModelPolicy::Route { chain } => {
+                let picked = self
+                    .inner()
+                    .router
+                    .pick_for(chain, &[], router::TaskKind::of_agent(agent))
+                    .map(|r| r.candidate)
+                    .ok()
+                    .or_else(|| chain.first().cloned());
+                ModelPolicy::Route {
+                    chain: picked
+                        .map(|c| Candidate {
+                            model: side.model.clone(),
+                            ..c
+                        })
+                        .into_iter()
+                        .collect(),
+                }
+            }
+        };
+        agent.role = AgentRole::Custom(router::SIDE_ROLE.into());
+        agent.system_prompt = system.to_string();
+        agent.tools.clear();
+        agent.skills.clear();
+        side
+    }
+
     async fn turn_with_agent(
         &self,
         conversation_id: &str,
@@ -2184,6 +2271,49 @@ mod tests {
         );
         // An unavailable account stays unavailable.
         assert!(!apply_rotation_switch(Capacity::unavailable(), false).available);
+    }
+
+    /// 3.7 (84#P3): the auditor of a Claude Code agent runs on Haiku of the
+    /// same account, with no tools and the auditor's prompt; a side call on a
+    /// conversation that is not `side-*` is refused.
+    #[tokio::test]
+    async fn a_side_agent_keeps_the_account_and_takes_the_small_model() {
+        use omniget_core::core::llm::agent::{AgentRole, RuntimeKind};
+        let m = temp_manager("side");
+        let mut agent = fake_agent(&m);
+        agent.runtime = RuntimeKind::Cli {
+            cli: "claude".into(),
+            account: "max-1".into(),
+        };
+        agent.model = ModelPolicy::Fixed {
+            model: ModelRef {
+                provider: ProviderId::new("claude"),
+                model: "opus".into(),
+            },
+        };
+        let mut side = agent.clone();
+        let choice = m.side_agent(&mut side, "You audit.", None);
+        assert_eq!(choice.model, "haiku");
+        assert_eq!(choice.reason, router::SideReason::ProviderSmall);
+        assert_eq!(side.runtime, agent.runtime);
+        match &side.model {
+            ModelPolicy::Fixed { model } => {
+                assert_eq!(model.provider.as_str(), "claude");
+                assert_eq!(model.model, "haiku");
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(side.tools.is_empty() && side.skills.is_empty());
+        assert_eq!(side.system_prompt, "You audit.");
+        assert_eq!(side.role, AgentRole::Custom(router::SIDE_ROLE.into()));
+        assert_eq!(router::TaskKind::of_agent(&side), router::TaskKind::Side);
+        m.roster_update(agent.clone()).unwrap();
+        let refused = m
+            .side_turn_stream("loop-l1", &agent.id, "x", "y", None)
+            .await
+            .err()
+            .unwrap();
+        assert!(refused.starts_with("ERR_SIDE_SESSION"), "{refused}");
     }
 
     #[tokio::test]

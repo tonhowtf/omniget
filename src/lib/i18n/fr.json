@@ -3539,14 +3539,46 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "blocked": "Bloqué",
+        "budget_limited": "Budget atteint"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "Pas de commande de vérification : après chaque tour, un auditeur indépendant (le plus petit modèle de l'agent) décide si le travail est terminé, jusqu'à 20 tours.",
       "review": "Review loop",
       "edit": "Edit configuration",
-      "run_mode_hint": "Chaque tour de la boucle s’exécute avec ce mode. Avec « Demander avant tout », chaque tour s’arrête et vous attend avant toute modification ou commande."
+      "run_mode_hint": "Chaque tour de la boucle s’exécute avec ce mode. Avec « Demander avant tout », chaque tour s’arrête et vous attend avant toute modification ou commande.",
+      "stop": {
+        "audit_complete": "Vérifié par l'auditeur",
+        "audit_blocked": "L'auditeur a vu l'agent bloqué 3 tours de suite",
+        "audit_unavailable": "Audit indisponible deux fois de suite",
+        "token_budget": "Budget de tokens atteint",
+        "max_rounds": "Limite de tours atteinte",
+        "round_failed": "Un tour a échoué : {{error}}",
+        "audit_disagrees": "L'agent a dit avoir fini et l'auditeur a contesté 3 fois de suite : à vous de décider"
+      },
+      "token_budget": "Budget de tokens",
+      "tokens": "{{used}} / {{budget}} tokens",
+      "guided": "{{count}} tours n'ont envoyé que la suite (la tâche n'a pas été renvoyée).",
+      "audits": "Verdicts de l'auditeur",
+      "verdict": {
+        "continue": "Continuer",
+        "complete": "Terminé",
+        "blocked": "Bloqué",
+        "none": "Pas de verdict"
+      },
+      "claimed_done": "a dit avoir fini",
+      "claimed_done_hint": "L'agent a dit avoir fini ; seul le verdict de l'auditeur termine la boucle.",
+      "side_reason": {
+        "provider_small": "Plus petit modèle du même compte",
+        "session_model": "Aucun modèle plus petit connu : celui de l'agent",
+        "requested": "Choisi pour cette boucle",
+        "setting": "Réglage du modèle secondaire"
+      },
+      "overhead": "Auditeur {{audit}} pour des tours à {{rounds}} ({{percent}} %).",
+      "blocked_hint": "La boucle s'est arrêtée et a besoin de vous. Reprendre lance un nouveau tour, audité à nouveau.",
+      "note": "Progression"
     },
     "limits": {
       "title": "Limits strip",

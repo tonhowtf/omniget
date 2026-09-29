@@ -98,6 +98,7 @@ async fn run(case: &Case<'_>) -> Row {
         auto_mode: true,
         approve_for_me: true,
         app_server: None,
+        side: None,
     };
     let req = TurnRequest {
         model: ModelRef {
@@ -354,6 +355,7 @@ fn auto_edits_is_the_argv_of_before() {
         auto_mode: true,
         approve_for_me: true,
         app_server: None,
+        side: None,
     };
     let argv = |p: &LaunchPlan| {
         runtime

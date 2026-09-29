@@ -3539,14 +3539,46 @@
         "running": "Executando",
         "done": "Concluído",
         "failed": "Falhou",
-        "cancelled": "Cancelado"
+        "cancelled": "Cancelado",
+        "blocked": "Bloqueado",
+        "budget_limited": "Orçamento atingido"
       },
       "check_passed": "Critério atingido",
       "summary": "Até {{rounds}} rodadas. Para antes se atingir o critério configurado ou o limite de tempo.",
-      "no_check": "Sem comando de verificação: o encerramento será controlado pelo limite de rodadas ou tempo.",
+      "no_check": "Sem comando de verificação: depois de cada rodada um auditor independente (o menor modelo do agente) decide se o trabalho terminou, por até 20 rodadas.",
       "review": "Revisar loop",
       "edit": "Editar configuração",
-      "run_mode_hint": "Cada rodada do loop roda com este modo. Com “Perguntar antes de tudo”, cada rodada para e espera você antes de qualquer edição ou comando."
+      "run_mode_hint": "Cada rodada do loop roda com este modo. Com “Perguntar antes de tudo”, cada rodada para e espera você antes de qualquer edição ou comando.",
+      "stop": {
+        "audit_complete": "Verificado pelo auditor",
+        "audit_blocked": "O auditor viu o agente bloqueado 3 rodadas seguidas",
+        "audit_unavailable": "Auditoria indisponível duas vezes seguidas",
+        "token_budget": "Orçamento de tokens atingido",
+        "max_rounds": "Limite de rodadas atingido",
+        "round_failed": "Uma rodada falhou: {{error}}",
+        "audit_disagrees": "O agente disse que terminou e o auditor discordou 3 vezes seguidas: você decide"
+      },
+      "token_budget": "Orçamento de tokens",
+      "tokens": "{{used}} / {{budget}} tokens",
+      "guided": "{{count}} rodadas mandaram só a continuação (a tarefa não foi reenviada).",
+      "audits": "Vereditos do auditor",
+      "verdict": {
+        "continue": "Continuar",
+        "complete": "Concluído",
+        "blocked": "Bloqueado",
+        "none": "Sem veredito"
+      },
+      "claimed_done": "disse que terminou",
+      "claimed_done_hint": "O agente disse que terminou; só o veredito do auditor encerra o loop.",
+      "side_reason": {
+        "provider_small": "Menor modelo da mesma conta",
+        "session_model": "Nenhum modelo menor conhecido: o do próprio agente",
+        "requested": "Escolhido para este loop",
+        "setting": "Configuração de modelo lateral"
+      },
+      "overhead": "Auditor {{audit}} para rodadas de {{rounds}} ({{percent}}%).",
+      "blocked_hint": "O loop parou e precisa de você. Retomar roda uma nova rodada, auditada de novo.",
+      "note": "Progresso"
     },
     "limits": {
       "title": "Barra de limites",

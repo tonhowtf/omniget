@@ -30,6 +30,8 @@ turn and must stay the real one:
                        paths relative to the working folder
   FAKE_CLAUDE_TRACE    `perm`: one JSON line per permission question and a
                        last line with the totals
+  FAKE_CLAUDE_PROFILE  `loop`: honest | overclaim | stubborn | blocked
+  FAKE_CLAUDE_STATE    `loop`: file with the agent's round counter
 
 Modes:
   ok                 init, a text reply, result; exit 0.
@@ -69,6 +71,21 @@ Modes:
                      working folder byte for byte (a known edit, as an agent's
                      shell would make it: nothing goes through OmniGet's
                      tools), the tool_result, a reply and the result.
+  loop               a Loop round or its auditor (3.7, BN9). With
+                     `--system-prompt` in the argv it is the auditor (a side
+                     call): it reads the `<reply>` of its stdin and answers
+                     the verdict JSON: `blocked` for a reply that says
+                     `BLOCKED:`, `complete` only when `Verified:` shows a check
+                     and `Missing:` says nothing, else `continue`. Without it,
+                     it is the agent, following FAKE_CLAUDE_PROFILE:
+                     `honest` writes result.txt = ok and proves it; `overclaim`
+                     writes a draft and claims done without a check on round
+                     1, then does it right; `stubborn` does that every round;
+                     `blocked` never can. The round is
+                     1 without `--resume` and counted in FAKE_CLAUDE_STATE
+                     after it. Usage is modelled (4 chars/token, the resumed
+                     history as cached input) and priced like Sonnet/Haiku;
+                     TRACE gets {role, round, argv, stdin} per call.
   notes              a review follow-up (3.5): reads the notes on stdin in
                      OmniGet's format (`File:` / `Lines: a-b` | `Line: n` |
                      `Scope: file` / `User comment: "…"`) and does what a
@@ -286,6 +303,78 @@ def perm_codex():
     return 0
 
 
+def priced_result(text, usage, price_in, price_out):
+    """A result event with the given usage, priced per million tokens (cache
+    read at 0.1x and cache write at 1.25x of the input price)."""
+    cost = (usage["input_tokens"] * price_in + usage["cache_read_input_tokens"] * price_in * 0.1
+            + usage["cache_creation_input_tokens"] * price_in * 1.25 + usage["output_tokens"] * price_out) / 1e6
+    emit({"type": "result", "subtype": "success", "duration_ms": 10, "duration_api_ms": 5,
+          "is_error": False, "num_turns": 1, "result": text, "stop_reason": "end_turn",
+          "total_cost_usd": round(cost, 6), "permission_denials": [], "usage": usage})
+
+
+LOOP_PROOF = "Done: result.txt\nVerified: `cat result.txt` printed ok\nMissing: nothing"
+
+
+def loop_mode(prompt):
+    """BN9 (3.7): the agent of a Loop round, or its auditor."""
+    argv = sys.argv[1:]
+    if "--system-prompt" in argv:
+        start, end = prompt.find("<reply>"), prompt.rfind("</reply>")
+        reply = prompt[start + 7:end] if start >= 0 and end > start else prompt
+        verified = ""
+        missing = ""
+        for line in reply.splitlines():
+            key, _, value = line.strip().partition(":")
+            if key == "Verified":
+                verified = value.strip()
+            elif key == "Missing":
+                missing = value.strip().lower()
+        if "BLOCKED:" in reply:
+            verdict, note = "blocked", "needs the API key from the user"
+        elif verified not in ("", "-", "none") and missing in ("nothing", "none"):
+            verdict, note = "complete", "result.txt checked"
+        else:
+            verdict, note = "continue", "claim without a check"
+        text = json.dumps({"verdict": verdict, "note": note})
+        trace({"role": "audit", "argv": argv, "stdin": prompt})
+        text_reply(text)
+        priced_result(text, {"input_tokens": (len(prompt) + len(arg("--system-prompt") or "")) // 4,
+                             "output_tokens": 30, "cache_read_input_tokens": 0,
+                             "cache_creation_input_tokens": 0}, 1.0, 5.0)
+        return 0
+    state = os.environ.get("FAKE_CLAUDE_STATE", "")
+    resumed = "--resume" in argv
+    rnd = 1
+    if resumed and state and os.path.exists(state):
+        with open(state, encoding="utf-8") as fh:
+            rnd = int(fh.read().strip() or "0") + 1
+    if state:
+        with open(state, "w", encoding="utf-8") as fh:
+            fh.write(str(rnd))
+    profile = os.environ.get("FAKE_CLAUDE_PROFILE", "honest")
+    if profile == "blocked":
+        text = "BLOCKED: needs the API key from the user.\nDone: nothing\nVerified: -\nMissing: the API key"
+    elif profile == "stubborn" or (profile == "overclaim" and rnd == 1):
+        with open("result.txt", "w", encoding="utf-8") as fh:
+            fh.write("draft\n")
+        text = "Everything should be in place now.\nDone: all of it\nVerified: -\nMissing: nothing"
+    else:
+        with open("result.txt", "w", encoding="utf-8") as fh:
+            fh.write("ok\n")
+        text = "Wrote result.txt.\n" + LOOP_PROOF
+    trace({"role": "agent", "round": rnd, "argv": argv, "stdin": prompt})
+    # A new session pays its prelude once (then it is a cached prefix); a
+    # resumed one reads the history from the cache and pays only the new text.
+    fresh = len(prompt) // 4
+    usage = {"input_tokens": fresh if resumed else 3000 + fresh, "output_tokens": 350,
+             "cache_read_input_tokens": 15000 if resumed else 12000,
+             "cache_creation_input_tokens": 400}
+    text_reply(text)
+    priced_result(text, usage, 3.0, 15.0)
+    return 0
+
+
 def main():
     if "--help" in sys.argv[1:] or "-h" in sys.argv[1:]:
         print("Usage: claude [options] (fake for OmniGet benchmarks)\n  -p, --print\n  --output-format <format>")
@@ -374,6 +463,8 @@ def main():
         text_reply("applied the change")
         result("applied the change")
         return 0
+    if mode == "loop":
+        return loop_mode(prompt)
     if mode == "notes":
         tool_use("toolu_fake_notes", "address the review notes")
         applied = 0

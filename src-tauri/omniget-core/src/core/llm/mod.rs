@@ -19,6 +19,7 @@ pub mod coordinator;
 pub mod drivers;
 pub mod error;
 pub mod folder_key;
+pub mod goal_audit;
 pub mod job_gate;
 pub mod kb;
 pub mod local_servers;

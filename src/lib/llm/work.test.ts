@@ -195,6 +195,17 @@ describe("deriveWork", () => {
     expect(summarize(items).needsYou).toBe(1);
   });
 
+  it("a loop the auditor stopped, or out of token budget, needs a person", () => {
+    const items = deriveWork(
+      input({ loops: [loop("lb", "blocked"), loop("lt", "budget_limited"), loop("ld", "done")] }),
+    );
+    const pill = (k: string) => items.find((i) => i.key === k)!.pill;
+    expect(pill("loop:lb")).toBe("decision");
+    expect(pill("loop:lt")).toBe("decision");
+    expect(pill("loop:ld")).toBe("ready");
+    expect(summarize(items).needsYou).toBe(2);
+  });
+
   it("counts an ask once across the job, the durable run and the thread that also carry it", () => {
     const run: RunView = {
       id: "run1",
