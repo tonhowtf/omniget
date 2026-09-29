@@ -19,6 +19,13 @@ pub struct AppSettings {
     pub start_minimized: bool,
     #[serde(default)]
     pub exit_on_close: bool,
+    /// "Run agents in the background" (3.2): the app starts hidden at login
+    /// (`--autostart`) and closing the window keeps it in the tray, so jobs,
+    /// Loops and routines keep running and the CLI finds the bridge. Wins
+    /// over `exit_on_close`; the settings screen turns one off when the
+    /// other goes on.
+    #[serde(default)]
+    pub run_in_background: bool,
     #[serde(default)]
     pub portable_mode: bool,
     #[serde(default)]
@@ -994,6 +1001,7 @@ impl Default for AppSettings {
             start_with_system: false,
             start_minimized: false,
             exit_on_close: false,
+            run_in_background: false,
             portable_mode: false,
             legal_acknowledged: false,
             last_download_options: LastDownloadOptions::default(),

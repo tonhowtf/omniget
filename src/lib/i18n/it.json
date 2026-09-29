@@ -1311,7 +1311,10 @@
       "reset_hints": "Ripristina suggerimenti",
       "reset_hints_desc": "Mostra di nuovo tutti i suggerimenti nascosti",
       "restore": "Ripristina",
-      "hints_restored": "All hints restored"
+      "hints_restored": "All hints restored",
+      "run_in_background": "Esegui gli agenti in background",
+      "run_in_background_desc": "OmniGet si avvia nascosto all’accesso e chiudere la finestra lo lascia nella tray, così job, Loop e routine continuano e il comando omniget lo trova. Disattiva «Esci alla chiusura della finestra».",
+      "run_in_background_flatpak": "Flatpak: l’avvio all’accesso e l’avvio dalla riga di comando non sono ancora verificati."
     },
     "appearance": {
       "title": "Aspetto",

@@ -237,6 +237,14 @@ pub struct AppState {
     pub world: std::sync::OnceLock<Arc<world_manager::WorldManager>>,
 }
 
+/// Whether this start shows no window (3.2): `--background`, "start in
+/// tray only", or a start at login with agents in the background.
+fn launched_hidden(app: &tauri::AppHandle) -> bool {
+    let s = storage::config::load_settings(app);
+    let args: Vec<String> = std::env::args().collect();
+    omniget_core::core::app_launch::starts_hidden(&args, s.start_minimized, s.run_in_background)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt::init();
@@ -321,7 +329,12 @@ pub fn run() {
                         );
                     }
                 });
-            } else {
+            } else if !argv
+                .iter()
+                .any(|a| a == omniget_core::core::app_launch::BACKGROUND_FLAG)
+            {
+                // A CLI that starts the app in the background while it is
+                // already running must not pop its window up (3.2).
                 tray::show_window(app);
             }
         }))
@@ -348,7 +361,9 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            None,
+            // The login item says it is one, so a start at login can stay
+            // hidden when the person runs agents in the background (3.2).
+            Some(vec![omniget_core::core::app_launch::AUTOSTART_FLAG]),
         ))
         .setup(|app| {
             crate::agentkit_boot::spawn_ensure_shim();
@@ -418,6 +433,10 @@ pub fn run() {
                     );
                 }
 
+                // Started hidden (3.2): `--background` from the CLI, or a
+                // start at login with agents in the background. The window
+                // is born invisible instead of flashing and hiding.
+                let builder = builder.visible(!launched_hidden(app.handle()));
                 builder.build()?;
 
                 // A unica prova de que a janela subiu. O CI compila em todas as
@@ -857,9 +876,19 @@ pub fn run() {
                 });
             }
 
-            if settings.start_minimized {
+            let hidden = launched_hidden(app.handle());
+            if hidden {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.hide();
+                }
+            }
+            // Where this app lives, for the CLI that starts it when it is not
+            // running (3.2).
+            if let Some(dir) = omniget_core::core::paths::app_data_dir() {
+                if let Some(launch) = omniget_core::core::app_launch::current(hidden) {
+                    if let Err(e) = omniget_core::core::app_launch::record_in(&dir, &launch) {
+                        tracing::warn!("[startup] app-launch.json: {e}");
+                    }
                 }
             }
 
@@ -868,7 +897,10 @@ pub fn run() {
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::CloseRequested { api, .. } if window.label() == "main" => {
                 api.prevent_close();
-                if storage::config::load_settings(window.app_handle()).exit_on_close {
+                let s = storage::config::load_settings(window.app_handle());
+                // Agents in the background (3.2) keep the app in the tray:
+                // closing the window must not stop their jobs.
+                if s.exit_on_close && !s.run_in_background {
                     tray::request_quit(window.app_handle());
                 } else {
                     let _ = window.hide();

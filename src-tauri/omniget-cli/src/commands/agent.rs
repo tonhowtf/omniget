@@ -71,6 +71,17 @@ impl Bridge {
         })
     }
 
+    /// The bridge takes an authenticated request (3.2): `GET /v1/state`
+    /// answers 2xx within 2 s. A refused connection, a timeout or a reply
+    /// from something else on a stale port are all "not ready".
+    pub(crate) async fn ready(&self) -> bool {
+        self.authed(self.http.get(format!("{}/v1/state", self.base)))
+            .timeout(Duration::from_secs(2))
+            .send()
+            .await
+            .is_ok_and(|r| r.status().is_success())
+    }
+
     fn authed(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         let req = req.bearer_auth(&self.token);
         match &self.job {
@@ -851,7 +862,8 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
     {
         bail!(INSIDE_A_JOB);
     }
-    let bridge = Bridge::open()?;
+    // Starts the app hidden when it is not running (3.2).
+    let bridge = super::launch::connect().await?;
     match cmd {
         AgentCommand::Run {
             args,

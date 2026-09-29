@@ -149,6 +149,8 @@ export type AppSettings = {
   start_with_system: boolean;
   start_minimized: boolean;
   exit_on_close: boolean;
+  /** Agents in the background (3.2): hidden start at login, closing keeps the tray. */
+  run_in_background: boolean;
   legal_acknowledged?: boolean;
   last_download_options?: {
     mode?: "auto" | "audio" | "mute" | null;

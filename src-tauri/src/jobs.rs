@@ -2646,7 +2646,20 @@ impl Jobs {
 
     /// `GET /v1/state`, `llm_jobs_state`, `omniget agent status`.
     pub fn state_view(&self) -> Value {
-        state_view(&self.gate.snapshot(), &|id| self.job(id))
+        let mut v = state_view(&self.gate.snapshot(), &|id| self.job(id));
+        // Whether the app is running with no window (3.2): the CLI and the
+        // daemon benchmark read it; `pid` stays on the local bridge.
+        let visible = self
+            .app
+            .get_webview_window("main")
+            .and_then(|w| w.is_visible().ok())
+            .unwrap_or(false);
+        v["app"] = json!({
+            "pid": std::process::id(),
+            "window_visible": visible,
+            "run_in_background": crate::storage::config::load_settings(&self.app).run_in_background,
+        });
+        v
     }
 
     /// New caps from the settings, applied to running jobs at once (no

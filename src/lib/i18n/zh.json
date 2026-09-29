@@ -1311,7 +1311,10 @@
       "reset_hints": "重置提示",
       "reset_hints_desc": "重新显示所有已关闭的提示",
       "restore": "恢复",
-      "hints_restored": "所有提示已恢复"
+      "hints_restored": "所有提示已恢复",
+      "run_in_background": "在后台运行智能体",
+      "run_in_background_desc": "登录时 OmniGet 会隐藏启动，关闭窗口后仍留在托盘中，因此任务、Loop 和例行任务会继续运行，omniget 命令也能找到它。会关闭“关闭窗口时退出”。",
+      "run_in_background_flatpak": "Flatpak：登录时启动以及从命令行启动尚未验证。"
     },
     "appearance": {
       "title": "外观",

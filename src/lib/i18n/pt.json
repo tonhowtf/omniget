@@ -1311,7 +1311,10 @@
       "reset_hints": "Restaurar dicas",
       "reset_hints_desc": "Mostrar todas as dicas novamente",
       "restore": "Restaurar",
-      "hints_restored": "Todas as dicas foram restauradas"
+      "hints_restored": "Todas as dicas foram restauradas",
+      "run_in_background": "Rodar agentes em segundo plano",
+      "run_in_background_desc": "O OmniGet abre escondido quando você entra no computador, e fechar a janela o deixa na bandeja, então jobs, Loops e rotinas continuam rodando e o comando omniget o encontra. Desliga “Sair ao fechar a janela”.",
+      "run_in_background_flatpak": "Flatpak: abrir ao entrar no computador e ser aberto pela linha de comando ainda não foram verificados."
     },
     "appearance": {
       "title": "Aparência",

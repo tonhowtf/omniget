@@ -1311,7 +1311,10 @@
       "reset_hints": "ヒントをリセット",
       "reset_hints_desc": "非表示にしたヒントをすべて再表示します",
       "restore": "復元",
-      "hints_restored": "All hints restored"
+      "hints_restored": "All hints restored",
+      "run_in_background": "エージェントをバックグラウンドで実行",
+      "run_in_background_desc": "ログイン時に OmniGet を非表示で起動し、ウィンドウを閉じてもトレイに残します。ジョブ、Loop、ルーチンは動き続け、omniget コマンドからも見つかります。「ウィンドウを閉じたら終了」はオフになります。",
+      "run_in_background_flatpak": "Flatpak：ログイン時の起動とコマンドラインからの起動はまだ検証されていません。"
     },
     "appearance": {
       "title": "外観",

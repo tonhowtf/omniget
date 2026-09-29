@@ -1311,7 +1311,10 @@
       "reset_hints": "Réinitialiser les conseils",
       "reset_hints_desc": "Afficher à nouveau tous les conseils masqués",
       "restore": "Restaurer",
-      "hints_restored": "All hints restored"
+      "hints_restored": "All hints restored",
+      "run_in_background": "Exécuter les agents en arrière-plan",
+      "run_in_background_desc": "OmniGet démarre masqué à l’ouverture de session et fermer la fenêtre le garde dans la zone de notification : les tâches, Loops et routines continuent et la commande omniget le trouve. Désactive « Quitter à la fermeture de la fenêtre ».",
+      "run_in_background_flatpak": "Flatpak : le démarrage à l’ouverture de session et le lancement depuis la ligne de commande ne sont pas encore vérifiés."
     },
     "appearance": {
       "title": "Apparence",

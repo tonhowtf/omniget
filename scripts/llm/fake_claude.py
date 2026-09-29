@@ -28,6 +28,10 @@ turn and must stay the real one:
   FAKE_CLAUDE_CHANGES  `apply`: JSON file {"write": {path: text},
                        "write_b64": {path: base64 bytes}, "delete": [path]},
                        paths relative to the working folder
+  FAKE_CLAUDE_HELP_EXTRA  extra flags `--help` lists (space-separated), e.g.
+                       `--resume` so OmniGet's capability probe sees native
+                       resume (BN6 runs the real app against this fake)
+  FAKE_CLAUDE_LIVE_DIR `bn6`: folder of pid files of the fakes alive now
 
 Modes:
   ok                 init, a text reply, result; exit 0.
@@ -54,6 +58,15 @@ Modes:
                      working folder byte for byte (a known edit, as an agent's
                      shell would make it: nothing goes through OmniGet's
                      tools), the tool_result, a reply and the result.
+  bn6                the daemon benchmark (3.1/3.2): names a session (the
+                     one after `--resume` when given, else a new one), notes
+                     in TRACE {event: start, pid, resume, session, round,
+                     tag, concurrent: [pids of other fakes still alive]},
+                     works HOLD seconds, appends its effect {round, tag,
+                     pid} to LEDGER (the thing that must never happen twice
+                     for one round), notes {event: end}, replies, ends.
+                     `round` is the last `Round N` of the prompt (1 if none);
+                     `tag` the first `bn6-…` word.
   notes              a review follow-up (3.5): reads the notes on stdin in
                      OmniGet's format (`File:` / `Lines: a-b` | `Line: n` |
                      `Scope: file` / `User comment: "…"`) and does what a
@@ -150,9 +163,64 @@ def result(text):
                     "cache_read_input_tokens": 12040}})
 
 
+def bn6(prompt, hold):
+    import re
+    argv = sys.argv[1:]
+    resume = argv[argv.index("--resume") + 1] if "--resume" in argv[:-1] else None
+    session = resume or str(uuid.uuid4())
+    rounds = re.findall(r"Round (\d+)", prompt)
+    rnd = int(rounds[-1]) if rounds else 1
+    tags = re.findall(r"bn6-[a-z0-9-]+", prompt)
+    tag = tags[0] if tags else "bn6"
+    live = os.environ.get("FAKE_CLAUDE_LIVE_DIR")
+    concurrent = []
+    if live:
+        os.makedirs(live, exist_ok=True)
+        for name in os.listdir(live):
+            try:
+                other = int(name)
+                os.kill(other, 0)
+                concurrent.append(other)
+            except (ValueError, ProcessLookupError, PermissionError):
+                pass
+        open(os.path.join(live, str(os.getpid())), "w").close()
+    trace = os.environ.get("FAKE_CLAUDE_TRACE")
+
+    def note(obj):
+        if trace:
+            with open(trace, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(obj) + "\n")
+
+    note({"event": "start", "t": time.time(), "pid": os.getpid(), "resume": resume,
+          "session": session, "round": rnd, "tag": tag, "concurrent": concurrent,
+          "restart_note": "interrupted" in prompt or "closed in the middle" in prompt})
+    emit({"type": "system", "subtype": "init", "cwd": os.getcwd(), "session_id": session,
+          "claude_code_version": "2.1.276-fake", "apiKeySource": "none",
+          "model": "claude-sonnet-4-5", "permissionMode": "default",
+          "tools": ["Bash", "Read", "Edit"], "mcp_servers": []})
+    time.sleep(hold)
+    ledger = os.environ.get("FAKE_CLAUDE_LEDGER")
+    if ledger:
+        with open(ledger, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"round": rnd, "tag": tag, "pid": os.getpid(), "t": time.time()}) + "\n")
+    note({"event": "end", "t": time.time(), "pid": os.getpid(), "round": rnd, "tag": tag})
+    if live:
+        try:
+            os.remove(os.path.join(live, str(os.getpid())))
+        except FileNotFoundError:
+            pass
+    global SESSION
+    SESSION = session
+    text_reply(f"{tag} round {rnd} done")
+    result(f"{tag} round {rnd} done")
+    return 0
+
+
 def main():
     if "--help" in sys.argv[1:] or "-h" in sys.argv[1:]:
         print("Usage: claude [options] (fake for OmniGet benchmarks)\n  -p, --print\n  --output-format <format>")
+        for flag in os.environ.get("FAKE_CLAUDE_HELP_EXTRA", "").split():
+            print(f"  {flag}")
         return 0
     if "--version" in sys.argv[1:]:
         print("2.1.276-fake (Claude Code)")
@@ -168,6 +236,8 @@ def main():
     if mode == "silent-start":
         time.sleep(hold)
         return 0
+    if mode == "bn6":
+        return bn6(prompt, hold)
     init()
     if mode == "ok":
         text_reply("ok")

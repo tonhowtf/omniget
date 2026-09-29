@@ -1311,7 +1311,10 @@
       "reset_hints": "Reset hints",
       "reset_hints_desc": "Show all dismissed tips again",
       "restore": "Restore",
-      "hints_restored": "All hints restored"
+      "hints_restored": "All hints restored",
+      "run_in_background": "اجرای عامل‌ها در پس‌زمینه",
+      "run_in_background_desc": "OmniGet هنگام ورود به سیستم پنهان باز می‌شود و بستن پنجره آن را در سینی سیستم نگه می‌دارد، تا کارها، Loopها و روال‌ها ادامه پیدا کنند و فرمان omniget آن را پیدا کند. گزینهٔ «خروج هنگام بستن پنجره» را خاموش می‌کند.",
+      "run_in_background_flatpak": "Flatpak: اجرا هنگام ورود و باز شدن از خط فرمان هنوز بررسی نشده‌اند."
     },
     "appearance": {
       "title": "Appearance",

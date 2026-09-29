@@ -1311,7 +1311,10 @@
       "reset_hints": "Restablecer sugerencias",
       "reset_hints_desc": "Volver a mostrar todas las sugerencias descartadas",
       "restore": "Restablecer",
-      "hints_restored": "Sugerencias restablecidas"
+      "hints_restored": "Sugerencias restablecidas",
+      "run_in_background": "Ejecutar agentes en segundo plano",
+      "run_in_background_desc": "OmniGet se abre oculto al iniciar sesión y cerrar la ventana lo deja en la bandeja, así que los trabajos, Loops y rutinas siguen funcionando y el comando omniget lo encuentra. Desactiva «Salir al cerrar la ventana».",
+      "run_in_background_flatpak": "Flatpak: iniciar al iniciar sesión y ser abierto desde la línea de comandos aún no están verificados."
     },
     "appearance": {
       "title": "Apariencia",

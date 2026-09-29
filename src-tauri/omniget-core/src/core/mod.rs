@@ -2,6 +2,7 @@ pub mod adaptive_concurrency;
 pub mod agentkit;
 pub mod agentkit_run;
 pub mod ai;
+pub mod app_launch;
 pub mod assist;
 pub mod binary_overrides;
 pub mod catalog;

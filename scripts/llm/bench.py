@@ -88,7 +88,20 @@ BENCHES = {
         [],
         ["omniget"],
     ),
+    "bn6": (
+        "daemon_survival.py",
+        ["src-tauri/src/jobs.rs", "src-tauri/src/lib.rs", "src-tauri/src/commands/settings.rs",
+         "src-tauri/omniget-core/src/core/app_launch.rs", "src-tauri/omniget-core/src/core/process.rs",
+         CORE_LLM + "cli_runtime/mod.rs", "src-tauri/omniget-cli/src/commands/launch.rs",
+         "src-tauri/omniget-cli/src/commands/agent.rs", "src-tauri/src/local_bridge_jobs.rs",
+         "scripts/llm/fake_claude.py", "scripts/llm/daemon_survival.py"],
+        [],
+        # Builds and runs the real app binary itself (no prepared tests).
+        [],
+    ),
 }
+# Real app binary, ~10 min (a 3-minute cron and 10 kill -9 reps): not for --quick.
+QUICK_SKIP = {"bn6"}
 # The argv of a real turn: if any of these moved, B0 no longer measures production.
 B0_PATHS = [CORE_LLM + "cli_runtime/claude.rs", CORE_LLM + "cli_runtime/mod.rs", "scripts/llm/missions_eval.py"]
 EVERYTHING = ["src-tauri/Cargo.toml", "src-tauri/Cargo.lock", "src-tauri/omniget-core/Cargo.toml"]
@@ -175,7 +188,7 @@ def main():
     ap.add_argument("--prepared", help="immutable prepared.json; execute without Cargo")
     ap.add_argument("--all", action="store_true", help="every fake bench, whatever changed")
     ap.add_argument("--quick", action="store_true", help="fewer repetitions (iteration, not a gate)")
-    ap.add_argument("--only", default="", help="comma-separated: bn1,bn2,bn3,bn4,bn5,bn11")
+    ap.add_argument("--only", default="", help="comma-separated: bn1,bn2,bn3,bn4,bn5,bn6,bn11")
     ap.add_argument("--real", action="store_true", help="also run B0 (real Claude turns; spends quota)")
     ap.add_argument("--real-if-needed", action="store_true",
                     help="run B0 only when the turn argv or the harness changed")
@@ -190,6 +203,8 @@ def main():
     if unknown:
         raise SystemExit(f"bench: unknown {sorted(unknown)}; choose from {sorted(BENCHES)}")
     names, why = select(files, only, args.all)
+    if args.quick and not only:
+        names = [n for n in names if n not in QUICK_SKIP]
     b0 = args.real or (args.real_if_needed and any(f.startswith(p) for f in files for p in B0_PATHS))
     print(f"bench: {len(files)} changed file(s); fake benches ({why}): {', '.join(names) or 'none'}; "
           f"B0: {'yes' if b0 else 'no'}{' (quick)' if args.quick else ''}", flush=True)

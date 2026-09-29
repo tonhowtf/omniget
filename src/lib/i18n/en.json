@@ -1311,7 +1311,10 @@
       "reset_hints": "Reset hints",
       "reset_hints_desc": "Show all dismissed tips again",
       "restore": "Restore",
-      "hints_restored": "All hints restored"
+      "hints_restored": "All hints restored",
+      "run_in_background": "Run agents in the background",
+      "run_in_background_desc": "OmniGet starts hidden when you log in, and closing the window keeps it in the tray, so jobs, Loops and routines keep running and the omniget command finds it. Turns off “Quit when the window is closed”.",
+      "run_in_background_flatpak": "Flatpak: starting at login and being started from the command line are not verified yet."
     },
     "appearance": {
       "title": "Appearance",

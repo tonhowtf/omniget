@@ -1311,7 +1311,10 @@
       "reset_hints": "重置提示",
       "reset_hints_desc": "重新显示所有已关闭的提示",
       "restore": "恢复",
-      "hints_restored": "All hints restored"
+      "hints_restored": "All hints restored",
+      "run_in_background": "在背景執行代理",
+      "run_in_background_desc": "登入時 OmniGet 會隱藏啟動，關閉視窗後仍留在系統匣中，因此工作、Loop 與例行工作會繼續執行，omniget 指令也找得到它。會關閉「關閉視窗時結束」。",
+      "run_in_background_flatpak": "Flatpak：登入時啟動以及從命令列啟動尚未驗證。"
     },
     "appearance": {
       "title": "外觀",
