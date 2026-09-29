@@ -9,6 +9,9 @@ import type { DiffOptions, DiffResult } from "$lib/central/vcs";
 import type { AccessMode } from "$lib/central/threads/types";
 
 export const ARENA_EVENT = "central://arena";
+/** 2 a 5 colunas (roteiro 3.8, S23), o mesmo limite do backend. */
+export const MIN_ENTRIES = 2;
+export const MAX_ENTRIES = 5;
 
 export type EntryStatus = "preparing" | "running" | "testing" | "done" | "failed" | "interrupted";
 export type TestStatus = "none" | "running" | "passed" | "failed" | "error";
@@ -121,6 +124,8 @@ export type ApplyPreview = {
   winnerCommit: string;
   checkedOutAt: string | null;
   checkoutDirty: boolean;
+  /** Por que o merge no checkout não pode começar (as pré-condições do integrate). */
+  blocker: string | null;
   alreadyApplied: boolean;
   conflicts: string[];
   filesChanged: number;
@@ -134,13 +139,61 @@ export type ApplyResult = {
   targetBranch: string;
   strategy: ApplyStrategy;
   updated: "ref" | "checkout";
+  tookMs: number;
 };
 
 export type CleanupResult = {
   arena: ArenaView;
   archived: string[];
+  worktreesRemoved: string[];
+  saved: string[];
   branchesDeleted: string[];
+  branchesKept: string[];
   errors: string[];
+};
+
+export type EstimateSource = "history" | "price" | "unknown";
+
+export type EntryEstimate = {
+  driver: string;
+  model: string | null;
+  usd: number | null;
+  source: EstimateSource;
+  runs: number;
+  avgDurationMs: number | null;
+};
+
+export type ArenaEstimate = {
+  entries: EntryEstimate[];
+  totalUsd: number | null;
+  unknown: number;
+};
+
+export type CompareCell = {
+  entryId: string;
+  /** `=` = não tocou (igual à base). */
+  status: "=" | "A" | "M" | "D";
+  additions: number | null;
+  deletions: number | null;
+  /** 0 = igual à base; mesmo número = mesmo conteúdo. */
+  variant: number;
+};
+
+export type CompareFile = {
+  path: string;
+  divergent: boolean;
+  touchedBy: number;
+  variants: number;
+  cells: CompareCell[];
+};
+
+export type ArenaCompare = {
+  arenaId: string;
+  entries: string[];
+  pending: string[];
+  files: CompareFile[];
+  divergent: number;
+  agreed: number;
 };
 
 export type ArenaEventPayload = { arenaId: string; arena?: ArenaView; deleted?: boolean };
@@ -184,6 +237,8 @@ export const arenaCleanup = (arenaId: string, scope: "losers" | "all" = "losers"
 export const arenaDelete = (arenaId: string) => invoke<void>("arena_delete", { arenaId });
 export const arenaScoreboard = (projectId?: string | null) =>
   invoke<ScoreRow[]>("arena_scoreboard", { projectId: projectId ?? null });
+export const arenaEstimate = (entries: EntrySpec[]) => invoke<ArenaEstimate>("arena_estimate", { entries });
+export const arenaCompare = (arenaId: string) => invoke<ArenaCompare>("arena_compare", { arenaId });
 
 export function onArena(cb: (p: ArenaEventPayload) => void): Promise<UnlistenFn> {
   return listen<ArenaEventPayload>(ARENA_EVENT, (e) => cb(e.payload));
@@ -273,4 +328,21 @@ export function highlights(entries: ArenaEntry[]): Record<string, string[]> {
 /** Texto do prompt a partir de um plano aprovado. */
 export function promptFromPlan(markdown: string, lead: string): string {
   return `${lead}\n\n${markdown.trim()}\n`;
+}
+
+/**
+ * Texto da estimativa antes de começar: o total conhecido, se alguma parte
+ * é aproximada (preço de tabela × turno típico) e quantas colunas ficaram
+ * sem estimativa. Desconhecido nunca vira $0.
+ */
+export function estimateSummary(e: ArenaEstimate | null): { total: string; rough: boolean; unknown: number } | null {
+  if (!e || !e.entries.length) return null;
+  const rough = e.entries.some((x) => x.source === "price");
+  return { total: e.totalUsd == null ? "—" : formatCost(e.totalUsd), rough, unknown: e.unknown };
+}
+
+/** Arquivos divergentes em que a coluna mexeu (para o selo da coluna). */
+export function divergentTouched(c: ArenaCompare | null, entryId: string): number {
+  if (!c) return 0;
+  return c.files.filter((f) => f.divergent && f.cells.some((x) => x.entryId === entryId && x.status !== "=")).length;
 }

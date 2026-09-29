@@ -1,4 +1,4 @@
-//! `omniget agent run|loop|jobs|explain|status|diff|approvals|approve|agents`: talks to the running desktop app
+//! `omniget agent run|loop|jobs|explain|status|diff|approvals|approve|integrate|discard|agents`: talks to the running desktop app
 //! through the local bridge (`127.0.0.1:<port>` from `settings.json`) with a
 //! scoped token (2.1): `OMNIGET_TOKEN` if set, else the CLI token the app
 //! keeps in `<app_data>/llm/cli-token`. The browser extension's key in
@@ -552,6 +552,65 @@ fn approvals_text(v: &Value) -> String {
     out
 }
 
+/// What `omniget agent integrate` prints for a merged job (a conflict
+/// comes back as an error: 409 with the files).
+fn integrate_text(o: &Value) -> String {
+    let target = o["target_branch"].as_str().unwrap_or("?");
+    match o["status"].as_str().unwrap_or("") {
+        "up_to_date" => format!("nothing to integrate: {target} already has it\n"),
+        "merged" => format!(
+            "integrated into {target} as {} ({})\n",
+            o["commit"]
+                .as_str()
+                .unwrap_or("")
+                .chars()
+                .take(7)
+                .collect::<String>(),
+            if o["strategy"] == "squash" {
+                "squash"
+            } else {
+                "merge --no-ff"
+            }
+        ),
+        other => format!(
+            "integration {other}: {}\nyour checkout was {}\n",
+            o["conflicts"]
+                .as_array()
+                .map(|c| c
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", "))
+                .filter(|c| !c.is_empty())
+                .unwrap_or_else(|| o["output"].as_str().unwrap_or("").to_string()),
+            if o["clean"].as_bool() == Some(true) {
+                "left as it was"
+            } else {
+                "NOT left clean: check git status"
+            }
+        ),
+    }
+}
+
+fn discard_text(v: &Value) -> String {
+    let branch = v["branch"].as_str().unwrap_or("");
+    let mut out = String::new();
+    if let Some(saved) = v["removed"]["saved"].as_str() {
+        out.push_str(&format!(
+            "uncommitted work saved on {branch} as {} before removing the worktree\n",
+            saved.chars().take(7).collect::<String>()
+        ));
+    }
+    match v["tip"].as_str() {
+        Some(tip) => out.push_str(&format!(
+            "discarded: worktree removed, branch {branch} deleted (it was {}; `git branch {branch} {tip}` brings it back until git collects it)\n",
+            tip.chars().take(7).collect::<String>()
+        )),
+        None => out.push_str("discarded: worktree removed\n"),
+    }
+    out
+}
+
 #[derive(clap::Subcommand)]
 pub enum AgentCommand {
     /// Run one task with an agent of the roster (in the current folder), or,
@@ -722,6 +781,15 @@ pub enum AgentCommand {
         #[arg(long, help = "Refuse and stop the turn that asked", group = "decision")]
         cancel: bool,
     },
+    /// Merge a worktree job's branch into your checkout (`merge --no-ff`,
+    /// or `--squash`); a conflict is undone and your checkout left as it was
+    Integrate {
+        id: String,
+        #[arg(long, help = "One squashed commit instead of a merge commit")]
+        squash: bool,
+    },
+    /// Throw a worktree job's work away: its worktree and its branch
+    Discard { id: String },
     /// List the running and finished Loops
     Loops,
     /// List the agents of the roster
@@ -1025,6 +1093,31 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
                 Err(why) => bail!(why),
             }
         }
+        AgentCommand::Integrate { id, squash } => {
+            let v = bridge
+                .post(
+                    &format!("/v1/jobs/{id}/integrate"),
+                    json!({ "strategy": if squash { "squash" } else { "merge" } }),
+                )
+                .await?;
+            if json_out {
+                println!("{}", serde_json::to_string_pretty(&v)?);
+            } else {
+                print!("{}", integrate_text(&v["outcome"]));
+            }
+            Ok(())
+        }
+        AgentCommand::Discard { id } => {
+            let v = bridge
+                .post(&format!("/v1/jobs/{id}/discard"), json!({}))
+                .await?;
+            if json_out {
+                println!("{}", serde_json::to_string_pretty(&v)?);
+            } else {
+                print!("{}", discard_text(&v));
+            }
+            Ok(())
+        }
         AgentCommand::Status => {
             let v = bridge.get("/v1/state").await?;
             if json_out {
@@ -1137,6 +1230,29 @@ mod tests {
         let shared = run_body("a", "p", None, None, false, true, Some("  ".into()));
         assert_eq!(shared["isolation"], "shared");
         assert!(shared.get("base").is_none());
+    }
+
+    #[test]
+    fn integrate_and_discard_say_what_happened() {
+        let merged = json!({"status": "merged", "target_branch": "main", "commit": "abcdef123", "strategy": "merge"});
+        assert_eq!(
+            integrate_text(&merged),
+            "integrated into main as abcdef1 (merge --no-ff)\n"
+        );
+        let squash = json!({"status": "merged", "target_branch": "dev", "commit": "1234567890", "strategy": "squash"});
+        assert!(integrate_text(&squash).contains("(squash)"));
+        let same = json!({"status": "up_to_date", "target_branch": "main"});
+        assert!(integrate_text(&same).contains("already has it"));
+        let conflict = json!({"status": "conflict", "target_branch": "main", "conflicts": ["a.txt"], "clean": true});
+        let t = integrate_text(&conflict);
+        assert!(
+            t.contains("conflict: a.txt") && t.contains("left as it was"),
+            "{t}"
+        );
+        let d = json!({"branch": "omniget/job-j1", "tip": "abcdef1234", "removed": {"saved": "9999999aaa"}});
+        let t = discard_text(&d);
+        assert!(t.contains("saved on omniget/job-j1 as 9999999"), "{t}");
+        assert!(t.contains("git branch omniget/job-j1 abcdef1234"), "{t}");
     }
 
     #[test]

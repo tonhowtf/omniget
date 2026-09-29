@@ -21,6 +21,9 @@
     oncomment,
     onrequestcontext,
     emptyText = null,
+    onhunk,
+    hunkLabel = "",
+    hunkEnabled,
   }: {
     files?: FileDiff[];
     mode?: Mode;
@@ -34,6 +37,11 @@
     /** Clique num trecho oculto entre hunks: o pai pode pedir o diff com mais contexto. */
     onrequestcontext?: () => void;
     emptyText?: string | null;
+    /** Botão por hunk (revisão de job, 3.5): arquivo e posição do hunk no arquivo. */
+    onhunk?: (path: string, index: number) => void;
+    hunkLabel?: string;
+    /** Se o botão daquele hunk fica ativo (um hunk cortado pelo limite, não). */
+    hunkEnabled?: (path: string, index: number) => boolean;
   } = $props();
 
   const H: Record<Row["t"], number> = { file: 36, hunk: 24, gap: 24, fold: 22, note: 30, line: 20, pair: 20 };
@@ -379,7 +387,17 @@
               </button>
             </div>
           {:else if r.t === "hunk"}
-            <div class="row hunk"><span class="hunk-text">{r.label}</span></div>
+            <div class="row hunk">
+              <span class="hunk-text">{r.label}</span>
+              {#if onhunk}
+                {@const hp = files[r.fileIndex].path}
+                <button
+                  class="hunk-btn"
+                  disabled={hunkEnabled ? !hunkEnabled(hp, r.hunk) : false}
+                  onclick={() => onhunk?.(hp, r.hunk)}>{hunkLabel}</button
+                >
+              {/if}
+            </div>
           {:else if r.t === "gap"}
             <div class="row gap">
               <button class="gap-btn" disabled={!onrequestcontext} onclick={() => onrequestcontext?.()}>
@@ -457,6 +475,26 @@
 </div>
 
 <style>
+  .hunk-btn {
+    margin-left: 10px;
+    flex: none;
+    background: transparent;
+    border: 1px solid var(--separator);
+    border-radius: 6px;
+    padding: 0 7px;
+    font-size: 11px;
+    line-height: 18px;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .hunk-btn:hover:not(:disabled) {
+    color: var(--red, #ff3b30);
+    border-color: color-mix(in srgb, var(--red, #ff3b30) 50%, transparent);
+  }
+  .hunk-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
   .dv {
     display: flex;
     flex-direction: column;
@@ -646,6 +684,8 @@
   .row.hunk {
     height: 24px;
     line-height: 24px;
+    display: flex;
+    align-items: center;
     padding-left: 110px;
     color: var(--text-muted);
     background: color-mix(in srgb, var(--accent) 7%, transparent);

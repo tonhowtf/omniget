@@ -13,7 +13,7 @@ turn and must stay the real one:
 
   FAKE_CLAUDE_MODE     ok | stall-after-init | silent-start | tool-long |
                        ask-pending | grandchild | grandchild-setsid | write |
-                       sleep | apply
+                       sleep | apply | notes
                        (default: ok)
   FAKE_CLAUDE_HOLD_S   seconds of silence in the modes that go quiet
                        (default 3600: "forever" for a benchmark)
@@ -23,7 +23,8 @@ turn and must stay the real one:
   FAKE_CLAUDE_LEDGER   `write`: file every job appends its line to
   FAKE_CLAUDE_FILE     `write`: file only this job writes
   FAKE_CLAUDE_TRACE    `write`/`sleep`: file that gets one JSON line
-                       {tag, start, end, cwd} per run (wall-clock seconds)
+                       {tag, start, end, cwd} per run (wall-clock seconds);
+                       `notes`: file that gets {argv, stdin, cwd, applied}
   FAKE_CLAUDE_CHANGES  `apply`: JSON file {"write": {path: text},
                        "write_b64": {path: base64 bytes}, "delete": [path]},
                        paths relative to the working folder
@@ -53,6 +54,13 @@ Modes:
                      working folder byte for byte (a known edit, as an agent's
                      shell would make it: nothing goes through OmniGet's
                      tools), the tool_result, a reply and the result.
+  notes              a review follow-up (3.5): reads the notes on stdin in
+                     OmniGet's format (`File:` / `Lines: a-b` | `Line: n` |
+                     `Scope: file` / `User comment: "…"`) and does what a
+                     note of the form `rename <old> to <new>` asks, in the
+                     named lines of the named file; records argv and stdin
+                     in TRACE (the benchmark checks `--resume` and that only
+                     the notes travelled).
 
 `--help` prints a short help (the capability probe never hangs on it).
 """
@@ -136,7 +144,8 @@ def tool_result(tool_id, content):
 def result(text):
     emit({"type": "result", "subtype": "success", "duration_ms": 10, "duration_api_ms": 5,
           "is_error": False, "num_turns": 1, "result": text, "stop_reason": "end_turn",
-          "total_cost_usd": 0.0,
+          # BN11 gives each arena column its own price to compare.
+          "total_cost_usd": float(os.environ.get("FAKE_CLAUDE_COST_USD", "0") or 0),
           "usage": {"input_tokens": 4, "output_tokens": 2, "cache_creation_input_tokens": 0,
                     "cache_read_input_tokens": 12040}})
 
@@ -152,9 +161,9 @@ def main():
     hold = float(os.environ.get("FAKE_CLAUDE_HOLD_S", "3600"))
     # The prompt arrives on stdin and stdin is closed after it, like a turn.
     try:
-        sys.stdin.read()
+        prompt = sys.stdin.read()
     except Exception:  # noqa: BLE001 - a closed or missing stdin is fine
-        pass
+        prompt = ""
 
     if mode == "silent-start":
         time.sleep(hold)
@@ -226,6 +235,46 @@ def main():
         tool_result("toolu_fake_apply", f"{n} files changed")
         text_reply("applied the change")
         result("applied the change")
+        return 0
+    if mode == "notes":
+        tool_use("toolu_fake_notes", "address the review notes")
+        applied = 0
+        for block in prompt.split("\n\n"):
+            fields = {}
+            for line in block.splitlines():
+                key, _, value = line.partition(": ")
+                fields[key] = value
+            if "File" not in fields or "User comment" not in fields:
+                continue
+            raw = fields["User comment"]
+            body = json.loads(raw) if raw.startswith('"') else raw
+            words = body.split()
+            if len(words) != 4 or words[0] != "rename" or words[2] != "to":
+                continue
+            old, new = words[1], words[3]
+            path = os.path.join(os.getcwd(), fields["File"])
+            with open(path, encoding="utf-8", newline="") as fh:
+                lines = fh.read().split("\n")
+            if "Lines" in fields:
+                a, b = (int(x) for x in fields["Lines"].split("-"))
+            elif "Line" in fields:
+                a = b = int(fields["Line"])
+            else:
+                a, b = 1, len(lines)
+            for i in range(a - 1, min(b, len(lines))):
+                if old in lines[i]:
+                    lines[i] = lines[i].replace(old, new)
+                    applied += 1
+            with open(path, "w", encoding="utf-8", newline="") as fh:
+                fh.write("\n".join(lines))
+        trace = os.environ.get("FAKE_CLAUDE_TRACE")
+        if trace:
+            with open(trace, "w", encoding="utf-8") as fh:
+                json.dump({"argv": sys.argv[1:], "stdin": prompt, "cwd": os.path.realpath(os.getcwd()),
+                           "applied": applied}, fh)
+        tool_result("toolu_fake_notes", f"{applied} lines changed")
+        text_reply("addressed the notes")
+        result("addressed the notes")
         return 0
     if mode in ("grandchild", "grandchild-setsid"):
         # start_new_session=True is setsid() in the child: portable, where a

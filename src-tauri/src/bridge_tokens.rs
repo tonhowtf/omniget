@@ -428,6 +428,7 @@ pub fn route_need(method: &Method, path: &str) -> Option<Need> {
     let segs: Vec<&str> = path.trim_end_matches('/').split('/').skip(1).collect();
     let get = method == Method::GET;
     let post = method == Method::POST;
+    let delete = method == Method::DELETE;
     match segs.as_slice() {
         ["v1", "jobs"]
         | ["v1", "state"]
@@ -440,6 +441,21 @@ pub fn route_need(method: &Method, path: &str) -> Option<Need> {
         }
         ["v1", "jobs", id] if get => need(SCOPE_JOBS_READ, Some(id)),
         ["v1", "jobs", id, "explain" | "diff" | "proof"] if get => need(SCOPE_JOBS_READ, Some(id)),
+        // The review of a job (3.5): reading it is a read of that job; any
+        // change (a hunk put back, notes, integrate, discard, walkthrough,
+        // which spends a model turn) is operating it.
+        ["v1", "jobs", id, "hunks" | "notes" | "integrate"] if get => {
+            need(SCOPE_JOBS_READ, Some(id))
+        }
+        ["v1", "jobs", id, "hunks", "discard"]
+        | ["v1", "jobs", id, "notes"]
+        | ["v1", "jobs", id, "notes", "send"]
+        | ["v1", "jobs", id, "integrate" | "discard" | "walkthrough"]
+            if post =>
+        {
+            need(SCOPE_JOBS_OPERATE, Some(id))
+        }
+        ["v1", "jobs", id, "notes", _] if delete => need(SCOPE_JOBS_OPERATE, Some(id)),
         ["v1", "jobs", id, "cancel"] if post => need(SCOPE_JOBS_OPERATE, Some(id)),
         // Item 2.5: waiting is a read of that job.
         ["v1", "jobs", id, "wait"] if get => need(SCOPE_JOBS_READ, Some(id)),
@@ -858,19 +874,22 @@ mod tests {
     #[test]
     fn every_agent_route_has_a_scope() {
         let src = include_str!("local_bridge_jobs.rs");
+        // Only the served routes, not the ones the file's own tests build.
+        let served = src.split("#[cfg(test)]").next().unwrap();
         let mut paths = Vec::new();
-        let mut rest = src;
+        let mut rest = served;
         while let Some(i) = rest.find(".route(") {
             rest = &rest[i + 7..];
             let q = rest.find('"').unwrap();
             let end = rest[q + 1..].find('"').unwrap();
             paths.push(rest[q + 1..q + 1 + end].to_string());
         }
-        assert_eq!(paths.len(), 20, "{paths:?}");
+        assert_eq!(paths.len(), 28, "{paths:?}");
         for p in &paths {
-            let concrete = p.replace("{id}", "j1");
+            let concrete = p.replace("{id}", "j1").replace("{note}", "n1");
             let ok = route_need(&Method::GET, &concrete).is_some()
-                || route_need(&Method::POST, &concrete).is_some();
+                || route_need(&Method::POST, &concrete).is_some()
+                || route_need(&Method::DELETE, &concrete).is_some();
             assert!(ok, "{p} has no scope in bridge_tokens::route_need");
         }
         // And no handler checks the extension bearer on its own any more.

@@ -3470,7 +3470,45 @@
         "by_host": "Carimbado pelo OmniGet neste computador a partir do que ele registrou, não escrito pelo agente."
       },
       "review": {
-        "mark": "Marcar como revisado"
+        "mark": "Marcar como revisado",
+        "title": "Revisão",
+        "lede": "Descarte um trecho, deixe notas para o agente e depois integre ou descarte o trabalho.",
+        "discard_hunk": "Descartar",
+        "hunk_discarded": "Trecho descartado.",
+        "hunk_stale": "Esse código mudou depois de carregado. O diff foi atualizado; tente de novo.",
+        "busy": "Um job está escrevendo nesta pasta agora. Tente de novo quando ele terminar.",
+        "not_actionable": "O worktree deste job foi removido, então não dá mais para descartar trechos um a um.",
+        "notes_title": "Notas para o agente",
+        "notes_hint": "Selecione linhas no diff e comente. Enviar começa uma continuação na mesma conversa, que custa só as notas.",
+        "notes_empty": "Nenhuma nota ainda.",
+        "note_file": "arquivo inteiro",
+        "note_sent": "enviada para {{job}}",
+        "note_delete": "Apagar nota",
+        "notes_send": "Enviar {{count}} nota(s) ao agente",
+        "notes_sent": "Notas enviadas: job de continuação {{job}} iniciado.",
+        "walkthrough_title": "Roteiro",
+        "walkthrough": "Explicar mudanças",
+        "walkthrough_refresh": "Explicar de novo",
+        "walkthrough_loading": "Escrevendo o roteiro…",
+        "walkthrough_too_large": "Este diff é grande demais para um roteiro. Revise arquivo por arquivo.",
+        "walkthrough_uncovered": "{{count}} trecho(s) fora de qualquer parada",
+        "walkthrough_cached": "do cache",
+        "importance_critical": "crítico",
+        "integrate_title": "Integrar",
+        "integrate_into": "Mesclar {{branch}} em {{target}}",
+        "commits": "{{count}} commit(s) a trazer",
+        "worktree_dirty": "{{count}} arquivo(s) não commitado(s) no worktree serão salvos na branch antes.",
+        "blocked": "Não dá para integrar agora: {{reason}}",
+        "strategy_merge": "Commit de merge",
+        "strategy_squash": "Squash em um commit",
+        "integrate": "Integrar",
+        "integrated": "Integrado em {{target}}.",
+        "up_to_date": "{{target}} já tem este trabalho.",
+        "conflict": "Conflito em {{files}}. Nada mudou no seu checkout.",
+        "failed": "O git recusou o merge (talvez um hook). Nada mudou no seu checkout.",
+        "discard_work": "Descartar trabalho",
+        "discard_confirm": "Descartar o trabalho deste job? O worktree e a branch {{branch}} são apagados.",
+        "discarded": "Trabalho descartado. A branch {{branch}} estava em {{tip}}."
       }
     },
     "loops": {
@@ -5410,7 +5448,6 @@
         "verify_hint": "Roda em cada worktree; o código de saída decide se passou.",
         "cleanup": "Limpar",
         "cleanup_lede": "Arquiva as threads (as worktrees saem; o trabalho fica nos refs da arena).",
-        "cleanup_losers": "Só as perdedoras",
         "cleanup_all": "Todas (descartar a arena)",
         "delete": "Apagar arena",
         "delete_lede": "Tira esta arena do histórico e apaga os refs dela. As threads ficam.",
@@ -5526,10 +5563,11 @@
           "verify_hint": "Opcional; roda em cada worktree quando o turno acaba. Tempo limite",
           "timeout": "Tempo limite em minutos",
           "minutes": "min",
-          "start": "Começar em {{count}} ferramentas"
+          "start": "Começar em {{count}} ferramentas",
+          "min_tools": "Escolha pelo menos {{count}} ferramentas para comparar."
         },
         "apply": {
-          "title": "Aplicar o vencedor",
+          "title": "Escolher este",
           "lede": "A branch de {{name}} entra na branch alvo. Nada mais é tocado.",
           "target": "Branch alvo",
           "strategy": "Como",
@@ -5540,22 +5578,49 @@
           "conflicts": "{{count}} arquivos em conflito; resolva na thread primeiro.",
           "checked_out": "A branch está em checkout em {{path}}.",
           "dirty": "Esse checkout tem mudanças não commitadas: faça commit ou stash antes.",
-          "touch_checkout": "Atualizar meu checkout também (só fast-forward)",
+          "touch_checkout": "Mesclar no meu checkout (git merge com a minha identidade e hooks; desfeito se houver conflito)",
           "ref_only": "Só a branch anda; nenhum checkout é tocado.",
-          "clean_losers": "Arquivar as threads perdedoras e remover as worktrees delas",
+          "clean_losers": "Depois remover os outros (worktrees; o trabalho fica nos refs da arena)",
           "delete_branches": "Apagar também as branches delas (só as do OmniGet)",
           "confirm": "Quero mudar {{branch}}",
           "do": "Aplicar",
           "ok": "Aplicado em {{branch}}",
-          "updated_checkout": "seu checkout avançou",
-          "updated_ref": "só o ref da branch andou",
-          "cleaned": "{{count}} threads arquivadas"
+          "updated_checkout": "mesclado no seu checkout",
+          "updated_ref": "só o ref da branch andou"
         },
         "plan": {
           "implement_n": "Implementar em N ferramentas",
           "hint": "Abre a Arena com este plano como prompt"
         },
-        "apply_winner": "Aplicar vencedor"
+        "apply_winner": "Aplicar vencedor",
+        "removed": "{{count}} worktrees removidas",
+        "branches_kept": "{{count}} branches mantidas",
+        "remove_others": "Remover os outros",
+        "choose": "Escolher este",
+        "choose_hint": "Mesclar o trabalho desta coluna na branch base",
+        "estimate": {
+          "total": "Custo estimado antes de começar: {{total}} para {{count}} ferramentas",
+          "unknown": "{{count}} sem estimativa",
+          "rough": "aproximado: preço de tabela × um turno típico",
+          "source": {
+            "history": "Média de {{runs}} corridas anteriores na arena",
+            "price": "Preço de tabela × um turno típico de código (aproximado)",
+            "unknown": "Sem preço conhecido (assinatura, ou modelo fora da tabela de preços)"
+          }
+        },
+        "compare": {
+          "title": "Onde divergem",
+          "toggle": "Comparar",
+          "divergent": "{{count}} arquivos divergem",
+          "agreed": "{{count}} idênticos",
+          "pending": "{{count}} ainda rodando",
+          "show_agreed": "Mostrar arquivos idênticos",
+          "file": "Arquivo",
+          "untouched": "igual à base",
+          "none_divergent": "Todas as colunas terminaram com os mesmos arquivos.",
+          "column": "{{count}} divergentes",
+          "column_hint": "Arquivos em que esta coluna difere das outras"
+        }
       },
       "run": {
         "back": "Voltar",

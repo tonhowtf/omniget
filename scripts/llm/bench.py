@@ -65,7 +65,9 @@ BENCHES = {
         "diff_eval.py",
         [CORE_LLM + "snapshot.rs", "src-tauri/src/jobs.rs", "src-tauri/src/local_bridge_jobs.rs",
          "src-tauri/src/mcp/orchestration.rs", "scripts/llm/fake_claude.py", "scripts/llm/diff_eval.py",
-         "src-tauri/omniget-core/src/core/vcs/job_worktree", "src-tauri/omniget-core/src/core/vcs/checkpoint.rs"],
+         "src-tauri/omniget-core/src/core/vcs/job_worktree", "src-tauri/omniget-core/src/core/vcs/checkpoint.rs",
+         CORE_LLM + "review.rs", "src-tauri/omniget-core/src/core/vcs/integrate.rs",
+         "src-tauri/omniget-core/src/core/vcs/diff.rs", "src-tauri/src/jobs/review.rs"],
         ["--reps", "5"],
         ["omniget-core", "omniget"],
     ),
@@ -77,6 +79,14 @@ BENCHES = {
          "src-tauri/src/approvals.rs", "scripts/llm/delegation_e2e.py"],
         [],
         ["omniget-core", "omniget"],
+    ),
+    "bn11": (
+        "arena_eval.py",
+        ["src-tauri/src/commands/central/arena", "src-tauri/omniget-core/src/core/vcs/worktree.rs",
+         "src-tauri/omniget-core/src/core/vcs/job_worktree", "src-tauri/omniget-core/src/core/vcs/integrate.rs",
+         "src-tauri/omniget-core/src/core/threads/", "scripts/llm/fake_claude.py", "scripts/llm/arena_eval.py"],
+        [],
+        ["omniget"],
     ),
 }
 # The argv of a real turn: if any of these moved, B0 no longer measures production.
@@ -165,7 +175,7 @@ def main():
     ap.add_argument("--prepared", help="immutable prepared.json; execute without Cargo")
     ap.add_argument("--all", action="store_true", help="every fake bench, whatever changed")
     ap.add_argument("--quick", action="store_true", help="fewer repetitions (iteration, not a gate)")
-    ap.add_argument("--only", default="", help="comma-separated: bn1,bn2,bn3,bn4,bn5")
+    ap.add_argument("--only", default="", help="comma-separated: bn1,bn2,bn3,bn4,bn5,bn11")
     ap.add_argument("--real", action="store_true", help="also run B0 (real Claude turns; spends quota)")
     ap.add_argument("--real-if-needed", action="store_true",
                     help="run B0 only when the turn argv or the harness changed")

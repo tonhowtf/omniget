@@ -3470,7 +3470,45 @@
         "by_host": "エージェントではなく、このコンピューター上の OmniGet が記録内容から押印しました。"
       },
       "review": {
-        "mark": "レビュー済みにする"
+        "mark": "レビュー済みにする",
+        "title": "レビュー",
+        "lede": "ハンクを破棄し、エージェントへのメモを残してから、作業を統合または破棄します。",
+        "discard_hunk": "破棄",
+        "hunk_discarded": "ハンクを破棄しました。",
+        "hunk_stale": "読み込んだ後にそのコードが変わりました。差分を更新したので、もう一度お試しください。",
+        "busy": "いまジョブがこのフォルダーに書き込んでいます。終わってから再度お試しください。",
+        "not_actionable": "このジョブの worktree は削除されたため、ハンクを個別に破棄できません。",
+        "notes_title": "エージェントへのメモ",
+        "notes_hint": "差分の行を選んでコメントします。送信すると同じ会話で続きが始まり、費用はメモの分だけです。",
+        "notes_empty": "メモはまだありません。",
+        "note_file": "ファイル全体",
+        "note_sent": "{{job}} に送信済み",
+        "note_delete": "メモを削除",
+        "notes_send": "{{count}} 件のメモをエージェントに送る",
+        "notes_sent": "メモを送信しました: 続きのジョブ {{job}} を開始しました。",
+        "walkthrough_title": "ウォークスルー",
+        "walkthrough": "変更を説明",
+        "walkthrough_refresh": "もう一度説明",
+        "walkthrough_loading": "ウォークスルーを作成中…",
+        "walkthrough_too_large": "この差分はウォークスルーには大きすぎます。ファイルごとに確認してください。",
+        "walkthrough_uncovered": "どのストップにも入っていないハンク: {{count}}",
+        "walkthrough_cached": "キャッシュから",
+        "importance_critical": "重要",
+        "integrate_title": "統合",
+        "integrate_into": "{{branch}} を {{target}} にマージ",
+        "commits": "取り込むコミット: {{count}}",
+        "worktree_dirty": "worktree の未コミットのファイル {{count}} 件は先にブランチに保存されます。",
+        "blocked": "いまは統合できません: {{reason}}",
+        "strategy_merge": "マージコミット",
+        "strategy_squash": "1 つのコミットに squash",
+        "integrate": "統合",
+        "integrated": "{{target}} に統合しました。",
+        "up_to_date": "{{target}} にはこの作業がすでにあります。",
+        "conflict": "{{files}} で衝突しました。チェックアウトは何も変わっていません。",
+        "failed": "git がマージを拒否しました (フックかもしれません)。チェックアウトは何も変わっていません。",
+        "discard_work": "作業を破棄",
+        "discard_confirm": "このジョブの作業を破棄しますか? worktree とブランチ {{branch}} が削除されます。",
+        "discarded": "作業を破棄しました。ブランチ {{branch}} は {{tip}} でした。"
       }
     },
     "loops": {
@@ -5410,7 +5448,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5526,10 +5563,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "比較するツールを {{count}} つ以上選んでください。"
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "これを選ぶ",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5540,22 +5578,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "自分のチェックアウトにマージ(自分の ID とフックで git merge、競合時は元に戻す)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "その後ほかを削除(worktree。作業はアリーナの ref に残ります)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "チェックアウトにマージしました",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "{{count}} 件の worktree を削除しました",
+        "branches_kept": "{{count}} 件のブランチを残しました",
+        "remove_others": "ほかを削除",
+        "choose": "これを選ぶ",
+        "choose_hint": "この列の作業をベースブランチにマージします",
+        "estimate": {
+          "total": "開始前の見積もり: {{count}} つのツールで {{total}}",
+          "unknown": "見積もりなし: {{count}}",
+          "rough": "概算: 定価 × 標準的な 1 ターン",
+          "source": {
+            "history": "アリーナでの過去 {{runs}} 回の平均",
+            "price": "定価 × 標準的なコーディング 1 ターン(概算)",
+            "unknown": "価格不明(サブスクリプション、または価格表にないモデル)"
+          }
+        },
+        "compare": {
+          "title": "分かれたところ",
+          "toggle": "比較",
+          "divergent": "{{count}} 件のファイルが異なります",
+          "agreed": "{{count}} 件は同一",
+          "pending": "{{count}} 件が実行中",
+          "show_agreed": "同一のファイルも表示",
+          "file": "ファイル",
+          "untouched": "ベースと同じ",
+          "none_divergent": "すべての列が同じファイルで終わりました。",
+          "column": "{{count}} 件が異なる",
+          "column_hint": "この列がほかと異なるファイル"
+        }
       },
       "run": {
         "back": "Back",

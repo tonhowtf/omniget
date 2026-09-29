@@ -3470,7 +3470,45 @@
         "by_host": "Заверено OmniGet на этом компьютере по его записям, а не написано агентом."
       },
       "review": {
-        "mark": "Отметить как проверенное"
+        "mark": "Отметить как проверенное",
+        "title": "Проверка",
+        "lede": "Отбросьте фрагмент, оставьте заметки агенту, затем интегрируйте или отбросьте работу.",
+        "discard_hunk": "Отбросить",
+        "hunk_discarded": "Фрагмент отброшен.",
+        "hunk_stale": "Этот код изменился после загрузки. Diff обновлён; попробуйте ещё раз.",
+        "busy": "Сейчас в эту папку пишет задача. Попробуйте, когда она закончится.",
+        "not_actionable": "Worktree этой задачи удалён, поэтому фрагменты больше нельзя отбрасывать по одному.",
+        "notes_title": "Заметки для агента",
+        "notes_hint": "Выделите строки в diff и прокомментируйте. Отправка запускает продолжение в той же беседе, оно стоит только заметок.",
+        "notes_empty": "Заметок пока нет.",
+        "note_file": "весь файл",
+        "note_sent": "отправлено в {{job}}",
+        "note_delete": "Удалить заметку",
+        "notes_send": "Отправить агенту заметки: {{count}}",
+        "notes_sent": "Заметки отправлены: запущена задача-продолжение {{job}}.",
+        "walkthrough_title": "Обзор",
+        "walkthrough": "Объяснить изменения",
+        "walkthrough_refresh": "Объяснить снова",
+        "walkthrough_loading": "Пишется обзор…",
+        "walkthrough_too_large": "Этот diff слишком велик для обзора. Проверьте его по файлам.",
+        "walkthrough_uncovered": "Фрагментов вне остановок: {{count}}",
+        "walkthrough_cached": "из кэша",
+        "importance_critical": "важно",
+        "integrate_title": "Интеграция",
+        "integrate_into": "Слить {{branch}} в {{target}}",
+        "commits": "Коммитов к переносу: {{count}}",
+        "worktree_dirty": "Незакоммиченные файлы в worktree ({{count}}) сначала будут сохранены в ветке.",
+        "blocked": "Сейчас интегрировать нельзя: {{reason}}",
+        "strategy_merge": "Merge-коммит",
+        "strategy_squash": "Squash в один коммит",
+        "integrate": "Интегрировать",
+        "integrated": "Интегрировано в {{target}}.",
+        "up_to_date": "В {{target}} эта работа уже есть.",
+        "conflict": "Конфликт в {{files}}. В вашем checkout ничего не изменилось.",
+        "failed": "Git отказал в слиянии (возможно, hook). В вашем checkout ничего не изменилось.",
+        "discard_work": "Отбросить работу",
+        "discard_confirm": "Отбросить работу этой задачи? Её worktree и ветка {{branch}} будут удалены.",
+        "discarded": "Работа отброшена. Ветка {{branch}} указывала на {{tip}}."
       }
     },
     "loops": {
@@ -5410,7 +5448,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5526,10 +5563,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "Выберите хотя бы {{count}} инструмента для сравнения."
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "Выбрать этот",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5540,22 +5578,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "Слить в мой checkout (git merge с моей подписью и хуками; при конфликте отменяется)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "Затем убрать остальные (worktree; их работа остаётся в refs арены)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "слито в ваш checkout",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "Удалено worktree: {{count}}",
+        "branches_kept": "Сохранено веток: {{count}}",
+        "remove_others": "Убрать остальные",
+        "choose": "Выбрать этот",
+        "choose_hint": "Слить работу этой колонки в базовую ветку",
+        "estimate": {
+          "total": "Оценка стоимости до старта: {{total}} за {{count}} инструмента",
+          "unknown": "без оценки: {{count}}",
+          "rough": "приблизительно: прайс × типичный ход",
+          "source": {
+            "history": "Среднее по {{runs}} прошлым запускам в арене",
+            "price": "Прайс × типичный ход с кодом (приблизительно)",
+            "unknown": "Цена неизвестна (подписка или модели нет в прайсе)"
+          }
+        },
+        "compare": {
+          "title": "Где расходятся",
+          "toggle": "Сравнить",
+          "divergent": "Различаются файлов: {{count}}",
+          "agreed": "одинаковых: {{count}}",
+          "pending": "ещё работают: {{count}}",
+          "show_agreed": "Показать одинаковые файлы",
+          "file": "Файл",
+          "untouched": "как в базе",
+          "none_divergent": "Все колонки пришли к одинаковым файлам.",
+          "column": "расходятся: {{count}}",
+          "column_hint": "Файлы, в которых эта колонка отличается от других"
+        }
       },
       "run": {
         "back": "Back",
