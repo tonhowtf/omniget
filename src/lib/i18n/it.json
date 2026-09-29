@@ -2127,7 +2127,9 @@
     "feature_i18n": "disponibile in inglese, portoghese, cinese, giapponese, italiano e francese",
     "feature_tech": "realizzato con Tauri + Rust. veloce e leggero",
     "tagline": "Scarica qualsiasi cosa, da qualsiasi luogo.",
-    "credit": "Fatto con amore da tonho.wtf"
+    "credit": "Fatto con amore da tonho.wtf",
+    "technical_details": "Technical details",
+    "feature_i18n_count": "Available in {{count}} languages"
   },
   "changelog": {
     "title": "Novità",

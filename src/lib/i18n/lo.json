@@ -2127,7 +2127,9 @@
     "feature_i18n": "ມີໃຫ້ໃຊ້ໃນພາສາອັງກິດ, ປອກຕຸຍການ, ຈີນ, ຍີ່ປຸ່ນ, ອີຕາລີ ແລະ ຝຣັ່ງ",
     "feature_tech": "ສ້າງດ້ວຍ Tauri + Rust. ໄວ ແລະ ເບົາ",
     "tagline": "ດາວໂຫຼດທຸກຢ່າງ, ຈາກທຸກບ່ອນ.",
-    "credit": "ສ້າງດ້ວຍຄວາມຮັກໂດຍ tonho.wtf"
+    "credit": "ສ້າງດ້ວຍຄວາມຮັກໂດຍ tonho.wtf",
+    "technical_details": "Technical details",
+    "feature_i18n_count": "Available in {{count}} languages"
   },
   "changelog": {
     "title": "ມີຫຍັງໃໝ່",

@@ -2127,7 +2127,9 @@
     "feature_i18n": "提供英文、葡萄牙文、中文、日文、義大利文、法文",
     "feature_tech": "使用 Tauri + Rust 建構，快速且輕量",
     "tagline": "隨時隨地，下載一切。",
-    "credit": "由 tonho.wtf 用心打造"
+    "credit": "由 tonho.wtf 用心打造",
+    "technical_details": "Technical details",
+    "feature_i18n_count": "Available in {{count}} languages"
   },
   "changelog": {
     "title": "更新內容",

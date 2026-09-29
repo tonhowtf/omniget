@@ -2127,7 +2127,9 @@
     "feature_i18n": "διαθέσιμο στα Αγγλικά, Πορτογαλικά, Κινέζικα, Ιαπωνικά, Ιταλικά, Γαλλικά και Ελληνικά",
     "feature_tech": "φτιαγμένο με Tauri και Rust. γρήγορο και ελαφρύ",
     "tagline": "Κατεβάστε οτιδήποτε, από οπουδήποτε.",
-    "credit": "Φτιαγμένο με αγάπη από tonho.wtf"
+    "credit": "Φτιαγμένο με αγάπη από tonho.wtf",
+    "technical_details": "Technical details",
+    "feature_i18n_count": "Available in {{count}} languages"
   },
   "changelog": {
     "title": "Τι νέο υπάρχει",

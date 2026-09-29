@@ -2105,7 +2105,7 @@
     "card_project_desc": "Roadmap, philosophy and how to contribute.",
     "card_terms_title": "Terms & ethics",
     "card_terms_desc": "What OmniGet expects from you, and what you can expect back.",
-    "description": "o seu downloader de mídia. código aberto e gratuito.",
+    "description": "Baixe mídia de sites compatíveis, organize seus arquivos e trabalhe com agentes de IA no desktop. Gratuito e de código aberto.",
     "terms_title": "termos de uso",
     "terms_text": "OmniGet é fornecido como está e sem garantias. o app facilita o download de conteúdo disponível publicamente na internet, mas não nos responsabilizamos pelo que você baixa ou pelo que faz com o conteúdo. ao usar o OmniGet, você concorda com isso.",
     "legal_title": "base legal",
@@ -2126,8 +2126,10 @@
     "feature_themes": "11 temas: Dark, Light, Catppuccin (4 sabores), One Dark Pro, Dracula, NyxVamp (3 variantes)",
     "feature_i18n": "disponível em Inglês, Português, Chinês, Japonês, Italiano e Francês",
     "feature_tech": "feito com Tauri + Rust. rápido e leve",
-    "tagline": "Baixe qualquer coisa, de qualquer lugar.",
-    "credit": "Feito com amor por tonho.wtf"
+    "tagline": "Seus downloads e agentes de IA em um só lugar.",
+    "credit": "Feito com amor por tonho.wtf",
+    "technical_details": "Detalhes técnicos",
+    "feature_i18n_count": "Disponível em {{count}} idiomas"
   },
   "changelog": {
     "title": "Novidades",

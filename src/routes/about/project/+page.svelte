@@ -1,9 +1,12 @@
 <script lang="ts">
   import { open } from "@tauri-apps/plugin-shell";
-  import { t } from "$lib/i18n";
+  import { t, locales } from "$lib/i18n";
 
   const GITHUB_URL = "https://github.com/tonhowtf/omniget";
-  const APP_VERSION = "0.10.1";
+  import { getVersion } from "@tauri-apps/api/app";
+  import { onMount } from "svelte";
+  let version = $state("");
+  onMount(() => { void getVersion().then(value => { version = value; }).catch(() => {}); });
 
   async function openGitHub() {
     await open(GITHUB_URL);
@@ -42,12 +45,12 @@
     <p class="feature-item">{$t('about.feature_progress')}</p>
     <p class="feature-item">{$t('about.feature_mascot')}</p>
     <p class="feature-item">{$t('about.feature_themes')}</p>
-    <p class="feature-item">{$t('about.feature_i18n')}</p>
+    <p class="feature-item">{$t('about.feature_i18n_count', { count: $locales.length })}</p>
     <p class="feature-item">{$t('about.feature_tech')}</p>
   </div>
 </section>
 
-<p class="version">{$t('about.version')} {APP_VERSION}</p>
+{#if version}<p class="version">{$t('about.version')} {version}</p>{/if}
 
 <style>
   .star-section {

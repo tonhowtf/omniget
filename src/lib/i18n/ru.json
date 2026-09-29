@@ -2127,7 +2127,9 @@
     "feature_i18n": "доступно на английском, португальском, китайском, японском, итальянском и французском",
     "feature_tech": "сделано на Tauri + Rust. Быстро и легко",
     "tagline": "Скачивайте что угодно, откуда угодно.",
-    "credit": "Сделано с любовью tonho.wtf"
+    "credit": "Сделано с любовью tonho.wtf",
+    "technical_details": "Technical details",
+    "feature_i18n_count": "Available in {{count}} languages"
   },
   "changelog": {
     "title": "Что нового",

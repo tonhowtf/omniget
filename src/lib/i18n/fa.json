@@ -2127,7 +2127,9 @@
     "feature_i18n": "available in English, Portuguese, Chinese, Japanese, Italian, and French",
     "feature_tech": "built with Tauri + Rust. fast and lightweight",
     "tagline": "Download anything, from anywhere.",
-    "credit": "Made with love by tonho.wtf"
+    "credit": "Made with love by tonho.wtf",
+    "technical_details": "Technical details",
+    "feature_i18n_count": "Available in {{count}} languages"
   },
   "changelog": {
     "title": "What's New",
