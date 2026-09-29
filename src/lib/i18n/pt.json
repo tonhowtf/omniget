@@ -3545,7 +3545,8 @@
       "summary": "Até {{rounds}} rodadas. Para antes se atingir o critério configurado ou o limite de tempo.",
       "no_check": "Sem comando de verificação: o encerramento será controlado pelo limite de rodadas ou tempo.",
       "review": "Revisar loop",
-      "edit": "Editar configuração"
+      "edit": "Editar configuração",
+      "run_mode_hint": "Cada rodada do loop roda com este modo. Com “Perguntar antes de tudo”, cada rodada para e espera você antes de qualquer edição ou comando."
     },
     "limits": {
       "title": "Barra de limites",

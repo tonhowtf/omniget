@@ -163,6 +163,8 @@ export type LoopDef = {
   finished_ms: number | null;
   last_check: string | null;
   stop_reason: string | null;
+  /** The run mode of its rounds (2.7); older loops have none (`auto_edits`). */
+  run_mode?: import("./llm-run-mode.svelte").RunMode | null;
 };
 
 export type Trigger = {
@@ -312,6 +314,8 @@ export type LoopInput = {
   max_rounds?: number | null;
   max_minutes?: number | null;
   check_command?: string | null;
+  /** How much each round may do without asking (2.7); none = `auto_edits`. */
+  run_mode?: import("./llm-run-mode.svelte").RunMode | null;
 };
 
 export type TriggerInput = {

@@ -621,9 +621,11 @@ where
         .route(
             "/v1/jobs/{id}/hunks/discard",
             post(
-                move |Path(id): Path<String>, headers: HeaderMap, Json(b): Json<DiscardHunkBody>| async move {
+                move |Path(id): Path<String>, headers: HeaderMap, who: Caller, Json(b): Json<DiscardHunkBody>| async move {
                     let j = with_jobs!(r2, headers);
-                    answer(j.discard_hunk(&id, &b.hunk_id, &b.patch).await)
+                    answer(j.discard_hunk(&id, &b.hunk_id, &b.patch).await.inspect(|_| {
+                        crate::llm_audit::job_reviewed(caller(&who), "job.hunk_discarded", &id, json!({ "hunk_id": b.hunk_id }))
+                    }))
                 },
             ),
         )
@@ -671,7 +673,7 @@ where
             })
             .post({
                 let r = r6b;
-                move |Path(id): Path<String>, headers: HeaderMap, body: Option<Json<IntegrateBody>>| async move {
+                move |Path(id): Path<String>, headers: HeaderMap, who: Caller, body: Option<Json<IntegrateBody>>| async move {
                     let j = with_jobs!(r, headers);
                     let b = body.map(|Json(b)| b).unwrap_or_default();
                     let strategy = match omniget_core::core::vcs::integrate::Strategy::parse(
@@ -682,6 +684,12 @@ where
                     };
                     match j.integrate(&id, strategy).await {
                         Ok((outcome, job)) => {
+                            crate::llm_audit::job_reviewed(
+                                caller(&who),
+                                "job.integrated",
+                                &id,
+                                json!({ "strategy": strategy, "status": outcome.status }),
+                            );
                             let ok = matches!(outcome.status.as_str(), "merged" | "up_to_date");
                             let body = json!({ "outcome": outcome, "job": job });
                             if ok {
@@ -704,9 +712,11 @@ where
         )
         .route(
             "/v1/jobs/{id}/discard",
-            post(move |Path(id): Path<String>, headers: HeaderMap| async move {
+            post(move |Path(id): Path<String>, headers: HeaderMap, who: Caller| async move {
                 let j = with_jobs!(r7, headers);
-                answer(j.discard_work(&id).await)
+                answer(j.discard_work(&id).await.inspect(|_| {
+                    crate::llm_audit::job_reviewed(caller(&who), "job.discarded", &id, json!({}))
+                }))
             }),
         )
         .route(

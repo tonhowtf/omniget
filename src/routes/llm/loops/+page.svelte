@@ -1,5 +1,7 @@
 <script lang="ts">
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
+  import RunModeSelect from "$components/llm/RunModeSelect.svelte";
+  import type { RunMode } from "$lib/stores/llm-run-mode.svelte";
   /**
    * Loops: the same prompt run round after round until a check command
    * passes or the round/minute budget runs out.
@@ -51,6 +53,8 @@
   let maxRounds = $state<number | null>(10);
   let maxMinutes = $state<number | null>(null);
   let checkCommand = $state("");
+  // A loop made here is the person's own: the chat's default (2.7, D2).
+  let runMode = $state<RunMode>("auto_edits");
   let creating = $state(false);
   let openId = $state<string | null>(null);
   // `?loop=<id>` (a row of /llm/work) opens that loop.
@@ -100,6 +104,7 @@
       max_rounds: positive(maxRounds) ?? 10,
       max_minutes: positive(maxMinutes),
       check_command: checkCommand.trim() || null,
+      run_mode: runMode,
     });
     creating = false;
     if (loop) {
@@ -168,6 +173,10 @@
         <input class="input mono" type="text" bind:value={checkCommand} placeholder="npm test" />
       </label>
     </div>
+    <div class="form-row">
+      <RunModeSelect bind:value={runMode} />
+    </div>
+    <p class="hint">{$t("llm.loops.run_mode_hint")}</p>
     <p class="hint">{$t("llm.loops.summary", { rounds: positive(maxRounds) ?? 10 })}</p>
     {#if !checkCommand.trim()}<p class="hint">{$t("llm.loops.no_check")}</p>{/if}
     {#if reviewing}
@@ -177,6 +186,7 @@
         {#if workspace}<p><code>{workspace}</code></p>{/if}
         {#if checkCommand.trim()}<p><code>{checkCommand}</code></p>{/if}
         {#if positive(maxMinutes)}<p>{$t("llm.loops.max_minutes")}: {positive(maxMinutes)}</p>{/if}
+        <p>{$t("llm.run_mode.label")}: {$t(`llm.run_mode.${runMode}`)}</p>
         <button type="button" class="button active" disabled={creating || !agentId || !prompt.trim()} onclick={create}>{$t("llm.loops.start")}</button>
         <button type="button" class="button" disabled={creating} onclick={() => reviewing = false}>{$t("llm.loops.edit")}</button>
       </div>
@@ -227,6 +237,8 @@
                   <div class="field-label">{$t("llm.loops.check_command")}</div>
                   <code class="path">{loop.check_command}</code>
                 {/if}
+                <div class="field-label">{$t("llm.run_mode.label")}</div>
+                <div class="text" title={$t(`llm.run_mode.${loop.run_mode ?? "auto_edits"}_hint`) as string}>{$t(`llm.run_mode.${loop.run_mode ?? "auto_edits"}`)}</div>
                 {#if extra(loop).schedule}
                   <div class="field-label">{$t("llm.central.run.loop.schedule")}</div>
                   <code class="path">{extra(loop).schedule}{extra(loop).next_round_ms ? ` · ${$t("llm.central.run.loop.next_round")} ${shortTime(extra(loop).next_round_ms ?? null)}` : ""}</code>

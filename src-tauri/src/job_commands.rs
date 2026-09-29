@@ -110,7 +110,9 @@ pub fn ensure_schema(db: &Connection) -> Result<(), String> {
 pub trait Engine: Send + Sync {
     fn start(&self, spec: &StartSpec, owner: &str) -> Result<Job, String>;
     fn job(&self, id: &str) -> Option<Job>;
-    fn cancel(&self, id: &str) -> Result<Job, String>;
+    /// Cancels on `actor`'s behalf (the audit line names who asked, 2.8).
+    fn cancel(&self, id: &str, actor: omniget_core::core::llm::audit::Actor)
+        -> Result<Job, String>;
     /// Bumped whenever a job row is saved.
     fn subscribe(&self) -> tokio::sync::watch::Receiver<u64>;
     /// Newest first.
@@ -130,8 +132,12 @@ impl Engine for AppEngine {
     fn job(&self, id: &str) -> Option<Job> {
         self.0.job(id)
     }
-    fn cancel(&self, id: &str) -> Result<Job, String> {
-        self.0.cancel(id)
+    fn cancel(
+        &self,
+        id: &str,
+        actor: omniget_core::core::llm::audit::Actor,
+    ) -> Result<Job, String> {
+        self.0.cancel_by(id, actor)
     }
     fn subscribe(&self) -> tokio::sync::watch::Receiver<u64> {
         self.0.subscribe()
@@ -176,6 +182,14 @@ pub struct Caller {
     pub from_job: Option<String>,
     /// `accept_always` stays a desktop decision for MCP and remote callers.
     pub may_accept_always: bool,
+}
+
+impl Caller {
+    /// The caller as an audit actor (2.8): `token:<id>` or `mcp:<client>`,
+    /// through `http`, `cli` or `mcp`.
+    pub fn actor(&self) -> omniget_core::core::llm::audit::Actor {
+        omniget_core::core::llm::audit::Actor::via(self.channel, &self.owner)
+    }
 }
 
 /// Why a command or a read did not apply.
@@ -307,9 +321,9 @@ pub fn parse_start(mut body: Value) -> Result<StartSpec, CmdError> {
         }
     }
     if let Some(m) = &s.run_mode {
-        if m.is_empty() || m.len() > 32 || !m.bytes().all(|b| b.is_ascii_lowercase() || b == b'_') {
-            return Err(invalid("`run_mode` is a snake_case word (2.7)"));
-        }
+        // The four modes of 2.7 (`approval_required`, `auto_edits`, `auto`,
+        // `full_access`); a typo is a 400 before any receipt.
+        jobs::RunMode::parse(m).map_err(invalid)?;
     }
     if let Some(i) = &s.isolation {
         jobs::Isolation::parse(i).map_err(invalid)?;
@@ -469,6 +483,7 @@ impl Commands {
                     .engine
                     .start(&spec, &c.owner)
                     .map_err(|e| CmdError::new(400, ERR_COMMAND_INVALID, e))?;
+                crate::llm_audit::job_created(c.actor(), &job);
                 (Some(job.id.clone()), json!({ "job": job_view(&job) }))
             }
             "job.interrupt" => {
@@ -483,7 +498,7 @@ impl Commands {
                 self.readable(c, &id)?;
                 let job = self
                     .engine
-                    .cancel(&id)
+                    .cancel(&id, c.actor())
                     .map_err(|e| CmdError::new(404, ERR_NO_JOB, e))?;
                 (Some(job.id.clone()), json!({ "job": job_view(&job) }))
             }

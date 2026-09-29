@@ -2059,6 +2059,17 @@ pub async fn arena_apply(
         message,
     )
     .await?;
+    // Linha de auditoria (2.8): só a escolha, nunca o conteúdo.
+    crate::llm_audit::arena_action(
+        "arena.applied",
+        &arena_id,
+        json!({
+            "entry_id": entry_id,
+            "strategy": r.strategy,
+            "target_branch": r.target_branch,
+            "updated": r.updated,
+        }),
+    );
     emit_arena(&app, &arena_id);
     Ok(r)
 }
@@ -2157,6 +2168,17 @@ pub async fn arena_cleanup(
         delete_branches.unwrap_or(false),
     )
     .await?;
+    crate::llm_audit::arena_action(
+        "arena.cleaned",
+        &arena_id,
+        json!({
+            "scope": if scope.as_deref() == Some("all") { "all" } else { "losers" },
+            "archived": r.archived.len(),
+            "worktrees_removed": r.worktrees_removed.len(),
+            "branches_deleted": r.branches_deleted.len(),
+            "errors": r.errors.len(),
+        }),
+    );
     emit_arena(&app, &arena_id);
     Ok(r)
 }

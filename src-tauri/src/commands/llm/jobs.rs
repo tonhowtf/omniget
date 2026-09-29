@@ -308,7 +308,14 @@ pub async fn llm_job_discard_hunk(
     hunk_id: String,
     patch: String,
 ) -> Result<Value, String> {
-    jobs::get(&app)?.discard_hunk(&id, &hunk_id, &patch).await
+    let r = jobs::get(&app)?.discard_hunk(&id, &hunk_id, &patch).await?;
+    crate::llm_audit::job_reviewed(
+        omniget_core::core::llm::audit::Actor::window(),
+        "job.hunk_discarded",
+        &id,
+        json!({ "hunk_id": hunk_id }),
+    );
+    Ok(r)
 }
 
 #[tauri::command]
@@ -364,13 +371,26 @@ pub async fn llm_job_integrate(
         omniget_core::core::vcs::integrate::Strategy::parse(strategy.as_deref().unwrap_or(""))
             .map_err(|e| format!("{}: {e}", jobs::ERR_JOBS))?;
     let (outcome, job) = jobs::get(&app)?.integrate(&id, strategy).await?;
+    crate::llm_audit::job_reviewed(
+        omniget_core::core::llm::audit::Actor::window(),
+        "job.integrated",
+        &id,
+        json!({ "strategy": strategy, "status": outcome.status }),
+    );
     Ok(json!({ "outcome": outcome, "job": job }))
 }
 
 /// Throws the worktree job's work away: worktree and branch.
 #[tauri::command]
 pub async fn llm_job_discard_worktree(app: AppHandle, id: String) -> Result<Value, String> {
-    jobs::get(&app)?.discard_work(&id).await
+    let r = jobs::get(&app)?.discard_work(&id).await?;
+    crate::llm_audit::job_reviewed(
+        omniget_core::core::llm::audit::Actor::window(),
+        "job.discarded",
+        &id,
+        json!({}),
+    );
+    Ok(r)
 }
 
 /// The walkthrough of the job's diff, on demand (`refresh` skips the cache).

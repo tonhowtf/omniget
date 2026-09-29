@@ -915,6 +915,49 @@ mod tests {
         assert!(src.contains("route_layer("));
     }
 
+    /// A merge once moved `router()`'s `.route_layer(..)` to the end of
+    /// another function, leaving the agent routes unguarded. In each file
+    /// that serves agent routes, the guard is the last call of the builder:
+    /// after every `.route(`/`.merge(` of that same function.
+    #[test]
+    fn the_guard_layer_comes_after_every_route() {
+        for (name, src) in [
+            ("local_bridge_jobs.rs", include_str!("local_bridge_jobs.rs")),
+            (
+                "local_bridge_agentkit.rs",
+                include_str!("local_bridge_agentkit.rs"),
+            ),
+        ] {
+            let served = src.split("#[cfg(test)]").next().unwrap();
+            let start = served
+                .find("pub fn router<")
+                .unwrap_or_else(|| panic!("{name}: no router()"));
+            let body = &served[start..];
+            // The function ends at the first line that is just `}`.
+            let end = body.find("\n}\n").unwrap_or(body.len());
+            let body = &body[..end];
+            let layer = body
+                .rfind(".route_layer(")
+                .unwrap_or_else(|| panic!("{name}: router() has no route_layer"));
+            assert!(
+                body[layer..].contains("bridge_tokens::guard"),
+                "{name}: the layer is not the bridge guard"
+            );
+            let last_route = body.rfind(".route(").unwrap_or(0);
+            let last_merge = body.rfind(".merge(").unwrap_or(0);
+            assert!(
+                layer > last_route && layer > last_merge,
+                "{name}: a route of router() comes after its route_layer"
+            );
+            // And no other function of the file carries the guard.
+            assert_eq!(
+                served.matches(".route_layer(").count(),
+                1,
+                "{name}: the guard layer must be router()'s only"
+            );
+        }
+    }
+
     #[test]
     fn the_routes_ask_for_the_right_scope() {
         let g = |p: &str| route_need(&Method::GET, p).unwrap();

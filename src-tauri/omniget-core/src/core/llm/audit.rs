@@ -95,6 +95,10 @@ impl Entity {
     pub fn rule(id: &str) -> Self {
         Self::of("rule", id)
     }
+    /// An Arena of the Central (3.8).
+    pub fn arena(id: &str) -> Self {
+        Self::of("arena", id)
+    }
     pub fn loop_(id: &str) -> Self {
         Self::of("loop", id)
     }

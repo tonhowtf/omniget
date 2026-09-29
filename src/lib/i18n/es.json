@@ -3545,7 +3545,8 @@
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
       "no_check": "No check command: completion will be controlled by the round or time limit.",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "run_mode_hint": "Cada ronda del loop se ejecuta con este modo. Con «Preguntar antes de todo», cada ronda se detiene y te espera antes de cualquier edición o comando."
     },
     "limits": {
       "title": "Limits strip",

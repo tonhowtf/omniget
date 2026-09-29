@@ -68,6 +68,19 @@ pub fn job_cancelled(actor: Actor, job: &crate::jobs::Job) {
     );
 }
 
+/// A review action on a job's changes (3.5): `job.hunk_discarded`,
+/// `job.integrated`, `job.discarded`. Only the facts (hunk id, strategy,
+/// outcome), never the patch.
+pub fn job_reviewed(actor: Actor, action: &str, job_id: &str, details: Value) {
+    audit::log(actor, action, Entity::job(job_id), details);
+}
+
+/// A choice in an Arena (3.8): `arena.applied` (this entry merged) and
+/// `arena.cleaned` (the others removed). Actions only, no content.
+pub fn arena_action(action: &str, arena_id: &str, details: Value) {
+    audit::log(Actor::window(), action, Entity::arena(arena_id), details);
+}
+
 /// How a job ended, written by the app (a cancel has its own line, with the
 /// person who asked for it).
 pub fn job_ended(job: &crate::jobs::Job) {
@@ -95,7 +108,9 @@ fn self_audited(method: &Method, path: &str) -> bool {
     matches!(
         segs.as_slice(),
         ["v1", "agent", "run" | "loop"]
-            | ["v1", "jobs", _, "cancel"]
+            | ["v1", "commands"]
+            | ["v1", "jobs", _, "cancel" | "integrate" | "discard"]
+            | ["v1", "jobs", _, "hunks", "discard"]
             | ["v1", "approvals", _]
             | ["v1", "agents", "cli"]
     )
@@ -218,6 +233,12 @@ mod tests {
         assert!(self_audited(&Method::POST, "/v1/jobs/j1/cancel"));
         assert!(self_audited(&Method::POST, "/v1/approvals/apr_1"));
         assert!(self_audited(&Method::POST, "/v1/agents/cli"));
+        // 2.5's command surface and 3.5's review actions write their own.
+        assert!(self_audited(&Method::POST, "/v1/commands"));
+        assert!(self_audited(&Method::POST, "/v1/jobs/j1/integrate"));
+        assert!(self_audited(&Method::POST, "/v1/jobs/j1/discard"));
+        assert!(self_audited(&Method::POST, "/v1/jobs/j1/hunks/discard"));
+        assert!(!self_audited(&Method::POST, "/v1/jobs/j1/notes"));
         assert!(!self_audited(&Method::POST, "/v1/hooks/t1"));
         assert!(!self_audited(&Method::GET, "/v1/jobs"));
     }

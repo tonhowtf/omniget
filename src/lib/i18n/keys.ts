@@ -3658,6 +3658,7 @@ export type TranslationKeys =
   | 'llm.loops.prompt_placeholder'
   | 'llm.loops.review'
   | 'llm.loops.rounds'
+  | 'llm.loops.run_mode_hint'
   | 'llm.loops.start'
   | 'llm.loops.state.cancelled'
   | 'llm.loops.state.done'

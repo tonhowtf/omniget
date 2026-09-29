@@ -3545,7 +3545,8 @@
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
       "no_check": "No check command: completion will be controlled by the round or time limit.",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "run_mode_hint": "循环的每一轮都以此模式运行。选择“事事先询问”时，每一轮在任何编辑或命令之前都会停下来等你确认。"
     },
     "limits": {
       "title": "Limits strip",
