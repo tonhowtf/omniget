@@ -111,7 +111,7 @@
 
   <div class="pb-right">
     {#if cur && !player.radio}
-      <span class="q" title={cur.path}>{qualityLabel(cur)}</span>
+      <span class="q" title={qualityLabel(cur)}>{qualityLabel(cur)}</span>
     {/if}
     {#if player.sleepAt || player.sleepEndOfTrack}
       <span class="sleep" title={$t("music.sleep.active") as string}><MusicIcon name="moon" size={14} /></span>
