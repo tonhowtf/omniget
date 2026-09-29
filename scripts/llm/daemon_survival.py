@@ -100,7 +100,10 @@ class Lab:
             "FAKE_CLAUDE_TRACE": str(self.trace),
             "FAKE_CLAUDE_LEDGER": str(self.ledger),
             "FAKE_CLAUDE_LIVE_DIR": str(self.live),
-            "FAKE_CLAUDE_HELP_EXTRA": "--resume --include-partial-messages",
+            # `--system-prompt` etc.: a Loop without a check is audited by a
+            # side call (3.7); the fake answers it at once, apart from rounds.
+            "FAKE_CLAUDE_HELP_EXTRA": "--resume --include-partial-messages --system-prompt "
+                                      "--tools --no-session-persistence --strict-mcp-config",
             "RUST_LOG": e.get("RUST_LOG", "info"),
         })
         if with_app_path:

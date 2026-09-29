@@ -83,7 +83,9 @@ Modes:
                      working folder byte for byte (a known edit, as an agent's
                      shell would make it: nothing goes through OmniGet's
                      tools), the tool_result, a reply and the result.
-  bn6                the daemon benchmark (3.1/3.2): names a session (the
+  bn6                the daemon benchmark (3.1/3.2; with `--system-prompt`
+                     it is the Loop's auditor and answers `continue` at
+                     once): names a session (the
                      one after `--resume` when given, else a new one), notes
                      in TRACE {event: start, pid, resume, session, round,
                      tag, concurrent: [pids of other fakes still alive]},
@@ -248,12 +250,34 @@ def rate_limit():
 def bn6(prompt, hold):
     import re
     argv = sys.argv[1:]
+    if "--system-prompt" in argv:
+        # The Loop's auditor (3.7, a side call): answers at once, never a
+        # round, so the rounds' trace and ledger stay the rounds'.
+        emit({"type": "system", "subtype": "init", "cwd": os.getcwd(), "session_id": str(uuid.uuid4()),
+              "claude_code_version": "2.1.276-fake", "apiKeySource": "none",
+              "model": "claude-haiku-4-5", "permissionMode": "default", "tools": [], "mcp_servers": []})
+        verdict = json.dumps({"verdict": "continue", "note": "bn6 keeps going"})
+        text_reply(verdict)
+        result(verdict)
+        return 0
     resume = argv[argv.index("--resume") + 1] if "--resume" in argv[:-1] else None
     session = resume or str(uuid.uuid4())
     rounds = re.findall(r"Round (\d+)", prompt)
     rnd = int(rounds[-1]) if rounds else 1
     tags = re.findall(r"bn6-[a-z0-9-]+", prompt)
-    tag = tags[0] if tags else "bn6"
+    tag = tags[0] if tags else None
+    if tag is None and resume and os.environ.get("FAKE_CLAUDE_TRACE"):
+        # A guided round (3.7) sends only "Round N of M. Continue…": the tag
+        # is the one its resumed session started with.
+        try:
+            with open(os.environ["FAKE_CLAUDE_TRACE"], encoding="utf-8") as fh:
+                for line in fh:
+                    e = json.loads(line)
+                    if e.get("session") == resume and e.get("tag"):
+                        tag = e["tag"]
+        except (OSError, ValueError):
+            pass
+    tag = tag or "bn6"
     live = os.environ.get("FAKE_CLAUDE_LIVE_DIR")
     concurrent = []
     if live:
