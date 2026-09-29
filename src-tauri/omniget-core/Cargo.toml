@@ -40,6 +40,8 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 tar = "0.4"
 flate2 = "1"
+quick-xml = "0.37"
+encoding_rs = "0.8"
 xz2 = { version = "0.1", features = ["static"] }
 walkdir = "2"
 # ONNX Runtime: "load-dynamic" NAO linka nada no build; a lib nativa e um
