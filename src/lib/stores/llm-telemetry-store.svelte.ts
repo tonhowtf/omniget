@@ -11,8 +11,8 @@
  * `setInterval`, no `setTimeout`, no `requestAnimationFrame`. The cadence is
  * the backend's, so a closed section costs exactly zero.
  *
- * While `f2-llm-commands` is still a stub every command answers `ERR_STUB`;
- * the store treats that as "unavailable" and the page renders an empty state.
+ * A command that fails leaves the store "unavailable" and the page renders an
+ * empty state with the error code.
  * `FAKE` (see `fakeSnapshot`) feeds deterministic data to the tests and to the
  * screenshot harness (`?demo=1`), and is never used to fill a real screen.
  */

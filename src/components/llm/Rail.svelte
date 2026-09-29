@@ -14,9 +14,10 @@
   import {
     getActiveConversation,
     getConversations,
+    getConversationsError,
     getRooms,
-    isDemoRoster,
     lastSpokenBy,
+    loadConversations,
     selectConversation,
   } from "$lib/stores/llm-store.svelte";
   import RoomEditor from "./groups/RoomEditor.svelte";
@@ -166,8 +167,11 @@
     </div>
   </div>
 
-  {#if isDemoRoster()}
-    <p class="rail-demo" role="status">{$t("llm.demo_banner")}</p>
+  {#if getConversationsError()}
+    <p class="rail-error" role="alert">
+      {$t("llm.rail.load_failed")}
+      <button type="button" class="link-button" onclick={() => void loadConversations()}>{$t("llm.surface.retry")}</button>
+    </p>
   {/if}
 
   <div data-agent-actions="scroll" use:agentActions={["scroll"]} data-agent-region="agent-list" class="rail-scroll" bind:this={viewport} onscroll={onScroll}>
@@ -249,10 +253,20 @@
     min-width: 0;
   }
 
-  .rail-demo {
+  .rail-error {
     margin: 0 var(--space-3) var(--space-2);
     font-size: var(--text-caption);
-    color: var(--text-dim);
+    color: var(--red);
+  }
+
+  .link-button {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent-hi);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
   }
 
   .rail-scroll {

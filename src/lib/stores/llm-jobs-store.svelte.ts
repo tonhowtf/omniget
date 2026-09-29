@@ -5,6 +5,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { showToast } from "$lib/stores/toast-store.svelte";
+import { addLog } from "$lib/stores/debug-store.svelte";
 
 export type JobState =
   | "queued"
@@ -472,6 +473,16 @@ export type RunUpdate = {
 
 let runs = $state<RunView[]>([]);
 let permissions = $state<PermissionRequest[]>([]);
+/**
+ * Why the questions or the run record could not be read. A question that
+ * fails to load must not look like "nothing waits for you" (U3), so the
+ * last list stays and this is shown instead.
+ */
+let readError = $state<string | null>(null);
+
+export function getJobsReadError(): string | null {
+  return readError;
+}
 /** Bumped on every `assist://run`, so an open detail can refresh. */
 let runTick = $state(0);
 let runsReload: ReturnType<typeof setTimeout> | null = null;
@@ -494,9 +505,10 @@ export async function reloadRuns(): Promise<void> {
     ]);
     runs = list;
     permissions = pending;
-  } catch {
+  } catch (e) {
     // The run record may be unavailable (no assistant database): the rest
-    // of the page still works.
+    // of the page still works, and the log says why.
+    addLog("warn", "system", `runs: could not read the run record: ${String(e)}`);
   }
 }
 
@@ -883,8 +895,12 @@ export async function fireTrigger(id: string): Promise<Job | null> {
 export async function pollAsks(): Promise<void> {
   try {
     asks = await invoke<PendingAsk[]>("llm_tool_asks_pending");
-  } catch {
-    asks = [];
+    readError = null;
+  } catch (e) {
+    // Keep the questions already shown: an empty list would read as
+    // "nothing waits for you" while something may.
+    readError = String(e);
+    addLog("error", "system", `jobs: could not read the pending questions: ${String(e)}`);
   }
 }
 

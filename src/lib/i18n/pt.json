@@ -2772,12 +2772,10 @@
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Contas",
-      "local": "Local",
       "arena": "Arena",
       "jobs": "Jobs",
       "loops": "Loops"
     },
-    "demo_banner": "Dados de demonstração: o backend de LLM ainda não está ligado.",
     "rail": {
       "title": "Agentes",
       "unassigned": "Sem conversa",
@@ -2785,7 +2783,8 @@
       "new_chat": "Nova conversa",
       "empty": "Nenhum agente ainda.",
       "no_profile": "Sem perfil local",
-      "search": "Buscar agentes"
+      "search": "Buscar agentes",
+      "load_failed": "Não foi possível ler suas conversas salvas."
     },
     "role": {
       "coordinator": "Coordenador",
@@ -2896,14 +2895,11 @@
       "connect": "Conectar ou gerenciar provedores",
       "local_hint": "Servidor local: verifique se está em execução e possui modelos instalados. Não é necessária uma chave de API salva.",
       "no_models": "Este provedor não retornou modelos. Verifique os modelos disponíveis no servidor ou informe o identificador manualmente.",
-      "load_failed": "Não foi possível carregar os modelos: {{error}}"
+      "load_failed": "Não foi possível ler seus provedores: {{error}}"
     },
     "err": {
       "unavailable": "O backend de LLM ainda não está ligado.",
       "turn_failed": "O turno não conseguiu começar."
-    },
-    "local": {
-      "explanation": "O gerenciamento de modelos locais ainda não está disponível aqui. Configure um provedor local existente em Modelos e roteamento."
     },
     "skills": {
       "title": "Skills",
@@ -2911,7 +2907,6 @@
       "installed_title": "Instaladas",
       "loading": "Lendo as skills instaladas…",
       "empty": "Nenhuma skill instalada. Instale de uma pasta, de um zip ou de um repositório git.",
-      "demo": "Dados de demonstração — nada aqui está instalado nesta máquina.",
       "remove": "Remover",
       "install": "Instalar",
       "installing": "Instalando…",
@@ -2993,7 +2988,6 @@
       "lede": "O endereço a que outros agentes se conectam, e os servidores a que o OmniGet se conecta.",
       "half_client": "Servidores que você usa",
       "half_server": "Seu endereço",
-      "demo": "Servidores de exemplo: o backend de MCP ainda não respondeu. Nada aqui é conexão de verdade.",
       "servers": "Servidores conectados",
       "add": "Adicionar servidor",
       "loading": "Lendo os servidores salvos…",
@@ -3277,10 +3271,8 @@
       "undone": "Desfeito: {{count}} arquivo(s) restaurado(s)",
       "chat": "Conversar",
       "agents": "Agentes",
-      "activity": "Atividade",
       "configure": "Configurar",
       "tasks": "Tarefas",
-      "routines": "Rotinas",
       "performance": "Uso e desempenho",
       "monitor": "Monitor de uso",
       "off": "Desligado",
@@ -3302,7 +3294,10 @@
       "retro": "Retrospectiva",
       "installed": "Instalados",
       "remote": "Acesso remoto",
-      "wizard": "Configurar projeto"
+      "wizard": "Configurar projeto",
+      "work": "Trabalho",
+      "more": "Mais",
+      "loops": "Loops"
     },
     "jobs": {
       "lede": "Execuções de agentes que trabalham em segundo plano enquanto você faz outra coisa.",
@@ -3339,7 +3334,7 @@
         "run": "Execução",
         "chat": "Chat",
         "loop": "Loop",
-        "trigger": "Gatilho",
+        "trigger": "Agendada",
         "mission": "Missão"
       },
       "ask": {
@@ -3349,10 +3344,10 @@
         "deny": "Negar"
       },
       "trigger": {
-        "title": "Gatilhos",
-        "lede": "Inicie um job em um horário ou quando um webhook for chamado.",
-        "empty": "Nenhum gatilho ainda. Crie um abaixo.",
-        "new_title": "Novo gatilho",
+        "title": "Agendamentos e webhooks",
+        "lede": "Inicie uma tarefa em horários definidos ou quando um webhook for chamado.",
+        "empty": "Nenhum agendamento ainda. Crie um abaixo.",
+        "new_title": "Novo agendamento",
         "kind": "Tipo",
         "kind_cron": "Agendamento",
         "kind_webhook": "Webhook",
@@ -3360,10 +3355,10 @@
         "cron": "Linha cron",
         "cron_hint": "Cinco campos (minuto hora dia mês dia da semana), ou @hourly, @daily, @weekly, @monthly.",
         "body_hint": "{{token}} é substituído pelo corpo do webhook.",
-        "create": "Criar gatilho",
+        "create": "Criar agendamento",
         "enabled": "Ativo",
         "fire": "Disparar agora",
-        "fired": "Gatilho disparado",
+        "fired": "O agendamento iniciou uma tarefa",
         "fired_count": "Disparou {{count}}×",
         "copy_curl": "Copiar curl",
         "catch_up": "Perdidas com o app fechado",
@@ -3622,22 +3617,18 @@
       "model": "Conexão e modelo",
       "customize": "Ferramentas e limites",
       "tasks": "Tarefas",
-      "routines": "Rotinas",
       "active": "Em execução",
       "attention": "Precisa de atenção",
       "done": "Concluídas",
       "create": "Criar tarefa",
-      "create_routine": "Criar rotina",
       "jobs_hint": "Execute uma tarefa em segundo plano. Abra os detalhes para ver o resultado, aprovar uma ferramenta ou parar a execução.",
       "loops_hint": "Repita uma tarefa até uma verificação passar ou atingir o limite. Revise as condições de parada antes de iniciar.",
       "models_hint": "Conecte um provedor API e escolha o modelo de um agente. Assinaturas de chat são configuradas em Conexões.",
       "mcp_hint": "Conecte uma ferramenta, teste e escolha quais agentes podem usá-la. Adicionar uma conexão não concede permissão.",
       "skills_hint": "Habilidades dão instruções reutilizáveis aos agentes. Revise a origem e a análise antes de instalar e associe a habilidade a um agente.",
       "observatory_hint": "Veja a atividade medida e as cotas dos provedores. Medição ausente fica indisponível, nunca zero. Diagnósticos só iniciam quando você os abre.",
-      "local_hint": "Use um modelo local por um servidor compatível. Conecte o servidor em execução e selecione um dos modelos disponíveis antes de criar um agente.",
       "arena_hint": "A comparação de modelos ainda não está disponível. Você pode escolher um modelo e conversar com as ferramentas atuais.",
       "unavailable_feature": "Ainda não disponível",
-      "local_steps": "Inicie seu servidor de modelos local|Conecte o endereço nas configurações de IA|Escolha o modelo de um agente",
       "arena_steps": "Selecione um modelo|Abra uma conversa|Revise o resultado",
       "roster_hint": "Comece com um agente e um propósito claro. Adicione uma equipe quando a tarefa precisar.",
       "suggestion_1": "Liste meus downloads e explique quais precisam de atenção",
@@ -3650,7 +3641,8 @@
       "search": "Buscar agente",
       "no_matches": "Nenhum agente encontrado",
       "templates_impact": "Revise o modelo e seu efeito na equipe atual antes de aplicar.",
-      "mcp_server_hint": "Deixe outros apps de IA usarem o OmniGet: ligue o servidor, crie um cliente só com as permissões de que ele precisa e cole o trecho no app."
+      "mcp_server_hint": "Deixe outros apps de IA usarem o OmniGet: ligue o servidor, crie um cliente só com as permissões de que ele precisa e cole o trecho no app.",
+      "create_loop": "Criar loop"
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",
@@ -3681,7 +3673,7 @@
       "start": "Tempo para começar (segundos)",
       "start_desc": "Um agente que não diz nada por esse tempo depois de iniciar nunca recebeu o prompt.",
       "deadline": "Limite de tempo do job (minutos)",
-      "deadline_desc": "Todo job em segundo plano (execução, rodada de loop, rotina) para aqui, a menos que defina o próprio.",
+      "deadline_desc": "Toda tarefa em segundo plano (execução, rodada de loop, execução agendada) para aqui, a menos que defina o próprio limite.",
       "ask_chat": "Espera da pergunta no chat (minutos)",
       "ask_chat_desc": "Depois disso a pergunta expira: a ação não roda e você fica sabendo o motivo.",
       "ask_job": "Espera da pergunta em jobs (minutos)",
@@ -5754,6 +5746,53 @@
           "open_jobs": "Abrir Jobs"
         }
       }
+    },
+    "work": {
+      "nav": "Todo o trabalho",
+      "lede": "Tudo o que seus agentes fazem por você numa lista só: primeiro o que precisa de você, depois o que está rodando, esperando, pronto para revisar ou feito há pouco.",
+      "badge_needs_you": "Precisa de você ({{count}})",
+      "badge_running": "{{count}} rodando",
+      "badge_review": "{{count}} para revisar",
+      "badge_queued": "{{count}} na fila",
+      "section": {
+        "needs_you": "Precisa de você",
+        "running": "Rodando",
+        "queued": "Esperando para começar",
+        "review": "Pronto para revisar",
+        "done": "Feito há pouco"
+      },
+      "pill": {
+        "approval": "Aprovação necessária",
+        "input": "Resposta necessária",
+        "decision": "Decisão necessária",
+        "working": "Trabalhando",
+        "failed": "Falhou",
+        "queued": "Na fila",
+        "review": "Revisar",
+        "ready": "Feito",
+        "stopped": "Parado"
+      },
+      "source": {
+        "job": "Tarefa",
+        "loop": "Loop",
+        "mission": "Missão",
+        "thread": "Thread",
+        "run": "Conversa",
+        "ask": "Pergunta"
+      },
+      "asks_for": "pede para usar {{tool}}",
+      "nothing_waits": "Nada está esperando por você.",
+      "empty": "Nenhum trabalho ainda.",
+      "partial": "Parte do trabalho não pôde ser lida: {{error}}",
+      "notify": {
+        "approval": "Aprovação necessária: {{title}}",
+        "input": "Resposta necessária: {{title}}",
+        "decision": "Decisão necessária: {{title}}",
+        "failed": "Falhou: {{title}}",
+        "ready": "Feito: {{title}}",
+        "review": "Pronto para revisar: {{title}}",
+        "more": "E mais {{count}} em Trabalho"
+      }
     }
   },
   "omni": {
@@ -7019,7 +7058,7 @@
     "auth_origin": {
       "user_ui": "Você, na página Missões",
       "chat": "Você, a partir de um chat",
-      "trigger": "Um gatilho que você criou",
+      "trigger": "Um agendamento que você criou",
       "external_mcp": "Um cliente MCP"
     }
   },

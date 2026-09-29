@@ -2772,12 +2772,10 @@
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Accounts",
-      "local": "Local",
       "arena": "Arena",
       "jobs": "Jobs",
       "loops": "Loops"
     },
-    "demo_banner": "Demo data: the LLM backend is not wired yet.",
     "rail": {
       "title": "Agents",
       "unassigned": "Unassigned",
@@ -2785,7 +2783,8 @@
       "new_chat": "New chat",
       "empty": "No agents yet.",
       "no_profile": "No local profile",
-      "search": "Search agents"
+      "search": "Search agents",
+      "load_failed": "ອ່ານແຊັດທີ່ບັນທຶກໄວ້ບໍ່ໄດ້."
     },
     "role": {
       "coordinator": "Coordinator",
@@ -2896,14 +2895,11 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "Could not load models: {{error}}"
+      "load_failed": "ອ່ານຜູ້ໃຫ້ບໍລິການບໍ່ໄດ້: {{error}}"
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
       "turn_failed": "The turn could not start."
-    },
-    "local": {
-      "explanation": "Local model management is not available here yet. Configure an existing local provider in Models & Routing."
     },
     "skills": {
       "title": "Skills",
@@ -2911,7 +2907,6 @@
       "installed_title": "Installed",
       "loading": "Reading the installed skills…",
       "empty": "No skill installed yet. Install one from a folder, a zip or a git repository.",
-      "demo": "Demo data — nothing here is installed on this machine.",
       "remove": "Remove",
       "install": "Install",
       "installing": "Installing…",
@@ -2993,7 +2988,6 @@
       "lede": "ປາຍທາງທີ່ເອເຈນອື່ນເຊື່ອມຕໍ່ເຂົ້າມາ, ແລະ ເຊີບເວີທີ່ OmniGet ເຊື່ອມຕໍ່ໄປຫາ.",
       "half_client": "ເຊີບເວີທີ່ທ່ານໃຊ້",
       "half_server": "ປາຍທາງຂອງທ່ານ",
-      "demo": "ເຊີບເວີຕົວຢ່າງ: backend ຂອງ MCP ຍັງບໍ່ຕອບ. ບໍ່ມີອັນໃດຢູ່ນີ້ເປັນການເຊື່ອມຕໍ່ແທ້.",
       "servers": "ເຊີບເວີທີ່ເຊື່ອມຕໍ່ແລ້ວ",
       "add": "ເພີ່ມເຊີບເວີ",
       "loading": "ກຳລັງອ່ານເຊີບເວີທີ່ບັນທຶກໄວ້…",
@@ -3277,10 +3271,8 @@
       "undone": "Undone: {{count}} file(s) restored",
       "chat": "Chat",
       "agents": "Agents",
-      "activity": "Activity",
       "configure": "Configure",
       "tasks": "Tasks",
-      "routines": "Routines",
       "performance": "Usage and performance",
       "monitor": "Usage monitor",
       "off": "Off",
@@ -3302,7 +3294,10 @@
       "retro": "Retrospective",
       "installed": "Installed",
       "remote": "Remote access",
-      "wizard": "Project setup"
+      "wizard": "Project setup",
+      "work": "ວຽກ",
+      "more": "ເພີ່ມເຕີມ",
+      "loops": "ລູບ"
     },
     "jobs": {
       "lede": "Agent runs that work in the background while you do something else.",
@@ -3339,7 +3334,7 @@
         "run": "Run",
         "chat": "Chat",
         "loop": "Loop",
-        "trigger": "Trigger",
+        "trigger": "ຕາມກຳນົດເວລາ",
         "mission": "ພາລະກິດ"
       },
       "ask": {
@@ -3349,10 +3344,10 @@
         "deny": "Deny"
       },
       "trigger": {
-        "title": "Triggers",
-        "lede": "Start a job on a schedule or when a webhook is called.",
-        "empty": "No triggers yet. Create one below.",
-        "new_title": "New trigger",
+        "title": "ກຳນົດເວລາ ແລະ webhook",
+        "lede": "ເລີ່ມໜ້າວຽກຕາມເວລາທີ່ກຳນົດ ຫຼື ເມື່ອມີການເອີ້ນ webhook.",
+        "empty": "ຍັງບໍ່ມີກຳນົດເວລາ. ສ້າງອັນໃໝ່ຢູ່ລຸ່ມນີ້.",
+        "new_title": "ກຳນົດເວລາໃໝ່",
         "kind": "Kind",
         "kind_cron": "Schedule",
         "kind_webhook": "Webhook",
@@ -3360,10 +3355,10 @@
         "cron": "Cron line",
         "cron_hint": "Five fields (minute hour day month weekday), or @hourly, @daily, @weekly, @monthly.",
         "body_hint": "{{token}} is replaced by the webhook body.",
-        "create": "Create trigger",
+        "create": "ສ້າງກຳນົດເວລາ",
         "enabled": "Enabled",
         "fire": "Fire now",
-        "fired": "Trigger fired",
+        "fired": "ກຳນົດເວລາເລີ່ມໜ້າວຽກແລ້ວ",
         "fired_count": "Fired {{count}}×",
         "copy_curl": "Copy curl",
         "catch_up": "ທີ່ພາດໄປຕອນແອັບປິດ",
@@ -3622,22 +3617,18 @@
       "model": "Connection and model",
       "customize": "Tools and limits",
       "tasks": "Tasks",
-      "routines": "Routines",
       "active": "Running",
       "attention": "Needs attention",
       "done": "Finished",
       "create": "Create a task",
-      "create_routine": "Create a routine",
       "jobs_hint": "Run a task in the background. Open its details to see the result, approve a tool or stop execution.",
       "loops_hint": "Repeat a task until a check passes or its limit is reached. Review the stop conditions before starting.",
       "models_hint": "Connect an API provider, then choose its model for an agent. Chat subscriptions are configured in Connections.",
       "mcp_hint": "Connect a tool, test it, then choose which agents may use it. Adding a connection does not grant permission.",
       "skills_hint": "Skills give agents reusable instructions. Review the source and scan result before installing, then assign the skill to an agent.",
       "observatory_hint": "Inspect measured activity and provider quotas. Missing measurements are unavailable, never zero. Diagnostics run only when you open them.",
-      "local_hint": "Use a local model through a compatible server. Connect the running server and select one of its actual models before creating an agent.",
       "arena_hint": "Model comparison is not available yet. You can choose a model and run a conversation with the current tools.",
       "unavailable_feature": "Not available yet",
-      "local_steps": "Start your local model server|Connect its endpoint in AI settings|Choose the model for an agent",
       "arena_steps": "Select a model|Open a conversation|Review the result",
       "roster_hint": "Start with one agent and give it a clear purpose. Add a team when your task needs it.",
       "suggestion_1": "List my downloads and explain which need attention",
@@ -3650,7 +3641,8 @@
       "search": "Find an agent",
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
-      "mcp_server_hint": "ໃຫ້ແອັບ AI ອື່ນໃຊ້ OmniGet: ເປີດເຊີບເວີ, ສ້າງລູກຂ່າຍທີ່ມີແຕ່ສິດທີ່ຈຳເປັນ, ແລ້ວວາງສ່ວນໂຄດຂອງມັນໃສ່ແອັບນັ້ນ."
+      "mcp_server_hint": "ໃຫ້ແອັບ AI ອື່ນໃຊ້ OmniGet: ເປີດເຊີບເວີ, ສ້າງລູກຂ່າຍທີ່ມີແຕ່ສິດທີ່ຈຳເປັນ, ແລ້ວວາງສ່ວນໂຄດຂອງມັນໃສ່ແອັບນັ້ນ.",
+      "create_loop": "ສ້າງລູບ"
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",
@@ -3681,7 +3673,7 @@
       "start": "ເວລາເລີ່ມຕົ້ນສູງສຸດ (ວິນາທີ)",
       "start_desc": "ເອເຈນທີ່ບໍ່ເວົ້າຫຍັງເລີຍໃນເວລານີ້ຫຼັງຈາກເລີ່ມ ແມ່ນບໍ່ເຄີຍໄດ້ຮັບ prompt.",
       "deadline": "ເວລາສູງສຸດຂອງວຽກ (ນາທີ)",
-      "deadline_desc": "ວຽກເບື້ອງຫຼັງທຸກອັນ (ການແລ່ນ, ຮອບຂອງລູບ, ວຽກປະຈຳ) ຈະຢຸດທີ່ນີ້ ເວັ້ນເສຍແຕ່ມັນກຳນົດເອງ.",
+      "deadline_desc": "ທຸກໜ້າວຽກເບື້ອງຫຼັງ (ການແລ່ນ, ຮອບຂອງລູບ, ການແລ່ນຕາມກຳນົດເວລາ) ຢຸດຢູ່ນີ້ ເວັ້ນແຕ່ມັນຕັ້ງຂອງມັນເອງ.",
       "ask_chat": "ເວລາລໍຖ້າຄຳຖາມໃນແຊັດ (ນາທີ)",
       "ask_chat_desc": "ຫຼັງຈາກນັ້ນຄຳຖາມໝົດອາຍຸ: ການກະທຳຈະບໍ່ຖືກດຳເນີນ ແລະ ທ່ານຈະຮູ້ເຫດຜົນ.",
       "ask_job": "ເວລາລໍຖ້າຄຳຖາມໃນວຽກ (ນາທີ)",
@@ -5754,6 +5746,53 @@
           "open_jobs": "Open Jobs"
         }
       }
+    },
+    "work": {
+      "nav": "ວຽກທັງໝົດ",
+      "lede": "ທຸກຢ່າງທີ່ເອເຈັນເຮັດໃຫ້ທ່ານໃນລາຍການດຽວ: ກ່ອນອື່ນແມ່ນສິ່ງທີ່ຕ້ອງການທ່ານ, ຈາກນັ້ນສິ່ງທີ່ກຳລັງເຮັດ, ລໍຖ້າ, ພ້ອມກວດ ຫຼື ຫາກໍ່ສຳເລັດ.",
+      "badge_needs_you": "ຕ້ອງການທ່ານ ({{count}})",
+      "badge_running": "ກຳລັງເຮັດ {{count}}",
+      "badge_review": "ລໍກວດ {{count}}",
+      "badge_queued": "ຢູ່ໃນຄິວ {{count}}",
+      "section": {
+        "needs_you": "ຕ້ອງການທ່ານ",
+        "running": "ກຳລັງເຮັດ",
+        "queued": "ລໍຖ້າເລີ່ມ",
+        "review": "ພ້ອມກວດ",
+        "done": "ຫາກໍ່ສຳເລັດ"
+      },
+      "pill": {
+        "approval": "ຕ້ອງອະນຸມັດ",
+        "input": "ຕ້ອງຕອບ",
+        "decision": "ຕ້ອງຕັດສິນ",
+        "working": "ກຳລັງເຮັດວຽກ",
+        "failed": "ລົ້ມເຫຼວ",
+        "queued": "ຢູ່ໃນຄິວ",
+        "review": "ກວດ",
+        "ready": "ສຳເລັດ",
+        "stopped": "ຢຸດແລ້ວ"
+      },
+      "source": {
+        "job": "ໜ້າວຽກ",
+        "loop": "ລູບ",
+        "mission": "ພາລະກິດ",
+        "thread": "ກະທູ້",
+        "run": "ແຊັດ",
+        "ask": "ຄຳຖາມ"
+      },
+      "asks_for": "ຂໍໃຊ້ {{tool}}",
+      "nothing_waits": "ບໍ່ມີຫຍັງລໍຖ້າທ່ານ.",
+      "empty": "ຍັງບໍ່ມີວຽກ.",
+      "partial": "ອ່ານວຽກບາງສ່ວນບໍ່ໄດ້: {{error}}",
+      "notify": {
+        "approval": "ຕ້ອງອະນຸມັດ: {{title}}",
+        "input": "ຕ້ອງຕອບ: {{title}}",
+        "decision": "ຕ້ອງຕັດສິນ: {{title}}",
+        "failed": "ລົ້ມເຫຼວ: {{title}}",
+        "ready": "ສຳເລັດ: {{title}}",
+        "review": "ພ້ອມກວດ: {{title}}",
+        "more": "ແລະ ອີກ {{count}} ໃນ ວຽກ"
+      }
     }
   },
   "omni": {
@@ -7019,7 +7058,7 @@
     "auth_origin": {
       "user_ui": "ທ່ານ, ໃນໜ້າພາລະກິດ",
       "chat": "ທ່ານ, ຈາກການສົນທະນາ",
-      "trigger": "ຕົວກະຕຸ້ນທີ່ທ່ານຕັ້ງ",
+      "trigger": "ກຳນົດເວລາທີ່ທ່ານຕັ້ງ",
       "external_mcp": "ລູກຂ່າຍ MCP"
     }
   },

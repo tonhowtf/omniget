@@ -9,19 +9,12 @@
  *    no timer and no `requestAnimationFrame`.
  * 2. **Deltas are applied in wire order.** Events land in a FIFO buffer and a
  *    single frame drains it; a `text_delta` never overtakes a `tool_call_end`.
- * 3. **`ERR_STUB` is not a failure.** While the Rust side is a stub every
- *    command answers `ERR_STUB` (and the screenshot harness answers `null`):
- *    the store then shows the demo roster from `$lib/llm/fake-turn` and runs
- *    the turn locally, so the UI is exercisable before the backend exists.
+ * 3. **A failure is shown, never dressed as data.** A backend that cannot
+ *    list the roster or the saved chats leaves the lists as they were and
+ *    sets an error the rail shows (U4: the old demo roster and canned turn
+ *    are gone; the screenshot harness answers with its own fixture).
  */
 import { invoke } from "@tauri-apps/api/core";
-import {
-  DEMO_ANSWER,
-  DEMO_ROSTER,
-  fakeTurnEvents,
-  runFakeTurn,
-  type CancelFake,
-} from "$lib/llm/fake-turn";
 import type {
   AgentDef,
   ChatMessage,
@@ -86,7 +79,8 @@ export function setFrameScheduler(next: FrameScheduler | null): void {
 
 let agents = $state<AgentDef[]>([]);
 let rosterAvailable = $state(true);
-let demoRoster = $state(false);
+/** The saved chats could not be read (the rail says so and offers a retry). */
+let conversationsError = $state<string | null>(null);
 let conversations = $state<Conversation[]>([]);
 let activeConversationId = $state<string | null>(null);
 let turn = $state<TurnState | null>(null);
@@ -122,7 +116,6 @@ let rosterLoadedOnce = false;
 let rosterInFlight: Promise<void> | null = null;
 let pending: TurnEvent[] = [];
 let frameCancel: (() => void) | null = null;
-let cancelFake: CancelFake | null = null;
 let unlisten: (() => void) | null = null;
 let idCounter = 0;
 let startingRequestId: string | null = null;
@@ -147,28 +140,23 @@ export function getAgent(id: string | null | undefined): AgentDef | null {
   return agents.find((a) => a.id === id) ?? null;
 }
 
-/** False once a command answered `ERR_STUB`. */
+/** False once the roster could not be read or saved. */
 export function isRosterAvailable(): boolean {
   return rosterAvailable;
 }
 
-/** True when the rail is showing `DEMO_ROSTER` instead of saved agents. */
-export function isDemoRoster(): boolean {
-  return demoRoster;
+/** Why the saved chats are missing from the rail, or `null`. */
+export function getConversationsError(): string | null {
+  return conversationsError;
 }
 
 export function getErrorKey(): string | null {
   return errorKey;
 }
 
-export function isUnavailable(err: unknown): boolean {
-  return String(err ?? "").includes("ERR_STUB");
-}
-
 /** Maps a backend error to an i18n key. */
 export function llmErrorKey(err: unknown): string {
   const code = String(err ?? "");
-  if (code.includes("ERR_STUB")) return "llm.err.unavailable";
   if (code.includes("ERR_LLM_BUDGET")) return "llm.err.budget";
   if (code.includes("ERR_LLM")) return "llm.err.turn_failed";
   return "llm.err.turn_failed";
@@ -184,19 +172,15 @@ export function loadRoster(force = false): Promise<void> {
       if (Array.isArray(list)) {
         agents = list;
         rosterAvailable = true;
-        demoRoster = false;
         return;
       }
-      // `null` is what the screenshot harness answers for an unknown command.
-      agents = DEMO_ROSTER;
-      demoRoster = true;
-      rosterAvailable = Array.isArray(list);
+      // No list at all: a backend that does not answer. Say it, invent nothing.
+      rosterAvailable = false;
+      errorKey = "llm.err.unavailable";
     })
     .catch((err) => {
-      if (isUnavailable(err)) { agents = DEMO_ROSTER; demoRoster = true; }
-      else if (demoRoster) { agents = []; demoRoster = false; }
       rosterAvailable = false;
-      if (!isUnavailable(err)) errorKey = llmErrorKey(err);
+      errorKey = llmErrorKey(err);
     })
     .finally(() => {
       rosterLoadedOnce = true;
@@ -204,43 +188,6 @@ export function loadRoster(force = false): Promise<void> {
       if (!activeConversationId && agents.length > 0) selectAgent(agents[0].id);
     });
   return rosterInFlight;
-}
-
-/**
- * Puts one canned exchange in front of the user while the backend is a stub,
- * so the chat shows what it will look like instead of an empty column. Called
- * by the page, never by `loadRoster`, and only in demo mode.
- */
-export function seedDemoConversation(): void {
-  if (!demoRoster || agents.length === 0) return;
-  if (conversations.some((c) => c.messages.length > 0)) return;
-  const agent = agents[0];
-  const id = selectAgent(agent.id);
-  const conversation = conversations.find((c) => c.id === id);
-  if (!conversation) return;
-  conversation.title = "Retry the failed downloads";
-  conversation.messages = [
-    { id: nextId("msg"), role: "user", text: "Retry the failed downloads, please." },
-    {
-      id: nextId("msg"),
-      role: "assistant",
-      text: DEMO_ANSWER,
-      toolCalls: [
-        { id: "call-demo", name: "downloads.list", input: '{"status":"failed"}', done: true },
-      ],
-      usage: {
-        input_tokens: 412,
-        output_tokens: 96,
-        cache_read_tokens: 0,
-        cache_write_tokens: 0,
-        first_token_ms: 180,
-        total_ms: 1420,
-        cost_usd: 0.0021,
-      },
-      modelLabel: effectiveModelLabel(conversation, agent),
-      finish: "stop",
-    },
-  ];
 }
 
 /** Creates or updates one agent. Returns false when the backend refused. */
@@ -253,8 +200,8 @@ export async function saveAgent(agent: AgentDef): Promise<boolean> {
       : [...agents, agent];
     rosterAvailable = true;
     return true;
-  } catch (err) {
-    rosterAvailable = !isUnavailable(err);
+  } catch {
+    // The caller says it failed (its own message); nothing changes here.
     return false;
   }
 }
@@ -268,8 +215,8 @@ export async function deleteAgent(agentId: string): Promise<boolean> {
       activeConversationId = conversations[0]?.id ?? null;
     }
     return true;
-  } catch (err) {
-    rosterAvailable = !isUnavailable(err);
+  } catch {
+    // The caller says it failed (its own message); nothing changes here.
     return false;
   }
 }
@@ -280,12 +227,11 @@ export async function applyTemplate(template: string): Promise<boolean> {
     if (Array.isArray(list)) {
       agents = list;
       rosterAvailable = true;
-      demoRoster = false;
       return true;
     }
     return false;
-  } catch (err) {
-    rosterAvailable = !isUnavailable(err);
+  } catch {
+    // The caller says it failed (its own message); nothing changes here.
     return false;
   }
 }
@@ -383,8 +329,8 @@ export async function switchModel(model: ModelRef): Promise<boolean> {
     conversation.model = model;
     conversation.updatedAtMs = Date.now();
     return true;
-  } catch (err) {
-    rosterAvailable = !isUnavailable(err);
+  } catch {
+    // The caller says it failed (its own message); nothing changes here.
     return false;
   }
 }
@@ -556,7 +502,6 @@ function stopTurn(): void {
   pending = [];
   if (frameCancel) frameCancel();
   frameCancel = null;
-  cancelFake = null;
   if (unlisten) unlisten();
   unlisten = null;
   if (ended) scheduleDrain();
@@ -590,13 +535,14 @@ async function attachListener(): Promise<void> {
     if (turn) unlisten = stop;
     else stop();
   } catch {
-    // No Tauri event bridge (browser, tests): the fake turn feeds the store.
+    // No Tauri event bridge (browser, tests): nothing streams, the turn ends
+    // by the reconcile or a cancel.
   }
 }
 
 /**
- * Starts a real turn and reports whether the draft was accepted. Only a demo
- * roster may play a stub response; real startup failures keep input recoverable.
+ * Starts a real turn and reports whether the draft was accepted. A startup
+ * failure keeps the input recoverable and never fabricates an answer.
  */
 export async function sendMessage(text: string): Promise<boolean> {
   const trimmed = text.trim();
@@ -647,7 +593,6 @@ async function startDirectTurn(conversation: Conversation, trimmed: string): Pro
   const requestedTurn = turn;
   startingRequestId = localRequestId;
   let requestId: string | null = null;
-  let canDemo = demoRoster;
   try {
     const answer = await invoke<string | { request_id?: string } | null>("llm_turn_start", {
       conversationId: conversation.id,
@@ -657,12 +602,9 @@ async function startDirectTurn(conversation: Conversation, trimmed: string): Pro
     if (typeof answer === "string") requestId = answer;
     else if (answer && typeof answer === "object" && answer.request_id) requestId = answer.request_id;
   } catch (err) {
-    canDemo = demoRoster && isUnavailable(err);
-    if (!isUnavailable(err)) {
-      errorKey = llmErrorKey(err);
-      rosterAvailable = false;
-      outcomes = { ...outcomes, [conversation.id]: "failed" };
-    }
+    errorKey = llmErrorKey(err);
+    rosterAvailable = false;
+    outcomes = { ...outcomes, [conversation.id]: "failed" };
   }
 
   if (!turn || turn.requestId !== localRequestId) {
@@ -688,25 +630,14 @@ async function startDirectTurn(conversation: Conversation, trimmed: string): Pro
     void attachListener().then(() => reconcileStartedTurn(conversation.id, startedId));
     return true;
   }
-  if (!canDemo) {
-    // A failed launch must not fabricate a successful assistant response.
-    // Roll back only this optimistic message so explicit retry cannot duplicate it.
-    conversation.messages = conversation.messages.filter(message => message.id !== sentMessageId);
-    stopTurn();
-    return false;
-  }
-  // Explicit demo roster: local playback through the same event path.
-  const events = fakeTurnEvents(localRequestId, {
-    answer: DEMO_ANSWER,
-    chunks: 40,
-    thinking: "Checking the queue…",
-    tool: { id: "call-1", name: "downloads.list", input: '{"status":"failed"}' },
-  });
-  cancelFake = runFakeTurn(events, (event) => handleTurnEvent(localRequestId, event), 24);
-  return true;
+  // A failed launch must not fabricate a successful assistant response.
+  // Roll back only this optimistic message so explicit retry cannot duplicate it.
+  conversation.messages = conversation.messages.filter(message => message.id !== sentMessageId);
+  stopTurn();
+  return false;
 }
 
-/** Stops the running turn: local timer first, then the backend. */
+/** Stops the running turn: the local state first, then the backend. */
 export async function cancelTurn(): Promise<void> {
   errorKey = null;
   const state = turn;
@@ -715,21 +646,16 @@ export async function cancelTurn(): Promise<void> {
     stopTurn(); // sendMessage cancels the server id as soon as startup returns.
     return;
   }
-  const cancel = cancelFake;
-  cancelFake = null;
-  if (cancel) {
-    cancel(); // emits `finished { cancelled }` through the buffer
+  try {
+    await invoke("llm_turn_cancel", { requestId: state.requestId });
+  } catch (err) {
+    if (!String(err).includes("ERR_LLM_NO_TURN")) { errorKey = llmErrorKey(err); throw err; }
+  }
+  if (turn === state) {
+    // What already streamed stays on screen, then the turn closes as cancelled.
     flushPending();
-  } else {
-    try {
-      await invoke("llm_turn_cancel", { requestId: state.requestId });
-    } catch (err) {
-      if (!(demoRoster && isUnavailable(err)) && !String(err).includes("ERR_LLM_NO_TURN")) { errorKey = llmErrorKey(err); throw err; }
-    }
-    if (turn === state) {
-      applyEvent({ type: "finished", reason: "cancelled" });
-      if (turn === state) stopTurn();
-    }
+    applyEvent({ type: "finished", reason: "cancelled" });
+    if (turn === state) stopTurn();
   }
 }
 
@@ -770,7 +696,8 @@ export async function answerTool(toolCallId: string, allow: boolean, always = fa
       }
       return;
     }
-    if (!(demoRoster && isUnavailable(err))) { errorKey = llmErrorKey(err); throw err; }
+    errorKey = llmErrorKey(err);
+    throw err;
   }
   if (toolAsk?.tool_call_id === toolCallId) toolAsk = null;
 }
@@ -781,7 +708,7 @@ export function resetLlmStore(): void {
   startingRequestId = null;
   agents = [];
   rosterAvailable = true;
-  demoRoster = false;
+  conversationsError = null;
   conversations = [];
   activeConversationId = null;
   toolAsk = null;
@@ -817,10 +744,15 @@ export async function loadConversations(): Promise<void> {
   let list: ConversationInfoWire[] | null = null;
   try {
     list = await invoke<ConversationInfoWire[] | null>("llm_conversation_list");
-  } catch {
+  } catch (err) {
+    conversationsError = String(err);
     return;
   }
-  if (!Array.isArray(list)) return;
+  if (!Array.isArray(list)) {
+    conversationsError = "ERR_NO_ANSWER";
+    return;
+  }
+  conversationsError = null;
   const known = new Set(conversations.map((c) => c.id));
   const saved: Conversation[] = [];
   for (const info of list) {
