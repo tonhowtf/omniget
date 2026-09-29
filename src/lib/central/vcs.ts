@@ -64,14 +64,6 @@ export type LogEntry = {
   refs: string;
 };
 
-export type ProjectScript = { name: string; command: string; run_on_worktree_create: boolean; run_async: boolean };
-export type ProjectConfig = {
-  source: string | null;
-  worktree_submodules: "recursive" | "top-level" | "none" | null;
-  default_thread_env_mode: "local" | "worktree" | null;
-  scripts: ProjectScript[];
-};
-
 export type WorktreeRequest = {
   repo: string;
   thread: string;
@@ -253,7 +245,6 @@ export function vcsError(e: unknown): { code: string | null; message: string } {
 export const vcsStatus = (path: string) => invoke<RepoStatus>("vcs_status", { path });
 export const vcsBranches = (path: string) => invoke<BranchInfo[]>("vcs_branches", { path });
 export const vcsLog = (path: string, n = 50, rev?: string) => invoke<LogEntry[]>("vcs_log", { path, n, rev: rev ?? null });
-export const vcsProjectConfig = (path: string) => invoke<ProjectConfig>("vcs_project_config", { path });
 
 // ---- worktrees ----
 
@@ -296,8 +287,6 @@ export const vcsDiffTurn = (path: string, thread: string, turn: number, options?
 /** Base (turno 0) → `toTurn`, ou → a árvore viva se omitido. */
 export const vcsDiffFull = (path: string, thread: string, toTurn?: number, options?: DiffOptions) =>
   invoke<DiffResult>("vcs_diff_full", { path, thread, toTurn: toTurn ?? null, options: options ?? null });
-export const vcsDiffRange = (path: string, thread: string, fromTurn: number, toTurn?: number, options?: DiffOptions) =>
-  invoke<DiffResult>("vcs_diff_range", { path, thread, fromTurn, toTurn: toTurn ?? null, options: options ?? null });
 
 /** Fora de uma worktree do OmniGet exige `confirm: true` (senão ERR_VCS_UNSAFE). */
 export const vcsRestoreTurn = (

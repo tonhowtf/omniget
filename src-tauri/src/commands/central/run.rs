@@ -580,14 +580,6 @@ pub async fn run_agent_now(
     )?)
 }
 
-/// Coding CLIs that can run headless here (for the runner pickers).
-#[tauri::command]
-pub async fn run_tools() -> Result<Value, String> {
-    tokio::task::spawn_blocking(|| Ok(json!(runner::available_tools())))
-        .await
-        .map_err(|e| e.to_string())?
-}
-
 // ------------------------------------------------------------------ playbooks
 
 /// Workflow do catálogo (ou um playbook montado na UI) → playbook resolvido.
@@ -861,12 +853,6 @@ pub async fn run_sandbox_discard(job_id: String) -> Result<Value, String> {
         Ok(json!({ "ok": true }))
     })
     .await
-}
-
-/// Stack report of a folder (wizard header, "project context" of agents).
-#[tauri::command]
-pub async fn run_stack_detect(project_dir: String) -> Result<Value, String> {
-    blocking(move || to_value(stack::detect(&PathBuf::from(project_dir)))).await
 }
 
 /// For the bridge / CLI: `omniget agent run <agent> --tool <x> "<prompt>"`.

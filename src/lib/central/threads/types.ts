@@ -281,17 +281,6 @@ export type ExternalImport = {
 /** `mcp_thread_get`: the embedded OmniGet MCP of one thread. */
 export type McpThreadState = { threadId: string; enabled: boolean; sessions: number; calls: number };
 
-export type McpCallLogEntry = {
-  at: string;
-  tool: string;
-  caller: "global" | "session";
-  threadId: string | null;
-  instanceId: string | null;
-  ok: boolean;
-  ms: number;
-  error: string | null;
-};
-
 export type ProviderSessionRow = {
   threadId: string;
   instanceId: string;

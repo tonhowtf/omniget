@@ -900,11 +900,6 @@ pub fn mcp_thread_set(thread_id: String, enabled: bool) -> Result<bool, String> 
     set_thread_enabled(&thread_id, enabled)
 }
 
-#[tauri::command]
-pub fn mcp_call_log(thread_id: Option<String>) -> Vec<Value> {
-    recent_calls(thread_id.as_deref())
-}
-
 // ── Catálogo no MCP (plan §6 linha 51) ─────────────────────────────────
 
 /// Keeps a plan readable for a model: no file bodies, diffs clipped.

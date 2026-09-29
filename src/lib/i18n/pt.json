@@ -3535,9 +3535,6 @@
     "chat": {
       "details": "Detalhes do agente"
     },
-    "arena": {
-      "explanation": "Compare a mesma tarefa entre modelos. Este recurso ainda não está disponível; use o Chat para trabalhar com um agente configurado."
-    },
     "surface": {
       "action_error": "Não foi possível confirmar a ação. Confira a conexão e tente novamente; o pedido atual continua visível.",
       "help": "Como funciona?",
@@ -3902,10 +3899,6 @@
         "acp_added": "{{name}} entrou no roster",
         "acp_unverified_confirm": "O registro não publica sha256 de {{name}} para este sistema. Baixar e instalar sem verificação?"
       },
-      "nav": {
-        "tools": "Ferramentas",
-        "remote": "Remoto"
-      },
       "sessions": {
         "tips": {
           "low_cache": "Eficiência de cache abaixo de 20%: mantenha o prompt de sistema e o começo do contexto estáveis para o cache ser reaproveitado.",
@@ -4044,7 +4037,6 @@
           "cost_by_month": "Custo por mês",
           "cost_note": "Gravado = o valor que a ferramenta escreveu no próprio log. Estimado = tokens com a tabela pública de preços; a conta real pode ser outra (planos, descontos).",
           "empty": "Nenhum uso neste período.",
-          "model_filter_pending": "O índice de sessões ainda não filtra por modelo: os gráficos mostram todos. A tabela abaixo continua separando por modelo.",
           "by_model": "Por modelo",
           "by_tool": "Por ferramenta",
           "heatmap": "Últimos 12 meses",
@@ -4217,11 +4209,6 @@
           "components": "Agentes, skills e comandos",
           "calendar": "Calendário",
           "milestones": "Marcos"
-        },
-        "nav": {
-          "usage": "Uso",
-          "sessions": "Sessões",
-          "retro": "Retrospectiva"
         }
       },
       "guard": {
@@ -4679,8 +4666,7 @@
         "hero": {
           "title": "O que vamos construir?",
           "body": "Escolha um projeto e um driver — Claude Code, Codex, Gemini ou o agente do OmniGet — e acompanhe o trabalho num lugar só."
-        },
-        "nav": "Threads"
+        }
       },
       "catalog": {
         "back": "Catálogo",

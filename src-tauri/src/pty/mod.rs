@@ -612,17 +612,6 @@ impl PtyManager {
         Ok(g)
     }
 
-    /// Foreground program, computed now.
-    pub fn foreground(&self, id: &str) -> Result<Foreground, String> {
-        let s = self.get(id)?;
-        if s.lock().eof {
-            return Ok(Foreground::default());
-        }
-        let fg = s.compute_foreground();
-        s.lock().foreground = fg.clone();
-        Ok(fg)
-    }
-
     /// Kills every session (app exit).
     pub fn shutdown_all(&self) {
         let ids: Vec<String> = self

@@ -15,7 +15,7 @@ use omniget_core::core::vcs::{
     checkpoint::{self, Checkpoint, RestoreResult},
     diff::{DiffOptions, DiffResult},
     repo::{self, BranchInfo, LogEntry, RepoStatus},
-    worktree::{self, ProjectConfig, RemoveResult, WorktreeEntry, WorktreeInfo, WorktreeRequest},
+    worktree::{self, RemoveResult, WorktreeEntry, WorktreeInfo, WorktreeRequest},
 };
 use tauri::{AppHandle, Emitter};
 
@@ -57,13 +57,6 @@ pub async fn vcs_log(
     rev: Option<String>,
 ) -> Result<Vec<LogEntry>, String> {
     Ok(repo::log(&path_of(&path)?, n.unwrap_or(50), rev.as_deref()).await?)
-}
-
-#[tauri::command]
-pub async fn vcs_project_config(path: String) -> Result<ProjectConfig, String> {
-    let p = path_of(&path)?;
-    let root = repo::discover(&p).await.map(|r| r.root).unwrap_or(p);
-    Ok(worktree::read_project_config(&root))
 }
 
 // ---- worktrees ----
@@ -197,24 +190,6 @@ pub async fn vcs_diff_full(
     Ok(checkpoint::diff_full(
         &path_of(&path)?,
         &thread,
-        to_turn,
-        &options.unwrap_or_default(),
-    )
-    .await?)
-}
-
-#[tauri::command]
-pub async fn vcs_diff_range(
-    path: String,
-    thread: String,
-    from_turn: u32,
-    to_turn: Option<u32>,
-    options: Option<DiffOptions>,
-) -> Result<DiffResult, String> {
-    Ok(checkpoint::diff_range(
-        &path_of(&path)?,
-        &thread,
-        from_turn,
         to_turn,
         &options.unwrap_or_default(),
     )

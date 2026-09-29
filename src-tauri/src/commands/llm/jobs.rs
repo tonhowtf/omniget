@@ -170,15 +170,6 @@ pub async fn llm_job_seen(app: AppHandle, id: String) -> Result<Value, String> {
     to(jobs::get(&app)?.mark_seen(&id)?)
 }
 
-/// Why a job is in its state right now: last event age, pending question,
-/// deadline left (`omniget agent explain` reads the same through the bridge).
-#[tauri::command]
-pub async fn llm_job_explain(app: AppHandle, id: String) -> Result<Value, String> {
-    jobs::get(&app)?
-        .explain(&id)
-        .ok_or_else(|| format!("{}: no job {id}", jobs::ERR_JOBS))
-}
-
 /// What the window shows, so a notification about a job already on screen
 /// is not sent (`llm_attention`). Cheap: called on every navigation.
 #[tauri::command]
