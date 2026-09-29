@@ -3,12 +3,17 @@
   import { listen } from '@tauri-apps/api/event';
   import { invoke } from '@tauri-apps/api/core';
   import { t } from '$lib/i18n';
+  import { shellLayout } from '$lib/stores/shell-layout.svelte';
+  const OVERLAY_STACK_OFFSET = 56;
   let activity = $state<{id:string;name:string;windowId:string}|null>(null);
   let error = $state('');
   onMount(() => {
     let disposed=false;let stop: (()=>void)|undefined;
     listen<{id:string;name:string;windowId:string}>('native-agent-activity',({payload})=>{activity=payload;}).then(f=>{if(disposed)f();else stop=f;}).catch(() => {});
-    return ()=>{disposed=true;stop?.();};
+    return ()=>{disposed=true;stop?.();shellLayout.overlayBottomInset=0;};
+  });
+  $effect(() => {
+    shellLayout.overlayBottomInset = activity ? OVERLAY_STACK_OFFSET : 0;
   });
   async function revoke() {
     if (!activity) return;

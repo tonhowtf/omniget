@@ -3,6 +3,7 @@
   import { t } from "$lib/i18n";
   import { next, player, prev, stop, toggle } from "$lib/music/player-store.svelte";
   import { go } from "$lib/music/ui-store.svelte";
+  import { shellLayout } from "$lib/stores/shell-layout.svelte";
   import Cover from "./Cover.svelte";
   import StationIcon from "./StationIcon.svelte";
   import MusicIcon from "./MusicIcon.svelte";
@@ -15,7 +16,12 @@
   }
 </script>
 
-<div class="mini" role="region" aria-label={$t("music.player") as string}>
+<div
+  class="mini"
+  role="region"
+  aria-label={$t("music.player") as string}
+  style:bottom={`calc(16px + ${shellLayout.overlayBottomInset}px)`}
+>
   <button class="art" onclick={open} aria-label={$t("music.now_playing") as string}>
     {#if player.radio}
       <StationIcon src={player.radio.favicon} name={player.radio.name} size={40} radius={6} />
@@ -44,7 +50,6 @@
   .mini {
     position: fixed;
     right: 16px;
-    bottom: calc(16px + var(--shell-bottom-inset, 0px));
     z-index: 300;
     display: flex;
     align-items: center;
