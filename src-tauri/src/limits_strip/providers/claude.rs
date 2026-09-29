@@ -472,7 +472,7 @@ mod tests {
     /// endpoint once each. Prints ids, e-mails and percentages only.
     /// `cargo test -p omniget --lib live_every_claude_account -- --ignored --nocapture`
     #[tokio::test]
-    #[ignore]
+    #[ignore = "network: asks the usage endpoint with the app's saved Claude logins"]
     async fn live_every_claude_account() {
         for r in crate::limits_strip::providers::all() {
             if r.label() != "Claude Code" {

@@ -70,7 +70,7 @@ fn turn(thread: &str, id: &str, text: &str, access: AccessMode) -> TurnStart {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "needs a real opencode and OMNIGET_ACP_LIVE_HOME/_CWD"]
 async fn opencode_serve_turns_approvals_rollback_fork_interrupt() {
     let (Ok(home), Ok(cwd)) = (
         std::env::var("OMNIGET_ACP_LIVE_HOME"),

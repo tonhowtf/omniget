@@ -807,7 +807,7 @@ mod tests {
     /// Codex and Cursor under a fake home. Keeps the output folder for a look
     /// when `OMNIGET_WIZARD_KEEP` is set.
     #[tokio::test]
-    #[ignore]
+    #[ignore = "network: the catalog's templates come from GitHub"]
     async fn live_wizard_node_project_for_claude_codex_cursor() {
         use crate::core::agentkit::{plan, writer, Env, Os, Scope};
         let root = std::env::var("OMNIGET_WIZARD_ROOT")

@@ -427,7 +427,7 @@ fn tool_names_match_the_specs() {
 /// Live: real engines and a real page. Run with
 /// `cargo test -p omniget-core --lib assist::web::tests::live -- --ignored --nocapture`.
 #[tokio::test]
-#[ignore]
+#[ignore = "network: real search engines and a real page"]
 async fn live_search_and_fetch() {
     let db = Arc::new(AssistDb::open_in_memory().unwrap());
     let t = WebToolset {
@@ -465,7 +465,7 @@ async fn live_search_and_fetch() {
 
 /// Live: the Brave fallback alone, and a real streaming title page.
 #[tokio::test]
-#[ignore]
+#[ignore = "network: the real Brave search and a real page"]
 async fn live_brave_fallback_and_platform_page() {
     let policy = WebPolicy {
         engines: vec![Engine {

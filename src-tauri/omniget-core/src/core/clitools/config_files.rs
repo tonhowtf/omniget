@@ -452,7 +452,7 @@ mod tests {
 
     /// Máquina real, só metadados: `cargo test -p omniget-core --lib real_config_files -- --ignored --nocapture`.
     #[test]
-    #[ignore]
+    #[ignore = "reads the real CLI config files of this machine"]
     fn real_config_files() {
         for tool in ["claude", "codex", "cursor"] {
             let cf = config_files(tool, std::env::current_dir().ok().as_deref()).unwrap();

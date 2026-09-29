@@ -740,7 +740,7 @@ mod tests {
 
     /// Contra os arquivos reais desta máquina (só leitura); ignora se não há Cursor.
     #[test]
-    #[ignore]
+    #[ignore = "reads this machine's Cursor files"]
     fn real_cursor() {
         let src = CursorSource;
         let l = src.list();

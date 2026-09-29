@@ -696,7 +696,7 @@ mod tests {
 
     /// `cargo test --release -p omniget-core --lib real_prefilter_bench -- --ignored --nocapture`
     #[test]
-    #[ignore]
+    #[ignore = "benchmark over ~/.claude/projects; run with --release"]
     fn real_prefilter_bench() {
         let home = dirs::home_dir().unwrap().join(".claude").join("projects");
         let mut files = Vec::new();

@@ -1573,7 +1573,7 @@ mod tests {
     /// Live, 2 requests (embed + post page), no cookies: the locked /tv/ post
     /// must answer auth-required without spawning yt-dlp.
     #[tokio::test]
-    #[ignore]
+    #[ignore = "network: real Instagram requests"]
     async fn instagram_live_locked_tv_stops_early() {
         let dl = InstagramDownloader::new();
         let t = std::time::Instant::now();
@@ -1592,7 +1592,7 @@ mod tests {
     /// Live: `cargo test --lib -p omniget-core instagram_live -- --ignored`.
     /// 4 requests, no cookies.
     #[tokio::test]
-    #[ignore]
+    #[ignore = "network: real Instagram requests"]
     async fn instagram_live_gql_public_vs_locked() {
         let dl = InstagramDownloader::new();
         let public = dl.request_gql("aye83DjauH").await;
