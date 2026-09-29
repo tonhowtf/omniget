@@ -7050,7 +7050,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "Leer el estado, los escaneos y los planes de este equipo (washmybelly)",
-    "system_change": "Preparar planes de limpieza, mantener energía, modo juego y capturas de FPS (washmybelly)"
+    "system_change": "Preparar planes de limpieza, mantener energía, modo juego y capturas de FPS (washmybelly)",
+    "memory_read": "Buscar y reflexionar sobre lo que OmniGet recuerda de ti",
+    "memory_write": "Enseñar a OmniGet datos sobre ti"
   },
   "mcp_auth": {
     "title": "Un cliente de IA te pide iniciar sesión",

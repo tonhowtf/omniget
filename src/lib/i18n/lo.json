@@ -7050,7 +7050,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "ອ່ານສະຖານະ, ຜົນສະແກນ ແລະ ແຜນຂອງຄອມພິວເຕີເຄື່ອງນີ້ (washmybelly)",
-    "system_change": "ກະກຽມແຜນທຳຄວາມສະອາດ, ຄວບຄຸມພະລັງງານ, ໂໝດເກມ ແລະ ການບັນທຶກ FPS (washmybelly)"
+    "system_change": "ກະກຽມແຜນທຳຄວາມສະອາດ, ຄວບຄຸມພະລັງງານ, ໂໝດເກມ ແລະ ການບັນທຶກ FPS (washmybelly)",
+    "memory_read": "ຄົ້ນຫາ ແລະ ທົບທວນສິ່ງທີ່ OmniGet ຈື່ກ່ຽວກັບທ່ານ",
+    "memory_write": "ສອນຂໍ້ມູນກ່ຽວກັບທ່ານໃຫ້ OmniGet"
   },
   "mcp_auth": {
     "title": "ລູກຂ່າຍ AI ຂໍໃຫ້ທ່ານເຂົ້າສູ່ລະບົບ",

@@ -7050,7 +7050,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "讀取這台電腦的狀態、掃描與計畫（washmybelly）",
-    "system_change": "準備清理計畫、維持效能電源、遊戲模式與 FPS 擷取（washmybelly）"
+    "system_change": "準備清理計畫、維持效能電源、遊戲模式與 FPS 擷取（washmybelly）",
+    "memory_read": "搜尋並回顧 OmniGet 記得的關於你的內容",
+    "memory_write": "教 OmniGet 關於你的事實"
   },
   "mcp_auth": {
     "title": "AI 用戶端請求你登入",

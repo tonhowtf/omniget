@@ -7050,7 +7050,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "Чтение состояния компьютера, сканирований и планов (washmybelly)",
-    "system_change": "Подготовка планов очистки, удержание режима питания, игрового режима и захвата FPS (washmybelly)"
+    "system_change": "Подготовка планов очистки, удержание режима питания, игрового режима и захвата FPS (washmybelly)",
+    "memory_read": "Искать и размышлять о том, что OmniGet помнит о вас",
+    "memory_write": "Сообщать OmniGet факты о себе"
   },
   "mcp_auth": {
     "title": "ИИ-клиент просит вас войти в аккаунт",

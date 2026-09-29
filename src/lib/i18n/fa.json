@@ -7050,7 +7050,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "خواندن وضعیت، اسکن‌ها و برنامه‌های این رایانه (washmybelly)",
-    "system_change": "آماده‌سازی برنامه‌های پاک‌سازی، نگه‌داشتن برق، حالت گیم و ضبط FPS (washmybelly)"
+    "system_change": "آماده‌سازی برنامه‌های پاک‌سازی، نگه‌داشتن برق، حالت گیم و ضبط FPS (washmybelly)",
+    "memory_read": "جستجو و تأمل در آنچه OmniGet درباره شما به خاطر دارد",
+    "memory_write": "آموختن واقعیت‌هایی درباره شما به OmniGet"
   },
   "mcp_auth": {
     "title": "یک کلاینت هوش مصنوعی از شما می‌خواهد وارد شوید",

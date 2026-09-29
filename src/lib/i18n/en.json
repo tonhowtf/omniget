@@ -7050,7 +7050,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "Read this computer's status, scans and plans (washmybelly)",
-    "system_change": "Prepare cleanup plans, hold power, game mode and FPS captures (washmybelly)"
+    "system_change": "Prepare cleanup plans, hold power, game mode and FPS captures (washmybelly)",
+    "memory_read": "Recall and reflect over what OmniGet remembers about you",
+    "memory_write": "Teach OmniGet facts about you"
   },
   "mcp_auth": {
     "title": "An AI client asks you to sign in",

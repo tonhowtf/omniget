@@ -4130,6 +4130,8 @@ export type TranslationKeys =
   | 'mcp_connections.media_mission_help'
   | 'mcp_connections.media_mission_id'
   | 'mcp_connections.media_tools'
+  | 'mcp_connections.memory_read'
+  | 'mcp_connections.memory_write'
   | 'mcp_connections.name'
   | 'mcp_connections.native_active'
   | 'mcp_connections.native_revoke'

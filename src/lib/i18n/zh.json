@@ -7050,7 +7050,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "读取本机状态、扫描结果和方案（washmybelly）",
-    "system_change": "准备清理方案，保持性能供电、游戏模式和 FPS 采集（washmybelly）"
+    "system_change": "准备清理方案，保持性能供电、游戏模式和 FPS 采集（washmybelly）",
+    "memory_read": "检索并回顾 OmniGet 记住的关于你的内容",
+    "memory_write": "教 OmniGet 关于你的事实"
   },
   "mcp_auth": {
     "title": "AI 客户端请求你登录",

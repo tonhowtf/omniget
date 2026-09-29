@@ -7050,7 +7050,9 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "このコンピューターの状態、スキャン結果、計画を読み取る（washmybelly）",
-    "system_change": "クリーンアップ計画の作成、電源保持、ゲームモード、FPS計測を実行する（washmybelly）"
+    "system_change": "クリーンアップ計画の作成、電源保持、ゲームモード、FPS計測を実行する（washmybelly）",
+    "memory_read": "OmniGet があなたについて覚えていることを検索・振り返る",
+    "memory_write": "あなたについての事実を OmniGet に教える"
   },
   "mcp_auth": {
     "title": "AI クライアントがサインインを求めています",
