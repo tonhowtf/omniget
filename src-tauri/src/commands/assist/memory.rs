@@ -278,3 +278,121 @@ pub fn assist_memory_reindex() -> Result<usize, String> {
     let db = db::global()?;
     memory::reindex(&db)
 }
+
+// ── Hindsight-style layer: stats, entities, explained search, settings ──
+
+#[tauri::command]
+pub fn assist_memory_stats() -> Result<memory::Stats, String> {
+    let db = db::global()?;
+    memory::stats(&db, now_ms())
+}
+
+#[tauri::command]
+pub fn assist_memory_entities(limit: Option<usize>) -> Result<Vec<memory::Entity>, String> {
+    let db = db::global()?;
+    memory::entities(&db, &AssistCtx::user(), limit.unwrap_or(60))
+}
+
+/// One hit of the explained search, shaped like the list rows.
+#[derive(Debug, Clone, Serialize)]
+pub struct HitView {
+    #[serde(flatten)]
+    pub view: MemoryView,
+    pub score: f32,
+    pub why: memory::Why,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SearchView {
+    pub hits: Vec<HitView>,
+    pub entities: Vec<String>,
+    pub window: Option<(i64, i64)>,
+    pub semantic: bool,
+}
+
+/// Hybrid recall over every scope, with why each memory came back.
+#[tauri::command]
+pub async fn assist_memory_search(
+    query: String,
+    limit: Option<usize>,
+) -> Result<SearchView, String> {
+    let db = db::global()?;
+    let probe = tokio::task::spawn_blocking(move || {
+        memory::search_explained(
+            &db,
+            &AssistCtx::user(),
+            &query,
+            limit.unwrap_or(20),
+            now_ms(),
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    Ok(SearchView {
+        hits: probe
+            .hits
+            .into_iter()
+            .map(|h| HitView {
+                view: view(h.record),
+                score: h.score,
+                why: h.why,
+            })
+            .collect(),
+        entities: probe.entities,
+        window: probe.window,
+        semantic: probe.semantic,
+    })
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MemorySettingsInput {
+    pub auto_retain: Option<bool>,
+    pub consolidate: Option<bool>,
+}
+
+#[tauri::command]
+pub fn assist_memory_set_settings(input: MemorySettingsInput) -> Result<memory::Stats, String> {
+    let db = db::global()?;
+    if let Some(v) = input.auto_retain {
+        memory::retain::set_setting(&db, "auto_retain", v)?;
+    }
+    if let Some(v) = input.consolidate {
+        memory::retain::set_setting(&db, "consolidate", v)?;
+    }
+    memory::stats(&db, now_ms())
+}
+
+/// Downloads the local embedding model once, embeds every memory and
+/// rebuilds the notes. Returns how many memories got a vector.
+#[tauri::command]
+pub async fn assist_memory_prepare_semantic() -> Result<usize, String> {
+    let db = db::global()?;
+    memory::prepare_semantic(db).await
+}
+
+/// Reads a text the person pastes and saves the facts in it (their own
+/// memory, stated on the memory screen).
+#[tauri::command]
+pub async fn assist_memory_retain_text(
+    text: String,
+    context: Option<String>,
+) -> Result<memory::RetainReport, String> {
+    let db = db::global()?;
+    let input = memory::RetainInput {
+        person: text,
+        other: String::new(),
+        event_ms: now_ms(),
+        source_kind: "user".into(),
+        source_id: None,
+        context,
+    };
+    let report = memory::retain::retain(
+        db.clone(),
+        AssistCtx::user(),
+        input,
+        memory::retain::default_llm(),
+    )
+    .await?;
+    memory::upkeep(db);
+    Ok(report)
+}

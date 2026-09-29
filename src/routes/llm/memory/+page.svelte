@@ -9,6 +9,7 @@
   import { getAgent, loadRoster } from "$lib/stores/llm-store.svelte";
   import MemoryScopeSection from "$components/llm/memory/MemoryScopeSection.svelte";
   import MemoryReach from "$components/llm/memory/MemoryReach.svelte";
+  import MemoryEngine from "$components/llm/memory/MemoryEngine.svelte";
   import {
     getMemoryErrorKey,
     getScopeItems,
@@ -61,6 +62,8 @@
     <p class="notice error" role="alert">{$t(errorKey)}</p>
     <button type="button" class="button" disabled={isMemoryLoading()} onclick={() => loadAllScopes(showInactive)}>{$t("assist.memory.retry")}</button>
   {/if}
+
+  <MemoryEngine />
 
   <MemoryScopeSection scopeKey="user" title={titleOf("user")} lede={ledeOf("user")} items={getScopeItems("user")} {showInactive} />
 

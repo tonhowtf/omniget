@@ -5818,7 +5818,42 @@
       "err_inactive": "Esto ya fue reemplazado. Abre la versión actual para cambiarlo.",
       "err_import": "No se pudo importar este archivo. Usa una exportación JSON de OmniGet.",
       "err_scope": "Esta memoria no se puede cambiar desde aquí.",
-      "err_generic": "Algo salió mal. Tu texto sigue aquí; inténtalo de nuevo."
+      "err_generic": "Algo salió mal. Tu texto sigue aquí; inténtalo de nuevo.",
+      "engine": {
+        "title": "Lo que aprende la memoria",
+        "lede": "Después de cada conversación, la memoria lee lo que dijiste y guarda los datos que vale la pena recordar, con fechas y las personas, lugares y cosas que mencionan. La búsqueda los encuentra por palabras, por significado, por esos vínculos y por tiempo.",
+        "counts": "{active} memorias · {vectors} buscables por significado · {entities} personas, lugares y cosas · {notes} notas",
+        "today": "{facts} aprendidas en las últimas 24 horas",
+        "retain_failed": "El último intento de aprender de una conversación falló. Comprueba que haya un modelo de IA configurado en Ajustes.",
+        "auto_retain": "Aprender de las conversaciones por su cuenta",
+        "consolidate": "Mantener una nota sobre cada persona y cosa",
+        "prepare": "Activar la búsqueda por significado",
+        "preparing": "Preparando…",
+        "prepared": "{count} memorias ya se pueden buscar por significado.",
+        "search_label": "Buscar en la memoria",
+        "search_placeholder": "Prueba \"¿qué hice el mes pasado?\" o un nombre",
+        "search": "Buscar",
+        "window": "Del {from} al {to}",
+        "no_semantic": "La búsqueda por significado está desactivada",
+        "no_hits": "Nada en la memoria coincide.",
+        "arm": {
+          "keyword": "palabras",
+          "semantic": "significado",
+          "graph": "vínculos",
+          "temporal": "tiempo"
+        },
+        "happened": "ocurrió el {date}",
+        "proofs": "dicho {count} veces",
+        "entities": "Personas, lugares y cosas",
+        "mentions": "{count} menciones",
+        "teach": "Enseñar a partir de un texto",
+        "teach_label": "Pega algo sobre ti: una entrada de diario, notas, un mensaje",
+        "teach_placeholder": "El sábado pasado me mudé a Recife con Ana…",
+        "teach_context": "Qué es este texto (opcional)",
+        "teach_go": "Aprender",
+        "teaching": "Leyendo…",
+        "taught": "{created} memorias nuevas, {again} confirmadas de nuevo."
+      }
     },
     "reading": {
       "nav": "Lectura",

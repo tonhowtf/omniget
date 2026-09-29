@@ -5818,7 +5818,42 @@
       "err_inactive": "È già stato sostituito. Apri la versione attuale per modificarlo.",
       "err_import": "Impossibile importare questo file. Usa un export JSON di OmniGet.",
       "err_scope": "Questo ricordo non può essere modificato da qui.",
-      "err_generic": "Qualcosa è andato storto. Il tuo testo è ancora qui; riprova."
+      "err_generic": "Qualcosa è andato storto. Il tuo testo è ancora qui; riprova.",
+      "engine": {
+        "title": "Cosa impara la memoria",
+        "lede": "Dopo ogni conversazione, la memoria legge ciò che hai detto e conserva i fatti che vale la pena ricordare, con le date e le persone, i luoghi e le cose citati. La ricerca li trova per parole, per significato, per questi collegamenti e per tempo.",
+        "counts": "{active} ricordi · {vectors} cercabili per significato · {entities} persone, luoghi e cose · {notes} note",
+        "today": "{facts} appresi nelle ultime 24 ore",
+        "retain_failed": "L'ultimo tentativo di imparare da una conversazione non è riuscito. Controlla che sia configurato un modello di IA nelle Impostazioni.",
+        "auto_retain": "Impara dalle conversazioni da sola",
+        "consolidate": "Tieni una nota su ogni persona e cosa",
+        "prepare": "Attiva la ricerca per significato",
+        "preparing": "Preparazione…",
+        "prepared": "{count} ricordi ora sono cercabili per significato.",
+        "search_label": "Cerca nella memoria",
+        "search_placeholder": "Prova \"cosa ho fatto il mese scorso?\" o un nome",
+        "search": "Cerca",
+        "window": "Dal {from} al {to}",
+        "no_semantic": "La ricerca per significato è disattivata",
+        "no_hits": "Nessun ricordo corrisponde.",
+        "arm": {
+          "keyword": "parole",
+          "semantic": "significato",
+          "graph": "collegamenti",
+          "temporal": "tempo"
+        },
+        "happened": "avvenuto il {date}",
+        "proofs": "detto {count} volte",
+        "entities": "Persone, luoghi e cose",
+        "mentions": "{count} menzioni",
+        "teach": "Insegna da un testo",
+        "teach_label": "Incolla qualcosa su di te: una pagina di diario, appunti, un messaggio",
+        "teach_placeholder": "Sabato scorso mi sono trasferito a Recife con Ana…",
+        "teach_context": "Che cos'è questo testo (facoltativo)",
+        "teach_go": "Impara",
+        "teaching": "Lettura…",
+        "taught": "{created} nuovi ricordi, {again} confermati di nuovo."
+      }
     },
     "reading": {
       "nav": "Lettura",

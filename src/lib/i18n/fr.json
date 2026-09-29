@@ -5818,7 +5818,42 @@
       "err_inactive": "Ceci a déjà été remplacé. Ouvrez la version actuelle pour la modifier.",
       "err_import": "Impossible d'importer ce fichier. Utilisez un export JSON d'OmniGet.",
       "err_scope": "Ce souvenir ne peut pas être modifié d'ici.",
-      "err_generic": "Un problème est survenu. Votre texte est toujours là ; réessayez."
+      "err_generic": "Un problème est survenu. Votre texte est toujours là ; réessayez.",
+      "engine": {
+        "title": "Ce que la mémoire apprend",
+        "lede": "Après chaque conversation, la mémoire lit ce que vous avez dit et garde les faits qui méritent d'être retenus, avec les dates et les personnes, lieux et choses mentionnés. La recherche les retrouve par mots, par sens, par ces liens et par date.",
+        "counts": "{active} souvenirs · {vectors} consultables par sens · {entities} personnes, lieux et choses · {notes} notes",
+        "today": "{facts} appris au cours des dernières 24 heures",
+        "retain_failed": "La dernière tentative d'apprendre d'une conversation a échoué. Vérifiez qu'un modèle d'IA est configuré dans les Paramètres.",
+        "auto_retain": "Apprendre des conversations automatiquement",
+        "consolidate": "Garder une note sur chaque personne et chaque chose",
+        "prepare": "Activer la recherche par sens",
+        "preparing": "Préparation…",
+        "prepared": "{count} souvenirs sont maintenant consultables par sens.",
+        "search_label": "Rechercher dans la mémoire",
+        "search_placeholder": "Essayez « qu'ai-je fait le mois dernier ? » ou un nom",
+        "search": "Rechercher",
+        "window": "Du {from} au {to}",
+        "no_semantic": "La recherche par sens est désactivée",
+        "no_hits": "Rien dans la mémoire ne correspond.",
+        "arm": {
+          "keyword": "mots",
+          "semantic": "sens",
+          "graph": "liens",
+          "temporal": "date"
+        },
+        "happened": "survenu le {date}",
+        "proofs": "dit {count} fois",
+        "entities": "Personnes, lieux et choses",
+        "mentions": "{count} mentions",
+        "teach": "Apprendre à partir d'un texte",
+        "teach_label": "Collez quelque chose sur vous : une page de journal, des notes, un message",
+        "teach_placeholder": "Samedi dernier, j'ai déménagé à Recife avec Ana…",
+        "teach_context": "Ce qu'est ce texte (facultatif)",
+        "teach_go": "Apprendre",
+        "teaching": "Lecture…",
+        "taught": "{created} nouveaux souvenirs, {again} confirmés à nouveau."
+      }
     },
     "reading": {
       "nav": "Lecture",
