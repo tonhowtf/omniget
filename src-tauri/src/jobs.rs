@@ -699,6 +699,9 @@ pub struct Jobs {
     /// Bumped on every saved row, so `wait` (2.5) sleeps until something
     /// changed instead of polling.
     changes: tokio::sync::watch::Sender<u64>,
+    /// Per finished Loop round (job id): its tool calls and their real
+    /// output, rendered for the Loop's auditor (3.7), taken by `run_loop`.
+    round_evidence: Mutex<HashMap<String, String>>,
 }
 
 /// A question of a job's turn, as the bus forwarder hands it to the runner.
@@ -916,6 +919,7 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
         // The boot pass counts as a GC run.
         last_worktree_gc: std::sync::atomic::AtomicU64::new(now_ms()),
         changes: tokio::sync::watch::channel(0).0,
+        round_evidence: Mutex::new(HashMap::new()),
     });
     if JOBS.set(jobs.clone()).is_ok() {
         let limits = crate::commands::llm::watchdog::limits(app);
@@ -2091,6 +2095,11 @@ impl Jobs {
             };
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(1));
         let mut first_event = true;
+        // A Loop round keeps what its tools did, for the auditor (3.7).
+        let mut evidence = job
+            .loop_id
+            .is_some()
+            .then(omniget_core::core::llm::goal_audit::Evidence::default);
         loop {
             tokio::select! {
                 event = stream.next() => {
@@ -2106,6 +2115,9 @@ impl Jobs {
                         }
                     }
                     self.llm.note_event(&job.agent_id, &event);
+                    if let Some(e) = evidence.as_mut() {
+                        e.feed(&event);
+                    }
                     match event {
                         TurnEvent::Finished { .. } => saw_finished = true,
                         TurnEvent::TextDelta { text: t } => text.push_str(&t),
@@ -2202,6 +2214,12 @@ impl Jobs {
             }
         }
         self.llm.finish_turn(&request_id, &job.agent_id);
+        if let Some(e) = evidence.filter(|e| !e.is_empty()) {
+            self.round_evidence
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(job.id.clone(), e.render());
+        }
         self.cancels
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -3296,6 +3314,12 @@ impl Jobs {
             }
             let round_started = now_ms();
             let done = self.run_job(&job.id, None).await;
+            let evidence = self
+                .round_evidence
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&job.id)
+                .unwrap_or_default();
             l.rounds_done = round;
             l.active_ms += now_ms().saturating_sub(round_started);
             l.next_round_ms = l
@@ -3388,7 +3412,7 @@ impl Jobs {
                     use omniget_core::core::llm::goal_audit::{self, Step};
                     let reply = done.result.as_deref().unwrap_or("");
                     let (audit, mut entry) = self
-                        .audit_round(&l, round, reply, last_audit.as_ref())
+                        .audit_round(&l, round, reply, &evidence, last_audit.as_ref())
                         .await;
                     entry.round_cost_usd = round_cost;
                     entry.round_tokens = round_tokens;

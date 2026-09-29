@@ -104,7 +104,9 @@ Modes:
                      `honest` writes result.txt = ok and proves it; `overclaim`
                      writes a draft and claims done without a check on round
                      1, then does it right; `stubborn` does that every round;
-                     `blocked` never can. The round is
+                     `blocked` never can. Its Bash calls (write, and
+                     `cat result.txt` when it checks) stream as tool_use /
+                     tool_result, the evidence the auditor reads. The round is
                      1 without `--resume` and counted in FAKE_CLAUDE_STATE
                      after it. Usage is modelled (4 chars/token, the resumed
                      history as cached input) and priced like Sonnet/Haiku;
@@ -581,15 +583,22 @@ def loop_mode(prompt):
         with open(state, "w", encoding="utf-8") as fh:
             fh.write(str(rnd))
     profile = os.environ.get("FAKE_CLAUDE_PROFILE", "honest")
+    # The round's tool calls stream before the reply, as the auditor's evidence reads them.
     if profile == "blocked":
         text = "BLOCKED: needs the API key from the user.\nDone: nothing\nVerified: -\nMissing: the API key"
     elif profile == "stubborn" or (profile == "overclaim" and rnd == 1):
         with open("result.txt", "w", encoding="utf-8") as fh:
             fh.write("draft\n")
+        tool_use(f"toolu_loop{rnd}a", "echo draft > result.txt")
+        tool_result(f"toolu_loop{rnd}a", "")
         text = "Everything should be in place now.\nDone: all of it\nVerified: -\nMissing: nothing"
     else:
         with open("result.txt", "w", encoding="utf-8") as fh:
             fh.write("ok\n")
+        tool_use(f"toolu_loop{rnd}a", "echo ok > result.txt")
+        tool_result(f"toolu_loop{rnd}a", "")
+        tool_use(f"toolu_loop{rnd}b", "cat result.txt")
+        tool_result(f"toolu_loop{rnd}b", "ok")
         text = "Wrote result.txt.\n" + LOOP_PROOF
     trace({"role": "agent", "round": rnd, "argv": argv, "stdin": prompt})
     # A new session pays its prelude once (then it is a cached prefix); a

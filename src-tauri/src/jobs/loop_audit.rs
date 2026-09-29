@@ -1,7 +1,8 @@
 //! The auditor of a Loop round (roadmap 3.7, S22, 84#P1): a side call of
 //! the Loop's own agent, on the small model of its provider/account
-//! (`TaskKind::Side`, 84#P3), that reads the objective and the round's last
-//! reply and returns a verdict. The rules that act on the verdict and the
+//! (`TaskKind::Side`, 84#P3), that reads the objective, what the round's
+//! tools did (`goal_audit::Evidence`) and its last reply, and returns a
+//! verdict. The rules that act on the verdict and the
 //! text of the rounds are in [`omniget_core::core::llm::goal_audit`].
 
 use super::*;
@@ -159,9 +160,10 @@ impl Jobs {
         l: &LoopDef,
         round: u32,
         reply: &str,
+        evidence: &str,
         previous: Option<&Audit>,
     ) -> (Option<Audit>, LoopAudit) {
-        let input = goal_audit::audit_input(&l.prompt, reply, previous);
+        let input = goal_audit::audit_input(&l.prompt, reply, evidence, previous);
         let started = now_ms();
         let mut answer = self
             .side_call(&l.id, &l.agent_id, &input, l.audit_model.as_deref())

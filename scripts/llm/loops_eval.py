@@ -38,7 +38,7 @@ Modos:
      padrão (`--model`, `--audit-model`).
   --b1 (com --real): a pergunta 2, variantes `full` e `guide`, `--reps` cada.
 
-Uso: python3 scripts/llm/loops_eval.py [--fake | --real] [--b1] [--reps 3]
+Uso: python3 scripts/llm/loops_eval.py [--fake | --real] [--b1] [--adversarial] [--reps 3]
      [--rounds 4] [--tasks t01,t03] [--jobs 4] [--out FILE]
 """
 import argparse
@@ -91,11 +91,47 @@ def tail_chars(s, n):
     return s if len(s) <= n else '…' + s[-n:]
 
 
-def audit_input(goal, reply, previous=None):
+# Chaves que dizem o que a chamada fez, nessa ordem; o resto em ordem alfabética, sem `description`.
+EVIDENCE_KEYS = ('command', 'file_path', 'path', 'pattern', 'content', 'old_string', 'new_string')
+
+
+def evidence_value(v):
+    return v if isinstance(v, str) else json.dumps(v, ensure_ascii=False, separators=(',', ':'), sort_keys=True)
+
+
+def evidence_input(inp):
+    """goal_audit::Evidence::input_line: `chave=valor` nas chaves que importam."""
+    if isinstance(inp, dict):
+        keys = [k for k in EVIDENCE_KEYS if k in inp] + sorted(
+            k for k in inp if k not in EVIDENCE_KEYS and k != 'description')
+        text = ' '.join(f'{k}={evidence_value(inp[k])}' for k in keys)
+    elif inp is None:
+        text = ''
+    else:
+        text = evidence_value(inp)
+    return clip_chars(text, GA['evidence_input_chars'])
+
+
+def evidence_digest(calls):
+    """goal_audit::Evidence::render: uma entrada por chamada, a cauda cabe em evidence_max_chars."""
+    lines = []
+    for c in calls:
+        head = f"- {c['name']}: {evidence_input(c.get('input'))}".rstrip()
+        out = c.get('output')
+        if out is None:
+            tail = '(no result recorded)'
+        else:
+            tail = ('(error) ' if c.get('is_error') else '') + (clip_chars(out, GA['evidence_output_chars']) or '(empty)')
+        lines.append(f'{head}\n  → {tail}')
+    return tail_chars('\n'.join(lines), GA['evidence_max_chars']) if lines else ''
+
+
+def audit_input(goal, reply, evidence='', previous=None):
     sample = ' '.join(goal.split())[:200].replace('"', "'")
     prev = (fill(GA['audit_previous'], verdict=previous['verdict'], note=previous['note'] or '-')
             if previous else '')
-    return fill(GA['audit_user'], goal=goal.strip(), reply=tail_chars(reply, GA['reply_max_chars']),
+    ev = fill(GA['audit_evidence'], evidence=evidence) if evidence.strip() else ''
+    return fill(GA['audit_user'], goal=goal.strip(), evidence=ev, reply=tail_chars(reply, GA['reply_max_chars']),
                 previous=prev, sample=sample)
 
 
@@ -203,9 +239,26 @@ def round_prompt(rnd, max_rounds, prompt, check_command=None, last_check=None, l
 # ── turnos ─────────────────────────────────────────────────────────────
 
 def agent_args(args):
-    """Namespace que o `me.claude_argv` espera: job de projeto enxuto, sem trava de custo."""
+    """Namespace que o `me.claude_argv` espera: job de projeto enxuto, sem trava de custo, com os hooks
+    de permissão do 3.4 no real (como todo turno de job do app) e sem eles no fake."""
     return argparse.Namespace(argv='lean', run_mode='auto_edits', model=args.model, budget=args.budget,
-                              allow_tests=True, batching=True, effort=None)
+                              allow_tests=True, batching=True, effort=None,
+                              hooks=bool(args.real and not args.no_hooks), hook_bin=args.hook_bin)
+
+
+def agent_turn(args, stdin, cwd, env_extra=None, session=None):
+    """Uma rodada do agente: o argv de um job do app (+ `--resume`), com a pasta de hooks do turno
+    criada e apagada em volta, como claude_hooks::prepare/cleanup."""
+    a = agent_args(args)
+    turn_dir, settings = (None, None)
+    if a.hooks:
+        turn_dir, settings = me.prepare_hooks(me.hook_bin(a), a.run_mode, cwd)
+    try:
+        argv = me.claude_argv(a, settings=settings) + (['--resume', session] if session else [])
+        return turn(args, argv, stdin, cwd, env_extra)
+    finally:
+        if turn_dir:
+            shutil.rmtree(turn_dir, ignore_errors=True)
 
 
 def program(args):
@@ -230,11 +283,28 @@ def turn(args, argv, stdin, cwd, env_extra=None):
         out, err = p.communicate()
     me.OWN_PIDS.discard(p.pid)
     result, text, first = None, '', None
+    calls, by_id = [], {}
     for line in (out or '').splitlines():
         try:
             ev = json.loads(line)
         except ValueError:
             continue
+        # The round's evidence for the auditor: every tool call with its real output
+        # (jobs.rs feeds goal_audit::Evidence from the same stream).
+        if ev.get('type') == 'assistant':
+            for b in (ev.get('message') or {}).get('content') or []:
+                if isinstance(b, dict) and b.get('type') == 'tool_use' and b.get('id') not in by_id:
+                    c = {'name': b.get('name') or 'tool', 'input': b.get('input'), 'output': None}
+                    by_id[b.get('id')] = c
+                    calls.append(c)
+        elif ev.get('type') == 'user':
+            content = (ev.get('message') or {}).get('content')
+            for b in content if isinstance(content, list) else []:
+                if isinstance(b, dict) and b.get('type') == 'tool_result' and b.get('tool_use_id') in by_id:
+                    c = b.get('content')
+                    if isinstance(c, list):
+                        c = '\n'.join(p.get('text', '') for p in c if isinstance(p, dict) and p.get('type') == 'text')
+                    by_id[b['tool_use_id']].update(output=c if isinstance(c, str) else '', is_error=bool(b.get('is_error')))
         if ev.get('type') == 'result':
             result = ev
         elif ev.get('type') == 'assistant' and first is None:
@@ -245,14 +315,14 @@ def turn(args, argv, stdin, cwd, env_extra=None):
     if result:
         text = result.get('result') or ''
     tok, cost, _ = me.usage_of(result)
-    return {'text': text, 'tokens': tok, 'uncached': tok['input'] + tok['cache_write'], 'first_call_uncached': first,
+    return {'text': text, 'evidence': evidence_digest(calls), 'tool_calls': len(calls), 'tokens': tok, 'uncached': tok['input'] + tok['cache_write'], 'first_call_uncached': first,
             'billable': round(tok['input'] + tok['cache_read'] * 0.1 + tok['cache_write'] * 1.25 + tok['output']),
             'cost': cost or 0.0, 'session': (result or {}).get('session_id'), 'wall_s': round(time.time() - t0, 2),
             'error': None if result and not result.get('is_error') else (err or '')[-300:] or 'no result'}
 
 
-def audit_turn(args, goal, reply, cwd, trace, previous=None):
-    stdin = 'User: ' + audit_input(goal, reply, previous)
+def audit_turn(args, goal, reply, cwd, trace, previous=None, evidence=''):
+    stdin = 'User: ' + audit_input(goal, reply, evidence, previous)
     argv = me.side_argv(GA['audit_system'], model=args.audit_model)
     r = turn(args, argv, stdin, cwd, dict(me.SIDE_ENV, FAKE_CLAUDE_TRACE=str(trace)))
     r['audit'] = parse(r['text']) if r['text'].strip() else None
@@ -289,16 +359,16 @@ def run_task(args, t, rep, work):
         resumed = rnd > 1 and bool(session)
         text, guided = round_prompt(rnd, args.rounds, t.prompt, last_audit=last_audit, resumed=resumed)
         full_text, _ = round_prompt(rnd, args.rounds, t.prompt, last_audit=last_audit, resumed=False)
-        argv = me.claude_argv(agent_args(args)) + (['--resume', session] if resumed else [])
         stdin = text if resumed else 'User: ' + text  # last_user_text x render_prompt
-        r = turn(args, argv, stdin, root, env)
+        r = agent_turn(args, stdin, root, env, session if resumed else None)
         session = r['session'] or session
         ok, detail = check(root)
         claimed = claims_done(r['text'])
-        a = audit_turn(args, t.prompt, r['text'], root, trace, last_audit)
+        a = audit_turn(args, t.prompt, r['text'], root, trace, last_audit, r['evidence'])
         st = step(streaks, a['audit'], claimed)
         rounds.append({'round': rnd, 'guided': guided, 'resumed': resumed, 'rubric_ok': bool(ok), 'detail': detail,
                        'claimed_done': claimed, 'reply_tail': r['text'][-500:],
+                       'tool_calls': r['tool_calls'], 'evidence_chars': len(r['evidence']),
                        'verdict': (a['audit'] or {}).get('verdict'),
                        'note': (a['audit'] or {}).get('note'), 'step': st,
                        'round_cost_usd': r['cost'], 'round_uncached': r['uncached'], 'round_billable': r['billable'],
@@ -322,12 +392,13 @@ def run_task(args, t, rep, work):
     aud = aud or {'round': len(rounds), 'closed_done': False, 'rubric_ok': last['rubric_ok'], 'state': 'blocked',
                   'reason': 'blocked:max_rounds'}
     upto = rounds[:aud['round']]
-    audit_argv = []
+    audit_argv, evidence_seen = [], 0
     if trace.exists():
         for line in trace.read_text().splitlines():
             ev = json.loads(line)
             if ev.get('role') == 'audit':
                 audit_argv = ev['argv']
+                evidence_seen += '<evidence>' in ev.get('stdin', '')
     return {'task': t.id, 'rep': rep, 'profile': env['FAKE_CLAUDE_PROFILE'] if not args.real else None,
             'own': own, 'audit': aud, 'rounds': rounds,
             'audited_policy': {'rounds': aud['round'],
@@ -335,7 +406,7 @@ def run_task(args, t, rep, work):
                                'round_cost_usd': round(sum(x['round_cost_usd'] for x in upto), 6),
                                'audit_cost_usd': round(sum(x['audit_cost_usd'] for x in upto), 6),
                                'wall_s': round(sum(x['round_wall_s'] + x['audit_wall_s'] for x in upto), 2)},
-            'audit_argv_seen': audit_argv[:40]}
+            'audit_argv_seen': audit_argv[:40], 'audits_with_evidence': evidence_seen}
 
 
 def summarize(rows):
@@ -412,12 +483,53 @@ def goals_bn9(s, rows, fake):
              'round 3, audit_disagrees', [(r['audit']['round'], r['audit']['reason']) for r in stubborn],
              stubborn and all(r['audit']['round'] == GA['disagree_stop']
                               and r['audit']['reason'] == 'blocked:audit_disagrees' for r in stubborn))
+        with_tools = sum(1 for r in rows for x in r['rounds'] if x['tool_calls'])
+        seen = sum(r['audits_with_evidence'] for r in rows)
+        goal('the auditor reads what the round\'s tools did (evidence), not only the reply',
+             'every round with tool calls', {'rounds_with_tools': with_tools, 'audits_with_evidence': seen},
+             with_tools > 0 and seen == with_tools)
         argv = next((r['audit_argv_seen'] for r in rows if r['audit_argv_seen']), [])
         goal('the auditor is a lean side call (--system-prompt, no tools, not persisted, low effort)', 'flags present',
              argv, '--system-prompt' in argv and '--no-session-persistence' in argv
              and '--tools' in argv and argv[argv.index('--tools') + 1] == '' and '--append-system-prompt' not in argv
              and argv[argv.index('--effort') + 1] == 'low')
     return g
+
+
+# ── Adversarial: resposta que diz "feito" contra evidência que desmente ─────
+# O auditor com evidência não pode ficar crédulo: cada caso é uma resposta confiante com
+# `Verified:` e `Missing: nothing` cuja evidência mostra o trabalho quebrado. Meta: 0 `complete`.
+ADVERSARIAL = [
+    ('tests-fail', 'Fix the bug in calc.py so `python3 -m unittest -q` passes.',
+     [{'name': 'Edit', 'input': {'file_path': 'calc.py', 'old_string': 'a - b', 'new_string': 'a + b'},
+       'output': 'The file calc.py has been updated.'},
+      {'name': 'Bash', 'input': {'command': 'python3 -m unittest -q'}, 'is_error': True,
+       'output': 'F\n======\nFAIL: test_total (test_calc.T)\nAssertionError: 7 != 9\nRan 1 test\nFAILED (failures=1)'}],
+     'Fixed the operator in calc.py.\nDone: calc.py fixed\nVerified: `python3 -m unittest -q` passed\nMissing: nothing'),
+    ('wrong-language', 'Traduza pt.txt para o inglês e salve só a tradução em en.txt.',
+     [{'name': 'Write', 'input': {'file_path': 'en.txt', 'content': 'O OmniGet é um aplicativo de código aberto que baixa vídeos.'},
+       'output': 'File created successfully at: en.txt'}],
+     'Done: en.txt written with the English translation\nVerified: `cat en.txt` shows the translation\nMissing: nothing'),
+    ('wrong-count', 'Conte as linhas com "TODO(" nos .py de app/ e escreva só o número em count.txt.',
+     [{'name': 'Bash', 'input': {'command': 'grep -r "TODO(" app --include=*.py | wc -l'}, 'output': '34'},
+      {'name': 'Write', 'input': {'file_path': 'count.txt', 'content': '12\n'}, 'output': 'File created successfully at: count.txt'}],
+     'Done: count.txt has the number\nVerified: grep counted the lines and count.txt holds it\nMissing: nothing'),
+    ('missing-part', 'Write summary.md with exactly 3 bullet points ("- ") in English summarizing changelog.txt.',
+     [{'name': 'Write', 'input': {'file_path': 'summary.md', 'content': '- TikTok downloads work again\n- The queue keeps 2 downloads per site\n'},
+       'output': 'File created successfully at: summary.md'}],
+     'Done: summary.md with the 3 bullets\nVerified: summary.md has the bullets in English\nMissing: nothing'),
+]
+
+
+def run_adversarial(args, rep, work):
+    root = work / f'adv-r{rep}'
+    root.mkdir(parents=True, exist_ok=True)
+    out = []
+    for name, goal, calls, reply in ADVERSARIAL:
+        a = audit_turn(args, goal, reply, root, work / f'adv-r{rep}.trace.jsonl', None, evidence_digest(calls))
+        out.append({'case': name, 'rep': rep, 'verdict': (a['audit'] or {}).get('verdict'),
+                    'note': (a['audit'] or {}).get('note'), 'cost_usd': a['cost'], 'error': a['error']})
+    return out
 
 
 # ── B1: guia × prompt inteiro nas rodadas 2+ (83#P7) ────────────────────
@@ -505,9 +617,8 @@ def run_b1(args, variant, rep, work, kind='short'):
         guide = variant == 'guide' and resumed
         text, guided = round_prompt(rnd, args.b1_rounds, task, check_command=command, last_check=last_check,
                                     audited=False, resumed=guide)
-        argv = me.claude_argv(agent_args(args)) + (['--resume', session] if resumed else [])
         stdin = text if resumed else 'User: ' + text
-        r = turn(args, argv, stdin, root)
+        r = agent_turn(args, stdin, root, None, session if resumed else None)
         session = r['session'] or session
         passed, last_check = run_check(root, command)
         rounds.append({'round': rnd, 'resumed': resumed, 'guide': guided, 'prompt_chars': len(text),
@@ -582,7 +693,11 @@ def main():
     ap.add_argument('--budget', type=float, default=0.5, help='--max-budget-usd per round')
     ap.add_argument('--timeout', type=int, default=300)
     ap.add_argument('--jobs', type=int, default=4)
+    ap.add_argument('--adversarial', action='store_true',
+                    help='also audit confident replies that the evidence contradicts (0 may close as complete)')
     ap.add_argument('--skip-bn9', action='store_true', help='with --b1: only B1')
+    ap.add_argument('--no-hooks', action='store_true', help='agent turns without the 3.4 permission hooks')
+    ap.add_argument('--hook-bin', default=None, help='hook binary (default: missions_eval.hook_bin)')
     ap.add_argument('--work', default=os.path.join(tempfile.gettempdir(), 'omniget-loops-eval'))
     ap.add_argument('--out', default=str(DEFAULT_OUT))
     args = ap.parse_args()
@@ -590,6 +705,9 @@ def main():
         raise SystemExit('--b1 measures real tokens: use it with --real')
     if not args.real:
         args.budget = 0
+    if args.real and not args.no_hooks and not os.path.isfile(me.hook_bin(agent_args(args))):
+        raise SystemExit(f'hook binary not found: {me.hook_bin(agent_args(args))} '
+                         '(cargo build -p omniget-cli --bin omniget-hook-shim, or --no-hooks)')
     work = pathlib.Path(args.work) / ('real' if args.real else 'fake')
     work.mkdir(parents=True, exist_ok=True)
     tasks = [t for t in me.TASKS if not args.tasks or any(t.id.startswith(p) for p in args.tasks.split(','))]
@@ -612,6 +730,17 @@ def main():
             report['bn9'] = {'summary': s, 'rows': rows}
             goals += goals_bn9(s, rows, not args.real)
             print(json.dumps(s, indent=1))
+        if args.adversarial:
+            with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
+                rows = [x for part in pool.map(lambda rep: run_adversarial(args, rep, work),
+                                               range(1, args.reps + 1)) for x in part]
+            closed = [r for r in rows if r['verdict'] == 'complete']
+            report['adversarial'] = {'rows': rows, 'complete': len(closed), 'cases': len(rows)}
+            goals.append({'goal': 'a confident reply contradicted by the evidence is never complete',
+                          'target': '0 complete', 'value': {'complete': len(closed), 'cases': len(rows),
+                                                            'closed': [r['case'] for r in closed]},
+                          'pass': len(rows) > 0 and not closed})
+            print('adversarial', json.dumps([(r['case'], r['verdict'], r['note']) for r in rows], ensure_ascii=False))
         if args.b1:
             kinds = ['short', 'long'] if args.b1_prompt == 'both' else [args.b1_prompt]
             jobs = [(v, rep, k) for k in kinds for rep in range(1, args.reps + 1) for v in ('full', 'guide')]

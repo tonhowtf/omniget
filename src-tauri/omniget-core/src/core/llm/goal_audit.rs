@@ -2,8 +2,9 @@
 //!
 //! - **Auditor** (84#P1): a Loop without a `check_command` no longer ends
 //!   because the agent wrote "DONE". After each round a side model of the
-//!   agent's own provider (see [`super::router::TaskKind::Side`]) gets only
-//!   the objective and the round's last reply and answers
+//!   agent's own provider (see [`super::router::TaskKind::Side`]) gets the
+//!   objective, the round's [`Evidence`] (its real tool calls and outputs)
+//!   and the last reply, and answers
 //!   `{"verdict":"continue|complete|blocked","note":"…"}`. `complete` ends the
 //!   Loop; `blocked` ends it only the [`blocked_stop`]-th time in a row; after
 //!   [`audit_fail_stop`] audits in a row that gave no verdict the Loop stops
@@ -34,8 +35,12 @@ pub struct Texts {
     pub disagree_stop: u32,
     pub note_max_chars: usize,
     pub reply_max_chars: usize,
+    pub evidence_max_chars: usize,
+    pub evidence_input_chars: usize,
+    pub evidence_output_chars: usize,
     pub audit_system: String,
     pub audit_user: String,
+    pub audit_evidence: String,
     pub audit_previous: String,
     pub round_footer: String,
     pub footer_short: String,
@@ -162,10 +167,187 @@ pub struct Audit {
     pub note: String,
 }
 
-/// The auditor's user message: the objective (as data), the last reply and
-/// the previous verdict, so a round that finished what was missing is read
+/// Keys that say what a tool call did, in this order; the others follow
+/// sorted, `description` (the model's own caption) left out.
+const EVIDENCE_KEYS: [&str; 7] = [
+    "command",
+    "file_path",
+    "path",
+    "pattern",
+    "content",
+    "old_string",
+    "new_string",
+];
+
+/// Input kept per call while it streams: a large `Write` is clipped to
+/// [`Texts::evidence_input_chars`] anyway.
+const EVIDENCE_INPUT_KEEP: usize = 64 * 1024;
+
+/// Calls kept per round (the digest keeps only its tail anyway).
+const EVIDENCE_CALLS_KEEP: usize = 200;
+
+#[derive(Debug, Clone, Default)]
+struct EvidenceCall {
+    id: String,
+    name: String,
+    input: String,
+    output: Option<(String, bool)>,
+}
+
+/// What the agent's tools really did in one round, gathered from the turn's
+/// own events (`ToolCallStart` / `ToolCallDelta` / `ToolResult`), for the
+/// auditor. BN9 real (3.7) with the reply alone: the auditor asked for more
+/// proof in 29 rounds whose work already passed, because a reply that says
+/// "`cat en.txt` shows the translation" is a claim, while the call and its
+/// output are a fact. Native tools emit no `ToolResult` (the Coordinator
+/// runs them): their calls show without an output.
+#[derive(Debug, Clone, Default)]
+pub struct Evidence {
+    calls: Vec<EvidenceCall>,
+}
+
+impl Evidence {
+    pub fn feed(&mut self, event: &super::types::TurnEvent) {
+        use super::types::TurnEvent;
+        match event {
+            TurnEvent::ToolCallStart { id, name } => {
+                if self.calls.len() >= EVIDENCE_CALLS_KEEP {
+                    self.calls.remove(0);
+                }
+                self.calls.push(EvidenceCall {
+                    id: id.clone(),
+                    name: name.clone(),
+                    ..EvidenceCall::default()
+                });
+            }
+            TurnEvent::ToolCallDelta {
+                id,
+                input_json_delta,
+            } => {
+                if let Some(c) = self.calls.iter_mut().rev().find(|c| &c.id == id) {
+                    if c.input.len() < EVIDENCE_INPUT_KEEP {
+                        c.input.push_str(input_json_delta);
+                    }
+                }
+            }
+            TurnEvent::ToolResult {
+                id,
+                content,
+                is_error,
+            } => {
+                if let Some(c) = self.calls.iter_mut().rev().find(|c| &c.id == id) {
+                    let keep = TEXTS.evidence_output_chars * 2;
+                    c.output = Some((content.chars().take(keep).collect(), *is_error));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.calls.is_empty()
+    }
+
+    /// `name: key=value …` of one call's input (the streamed JSON; a partial
+    /// or broken one goes as text).
+    fn input_line(input: &str) -> String {
+        let text = match serde_json::from_str::<Value>(input) {
+            Ok(Value::Object(map)) => {
+                let mut keys: Vec<&String> = EVIDENCE_KEYS
+                    .iter()
+                    .filter_map(|k| map.get_key_value(*k).map(|(k, _)| k))
+                    .collect();
+                let mut rest: Vec<&String> = map
+                    .keys()
+                    .filter(|k| !EVIDENCE_KEYS.contains(&k.as_str()) && k.as_str() != "description")
+                    .collect();
+                rest.sort();
+                keys.extend(rest);
+                keys.iter()
+                    .map(|k| format!("{k}={}", evidence_value(&map[k.as_str()])))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            }
+            Ok(Value::Null) => String::new(),
+            Ok(v) => evidence_value(&v),
+            Err(_) => input.to_string(),
+        };
+        clip_chars(&text, TEXTS.evidence_input_chars)
+    }
+
+    /// One entry per call, oldest first; only the tail that fits in
+    /// [`Texts::evidence_max_chars`] goes (the latest checks matter most).
+    /// Empty when the round called no tool.
+    pub fn render(&self) -> String {
+        if self.calls.is_empty() {
+            return String::new();
+        }
+        let lines: Vec<String> = self
+            .calls
+            .iter()
+            .map(|c| {
+                let head = format!("- {}: {}", c.name, Self::input_line(&c.input));
+                let tail = match &c.output {
+                    None => "(no result recorded)".to_string(),
+                    Some((out, err)) => {
+                        let body = clip_chars(out, TEXTS.evidence_output_chars);
+                        format!(
+                            "{}{}",
+                            if *err { "(error) " } else { "" },
+                            if body.is_empty() { "(empty)" } else { &body }
+                        )
+                    }
+                };
+                format!("{}\n  → {tail}", head.trim_end())
+            })
+            .collect();
+        tail_chars(&lines.join("\n"), TEXTS.evidence_max_chars)
+    }
+}
+
+fn evidence_value(v: &Value) -> String {
+    match v {
+        Value::String(s) => s.clone(),
+        other => canonical_json(other),
+    }
+}
+
+/// Compact JSON with sorted keys (what `json.dumps(sort_keys=True)` gives
+/// the benchmark), whatever map order serde_json was built with.
+fn canonical_json(v: &Value) -> String {
+    match v {
+        Value::Object(map) => {
+            let mut keys: Vec<&String> = map.keys().collect();
+            keys.sort();
+            let parts: Vec<String> = keys
+                .iter()
+                .map(|k| {
+                    format!(
+                        "{}:{}",
+                        serde_json::to_string(k).unwrap_or_default(),
+                        canonical_json(&map[k.as_str()])
+                    )
+                })
+                .collect();
+            format!("{{{}}}", parts.join(","))
+        }
+        Value::Array(items) => format!(
+            "[{}]",
+            items
+                .iter()
+                .map(canonical_json)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        other => other.to_string(),
+    }
+}
+
+/// The auditor's user message: the objective (as data), the round's
+/// evidence ([`Evidence::render`], empty = left out), the last reply and the
+/// previous verdict, so a round that finished what was missing is read
 /// against what was missing.
-pub fn audit_input(goal: &str, reply: &str, previous: Option<&Audit>) -> String {
+pub fn audit_input(goal: &str, reply: &str, evidence: &str, previous: Option<&Audit>) -> String {
     let sample: String = goal
         .split_whitespace()
         .collect::<Vec<_>>()
@@ -184,10 +366,16 @@ pub fn audit_input(goal: &str, reply: &str, previous: Option<&Audit>) -> String 
             )
         })
         .unwrap_or_default();
+    let evidence = if evidence.trim().is_empty() {
+        String::new()
+    } else {
+        fill(&TEXTS.audit_evidence, &[("evidence", evidence)])
+    };
     fill(
         &TEXTS.audit_user,
         &[
             ("goal", goal.trim()),
+            ("evidence", &evidence),
             ("reply", &tail_chars(reply, TEXTS.reply_max_chars)),
             ("previous", &previous),
             ("sample", &sample.replace('"', "'")),
@@ -674,19 +862,105 @@ mod tests {
     #[test]
     fn the_audit_input_carries_the_goal_as_data_and_the_tail_of_the_reply() {
         let reply = format!("{}\nMissing: nothing", "x".repeat(10_000));
-        let input = audit_input("Traduza o texto", &reply, None);
+        let input = audit_input("Traduza o texto", &reply, "", None);
         assert!(input.contains("<objective>\nTraduza o texto\n</objective>"));
         assert!(input.contains("Missing: nothing"));
         assert!(input.len() < 7_000);
         assert!(input.contains("sample from the objective: \"Traduza o texto\""));
         assert!(!input.contains("previous audit"));
+        assert!(!input.contains("<evidence>"));
         let before = Audit {
             verdict: Verdict::Continue,
             note: "answer.txt not checked".into(),
         };
-        let input = audit_input("Traduza o texto", "Missing: nothing", Some(&before));
+        let input = audit_input("Traduza o texto", "Missing: nothing", "", Some(&before));
         assert!(
             input.contains("previous audit of this work said `continue`: answer.txt not checked")
         );
+    }
+
+    fn feed_call(e: &mut Evidence, id: &str, name: &str, input: &str, out: Option<(&str, bool)>) {
+        use crate::core::llm::types::TurnEvent;
+        e.feed(&TurnEvent::ToolCallStart {
+            id: id.into(),
+            name: name.into(),
+        });
+        // Streamed in two pieces, like `input_json_delta`.
+        let (a, b) = input.split_at(input.len() / 2);
+        for part in [a, b] {
+            e.feed(&TurnEvent::ToolCallDelta {
+                id: id.into(),
+                input_json_delta: part.into(),
+            });
+        }
+        if let Some((content, is_error)) = out {
+            e.feed(&TurnEvent::ToolResult {
+                id: id.into(),
+                content: content.into(),
+                is_error,
+            });
+        }
+    }
+
+    #[test]
+    fn the_evidence_shows_each_call_with_its_real_output() {
+        let mut e = Evidence::default();
+        assert!(e.is_empty());
+        assert_eq!(e.render(), "");
+        feed_call(
+            &mut e,
+            "t1",
+            "Write",
+            r#"{"content":"Hello","file_path":"en.txt"}"#,
+            Some(("File created", false)),
+        );
+        feed_call(
+            &mut e,
+            "t2",
+            "Bash",
+            r#"{"description":"show it","command":"cat en.txt","timeout":5}"#,
+            Some(("Hello", false)),
+        );
+        feed_call(
+            &mut e,
+            "t3",
+            "Bash",
+            r#"{"command":"false"}"#,
+            Some(("exit 1", true)),
+        );
+        feed_call(&mut e, "t4", "Read", r#"{"file_path":"a.txt"}"#, None);
+        // The same text `loops_eval.evidence_digest` builds (BN9).
+        assert_eq!(
+            e.render(),
+            "- Write: file_path=en.txt content=Hello\n  → File created\n\
+             - Bash: command=cat en.txt timeout=5\n  → Hello\n\
+             - Bash: command=false\n  → (error) exit 1\n\
+             - Read: file_path=a.txt\n  → (no result recorded)"
+        );
+        let input = audit_input("Traduza o texto", "Missing: nothing", &e.render(), None);
+        let at = input.find("<evidence>").unwrap();
+        assert!(at > input.find("</objective>").unwrap());
+        assert!(at < input.find("<reply>").unwrap());
+        assert!(input.contains("the numbers are not in the file"));
+    }
+
+    #[test]
+    fn a_long_round_keeps_the_tail_of_its_evidence() {
+        let mut e = Evidence::default();
+        for i in 0..100 {
+            let out = format!("output {i} {}", "x".repeat(2_000));
+            feed_call(
+                &mut e,
+                &format!("t{i}"),
+                "Bash",
+                &format!(r#"{{"command":"step {i}"}}"#),
+                Some((&out, false)),
+            );
+        }
+        let text = e.render();
+        assert!(text.chars().count() <= TEXTS.evidence_max_chars + 1);
+        assert!(text.starts_with('…'));
+        assert!(text.contains("command=step 99"));
+        assert!(!text.contains("command=step 0\n"));
     }
 }
