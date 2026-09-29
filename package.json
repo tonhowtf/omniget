@@ -52,6 +52,7 @@
     "verify": "node scripts/verify.mjs",
     "hooks:install": "node scripts/git-hooks/install.mjs",
     "hooks:uninstall": "node scripts/git-hooks/install.mjs --uninstall",
+    "test:inventory": "node scripts/test-inventory.mjs",
     "test:watch": "vitest",
     "dev:app": "node scripts/dev/session.mjs start",
     "dev:status": "node scripts/dev/session.mjs status",
