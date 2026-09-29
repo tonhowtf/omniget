@@ -67,7 +67,10 @@ mod tests {
     fn leitor_de_ambiente_exige_as_duas_variaveis() {
         // Um teste so, sequencial: `set_var` e global ao processo e os testes
         // rodam em paralelo. Nenhum outro teste toca estas duas variaveis, mas
-        // dividir isto em varios seria corrida garantida.
+        // dividir isto em varios seria corrida garantida. Outros testes do
+        // crate apontam `OMNIGET_DATA_DIR` para pastas deles: o lock evita
+        // mexer na variavel no meio de um deles.
+        let _env = crate::core::test_env_lock().blocking_write();
         let restore = (
             std::env::var("OMNIGET_PORTABLE").ok(),
             std::env::var("OMNIGET_DATA_DIR").ok(),

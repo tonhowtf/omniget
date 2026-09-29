@@ -993,7 +993,7 @@ pub async fn pkce_finish(code: &str, state: Option<&str>) -> anyhow::Result<KeyV
 mod tests {
     use super::*;
     use std::path::PathBuf;
-    use std::sync::{MutexGuard, OnceLock};
+    use tokio::sync::RwLockWriteGuard;
 
     #[test]
     fn hints() {
@@ -1135,17 +1135,15 @@ mod tests {
     // ── Storage and migration ────────────────────────────────────────────
 
     /// `set_var` is process-global and cargo runs tests on threads, so every
-    /// test that moves the data directory takes this lock.
-    fn env_lock() -> MutexGuard<'static, ()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
+    /// test that moves the data directory takes the crate-wide lock, the same
+    /// one the vcs and threads tests hold while they use their shared folder.
+    fn env_lock() -> RwLockWriteGuard<'static, ()> {
+        crate::core::paths::test_env_lock().blocking_write()
     }
 
     struct Sandbox {
         root: PathBuf,
-        _guard: MutexGuard<'static, ()>,
+        _guard: RwLockWriteGuard<'static, ()>,
         previous: Vec<(&'static str, Option<String>)>,
     }
 

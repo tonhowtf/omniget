@@ -31,6 +31,19 @@ pub fn app_data_dir() -> Option<std::path::PathBuf> {
     Some(new_path)
 }
 
+/// Guards tests that point `OMNIGET_DATA_DIR` or `OMNIGET_SECRETS_DIR`
+/// somewhere. `cargo test` runs a crate's tests as threads of one process, so
+/// an unguarded `set_var` in one test moves another test's files mid-run. Tests
+/// that all set the same shared folder hold a read guard and still run in
+/// parallel; a test that sets its own folder holds the write guard. A tokio
+/// lock, so async tests can hold it across `.await`; sync tests take it with
+/// `blocking_write`.
+#[cfg(test)]
+pub(crate) fn test_env_lock() -> &'static tokio::sync::RwLock<()> {
+    static LOCK: tokio::sync::RwLock<()> = tokio::sync::RwLock::const_new(());
+    &LOCK
+}
+
 fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
     if src.is_dir() {
         std::fs::create_dir_all(dst)?;

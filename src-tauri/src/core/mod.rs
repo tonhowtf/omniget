@@ -43,3 +43,14 @@ pub mod state_file;
 pub mod trackers;
 pub mod url_parser;
 pub mod url_resolver;
+
+/// Guards this crate's tests that point `OMNIGET_DATA_DIR` somewhere.
+/// `cargo test` runs them as threads of one process, so an unguarded `set_var`
+/// moves another test's files mid-run. Tests that share one folder hold a read
+/// guard; a test that sets its own holds the write guard (`blocking_write` in
+/// sync tests). omniget-core has its own, test-only, so it is not visible here.
+#[cfg(test)]
+pub(crate) fn test_env_lock() -> &'static tokio::sync::RwLock<()> {
+    static LOCK: tokio::sync::RwLock<()> = tokio::sync::RwLock::const_new(());
+    &LOCK
+}

@@ -2262,14 +2262,15 @@ mod tests {
 
     /// Uma pasta de dados para todos os testes do módulo (a env é global e o
     /// banco da arena é aberto uma vez só).
-    fn test_data() -> PathBuf {
+    /// Pasta de dados comum aos testes da arena. Segure o guard o teste
+    /// inteiro: outro teste que aponte `OMNIGET_DATA_DIR` para outro lugar
+    /// (`crate::core::test_env_lock`) espera ele sair.
+    async fn test_data() -> (PathBuf, tokio::sync::RwLockReadGuard<'static, ()>) {
         static D: OnceLock<PathBuf> = OnceLock::new();
-        D.get_or_init(|| {
-            let d = scratch("data");
-            unsafe { std::env::set_var("OMNIGET_DATA_DIR", &d) };
-            d
-        })
-        .clone()
+        let guard = crate::core::test_env_lock().read().await;
+        let d = D.get_or_init(|| scratch("data")).clone();
+        unsafe { std::env::set_var("OMNIGET_DATA_DIR", &d) };
+        (d, guard)
     }
 
     fn scratch(name: &str) -> PathBuf {
@@ -2323,7 +2324,7 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn arena_git_flow() {
-        let _data = test_data();
+        let (_data, _env) = test_data().await;
         let repo = scratch("repo");
         git(&repo, &["init", "-q", "-b", "main"]);
         std::fs::write(repo.join("a.txt"), "one\ntwo\nthree\n").unwrap();
@@ -2434,7 +2435,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn arena_engine_flow() {
         use omniget_core::core::threads::git::{GitHooks, ThreadGit};
-        let data = test_data();
+        let (data, _env) = test_data().await;
         let repo = scratch("erepo");
         git(&repo, &["init", "-q", "-b", "main"]);
         std::fs::write(repo.join("a.txt"), "base\n").unwrap();

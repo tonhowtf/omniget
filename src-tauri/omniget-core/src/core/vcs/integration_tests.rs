@@ -10,12 +10,15 @@ use std::sync::Arc;
 use super::diff::DiffOptions;
 use super::*;
 
-fn data_dir() -> PathBuf {
+async fn data_dir() -> tokio::sync::RwLockReadGuard<'static, ()> {
     // One data dir for every test of this module (the env var is global).
+    // Hold the returned guard for the whole test: a test that points the var
+    // at its own folder (core::paths::test_env_lock) waits until it drops.
+    let guard = crate::core::paths::test_env_lock().read().await;
     let d = std::env::temp_dir().join("omniget-vcs-tests-data");
     std::fs::create_dir_all(&d).unwrap();
     unsafe { std::env::set_var("OMNIGET_DATA_DIR", &d) };
-    d
+    guard
 }
 
 fn scratch(name: &str) -> PathBuf {
@@ -56,7 +59,7 @@ fn write(p: &Path, bytes: &[u8]) {
 
 #[tokio::test]
 async fn worktree_checkpoints_diff_restore() {
-    data_dir();
+    let _env = data_dir().await;
     let repo_dir = scratch("repo");
     git(&repo_dir, &["init", "-q", "-b", "main"]);
     git(&repo_dir, &["config", "user.name", "Test"]);
@@ -256,7 +259,7 @@ async fn worktree_checkpoints_diff_restore() {
 
 #[tokio::test]
 async fn shadow_checkpoints_for_plain_folder() {
-    data_dir();
+    let _env = data_dir().await;
     let dir = scratch("plain");
     write(&dir.join("notes.txt"), b"v0\n");
     checkpoint::capture(&dir, "t", 0).await.unwrap();
@@ -286,7 +289,7 @@ async fn shadow_checkpoints_for_plain_folder() {
 
 #[tokio::test]
 async fn worktree_setup_script_and_cancel() {
-    data_dir();
+    let _env = data_dir().await;
     let repo_dir = scratch("setup");
     git(&repo_dir, &["init", "-q", "-b", "main"]);
     write(

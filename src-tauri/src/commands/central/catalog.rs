@@ -342,6 +342,7 @@ mod agentkit_tests {
             &uuid::Uuid::new_v4().simple().to_string()[..8]
         ));
         std::fs::create_dir_all(root.join("home")).unwrap();
+        let _env = crate::core::test_env_lock().blocking_write();
         std::env::set_var("OMNIGET_DATA_DIR", root.join("data"));
         super::install_catalog_resolver();
         let id = "cct:agents/development-team/frontend-developer";

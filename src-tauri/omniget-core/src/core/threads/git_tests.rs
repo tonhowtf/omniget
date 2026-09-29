@@ -15,13 +15,16 @@ use super::store;
 use crate::core::llm::drivers::*;
 use crate::core::vcs::diff::DiffOptions;
 
-fn data_dir() -> PathBuf {
+async fn data_dir() -> tokio::sync::RwLockReadGuard<'static, ()> {
     // The same data dir as the vcs tests: the env var is process-global and
     // both suites read it (worktrees root, shadow dir).
+    // Hold the returned guard for the whole test: a test that points the var
+    // at its own folder (core::paths::test_env_lock) waits until it drops.
+    let guard = crate::core::paths::test_env_lock().read().await;
     let d = std::env::temp_dir().join("omniget-vcs-tests-data");
     std::fs::create_dir_all(&d).unwrap();
     unsafe { std::env::set_var("OMNIGET_DATA_DIR", &d) };
-    d
+    guard
 }
 
 fn scratch(name: &str) -> PathBuf {
@@ -168,7 +171,7 @@ async fn eventually<T>(what: &str, mut f: impl FnMut() -> Option<T>) -> T {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn worktree_turn_checkpoints_diff_and_edit_from_here() {
-    data_dir();
+    let _env = data_dir().await;
     let repo_dir = scratch("repo");
     git(&repo_dir, &["init", "-q", "-b", "main"]);
     git(&repo_dir, &["config", "user.name", "Test"]);
