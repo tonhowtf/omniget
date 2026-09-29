@@ -1129,6 +1129,7 @@ export type TranslationKeys =
   | 'league.col_gold_hint'
   | 'league.col_player'
   | 'league.connected'
+  | 'league.connection_diagnostics'
   | 'league.copy_riot_id'
   | 'league.counters'
   | 'league.crystal_level'

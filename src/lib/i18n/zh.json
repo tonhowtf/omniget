@@ -471,7 +471,8 @@
     "replay_saved": "回放已保存到",
     "review_ai": "用 AI 复盘",
     "history_source_sgp": "来自后端",
-    "search_source_sgp": "客户端隐藏了战绩，已改从 Riot 后端 (SGP) 获取。"
+    "search_source_sgp": "客户端隐藏了战绩，已改从 Riot 后端 (SGP) 获取。",
+    "connection_diagnostics": "Connection diagnostics"
   },
   "music": {
     "nav_label": "Music sections",

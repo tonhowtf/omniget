@@ -471,7 +471,8 @@
     "replay_saved": "Replay saved to",
     "review_ai": "Review with AI",
     "history_source_sgp": "via backend",
-    "search_source_sgp": "History fetched from Riot's backend (SGP), since the client hid it."
+    "search_source_sgp": "History fetched from Riot's backend (SGP), since the client hid it.",
+    "connection_diagnostics": "Connection diagnostics"
   },
   "music": {
     "nav_label": "Music sections",

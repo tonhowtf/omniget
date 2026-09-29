@@ -471,7 +471,8 @@
     "replay_saved": "Повтор сохранён в",
     "review_ai": "Разобрать с ИИ",
     "history_source_sgp": "через бэкенд",
-    "search_source_sgp": "История получена из бэкенда Riot (SGP), так как клиент её скрыл."
+    "search_source_sgp": "История получена из бэкенда Riot (SGP), так как клиент её скрыл.",
+    "connection_diagnostics": "Connection diagnostics"
   },
   "music": {
     "nav_label": "Music sections",

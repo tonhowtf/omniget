@@ -471,7 +471,8 @@
     "replay_saved": "Replay enregistré dans",
     "review_ai": "Revoir avec l'IA",
     "history_source_sgp": "via backend",
-    "search_source_sgp": "Historique récupéré depuis le backend de Riot (SGP), le client l'ayant masqué."
+    "search_source_sgp": "Historique récupéré depuis le backend de Riot (SGP), le client l'ayant masqué.",
+    "connection_diagnostics": "Connection diagnostics"
   },
   "music": {
     "nav_label": "Music sections",

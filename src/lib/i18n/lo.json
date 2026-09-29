@@ -471,7 +471,8 @@
     "replay_saved": "ບັນທຶກຣີເພລໄວ້ທີ່",
     "review_ai": "ທົບທວນດ້ວຍ AI",
     "history_source_sgp": "ຜ່ານເຊີບເວີ",
-    "search_source_sgp": "ດຶງປະຫວັດຈາກເຊີບເວີຂອງ Riot (SGP), ເພາະໄຄລເອັນຊ່ອນໄວ້."
+    "search_source_sgp": "ດຶງປະຫວັດຈາກເຊີບເວີຂອງ Riot (SGP), ເພາະໄຄລເອັນຊ່ອນໄວ້.",
+    "connection_diagnostics": "Connection diagnostics"
   },
   "music": {
     "nav_label": "Music sections",

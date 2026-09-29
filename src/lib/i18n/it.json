@@ -471,7 +471,8 @@
     "replay_saved": "Replay salvato in",
     "review_ai": "Rivedi con l'IA",
     "history_source_sgp": "via backend",
-    "search_source_sgp": "Cronologia presa dal backend di Riot (SGP), perché il client l'ha nascosta."
+    "search_source_sgp": "Cronologia presa dal backend di Riot (SGP), perché il client l'ha nascosta.",
+    "connection_diagnostics": "Connection diagnostics"
   },
   "music": {
     "nav_label": "Music sections",

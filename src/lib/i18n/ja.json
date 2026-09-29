@@ -471,7 +471,8 @@
     "replay_saved": "リプレイの保存先",
     "review_ai": "AIで振り返る",
     "history_source_sgp": "バックエンド経由",
-    "search_source_sgp": "クライアントが隠したため、履歴はRiotのバックエンド (SGP) から取得しました。"
+    "search_source_sgp": "クライアントが隠したため、履歴はRiotのバックエンド (SGP) から取得しました。",
+    "connection_diagnostics": "Connection diagnostics"
   },
   "music": {
     "nav_label": "Music sections",

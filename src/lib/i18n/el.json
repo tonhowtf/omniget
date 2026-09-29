@@ -471,7 +471,8 @@
     "replay_saved": "Το replay αποθηκεύτηκε σε",
     "review_ai": "Ανασκόπηση με AI",
     "history_source_sgp": "μέσω backend",
-    "search_source_sgp": "Το ιστορικό ήρθε από το backend της Riot (SGP), αφού ο client το έκρυψε."
+    "search_source_sgp": "Το ιστορικό ήρθε από το backend της Riot (SGP), αφού ο client το έκρυψε.",
+    "connection_diagnostics": "Connection diagnostics"
   },
   "music": {
     "nav_label": "Music sections",

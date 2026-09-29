@@ -471,7 +471,8 @@
     "replay_saved": "ریپلی ذخیره شد در",
     "review_ai": "بازبینی با هوش مصنوعی",
     "history_source_sgp": "از بک‌اند",
-    "search_source_sgp": "کلاینت تاریخچه را پنهان کرده بود؛ از بک‌اند رایوت (SGP) گرفته شد."
+    "search_source_sgp": "کلاینت تاریخچه را پنهان کرده بود؛ از بک‌اند رایوت (SGP) گرفته شد.",
+    "connection_diagnostics": "Connection diagnostics"
   },
   "music": {
     "nav_label": "Music sections",
