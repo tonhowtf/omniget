@@ -4,6 +4,9 @@
    * thread e worktree, comparadas lado a lado (estado ao vivo, tempo,
    * tokens/custo, testes e o diff); votos, vencedor, "aplicar vencedor" e
    * limpeza das perdedoras; histórico e placar por driver/modelo.
+   * Roteiro 3.8: 2 a 5 colunas com estimativa de custo antes, a comparação
+   * com os arquivos divergentes, "escolher este" (integrate no checkout) e
+   * "remover os outros" (worktrees e branches pela remoção segura).
    * Deep links: `?arena=<id>`, `?thread=<id>&plan=<planId>` (plano aprovado →
    * nova arena), `?view=score`. Ao vivo por `central://arena` e
    * `threads://event`; o relógio só anda enquanto alguma coluna roda.
@@ -24,15 +27,18 @@
     arenaStop,
     arenaVerify,
     arenaVote,
+    divergentTouched,
     highlights,
     isActive,
     onArena,
+    type ArenaCompare as ArenaCompareData,
     type ArenaEntry,
     type ArenaView,
     type ScoreRow,
   } from "$lib/central/arena";
   import ArenaSetup from "$components/central/arena/ArenaSetup.svelte";
   import ArenaHistory from "$components/central/arena/ArenaHistory.svelte";
+  import ArenaCompare from "$components/central/arena/ArenaCompare.svelte";
   import EntryColumn from "$components/central/arena/EntryColumn.svelte";
   import ApplyDialog from "$components/central/arena/ApplyDialog.svelte";
   import Scoreboard from "$components/central/arena/Scoreboard.svelte";
@@ -48,13 +54,15 @@
   let error = $state<string | null>(null);
   let now = $state(Date.now());
   let showDiffs = $state(true);
+  let showCompare = $state(true);
+  let comparison = $state<ArenaCompareData | null>(null);
   let promptOpen = $state(false);
   let applyFor = $state<string | null>(null);
   let verifyOpen = $state(false);
   let verifyCmd = $state("");
   let cleanupOpen = $state(false);
   let cleanupAll = $state(false);
-  let cleanupBranches = $state(false);
+  let cleanupBranches = $state(true);
   let deleteOpen = $state(false);
   let busy = $state(false);
   let notice = $state<string | null>(null);
@@ -208,8 +216,9 @@
     const r = await run(() => arenaCleanup(id, cleanupAll ? "all" : "losers", cleanupBranches));
     if (r) {
       put(r.arena);
-      notice = $t("llm.central.arena.apply.cleaned", { count: r.archived.length }) as string;
+      notice = $t("llm.central.arena.removed", { count: r.worktreesRemoved.length }) as string;
       if (r.branchesDeleted.length) notice += ` · ${$t("llm.central.arena.branches_deleted", { count: r.branchesDeleted.length })}`;
+      if (r.branchesKept.length) notice += ` · ${$t("llm.central.arena.branches_kept", { count: r.branchesKept.length })}`;
       if (r.errors.length) notice += ` · ${r.errors.join("; ")}`;
     }
   }
@@ -299,6 +308,7 @@
         <button type="button" class="ghost" onclick={() => (promptOpen = !promptOpen)} aria-expanded={promptOpen}>
           <Icon name="chat-text" size={13} /> {$t("llm.central.arena.prompt")}
         </button>
+        <label class="ghost toggle"><input type="checkbox" bind:checked={showCompare} /> {$t("llm.central.arena.compare.toggle")}</label>
         <label class="ghost toggle"><input type="checkbox" bind:checked={showDiffs} /> {$t("llm.central.arena.show_diffs")}</label>
         {#if anyActive}
           <button type="button" class="button small" onclick={stopAll} disabled={busy}><Icon name="stop" size={13} /> {$t("llm.central.arena.stop")}</button>
@@ -307,7 +317,7 @@
         {#if winner && selected.status !== "applied"}
           <button type="button" class="button small active" onclick={() => (applyFor = winner.entryId)}><Icon name="git-branch" size={13} /> {$t("llm.central.arena.apply_winner")}</button>
         {/if}
-        <button type="button" class="icon-btn" title={$t("llm.central.arena.cleanup")} onclick={() => { cleanupAll = !winner; cleanupOpen = true; }}><Icon name="archive-box" size={16} /></button>
+        <button type="button" class="icon-btn" title={winner ? $t("llm.central.arena.remove_others") : $t("llm.central.arena.cleanup")} onclick={() => { cleanupAll = !winner; cleanupOpen = true; }}><Icon name="archive-box" size={16} /></button>
         <button type="button" class="icon-btn" title={$t("llm.central.arena.delete")} onclick={() => (deleteOpen = true)}><Icon name="x-circle" size={16} /></button>
       </header>
       {#if promptOpen}
@@ -316,6 +326,11 @@
       {#if notice}
         <p class="notice">{notice}</p>
       {/if}
+      {#if showCompare && selected.entries.length > 1}
+        {#key selected.arenaId}
+          <ArenaCompare arena={selected} oncompare={(c) => (comparison = c)} />
+        {/key}
+      {/if}
       <div class="board" style:--cols={selected.entries.length}>
         {#each selected.entries as e (e.entryId)}
           <EntryColumn
@@ -323,6 +338,7 @@
             entry={e}
             {now}
             tags={tags[e.entryId] ?? []}
+            divergent={showCompare ? divergentTouched(comparison, e.entryId) : 0}
             showDiff={showDiffs}
             diffHeight="calc(100vh - 380px)"
             onvote={vote}
@@ -362,7 +378,7 @@
 <Modal open={cleanupOpen} title={$t("llm.central.arena.cleanup") as string} onclose={() => (cleanupOpen = false)} width={480}>
   <div class="stack">
     <p class="muted">{$t("llm.central.arena.cleanup_lede")}</p>
-    <label class="check"><input type="radio" bind:group={cleanupAll} value={false} disabled={!winner} /> {$t("llm.central.arena.cleanup_losers")}</label>
+    <label class="check"><input type="radio" bind:group={cleanupAll} value={false} disabled={!winner} /> {$t("llm.central.arena.remove_others")}</label>
     <label class="check"><input type="radio" bind:group={cleanupAll} value={true} /> {$t("llm.central.arena.cleanup_all")}</label>
     <label class="check"><input type="checkbox" bind:checked={cleanupBranches} /> {$t("llm.central.arena.apply.delete_branches")}</label>
   </div>

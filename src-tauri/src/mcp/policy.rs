@@ -70,6 +70,10 @@ pub const SCOPES: &[&str] = &[
     // of any default: the person ticks it explicitly (the MCP connections
     // card says what it allows).
     "approvals_respond",
+    // Item 2.5: start (and stop) the person's agents as background jobs
+    // (`agent_run`, `job_cancel`). Never a default: the person ticks it,
+    // and the client then only sees the jobs it started.
+    "agents_run",
 ];
 pub fn create(name: String, scopes: Vec<String>) -> Result<ConnectionGrant, String> {
     if name.trim().is_empty()
@@ -230,6 +234,8 @@ pub fn scope(name: &str) -> Option<&'static str> {
         | "job_diff" => "orchestration_read",
         "missions_cancel" | "missions_pause" | "missions_resume" => "orchestration_control",
         "approval_respond" => "approvals_respond",
+        "agent_run" | "job_cancel" => "agents_run",
+        "job_get" | "job_wait" | "jobs_state" => "orchestration_read",
         "missions_create" => "orchestration_create",
         "agents_derived_list" | "groups_get" => "orchestration_read",
         "agents_prepare" | "groups_prepare" | "group_tasks_create" => "orchestration_create",
@@ -425,6 +431,28 @@ mod tests {
             ..everything_else
         };
         assert!(allowed(&granted, "approval_respond"));
+    }
+
+    /// 2.5: starting an agent is its own grant; reading and waiting on the
+    /// jobs the client started is a read.
+    #[test]
+    fn agent_run_needs_its_own_grant() {
+        assert_eq!(scope("agent_run"), Some("agents_run"));
+        assert_eq!(scope("job_cancel"), Some("agents_run"));
+        for read in ["job_get", "job_wait", "jobs_state"] {
+            assert_eq!(scope(read), Some("orchestration_read"));
+        }
+        let everything_else = Principal {
+            id: "x".into(),
+            name: "X".into(),
+            scopes: SCOPES
+                .iter()
+                .filter(|s| **s != "agents_run")
+                .map(|s| s.to_string())
+                .collect(),
+        };
+        assert!(!allowed(&everything_else, "agent_run"));
+        assert!(!allowed(&everything_else, "job_cancel"));
     }
 
     /// A job's diff is a read of orchestration data: only with that scope

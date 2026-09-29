@@ -290,3 +290,97 @@ pub async fn llm_bridge_legacy_set(app: AppHandle, allowed: bool) -> Result<Valu
     crate::bridge_tokens::legacy_flag().store(allowed, std::sync::atomic::Ordering::Relaxed);
     Ok(json!({ "allowed": allowed }))
 }
+
+// ── review (3.5) ─────────────────────────────────────────────────────
+
+/// The job's diff as hunks with ids and the patch of each file.
+#[tauri::command]
+pub async fn llm_job_hunks(app: AppHandle, id: String) -> Result<Value, String> {
+    jobs::get(&app)?.review_hunks(&id).await
+}
+
+/// Puts one hunk back: `hunk_id` and `patch` must be the hunk as it is now,
+/// byte for byte (`ERR_HUNK_STALE` otherwise: refresh).
+#[tauri::command]
+pub async fn llm_job_discard_hunk(
+    app: AppHandle,
+    id: String,
+    hunk_id: String,
+    patch: String,
+) -> Result<Value, String> {
+    jobs::get(&app)?.discard_hunk(&id, &hunk_id, &patch).await
+}
+
+#[tauri::command]
+pub async fn llm_job_notes_list(app: AppHandle, id: String) -> Result<Value, String> {
+    to(jobs::get(&app)?.notes(&id))
+}
+
+/// A note on lines `start_line..=end_line` of `path` (new version), or on
+/// the whole file when both are absent.
+#[tauri::command]
+pub async fn llm_job_note_add(
+    app: AppHandle,
+    id: String,
+    path: String,
+    start_line: Option<u32>,
+    end_line: Option<u32>,
+    body: String,
+) -> Result<Value, String> {
+    to(jobs::get(&app)?.note_add(&id, &path, start_line, end_line, &body)?)
+}
+
+#[tauri::command]
+pub async fn llm_job_note_delete(
+    app: AppHandle,
+    id: String,
+    note_id: String,
+) -> Result<Value, String> {
+    jobs::get(&app)?.note_delete(&id, &note_id)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Sends the unsent notes to the agent: a follow-up job in the same
+/// conversation and worktree. Returns the new job.
+#[tauri::command]
+pub async fn llm_job_notes_send(app: AppHandle, id: String) -> Result<Value, String> {
+    to(jobs::get(&app)?.notes_send(&id).await?)
+}
+
+/// What integrating the job's branch would do (target branch, blocker, commits).
+#[tauri::command]
+pub async fn llm_job_integrate_preview(app: AppHandle, id: String) -> Result<Value, String> {
+    jobs::get(&app)?.integrate_preview(&id).await
+}
+
+/// `strategy`: `merge` (`--no-ff`, default) or `squash`.
+#[tauri::command]
+pub async fn llm_job_integrate(
+    app: AppHandle,
+    id: String,
+    strategy: Option<String>,
+) -> Result<Value, String> {
+    let strategy =
+        omniget_core::core::vcs::integrate::Strategy::parse(strategy.as_deref().unwrap_or(""))
+            .map_err(|e| format!("{}: {e}", jobs::ERR_JOBS))?;
+    let (outcome, job) = jobs::get(&app)?.integrate(&id, strategy).await?;
+    Ok(json!({ "outcome": outcome, "job": job }))
+}
+
+/// Throws the worktree job's work away: worktree and branch.
+#[tauri::command]
+pub async fn llm_job_discard_worktree(app: AppHandle, id: String) -> Result<Value, String> {
+    jobs::get(&app)?.discard_work(&id).await
+}
+
+/// The walkthrough of the job's diff, on demand (`refresh` skips the cache).
+#[tauri::command]
+pub async fn llm_job_walkthrough(
+    app: AppHandle,
+    id: String,
+    refresh: Option<bool>,
+) -> Result<Value, String> {
+    to(jobs::get(&app)?
+        .walkthrough(&id, refresh.unwrap_or(false))
+        .await?)
+}

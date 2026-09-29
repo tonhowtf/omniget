@@ -5,6 +5,7 @@
   import RunModeSelect from "$components/llm/RunModeSelect.svelte";
   import type { RunMode } from "$lib/stores/llm-run-mode.svelte";
   import DiffView from "$components/llm/activity/DiffView.svelte";
+  import JobReview from "$components/llm/activity/JobReview.svelte";
   import { promptTitle } from "$components/llm/activity/run-status";
   /**
    * Jobs: background agent runs. A form to start one, the list with live
@@ -189,6 +190,13 @@
       job.state === "running" ||
       job.state === "waiting_approval"
     );
+  }
+
+  /** A job whose changes can be reviewed here (3.5): in review, or a
+   *  finished worktree job whose branch can still be integrated. */
+  function reviewable(job: Job): boolean {
+    if (isActive(job)) return false;
+    return job.state === "review" || (!!job.branch && !!job.worktree_path);
   }
 
   function isWaiting(job: Job): boolean {
@@ -407,7 +415,7 @@
                 <span class="wait">{waitText(job)}</span>
               {/if}
               <span class="agent">{agentName(job.agent_id)}</span>
-              <span class="line">{promptTitle(job.prompt).title}</span>
+              <span class="line">{job.title || promptTitle(job.prompt).title}</span>
               <span class="time">
                 {shortTime(job.created_ms)}
                 {#if job.finished_ms}· {duration(job.started_ms ?? job.created_ms, job.finished_ms)}{/if}
@@ -445,6 +453,12 @@
                     {/if}
                   </div>
                 {/if}
+                {#if full.outcome}
+                  <div class="field-label">{$t("llm.jobs.outcome.title")}</div>
+                  <div class="text" class:err={full.outcome.status === "failed"}>{$t(`llm.jobs.outcome.${full.outcome.status}`)} — {full.outcome.summary}</div>
+                {:else if full.state === "done_unreported"}
+                  <p class="hint">{$t("llm.jobs.outcome.missing")}</p>
+                {/if}
                 {#if full.result}
                   <div class="field-label">{$t("llm.jobs.result")}</div>
                   <div class="text">{full.result}</div>
@@ -480,13 +494,23 @@
                         </li>
                       {/each}
                     </ul>
-                    {#if diff.patch}
+                    {#if diff.patch && !reviewable(full)}
                       <details class="patch">
                         <summary>{$t("assist.runs.show_diff")}</summary>
                         <DiffView patch={diff.patch} label={$t("llm.jobs.diff.title")} />
                       </details>
                     {/if}
                     {#if diff.clipped}<p class="hint">{$t("assist.runs.diff_clipped")}</p>{/if}
+                    {#if reviewable(full) && diff.complete}
+                      <JobReview
+                        job={full}
+                        files={diff.files}
+                        onchanged={() => {
+                          void refreshDetail(job.id);
+                          void refreshDiff(job.id);
+                        }}
+                      />
+                    {/if}
                   {/if}
                 {/if}
                 {#if full.proof}

@@ -60,10 +60,18 @@ enum Commands {
     Audit {
         #[arg(long, default_value = "1d", help = "How far back: 30m, 12h, 1d, 2w")]
         since: String,
-        #[arg(long, help = "Only actions starting with this (job., ask.answered, token.)")]
+        #[arg(
+            long,
+            help = "Only actions starting with this (job., ask.answered, token.)"
+        )]
         action: Option<String>,
         #[arg(long, default_value = "200")]
         limit: usize,
+    },
+    /// Short reference texts: `omniget guide agents` (delegating to your agents)
+    Guide {
+        /// Topic (none = the list)
+        topic: Option<String>,
     },
     /// washmybelly: scan, plan and clean this computer through the running app (execute asks in the window)
     Wmb {
@@ -165,6 +173,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Agent { command } => {
             commands::agent::execute(command, cli.json).await?;
+        }
+        Commands::Guide { topic } => {
+            commands::guide::execute(topic)?;
         }
         Commands::Wmb { command } => {
             commands::wmb::execute(command, cli.json).await?;

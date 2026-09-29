@@ -1,6 +1,6 @@
 //! `omniget agentkit search|show|install|uninstall|list|doctor|import|export|profiles`:
 //! the Catalog from the terminal. Talks to the running app through the local
-//! bridge (`POST /v1/agentkit/<action>`, bearer from `settings.json`); the app
+//! bridge (`POST /v1/agentkit/<action>`, the CLI's scoped token); the app
 //! owns the plan, the backups and the lockfiles, so the CLI and the UI see the
 //! same installs. `statusline-shim` runs locally (no app needed).
 //!
@@ -35,7 +35,14 @@ impl Bridge {
             .ok_or_else(|| anyhow!("the app has no bridge port yet: open OmniGet once"))?;
         Ok(Self {
             base: format!("http://127.0.0.1:{port}"),
-            token: bridge["token"].as_str().unwrap_or("").to_string(),
+            // The same scoped token as `omniget agent` (2.5 closes the S1
+            // residue: the Catalog routes want `jobs:operate`); the
+            // extension key only as the deprecated last resort.
+            token: super::agent::resolve_token(
+                std::env::var("OMNIGET_TOKEN").ok(),
+                std::fs::read_to_string(dir.join("llm").join("cli-token")).ok(),
+                bridge["token"].as_str(),
+            ),
             // catalog downloads can take a while on the first install
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(300))

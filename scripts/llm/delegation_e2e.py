@@ -14,8 +14,20 @@ Scenarios (`--scenario`, default: every one implemented):
       - 0 calls blocking > 2 s;
       - the child of a turn has no bridge bearer in its environment, under
         any variable name, and does get its job token.
-  * `delegate` (2.5, not yet): agent_run -> approval -> approval_respond ->
-    job_diff 10/10, same command_id 5x -> 1 job, end to end <= 10.4 s + 1 s.
+  * `delegate` (2.5): without a window, over MCP (`agent_run -> job_wait ->
+    job_get.pendingApprovals -> approval_respond -> job_wait -> job_diff`)
+    and over HTTP (`POST /v1/commands` job.start -> `GET /v1/jobs/{id}/wait`
+    -> `approval.respond` -> wait): 10/10 each; the same command_id 5x -> 1
+    job on both (the copies flagged `Idempotent-Replayed`), another payload
+    under that id -> 409; a reader token, the extension key and a request
+    from a job (`X-Omniget-Job`) cannot start one; 0 non-wait calls > 2 s.
+    Level: `job_commands::tests::bn5_delegate_end_to_end_without_a_window`
+    (omniget): the production command code, receipts table, wait, HTTP
+    handlers behind the production guard and MCP tool bodies, in front of a
+    stand-in engine that runs a scripted turn on a real broker and run
+    record (ask shell_exec -> answer -> write a.txt -> review with OUTCOME).
+    The real-agent end to end (<= 10.4 s + 1 s with Claude) is B0's number:
+    the delegated job is the same turn as a mission job.
 
 How the grace period is tested: the flag (`bridge.legacy_agent_routes`,
 default on in this version) is flipped inside the test on the same running
@@ -35,8 +47,8 @@ handlers need an AppHandle); `every_agent_route_has_a_scope` checks that each
 route of `local_bridge_jobs.rs` is mapped and that the router carries the
 layer.
 
-Extending (2.5): add a scenario function to SCENARIOS returning
-(runs, goals); keep one JSON report.
+Extending: add a scenario function to SCENARIOS returning (runs, goals,
+detail); keep one JSON report.
 
 Usage: python3 scripts/llm/delegation_e2e.py [--fake] [--scenario auth] [--out FILE]
 """
@@ -138,8 +150,39 @@ def scenario_auth():
     return runs, goals, {"cases": cases, "metrics": {k: v.get("value") for k, v in metrics.items()}}
 
 
-SCENARIOS = {"auth": scenario_auth}
-NOT_YET = {"delegate": "agent_run -> approval -> approval_respond -> job_diff 10/10; command_id 5x -> 1 job (item 2.5)"}
+def scenario_delegate():
+    runs = []
+    with tempfile.TemporaryDirectory() as d:
+        out = pathlib.Path(d) / "bn5.jsonl"
+        runs.append(run_tests("omniget", "job_commands::", out))
+        lines = [l for l in read_lines(out) if l.get("scenario") == "delegate"]
+    m = {l["metric"]: l.get("value") for l in lines if "metric" in l}
+    st = m.get("route_statuses") or {}
+    goals = [
+        {"goal": "MCP agent_run -> approval -> approval_respond -> job_diff, no window", "target": "10/10",
+         "value": m.get("mcp_delegations_ok"), "pass": m.get("mcp_delegations_ok") == 10},
+        {"goal": "HTTP /v1/commands job.start -> wait -> approval.respond -> wait", "target": "10/10",
+         "value": m.get("http_delegations_ok"), "pass": m.get("http_delegations_ok") == 10},
+        {"goal": "same command_id 5x -> 1 job (MCP and HTTP; copies flagged)", "target": "1 / 1 / 4 replays",
+         "value": {"mcp": m.get("mcp_same_command_5x_jobs"), "http": m.get("http_same_command_5x_jobs"),
+                   "replays": m.get("http_replays_flagged")},
+         "pass": m.get("mcp_same_command_5x_jobs") == 1 and m.get("http_same_command_5x_jobs") == 1
+         and m.get("http_replays_flagged") == 4},
+        {"goal": "reader token, extension key and a job context cannot start a job", "target": 403,
+         "value": st, "pass": all(st.get(k) == 403 for k in ("reader_starts", "extension_key", "from_a_job"))},
+        {"goal": "every approved call ran exactly once", "target": 20, "value": m.get("tools_ran"),
+         "pass": m.get("tools_ran") == 20},
+        {"goal": "0 non-wait calls blocking > 2 s", "target": "< 2000 ms", "value": m.get("slowest_non_wait_call_ms"),
+         "pass": m.get("slowest_non_wait_call_ms") is not None and m["slowest_non_wait_call_ms"] < 2000},
+        {"goal": "orchestration overhead end to end (stand-in turn, no model)", "target": "p50 < 1000 ms",
+         "value": {"p50_ms": m.get("e2e_ms_p50"), "max_ms": m.get("e2e_ms_max")},
+         "pass": m.get("e2e_ms_p50") is not None and m["e2e_ms_p50"] < 1000},
+    ]
+    return runs, goals, {"metrics": m}
+
+
+SCENARIOS = {"auth": scenario_auth, "delegate": scenario_delegate}
+NOT_YET = {}
 
 
 def main():
@@ -150,7 +193,7 @@ def main():
     ap.add_argument("--out", default=str(ROOT / "estudos" / "88-onda2" / "bn5-delegation.json"))
     args = ap.parse_args()
     if args.real:
-        sys.exit("--real needs the app running (item 2.5); the auth scenario is --fake only.")
+        sys.exit("--real: both scenarios are --fake (the real-model number is B0, missions_eval.py --reps 3).")
     wanted = [s.strip() for s in args.scenario.split(",") if s.strip()] or list(SCENARIOS)
     unknown = [s for s in wanted if s not in SCENARIOS]
     if unknown:
@@ -167,7 +210,8 @@ def main():
         "when": dt.datetime.now().isoformat(timespec="seconds"),
         "mode": "fake",
         "scenarios": wanted,
-        "level": "HTTP on 127.0.0.1 + production guard + jobs.db token table + JobTokenLease; child env via real spawn_turn",
+        "level": {"auth": "HTTP on 127.0.0.1 + production guard + jobs.db token table + JobTokenLease; child env via real spawn_turn",
+                  "delegate": "production job_commands (execute, receipts, wait, HTTP handlers, MCP tools) + guard over HTTP; stand-in engine with a real broker and run record"},
         "runs": runs,
         "goals": goals,
         "detail": detail,

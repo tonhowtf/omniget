@@ -3323,6 +3323,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "Ετυμηγορία του πράκτορα",
+        "succeeded": "Πέτυχε",
+        "failed": "Απέτυχε",
+        "missing": "Ο πράκτορας τελείωσε χωρίς τη γραμμή OUTCOME: διαβάστε το αποτέλεσμα πριν βασιστείτε σε αυτό."
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3338,7 +3344,8 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "waiting_workspace": "Αναμονή για τον φάκελο",
-        "review": "Χρειάζεται έλεγχο"
+        "review": "Χρειάζεται έλεγχο",
+        "done_unreported": "Ολοκληρώθηκε, χωρίς αναφορά"
       },
       "kind": {
         "run": "Run",
@@ -3469,7 +3476,45 @@
         "by_host": "Σφραγίστηκε από το OmniGet σε αυτόν τον υπολογιστή με βάση όσα κατέγραψε, όχι από τον πράκτορα."
       },
       "review": {
-        "mark": "Σήμανση ως ελεγμένο"
+        "mark": "Σήμανση ως ελεγμένο",
+        "title": "Έλεγχος",
+        "lede": "Απορρίψτε ένα τμήμα, αφήστε σημειώσεις στον πράκτορα και μετά ενσωματώστε ή απορρίψτε τη δουλειά.",
+        "discard_hunk": "Απόρριψη",
+        "hunk_discarded": "Το τμήμα απορρίφθηκε.",
+        "hunk_stale": "Αυτός ο κώδικας άλλαξε μετά τη φόρτωση. Το diff ανανεώθηκε· δοκιμάστε ξανά.",
+        "busy": "Μια εργασία γράφει σε αυτόν τον φάκελο τώρα. Δοκιμάστε όταν τελειώσει.",
+        "not_actionable": "Το worktree αυτής της εργασίας αφαιρέθηκε, οπότε τα τμήματα δεν απορρίπτονται πια ένα ένα.",
+        "notes_title": "Σημειώσεις για τον πράκτορα",
+        "notes_hint": "Επιλέξτε γραμμές στο diff και σχολιάστε. Η αποστολή ξεκινά συνέχεια στην ίδια συνομιλία, που κοστίζει μόνο τις σημειώσεις.",
+        "notes_empty": "Καμία σημείωση ακόμα.",
+        "note_file": "όλο το αρχείο",
+        "note_sent": "στάλθηκε στο {{job}}",
+        "note_delete": "Διαγραφή σημείωσης",
+        "notes_send": "Αποστολή {{count}} σημείωσης(εων) στον πράκτορα",
+        "notes_sent": "Οι σημειώσεις στάλθηκαν: ξεκίνησε η εργασία συνέχειας {{job}}.",
+        "walkthrough_title": "Περιήγηση",
+        "walkthrough": "Εξήγηση αλλαγών",
+        "walkthrough_refresh": "Εξήγηση ξανά",
+        "walkthrough_loading": "Γράφεται η περιήγηση…",
+        "walkthrough_too_large": "Αυτό το diff είναι πολύ μεγάλο για περιήγηση. Ελέγξτε το αρχείο προς αρχείο.",
+        "walkthrough_uncovered": "{{count}} τμήμα(τα) εκτός στάσεων",
+        "walkthrough_cached": "από την προσωρινή μνήμη",
+        "importance_critical": "κρίσιμο",
+        "integrate_title": "Ενσωμάτωση",
+        "integrate_into": "Συγχώνευση του {{branch}} στο {{target}}",
+        "commits": "{{count}} commit προς ενσωμάτωση",
+        "worktree_dirty": "{{count}} αρχείο(α) χωρίς commit στο worktree θα αποθηκευτούν πρώτα στο branch.",
+        "blocked": "Δεν γίνεται ενσωμάτωση τώρα: {{reason}}",
+        "strategy_merge": "Commit συγχώνευσης",
+        "strategy_squash": "Squash σε ένα commit",
+        "integrate": "Ενσωμάτωση",
+        "integrated": "Ενσωματώθηκε στο {{target}}.",
+        "up_to_date": "Το {{target}} έχει ήδη αυτή τη δουλειά.",
+        "conflict": "Σύγκρουση σε {{files}}. Τίποτα δεν άλλαξε στο checkout σας.",
+        "failed": "Το git αρνήθηκε τη συγχώνευση (ίσως hook). Τίποτα δεν άλλαξε στο checkout σας.",
+        "discard_work": "Απόρριψη δουλειάς",
+        "discard_confirm": "Απόρριψη της δουλειάς αυτής της εργασίας; Διαγράφονται το worktree και το branch {{branch}}.",
+        "discarded": "Η δουλειά απορρίφθηκε. Το branch {{branch}} ήταν στο {{tip}}."
       }
     },
     "loops": {
@@ -5409,7 +5454,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5525,10 +5569,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "Διαλέξτε τουλάχιστον {{count}} εργαλεία για σύγκριση."
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "Επιλογή αυτού",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5539,22 +5584,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "Συγχώνευση στο checkout μου (git merge με την ταυτότητα και τα hooks μου· αναιρείται σε σύγκρουση)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "Μετά αφαίρεση των υπολοίπων (worktrees· η δουλειά τους μένει στα refs της αρένας)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "συγχωνεύτηκε στο checkout σας",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "Αφαιρέθηκαν {{count}} worktrees",
+        "branches_kept": "Διατηρήθηκαν {{count}} κλάδοι",
+        "remove_others": "Αφαίρεση των υπολοίπων",
+        "choose": "Επιλογή αυτού",
+        "choose_hint": "Συγχώνευση της δουλειάς αυτής της στήλης στον βασικό κλάδο",
+        "estimate": {
+          "total": "Εκτιμώμενο κόστος πριν την έναρξη: {{total}} για {{count}} εργαλεία",
+          "unknown": "{{count}} χωρίς εκτίμηση",
+          "rough": "κατά προσέγγιση: τιμή καταλόγου × ένας τυπικός γύρος",
+          "source": {
+            "history": "Μέσος όρος {{runs}} προηγούμενων εκτελέσεων στην αρένα",
+            "price": "Τιμή καταλόγου × ένας τυπικός γύρος κώδικα (κατά προσέγγιση)",
+            "unknown": "Άγνωστη τιμή (συνδρομή ή μοντέλο εκτός τιμοκαταλόγου)"
+          }
+        },
+        "compare": {
+          "title": "Πού αποκλίνουν",
+          "toggle": "Σύγκριση",
+          "divergent": "{{count}} αρχεία διαφέρουν",
+          "agreed": "{{count}} ίδια",
+          "pending": "{{count}} ακόμη σε εξέλιξη",
+          "show_agreed": "Εμφάνιση ίδιων αρχείων",
+          "file": "Αρχείο",
+          "untouched": "ίδιο με τη βάση",
+          "none_divergent": "Όλες οι στήλες κατέληξαν στα ίδια αρχεία.",
+          "column": "{{count}} αποκλίνοντα",
+          "column_hint": "Αρχεία όπου αυτή η στήλη διαφέρει από τις άλλες"
+        }
       },
       "run": {
         "back": "Back",
@@ -7129,7 +7201,9 @@
     "system_read": "Ανάγνωση της κατάστασης, των σαρώσεων και των σχεδίων αυτού του υπολογιστή (washmybelly)",
     "system_change": "Προετοιμασία σχεδίων καθαρισμού, διατήρηση ισχύος, λειτουργίας παιχνιδιού και καταγραφών FPS (washmybelly)",
     "approvals_respond": "Απάντηση σε ερωτήσεις άδειας των αποστολών του",
-    "approvals_respond_help": "Με αυτό, ο πελάτης μπορεί να επιτρέπει τις κλήσεις εργαλείων των δικών του αποστολών, μαζί και εντολές shell, σαν να πατούσατε Να επιτρέπεται εδώ. Δώστε το μόνο σε πελάτη που εμπιστεύεστε όσο τον εαυτό σας. Δεν μπορεί ποτέ να δημιουργήσει κανόνα «να επιτρέπεται πάντα», και ένας πράκτορας δεν απαντά ποτέ στις δικές του ερωτήσεις."
+    "approvals_respond_help": "Με αυτό, ο πελάτης μπορεί να επιτρέπει τις κλήσεις εργαλείων των δικών του αποστολών, μαζί και εντολές shell, σαν να πατούσατε Να επιτρέπεται εδώ. Δώστε το μόνο σε πελάτη που εμπιστεύεστε όσο τον εαυτό σας. Δεν μπορεί ποτέ να δημιουργήσει κανόνα «να επιτρέπεται πάντα», και ένας πράκτορας δεν απαντά ποτέ στις δικές του ερωτήσεις.",
+    "agents_run": "Εκτέλεση των πρακτόρων σας ως εργασίες στο παρασκήνιο",
+    "agents_run_help": "Με αυτό, ο πελάτης μπορεί να βάλει οποιονδήποτε πράκτορα της λίστας σας να δουλέψει σε μια εργασία, στον φάκελο που ορίζει, στο παρασκήνιο, όπως το `omniget agent run`. Βλέπει και σταματά μόνο τις εργασίες που ξεκίνησε ο ίδιος. Οι ερωτήσεις άδειας των πρακτόρων συνεχίζουν να περιμένουν εσάς, εκτός αν επιτρέψετε και σε αυτόν τον πελάτη να τις απαντά."
   },
   "mcp_auth": {
     "title": "Ένας πελάτης AI σας ζητά να συνδεθείτε",

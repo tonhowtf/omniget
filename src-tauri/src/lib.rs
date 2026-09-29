@@ -23,6 +23,7 @@ pub mod extension_storage;
 pub mod external_url;
 pub mod hotkey;
 pub mod ipc_guard;
+pub mod job_commands;
 pub mod jobs;
 pub mod limits_strip;
 pub mod llm_attention;
@@ -1320,6 +1321,8 @@ pub fn run() {
             commands::central::arena::arena_cleanup,
             commands::central::arena::arena_delete,
             commands::central::arena::arena_scoreboard,
+            commands::central::arena::arena_estimate,
+            commands::central::arena::arena_compare,
             commands::central::run::run_runners,
             commands::central::run::run_loop_prepare,
             commands::central::run::run_loop_start,
@@ -1537,6 +1540,16 @@ pub fn run() {
             commands::llm::jobs::llm_job_explain,
             commands::llm::jobs::llm_job_diff,
             commands::llm::jobs::llm_job_remove_worktree,
+            commands::llm::jobs::llm_job_hunks,
+            commands::llm::jobs::llm_job_discard_hunk,
+            commands::llm::jobs::llm_job_notes_list,
+            commands::llm::jobs::llm_job_note_add,
+            commands::llm::jobs::llm_job_note_delete,
+            commands::llm::jobs::llm_job_notes_send,
+            commands::llm::jobs::llm_job_integrate_preview,
+            commands::llm::jobs::llm_job_integrate,
+            commands::llm::jobs::llm_job_discard_worktree,
+            commands::llm::jobs::llm_job_walkthrough,
             commands::llm::jobs::llm_ui_focus,
             commands::llm::jobs::sync_llm_notify_strings,
             commands::assist::groups::assist_group_list,

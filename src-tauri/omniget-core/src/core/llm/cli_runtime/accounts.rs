@@ -299,6 +299,12 @@ pub const SCRUB_ENV: &[&str] = &[
     "OMNIGET_BRIDGE_TOKEN",
     "OMNIGET_MCP_TOKEN",
     "OMNIGET_JOB_TOKEN",
+    // A job's identity (2.6): only a job's own child has it, set explicitly;
+    // a chat turn never inherits one and takes itself for a job.
+    "OMNIGET_ENV",
+    "OMNIGET_JOB_ID",
+    "OMNIGET_AGENT_ID",
+    "OMNIGET_BRIDGE_URL",
 ];
 
 /// Creates the directory for a new account. The directory is left **empty** on

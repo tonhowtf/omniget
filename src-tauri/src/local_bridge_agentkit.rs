@@ -1,5 +1,5 @@
 //! Bridge routes of the Catalog/agentkit, for `omniget agentkit …` (omniget-cli).
-//! Same bearer as the rest of the bridge. One route, `POST /v1/agentkit/{action}`
+//! A scoped token with `jobs:operate` (2.1/2.5). One route, `POST /v1/agentkit/{action}`
 //! with a JSON body (the bridge's axum has no query extractor); every action
 //! runs on a blocking thread because catalog downloads use `block_on`.
 //!
@@ -9,10 +9,9 @@
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use axum::extract::Path;
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use axum::{Json, Router};
@@ -24,25 +23,23 @@ use omniget_core::core::catalog::{self, collections, index, search};
 use crate::commands::central::agentkit::{
     compat_report, env, parse_policy, project, resolve_any, to_value,
 };
-use crate::local_bridge_llm::check_bearer;
 
 fn fail(status: StatusCode, message: impl Into<String>) -> Response {
     (status, Json(json!({ "error": message.into() }))).into_response()
 }
 
-pub fn router<S>(token: Arc<String>) -> Router<S>
+/// Behind the scoped-token guard of the agent routes (`jobs:operate`; the
+/// extension key only through the grace period of 2.1): installing from the
+/// Catalog writes into every coding tool's config.
+pub fn router<S>(guard: crate::bridge_tokens::Guard) -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
 {
-    Router::new().route(
-        "/v1/agentkit/{action}",
-        post(
-            move |Path(action): Path<String>, headers: HeaderMap, body: axum::body::Bytes| {
-                let token = token.clone();
-                async move {
-                    if !check_bearer(&headers, &token) {
-                        return fail(StatusCode::UNAUTHORIZED, "bad or missing bearer token");
-                    }
+    Router::new()
+        .route(
+            "/v1/agentkit/{action}",
+            post(
+                move |Path(action): Path<String>, body: axum::body::Bytes| async move {
                     let body: Value = if body.is_empty() {
                         Value::Null
                     } else {
@@ -62,10 +59,13 @@ where
                         Ok(Err(e)) => fail(StatusCode::BAD_REQUEST, e),
                         Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
                     }
-                }
-            },
-        ),
-    )
+                },
+            ),
+        )
+        .route_layer(axum::middleware::from_fn_with_state(
+            guard,
+            crate::bridge_tokens::guard,
+        ))
 }
 
 fn s(b: &Value, k: &str) -> Option<String> {

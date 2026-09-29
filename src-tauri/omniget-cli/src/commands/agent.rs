@@ -1,4 +1,4 @@
-//! `omniget agent run|loop|jobs|explain|status|diff|approvals|approve|agents`: talks to the running desktop app
+//! `omniget agent run|loop|jobs|explain|status|diff|approvals|approve|integrate|discard|agents`: talks to the running desktop app
 //! through the local bridge (`127.0.0.1:<port>` from `settings.json`) with a
 //! scoped token (2.1): `OMNIGET_TOKEN` if set, else the CLI token the app
 //! keeps in `<app_data>/llm/cli-token`. The browser extension's key in
@@ -14,6 +14,18 @@ pub(crate) struct Bridge {
     base: String,
     token: String,
     http: reqwest::Client,
+    /// `OMNIGET_JOB_ID` when this runs inside a job's turn (2.6): sent as
+    /// `X-Omniget-Job`, so the app refuses a job started from a job.
+    job: Option<String>,
+}
+
+/// The job this process runs inside, if any (the app sets it on a job's
+/// child, 2.6).
+pub(crate) fn job_context() -> Option<String> {
+    std::env::var("OMNIGET_JOB_ID")
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 impl Bridge {
@@ -24,27 +36,84 @@ impl Bridge {
             .context("settings.json not found: open the OmniGet app once")?;
         let json: Value = serde_json::from_str(&raw)?;
         let bridge = &json["app_settings"]["bridge"];
-        let port = bridge["port"]
-            .as_u64()
-            .filter(|p| *p > 0)
-            .ok_or_else(|| anyhow!("the app has no bridge port yet: open OmniGet once"))?;
-        let token = resolve_token(
-            std::env::var("OMNIGET_TOKEN").ok(),
-            std::fs::read_to_string(dir.join("llm").join("cli-token")).ok(),
-            bridge["token"].as_str(),
-        );
+        let job = job_context();
+        // Inside a job the app hands the address (2.6) and the job's own
+        // token, which reaches that job only: never the CLI token file.
+        let base = match std::env::var("OMNIGET_BRIDGE_URL")
+            .ok()
+            .filter(|u| u.starts_with("http://127.0.0.1:"))
+        {
+            Some(url) => url.trim_end_matches('/').to_string(),
+            None => {
+                let port = bridge["port"]
+                    .as_u64()
+                    .filter(|p| *p > 0)
+                    .ok_or_else(|| anyhow!("the app has no bridge port yet: open OmniGet once"))?;
+                format!("http://127.0.0.1:{port}")
+            }
+        };
+        let token = match (&job, std::env::var("OMNIGET_JOB_TOKEN").ok()) {
+            (Some(_), Some(t)) if !t.trim().is_empty() => t.trim().to_string(),
+            _ => resolve_token(
+                std::env::var("OMNIGET_TOKEN").ok(),
+                std::fs::read_to_string(dir.join("llm").join("cli-token")).ok(),
+                bridge["token"].as_str(),
+            ),
+        };
         Ok(Self {
-            base: format!("http://127.0.0.1:{port}"),
+            base,
             token,
+            // Above the longest wait the bridge accepts (120 s).
             http: reqwest::Client::builder()
-                .timeout(Duration::from_secs(30))
+                .timeout(Duration::from_secs(150))
                 .build()?,
+            job,
         })
     }
 
+    fn authed(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        let req = req.bearer_auth(&self.token);
+        match &self.job {
+            Some(j) => req.header("x-omniget-job", j),
+            None => req,
+        }
+    }
+
+    /// `GET /v1/jobs/{id}/wait`: `Ok(Some(job))` once it matches, `Ok(None)`
+    /// on the bridge's timeout (408), an error for anything else.
+    async fn wait(
+        &self,
+        id: &str,
+        until: &str,
+        after_seq: i64,
+        timeout_ms: u64,
+    ) -> anyhow::Result<Option<Value>> {
+        let res = self
+            .authed(self.http.get(format!(
+                "{}/v1/jobs/{id}/wait?until={until}&after_seq={after_seq}&timeout_ms={timeout_ms}",
+                self.base
+            )))
+            .send()
+            .await
+            .context("the OmniGet app is not running (the bridge did not answer)")?;
+        let status = res.status();
+        let body: Value = res.json().await.unwrap_or(Value::Null);
+        if status.as_u16() == 408 {
+            return Ok(None);
+        }
+        if !status.is_success() {
+            bail!(
+                "{}: {}",
+                status,
+                body["error"].as_str().unwrap_or("request failed")
+            );
+        }
+        Ok(Some(body))
+    }
+
     async fn send(&self, req: reqwest::RequestBuilder) -> anyhow::Result<Value> {
-        let res = req
-            .bearer_auth(&self.token)
+        let res = self
+            .authed(req)
             .send()
             .await
             .context("the OmniGet app is not running (the bridge did not answer)")?;
@@ -69,9 +138,7 @@ impl Bridge {
     /// `error` the bridge sends.
     async fn get_text(&self, path: &str) -> anyhow::Result<String> {
         let res = self
-            .http
-            .get(format!("{}{path}", self.base))
-            .bearer_auth(&self.token)
+            .authed(self.http.get(format!("{}{path}", self.base)))
             .send()
             .await
             .context("the OmniGet app is not running (the bridge did not answer)")?;
@@ -96,7 +163,11 @@ impl Bridge {
 /// Which bearer the CLI sends: `OMNIGET_TOKEN`, then the app's CLI token
 /// file, then (deprecated) the extension key, which the agent routes stop
 /// accepting in the next version.
-fn resolve_token(env: Option<String>, file: Option<String>, extension: Option<&str>) -> String {
+pub(crate) fn resolve_token(
+    env: Option<String>,
+    file: Option<String>,
+    extension: Option<&str>,
+) -> String {
     if let Some(t) = env.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()) {
         return t;
     }
@@ -179,12 +250,34 @@ fn print_job_line(j: &Value) {
     );
 }
 
-async fn follow(bridge: &Bridge, id: &str, json_out: bool) -> anyhow::Result<()> {
+/// Every state a job ends in (the bridge's `until=terminal`).
+const TERMINAL: &[&str] = &[
+    "done",
+    "review",
+    "done_unreported",
+    "failed",
+    "cancelled",
+    "interrupted",
+];
+
+/// Follows a job to its end on the bridge's long poll (2.5): each call
+/// sleeps until the job's state moves past the one shown, so the CLI never
+/// polls on a timer. With `start_seq` (the start receipt's `state_seq`, its
+/// `queued`), an end only counts when it is newer than that start (84#P8:
+/// `--wait` concludes after observing queued/running → an end, never on a
+/// state it saw before). A quiet job gets its log refreshed every 5 s.
+async fn follow(
+    bridge: &Bridge,
+    id: &str,
+    json_out: bool,
+    start_seq: Option<i64>,
+) -> anyhow::Result<()> {
+    let mut job = bridge.get(&format!("/v1/jobs/{id}")).await?;
     let mut last_state = String::new();
     let mut seen_log = 0usize;
     loop {
-        let job = bridge.get(&format!("/v1/jobs/{id}")).await?;
         let state = job["state"].as_str().unwrap_or("").to_string();
+        let seq = job["state_seq"].as_i64().unwrap_or(0);
         let log = job["log"].as_str().unwrap_or("");
         if !json_out {
             if log.len() > seen_log && log.is_char_boundary(seen_log) {
@@ -214,44 +307,63 @@ async fn follow(bridge: &Bridge, id: &str, json_out: bool) -> anyhow::Result<()>
                 last_state = state.clone();
             }
         }
-        if matches!(state.as_str(), "done" | "review" | "failed" | "cancelled") {
-            if json_out {
-                println!("{}", serde_json::to_string_pretty(&job)?);
-            } else {
-                if let Some(text) = job["result"].as_str().filter(|t| !t.is_empty()) {
-                    println!("{text}");
-                }
-                if let Some(err) = job["error"].as_str() {
-                    eprintln!("error: {err}");
-                }
-                let u = &job["usage"];
-                if u.is_object() {
-                    let cost = u["cost_usd"]
-                        .as_f64()
-                        .map(|c| format!(", ${c:.4}"))
-                        .unwrap_or_default();
-                    eprintln!(
-                        "[{}: {} tokens in, {} out{cost}]",
-                        u["model"].as_str().unwrap_or("?"),
-                        u["input_tokens"].as_u64().unwrap_or(0),
-                        u["output_tokens"].as_u64().unwrap_or(0),
-                    );
-                }
-            }
-            // `review`: it ended well and changed files a person should look at.
-            if state == "review" && !json_out {
-                if let Some(stamp) = job["proof"]["stamp"].as_str() {
-                    eprintln!("proof: {stamp}");
-                }
-                eprintln!("  it changed files: `omniget agent diff {id}` shows them");
-            }
-            if !matches!(state.as_str(), "done" | "review") {
-                std::process::exit(1);
-            }
-            return Ok(());
+        if is_end(&state, seq, start_seq) {
+            return finish(id, &job, &state, json_out);
         }
-        tokio::time::sleep(Duration::from_millis(800)).await;
+        job = match bridge.wait(id, "", seq, 5_000).await? {
+            Some(next) => next,
+            None => bridge.get(&format!("/v1/jobs/{id}")).await?,
+        };
     }
+}
+
+/// An end state that is newer than the start the caller saw.
+fn is_end(state: &str, seq: i64, start_seq: Option<i64>) -> bool {
+    TERMINAL.contains(&state) && start_seq.is_none_or(|s| seq > s)
+}
+
+fn finish(id: &str, job: &Value, state: &str, json_out: bool) -> anyhow::Result<()> {
+    if json_out {
+        println!("{}", serde_json::to_string_pretty(job)?);
+    } else {
+        if let Some(text) = job["result"].as_str().filter(|t| !t.is_empty()) {
+            println!("{text}");
+        }
+        if let Some(err) = job["error"].as_str() {
+            eprintln!("error: {err}");
+        }
+        let u = &job["usage"];
+        if u.is_object() {
+            let cost = u["cost_usd"]
+                .as_f64()
+                .map(|c| format!(", ${c:.4}"))
+                .unwrap_or_default();
+            eprintln!(
+                "[{}: {} tokens in, {} out{cost}]",
+                u["model"].as_str().unwrap_or("?"),
+                u["input_tokens"].as_u64().unwrap_or(0),
+                u["output_tokens"].as_u64().unwrap_or(0),
+            );
+        }
+        // `review`: it ended well and changed files a person should look at.
+        if state == "review" {
+            if let Some(stamp) = job["proof"]["stamp"].as_str() {
+                eprintln!("proof: {stamp}");
+            }
+            eprintln!("  it changed files: `omniget agent diff {id}` shows them");
+        }
+        if state == "done_unreported" {
+            eprintln!(
+                "  the agent ended without its OUTCOME line: read the result before relying on it"
+            );
+        }
+    }
+    // The agent's own verdict counts too (2.6): `OUTCOME: failed` exits 1.
+    let said_failed = job["outcome"]["status"].as_str() == Some("failed");
+    if !matches!(state, "done" | "review" | "done_unreported") || said_failed {
+        std::process::exit(1);
+    }
+    Ok(())
 }
 
 /// `omniget agent explain` in plain lines: what the watchdog and the deadline
@@ -452,6 +564,65 @@ fn approvals_text(v: &Value) -> String {
     out
 }
 
+/// What `omniget agent integrate` prints for a merged job (a conflict
+/// comes back as an error: 409 with the files).
+fn integrate_text(o: &Value) -> String {
+    let target = o["target_branch"].as_str().unwrap_or("?");
+    match o["status"].as_str().unwrap_or("") {
+        "up_to_date" => format!("nothing to integrate: {target} already has it\n"),
+        "merged" => format!(
+            "integrated into {target} as {} ({})\n",
+            o["commit"]
+                .as_str()
+                .unwrap_or("")
+                .chars()
+                .take(7)
+                .collect::<String>(),
+            if o["strategy"] == "squash" {
+                "squash"
+            } else {
+                "merge --no-ff"
+            }
+        ),
+        other => format!(
+            "integration {other}: {}\nyour checkout was {}\n",
+            o["conflicts"]
+                .as_array()
+                .map(|c| c
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", "))
+                .filter(|c| !c.is_empty())
+                .unwrap_or_else(|| o["output"].as_str().unwrap_or("").to_string()),
+            if o["clean"].as_bool() == Some(true) {
+                "left as it was"
+            } else {
+                "NOT left clean: check git status"
+            }
+        ),
+    }
+}
+
+fn discard_text(v: &Value) -> String {
+    let branch = v["branch"].as_str().unwrap_or("");
+    let mut out = String::new();
+    if let Some(saved) = v["removed"]["saved"].as_str() {
+        out.push_str(&format!(
+            "uncommitted work saved on {branch} as {} before removing the worktree\n",
+            saved.chars().take(7).collect::<String>()
+        ));
+    }
+    match v["tip"].as_str() {
+        Some(tip) => out.push_str(&format!(
+            "discarded: worktree removed, branch {branch} deleted (it was {}; `git branch {branch} {tip}` brings it back until git collects it)\n",
+            tip.chars().take(7).collect::<String>()
+        )),
+        None => out.push_str("discarded: worktree removed\n"),
+    }
+    out
+}
+
 #[derive(clap::Subcommand)]
 pub enum AgentCommand {
     /// Run one task with an agent of the roster (in the current folder), or,
@@ -495,6 +666,20 @@ pub enum AgentCommand {
         no_workspace: bool,
         #[arg(long, help = "Return the job id at once instead of following it")]
         detach: bool,
+        #[arg(
+            long,
+            conflicts_with = "detach",
+            help = "Wait for the end (the default): only an end newer than the start counts; exit 1 if it failed"
+        )]
+        wait: bool,
+        #[arg(
+            long,
+            value_name = "ID",
+            help = "Idempotency key: the same id again returns the same job instead of starting another"
+        )]
+        command_id: Option<String>,
+        #[arg(long, help = "A short name for the job in lists")]
+        title: Option<String>,
         #[arg(
             long,
             value_name = "MIN",
@@ -622,13 +807,45 @@ pub enum AgentCommand {
         #[arg(long, help = "Refuse and stop the turn that asked", group = "decision")]
         cancel: bool,
     },
+    /// Merge a worktree job's branch into your checkout (`merge --no-ff`,
+    /// or `--squash`); a conflict is undone and your checkout left as it was
+    Integrate {
+        id: String,
+        #[arg(long, help = "One squashed commit instead of a merge commit")]
+        squash: bool,
+    },
+    /// Throw a worktree job's work away: its worktree and its branch
+    Discard { id: String },
     /// List the running and finished Loops
     Loops,
     /// List the agents of the roster
     Agents,
 }
 
+/// A command id no other run of this CLI will send: time, pid and a counter.
+fn fresh_command_id() -> String {
+    static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!(
+        "cli-{nanos:x}-{:x}-{}",
+        std::process::id(),
+        N.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    )
+}
+
+/// Why a command that starts work refuses to run inside a job (2.6: the
+/// delegation depth is 1; the app refuses too).
+const INSIDE_A_JOB: &str = "OMNIGET_JOB_ID is set: this runs inside an OmniGet job, and a job never starts another job (delegation depth 1). Do the task yourself, in this turn.";
+
 pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
+    if matches!(cmd, AgentCommand::Run { .. } | AgentCommand::Loop { .. })
+        && job_context().is_some()
+    {
+        bail!(INSIDE_A_JOB);
+    }
     let bridge = Bridge::open()?;
     match cmd {
         AgentCommand::Run {
@@ -694,7 +911,7 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
                 println!("{id}");
                 return Ok(());
             }
-            follow(&bridge, &id, json_out).await
+            follow(&bridge, &id, json_out, job["state_seq"].as_i64()).await
         }
         AgentCommand::Run {
             args,
@@ -707,35 +924,41 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             shared,
             base,
             mode,
+            command_id,
+            title,
             ..
         } => {
             let prompt = match args.as_slice() {
                 [p] => p.clone(),
                 _ => bail!("two arguments (`<agent> <prompt>`) need --tool; without it, give only the prompt and pick the roster agent with --agent"),
             };
-            let job = bridge
-                .post(
-                    "/v1/agent/run",
-                    with_run_mode(
-                        run_body(
-                            &agent,
-                            &prompt,
-                            workspace(ws, no_workspace),
-                            deadline_min,
-                            isolate,
-                            shared,
-                            base,
-                        ),
-                        mode,
-                    ),
-                )
-                .await?;
-            let id = job["id"].as_str().unwrap_or("").to_string();
+            // `job.start` on the command surface (2.5): the receipt names
+            // the job and the state it started in.
+            let mut body = with_run_mode(
+                run_body(
+                    &agent,
+                    &prompt,
+                    workspace(ws, no_workspace),
+                    deadline_min,
+                    isolate,
+                    shared,
+                    base,
+                ),
+                mode,
+            );
+            body["type"] = json!("job.start");
+            body["command_id"] = json!(command_id.unwrap_or_else(fresh_command_id));
+            body["channel"] = json!("cli");
+            if let Some(t) = title {
+                body["title"] = json!(t);
+            }
+            let receipt = bridge.post("/v1/commands", body).await?;
+            let id = receipt["job_id"].as_str().unwrap_or("").to_string();
             if detach {
                 println!("{id}");
                 return Ok(());
             }
-            follow(&bridge, &id, json_out).await
+            follow(&bridge, &id, json_out, receipt["job"]["state_seq"].as_i64()).await
         }
         AgentCommand::Loop {
             catalog: Some(id),
@@ -818,7 +1041,7 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             print_job_line(&job);
             Ok(())
         }
-        AgentCommand::Jobs { id: Some(id), .. } => follow(&bridge, &id, json_out).await,
+        AgentCommand::Jobs { id: Some(id), .. } => follow(&bridge, &id, json_out, None).await,
         AgentCommand::Jobs { id: None, .. } => {
             let jobs = bridge.get("/v1/jobs").await?;
             if json_out {
@@ -903,6 +1126,31 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
                 }
                 Err(why) => bail!(why),
             }
+        }
+        AgentCommand::Integrate { id, squash } => {
+            let v = bridge
+                .post(
+                    &format!("/v1/jobs/{id}/integrate"),
+                    json!({ "strategy": if squash { "squash" } else { "merge" } }),
+                )
+                .await?;
+            if json_out {
+                println!("{}", serde_json::to_string_pretty(&v)?);
+            } else {
+                print!("{}", integrate_text(&v["outcome"]));
+            }
+            Ok(())
+        }
+        AgentCommand::Discard { id } => {
+            let v = bridge
+                .post(&format!("/v1/jobs/{id}/discard"), json!({}))
+                .await?;
+            if json_out {
+                println!("{}", serde_json::to_string_pretty(&v)?);
+            } else {
+                print!("{}", discard_text(&v));
+            }
+            Ok(())
         }
         AgentCommand::Status => {
             let v = bridge.get("/v1/state").await?;
@@ -1024,6 +1272,16 @@ mod tests {
     }
 
     #[test]
+    fn an_end_counts_only_after_the_start() {
+        assert!(!is_end("queued", 1, Some(1)));
+        assert!(!is_end("done", 1, Some(1)), "a state it saw at the start");
+        assert!(is_end("done", 3, Some(1)));
+        assert!(is_end("done_unreported", 3, Some(1)));
+        assert!(is_end("review", 2, None));
+        assert!(!is_end("waiting_approval", 5, Some(1)));
+    }
+
+    #[test]
     fn run_body_carries_the_placement() {
         let plain = run_body("a", "p", Some("/w".into()), None, false, false, None);
         assert!(plain.get("isolation").is_none() && plain.get("base").is_none());
@@ -1034,6 +1292,29 @@ mod tests {
         let shared = run_body("a", "p", None, None, false, true, Some("  ".into()));
         assert_eq!(shared["isolation"], "shared");
         assert!(shared.get("base").is_none());
+    }
+
+    #[test]
+    fn integrate_and_discard_say_what_happened() {
+        let merged = json!({"status": "merged", "target_branch": "main", "commit": "abcdef123", "strategy": "merge"});
+        assert_eq!(
+            integrate_text(&merged),
+            "integrated into main as abcdef1 (merge --no-ff)\n"
+        );
+        let squash = json!({"status": "merged", "target_branch": "dev", "commit": "1234567890", "strategy": "squash"});
+        assert!(integrate_text(&squash).contains("(squash)"));
+        let same = json!({"status": "up_to_date", "target_branch": "main"});
+        assert!(integrate_text(&same).contains("already has it"));
+        let conflict = json!({"status": "conflict", "target_branch": "main", "conflicts": ["a.txt"], "clean": true});
+        let t = integrate_text(&conflict);
+        assert!(
+            t.contains("conflict: a.txt") && t.contains("left as it was"),
+            "{t}"
+        );
+        let d = json!({"branch": "omniget/job-j1", "tip": "abcdef1234", "removed": {"saved": "9999999aaa"}});
+        let t = discard_text(&d);
+        assert!(t.contains("saved on omniget/job-j1 as 9999999"), "{t}");
+        assert!(t.contains("git branch omniget/job-j1 abcdef1234"), "{t}");
     }
 
     #[test]

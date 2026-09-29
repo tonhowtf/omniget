@@ -3323,6 +3323,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "智能体的结论",
+        "succeeded": "成功",
+        "failed": "失败",
+        "missing": "智能体结束时没有写 OUTCOME 行：依赖结果之前请先阅读。"
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3338,7 +3344,8 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "waiting_workspace": "等待文件夹",
-        "review": "待审阅"
+        "review": "待审阅",
+        "done_unreported": "已完成，未报告"
       },
       "kind": {
         "run": "Run",
@@ -3469,7 +3476,45 @@
         "by_host": "由本机上的 OmniGet 根据其记录盖章，而非智能体所写。"
       },
       "review": {
-        "mark": "标记为已审阅"
+        "mark": "标记为已审阅",
+        "title": "审查",
+        "lede": "丢弃某个代码块，给代理留备注，然后合入或丢弃这项工作。",
+        "discard_hunk": "丢弃",
+        "hunk_discarded": "已丢弃该代码块。",
+        "hunk_stale": "加载后这段代码已变化。差异已刷新，请重试。",
+        "busy": "有任务正在写入此文件夹。请在它结束后重试。",
+        "not_actionable": "此任务的 worktree 已删除，无法再逐块丢弃。",
+        "notes_title": "给代理的备注",
+        "notes_hint": "在差异中选中行并评论。发送会在同一对话中开始后续任务，只花费备注的成本。",
+        "notes_empty": "还没有备注。",
+        "note_file": "整个文件",
+        "note_sent": "已发送给 {{job}}",
+        "note_delete": "删除备注",
+        "notes_send": "发送 {{count}} 条备注给代理",
+        "notes_sent": "备注已发送：后续任务 {{job}} 已开始。",
+        "walkthrough_title": "导览",
+        "walkthrough": "解释更改",
+        "walkthrough_refresh": "重新解释",
+        "walkthrough_loading": "正在撰写导览…",
+        "walkthrough_too_large": "此差异太大，无法生成导览。请逐个文件审查。",
+        "walkthrough_uncovered": "{{count}} 个代码块不在任何站点中",
+        "walkthrough_cached": "来自缓存",
+        "importance_critical": "关键",
+        "integrate_title": "合入",
+        "integrate_into": "将 {{branch}} 合并到 {{target}}",
+        "commits": "要带入的提交：{{count}}",
+        "worktree_dirty": "worktree 中 {{count}} 个未提交的文件会先保存到分支。",
+        "blocked": "暂时无法合入：{{reason}}",
+        "strategy_merge": "合并提交",
+        "strategy_squash": "压缩为一个提交",
+        "integrate": "合入",
+        "integrated": "已合入 {{target}}。",
+        "up_to_date": "{{target}} 已包含这项工作。",
+        "conflict": "{{files}} 中有冲突。你的检出没有任何变化。",
+        "failed": "git 拒绝了合并（可能是钩子）。你的检出没有任何变化。",
+        "discard_work": "丢弃工作",
+        "discard_confirm": "丢弃此任务的工作？其 worktree 和分支 {{branch}} 将被删除。",
+        "discarded": "工作已丢弃。分支 {{branch}} 原指向 {{tip}}。"
       }
     },
     "loops": {
@@ -5409,7 +5454,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5525,10 +5569,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "至少选 {{count}} 个工具来比较。"
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "选这个",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5539,22 +5584,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "合并到我的检出(用我的身份和钩子执行 git merge;冲突时撤销)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "然后移除其他(worktree;它们的成果保留在竞技场的 ref 中)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "已合并到你的检出",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "已移除 {{count}} 个 worktree",
+        "branches_kept": "保留了 {{count}} 个分支",
+        "remove_others": "移除其他",
+        "choose": "选这个",
+        "choose_hint": "把这一列的成果合并到基础分支",
+        "estimate": {
+          "total": "开始前的预估费用:{{count}} 个工具共 {{total}}",
+          "unknown": "{{count}} 个无法预估",
+          "rough": "粗略:标价 × 一次典型回合",
+          "source": {
+            "history": "竞技场中过去 {{runs}} 次运行的平均值",
+            "price": "标价 × 一次典型编码回合(粗略)",
+            "unknown": "价格未知(订阅,或模型不在价格表中)"
+          }
+        },
+        "compare": {
+          "title": "分歧之处",
+          "toggle": "比较",
+          "divergent": "{{count}} 个文件不同",
+          "agreed": "{{count}} 个相同",
+          "pending": "{{count}} 个仍在运行",
+          "show_agreed": "显示相同的文件",
+          "file": "文件",
+          "untouched": "与基础相同",
+          "none_divergent": "所有列最终的文件都相同。",
+          "column": "{{count}} 处分歧",
+          "column_hint": "这一列与其他列不同的文件"
+        }
       },
       "run": {
         "back": "Back",
@@ -7129,7 +7201,9 @@
     "system_read": "读取本机状态、扫描结果和方案（washmybelly）",
     "system_change": "准备清理方案，保持性能供电、游戏模式和 FPS 采集（washmybelly）",
     "approvals_respond": "回答自己任务的权限请求",
-    "approvals_respond_help": "授予后，客户端可以批准其自身任务的工具调用（包括 shell 命令），就像你在这里点了“允许”。只授予你像信任自己一样信任的客户端。它永远不能创建“始终允许”规则，代理也永远不能回答自己的问题。"
+    "approvals_respond_help": "授予后，客户端可以批准其自身任务的工具调用（包括 shell 命令），就像你在这里点了“允许”。只授予你像信任自己一样信任的客户端。它永远不能创建“始终允许”规则，代理也永远不能回答自己的问题。",
+    "agents_run": "将你的智能体作为后台任务运行",
+    "agents_run_help": "开启后，客户端可以让你列表中的任意智能体在它指定的文件夹里于后台执行任务，与 `omniget agent run` 相同。它只能查看和停止自己启动的任务。智能体的权限请求仍会等待你来回答，除非你也允许此客户端回答。"
   },
   "mcp_auth": {
     "title": "AI 客户端请求你登录",

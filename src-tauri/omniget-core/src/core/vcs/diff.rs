@@ -158,8 +158,122 @@ pub fn status_from_patch(chunk: &str, binary: bool, renamed: bool) -> &'static s
     }
 }
 
+/// One hunk of a unified patch, named by its content (roadmap 3.5, 84#P2):
+/// `id = <path>:<sha1(@@ line + body)[..8]>`, computed only here, so the
+/// UI, the bridge and the CLI all name a hunk the same way and a hunk whose
+/// bytes moved gets another id. Id and hunk layout adapted from
+/// openchamber's `walkthrough/hunks.js` (MIT).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Hunk {
+    pub id: String,
+    pub path: String,
+    /// Position among the hunks of its file (0-based): the DiffViewer's
+    /// hunk index for the same file patch.
+    pub index: usize,
+    /// The `@@ -a,b +c,d @@` line, section heading included.
+    pub header: String,
+    pub old_start: u32,
+    pub old_lines: u32,
+    pub new_start: u32,
+    pub new_lines: u32,
+    pub additions: u32,
+    pub deletions: u32,
+    /// A patch of this hunk alone: the file's header lines and the hunk,
+    /// byte for byte as in the diff. What a discard sends back, and what
+    /// `git apply -R` takes.
+    pub patch: String,
+    /// The body holds exactly the lines the header counts. A patch cut at
+    /// its byte limit can end in the middle of a hunk: such a hunk is shown,
+    /// never acted on.
+    pub complete: bool,
+}
+
+/// `@@ -a[,b] +c[,d] @@…` → (a, b, c, d); a missing count is 1.
+fn hunk_range(line: &str) -> Option<(u32, u32, u32, u32)> {
+    let rest = line.strip_prefix("@@ -")?;
+    let end = rest.find(" @@")?;
+    let (old, new) = rest[..end].split_once(" +")?;
+    let pair = |s: &str| -> Option<(u32, u32)> {
+        match s.split_once(',') {
+            Some((a, b)) => Some((a.parse().ok()?, b.parse().ok()?)),
+            None => Some((s.parse().ok()?, 1)),
+        }
+    };
+    let (a, b) = pair(old)?;
+    let (c, d) = pair(new)?;
+    Some((a, b, c, d))
+}
+
+/// Every hunk of a multi-file unified patch, in patch order. Binary files
+/// and mode-only changes have none.
+pub fn parse_hunks(patch: &str) -> Vec<Hunk> {
+    use sha1::{Digest, Sha1};
+    let mut out: Vec<Hunk> = Vec::new();
+    for chunk in split_patch(patch) {
+        let Some(path) = chunk_path(chunk) else {
+            continue;
+        };
+        // Byte offsets of each `@@ -` line of this file.
+        let mut starts = Vec::new();
+        let mut pos = 0;
+        for line in chunk.split_inclusive('\n') {
+            if line.starts_with("@@ -") {
+                starts.push(pos);
+            }
+            pos += line.len();
+        }
+        let Some(&first) = starts.first() else {
+            continue;
+        };
+        let file_header = &chunk[..first];
+        for (k, s) in starts.iter().enumerate() {
+            let e = starts.get(k + 1).copied().unwrap_or(chunk.len());
+            let text = &chunk[*s..e];
+            let header_line = text.lines().next().unwrap_or("");
+            let Some((old_start, old_lines, new_start, new_lines)) = hunk_range(header_line) else {
+                continue;
+            };
+            let (mut ctx, mut add, mut del) = (0u32, 0u32, 0u32);
+            for l in text.split_inclusive('\n').skip(1) {
+                match l.as_bytes().first() {
+                    Some(b'+') => add += 1,
+                    Some(b'-') => del += 1,
+                    Some(b' ') => ctx += 1,
+                    // `\ No newline at end of file` counts nothing.
+                    _ => {}
+                }
+            }
+            let complete = ctx + del == old_lines && ctx + add == new_lines && text.ends_with('\n');
+            let digest = Sha1::digest(text.as_bytes());
+            let mut id = format!("{path}:{}", &hex::encode(digest)[..8]);
+            // Two identical hunks of one file would need the same lines at the
+            // same place: cannot happen, but an id must stay unique.
+            let mut n = 2;
+            while out.iter().any(|h| h.id == id) {
+                id = format!("{path}:{}~{n}", &hex::encode(digest)[..8]);
+                n += 1;
+            }
+            out.push(Hunk {
+                id,
+                path: path.clone(),
+                index: k,
+                header: header_line.to_string(),
+                old_start,
+                old_lines,
+                new_start,
+                new_lines,
+                additions: add,
+                deletions: del,
+                patch: format!("{file_header}{text}"),
+                complete,
+            });
+        }
+    }
+    out
+}
+
 /// Path named by a patch chunk's `+++ b/` (or `--- a/` for a deletion).
-fn chunk_path(chunk: &str) -> Option<String> {
+pub(crate) fn chunk_path(chunk: &str) -> Option<String> {
     let mut minus = None;
     for l in chunk.lines().take(12) {
         if let Some(p) = l.strip_prefix("+++ b/") {
@@ -431,6 +545,53 @@ mod tests {
         apply_name_status(&mut r, &names);
         let got: Vec<&str> = r.files.iter().map(|f| f.status.as_str()).collect();
         assert_eq!(got, vec!["added", "deleted", "modified"]);
+    }
+
+    const TWO_FILES: &str = "diff --git a/a.txt b/a.txt\nindex 1..2 100644\n--- a/a.txt\n+++ b/a.txt\n@@ -1,3 +1,3 @@ fn x\n a\n-b\n+B\n c\n@@ -10,2 +10,3 @@\n j\n k\n+l\n\
+diff --git a/new.txt b/new.txt\nnew file mode 100644\nindex 0..3\n--- /dev/null\n+++ b/new.txt\n@@ -0,0 +1 @@\n+hi\n\\ No newline at end of file\n\
+diff --git a/img.png b/img.png\nindex 1..2 100644\nBinary files a/img.png and b/img.png differ\n";
+
+    #[test]
+    fn hunks_carry_a_content_id_and_a_standalone_patch() {
+        let hunks = parse_hunks(TWO_FILES);
+        assert_eq!(hunks.len(), 3, "{hunks:#?}");
+        let (h0, h1, h2) = (&hunks[0], &hunks[1], &hunks[2]);
+        assert_eq!((h0.path.as_str(), h0.index), ("a.txt", 0));
+        assert_eq!((h1.path.as_str(), h1.index), ("a.txt", 1));
+        assert_eq!((h2.path.as_str(), h2.index), ("new.txt", 0));
+        assert!(h0.id.starts_with("a.txt:") && h0.id.len() == "a.txt:".len() + 8);
+        assert_ne!(h0.id, h1.id);
+        assert_eq!((h0.additions, h0.deletions), (1, 1));
+        assert_eq!(
+            (h1.old_start, h1.old_lines, h1.new_start, h1.new_lines),
+            (10, 2, 10, 3)
+        );
+        // Each hunk's patch is the file header plus that hunk only.
+        assert!(h1.patch.starts_with(
+            "diff --git a/a.txt b/a.txt\nindex 1..2 100644\n--- a/a.txt\n+++ b/a.txt\n@@ -10,2"
+        ));
+        assert!(!h1.patch.contains("-b\n"));
+        assert!(
+            h2.patch.contains("new file mode")
+                && h2.patch.ends_with("\\ No newline at end of file\n")
+        );
+        assert!(hunks.iter().all(|h| h.complete));
+        // The id names the bytes: the same hunk elsewhere in the patch keeps it,
+        // one changed byte does not.
+        let again = parse_hunks(&TWO_FILES.replace("diff --git a/img.png", "diff --git a/zz.png"));
+        assert_eq!(again[1].id, h1.id);
+        let moved = parse_hunks(&TWO_FILES.replace("+l\n", "+L\n"));
+        assert_ne!(moved[1].id, h1.id);
+        assert_eq!(moved[0].id, h0.id);
+    }
+
+    #[test]
+    fn a_hunk_cut_by_the_byte_limit_is_not_complete() {
+        let cut = &TWO_FILES[..TWO_FILES.find("+l\n").unwrap()];
+        let hunks = parse_hunks(cut);
+        assert_eq!(hunks.len(), 2);
+        assert!(hunks[0].complete);
+        assert!(!hunks[1].complete);
     }
 
     #[test]

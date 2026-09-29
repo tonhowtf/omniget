@@ -3323,6 +3323,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "Agent's verdict",
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "missing": "The agent ended without its OUTCOME line: read the result before relying on it."
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3338,7 +3344,8 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "waiting_workspace": "Waiting for folder",
-        "review": "Needs review"
+        "review": "Needs review",
+        "done_unreported": "Done, no report"
       },
       "kind": {
         "run": "Run",
@@ -3469,7 +3476,45 @@
         "by_host": "Stamped by OmniGet on this computer from what it recorded, not written by the agent."
       },
       "review": {
-        "mark": "Mark reviewed"
+        "mark": "Mark reviewed",
+        "title": "Review",
+        "lede": "Discard a hunk, leave notes for the agent, then integrate or discard the work.",
+        "discard_hunk": "Discard",
+        "hunk_discarded": "Hunk discarded.",
+        "hunk_stale": "That code changed since it was loaded. The diff was refreshed; try again.",
+        "busy": "A job is writing in this folder right now. Try again when it ends.",
+        "not_actionable": "This job's worktree was removed, so hunks can no longer be discarded one by one.",
+        "notes_title": "Notes for the agent",
+        "notes_hint": "Select lines in the diff and comment. Sending starts a follow-up in the same conversation, so it costs only the notes.",
+        "notes_empty": "No notes yet.",
+        "note_file": "whole file",
+        "note_sent": "sent to {{job}}",
+        "note_delete": "Delete note",
+        "notes_send": "Send {{count}} note(s) to the agent",
+        "notes_sent": "Notes sent: follow-up job {{job}} started.",
+        "walkthrough_title": "Walkthrough",
+        "walkthrough": "Explain changes",
+        "walkthrough_refresh": "Explain again",
+        "walkthrough_loading": "Writing the walkthrough…",
+        "walkthrough_too_large": "This diff is too large for a walkthrough. Review it file by file.",
+        "walkthrough_uncovered": "{{count}} hunk(s) are not in any stop",
+        "walkthrough_cached": "from cache",
+        "importance_critical": "critical",
+        "integrate_title": "Integrate",
+        "integrate_into": "Merge {{branch}} into {{target}}",
+        "commits": "{{count}} commit(s) to bring in",
+        "worktree_dirty": "{{count}} uncommitted file(s) in the worktree will be saved on the branch first.",
+        "blocked": "Cannot integrate now: {{reason}}",
+        "strategy_merge": "Merge commit",
+        "strategy_squash": "Squash into one commit",
+        "integrate": "Integrate",
+        "integrated": "Integrated into {{target}}.",
+        "up_to_date": "{{target}} already has this work.",
+        "conflict": "Conflict in {{files}}. Nothing was changed in your checkout.",
+        "failed": "Git refused the merge (a hook, maybe). Nothing was changed in your checkout.",
+        "discard_work": "Discard work",
+        "discard_confirm": "Discard this job's work? Its worktree and the branch {{branch}} are deleted.",
+        "discarded": "Work discarded. The branch {{branch}} was at {{tip}}."
       }
     },
     "loops": {
@@ -5409,7 +5454,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5525,10 +5569,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "Pick at least {{count}} tools to compare."
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "Choose this one",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5539,22 +5584,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "Merge into my checkout (git merge with my identity and hooks; undone on a conflict)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "Then remove the others (worktrees; their work stays in the arena's refs)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "merged in your checkout",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "{{count}} worktrees removed",
+        "branches_kept": "{{count}} branches kept",
+        "remove_others": "Remove the others",
+        "choose": "Choose this",
+        "choose_hint": "Merge this column's work into the base branch",
+        "estimate": {
+          "total": "Estimated cost before starting: {{total}} for {{count}} tools",
+          "unknown": "{{count}} without an estimate",
+          "rough": "rough: list price × a typical turn",
+          "source": {
+            "history": "Average of {{runs}} past runs in the arena",
+            "price": "List price × a typical coding turn (rough)",
+            "unknown": "No price known (subscription, or a model not in the price table)"
+          }
+        },
+        "compare": {
+          "title": "Where they split",
+          "toggle": "Compare",
+          "divergent": "{{count}} files differ",
+          "agreed": "{{count}} identical",
+          "pending": "{{count}} still running",
+          "show_agreed": "Show identical files",
+          "file": "File",
+          "untouched": "same as base",
+          "none_divergent": "Every column ended with the same files.",
+          "column": "{{count}} divergent",
+          "column_hint": "Files where this column differs from the others"
+        }
       },
       "run": {
         "back": "Back",
@@ -7129,7 +7201,9 @@
     "system_read": "Read this computer's status, scans and plans (washmybelly)",
     "system_change": "Prepare cleanup plans, hold power, game mode and FPS captures (washmybelly)",
     "approvals_respond": "Answer permission questions of owned missions",
-    "approvals_respond_help": "With this, the client can allow the tool calls of its own missions, shell commands included, as if you pressed Allow here. Give it only to a client you trust like yourself. It can never create an “always allow” rule, and an agent can never answer its own questions."
+    "approvals_respond_help": "With this, the client can allow the tool calls of its own missions, shell commands included, as if you pressed Allow here. Give it only to a client you trust like yourself. It can never create an “always allow” rule, and an agent can never answer its own questions.",
+    "agents_run": "Run your agents as background jobs",
+    "agents_run_help": "With this, the client can start any agent of your roster on a task, in a folder it names, as a background job, just like `omniget agent run`. It only sees and stops the jobs it started. The agents' permission questions still wait for you, unless you also let this client answer them."
   },
   "mcp_auth": {
     "title": "An AI client asks you to sign in",

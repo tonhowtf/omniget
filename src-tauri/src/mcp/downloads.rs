@@ -9,14 +9,14 @@ use tauri::{AppHandle, Manager};
 
 pub fn catalog(p: &Principal) -> Vec<Value> {
     tools(p).into_iter().map(|tool| {
-        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "approvals_respond"))
+        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "approvals_respond" | "agents_run"))
             || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install");
         let open_world = matches!(tool.name, "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list");
         let mut value = serde_json::to_value(&tool).expect("static tool schema serializes");
         // MCP semantics: destructive = may undo or discard existing work
         // (cancel/pause); creating or enqueueing is additive and, with its
         // idempotency key, idempotent.
-        let destructive = writes && matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause" | "wmb_execute");
+        let destructive = writes && matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause" | "wmb_execute" | "job_cancel");
         value["annotations"] = json!({"readOnlyHint":!writes,"destructiveHint":destructive,"idempotentHint":!matches!(tool.name,"omniget_app_capture"|"omniget_app_export"),"openWorldHint":open_world});
         value
     }).collect()

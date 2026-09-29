@@ -76,6 +76,11 @@ PROJECT_BATCHING = ('Work in as few turns as possible: batch independent tool ca
                     '(read every file you need at once), make all the edits, then run the tests once at the end. '
                     'Do not re-read files you just wrote or re-run checks that already passed. '
                     'Stop as soon as the result is verified.')
+# Espelha jobs.rs::OUTCOME_SUFFIX (item 2.6): o app acrescenta ao prompt de jobs `run` e `mission`
+# o pedido da linha OUTCOME; `--no-outcome` mede sem ele. O teste
+# job_commands::tests::the_outcome_line_is_read_and_its_absence_is_a_state confere que o texto é o mesmo.
+OUTCOME_SUFFIX = "\n\nEnd your reply with one line: `OUTCOME: succeeded` or `OUTCOME: failed`, then ` — ` and up to 3 sentences on what you did."
+OUTCOME_RE = re.compile(r'^[\s*`_>]*OUTCOME:[\s*`]*(succeeded|failed)', re.I | re.M)
 # Espelha cli_runtime/claude.rs::PROJECT_EFFORT (onda 2 r2: mediana 152,8 s -> 125,6 s, custo igual, 33/33).
 PROJECT_EFFORT = 'low'
 
@@ -587,6 +592,8 @@ def effort_for(args, t):
 def run_claude(args, prompt, cwd, timeout, model=None, effort=None):
     """Uma missão: devolve (result_event, tool_calls, pid, stderr_tail, timed_out)."""
     binary = shutil.which('claude') or os.path.expanduser('~/.local/bin/claude')
+    if getattr(args, 'outcome', True):
+        prompt = prompt + OUTCOME_SUFFIX  # jobs.rs: `format!("{input}{OUTCOME_SUFFIX}")`
     stdin = 'User: ' + prompt  # claude::render_prompt de uma única mensagem de usuário
     p = subprocess.Popen([binary] + claude_argv(args, model, effort), cwd=str(cwd), env=child_env(), stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
@@ -691,6 +698,9 @@ def run_task(args, t, rep):
            'tools': sorted(set(t_ for t_ in tools if t_)), 'pid': pid, 'timeout': timed_out,
            'subtype': (result or {}).get('subtype'), 'is_error': (result or {}).get('is_error'),
            'denials': len((result or {}).get('permission_denials') or []), 'workspace': str(root)}
+    if getattr(args, 'outcome', True):
+        m = OUTCOME_RE.findall((result or {}).get('result') or '')
+        row['outcome'] = m[-1].lower() if m else None
     row['effort'] = effort_of(claude_argv(args, model, effort))
     if rota:
         row['roteador'] = rota
@@ -730,6 +740,8 @@ def main():
                     help='modelo para tarefas simples (arquivo/pesquisa/tradução), ex.: haiku')
     ap.add_argument('--no-batching', dest='batching', action='store_false',
                     help='sem o --append-system-prompt PROJECT_BATCHING (mede o efeito da instrução de lote)')
+    ap.add_argument('--no-outcome', dest='outcome', action='store_false',
+                    help='sem o sufixo OUTCOME do 2.6 (mede o custo dele)')
     ap.add_argument('--jobs', type=int, default=1,
                     help='missões em paralelo (cada uma no próprio workspace); o tempo por tarefa '
                          'continua medido por missão, e o valor vai no JSON para comparar rodadas iguais')
@@ -791,12 +803,18 @@ def main():
         'mediana_tempo_s': round(statistics.median([r['tempo_s'] for r in rows]), 2) if n else None,
         'jobs': args.jobs,
     }
+    if args.outcome and n:
+        # 2.6: OUTCOME presente em >= 95% e concordando com a rubrica em >= 90%.
+        present = [r for r in rows if r.get('outcome')]
+        agree = [r for r in present if (r['outcome'] == 'succeeded') == bool(r['sucesso'])]
+        total['outcome_presente'] = round(len(present) / n, 3)
+        total['outcome_concorda'] = round(len(agree) / len(present), 3) if present else None
     ver = subprocess.run([shutil.which('claude') or 'claude', '--version'], capture_output=True, text=True).stdout.strip()
     report = {
         'harness': 'scripts/llm/missions_eval.py', 'mode': args.mode, 'claude_version': ver,
         'model': args.model or '(padrão da conta)', 'effort': effort_of(claude_argv(args)),
         'simple_model': args.simple_model or None, 'judge': args.judge, 'effort_router': args.effort_router or None,
-        'rotas': ROUTES or None, 'batching': args.batching, 'argv_mode': args.argv, 'argv': ['claude'] + claude_argv(args),
+        'rotas': ROUTES or None, 'batching': args.batching, 'outcome_suffix': args.outcome, 'argv_mode': args.argv, 'argv': ['claude'] + claude_argv(args),
         'budget_por_missao_usd': args.budget, 'reps': args.reps, 'quando': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
         'diferencas_vs_app': [
             'sem coordinator: sem mensagens de sistema do app (skills, contexto) nem --append-system-prompt do agente',

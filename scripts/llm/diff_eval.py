@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""BN4 — job diff benchmark (roadmap items 1.7, shared mode, and 2.4, worktree mode).
+"""BN4 — job diff benchmark (roadmap items 1.7, shared mode, 2.4, worktree mode, and 3.5, review).
 
 Fixtures: the 4 code tasks of `missions_eval.py` (t03-bugfix-py,
 t04-feature-py, t05-bugfix-js, t09-rename), seeded by the harness's own
@@ -29,6 +29,29 @@ job run in a worktree of it (`vcs::job_worktree`), and the diff taken by
 work uncommitted (private index), then after it is committed on the job's
 branch (what `run_job` does). Same goals, plus: both diffs identical and
 `head_oid` = the commit on the branch in 4/4.
+
+Review (3.5, onda 3), from `core::llm::review::bn4::*` (omniget-core), on
+real repositories, real job worktrees and the real shadow snapshot:
+  * 20 hunk discards (5 files x 4 hunks) without touching a neighbour, in
+    worktree mode and in shared mode: after each one the hunk is gone, every
+    other hunk has the same lines at the same place of the base, and every
+    other file is byte for byte the same; 20 discards = back to the base;
+  * a stale hunk (its lines changed after the diff was read) and a forged
+    patch (same id, one byte different) are refused, the file untouched;
+  * two discards at once under the review lock both land;
+  * integrate: 2 jobs on different files -> 2 merges (`merge --no-ff`); 2 jobs
+    on the same line -> the second is a conflict, undone, with `merge` and
+    with `--squash`: no MERGE_HEAD, `status` clean, HEAD unchanged;
+  * discard: the job's worktree removed (2.3's removal) and its branch deleted,
+    0 worktrees left;
+  * notes -> follow-up (--fake): the first turn edits in the worktree
+    (`fake_claude.py --mode apply`), a note in the `File/Lines/User comment`
+    format becomes the follow-up prompt, the follow-up turn runs with the real
+    Claude argv + `--resume <session of the first turn>` and only the notes on
+    stdin (`claude::last_user_text`, what the runtime sends a resumed session),
+    and `fake_claude.py --mode notes` does what the note asks: success over
+    20 reps (goal >= 95%). Cost/time of a REAL follow-up (<= US$ 0.01,
+    <= 10.4 s, 78#P5) is not measured here (no real turn in --fake).
 
 How (`--fake`, the only mode): the Rust test `core::llm::snapshot::bn4::*`
 (omniget-core) runs `fake_claude.py` in `apply` mode through the real
@@ -329,6 +352,7 @@ def main():
         core = run_tests("omniget-core", "core::llm::snapshot::bn4::",
                          {"BN4_FIXTURES": str(fixtures), "BN4_TIMING_REPS": str(args.reps)}, out)
         app = run_tests("omniget", "jobs::bn4_read::", {}, out)
+        review = run_tests("omniget-core", "core::llm::review::bn4::", {}, out)
         m = read_metrics(out)
         per = {}
         per_wt = {}
@@ -401,6 +425,30 @@ def main():
              f"{m.get('wt_writing_jobs_with_files')}/{m.get('wt_writing_jobs')}",
              (m.get("wt_writing_jobs") or 0) > 0 and m.get("wt_writing_jobs_with_files") == m.get("wt_writing_jobs"),
              "100%"),
+        goal("hunks (3.5): 20 discards without touching a neighbour, worktree mode",
+             m.get("hunk_discards_worktree"), (m.get("hunk_discards_worktree") or {}).get("clean") == 20
+             and m.get("hunk_worktree_back_to_base") is True, "20/20, back to base"),
+        goal("hunks (3.5): 20 discards without touching a neighbour, shared mode",
+             m.get("hunk_discards_shared"), (m.get("hunk_discards_shared") or {}).get("clean") == 20, "20/20"),
+        goal("hunks (3.5): stale hunk and forged patch refused, file untouched", m.get("hunk_stale_refused"),
+             (m.get("hunk_stale_refused") or {}).get("moved_lines") == "ERR_HUNK_STALE"
+             and (m.get("hunk_stale_refused") or {}).get("forged_patch") == "ERR_HUNK_STALE"
+             and (m.get("hunk_stale_refused") or {}).get("file_untouched") is True, "ERR_HUNK_STALE x2, 0 bytes changed"),
+        goal("hunks (3.5): two discards at once under the lock both land",
+             m.get("hunk_concurrent_discards_both_landed"), m.get("hunk_concurrent_discards_both_landed") is True, "true"),
+        goal("integrate (3.5): 2 jobs without conflict -> 2 merges", m.get("integrate_no_conflict"),
+             m.get("integrate_no_conflict") == {"merged": 2, "merge_commits": 2}, "2 merged, 2 merge commits"),
+        goal("integrate (3.5): conflict -> repo clean, no MERGE_HEAD (merge and squash)", m.get("integrate_conflict_clean"),
+             (m.get("integrate_conflict_clean") or {}).get("clean") == 2
+             and (m.get("integrate_conflict_clean") or {}).get("merge_head") is False, "2/2 clean"),
+        goal("integrate (3.5): time to integrate", m.get("integrate_ms"),
+             ((m.get("integrate_ms") or {}).get("max_ms") or 1e9) < 2000, "< 2 s (78#P3)"),
+        goal("discard (3.5): worktree removed, branch deleted, 0 worktrees left", m.get("discard_job"),
+             (m.get("discard_job") or {}).get("branch_gone") is True and (m.get("discard_job") or {}).get("worktrees_left") == 0,
+             "branch gone, 0 left"),
+        goal("notes (3.5, --fake): follow-up resumes the session with only the notes, and does what they ask",
+             m.get("notes_follow_up"), ((m.get("notes_follow_up") or {}).get("success_rate") or 0) >= 0.95,
+             ">= 95% of 20 reps"),
         goal("argv of the turn unchanged (cost per task = B0)", diff or "(empty)", not diff,
              "empty diff of cli_runtime/claude.rs, omniget-cli claude.rs, missions_eval.py"),
     ]
@@ -420,14 +468,16 @@ def main():
         "params": {"timing_reps": args.reps, "reference": "diff -ruN seed work (" + subprocess.run(
             ["diff", "--version"], capture_output=True, text=True).stdout.splitlines()[0] + ")"},
         "not_measured": {"cost_per_task": "unchanged by construction (host-side post-processing; argv goal); "
-                                          "missions_eval.py --real not rerun on purpose"},
-        "runs": {"core": core, "app": app},
+                                          "missions_eval.py --real not rerun on purpose",
+                         "notes_follow_up_real": "cost (<= US$ 0.01) and time (<= 10.4 s) of a real resumed follow-up "
+                                                 "(78#P5): needs real Claude turns; --fake proves the plumbing only"},
+        "runs": {"core": core, "app": app, "review": review},
         "per_fixture": per,
         "per_fixture_worktree": per_wt,
         "tasks_solved": solved,
         "metrics": m,
         "goals": goals,
-        "all_pass": all(g["pass"] for g in goals) and core["exit"] == 0 and app["exit"] == 0,
+        "all_pass": all(g["pass"] for g in goals) and core["exit"] == 0 and app["exit"] == 0 and review["exit"] == 0,
     }
     pathlib.Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     pathlib.Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
