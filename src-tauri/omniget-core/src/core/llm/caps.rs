@@ -48,6 +48,10 @@ pub struct RuntimeCaps {
     /// mode `auto` is only used when `auto` is one of them (2.7).
     #[serde(default)]
     pub permission_modes: Vec<String>,
+    /// Codex ≥ 0.156 answered `codex app-server --help`: turns go over the
+    /// app-server (resume, per-call approvals, effort), else `exec --json`.
+    #[serde(default)]
+    pub app_server: bool,
     /// True when this answer comes from running the executable.
     #[serde(default)]
     pub probed: bool,
@@ -238,6 +242,7 @@ pub fn cli_caps(cli: &str, version: Option<String>, flags: Vec<String>) -> Runti
                 limits,
                 flags,
                 permission_modes: Vec::new(),
+                app_server: false,
                 probed: true,
                 missing: false,
             }
@@ -270,6 +275,20 @@ pub fn cli_caps(cli: &str, version: Option<String>, flags: Vec<String>) -> Runti
     caps
 }
 
+/// What the Codex app-server adds over `exec` (3.6): the thread is resumed
+/// by id, and each approval round-trips to a person while the turn waits.
+pub fn with_app_server(caps: &mut RuntimeCaps) {
+    caps.app_server = true;
+    caps.native_resume = true;
+    caps.interactive_permissions = true;
+    caps.limits
+        .retain(|l| !l.starts_with("Codex runs one non-interactive exec"));
+    caps.limits.push(
+        "Codex runs over its app-server: the conversation is resumed, and each command or edit it wants approved is asked in OmniGet."
+            .into(),
+    );
+}
+
 /// A CLI that is not installed: nothing is promised.
 pub fn missing_cli(cli: &str) -> RuntimeCaps {
     RuntimeCaps {
@@ -300,6 +319,23 @@ async fn run_capture(binary: &Path, args: &[&str]) -> Option<String> {
     Some(text)
 }
 
+/// The command exits 0 within the probe's window.
+async fn runs_ok(binary: &Path, args: &[&str]) -> bool {
+    matches!(
+        tokio::time::timeout(
+            std::time::Duration::from_secs(15),
+            crate::core::process::command(binary)
+                .args(args)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status(),
+        )
+        .await,
+        Ok(Ok(status)) if status.success()
+    )
+}
+
 /// Runs `<binary> --version` and `--help` and caches the result for `cli`.
 pub async fn probe_binary(cli: &str, binary: &Path) -> RuntimeCaps {
     let version = run_capture(binary, &["--version"])
@@ -314,6 +350,15 @@ pub async fn probe_binary(cli: &str, binary: &Path) -> RuntimeCaps {
     }
     let mut caps = cli_caps(cli, version, parse_help_flags(&help));
     caps.permission_modes = parse_help_choices(&help, "--permission-mode");
+    if cli == "codex"
+        && caps
+            .version
+            .as_deref()
+            .is_some_and(super::cli_runtime::codex_app_server::version_supports)
+        && runs_ok(binary, &["app-server", "--help"]).await
+    {
+        with_app_server(&mut caps);
+    }
     remember(&format!("cli:{cli}"), &caps);
     caps
 }

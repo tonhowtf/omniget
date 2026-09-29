@@ -880,15 +880,17 @@ impl LlmManager {
         // watchdog asks the broker before it counts the silence (1.2). Weak,
         // so the runtime never keeps the broker alive by itself.
         let pause_broker = Arc::downgrade(&broker);
+        // Codex over its app-server asks per call (3.6): the questions become
+        // the broker's durable asks, answerable from any channel.
         let cli = Arc::new(
-            CliRuntime::new(accounts.clone(), cli_capacity.clone()).with_pause_probe(Arc::new(
-                move |request: &str| {
+            CliRuntime::new(accounts.clone(), cli_capacity.clone())
+                .with_pause_probe(Arc::new(move |request: &str| {
                     pause_broker
                         .upgrade()
                         .map(|b| b.has_pending(request))
                         .unwrap_or(false)
-                },
-            )),
+                }))
+                .with_broker(Arc::downgrade(&broker)),
         );
         let runtime: Arc<dyn AgentRuntime> = Arc::new(
             CompositeRuntime::new(native.clone())

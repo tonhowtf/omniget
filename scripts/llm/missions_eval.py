@@ -38,6 +38,14 @@ Diferenças em relação a um job real do app (documentadas no JSON de saída):
   * `--max-budget-usd` por tarefa como trava de custo (o app passa None);
   * também removemos CLAUDECODE/CLAUDE_CODE_* herdados desta sessão (o app,
     aberto pelo Finder, não os tem).
+Com `--runtime codex` (item 3.6) a missão vai pelo Codex como o app faz
+(`cli_runtime/codex_app_server.rs`): `codex app-server` (JSON-RPC no stdio) com
+Codex >= 0.156, `thread/start` com a política do run mode (tabela T3 de
+`drivers::codex::launch::mode_config`), `turn/start` com o texto e o effort, e
+as perguntas de aprovação respondidas pelas mesmas regras "Sempre" emuladas;
+senão o fallback `codex exec --json` (`codex::argv` + `run_mode::codex_flags`).
+`--codex-transport exec|app-server` força um dos dois.
+
 O modo `app` (binário real + OMNIGET_TEST_DRIVER + POST /v1/debug/eval ->
 llm_job_submit/llm_job_get) exige uma conta CLI logada dentro do perfil
 isolado e o Vite :1420; ver `--mode app` abaixo (não implementado).
@@ -609,6 +617,317 @@ def claude_argv(args, model=None, effort=None, settings=None):
     return out
 
 
+# ── Codex (item 3.6) ───────────────────────────────────────────────────
+# Espelha cli_runtime/codex_app_server.rs (app-server, padrão com Codex >= 0.156) e
+# cli_runtime/codex.rs::argv + run_mode::codex_flags (fallback `exec --json`).
+# Tabela de modo = drivers::codex::launch::mode_config (T3), conta de escrita:
+# (approvalPolicy, sandbox do thread, sandboxPolicy do turno, approvalsReviewer).
+CODEX_MODE = {
+    'approval_required': ('untrusted', 'read-only', {'type': 'readOnly'}, 'user'),
+    'auto_edits': ('on-request', 'workspace-write', {'type': 'workspaceWrite'}, 'user'),
+    'auto': ('on-request', 'workspace-write', {'type': 'workspaceWrite'}, 'auto_review'),
+    'full_access': ('never', 'danger-full-access', {'type': 'dangerFullAccess'}, 'user'),
+}
+CODEX_DEFAULT_MODEL = 'gpt-5.6-luna'  # o mais barato listado por `model/list` no 0.158 (29/09/2026)
+CODEX_MIN_VERSION = (0, 156)
+
+
+def codex_binary():
+    return shutil.which('codex') or os.path.expanduser('~/.local/bin/codex')
+
+
+def codex_version(binary=None):
+    out = subprocess.run([binary or codex_binary(), '--version'], capture_output=True, text=True).stdout
+    m = re.search(r'(\d+)\.(\d+)\.(\d+)', out)
+    return tuple(int(x) for x in m.groups()) if m else None
+
+
+def codex_transport(binary=None, forced=None):
+    """Espelha caps::probe_binary + codex_app_server::wanted: app-server só com >= 0.156 que
+    responde `app-server --help`, e nunca com OMNIGET_CODEX_TRANSPORT=exec."""
+    if forced:
+        return forced
+    if os.environ.get('OMNIGET_CODEX_TRANSPORT', '').lower() == 'exec':
+        return 'exec'
+    v = codex_version(binary)
+    if not v or v[:2] < CODEX_MIN_VERSION:
+        return 'exec'
+    ok = subprocess.run([binary or codex_binary(), 'app-server', '--help'], capture_output=True).returncode == 0
+    return 'app-server' if ok else 'exec'
+
+
+def codex_exec_argv(run_mode='auto_edits', model=None, cwd=None, resume=None):
+    """Espelha codex::argv com run_mode::codex_flags (conta de escrita, codex 0.158 lista --approve-for-me)."""
+    out = ['exec'] + (['resume', resume] if resume else []) + ['--json', '--skip-git-repo-check']
+    if run_mode == 'auto':
+        out += ['--sandbox', 'workspace-write', '--approve-for-me']
+    else:
+        policy, sandbox, _, _ = CODEX_MODE[run_mode]
+        out += ['--sandbox', sandbox, '-c', f'approval_policy="{policy}"']
+    if model:
+        out += ['-m', model]
+    if cwd:
+        out += ['-C', str(cwd)]
+    return out + ['-']
+
+
+def codex_thread_params(run_mode, cwd, model, instructions=None):
+    policy, sandbox, _, reviewer = CODEX_MODE[run_mode]
+    p = {'cwd': str(cwd), 'approvalPolicy': policy, 'sandbox': sandbox, 'approvalsReviewer': reviewer}
+    if model:
+        p['model'] = model
+    if instructions:
+        p['developerInstructions'] = instructions
+    return p
+
+
+def codex_turn_params(thread, text, run_mode, cwd, model, effort):
+    """Espelha AppServerPlan::turn_request."""
+    policy, _, sandbox_policy, reviewer = CODEX_MODE[run_mode]
+    p = {'threadId': thread, 'input': [{'type': 'text', 'text': text, 'text_elements': []}],
+         'approvalPolicy': policy, 'approvalsReviewer': reviewer, 'sandboxPolicy': sandbox_policy, 'cwd': str(cwd)}
+    if model:
+        p['model'] = model
+    if effort and effort != 'default':
+        p['effort'] = effort
+    return p
+
+
+def allow_test_command(command):
+    """As regras "Sempre" emuladas (ALLOWED_TEST_TOOLS) aplicadas às perguntas do Codex."""
+    first = (command or '').strip().split(' ')[0] if command else ''
+    return os.path.basename(first) in ('python3', 'node', 'ls', 'cat', 'grep')
+
+
+def codex_app_server_turn(text, cwd, run_mode='auto_edits', model=None, effort=None, resume=None,
+                          instructions=None, timeout=300, cancel_after=None, binary=None, approve=None):
+    """Um turno como o app faz (um processo por turno): initialize, initialized, thread/resume
+    (com fallback para thread/start se o Codex não tem o thread) ou thread/start, turn/start.
+    Perguntas de aprovação vão para `approve(method, params) -> decision`. `cancel_after` (s depois
+    do turn/started) espelha o cancel do session.rs: turn/interrupt, espera até 0,8 s pelo
+    turn/completed e mata o grupo. Devolve um dict com thread, texto, uso somado dos `last`, erro."""
+    import queue
+    import threading
+    binary = binary or codex_binary()
+    p = subprocess.Popen([binary, 'app-server'], cwd=str(cwd), env=child_env(), stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1,
+                         start_new_session=True)
+    OWN_PIDS.add(p.pid)
+    q = queue.Queue()
+
+    def pump():
+        for line in p.stdout:
+            q.put(line)
+        q.put(None)
+    threading.Thread(target=pump, daemon=True).start()
+
+    def send(obj):
+        try:
+            p.stdin.write(json.dumps(obj) + '\n')
+            p.stdin.flush()
+        except (BrokenPipeError, ValueError):
+            pass
+
+    def params(**kw):
+        return {k: v for k, v in kw.items() if v is not None}
+    send({'id': 1, 'method': 'initialize', 'params': {'clientInfo': {'name': 'omniget', 'title': 'OmniGet', 'version': 'eval'},
+                                                     'capabilities': {'experimentalApi': True}}})
+    send({'method': 'initialized'})
+    tp = codex_thread_params(run_mode, cwd, model, instructions)
+    if resume:
+        send({'id': 2, 'method': 'thread/resume', 'params': dict(tp, threadId=resume, excludeTurns=True)})
+    else:
+        send({'id': 3, 'method': 'thread/start', 'params': tp})
+    res = {'thread': None, 'turn': None, 'text': '', 'usage': {'input': 0, 'cached': 0, 'output': 0, 'requests': 0},
+           'error': None, 'error_info': None, 'status': None, 'tools': [], 'resumed': False, 'fallback': False,
+           'approvals': [], 'cancel_ms': None, 'pid': p.pid}
+    deadline = time.time() + timeout
+    started_at = None
+    t0 = time.time()
+    while True:
+        wait = deadline - time.time()
+        if cancel_after is not None and started_at is not None:
+            wait = min(wait, started_at + cancel_after - time.time())
+        try:
+            line = q.get(timeout=max(0.01, wait))
+        except queue.Empty:
+            line = ''
+        if line == '' and cancel_after is not None and started_at is not None and time.time() >= started_at + cancel_after:
+            c0 = time.time()
+            if res['thread'] and res['turn']:
+                send({'id': 5, 'method': 'turn/interrupt', 'params': {'threadId': res['thread'], 'turnId': res['turn']}})
+                end = c0 + 0.8
+                while time.time() < end:
+                    try:
+                        l2 = q.get(timeout=max(0.01, end - time.time()))
+                    except queue.Empty:
+                        break
+                    if l2 is None or '"turn/completed"' in l2:
+                        break
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except OSError:
+                pass
+            p.wait()
+            res['cancel_ms'] = round((time.time() - c0) * 1000)
+            res['status'] = 'cancelled'
+            break
+        if line == '':
+            res['error'] = 'timeout'
+            break
+        if line is None:
+            break
+        try:
+            m = json.loads(line)
+        except ValueError:
+            continue
+        method, mid = m.get('method'), m.get('id')
+        if mid is not None and method:  # pergunta do servidor
+            prm = m.get('params') or {}
+            if method.endswith('requestApproval') or method in ('execCommandApproval', 'applyPatchApproval'):
+                d = approve(method, prm) if approve else 'decline'
+                res['approvals'].append({'method': method, 'command': prm.get('command'), 'decision': d})
+                if method == 'item/permissions/requestApproval':
+                    send({'id': mid, 'result': {'permissions': prm.get('permissions', {}) if d == 'accept' else {}, 'scope': 'turn'}})
+                else:
+                    send({'id': mid, 'result': {'decision': d}})
+            elif method == 'mcpServer/elicitation/request':
+                send({'id': mid, 'result': {'action': 'decline'}})
+            else:
+                send({'id': mid, 'error': {'code': -32601, 'message': 'not answered in a background turn'}})
+            continue
+        if mid is not None:
+            err = (m.get('error') or {}).get('message')
+            if mid == 2 and err:
+                if 'no rollout found' in err or ('thread' in err.lower() and 'not found' in err.lower()):
+                    res['fallback'] = True
+                    send({'id': 3, 'method': 'thread/start', 'params': tp})
+                    continue
+            if mid in (2, 3):
+                if err:
+                    res['error'] = err
+                    break
+                res['thread'] = m['result']['thread']['id']
+                res['resumed'] = mid == 2
+                send({'id': 4, 'method': 'turn/start', 'params': codex_turn_params(res['thread'], text, run_mode, cwd, model, effort)})
+            elif mid == 4:
+                if err:
+                    res['error'] = err
+                    break
+                res['turn'] = m['result']['turn']['id']
+            continue
+        prm = m.get('params') or {}
+        if method == 'turn/started':
+            started_at = time.time()
+        elif method == 'item/agentMessage/delta':
+            res['text'] += prm.get('delta', '')
+        elif method == 'item/started':
+            it = prm.get('item') or {}
+            if it.get('type') in ('commandExecution', 'fileChange', 'mcpToolCall', 'webSearch', 'dynamicToolCall'):
+                res['tools'].append(it.get('type'))
+        elif method == 'thread/tokenUsage/updated':
+            last = (prm.get('tokenUsage') or {}).get('last') or {}
+            res['usage']['input'] += int(last.get('inputTokens', 0))
+            res['usage']['cached'] += int(last.get('cachedInputTokens', 0))
+            res['usage']['output'] += int(last.get('outputTokens', 0))
+            res['usage']['requests'] += 1
+        elif method == 'error' and not prm.get('willRetry'):
+            e = prm.get('error') or {}
+            res['error'], res['error_info'] = e.get('message'), e.get('codexErrorInfo')
+        elif method == 'turn/completed':
+            turn = prm.get('turn') or {}
+            res['status'] = turn.get('status')
+            if turn.get('status') == 'failed' and not res['error']:
+                res['error'] = (turn.get('error') or {}).get('message')
+            break
+    if p.poll() is None:
+        try:
+            p.stdin.close()
+        except OSError:
+            pass
+        try:
+            p.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            os.killpg(p.pid, signal.SIGKILL)
+            p.wait()
+    OWN_PIDS.discard(p.pid)
+    res['wall_s'] = round(time.time() - t0, 2)
+    return res
+
+
+def codex_exec_turn(stdin_text, cwd, run_mode='auto_edits', model=None, timeout=300, binary=None):
+    """O fallback `exec --json` como o app faz: histórico achatado no stdin (codex::render_prompt)."""
+    binary = binary or codex_binary()
+    p = subprocess.Popen([binary] + codex_exec_argv(run_mode, model, cwd), cwd=str(cwd), env=child_env(),
+                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                         start_new_session=True)
+    OWN_PIDS.add(p.pid)
+    try:
+        out, err = p.communicate(stdin_text, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL)
+        out, err = p.communicate()
+    OWN_PIDS.discard(p.pid)
+    res = {'thread': None, 'text': '', 'usage': {'input': 0, 'cached': 0, 'output': 0, 'requests': 1}, 'error': None,
+           'tools': [], 'pid': p.pid}
+    for line in (out or '').splitlines():
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        t = ev.get('type')
+        if t == 'thread.started':
+            res['thread'] = ev.get('thread_id')
+        elif t == 'item.completed':
+            it = ev.get('item') or {}
+            if it.get('type') == 'agent_message':
+                res['text'] += it.get('text', '')
+            elif it.get('type') in ('command_execution', 'file_change', 'mcp_tool_call', 'web_search'):
+                res['tools'].append(it.get('type'))
+        elif t == 'turn.completed':
+            u = ev.get('usage') or {}
+            res['usage'] = {'input': int(u.get('input_tokens', 0)), 'cached': int(u.get('cached_input_tokens', 0)),
+                            'output': int(u.get('output_tokens', 0)), 'requests': 1}
+        elif t in ('turn.failed', 'error'):
+            res['error'] = (ev.get('error') or {}).get('message') or ev.get('message')
+    if not res['error'] and p.returncode:
+        res['error'] = (err or '')[-300:]
+    return res
+
+
+def render_prompt(messages):
+    """Espelha codex::render_prompt / claude::render_prompt: "User: …\n\nAssistant: …"."""
+    return '\n\n'.join(f"{role}: {text}" for role, text in messages if text.strip())
+
+
+def run_codex(args, prompt, cwd, timeout, model=None, effort=None):
+    """Uma missão pelo Codex, no transporte que o app escolheria (ou --codex-transport)."""
+    if getattr(args, 'outcome', True):
+        prompt = prompt + OUTCOME_SUFFIX
+    run_mode = getattr(args, 'run_mode', 'auto_edits')
+    transport = codex_transport(forced=getattr(args, 'codex_transport', None))
+    if transport == 'app-server':
+        def approve(method, prm):
+            # A pessoa do app, emulada pelas regras "Sempre" dos comandos de teste.
+            if not args.allow_tests:
+                return 'decline'
+            if method == 'item/commandExecution/requestApproval':
+                return 'accept' if allow_test_command(prm.get('command')) else 'decline'
+            return 'accept'
+        r = codex_app_server_turn(prompt, cwd, run_mode, model, effort, timeout=timeout, approve=approve)
+    else:
+        r = codex_exec_turn(render_prompt([('User', prompt)]), cwd, run_mode, model, timeout)
+    u = r['usage']
+    result = {'type': 'result', 'result': r['text'], 'is_error': bool(r['error']),
+              'subtype': 'error' if r['error'] else 'success',
+              # Convenção Anthropic de usage_of: input = só o não cacheado.
+              'usage': {'input_tokens': u['input'] - u['cached'], 'output_tokens': u['output'],
+                        'cache_read_input_tokens': u['cached'], 'cache_creation_input_tokens': 0},
+              'num_turns': u.get('requests'), 'total_cost_usd': None, 'codex_transport': transport,
+              'codex_error': r['error'], 'approvals': r.get('approvals', [])}
+    return result, r['tools'], r['pid'], (r['error'] or '')[-400:], r['error'] == 'timeout'
+
+
 def effort_of(argv):
     return argv[argv.index('--effort') + 1] if '--effort' in argv else '(padrão)'
 
@@ -748,7 +1067,8 @@ def run_task(args, t, rep):
     t0 = time.time()
     model = model_for(args, t)
     effort, rota = effort_for(args, t)
-    result, tools, pid, err, timed_out = run_claude(args, t.prompt, root, args.timeout, model, effort)
+    runner = run_codex if getattr(args, 'runtime', 'claude') == 'codex' else run_claude
+    result, tools, pid, err, timed_out = runner(args, t.prompt, root, args.timeout, model, effort)
     wall = time.time() - t0
     ok, detail = t.check(root)
     tok, cost, models = usage_of(result)
@@ -762,7 +1082,13 @@ def run_task(args, t, rep):
     if getattr(args, 'outcome', True):
         m = OUTCOME_RE.findall((result or {}).get('result') or '')
         row['outcome'] = m[-1].lower() if m else None
-    row['effort'] = effort_of(claude_argv(args, model, effort))
+    if getattr(args, 'runtime', 'claude') == 'codex':
+        row['effort'] = effort or '(padrão)'
+        row['codex_transport'] = (result or {}).get('codex_transport')
+        row['codex_error'] = (result or {}).get('codex_error')
+        row['approvals'] = (result or {}).get('approvals')
+    else:
+        row['effort'] = effort_of(claude_argv(args, model, effort))
     if rota:
         row['roteador'] = rota
     if not result:
@@ -812,8 +1138,17 @@ def main():
                     help='sem o --settings com os hooks de permissão do 3.4 (argv de antes)')
     ap.add_argument('--hook-bin', default=None,
                     help='omniget-hook-shim (padrão: OMNIGET_HOOK_BIN ou $CARGO_TARGET_DIR/debug/omniget-hook-shim)')
+    ap.add_argument('--runtime', default='claude', choices=['claude', 'codex'],
+                    help='codex (3.6): missão pelo Codex como o app faz (app-server com Codex >= 0.156, senão exec)')
+    ap.add_argument('--codex-transport', default=None, choices=['app-server', 'exec'],
+                    help='força o transporte do Codex (padrão: o que o app escolheria pela versão)')
     ap.add_argument('--list', action='store_true')
     args = ap.parse_args()
+    if args.runtime == 'codex' and args.model == 'sonnet':
+        args.model = CODEX_DEFAULT_MODEL
+    # Os hooks do 3.4 são do turno do Claude; o Codex pergunta pelo app-server.
+    if args.runtime == 'codex':
+        args.hooks = False
     if args.hooks and not args.list and not os.path.isfile(hook_bin(args)):
         print(f'hook binary not found: {hook_bin(args)} (cargo build -p omniget-cli --bin omniget-hook-shim, '
               'or --no-hooks)', file=sys.stderr)
@@ -878,12 +1213,19 @@ def main():
         agree = [r for r in present if (r['outcome'] == 'succeeded') == bool(r['sucesso'])]
         total['outcome_presente'] = round(len(present) / n, 3)
         total['outcome_concorda'] = round(len(agree) / len(present), 3) if present else None
-    ver = subprocess.run([shutil.which('claude') or 'claude', '--version'], capture_output=True, text=True).stdout.strip()
+    if args.runtime == 'codex':
+        ver = subprocess.run([codex_binary(), '--version'], capture_output=True, text=True).stdout.strip()
+    else:
+        ver = subprocess.run([shutil.which('claude') or 'claude', '--version'], capture_output=True, text=True).stdout.strip()
     report = {
         'harness': 'scripts/llm/missions_eval.py', 'mode': args.mode, 'claude_version': ver,
         'model': args.model or '(padrão da conta)', 'effort': effort_of(claude_argv(args)),
         'simple_model': args.simple_model or None, 'judge': args.judge, 'effort_router': args.effort_router or None,
-        'rotas': ROUTES or None, 'batching': args.batching, 'outcome_suffix': args.outcome, 'argv_mode': args.argv, 'argv': ['claude'] + claude_argv(args),
+        'rotas': ROUTES or None, 'batching': args.batching, 'outcome_suffix': args.outcome, 'argv_mode': args.argv,
+        'runtime': args.runtime,
+        'argv': (['codex', 'app-server'] if args.runtime == 'codex' and codex_transport(forced=args.codex_transport) == 'app-server'
+                 else ['codex'] + codex_exec_argv(args.run_mode, args.model) if args.runtime == 'codex'
+                 else ['claude'] + claude_argv(args)),
         'budget_por_missao_usd': args.budget, 'reps': args.reps, 'quando': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
         'diferencas_vs_app': [
             'sem coordinator: sem mensagens de sistema do app (skills, contexto) nem --append-system-prompt do agente',

@@ -161,7 +161,33 @@ fn stall_error(kind: Stall, window: Duration) -> LlmError {
 /// `codex.rs`; a trait so `session.rs` never learns a message format.
 pub trait LineParser: Send + Sync {
     fn parse_line(&self, line: &str) -> Vec<CliSignal>;
+
+    /// A CLI that is talked to while the turn runs (`codex app-server`,
+    /// JSON-RPC over stdio, 3.6) hands its outbox here, once. `None` (every
+    /// one-shot CLI) keeps the old contract: stdin is written and closed.
+    fn duplex(&self) -> Option<Duplex> {
+        None
+    }
 }
+
+/// The write half of a conversational turn. Everything else (process tree,
+/// watchdog, cancel, secret scrubbing) stays the one path every CLI turn
+/// takes, so a JSON-RPC CLI gets none of it by a parallel route.
+pub struct Duplex {
+    /// Lines to write to the child's stdin, without their newline: the
+    /// parser's follow-up requests and the answers to the CLI's questions
+    /// (an approval answered an hour later lands here).
+    pub outbox: tokio::sync::mpsc::UnboundedReceiver<String>,
+    /// On cancel: the line that asks the CLI to stop the turn itself
+    /// (`turn/interrupt`), so its history records an interrupted turn
+    /// instead of a torn one. `None`, or a turn not yet started, goes
+    /// straight to the kill.
+    pub interrupt: Option<Arc<dyn Fn() -> Option<String> + Send + Sync>>,
+}
+
+/// How long a cancelled duplex turn may take to acknowledge its interrupt
+/// before its tree is killed anyway. Cancel stays under 2 s (`81#P7`).
+pub const INTERRUPT_GRACE: Duration = Duration::from_millis(800);
 
 /// Where a quota reading goes. The runtime stores it per account so the router
 /// can read `Capacity` without spawning anything.
@@ -442,13 +468,23 @@ pub fn spawn_turn_with(
         }
         let _cleanup = Cleanup(hooks.cleanup.clone());
 
+        // A duplex turn keeps stdin open for the parser's follow-ups and
+        // closes it once the turn finished (the server then exits on EOF).
+        let mut duplex = parser.duplex();
+        let mut pipe_open: Option<tokio::process::ChildStdin> = None;
         if let Some(mut pipe) = stdin.take() {
             if let Some(text) = &spec.stdin {
                 let _ = pipe.write_all(text.as_bytes()).await;
             }
-            // Dropping closes it: the CLI must not wait for more input.
-            drop(pipe);
+            if duplex.is_some() {
+                let _ = pipe.flush().await;
+                pipe_open = Some(pipe);
+            } else {
+                // Dropping closes it: the CLI must not wait for more input.
+                drop(pipe);
+            }
         }
+        let mut outbox_open = duplex.is_some();
 
         // stderr is drained in parallel so a full pipe can never deadlock the
         // child, and its tail explains a non-zero exit.
@@ -504,6 +540,27 @@ pub fn spawn_turn_with(
                 _ = cancel.cancelled() => {
                     cancelled = true;
                     None
+                }
+                out = async {
+                    match duplex.as_mut() {
+                        Some(d) => d.outbox.recv().await,
+                        None => std::future::pending::<Option<String>>().await,
+                    }
+                }, if outbox_open => {
+                    match (out, pipe_open.as_mut()) {
+                        (Some(line), Some(pipe)) => {
+                            let mut bytes = line.into_bytes();
+                            bytes.push(b'\n');
+                            if pipe.write_all(&bytes).await.is_err() || pipe.flush().await.is_err() {
+                                // The child closed its stdin: it is on its way out,
+                                // and the exit status explains the turn.
+                                pipe_open = None;
+                            }
+                        }
+                        (Some(_), None) => {}
+                        (None, _) => outbox_open = false,
+                    }
+                    continue;
                 }
                 // A read error ends the stream like EOF: the exit status below
                 // is what explains the turn.
@@ -580,6 +637,12 @@ pub fn spawn_turn_with(
             if cancelled {
                 break;
             }
+            // The turn is over: closing stdin lets a server CLI exit on its
+            // own, and the normal exit path below reports it.
+            if saw_finish && pipe_open.is_some() {
+                pipe_open = None;
+                outbox_open = false;
+            }
         }
 
         if let Some(error) = stalled {
@@ -597,6 +660,29 @@ pub fn spawn_turn_with(
         }
 
         if cancelled {
+            // A duplex CLI is asked to stop the turn first, so what it keeps
+            // (Codex's thread history) records an interrupt, not a torn turn.
+            let interrupt = duplex
+                .as_ref()
+                .and_then(|d| d.interrupt.as_ref())
+                .and_then(|f| f());
+            if let (Some(line), Some(pipe)) = (interrupt, pipe_open.as_mut()) {
+                let mut bytes = line.into_bytes();
+                bytes.push(b'\n');
+                if pipe.write_all(&bytes).await.is_ok() && pipe.flush().await.is_ok() {
+                    let _ = tokio::time::timeout(INTERRUPT_GRACE, async {
+                        while let Ok(Some((line, _))) =
+                            lines.next_line(&mut reader, MAX_LINE_BYTES).await
+                        {
+                            if line.contains("\"turn/completed\"") {
+                                break;
+                            }
+                        }
+                    })
+                    .await;
+                }
+            }
+            drop(pipe_open.take());
             kill_tree(&mut child, &mut tree).await;
             let _ = tx
                 .send(TurnEvent::Error {

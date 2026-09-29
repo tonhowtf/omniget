@@ -154,6 +154,8 @@ const AUTH_MARKERS: &[&str] = &[
 /// next candidate without losing it (plan §9.2).
 const RATE_MARKERS: &[&str] = &[
     "usage limit reached",
+    // Codex 0.158: "You’ve hit your usage limit. Visit …" (`usageLimitExceeded`).
+    "hit your usage limit",
     "hit your session limit",
     "hit your weekly limit",
     "hit your opus limit",
