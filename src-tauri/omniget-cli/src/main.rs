@@ -122,6 +122,12 @@ enum Commands {
         #[command(subcommand)]
         command: commands::agentkit::AgentkitCommand,
     },
+    /// Hooks OmniGet installs in a coding tool's turn (run by the tool, not by hand)
+    #[command(hide = true)]
+    Hook {
+        #[command(subcommand)]
+        command: HookCommand,
+    },
     /// Import a cookies.txt file (Netscape format)
     ImportCookies {
         file: String,
@@ -131,6 +137,19 @@ enum Commands {
 
         #[arg(long, help = "Preview without importing")]
         dry_run: bool,
+    },
+}
+
+#[derive(clap::Subcommand)]
+enum HookCommand {
+    /// Claude Code `PreToolUse`/`PostToolUse`: OmniGet's permission rules
+    /// judge the CLI's own tools (reads the hook JSON on stdin)
+    Claude {
+        #[arg(long)]
+        event: String,
+        /// The turn's private folder (policy.json)
+        #[arg(long)]
+        turn: Option<String>,
     },
 }
 
@@ -184,6 +203,15 @@ async fn main() -> anyhow::Result<()> {
                 }
                 return Err(e);
             }
+        }
+        Commands::Hook {
+            command: HookCommand::Claude { event, turn },
+        } => {
+            let mut args = vec!["--event".to_string(), event];
+            if let Some(turn) = turn {
+                args.extend(["--turn".to_string(), turn]);
+            }
+            std::process::exit(omniget_core::core::llm::claude_hooks::main_with_args(&args));
         }
         Commands::Guide { topic } => {
             commands::guide::execute(topic)?;

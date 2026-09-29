@@ -29,6 +29,12 @@ pub fn set_shim_path(p: Option<PathBuf>) {
     }
 }
 
+/// The path [`set_shim_path`] pinned, if any (the host's copy in
+/// `<app_data>/bin/`).
+pub fn pinned_shim() -> Option<PathBuf> {
+    SHIM_OVERRIDE.read().ok().and_then(|g| g.clone())
+}
+
 fn exe_name(os: Os) -> String {
     if os == Os::Windows {
         format!("{SHIM_NAME}.exe")

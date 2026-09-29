@@ -255,6 +255,12 @@ pub struct LaunchPlan {
     pub auto_mode: bool,
     /// `codex exec --help` lists `--approve-for-me` (Codex's `auto`).
     pub approve_for_me: bool,
+    /// The turn's `--settings` file with OmniGet's permission hooks (3.4,
+    /// [`super::claude_hooks`]). `None` = no hook binary or no `--settings`
+    /// in this CLI: the argv of before.
+    pub hook_settings: Option<PathBuf>,
+    /// The turn whose file baselines the parser records (3.4).
+    pub baseline_request: Option<String>,
 }
 
 /// The CLI half of `CompositeRuntime`.
@@ -510,7 +516,10 @@ impl CliRuntime {
                     max_budget_usd: None,
                     partial_messages: self.options.partial_messages,
                     resume,
-                    settings: None,
+                    settings: launch
+                        .filter(|_| !external)
+                        .and_then(|l| l.hook_settings.as_ref())
+                        .map(|p| p.display().to_string()),
                     // The turn's run mode under the account's ceiling. Always
                     // set, so a turn never inherits whatever the profile's
                     // `settings.json` happens to say.
@@ -578,6 +587,10 @@ impl CliRuntime {
                         p.flag == "auto",
                         super::run_mode::denial_note(p.applied, has_prompt_tool),
                     ),
+                    None => parser,
+                };
+                let parser = match launch.and_then(|l| l.baseline_request.clone()) {
+                    Some(request) => parser.with_baselines(request),
                     None => parser,
                 };
                 (spec, Arc::new(parser))
@@ -681,6 +694,7 @@ impl AgentRuntime for CliRuntime {
         let turn = super::code_tools::current_turn();
         let registry = crate::core::assist::runs::active();
         let mut launch: Option<LaunchPlan> = None;
+        let mut turn_hooks: Option<super::claude_hooks::TurnHooks> = None;
         if let Some(turn) = &turn {
             let caps = self.caps_of(kind, &binary).await;
             let external = crate::core::assist::authority::external(&turn.conversation);
@@ -724,6 +738,8 @@ impl AgentRuntime for CliRuntime {
                 run_mode: super::run_mode::of(&turn.conversation),
                 auto_mode: caps.permission_modes.iter().any(|m| m == "auto"),
                 approve_for_me: caps.has_flag("--approve-for-me"),
+                hook_settings: None,
+                baseline_request: Some(turn.request.clone()),
             };
             if let Some(reg) = &registry {
                 let pins = crate::core::assist::runs::SessionPins {
@@ -793,6 +809,35 @@ impl AgentRuntime for CliRuntime {
                     }
                 }
             }
+            // OmniGet's rules also judge the CLI's own tools (3.4): a
+            // `PreToolUse` hook per call, from a private per-turn folder.
+            if kind == CliKind::Claude && !external && caps.has_flag("--settings") {
+                match super::claude_hooks::resolve_shim() {
+                    Some(shim) => {
+                        let policy = super::claude_hooks::Policy {
+                            agent: agent.id.clone(),
+                            rules_file: super::perm::store_file(),
+                            rules: Vec::new(),
+                            run_mode: plan.run_mode,
+                            workspace: (!projectless).then(|| plan.cwd.clone()).flatten(),
+                        };
+                        match super::claude_hooks::prepare(
+                            &super::claude_hooks::default_root(),
+                            &shim,
+                            &policy,
+                        ) {
+                            Ok(h) => {
+                                plan.hook_settings = Some(h.settings.clone());
+                                turn_hooks = Some(h);
+                            }
+                            Err(e) => tracing::warn!("[cli] permission hooks: {e}"),
+                        }
+                    }
+                    None => tracing::debug!(
+                        "[cli] no omniget-hook-shim: the CLI's permission mode alone judges its tools"
+                    ),
+                }
+            }
             launch = Some(plan);
         }
 
@@ -807,9 +852,15 @@ impl AgentRuntime for CliRuntime {
             let (probe, request) = (probe.clone(), turn.request.clone());
             hooks.paused = Some(Arc::new(move || probe(&request)));
         }
-        if let Some(path) = launch.as_ref().and_then(|l| l.mcp_config.clone()) {
+        let mcp_config = launch.as_ref().and_then(|l| l.mcp_config.clone());
+        if mcp_config.is_some() || turn_hooks.is_some() {
             hooks.cleanup = Some(Arc::new(move || {
-                let _ = std::fs::remove_file(&path);
+                if let Some(path) = &mcp_config {
+                    let _ = std::fs::remove_file(path);
+                }
+                if let Some(h) = &turn_hooks {
+                    h.cleanup();
+                }
             }));
         }
         let stream = session::spawn_turn_with(spec, parser, req.cancel.clone(), hooks)?;
@@ -1007,6 +1058,8 @@ mod tests {
             run_mode: None,
             auto_mode: false,
             approve_for_me: false,
+            hook_settings: None,
+            baseline_request: None,
         };
         let (spec, _) = runtime.plan_with(
             &account,
@@ -1084,6 +1137,8 @@ mod tests {
             run_mode: None,
             auto_mode: false,
             approve_for_me: false,
+            hook_settings: None,
+            baseline_request: None,
         };
         let effort = |req: &TurnRequest, p: &LaunchPlan| {
             let (spec, _) = runtime.plan_with(

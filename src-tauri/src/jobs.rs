@@ -31,6 +31,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::llm_manager::{now_ms, sanitize_id, LlmManager};
 
+mod changes;
 mod review;
 
 pub const EVENT_JOB: &str = "llm://job";
@@ -832,6 +833,8 @@ pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
     crate::job_commands::ensure_schema(db).map_err(|e| format!("{ERR_JOBS}: {e}"))?;
     // Review notes (3.5).
     review::ensure_notes_schema(db)?;
+    // Per-file baselines of the CLI's own writes (3.4).
+    changes::ensure_schema(db)?;
     Ok(())
 }
 
@@ -877,6 +880,16 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
             .set_ask_timeout_resolver(Some(Arc::new(move |request: &str| {
                 weak.upgrade()?.ask_timeout_for(request)
             })));
+        // The "before" of every file a CLI turn writes lands under its job
+        // (3.4).
+        let weak = Arc::downgrade(&jobs);
+        omniget_core::core::llm::file_changes::set_sink(Some(Arc::new(
+            move |request: &str, touch| {
+                if let Some(jobs) = weak.upgrade() {
+                    jobs.record_change(request, touch);
+                }
+            },
+        )));
         // Waiting rows follow the gate: state, reason and `llm://queue`.
         let weak = Arc::downgrade(&jobs);
         let mut changed = jobs.gate.subscribe();
@@ -1618,6 +1631,7 @@ impl Jobs {
         let _ = self
             .db()
             .execute("DELETE FROM job_notes WHERE job_id=?1", params![id]);
+        changes::forget(&self.db(), id);
         if let Some(path) = patch_path(id) {
             let _ = std::fs::remove_file(path);
         }
@@ -1653,12 +1667,27 @@ impl Jobs {
                     snapshot::ERR_DIFF_UNAVAILABLE
                 )),
             },
-            _ => match self.diff_folder(job) {
-                Some(ws) => {
-                    snapshot::job_diff(&ws, &sanitize_id(&job.conversation_id), requests).await
+            _ => {
+                let folder = self.diff_folder(job);
+                let out = match &folder {
+                    Some(ws) => {
+                        snapshot::job_diff(ws, &sanitize_id(&job.conversation_id), requests).await
+                    }
+                    None => Err(format!("{NO_WORKSPACE}: the job ran without a folder")),
+                };
+                // No snapshot to diff: the baselines the stream gave (3.4).
+                match out {
+                    Err(e) => {
+                        let rows = self.changes(&job.id);
+                        if rows.is_empty() {
+                            Err(e)
+                        } else {
+                            Ok(changes::diff_from_baselines(folder.as_deref(), &rows))
+                        }
+                    }
+                    ok => ok,
                 }
-                None => Err(format!("{NO_WORKSPACE}: the job ran without a folder")),
-            },
+            }
         };
         let ends = out
             .as_ref()

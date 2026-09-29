@@ -26,6 +26,7 @@ import argparse
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import time
@@ -106,6 +107,15 @@ BENCHES = {
         [],
         ["omniget-core"],
     ),
+    "bn8": (
+        "perm_parity.py",
+        [CORE_LLM + "perm.rs", CORE_LLM + "claude_hooks", CORE_LLM + "broker.rs", CORE_LLM + "run_mode.rs",
+         CORE_LLM + "cli_runtime/", "src-tauri/omniget-core/src/core/assist/projection.rs",
+         "src-tauri/omniget-core/src/core/agentkit/convert/hook_shim.rs", "src-tauri/omniget-cli/src/bin/omniget-hook-shim.rs",
+         "scripts/llm/fake_claude.py", "scripts/llm/perm_parity.py"],
+        [],
+        ["omniget-core"],
+    ),
 }
 # Real app binary, ~10 min (a 3-minute cron and 10 kill -9 reps): not for --quick.
 QUICK_SKIP = {"bn6"}
@@ -171,10 +181,22 @@ def run_bench(name, quick, run_dir):
             "exit": p.returncode}
 
 
+def hook_shim_copy(run_dir):
+    """3.4: B0 turns carry the permission hooks. The target dir is shared by
+    worktrees, so the binary is built and copied here before the run."""
+    subprocess.run(["cargo", "build", "-p", "omniget-cli", "--bin", "omniget-hook-shim"], cwd=TAURI, check=True,
+                   capture_output=True)
+    name = "omniget-hook-shim" + (".exe" if os.name == "nt" else "")
+    target = pathlib.Path(os.environ.get("CARGO_TARGET_DIR") or TAURI / "target")
+    dest = run_dir / name
+    shutil.copy2(target / "debug" / name, dest)
+    return dest
+
+
 def run_b0(run_dir, reps, jobs):
     out = run_dir / "b0.json"
     cmd = [sys.executable, str(ROOT / "scripts" / "llm" / "missions_eval.py"), "--reps", str(reps),
-           "--jobs", str(jobs), "--out", str(out)]
+           "--jobs", str(jobs), "--out", str(out), "--hook-bin", str(hook_shim_copy(run_dir))]
     t0 = time.time()
     p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
     (run_dir / "b0.log").write_text(p.stdout + "\n--- stderr ---\n" + p.stderr)
@@ -195,7 +217,7 @@ def main():
     ap.add_argument("--prepared", help="immutable prepared.json; execute without Cargo")
     ap.add_argument("--all", action="store_true", help="every fake bench, whatever changed")
     ap.add_argument("--quick", action="store_true", help="fewer repetitions (iteration, not a gate)")
-    ap.add_argument("--only", default="", help="comma-separated: bn1,bn2,bn3,bn4,bn5,bn6,bn11,bn12")
+    ap.add_argument("--only", default="", help="comma-separated: bn1,bn2,bn3,bn4,bn5,bn6,bn8,bn11,bn12")
     ap.add_argument("--real", action="store_true", help="also run B0 (real Claude turns; spends quota)")
     ap.add_argument("--real-if-needed", action="store_true",
                     help="run B0 only when the turn argv or the harness changed")

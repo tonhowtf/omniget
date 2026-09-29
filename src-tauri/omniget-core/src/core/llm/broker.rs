@@ -835,26 +835,20 @@ impl ToolBroker {
                 LlmError::new(ERR_TOOL_UNKNOWN, format!("unknown tool `{name}`")),
             ));
         };
-        let mut mode = self.mode_for(grants, name);
-        // The turn's run mode moves the grant inside itself (2.7); a stored
-        // rule, the always-ask tools and the workspace check still come after.
-        if let Some(run) =
-            super::code_tools::current_turn().and_then(|c| super::run_mode::of(&c.conversation))
-        {
-            mode = super::run_mode::native_grant(run, name, mode);
-        }
+        // The grant, the turn's run mode inside it (2.7), the stored rules and
+        // the always-ask tools: the one gate the Claude Code hook uses too
+        // (3.4), so native and CLI give the same verdict.
+        let run =
+            super::code_tools::current_turn().and_then(|c| super::run_mode::of(&c.conversation));
+        let mut mode = super::perm::gate(
+            &super::perm::rules_of(agent_id),
+            run,
+            self.mode_for(grants, name),
+            name,
+            &super::perm::native_input(name, &input, super::code_tools::workspace().as_deref()),
+        )
+        .mode;
         if !matches!(mode, GrantMode::Deny) {
-            match super::perm::decide(agent_id, name, &input) {
-                Some(super::perm::Action::Allow) => mode = GrantMode::Auto,
-                Some(super::perm::Action::Ask) => mode = GrantMode::Ask,
-                Some(super::perm::Action::Deny) => mode = GrantMode::Deny,
-                None => {}
-            }
-            // Tools that change the machine (washmybelly plans) ask every
-            // time: neither a grant nor a stored rule turns them into Auto.
-            if super::tool_table::always_asks(name) && matches!(mode, GrantMode::Auto) {
-                mode = GrantMode::Ask;
-            }
             // A path outside the workspace is its own question, whatever the
             // grant says; a yes covers this one call.
             let path = input.get("path").and_then(Value::as_str).unwrap_or("");

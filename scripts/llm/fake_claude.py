@@ -13,7 +13,7 @@ turn and must stay the real one:
 
   FAKE_CLAUDE_MODE     ok | stall-after-init | silent-start | tool-long |
                        ask-pending | grandchild | grandchild-setsid | write |
-                       sleep | apply | notes
+                       sleep | apply | notes | perm | bn6 | hooks
                        (default: ok)
   FAKE_CLAUDE_HOLD_S   seconds of silence in the modes that go quiet
                        (default 3600: "forever" for a benchmark)
@@ -33,7 +33,8 @@ turn and must stay the real one:
                        resume (BN6 runs the real app against this fake)
   FAKE_CLAUDE_LIVE_DIR `bn6`: folder of pid files of the fakes alive now
   FAKE_CLAUDE_TRACE    `perm`: one JSON line per permission question and a
-                       last line with the totals
+                       last line with the totals; `hooks`: one line per call
+  FAKE_CLAUDE_CALLS    `hooks`: the tool calls, JSON [{name, input}]
 
 Modes:
   ok                 init, a text reply, result; exit 0.
@@ -90,11 +91,26 @@ Modes:
                      in TRACE (the benchmark checks `--resume` and that only
                      the notes travelled).
 
+  hooks              the BN8 fixture (3.4): runs the tool calls of
+                     FAKE_CLAUDE_CALLS (JSON [{name, input}]) the way Claude
+                     Code does with `--settings`: each matching PreToolUse
+                     hook command runs through the shell with the hook JSON
+                     on stdin (exit 2 or `permissionDecision: deny` blocks,
+                     `ask` asks, nothing = the mode decides: bypass runs all,
+                     acceptEdits/auto run edits, reads always run, the rest
+                     asks). A question goes to the prompt tool when the argv
+                     has one, modelled by the same hook binary's
+                     `PermissionRequest` event (the app's prompt tool asks
+                     the same gate); no answer = a person is asked (counted,
+                     answered no). PostToolUse hooks run after a file tool.
+                     TRACE gets {name, hook, hook_ms, verdict} per call.
+
 `--help` prints a short help (the capability probe never hangs on it).
 """
 import base64
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -352,6 +368,97 @@ def perm_codex():
     return 0
 
 
+READ_TOOLS = ("Read", "Glob", "Grep", "LS")
+EDIT_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
+
+
+def hook_commands(settings, event, tool):
+    """The commands of `event` whose matcher takes `tool` (Claude: `*`/empty = all, else a regex)."""
+    out = []
+    for group in (settings.get("hooks") or {}).get(event) or []:
+        matcher = group.get("matcher") or "*"
+        if matcher == "*" or re.fullmatch(matcher, tool):
+            out += [h["command"] for h in group.get("hooks") or [] if h.get("type") == "command"]
+    return out
+
+
+def run_hook(command, payload):
+    t = time.perf_counter()
+    p = subprocess.run(["/bin/sh", "-c", command], input=json.dumps(payload), capture_output=True, text=True)
+    ms = (time.perf_counter() - t) * 1000
+    if p.returncode == 2:
+        return "deny", ms, p.stderr.strip()
+    try:
+        out = json.loads(p.stdout) if p.stdout.strip() else {}
+    except ValueError:
+        return None, ms, ""
+    spec = out.get("hookSpecificOutput") or {}
+    if "decision" in spec:  # PermissionRequest
+        return spec["decision"].get("behavior"), ms, spec["decision"].get("message", "")
+    return spec.get("permissionDecision"), ms, spec.get("permissionDecisionReason", "")
+
+
+def hooks_claude():
+    mode = {"manual": "default"}.get(arg("--permission-mode") or "default", arg("--permission-mode") or "default")
+    host = arg("--permission-prompts") == "host" and arg("--permission-prompt-tool")
+    path = arg("--settings")
+    settings = json.load(open(path)) if path else {}
+    calls = json.loads(os.environ.get("FAKE_CLAUDE_CALLS", "[]"))
+    emit({"type": "system", "subtype": "init", "cwd": os.getcwd(), "claude_code_version": "2.1.284-fake",
+          "model": "claude-sonnet-4-5", "permissionMode": mode, "tools": sorted({c["name"] for c in calls}),
+          "mcp_servers": []})
+    denials = []
+    for i, call in enumerate(calls):
+        tid = f"toolu_hook_{i}"
+        name, tool_input = call["name"], call["input"]
+        emit({"type": "assistant", "message": {
+            "id": f"msg_hook_{i}", "type": "message", "role": "assistant", "model": "claude-sonnet-4-5",
+            "content": [{"type": "tool_use", "id": tid, "name": name, "input": tool_input}],
+            "stop_reason": "tool_use", "usage": {"input_tokens": 4, "output_tokens": 9}},
+            "parent_tool_use_id": None})
+        payload = {"session_id": SESSION, "transcript_path": "/dev/null", "cwd": os.getcwd(),
+                   "hook_event_name": "PreToolUse", "permission_mode": mode, "tool_name": name,
+                   "tool_input": tool_input, "tool_use_id": tid}
+        decision, hook_ms, reason = None, 0.0, ""
+        for command in hook_commands(settings, "PreToolUse", name):
+            d, ms, why = run_hook(command, payload)
+            hook_ms += ms
+            if d in ("deny", "ask", "allow") and decision != "deny":
+                decision, reason = d, why
+        verdict = decision
+        if verdict is None:
+            if mode == "bypassPermissions" or name in READ_TOOLS:
+                verdict = "allow"
+            elif mode in ("acceptEdits", "auto") and name in EDIT_TOOLS:
+                verdict = "allow"
+            else:
+                verdict = "ask"
+        final = verdict
+        if verdict == "ask":
+            if host:
+                answer = None
+                for command in hook_commands(settings, "PreToolUse", name):
+                    command = command.replace("--event PreToolUse", "--event PermissionRequest")
+                    answer, _, why = run_hook(command, dict(payload, hook_event_name="PermissionRequest"))
+                    reason = why or reason
+                final = {"allow": "allow", "deny": "deny"}.get(answer, "ask")
+            else:
+                final = "deny"
+        trace({"name": name, "hook": decision, "hook_ms": round(hook_ms, 3), "verdict": final,
+               "mode_asked": verdict == "ask", "reason": reason})
+        if final == "allow":
+            tool_result(tid, "ok")
+            if name in EDIT_TOOLS:
+                for command in hook_commands(settings, "PostToolUse", name):
+                    run_hook(command, dict(payload, hook_event_name="PostToolUse", tool_response={}))
+        else:
+            tool_result(tid, reason or DENIED, is_error=True)
+            denials.append({"tool_name": name, "tool_use_id": tid, "tool_input": tool_input})
+    text_reply("done")
+    result("done", denials)
+    return 0
+
+
 def main():
     if "--help" in sys.argv[1:] or "-h" in sys.argv[1:]:
         print("Usage: claude [options] (fake for OmniGet benchmarks)\n  -p, --print\n  --output-format <format>")
@@ -376,6 +483,8 @@ def main():
         return bn6(prompt, hold)
     if mode == "perm":
         return perm_codex() if sys.argv[1:2] == ["exec"] else perm_claude()
+    if mode == "hooks":
+        return hooks_claude()
     init()
     if mode == "ok":
         text_reply("ok")

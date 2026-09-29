@@ -57,12 +57,16 @@ import os
 import pathlib
 import re
 import shutil
+import shlex
 import signal
 import subprocess
 import sys
 import statistics
 import tempfile
 import time
+import uuid
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 SCRUB_ENV = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_OAUTH_TOKEN',
              'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'OPENAI_API_KEY', 'OPENAI_BASE_URL']
@@ -531,7 +535,50 @@ def permission_flags(run_mode='auto_edits', prompt_tool=None):
     return out + ['--permission-mode', RUN_MODE_FLAG[run_mode]]
 
 
-def claude_argv(args, model=None, effort=None):
+# 3.4: espelho de claude_hooks::settings_json / prepare (omniget-core/src/core/llm/claude_hooks.rs).
+HOOK_POST_MATCHER = 'Write|Edit|MultiEdit|NotebookEdit'
+HOOK_TIMEOUT_S = 10
+SETTINGS_PLACEHOLDER = '<turn>/settings.json'
+
+
+def hook_bin(args=None):
+    """O binário do hook: --hook-bin, OMNIGET_HOOK_BIN, ou o omniget-hook-shim do target de debug."""
+    explicit = getattr(args, 'hook_bin', None) or os.environ.get('OMNIGET_HOOK_BIN')
+    if explicit:
+        return explicit
+    target = os.environ.get('CARGO_TARGET_DIR') or str(ROOT / 'src-tauri' / 'target')
+    name = 'omniget-hook-shim' + ('.exe' if os.name == 'nt' else '')
+    return str(pathlib.Path(target) / 'debug' / name)
+
+
+def hook_settings_json(shim, turn_dir):
+    """Espelha claude_hooks::settings_json: PreToolUse em tudo, PostToolUse nos que escrevem arquivo."""
+    def hook(event):
+        cmd = f'{shlex.quote(str(shim))} hook claude --event {event} --turn {shlex.quote(str(turn_dir))}'
+        return {'type': 'command', 'command': cmd, 'timeout': HOOK_TIMEOUT_S}
+    return {'hooks': {
+        'PreToolUse': [{'matcher': '*', 'hooks': [hook('PreToolUse')]}],
+        'PostToolUse': [{'matcher': HOOK_POST_MATCHER, 'hooks': [hook('PostToolUse')]}],
+    }}
+
+
+def prepare_hooks(shim, run_mode, workspace, rules=None, rules_file=None, agent='missions'):
+    """Espelha claude_hooks::prepare: pasta privada do turno (0700) com policy.json e settings.json (0600).
+    Devolve (pasta, caminho do settings); quem chama apaga a pasta no fim."""
+    root = pathlib.Path(tempfile.gettempdir()) / 'omniget-turns'
+    root.mkdir(parents=True, exist_ok=True)
+    d = root / ('turn-' + uuid.uuid4().hex)
+    d.mkdir(mode=0o700)
+    policy = {'agent': agent, 'rules_file': str(rules_file) if rules_file else None, 'rules': rules or [],
+              'run_mode': run_mode, 'workspace': str(workspace) if workspace else None}
+    for name, body in (('policy.json', policy), ('settings.json', hook_settings_json(shim, d))):
+        fd = os.open(str(d / name), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'w') as f:
+            json.dump(body, f)
+    return d, d / 'settings.json'
+
+
+def claude_argv(args, model=None, effort=None, settings=None):
     """Espelha claude::argv para SandboxMode::Write sem projeção.
 
     `--argv lean` (padrão) = job de projeto da onda 2 (plan_with com lean_project);
@@ -553,6 +600,8 @@ def claude_argv(args, model=None, effort=None):
         out += ['--append-system-prompt', PROJECT_BATCHING]
     if args.budget:
         out += ['--max-budget-usd', str(args.budget)]
+    if getattr(args, 'hooks', True):  # 3.4: o app passa --settings com os hooks de permissão em todo turno
+        out += ['--settings', str(settings or SETTINGS_PLACEHOLDER)]
     if lean:
         out += ['--tools', PROJECT_TOOLS, '--strict-mcp-config', '--exclude-dynamic-system-prompt-sections']
     if args.allow_tests:
@@ -595,8 +644,20 @@ def run_claude(args, prompt, cwd, timeout, model=None, effort=None):
     if getattr(args, 'outcome', True):
         prompt = prompt + OUTCOME_SUFFIX  # jobs.rs: `format!("{input}{OUTCOME_SUFFIX}")`
     stdin = 'User: ' + prompt  # claude::render_prompt de uma única mensagem de usuário
-    p = subprocess.Popen([binary] + claude_argv(args, model, effort), cwd=str(cwd), env=child_env(), stdin=subprocess.PIPE,
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+    turn_dir, settings = (None, None)
+    if getattr(args, 'hooks', True):
+        turn_dir, settings = prepare_hooks(hook_bin(args), getattr(args, 'run_mode', 'auto_edits'), cwd)
+    try:
+        return _run_claude(args, binary, stdin, cwd, timeout, model, effort, settings)
+    finally:
+        if turn_dir:
+            shutil.rmtree(turn_dir, ignore_errors=True)
+
+
+def _run_claude(args, binary, stdin, cwd, timeout, model, effort, settings):
+    p = subprocess.Popen([binary] + claude_argv(args, model, effort, settings), cwd=str(cwd), env=child_env(),
+                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                         start_new_session=True)
     OWN_PIDS.add(p.pid)
     timed_out = False
     try:
@@ -747,8 +808,16 @@ def main():
                          'continua medido por missão, e o valor vai no JSON para comparar rodadas iguais')
     ap.add_argument('--run-mode', default='auto_edits', choices=sorted(RUN_MODE_FLAG),
                     help='run_mode do job (2.7); auto_edits = argv de sempre (padrão do chat)')
+    ap.add_argument('--no-hooks', dest='hooks', action='store_false',
+                    help='sem o --settings com os hooks de permissão do 3.4 (argv de antes)')
+    ap.add_argument('--hook-bin', default=None,
+                    help='omniget-hook-shim (padrão: OMNIGET_HOOK_BIN ou $CARGO_TARGET_DIR/debug/omniget-hook-shim)')
     ap.add_argument('--list', action='store_true')
     args = ap.parse_args()
+    if args.hooks and not args.list and not os.path.isfile(hook_bin(args)):
+        print(f'hook binary not found: {hook_bin(args)} (cargo build -p omniget-cli --bin omniget-hook-shim, '
+              'or --no-hooks)', file=sys.stderr)
+        return 2
     if args.list:
         for t in TASKS:
             print(f'{t.id:18} {t.kind:9} {t.prompt[:90]}')

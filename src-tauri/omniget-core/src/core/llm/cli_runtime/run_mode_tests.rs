@@ -97,6 +97,8 @@ async fn run(case: &Case<'_>) -> Row {
         // The installed 2.1.284 lists `auto`; codex 0.158 lists `--approve-for-me`.
         auto_mode: true,
         approve_for_me: true,
+        hook_settings: None,
+        baseline_request: None,
     };
     let req = TurnRequest {
         model: ModelRef {
@@ -352,6 +354,8 @@ fn auto_edits_is_the_argv_of_before() {
         run_mode,
         auto_mode: true,
         approve_for_me: true,
+        hook_settings: None,
+        baseline_request: None,
     };
     let argv = |p: &LaunchPlan| {
         runtime
@@ -368,5 +372,23 @@ fn auto_edits_is_the_argv_of_before() {
         ),
         "{joined}"
     );
+    // 3.4: the hooks' settings go in right after the resume slot, the same
+    // place `missions_eval.py` puts them; an external mission never gets them.
+    let hooked = LaunchPlan {
+        hook_settings: Some(PathBuf::from("/t/turn-1/settings.json")),
+        ..plan(None)
+    };
+    let with = argv(&hooked);
+    let at = with.iter().position(|a| a == "--settings").unwrap();
+    assert_eq!(with[at + 1], "/t/turn-1/settings.json");
+    assert_eq!(with[at + 2], "--tools", "{with:?}");
+    let mut without = with.clone();
+    without.drain(at..at + 2);
+    assert_eq!(without, none, "nothing else moves");
+    let external = LaunchPlan {
+        external: true,
+        ..hooked
+    };
+    assert!(!argv(&external).iter().any(|a| a == "--settings"));
     let _ = std::fs::remove_dir_all(&root);
 }

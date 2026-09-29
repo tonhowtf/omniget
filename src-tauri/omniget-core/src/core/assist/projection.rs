@@ -702,11 +702,26 @@ async fn permission_prompt(grant: &Grant, args: Value) -> Value {
             .map(str::to_string)
             .unwrap_or_else(|| input.to_string().chars().take(600).collect()),
     };
-    let decided = crate::core::llm::perm::decide(&grant.bot_id, &label, &input);
-    let end = match decided {
-        Some(crate::core::llm::perm::Action::Allow) => AskEnd::Answered(Answer::Once),
-        Some(crate::core::llm::perm::Action::Deny) => AskEnd::Answered(Answer::Deny),
-        _ => match broker_of(&grant.id) {
+    // The same gate as the native broker and the `PreToolUse` hook (3.4):
+    // `Bash` is judged as `shell_exec`, `Write` as `fs_write`, so an
+    // "Always" or a "Deny" given anywhere counts here.
+    let workspace = crate::core::llm::code_tools::workspace_of(&grant.conversation_id);
+    let (native, native_input) =
+        crate::core::llm::perm::from_claude(&tool, &input, workspace.as_deref());
+    let verdict = crate::core::llm::perm::gate(
+        &crate::core::llm::perm::rules_of(&grant.bot_id),
+        crate::core::llm::run_mode::of(&grant.conversation_id),
+        crate::core::llm::perm::cli_grant(&native),
+        &native,
+        &native_input,
+    );
+    if matches!(verdict.mode, GrantMode::Deny) {
+        let body = json!({ "behavior": "deny", "message": crate::core::llm::claude_hooks::deny_reason(&grant.bot_id, &native, &native_input) });
+        return text_result(body.to_string(), false);
+    }
+    let end = match verdict.mode {
+        GrantMode::Auto | GrantMode::Deny => AskEnd::Answered(Answer::Once),
+        GrantMode::Ask => match broker_of(&grant.id) {
             Some(broker) => {
                 broker
                     .ask_user_ended(
@@ -732,7 +747,7 @@ async fn permission_prompt(grant: &Grant, args: Value) -> Value {
     if matches!(answer, Answer::Always) {
         crate::core::llm::perm::add_rule(
             &grant.bot_id,
-            crate::core::llm::perm::always_rule(&label, &input),
+            crate::core::llm::perm::always_rule(&native, &native_input),
         );
     }
     let body = match answer {

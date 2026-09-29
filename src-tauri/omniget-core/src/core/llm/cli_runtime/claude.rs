@@ -315,6 +315,9 @@ pub struct ClaudeParser {
     denial_note: String,
     /// Tool calls whose denial already carries the note.
     explained: Mutex<std::collections::HashSet<String>>,
+    /// The turn whose file baselines are recorded (3.4): each `Write`/`Edit`
+    /// result's `originalFile` goes to [`crate::core::llm::file_changes`].
+    baselines: Option<String>,
 }
 
 impl ClaudeParser {
@@ -327,7 +330,14 @@ impl ClaudeParser {
             expect_auto: false,
             denial_note: "[OmniGet] Denied: the CLI refused this call under its permission mode and nobody could be asked.".into(),
             explained: Mutex::new(std::collections::HashSet::new()),
+            baselines: None,
         }
+    }
+
+    /// Records the "before" of every file this turn (`request`) writes.
+    pub fn with_baselines(mut self, request: String) -> Self {
+        self.baselines = Some(request);
+        self
     }
 
     /// The turn's run mode as the parser needs it: whether `auto` was asked
@@ -519,6 +529,14 @@ impl LineParser for ClaudeParser {
             // `{"type":"user","message":{"content":[{"type":"tool_result",
             // "tool_use_id":"toolu_…","content":"…" | [{"type":"text",…}]}]}}`.
             "user" => {
+                if let (Some(request), Some(touch)) = (
+                    &self.baselines,
+                    value
+                        .get("tool_use_result")
+                        .and_then(crate::core::llm::file_changes::from_tool_use_result),
+                ) {
+                    crate::core::llm::file_changes::record(request, touch);
+                }
                 let blocks = value
                     .get("message")
                     .and_then(|m| m.get("content"))
