@@ -167,7 +167,10 @@ mod tests {
         std::fs::write(&placeholder, b"").unwrap();
         let dst = d.join("bin").join(exe_name());
         // Only the placeholder: nothing installed, nothing pinned.
-        assert_eq!(ensure_shim_from(&[placeholder.clone()], &dst), Ok(None));
+        assert_eq!(
+            ensure_shim_from(std::slice::from_ref(&placeholder), &dst),
+            Ok(None)
+        );
         assert!(!dst.exists());
         // A real executable (this test binary) behind the placeholder wins.
         let real = std::env::current_exe().unwrap();
