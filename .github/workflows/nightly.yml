@@ -1,0 +1,213 @@
+name: Nightly
+
+# What is too slow, too flaky or too dependent on the outside world for every
+# pull request, once a day on `main`:
+#   - the full Rust test suite and the smoke test on the three OSes;
+#   - the `#[ignore]` tests that only need the network (no Ollama, no
+#     installed CLI agent, no ONNX model, no fixed port);
+#   - the platform canary (`pnpm canary`): one public URL per platform,
+#     metadata only, so a site change shows up here before a user reports it;
+#   - RustSec advisories for the dependency tree (cargo-deny).
+#
+# A red nightly is a to-do, not a broken `main`: each job is independent.
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libpipewire-0.3-dev clang libclang-dev
+
+      - name: Rust toolchain (rust-toolchain.toml)
+        shell: bash
+        run: |
+          rustup toolchain install
+          rustup show active-toolchain
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri'
+
+      - name: Test
+        working-directory: src-tauri
+        timeout-minutes: 30
+        run: cargo test --workspace --no-fail-fast
+
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - uses: pnpm/action-setup@v5
+
+      - name: Rust toolchain (rust-toolchain.toml)
+        shell: bash
+        run: |
+          rustup toolchain install
+          rustup show active-toolchain
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri'
+
+      - name: Linux deps
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libpipewire-0.3-dev clang libclang-dev xvfb
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Build app
+        working-directory: src-tauri
+        run: cargo build
+
+      - name: Smoke (standard mode)
+        shell: bash
+        run: |
+          BIN=src-tauri/target/debug/omniget
+          [ "${{ matrix.platform }}" = "windows-latest" ] && BIN="$BIN.exe"
+          if [ "${{ matrix.platform }}" = "ubuntu-latest" ]; then
+            xvfb-run -a node scripts/smoke-test.mjs "$BIN"
+          else
+            node scripts/smoke-test.mjs "$BIN"
+          fi
+
+      - name: Smoke (portable mode)
+        shell: bash
+        run: |
+          BIN=src-tauri/target/debug/omniget
+          [ "${{ matrix.platform }}" = "windows-latest" ] && BIN="$BIN.exe"
+          if [ "${{ matrix.platform }}" = "ubuntu-latest" ]; then
+            xvfb-run -a node scripts/smoke-test.mjs "$BIN" --portable
+          else
+            node scripts/smoke-test.mjs "$BIN" --portable
+          fi
+
+  # `#[ignore]` tests whose only outside dependency is the internet (plus
+  # yt-dlp for the e2e download). Left out on purpose: Ollama (wire_probe,
+  # openai_compat, ollama_embed), an installed claude/codex/gemini/opencode
+  # (caps, drivers, cli_runtime, agentkit wizard, limits_strip), ONNX downloads
+  # and models (onnxrt, tools::onnx, minilm), fixed ports (local_bridge_*),
+  # this machine's own state (sessions, clitools, washmybelly, preview,
+  # usage_tray), measurements (benches), and the assist::web live tests: they
+  # scrape DuckDuckGo/Brave result pages, which challenge datacenter IPs.
+  network-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libpipewire-0.3-dev clang libclang-dev ffmpeg
+
+      # The e2e download test takes yt-dlp from OMNIGET_YTDLP and returns
+      # early (passing) without it.
+      - name: Install yt-dlp
+        run: |
+          pipx install "yt-dlp[default]"
+          echo "OMNIGET_YTDLP=$(command -v yt-dlp || echo "$HOME/.local/bin/yt-dlp")" >> "$GITHUB_ENV"
+
+      - name: Rust toolchain (rust-toolchain.toml)
+        run: |
+          rustup toolchain install
+          rustup show active-toolchain
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri'
+
+      - name: Network-only ignored tests
+        working-directory: src-tauri
+        run: |
+          test -x "$OMNIGET_YTDLP"
+          cargo test -p omniget-core --lib -- --ignored --exact \
+            platforms::bluesky::tests::live_custom_domain_handle_post_resolves \
+            platforms::instagram::tests::instagram_live_locked_tv_stops_early \
+            platforms::instagram::tests::instagram_live_gql_public_vs_locked \
+            platforms::twitter::tests::twitter_live_step_timing \
+            core::ytdlp::e2e::e2e_download_reports_streams
+
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - uses: pnpm/action-setup@v5
+
+      - name: Rust toolchain (rust-toolchain.toml)
+        run: |
+          rustup toolchain install
+          rustup show active-toolchain
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri'
+
+      # Fresh profile, no cookies: the first probe installs the managed yt-dlp
+      # the way the app does on first run, and every platform must answer
+      # without a login. The table also lands in the job summary.
+      - name: Platform canary
+        run: pnpm canary
+
+  advisories:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Rust toolchain (rust-toolchain.toml)
+        run: |
+          rustup toolchain install
+          rustup show active-toolchain
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      # Advisories only (src-tauri/deny.toml): vulnerabilities, unsound crates,
+      # unmaintained direct dependencies. Usually fixed by `cargo update -p`.
+      - name: cargo deny check advisories
+        run: cargo deny --manifest-path src-tauri/Cargo.toml check advisories

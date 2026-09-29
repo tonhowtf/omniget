@@ -9,16 +9,81 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
+  # Decide o que roda. Em PR, so os jobs cujos arquivos mudaram; no push para a
+  # `main`, tudo roda, sem filtro: a `main` e o que vai para a release.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      rust: ${{ github.event_name != 'pull_request' || steps.filter.outputs.rust == 'true' }}
+      web: ${{ github.event_name != 'pull_request' || steps.filter.outputs.web == 'true' }}
+      extension: ${{ github.event_name != 'pull_request' || steps.filter.outputs.extension == 'true' }}
+      plugin: ${{ github.event_name != 'pull_request' || steps.filter.outputs.plugin == 'true' }}
+      devscripts: ${{ github.event_name != 'pull_request' || steps.filter.outputs.devscripts == 'true' }}
+      metainfo: ${{ github.event_name != 'pull_request' || steps.filter.outputs.metainfo == 'true' }}
+    steps:
+      # Em PR o filtro pergunta os arquivos para a API do GitHub; nao precisa
+      # de checkout.
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            rust:
+              - 'src-tauri/**'
+              - 'rust-toolchain.toml'
+              - 'rustfmt.toml'
+              - 'scripts/clippy-baseline.mjs'
+              - 'scripts/smoke-test.mjs'
+              - '.github/workflows/ci.yml'
+            web:
+              - 'src/**'
+              - 'static/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'svelte.config.js'
+              - 'vite.config.js'
+              - 'tsconfig.json'
+              - 'vitest.config.ts'
+              - 'scripts/generate-i18n-keys.js'
+              - 'scripts/check-ipc.mjs'
+              - 'scripts/ipc-allowlist.json'
+              - '.github/workflows/ci.yml'
+            extension:
+              - 'browser-extension/**'
+              - 'scripts/test-extension.mjs'
+              - '.github/workflows/ci.yml'
+            plugin:
+              - 'claude-plugin/**'
+              - '.github/workflows/ci.yml'
+            devscripts:
+              - 'scripts/dev/**'
+              - 'scripts/llm/**'
+              - '.github/workflows/ci.yml'
+            metainfo:
+              - 'flatpak/**'
+              - '.github/workflows/ci.yml'
+
+  # Em PR: fmt, clippy, baseline e testes no Ubuntu; Windows e macOS so clippy
+  # e baseline (o `#[cfg(target_os)]` e o que muda entre eles, e o clippy ja
+  # enxerga isso). No push para a `main`, os testes rodam nas tres.
   rust:
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.user.login != 'weblate' }}
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.user.login != 'weblate') }}
     strategy:
       fail-fast: false
       matrix:
         platform: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Linux system dependencies
         if: matrix.platform == 'ubuntu-latest'
@@ -26,13 +91,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libpipewire-0.3-dev clang libclang-dev
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+      # O rust-toolchain.toml da raiz fixa a versao e os componentes (rustfmt,
+      # clippy); o rustup instala exatamente isso, sem passar pelo `stable`.
+      - name: Rust toolchain (rust-toolchain.toml)
+        shell: bash
+        run: |
+          rustup toolchain install
+          rustup show active-toolchain
 
+      # So a `main` grava cache: PR le o da `main` e nao gasta a cota de 10 GB
+      # com um cache por branch.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri'
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Format
         if: matrix.platform == 'ubuntu-latest'
@@ -53,14 +125,17 @@ jobs:
         run: node scripts/clippy-baseline.mjs --check
 
       - name: Test
+        if: matrix.platform == 'ubuntu-latest' || github.event_name != 'pull_request'
         working-directory: src-tauri
         # A hung test must fail with its log, not sit until the job is
-        # cancelled (a cancelled job keeps no log to read).
+        # cancelled (a cancelled job keeps no log to read). `--no-fail-fast`
+        # so one broken crate does not hide the failures of the others.
         timeout-minutes: 30
-        run: cargo test --workspace
+        run: cargo test --workspace --no-fail-fast
 
   rust-debian:
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.user.login != 'weblate' }}
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.user.login != 'weblate') }}
     runs-on: ubuntu-latest
     container: debian:bookworm
     steps:
@@ -71,7 +146,7 @@ jobs:
             ca-certificates curl wget git build-essential pkg-config \
             libssl-dev file unzip xz-utils
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Debian system dependencies
         run: |
@@ -80,73 +155,131 @@ jobs:
             libasound2-dev libpipewire-0.3-dev clang libclang-dev \
             patchelf xdg-utils
 
-      - uses: dtolnay/rust-toolchain@stable
+      # O container nao traz rustup. Instala sem toolchain nenhum e deixa o
+      # rust-toolchain.toml escolher a versao.
+      - name: Rust toolchain (rust-toolchain.toml)
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/rustup" toolchain install
+          "$HOME/.cargo/bin/rustup" show active-toolchain
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri'
           key: debian
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Cargo check (Debian compat)
         working-directory: src-tauri
         run: cargo check --workspace --all-targets
 
+  # O contrato de IPC (invoke registrado, evento com emissor) quebra dos dois
+  # lados, entao roda quando o Rust ou o front mudou; o resto do job, so com o
+  # front.
   frontend:
+    needs: changes
+    if: ${{ needs.changes.outputs.web == 'true' || needs.changes.outputs.rust == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: lts/*
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
+
+      - name: IPC contract (invoke and listen targets)
+        run: pnpm check:ipc
 
       - name: Install dependencies
+        if: needs.changes.outputs.web == 'true'
         run: pnpm install --frozen-lockfile
 
       # Este e o portao que faltava: `pnpm check` sai com 1 em erro de tipo, que
       # foi exatamente o que passou despercebido na PR #197.
       - name: svelte-check
+        if: needs.changes.outputs.web == 'true'
         run: pnpm check
 
       - name: Unit tests (vitest)
+        if: needs.changes.outputs.web == 'true'
         run: pnpm test
 
       # `--strict` reprova quando algum locale esta fora de sincronia com en.json.
       - name: Locales in sync with en.json
+        if: needs.changes.outputs.web == 'true'
         run: pnpm check:i18n
 
       - name: Generated i18n keys are committed
+        if: needs.changes.outputs.web == 'true'
         run: |
           pnpm generate:i18n-keys
           git diff --exit-code -- src/lib/i18n/keys.ts
+
+  # Testes que so dependem de node/python e nao entravam no CI: a extensao do
+  # navegador, o plugin do Claude Code e os scripts de dev. Cada um so quando
+  # os seus arquivos mudaram.
+  extras:
+    needs: changes
+    if: ${{ needs.changes.outputs.extension == 'true' || needs.changes.outputs.plugin == 'true' || needs.changes.outputs.devscripts == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - uses: pnpm/action-setup@v5
+
+      - name: Browser extension tests
+        if: needs.changes.outputs.extension == 'true'
+        run: pnpm test:extension
+
+      - name: Claude Code plugin tests
+        if: needs.changes.outputs.plugin == 'true'
+        run: pnpm test:plugin
+
+      - name: Dev session scripts tests
+        if: needs.changes.outputs.devscripts == 'true'
+        run: pnpm test:dev
 
   # B55. O CI provava que compila nas quatro plataformas e nunca abriu o app
   # uma vez — foi por essa fresta que a #209 entrou em `main`. Este job sobe o
   # binario de verdade e exige a linha de janela criada.
   #
   # Criterio de aceite do item: reverter o B49 tem que deixar este job vermelho.
+  #
+  # Em PR roda no Windows e no Ubuntu; no push para a `main`, tambem no macOS.
   smoke:
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.web == 'true' }}
     strategy:
       fail-fast: false
       matrix:
-        platform: [windows-latest, ubuntu-latest]
+        platform: ${{ fromJSON(github.event_name == 'pull_request' && '["windows-latest","ubuntu-latest"]' || '["windows-latest","ubuntu-latest","macos-latest"]') }}
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: lts/*
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Rust toolchain (rust-toolchain.toml)
+        shell: bash
+        run: |
+          rustup toolchain install
+          rustup show active-toolchain
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri'
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Linux deps
         if: matrix.platform == 'ubuntu-latest'
@@ -190,10 +323,11 @@ jobs:
           fi
 
   metainfo:
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.user.login != 'weblate' }}
+    needs: changes
+    if: ${{ needs.changes.outputs.metainfo == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.user.login != 'weblate') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install appstreamcli
         run: |
@@ -202,3 +336,20 @@ jobs:
 
       - name: Validate flatpak metainfo
         run: appstreamcli validate flatpak/wtf.tonho.omniget.metainfo.xml
+
+  # O unico check que a protecao de branch precisa exigir. Job pulado (nada
+  # daquele tipo mudou) conta como ok; falhou ou foi cancelado, reprova.
+  ci-ok:
+    needs: [changes, rust, rust-debian, frontend, extras, smoke, metainfo]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed or was skipped
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if echo "$RESULTS" | jq -e 'to_entries | any(.value.result == "failure" or .value.result == "cancelled")' > /dev/null; then
+            echo "::error::at least one CI job failed or was cancelled"
+            exit 1
+          fi
