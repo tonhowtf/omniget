@@ -47,15 +47,19 @@ jobs:
       matrix:
         scenario: [llvmpipe, nocompositing]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: lts/*
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
 
-      - uses: dtolnay/rust-toolchain@stable
+      # O rust-toolchain.toml da raiz fixa a versao; o rustup instala so ela.
+      - name: Rust toolchain (rust-toolchain.toml)
+        run: |
+          rustup toolchain install
+          rustup show active-toolchain
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -128,7 +132,7 @@ jobs:
 
       # `always()`: o JSON de uma rodada que reprovou e justamente o que se quer
       # olhar depois.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: world-bench-${{ matrix.scenario }}
