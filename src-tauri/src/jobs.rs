@@ -5545,7 +5545,10 @@ pub fn is_terminal(state: &str) -> bool {
 /// What a background job's prompt ends with (2.6, 78#P7): the agent's own
 /// verdict in one line the host can read. Kept short, it is paid on every
 /// job; `scripts/llm/missions_eval.py` sends the same text (B0 measures it).
-pub const OUTCOME_SUFFIX: &str = "\n\nEnd your reply with one line: `OUTCOME: succeeded` or `OUTCOME: failed`, then ` — ` and up to 3 sentences on what you did.";
+/// `succeeded` is tied to the change being done: with a bare "succeeded or
+/// failed", an agent whose test command was denied reported `failed` for
+/// work that passed, so doubt goes into the sentences instead.
+pub const OUTCOME_SUFFIX: &str = "\n\nEnd your reply with one line: `OUTCOME: succeeded` if the requested change is done, `OUTCOME: failed` if not, then ` — ` and up to 3 sentences on what you did and anything left unverified.";
 
 /// Jobs whose prompt asks for the `OUTCOME:` line: a run (from the CLI,
 /// the window, the bridge or MCP) and a mission task. Routines keep their

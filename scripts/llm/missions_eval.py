@@ -91,7 +91,7 @@ PROJECT_BATCHING = ('Work in as few turns as possible: batch independent tool ca
 # Espelha jobs.rs::OUTCOME_SUFFIX (item 2.6): o app acrescenta ao prompt de jobs `run` e `mission`
 # o pedido da linha OUTCOME; `--no-outcome` mede sem ele. O teste
 # job_commands::tests::the_outcome_line_is_read_and_its_absence_is_a_state confere que o texto é o mesmo.
-OUTCOME_SUFFIX = "\n\nEnd your reply with one line: `OUTCOME: succeeded` or `OUTCOME: failed`, then ` — ` and up to 3 sentences on what you did."
+OUTCOME_SUFFIX = "\n\nEnd your reply with one line: `OUTCOME: succeeded` if the requested change is done, `OUTCOME: failed` if not, then ` — ` and up to 3 sentences on what you did and anything left unverified."
 OUTCOME_RE = re.compile(r'^[\s*`_>]*OUTCOME:[\s*`]*(succeeded|failed)', re.I | re.M)
 # Espelha cli_runtime/claude.rs::PROJECT_EFFORT (onda 2 r2: mediana 152,8 s -> 125,6 s, custo igual, 33/33).
 PROJECT_EFFORT = 'low'
@@ -1101,6 +1101,11 @@ def run_task(args, t, rep):
     if getattr(args, 'outcome', True):
         m = OUTCOME_RE.findall((result or {}).get('result') or '')
         row['outcome'] = m[-1].lower() if m else None
+        # O porquê do veredito, para auditar discordâncias com a rubrica sem guardar o stream.
+        lines = [l for l in ((result or {}).get('result') or '').splitlines() if 'OUTCOME:' in l]
+        row['outcome_linha'] = lines[-1].strip()[:400] if lines else None
+        row['negados'] = [f"{d.get('tool_name')}: {json.dumps(d.get('tool_input'), ensure_ascii=False)[:160]}"
+                          for d in ((result or {}).get('permission_denials') or [])]
     if getattr(args, 'runtime', 'claude') == 'codex':
         row['effort'] = effort or '(padrão)'
         row['codex_transport'] = (result or {}).get('codex_transport')
