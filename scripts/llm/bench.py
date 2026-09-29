@@ -65,6 +65,14 @@ BENCHES = {
         ["--reps", "5"],
         ["omniget-core", "omniget"],
     ),
+    "bn5": (
+        "delegation_e2e.py",
+        ["src-tauri/src/bridge_tokens.rs", "src-tauri/src/local_bridge_jobs.rs", "src-tauri/src/local_bridge.rs",
+         CORE_LLM + "cli_runtime/session.rs", CORE_LLM + "cli_runtime/accounts.rs", "src-tauri/src/jobs.rs",
+         "scripts/llm/delegation_e2e.py"],
+        [],
+        ["omniget-core", "omniget"],
+    ),
 }
 # The argv of a real turn: if any of these moved, B0 no longer measures production.
 B0_PATHS = [CORE_LLM + "cli_runtime/claude.rs", CORE_LLM + "cli_runtime/mod.rs", "scripts/llm/missions_eval.py"]
@@ -152,7 +160,7 @@ def main():
     ap.add_argument("--prepared", help="immutable prepared.json; execute without Cargo")
     ap.add_argument("--all", action="store_true", help="every fake bench, whatever changed")
     ap.add_argument("--quick", action="store_true", help="fewer repetitions (iteration, not a gate)")
-    ap.add_argument("--only", default="", help="comma-separated: bn1,bn2,bn3,bn4")
+    ap.add_argument("--only", default="", help="comma-separated: bn1,bn2,bn3,bn4,bn5")
     ap.add_argument("--real", action="store_true", help="also run B0 (real Claude turns; spends quota)")
     ap.add_argument("--real-if-needed", action="store_true",
                     help="run B0 only when the turn argv or the harness changed")

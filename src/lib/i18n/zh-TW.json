@@ -3411,6 +3411,31 @@
         "unavailable_no_snapshot": "無法得知此工作變更了什麼：它的回合沒有為資料夾建立快照。",
         "unavailable_no_workspace": "此工作在沒有資料夾的情況下執行，因此沒有差異。",
         "unavailable_error": "無法讀取此工作資料夾的快照。"
+      },
+      "tokens": {
+        "title": "存取權杖",
+        "lede": "指令碼、Webhook 和 omniget CLI 使用具權限範圍的權杖存取本機橋接的代理程式路由。瀏覽器擴充功能的金鑰不適用於這些路由。",
+        "empty": "尚無權杖。",
+        "name": "名稱",
+        "scopes": "可執行的操作",
+        "scope_jobs_read": "檢視工作 (jobs:read)",
+        "scope_jobs_operate": "啟動與取消工作 (jobs:operate)",
+        "scope_approvals_respond": "回覆核准 (approvals:respond)",
+        "expires": "有效期限",
+        "expires_never": "永不過期",
+        "expires_days": "{{days}} 天後",
+        "expires_at": "{{when}} 到期",
+        "create": "建立權杖",
+        "created": "權杖已建立。請立即複製：它不會再次顯示。",
+        "copy": "複製權杖",
+        "revoke": "撤銷",
+        "kind_cli": "這台電腦的 omniget CLI",
+        "last_used": "上次使用 {{when}}",
+        "never_used": "從未使用",
+        "legacy_toggle": "仍在代理程式路由上接受瀏覽器擴充功能的金鑰（已淘汰）",
+        "legacy_hint": "保留一個版本，讓舊指令碼繼續運作。下一個版本將拒絕它。",
+        "legacy_seen": "瀏覽器擴充功能的金鑰於 {{when}} 在 {{route}} 上被使用。請將該指令碼改用具權限範圍的權杖。",
+        "curl_hint": "將 OMNIGET_TOKEN 設為具有 jobs:operate 權限範圍的權杖（見下方存取權杖）。"
       }
     },
     "loops": {

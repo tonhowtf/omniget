@@ -3411,6 +3411,31 @@
         "unavailable_no_snapshot": "无法得知此作业更改了什么：它的轮次没有为文件夹创建快照。",
         "unavailable_no_workspace": "此作业在没有文件夹的情况下运行，因此没有差异。",
         "unavailable_error": "无法读取此作业文件夹的快照。"
+      },
+      "tokens": {
+        "title": "访问令牌",
+        "lede": "脚本、Webhook 和 omniget CLI 使用带权限范围的令牌访问本地桥接的智能体路由。浏览器扩展的密钥不用于这些路由。",
+        "empty": "还没有令牌。",
+        "name": "名称",
+        "scopes": "可执行的操作",
+        "scope_jobs_read": "查看任务 (jobs:read)",
+        "scope_jobs_operate": "启动和取消任务 (jobs:operate)",
+        "scope_approvals_respond": "回复审批 (approvals:respond)",
+        "expires": "有效期",
+        "expires_never": "永不过期",
+        "expires_days": "{{days}} 天后",
+        "expires_at": "{{when}} 过期",
+        "create": "创建令牌",
+        "created": "令牌已创建。请立即复制：它不会再次显示。",
+        "copy": "复制令牌",
+        "revoke": "撤销",
+        "kind_cli": "本机的 omniget CLI",
+        "last_used": "上次使用 {{when}}",
+        "never_used": "从未使用",
+        "legacy_toggle": "仍在智能体路由上接受浏览器扩展的密钥（已弃用）",
+        "legacy_hint": "保留一个版本，让旧脚本继续可用。下一个版本将拒绝它。",
+        "legacy_seen": "浏览器扩展的密钥于 {{when}} 在 {{route}} 上被使用。请把该脚本换成带权限范围的令牌。",
+        "curl_hint": "将 OMNIGET_TOKEN 设为具有 jobs:operate 权限范围的令牌（见下方访问令牌）。"
       }
     },
     "loops": {

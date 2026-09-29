@@ -3411,6 +3411,31 @@
         "unavailable_no_snapshot": "Non si sa cosa abbia modificato questo job: i suoi turni non hanno fatto uno snapshot della cartella.",
         "unavailable_no_workspace": "Questo job è stato eseguito senza cartella, quindi non c'è diff.",
         "unavailable_error": "Impossibile leggere lo snapshot della cartella di questo job."
+      },
+      "tokens": {
+        "title": "Token di accesso",
+        "lede": "Script, webhook e la CLI omniget raggiungono le rotte degli agenti del bridge locale con un token con ambito. La chiave dell'estensione del browser non è pensata per loro.",
+        "empty": "Ancora nessun token.",
+        "name": "Nome",
+        "scopes": "Cosa può fare",
+        "scope_jobs_read": "Vedere i job (jobs:read)",
+        "scope_jobs_operate": "Avviare e annullare job (jobs:operate)",
+        "scope_approvals_respond": "Rispondere alle approvazioni (approvals:respond)",
+        "expires": "Scade",
+        "expires_never": "Mai",
+        "expires_days": "Tra {{days}} giorni",
+        "expires_at": "scade {{when}}",
+        "create": "Crea token",
+        "created": "Token creato. Copialo ora: non verrà mostrato di nuovo.",
+        "copy": "Copia token",
+        "revoke": "Revoca",
+        "kind_cli": "CLI omniget di questo computer",
+        "last_used": "ultimo uso {{when}}",
+        "never_used": "mai usato",
+        "legacy_toggle": "Accetta ancora la chiave dell'estensione del browser sulle rotte degli agenti (deprecato)",
+        "legacy_hint": "Mantenuto per una versione perché i vecchi script continuino a funzionare. La prossima versione la rifiuta.",
+        "legacy_seen": "La chiave dell'estensione del browser è stata usata su {{route}} alle {{when}}. Passa quello script a un token con ambito.",
+        "curl_hint": "Imposta OMNIGET_TOKEN con un token con ambito jobs:operate (Token di accesso, qui sotto)."
       }
     },
     "loops": {

@@ -14,6 +14,7 @@ pub struct P2pSendHandle {
 pub type ActiveP2pSends = Arc<tokio::sync::Mutex<HashMap<String, P2pSendHandle>>>;
 
 pub mod agentkit_boot;
+pub mod bridge_tokens;
 pub mod commands;
 pub mod cookies;
 pub mod core;
@@ -1369,6 +1370,10 @@ pub fn run() {
             commands::llm::jobs::llm_loop_cancel,
             commands::llm::jobs::llm_loop_delete,
             commands::llm::jobs::llm_triggers_list,
+            commands::llm::jobs::llm_bridge_tokens,
+            commands::llm::jobs::llm_bridge_token_mint,
+            commands::llm::jobs::llm_bridge_token_revoke,
+            commands::llm::jobs::llm_bridge_legacy_set,
             commands::llm::jobs::llm_trigger_save,
             commands::llm::jobs::llm_trigger_delete,
             commands::llm::jobs::llm_trigger_fire,

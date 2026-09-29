@@ -3411,6 +3411,31 @@
         "unavailable_no_snapshot": "No se sabe qué cambió este trabajo: sus turnos no tomaron una instantánea de la carpeta.",
         "unavailable_no_workspace": "Este trabajo se ejecutó sin carpeta, así que no hay diff.",
         "unavailable_error": "No se pudo leer la instantánea de la carpeta de este trabajo."
+      },
+      "tokens": {
+        "title": "Tokens de acceso",
+        "lede": "Los scripts, los webhooks y la CLI omniget llegan a las rutas de agente del puente local con un token con alcance. La clave de la extensión del navegador no es para ellas.",
+        "empty": "Todavía no hay tokens.",
+        "name": "Nombre",
+        "scopes": "Qué puede hacer",
+        "scope_jobs_read": "Ver trabajos (jobs:read)",
+        "scope_jobs_operate": "Iniciar y cancelar trabajos (jobs:operate)",
+        "scope_approvals_respond": "Responder aprobaciones (approvals:respond)",
+        "expires": "Caduca",
+        "expires_never": "Nunca",
+        "expires_days": "En {{days}} días",
+        "expires_at": "caduca {{when}}",
+        "create": "Crear token",
+        "created": "Token creado. Cópialo ahora: no se vuelve a mostrar.",
+        "copy": "Copiar token",
+        "revoke": "Revocar",
+        "kind_cli": "CLI omniget de este equipo",
+        "last_used": "último uso {{when}}",
+        "never_used": "nunca usado",
+        "legacy_toggle": "Seguir aceptando la clave de la extensión del navegador en las rutas de agente (obsoleto)",
+        "legacy_hint": "Se mantiene una versión para que los scripts antiguos sigan funcionando. La próxima versión la rechaza.",
+        "legacy_seen": "La clave de la extensión del navegador se usó en {{route}} a las {{when}}. Cambia ese script a un token con alcance.",
+        "curl_hint": "Define OMNIGET_TOKEN con un token con el alcance jobs:operate (Tokens de acceso, abajo)."
       }
     },
     "loops": {

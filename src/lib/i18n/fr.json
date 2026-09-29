@@ -3411,6 +3411,31 @@
         "unavailable_no_snapshot": "On ne sait pas ce que cette tâche a modifié : ses tours n’ont pris aucun instantané du dossier.",
         "unavailable_no_workspace": "Cette tâche a tourné sans dossier, il n’y a donc pas de diff.",
         "unavailable_error": "L’instantané du dossier de cette tâche n’a pas pu être lu."
+      },
+      "tokens": {
+        "title": "Jetons d'accès",
+        "lede": "Les scripts, les webhooks et la CLI omniget atteignent les routes d'agent du pont local avec un jeton à portée limitée. La clé de l'extension du navigateur n'est pas faite pour elles.",
+        "empty": "Aucun jeton pour l'instant.",
+        "name": "Nom",
+        "scopes": "Ce qu'il peut faire",
+        "scope_jobs_read": "Voir les tâches (jobs:read)",
+        "scope_jobs_operate": "Lancer et annuler des tâches (jobs:operate)",
+        "scope_approvals_respond": "Répondre aux approbations (approvals:respond)",
+        "expires": "Expire",
+        "expires_never": "Jamais",
+        "expires_days": "Dans {{days}} jours",
+        "expires_at": "expire {{when}}",
+        "create": "Créer un jeton",
+        "created": "Jeton créé. Copiez-le maintenant : il ne sera plus affiché.",
+        "copy": "Copier le jeton",
+        "revoke": "Révoquer",
+        "kind_cli": "CLI omniget de cet ordinateur",
+        "last_used": "dernière utilisation {{when}}",
+        "never_used": "jamais utilisé",
+        "legacy_toggle": "Accepter encore la clé de l'extension du navigateur sur les routes d'agent (obsolète)",
+        "legacy_hint": "Conservé pendant une version pour que les anciens scripts continuent de fonctionner. La prochaine version la refuse.",
+        "legacy_seen": "La clé de l'extension du navigateur a été utilisée sur {{route}} à {{when}}. Passez ce script à un jeton à portée limitée.",
+        "curl_hint": "Définissez OMNIGET_TOKEN avec un jeton ayant la portée jobs:operate (Jetons d'accès, ci-dessous)."
       }
     },
     "loops": {

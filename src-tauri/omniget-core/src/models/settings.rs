@@ -846,6 +846,11 @@ pub struct BridgeSettings {
     /// Empty means "regenerate on next launch".
     #[serde(default)]
     pub token: String,
+    /// Grace period of 2.1: the extension token still works on the agent
+    /// routes (`/v1/agent/*`, `/v1/jobs*`…) with a deprecation warning. On by
+    /// default in this version; the next one turns it off, then removes it.
+    #[serde(default = "default_bridge_enabled")]
+    pub legacy_agent_routes: bool,
 }
 
 impl Default for BridgeSettings {
@@ -854,6 +859,7 @@ impl Default for BridgeSettings {
             enabled: default_bridge_enabled(),
             port: 0,
             token: String::new(),
+            legacy_agent_routes: true,
         }
     }
 }

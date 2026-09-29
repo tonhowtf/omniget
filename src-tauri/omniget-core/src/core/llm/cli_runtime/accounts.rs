@@ -284,6 +284,12 @@ pub const SCRUB_ENV: &[&str] = &[
     "CLAUDE_CODE_USE_VERTEX",
     "OPENAI_API_KEY",
     "OPENAI_BASE_URL",
+    // OmniGet's own bridge credentials (2.1): a job's child gets only its
+    // job token, set explicitly, never a key the app was started with.
+    "OMNIGET_TOKEN",
+    "OMNIGET_BRIDGE_TOKEN",
+    "OMNIGET_MCP_TOKEN",
+    "OMNIGET_JOB_TOKEN",
 ];
 
 /// Creates the directory for a new account. The directory is left **empty** on

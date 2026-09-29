@@ -293,6 +293,31 @@ async fn kill_tree(
     let _ = tokio::time::timeout(grace, child.wait()).await;
 }
 
+/// Secret values (not names) that must never reach a child's environment,
+/// whatever variable carries them: the bridge's extension bearer is
+/// registered here when the bridge starts (2.1). A name-based `scrub` misses
+/// a key the user exported under another name; this does not.
+fn secret_values() -> &'static std::sync::Mutex<Vec<String>> {
+    static VALUES: std::sync::OnceLock<std::sync::Mutex<Vec<String>>> = std::sync::OnceLock::new();
+    VALUES.get_or_init(Default::default)
+}
+
+/// See [`secret_values`]. Short values are ignored (they would match noise).
+pub fn register_secret_value(value: &str) {
+    let value = value.trim();
+    if value.len() < 16 {
+        return;
+    }
+    let mut values = secret_values().lock().unwrap_or_else(|e| e.into_inner());
+    if !values.iter().any(|v| v == value) {
+        values.push(value.to_string());
+    }
+}
+
+fn holds_secret(value: &str, secrets: &[String]) -> bool {
+    secrets.iter().any(|s| value.contains(s.as_str()))
+}
+
 /// [`spawn_turn`] with every hook. The child runs in a process tree of its
 /// own (Unix process group plus a walk of its descendants, Windows Job
 /// Object), so a cancel or a stall stops its descendants too, even those
@@ -315,7 +340,22 @@ pub fn spawn_turn_with(
     for key in &spec.scrub {
         cmd.env_remove(key);
     }
+    let secrets = secret_values()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    if !secrets.is_empty() {
+        for (key, value) in std::env::vars_os() {
+            if value.to_str().is_some_and(|v| holds_secret(v, &secrets)) {
+                cmd.env_remove(key);
+            }
+        }
+    }
     for (key, value) in &spec.env {
+        if holds_secret(value, &secrets) {
+            tracing::warn!("[cli] {key} carries a registered secret: not passed to the child");
+            continue;
+        }
         cmd.env(key, value);
     }
     cmd.env("OMNIGET_LAUNCH_ID", &launch_id);
@@ -867,6 +907,61 @@ mod tests {
         std::env::remove_var("ANTHROPIC_API_KEY");
         assert!(text.contains("dir=/tmp/profile-a"), "{text}");
         assert!(text.contains("key=gone"), "{text}");
+        let _ = std::fs::remove_file(cli);
+    }
+
+    /// 2.1: the child never sees the bridge's extension bearer, not under
+    /// the names OmniGet knows (`scrub`) nor under any other name, while the
+    /// job token the app hands it arrives.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn the_child_env_has_no_bridge_bearer() {
+        let bearer = format!("bridge-bearer-{}", uuid::Uuid::new_v4().simple());
+        register_secret_value(&bearer);
+        std::env::set_var("OMNIGET_TOKEN", &bearer);
+        std::env::set_var("OMNIGET_TEST_ALIAS_OF_THE_BEARER", format!("x{bearer}x"));
+        let cli = fake_cli("bearer-env", "env\n");
+        let mut s = spec(cli.clone());
+        s.scrub = super::super::SCRUB_ENV
+            .iter()
+            .map(|k| k.to_string())
+            .collect();
+        s.env
+            .insert("OMNIGET_JOB_TOKEN".into(), "ojt_000000000000_job".into());
+        let stream = spawn_turn(s, Arc::new(EchoParser), CancellationToken::new(), None).unwrap();
+        let events: Vec<TurnEvent> = stream.collect().await;
+        std::env::remove_var("OMNIGET_TOKEN");
+        std::env::remove_var("OMNIGET_TEST_ALIAS_OF_THE_BEARER");
+        let text: String = events
+            .iter()
+            .filter_map(|e| match e {
+                TurnEvent::TextDelta { text } => Some(text.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let lines = text.lines().count();
+        let leaked = text.matches(&bearer).count();
+        if let Ok(path) = std::env::var("OMNIGET_BENCH_OUT") {
+            use std::io::Write as _;
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+            {
+                let _ = writeln!(
+                    f,
+                    "{}",
+                    serde_json::json!({"scenario": "auth", "metric": "child_env_bearer_hits", "value": leaked, "env_lines": lines})
+                );
+            }
+        }
+        assert!(lines > 3, "{text}");
+        assert_eq!(leaked, 0, "{text}");
+        assert!(
+            text.contains("OMNIGET_JOB_TOKEN=ojt_000000000000_job"),
+            "{text}"
+        );
         let _ = std::fs::remove_file(cli);
     }
 

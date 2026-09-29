@@ -597,6 +597,8 @@ pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
     // The durable schedule (1.4): routines saved before it start from now.
     let _ = db.execute("ALTER TABLE triggers ADD COLUMN next_run_ms INTEGER", []);
     migrate_triggers(db, now_ms);
+    // Scoped control tokens of the bridge (2.1).
+    crate::bridge_tokens::ensure_schema(db).map_err(|e| format!("{ERR_JOBS}: {e}"))?;
     Ok(())
 }
 
@@ -649,6 +651,18 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
                 jobs.report_queue(&mut reported);
             }
         });
+        {
+            // No job runs yet: a token a crash left live dies here, and the
+            // CLI finds a valid token of its own (2.1).
+            let db = jobs.db();
+            let now = now_ms();
+            if let Err(e) = crate::bridge_tokens::revoke_orphan_job_tokens(&db, now) {
+                tracing::warn!("[jobs] job tokens: {e}");
+            }
+            if let Err(e) = crate::bridge_tokens::ensure_cli_token(&db, &dir, now) {
+                tracing::warn!("[jobs] cli token: {e}");
+            }
+        }
         jobs.clone().resume();
         jobs.clone().ensure_cron();
     }
@@ -734,6 +748,72 @@ const JOB_COLS: &str = "id, kind, agent_id, conversation_id, prompt, workspace, 
 impl Jobs {
     fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
         self.db.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    // ── bridge tokens (2.1) ──────────────────────────────────────────
+
+    /// What a bearer presented to an agent route is (the bridge's guard).
+    pub fn token_lookup(&self, token: &str) -> crate::bridge_tokens::Lookup {
+        crate::bridge_tokens::lookup(&self.db(), token, now_ms())
+    }
+
+    pub fn token_mint(
+        &self,
+        name: &str,
+        scopes: &[String],
+        expires_ms: Option<u64>,
+    ) -> Result<crate::bridge_tokens::Minted, String> {
+        crate::bridge_tokens::mint(
+            &self.db(),
+            crate::bridge_tokens::Kind::User,
+            name,
+            scopes,
+            None,
+            expires_ms,
+            now_ms(),
+        )
+    }
+
+    pub fn token_list(&self) -> Vec<crate::bridge_tokens::TokenView> {
+        crate::bridge_tokens::list(&self.db(), now_ms())
+    }
+
+    pub fn token_revoke(&self, id: &str) -> Result<bool, String> {
+        crate::bridge_tokens::revoke(&self.db(), id, now_ms())
+    }
+
+    /// The job's own token for the length of its turn (see
+    /// [`crate::bridge_tokens::JobTokenLease`]). A failure to mint only
+    /// costs the child its token, never the job.
+    fn job_token_lease(
+        self: &Arc<Self>,
+        job: &Job,
+        conversation: &str,
+    ) -> Option<crate::bridge_tokens::JobTokenLease> {
+        let (minter, revoker) = (self.clone(), self.clone());
+        let (id_m, id_r) = (job.id.clone(), job.id.clone());
+        let expires = crate::bridge_tokens::job_token_expiry(job.deadline_ms, now_ms());
+        crate::bridge_tokens::JobTokenLease::start(
+            conversation,
+            move || {
+                crate::bridge_tokens::mint(
+                    &minter.db(),
+                    crate::bridge_tokens::Kind::Job,
+                    &format!("job {id_m}"),
+                    &crate::bridge_tokens::job_scopes(),
+                    Some(&id_m),
+                    Some(expires),
+                    now_ms(),
+                )
+            },
+            move || {
+                if let Err(e) = crate::bridge_tokens::revoke_job(&revoker.db(), &id_r, now_ms()) {
+                    tracing::warn!("[jobs] revoke the token of {id_r}: {e}");
+                }
+            },
+        )
+        .map_err(|e| tracing::warn!("[jobs] token for {}: {e}", job.id))
+        .ok()
     }
 
     // ── jobs ─────────────────────────────────────────────────────────
@@ -1272,6 +1352,9 @@ impl Jobs {
         if job.agent_id.starts_with(TOOL_PREFIX) {
             return Some(self.run_tool_job(job, input).await);
         }
+        // Held to the end of the job: however this returns, the token is
+        // revoked and leaves the conversation's env (2.1).
+        let _job_token = self.job_token_lease(&job, &conv);
         let (request_id, cancel, mut stream) = match self
             .llm
             .turn_stream_with_cancel(&conv, &job.agent_id, &input, cancel.clone())
@@ -3415,12 +3498,13 @@ pub fn next_round_at(schedule: &str, from_ms: u64) -> Option<u64> {
         .map(|secs| from_ms + secs * 1000)
 }
 
-/// `{ base_url, token }` of the local bridge, for the webhook URL in the UI.
+/// `{ base_url }` of the local bridge, for the webhook URL in the UI.
 pub fn bridge_info(app: &AppHandle) -> Value {
     let settings = crate::storage::config::load_settings(app);
+    // No bearer here: the page shows `$OMNIGET_TOKEN` and the token list
+    // (U6, 2.1), never a secret in plain text.
     json!({
         "base_url": format!("http://127.0.0.1:{}", settings.bridge.port),
-        "token": settings.bridge.token,
     })
 }
 

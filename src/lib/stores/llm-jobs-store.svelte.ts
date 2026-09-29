@@ -153,7 +153,8 @@ export type CatchUp = "skip" | "once" | "all_capped";
 export const CATCH_UP_CAP = 25;
 export type TriggerConcurrency = "skip_if_active" | "queue";
 
-export type BridgeInfo = { base_url: string; token: string };
+/** The bridge address only: no secret reaches the page (U6). */
+export type BridgeInfo = { base_url: string };
 
 /** One job still at the gate, from `llm_jobs_state` / `llm://queue`. */
 export type QueuedEntry = {

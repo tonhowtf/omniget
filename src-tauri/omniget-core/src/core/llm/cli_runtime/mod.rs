@@ -190,6 +190,43 @@ impl Default for CliRuntimeOptions {
     }
 }
 
+/// Extra variables for the turns of one conversation, set by whoever owns
+/// it for as long as it runs: a background job hands its child its own
+/// scoped bridge token (`OMNIGET_JOB_TOKEN`, 2.1) this way. Keyed like
+/// `code_tools::set_conversation_workspace`, so the turn finds it by the same
+/// conversation id. Never part of the argv.
+fn conversation_envs(
+) -> &'static std::sync::Mutex<HashMap<String, std::collections::BTreeMap<String, String>>> {
+    static ENVS: std::sync::OnceLock<
+        std::sync::Mutex<HashMap<String, std::collections::BTreeMap<String, String>>>,
+    > = std::sync::OnceLock::new();
+    ENVS.get_or_init(Default::default)
+}
+
+pub fn set_conversation_env(conversation: &str, env: std::collections::BTreeMap<String, String>) {
+    conversation_envs()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(conversation.to_string(), env);
+}
+
+pub fn clear_conversation_env(conversation: &str) {
+    conversation_envs()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .remove(conversation);
+}
+
+/// What [`set_conversation_env`] left for this conversation (empty if none).
+pub fn conversation_env(conversation: &str) -> std::collections::BTreeMap<String, String> {
+    conversation_envs()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(conversation)
+        .cloned()
+        .unwrap_or_default()
+}
+
 /// How one turn is launched, decided from the session record and the caps.
 #[derive(Debug, Clone)]
 pub struct LaunchPlan {
@@ -717,6 +754,9 @@ impl AgentRuntime for CliRuntime {
             self.plan_with(&account, binary, &req, system_prompt, launch.as_ref());
         // Timing only: the argv the plan built is left exactly as it is.
         self.watchdog().apply(&mut spec);
+        if let Some(turn) = &turn {
+            spec.env.extend(conversation_env(&turn.conversation));
+        }
         if let (Some(probe), Some(turn)) = (&self.pause_probe, &turn) {
             let (probe, request) = (probe.clone(), turn.request.clone());
             hooks.paused = Some(Arc::new(move || probe(&request)));

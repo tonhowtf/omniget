@@ -3411,6 +3411,31 @@
         "unavailable_no_snapshot": "このジョブの変更内容は不明です: ターンがフォルダーのスナップショットを取っていません。",
         "unavailable_no_workspace": "このジョブはフォルダーなしで実行されたため、差分はありません。",
         "unavailable_error": "このジョブのフォルダーのスナップショットを読み取れませんでした。"
+      },
+      "tokens": {
+        "title": "アクセストークン",
+        "lede": "スクリプト、Webhook、omniget CLI は、スコープ付きトークンでローカルブリッジのエージェント用ルートにアクセスします。ブラウザー拡張機能のキーはこれらのためのものではありません。",
+        "empty": "トークンはまだありません。",
+        "name": "名前",
+        "scopes": "できること",
+        "scope_jobs_read": "ジョブを見る (jobs:read)",
+        "scope_jobs_operate": "ジョブを開始・キャンセルする (jobs:operate)",
+        "scope_approvals_respond": "承認に応答する (approvals:respond)",
+        "expires": "有効期限",
+        "expires_never": "なし",
+        "expires_days": "{{days}} 日後",
+        "expires_at": "{{when}} に期限切れ",
+        "create": "トークンを作成",
+        "created": "トークンを作成しました。今すぐコピーしてください。再表示はされません。",
+        "copy": "トークンをコピー",
+        "revoke": "取り消す",
+        "kind_cli": "このコンピューターの omniget CLI",
+        "last_used": "最終使用 {{when}}",
+        "never_used": "未使用",
+        "legacy_toggle": "エージェント用ルートでブラウザー拡張機能のキーを引き続き受け付ける (非推奨)",
+        "legacy_hint": "古いスクリプトが動き続けるよう 1 バージョンだけ残します。次のバージョンでは拒否されます。",
+        "legacy_seen": "ブラウザー拡張機能のキーが {{when}} に {{route}} で使われました。そのスクリプトをスコープ付きトークンに切り替えてください。",
+        "curl_hint": "OMNIGET_TOKEN に jobs:operate スコープのトークンを設定してください (下のアクセストークン)。"
       }
     },
     "loops": {

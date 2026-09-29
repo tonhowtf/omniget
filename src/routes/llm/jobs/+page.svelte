@@ -57,6 +57,7 @@
   import PlaybookPanel from "$components/central/run/PlaybookPanel.svelte";
   import SandboxReview from "$components/central/run/SandboxReview.svelte";
   import RunNow from "$components/central/run/RunNow.svelte";
+  import BridgeTokens from "$components/llm/BridgeTokens.svelte";
   import { agentLabel } from "$components/central/run/run-api";
 
   let agents = $derived(getAgents());
@@ -244,7 +245,8 @@
   }
 
   function hookCurl(tr: Trigger): string {
-    return `curl -X POST -H "Authorization: Bearer ${bridge?.token ?? ""}" -d 'payload' ${hookUrl(tr)}`;
+    // Never the token itself (U6): the shell fills in a scoped one.
+    return `curl -X POST -H "Authorization: Bearer $OMNIGET_TOKEN" -d 'payload' ${hookUrl(tr)}`;
   }
 
   async function copy(text: string) {
@@ -574,12 +576,13 @@
                 <code class="path">{hookUrl(tr)}</code>
                 <button type="button" class="button" onclick={() => void copy(hookUrl(tr))}>{$t("llm.jobs.copy")}</button>
               </div>
-              <div class="copyline" data-agent-sensitive>
+              <div class="copyline">
                 <code class="path">{hookCurl(tr)}</code>
                 <button type="button" class="button" onclick={() => void copy(hookCurl(tr))}>
                   {$t("llm.jobs.trigger.copy_curl")}
                 </button>
               </div>
+              <p class="hint">{$t("llm.jobs.tokens.curl_hint")}</p>
             {/if}
             <div class="line muted">{firstLine(tr.prompt)}</div>
           </div>
@@ -666,6 +669,8 @@
       </div>
     </div>
   </section>
+
+  <BridgeTokens />
 </div>
 
 <style>

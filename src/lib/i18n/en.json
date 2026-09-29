@@ -3411,6 +3411,31 @@
         "unavailable_no_snapshot": "What this job changed is unknown: its turns took no snapshot of the folder.",
         "unavailable_no_workspace": "This job ran without a folder, so there is no diff.",
         "unavailable_error": "The snapshot of this job's folder could not be read."
+      },
+      "tokens": {
+        "title": "Access tokens",
+        "lede": "Scripts, webhooks and the omniget CLI reach the agent routes of the local bridge with a scoped token. The browser extension's key is not meant for them.",
+        "empty": "No tokens yet.",
+        "name": "Name",
+        "scopes": "What it can do",
+        "scope_jobs_read": "See jobs (jobs:read)",
+        "scope_jobs_operate": "Start and cancel jobs (jobs:operate)",
+        "scope_approvals_respond": "Answer approvals (approvals:respond)",
+        "expires": "Expires",
+        "expires_never": "Never",
+        "expires_days": "In {{days}} days",
+        "expires_at": "expires {{when}}",
+        "create": "Create token",
+        "created": "Token created. Copy it now: it is not shown again.",
+        "copy": "Copy token",
+        "revoke": "Revoke",
+        "kind_cli": "omniget CLI on this computer",
+        "last_used": "last used {{when}}",
+        "never_used": "never used",
+        "legacy_toggle": "Still accept the browser extension's key on agent routes (deprecated)",
+        "legacy_hint": "Kept for one version so old scripts keep working. The next version refuses it.",
+        "legacy_seen": "The browser extension's key was used on {{route}} at {{when}}. Switch that script to a scoped token.",
+        "curl_hint": "Set OMNIGET_TOKEN to a token with the jobs:operate scope (Access tokens, below)."
       }
     },
     "loops": {

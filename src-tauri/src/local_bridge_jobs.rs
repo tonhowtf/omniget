@@ -1,4 +1,7 @@
-//! Bridge routes of the job system, same bearer as the rest of the bridge:
+//! Bridge routes of the job system (the agent routes). Their bearer is a
+//! scoped token (`bridge_tokens`, 2.1), checked by one `route_layer` that
+//! maps each path to `jobs:read` or `jobs:operate`; the extension bearer
+//! still passes for one version with a `Deprecation` header. Routes:
 //! `POST /v1/hooks/<id>` (webhook trigger; the body becomes `{{body}}`), and
 //! the small API `omniget-cli agent run|loop|jobs|explain|status|diff` talks to.
 //! `POST /v1/agent/run-tool` runs an agent of the catalog (or an `.md` file
@@ -17,7 +20,6 @@ use serde_json::{json, Value};
 use tauri::AppHandle;
 
 use crate::jobs::{self, LoopDef};
-use crate::local_bridge_llm::check_bearer;
 
 #[derive(Clone)]
 pub struct JobsBridgeState {
@@ -30,6 +32,21 @@ impl JobsBridgeState {
         Self {
             token: state.token.clone(),
             app: state.app.clone(),
+        }
+    }
+
+    /// The guard of every route below: tokens are read from `jobs.db`.
+    fn guard(&self) -> crate::bridge_tokens::Guard {
+        let app = self.app.clone();
+        crate::bridge_tokens::Guard {
+            extension: self.token.clone(),
+            legacy_allowed: crate::bridge_tokens::legacy_flag(),
+            legacy_log: crate::bridge_tokens::legacy_log(),
+            lookup: std::sync::Arc::new(move |t: &str| match jobs::get(&app) {
+                Ok(j) => j.token_lookup(t),
+                Err(_) => crate::bridge_tokens::Lookup::Unknown,
+            }),
+            now: std::sync::Arc::new(crate::llm_manager::now_ms),
         }
     }
 }
@@ -72,9 +89,8 @@ where
 {
     macro_rules! guarded {
         ($state:ident, $headers:ident, $body:expr) => {{
-            if !check_bearer(&$headers, &$state.token) {
-                return fail(StatusCode::UNAUTHORIZED, "bad or missing bearer token");
-            }
+            // The bearer was checked by the route layer (`bridge_tokens::guard`).
+            let _ = &$headers;
             let jobs = match jobs::get(&$state.app) {
                 Ok(j) => j,
                 Err(e) => return fail(StatusCode::INTERNAL_SERVER_ERROR, e),
@@ -83,6 +99,7 @@ where
             ($body)(jobs)
         }};
     }
+    let guard = state.guard();
     let (c1, c2, c3) = (state.clone(), state.clone(), state.clone());
     let (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12) = (
         state.clone(),
@@ -102,11 +119,7 @@ where
         .route(
             "/v1/agent/run-tool",
             post(
-                move |headers: HeaderMap,
-                      Json(b): Json<crate::commands::central::run::ToolRunRequest>| async move {
-                    if !check_bearer(&headers, &c1.token) {
-                        return fail(StatusCode::UNAUTHORIZED, "bad or missing bearer token");
-                    }
+                move |Json(b): Json<crate::commands::central::run::ToolRunRequest>| async move {
                     ok(crate::commands::central::run::submit_tool_run(&c1.app, b).await)
                 },
             ),
@@ -114,11 +127,7 @@ where
         .route(
             "/v1/agent/loop-catalog",
             post(
-                move |headers: HeaderMap,
-                      Json(b): Json<crate::commands::central::run::CatalogLoopRequest>| async move {
-                    if !check_bearer(&headers, &c3.token) {
-                        return fail(StatusCode::UNAUTHORIZED, "bad or missing bearer token");
-                    }
+                move |Json(b): Json<crate::commands::central::run::CatalogLoopRequest>| async move {
                     ok(crate::commands::central::run::start_catalog_loop(&c3.app, b).await)
                 },
             ),
@@ -280,10 +289,7 @@ where
         .route(
             "/v1/jobs/{id}/diff",
             get(
-                move |Path(id): Path<String>, RawQuery(query): RawQuery, headers: HeaderMap| async move {
-                    if !check_bearer(&headers, &s12.token) {
-                        return fail(StatusCode::UNAUTHORIZED, "bad or missing bearer token");
-                    }
+                move |Path(id): Path<String>, RawQuery(query): RawQuery| async move {
                     let j = match jobs::get(&s12.app) {
                         Ok(j) => j,
                         Err(e) => return fail(StatusCode::INTERNAL_SERVER_ERROR, e),
@@ -294,13 +300,18 @@ where
                     };
                     let path = jobs::patch_path(&job.id);
                     let format = format_of(query.as_deref());
-                    match jobs::diff_view(&job, patch.as_deref(), path.as_deref(), &format, complete) {
+                    match jobs::diff_view(
+                        &job,
+                        patch.as_deref(),
+                        path.as_deref(),
+                        &format,
+                        complete,
+                    ) {
                         Ok(jobs::DiffBody::Json(v)) => Json(v).into_response(),
-                        Ok(jobs::DiffBody::Patch(text)) => (
-                            [(header::CONTENT_TYPE, "text/x-diff; charset=utf-8")],
-                            text,
-                        )
-                            .into_response(),
+                        Ok(jobs::DiffBody::Patch(text)) => {
+                            ([(header::CONTENT_TYPE, "text/x-diff; charset=utf-8")], text)
+                                .into_response()
+                        }
                         Err((code, e)) => fail(
                             StatusCode::from_u16(code).unwrap_or(StatusCode::BAD_REQUEST),
                             e,
@@ -328,6 +339,10 @@ where
                 .into_response())
             }),
         )
+        .route_layer(axum::middleware::from_fn_with_state(
+            guard,
+            crate::bridge_tokens::guard,
+        ))
 }
 
 #[cfg(test)]

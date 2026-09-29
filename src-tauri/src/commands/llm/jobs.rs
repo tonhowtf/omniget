@@ -195,3 +195,54 @@ pub fn sync_llm_notify_strings(strings: crate::llm_attention::NotifyStrings) {
         jobs.attention.set_strings(strings);
     }
 }
+
+// ── bridge access tokens (2.1) ─────────────────────────────────────────
+
+/// The scoped tokens (never their secret) and the grace period of the
+/// extension key on the agent routes: whether it is on and when that key
+/// was last used there, so the page can say "switch this script".
+#[tauri::command]
+pub async fn llm_bridge_tokens(app: AppHandle) -> Result<Value, String> {
+    let settings = crate::storage::config::load_settings(&app);
+    let log = crate::bridge_tokens::legacy_log();
+    Ok(json!({
+        "tokens": jobs::get(&app)?.token_list(),
+        "scopes": crate::bridge_tokens::SCOPES,
+        "legacy": {
+            "allowed": settings.bridge.legacy_agent_routes,
+            "last": log.last(),
+            "count": log.count(),
+        },
+    }))
+}
+
+/// Mints a user token. The secret is in this answer only: the page offers
+/// to copy it and never prints it.
+#[tauri::command]
+pub async fn llm_bridge_token_mint(
+    app: AppHandle,
+    name: String,
+    scopes: Vec<String>,
+    expires_days: Option<u32>,
+) -> Result<Value, String> {
+    let expires_ms = expires_days
+        .filter(|d| *d > 0)
+        .map(|d| crate::llm_manager::now_ms() + u64::from(d.min(3650)) * 86_400_000);
+    let minted = jobs::get(&app)?.token_mint(&name, &scopes, expires_ms)?;
+    Ok(json!({ "token": minted.token, "view": minted.view }))
+}
+
+#[tauri::command]
+pub async fn llm_bridge_token_revoke(app: AppHandle, id: String) -> Result<Value, String> {
+    Ok(json!({ "revoked": jobs::get(&app)?.token_revoke(&id)? }))
+}
+
+/// Turns the extension key's grace period on the agent routes on or off.
+#[tauri::command]
+pub async fn llm_bridge_legacy_set(app: AppHandle, allowed: bool) -> Result<Value, String> {
+    let mut settings = crate::storage::config::load_settings(&app);
+    settings.bridge.legacy_agent_routes = allowed;
+    crate::storage::config::save_settings(&app, &settings).map_err(|e| e.to_string())?;
+    crate::bridge_tokens::legacy_flag().store(allowed, std::sync::atomic::Ordering::Relaxed);
+    Ok(json!({ "allowed": allowed }))
+}

@@ -122,6 +122,7 @@ pub fn get_bridge_info(app: tauri::AppHandle) -> Result<BridgeInfo, String> {
 pub fn rotate_bridge_token(app: tauri::AppHandle) -> Result<BridgeInfo, String> {
     let mut current = config::load_settings(&app);
     current.bridge.token = crate::local_bridge::generate_token();
+    omniget_core::core::llm::cli_runtime::session::register_secret_value(&current.bridge.token);
     config::save_settings(&app, &current).map_err(|e| format!("Save: {}", e))?;
     get_bridge_info(app)
 }

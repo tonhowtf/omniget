@@ -1,5 +1,8 @@
 //! `omniget agent run|loop|jobs|explain|status|diff|agents`: talks to the running desktop app
-//! through the local bridge (`127.0.0.1:<port>`, bearer from `settings.json`).
+//! through the local bridge (`127.0.0.1:<port>` from `settings.json`) with a
+//! scoped token (2.1): `OMNIGET_TOKEN` if set, else the CLI token the app
+//! keeps in `<app_data>/llm/cli-token`. The browser extension's key in
+//! `settings.json` is the last resort, for one version, with a warning.
 //! The app owns the jobs, so a run started here survives this process.
 
 use std::time::Duration;
@@ -25,7 +28,11 @@ impl Bridge {
             .as_u64()
             .filter(|p| *p > 0)
             .ok_or_else(|| anyhow!("the app has no bridge port yet: open OmniGet once"))?;
-        let token = bridge["token"].as_str().unwrap_or("").to_string();
+        let token = resolve_token(
+            std::env::var("OMNIGET_TOKEN").ok(),
+            std::fs::read_to_string(dir.join("llm").join("cli-token")).ok(),
+            bridge["token"].as_str(),
+        );
         Ok(Self {
             base: format!("http://127.0.0.1:{port}"),
             token,
@@ -84,6 +91,27 @@ impl Bridge {
         self.send(self.http.post(format!("{}{path}", self.base)).json(&body))
             .await
     }
+}
+
+/// Which bearer the CLI sends: `OMNIGET_TOKEN`, then the app's CLI token
+/// file, then (deprecated) the extension key, which the agent routes stop
+/// accepting in the next version.
+fn resolve_token(env: Option<String>, file: Option<String>, extension: Option<&str>) -> String {
+    if let Some(t) = env.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()) {
+        return t;
+    }
+    if let Some(t) = file.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()) {
+        return t;
+    }
+    let legacy = extension.unwrap_or("").trim().to_string();
+    if !legacy.is_empty() {
+        eprintln!(
+            "warning: no OMNIGET_TOKEN and no CLI token file; using the browser extension key, \
+             which agent routes stop accepting in the next version. Open OmniGet once to create \
+             the CLI token, or set OMNIGET_TOKEN to a token from LLM → Jobs → Access tokens."
+        );
+    }
+    legacy
 }
 
 fn workspace(arg: Option<String>, no_workspace: bool) -> Option<String> {
@@ -709,6 +737,21 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_token_comes_from_env_then_file_then_the_extension_key() {
+        let f = || Some("ogt_file\n".to_string());
+        assert_eq!(
+            resolve_token(Some("ogt_env".into()), f(), Some("ext")),
+            "ogt_env"
+        );
+        assert_eq!(
+            resolve_token(Some("  ".into()), f(), Some("ext")),
+            "ogt_file"
+        );
+        assert_eq!(resolve_token(None, None, Some("ext")), "ext");
+        assert_eq!(resolve_token(None, None, None), "");
+    }
 
     #[test]
     fn status_text_shows_position_and_reason() {

@@ -3411,6 +3411,31 @@
         "unavailable_no_snapshot": "Não se sabe o que este job mudou: os turnos dele não tiraram snapshot da pasta.",
         "unavailable_no_workspace": "Este job rodou sem pasta, então não há diff.",
         "unavailable_error": "Não foi possível ler o snapshot da pasta deste job."
+      },
+      "tokens": {
+        "title": "Tokens de acesso",
+        "lede": "Scripts, webhooks e a CLI omniget chegam às rotas de agente do bridge local com um token com escopo. A chave da extensão do navegador não serve para elas.",
+        "empty": "Nenhum token ainda.",
+        "name": "Nome",
+        "scopes": "O que ele pode fazer",
+        "scope_jobs_read": "Ver jobs (jobs:read)",
+        "scope_jobs_operate": "Iniciar e cancelar jobs (jobs:operate)",
+        "scope_approvals_respond": "Responder aprovações (approvals:respond)",
+        "expires": "Expira",
+        "expires_never": "Nunca",
+        "expires_days": "Em {{days}} dias",
+        "expires_at": "expira {{when}}",
+        "create": "Criar token",
+        "created": "Token criado. Copie agora: ele não aparece de novo.",
+        "copy": "Copiar token",
+        "revoke": "Revogar",
+        "kind_cli": "CLI omniget deste computador",
+        "last_used": "último uso {{when}}",
+        "never_used": "nunca usado",
+        "legacy_toggle": "Ainda aceitar a chave da extensão do navegador nas rotas de agente (obsoleto)",
+        "legacy_hint": "Mantido por uma versão para scripts antigos continuarem funcionando. A próxima versão recusa.",
+        "legacy_seen": "A chave da extensão do navegador foi usada em {{route}} às {{when}}. Troque esse script por um token com escopo.",
+        "curl_hint": "Defina OMNIGET_TOKEN com um token de escopo jobs:operate (Tokens de acesso, abaixo)."
       }
     },
     "loops": {
