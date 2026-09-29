@@ -24,6 +24,7 @@ pub mod local_servers;
 pub mod perm;
 pub mod providers;
 pub mod prune;
+pub mod review;
 pub mod roster_store;
 pub mod router;
 pub mod runtime;

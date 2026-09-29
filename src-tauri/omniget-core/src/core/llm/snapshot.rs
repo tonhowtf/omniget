@@ -680,6 +680,39 @@ pub async fn worktree_diff(worktree: &Path, base_oid: &str) -> Result<JobDiff, S
     Ok(diff)
 }
 
+/// The shadow git of `workspace` as a [`crate::core::vcs::repo::GitCtx`]
+/// (3.5: a hunk of a shared job is put back through it, so the paths of the
+/// patch are relative to the folder whatever repository it sits in).
+pub fn shadow_ctx(workspace: &Path) -> Result<crate::core::vcs::repo::GitCtx, String> {
+    let dir = git_dir(workspace)?;
+    if !dir.join("HEAD").exists() {
+        return Err(format!(
+            "{ERR_DIFF_UNAVAILABLE}: no snapshot was ever taken of {}",
+            workspace.display()
+        ));
+    }
+    Ok(crate::core::vcs::repo::GitCtx::Shadow {
+        git_dir: dir,
+        work_tree: workspace.to_path_buf(),
+    })
+}
+
+/// From the tree `base` of the shadow git to `workspace` as it is now (3.5):
+/// what a shared job's hunks are checked against before one is discarded.
+/// Same files, patch and limits as [`job_diff`]; the shadow index is copied,
+/// never used.
+pub async fn live_diff(workspace: &Path, base: &str) -> Result<JobDiff, String> {
+    let ctx = shadow_ctx(workspace)?;
+    let crate::core::vcs::repo::GitCtx::Shadow { git_dir: dir, .. } = ctx else {
+        unreachable!("shadow_ctx returns a shadow context");
+    };
+    if base.is_empty() || base.starts_with('-') {
+        return Err(format!("{ERR_DIFF_UNAVAILABLE}: no base tree"));
+    }
+    let tip = stage_tree_private(&dir, workspace).await?;
+    diff_trees(&dir, workspace, base, &tip).await
+}
+
 pub fn depth(workspace: &Path, conversation: &str) -> usize {
     git_dir(workspace)
         .map(|d| load(&d, conversation).len())

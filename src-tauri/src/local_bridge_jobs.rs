@@ -6,7 +6,12 @@
 //! the CLI read) as the system prompt of a coding CLI (`omniget agent run
 //! <agent> --tool <x>`); `POST /v1/agent/loop-catalog` starts a catalog loop
 //! on the Loops engine (`omniget agent loop --catalog <id>`); `GET
-//! /v1/playbooks` lists the playbook runs.
+//! /v1/playbooks` lists the playbook runs. The review of a job (3.5):
+//! `GET /v1/jobs/{id}/hunks`, `POST /v1/jobs/{id}/hunks/discard`,
+//! `GET|POST /v1/jobs/{id}/notes`, `DELETE /v1/jobs/{id}/notes/{note}`,
+//! `POST /v1/jobs/{id}/notes/send`, `GET|POST /v1/jobs/{id}/integrate`,
+//! `POST /v1/jobs/{id}/discard` and `POST /v1/jobs/{id}/walkthrough`
+//! (`omniget agent integrate|discard`).
 
 use axum::extract::{Path, RawQuery};
 use axum::http::{header, HeaderMap, StatusCode};
@@ -92,6 +97,7 @@ where
         }};
     }
     let (c1, c2, c3) = (state.clone(), state.clone(), state.clone());
+    let review = state.clone();
     let s13 = state.clone();
     let (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12) = (
         state.clone(),
@@ -363,12 +369,238 @@ where
                 ))
                 .into_response())
             }),
+        )        .merge(review_routes(review))
+}
+
+/// HTTP status of a review error, by its code.
+fn review_status(e: &str) -> StatusCode {
+    use omniget_core::core::llm::review as r;
+    if e.starts_with(r::ERR_HUNK_STALE)
+        || e.starts_with(r::ERR_HUNK_PARTIAL)
+        || e.starts_with(r::ERR_REVIEW_BUSY)
+        || e.starts_with(jobs::ERR_WORKTREE)
+    {
+        StatusCode::CONFLICT
+    } else if e.starts_with(r::ERR_WALKTHROUGH_TOO_LARGE) {
+        StatusCode::PAYLOAD_TOO_LARGE
+    } else if e.starts_with(r::ERR_WALKTHROUGH_EMPTY) {
+        StatusCode::UNPROCESSABLE_ENTITY
+    } else if e.contains(": no job ") {
+        StatusCode::NOT_FOUND
+    } else {
+        StatusCode::BAD_REQUEST
+    }
+}
+
+fn answer(v: Result<Value, String>) -> Response {
+    match v {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => fail(review_status(&e), e),
+    }
+}
+
+#[derive(Deserialize)]
+struct DiscardHunkBody {
+    hunk_id: String,
+    patch: String,
+}
+
+#[derive(Deserialize)]
+struct NoteBody {
+    path: String,
+    #[serde(default)]
+    start_line: Option<u32>,
+    #[serde(default)]
+    end_line: Option<u32>,
+    body: String,
+}
+
+#[derive(Deserialize, Default)]
+struct IntegrateBody {
+    #[serde(default)]
+    strategy: Option<String>,
+}
+
+#[derive(Deserialize, Default)]
+struct WalkthroughBody {
+    #[serde(default)]
+    refresh: bool,
+}
+
+/// The review routes of a job (3.5). Same bearer as the other job routes;
+/// after the merge with 2.1 the writes are `jobs:operate` and the reads
+/// `jobs:read`.
+fn review_routes<S>(state: JobsBridgeState) -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    // Bearer, then the jobs instance; the body runs with both.
+    macro_rules! with_jobs {
+        ($state:ident, $headers:ident) => {{
+            if !check_bearer(&$headers, &$state.token) {
+                return fail(StatusCode::UNAUTHORIZED, "bad or missing bearer token");
+            }
+            match jobs::get(&$state.app) {
+                Ok(j) => j,
+                Err(e) => return fail(StatusCode::INTERNAL_SERVER_ERROR, e),
+            }
+        }};
+    }
+    let (r3b, r6b) = (state.clone(), state.clone());
+    let (r1, r2, r3, r4, r5, r6, r7, r8) = (
+        state.clone(),
+        state.clone(),
+        state.clone(),
+        state.clone(),
+        state.clone(),
+        state.clone(),
+        state.clone(),
+        state,
+    );
+    Router::new()
+        .route(
+            "/v1/jobs/{id}/hunks",
+            get(move |Path(id): Path<String>, headers: HeaderMap| async move {
+                let j = with_jobs!(r1, headers);
+                answer(j.review_hunks(&id).await)
+            }),
+        )
+        .route(
+            "/v1/jobs/{id}/hunks/discard",
+            post(
+                move |Path(id): Path<String>, headers: HeaderMap, Json(b): Json<DiscardHunkBody>| async move {
+                    let j = with_jobs!(r2, headers);
+                    answer(j.discard_hunk(&id, &b.hunk_id, &b.patch).await)
+                },
+            ),
+        )
+        .route(
+            "/v1/jobs/{id}/notes",
+            get(move |Path(id): Path<String>, headers: HeaderMap| async move {
+                let j = with_jobs!(r3, headers);
+                if j.job(&id).is_none() {
+                    return fail(StatusCode::NOT_FOUND, format!("no job {id}"));
+                }
+                Json(json!(j.notes(&id))).into_response()
+            })
+            .post({
+                let r = r3b;
+                move |Path(id): Path<String>, headers: HeaderMap, Json(b): Json<NoteBody>| async move {
+                    let j = with_jobs!(r, headers);
+                    answer(
+                        j.note_add(&id, &b.path, b.start_line, b.end_line, &b.body)
+                            .map(|n| json!(n)),
+                    )
+                }
+            }),
+        )
+        .route(
+            "/v1/jobs/{id}/notes/{note}",
+            axum::routing::delete(
+                move |Path((id, note)): Path<(String, String)>, headers: HeaderMap| async move {
+                    let j = with_jobs!(r4, headers);
+                    answer(j.note_delete(&id, &note).map(|_| json!({ "ok": true })))
+                },
+            ),
+        )
+        .route(
+            "/v1/jobs/{id}/notes/send",
+            post(move |Path(id): Path<String>, headers: HeaderMap| async move {
+                let j = with_jobs!(r5, headers);
+                answer(j.notes_send(&id).await.map(|job| json!(job)))
+            }),
+        )
+        .route(
+            "/v1/jobs/{id}/integrate",
+            get(move |Path(id): Path<String>, headers: HeaderMap| async move {
+                let j = with_jobs!(r6, headers);
+                answer(j.integrate_preview(&id).await)
+            })
+            .post({
+                let r = r6b;
+                move |Path(id): Path<String>, headers: HeaderMap, body: Option<Json<IntegrateBody>>| async move {
+                    let j = with_jobs!(r, headers);
+                    let b = body.map(|Json(b)| b).unwrap_or_default();
+                    let strategy = match omniget_core::core::vcs::integrate::Strategy::parse(
+                        b.strategy.as_deref().unwrap_or(""),
+                    ) {
+                        Ok(s) => s,
+                        Err(e) => return fail(StatusCode::BAD_REQUEST, e),
+                    };
+                    match j.integrate(&id, strategy).await {
+                        Ok((outcome, job)) => {
+                            let ok = matches!(outcome.status.as_str(), "merged" | "up_to_date");
+                            let body = json!({ "outcome": outcome, "job": job });
+                            if ok {
+                                Json(body).into_response()
+                            } else {
+                                // A conflict or a hook that failed: undone, 409 with the outcome.
+                                let mut body = body;
+                                body["error"] = json!(format!(
+                                    "integration {}: {}",
+                                    outcome.status,
+                                    if outcome.conflicts.is_empty() { outcome.output.clone() } else { outcome.conflicts.join(", ") }
+                                ));
+                                (StatusCode::CONFLICT, Json(body)).into_response()
+                            }
+                        }
+                        Err(e) => fail(review_status(&e), e),
+                    }
+                }
+            }),
+        )
+        .route(
+            "/v1/jobs/{id}/discard",
+            post(move |Path(id): Path<String>, headers: HeaderMap| async move {
+                let j = with_jobs!(r7, headers);
+                answer(j.discard_work(&id).await)
+            }),
+        )
+        .route(
+            "/v1/jobs/{id}/walkthrough",
+            post(
+                move |Path(id): Path<String>, headers: HeaderMap, body: Option<Json<WalkthroughBody>>| async move {
+                    let j = with_jobs!(r8, headers);
+                    let refresh = body.map(|Json(b)| b.refresh).unwrap_or(false);
+                    answer(j.walkthrough(&id, refresh).await.map(|w| json!(w)))
+                },
+            ),
         )
 }
 
 #[cfg(test)]
 mod tests {
     use super::format_of;
+
+    /// The review paths sit next to `/v1/jobs/{id}/cancel`, `/diff`… and
+    /// `notes/send` next to `notes/{note}`: axum panics on a conflicting
+    /// path when the router is built (at boot), so building it is the test.
+    #[test]
+    fn the_review_paths_route_without_conflict() {
+        use axum::routing::{delete, get, post};
+        let _app: axum::Router = axum::Router::new()
+            .route("/v1/jobs/{id}", get(|| async { "job" }))
+            .route("/v1/jobs/{id}/cancel", post(|| async { "cancel" }))
+            .route("/v1/jobs/{id}/diff", get(|| async { "diff" }))
+            .route("/v1/jobs/{id}/proof", get(|| async { "proof" }))
+            .merge(
+                axum::Router::new()
+                    .route("/v1/jobs/{id}/hunks", get(|| async { "" }))
+                    .route("/v1/jobs/{id}/hunks/discard", post(|| async { "" }))
+                    .route(
+                        "/v1/jobs/{id}/notes",
+                        get(|| async { "" }).post(|| async { "" }),
+                    )
+                    .route("/v1/jobs/{id}/notes/{note}", delete(|| async { "" }))
+                    .route("/v1/jobs/{id}/notes/send", post(|| async { "" }))
+                    .route(
+                        "/v1/jobs/{id}/integrate",
+                        get(|| async { "" }).post(|| async { "" }),
+                    )
+                    .route("/v1/jobs/{id}/discard", post(|| async { "" }))
+                    .route("/v1/jobs/{id}/walkthrough", post(|| async { "" })),
+            );
+    }
 
     #[test]
     fn the_diff_format_comes_from_the_query() {

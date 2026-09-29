@@ -31,6 +31,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::llm_manager::{now_ms, sanitize_id, LlmManager};
 
+mod review;
+
 pub const EVENT_JOB: &str = "llm://job";
 pub const EVENT_LOOP: &str = "llm://loop";
 /// A routine's schedule or counters changed (fired, missed, saved): the
@@ -738,6 +740,8 @@ pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
     // The durable schedule (1.4): routines saved before it start from now.
     let _ = db.execute("ALTER TABLE triggers ADD COLUMN next_run_ms INTEGER", []);
     migrate_triggers(db, now_ms);
+    // Review notes (3.5).
+    review::ensure_notes_schema(db)?;
     Ok(())
 }
 
@@ -1224,8 +1228,22 @@ impl Jobs {
 
     pub fn delete(&self, id: &str) -> Result<(), String> {
         let _ = self.cancel(id);
-        // The worktree goes too, its work saved on the branch first (2.3).
-        if let Some(job) = self.job(id).filter(|j| j.worktree_path.is_some()) {
+        // The worktree goes too, its work saved on the branch first (2.3),
+        // unless a follow-up job (3.5) still works in it.
+        let shared_worktree = |j: &Job| -> bool {
+            self.db()
+                .query_row(
+                    "SELECT COUNT(*) FROM jobs WHERE branch=?1 AND id<>?2",
+                    params![j.branch, j.id],
+                    |r| r.get::<_, i64>(0),
+                )
+                .unwrap_or(0)
+                > 0
+        };
+        if let Some(job) = self
+            .job(id)
+            .filter(|j| j.worktree_path.is_some() && !shared_worktree(j))
+        {
             tauri::async_runtime::spawn(async move {
                 match remove_job_worktree(&job).await {
                     Ok(out) => tracing::info!("[jobs] {}: {}", job.id, removal_note(&out).trim()),
@@ -1236,6 +1254,9 @@ impl Jobs {
         self.db()
             .execute("DELETE FROM jobs WHERE id=?1", params![id])
             .map_err(|e| e.to_string())?;
+        let _ = self
+            .db()
+            .execute("DELETE FROM job_notes WHERE job_id=?1", params![id]);
         if let Some(path) = patch_path(id) {
             let _ = std::fs::remove_file(path);
         }
@@ -1950,7 +1971,12 @@ impl Jobs {
             job_worktree::empty_trash();
         }
         let now = now_ms();
+        let live = self.live_folders("");
         for (id, path) in job_worktree::list_job_worktrees() {
+            // A follow-up job (3.5) may be working in a finished job's worktree.
+            if omniget_core::core::llm::snapshot::shared_with(&path, &live).is_some() {
+                continue;
+            }
             let job = self.job(&id);
             let Some(why) = worktree_gc_verdict(job.as_ref(), now) else {
                 continue;
@@ -4335,7 +4361,7 @@ async fn worktree_root(job: &Job) -> Option<(std::path::PathBuf, std::path::Path
         Some(r) => r,
         None => job_worktree::main_repo_of(std::path::Path::new(path)).await?,
     };
-    let root = job_worktree::path_of(&repo, &job.id).ok()?;
+    let root = job_worktree::path_of(&repo, review::worktree_owner(job)).ok()?;
     Some((repo, root))
 }
 
