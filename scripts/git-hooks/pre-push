@@ -1,0 +1,14 @@
+#!/bin/sh
+# Opt-in pre-push check, installed with `pnpm hooks:install` (removed with
+# `pnpm hooks:uninstall`). Runs what CI runs, limited to the areas this branch
+# touches since the merge-base with main: `node scripts/verify.mjs --changed`.
+#
+# Skip it once with: git push --no-verify
+cd "$(git rev-parse --show-toplevel)" || exit 1
+node scripts/verify.mjs --changed
+status=$?
+if [ "$status" -ne 0 ]; then
+  echo ""
+  echo "pre-push: verify failed. Fix it, or push anyway with: git push --no-verify"
+fi
+exit "$status"
