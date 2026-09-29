@@ -97,6 +97,7 @@ async fn run(case: &Case<'_>) -> Row {
         // The installed 2.1.284 lists `auto`; codex 0.158 lists `--approve-for-me`.
         auto_mode: true,
         approve_for_me: true,
+        app_server: None,
     };
     let req = TurnRequest {
         model: ModelRef {
@@ -352,6 +353,7 @@ fn auto_edits_is_the_argv_of_before() {
         run_mode,
         auto_mode: true,
         approve_for_me: true,
+        app_server: None,
     };
     let argv = |p: &LaunchPlan| {
         runtime

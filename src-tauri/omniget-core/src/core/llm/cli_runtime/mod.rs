@@ -24,6 +24,7 @@
 pub mod accounts;
 pub mod claude;
 pub mod codex;
+pub mod codex_app_server;
 pub mod parse;
 pub mod session;
 
@@ -255,6 +256,18 @@ pub struct LaunchPlan {
     pub auto_mode: bool,
     /// `codex exec --help` lists `--approve-for-me` (Codex's `auto`).
     pub approve_for_me: bool,
+    /// Codex over its app-server (3.6): who asks on behalf of the turn.
+    /// `None` = the one-shot `exec --json` (older Codex, or forced).
+    pub app_server: Option<AppServerTurn>,
+}
+
+/// The turn a Codex app-server conversation runs for: its approvals become
+/// durable asks of this agent and request (`runs_permissions`).
+#[derive(Debug, Clone)]
+pub struct AppServerTurn {
+    pub agent_id: String,
+    pub request_id: String,
+    pub conversation: String,
 }
 
 /// The CLI half of `CompositeRuntime`.
@@ -273,6 +286,10 @@ pub struct CliRuntime {
     /// broker's answer, so a turn waiting on a permission prompt is never
     /// taken for a stuck one.
     pause_probe: Option<PauseProbe>,
+    /// Where a Codex app-server turn sends its approvals (weak: the runtime
+    /// never keeps the broker alive). `None` = every question is declined
+    /// with the reason, as `exec` did.
+    broker: Option<std::sync::Weak<super::broker::ToolBroker>>,
 }
 
 /// See [`CliRuntime::with_pause_probe`].
@@ -296,7 +313,15 @@ impl CliRuntime {
             caps: RwLock::new(HashMap::new()),
             watchdog: RwLock::new(WatchdogConfig::default()),
             pause_probe: None,
+            broker: None,
         }
+    }
+
+    /// The broker that asks a person when Codex (app-server) wants a command
+    /// or an edit approved.
+    pub fn with_broker(mut self, broker: std::sync::Weak<super::broker::ToolBroker>) -> Self {
+        self.broker = Some(broker);
+        self
     }
 
     /// Freezes a turn's idle clock while `probe(request_id)` says a question
@@ -582,6 +607,67 @@ impl CliRuntime {
                 };
                 (spec, Arc::new(parser))
             }
+            CliKind::Codex if launch.is_some_and(|l| l.app_server.is_some()) => {
+                let l = launch.expect("checked above");
+                let turn = l.app_server.clone().expect("checked above");
+                let resumed = l.resume.clone();
+                let mut instructions = system_prompt.unwrap_or_default();
+                let sys = claude::system_text(&req.messages);
+                if !sys.trim().is_empty() {
+                    if !instructions.is_empty() {
+                        instructions.push_str("\n\n");
+                    }
+                    instructions.push_str(&sys);
+                }
+                let history: Vec<_> = req
+                    .messages
+                    .iter()
+                    .filter(|m| m.role != super::types::Role::System)
+                    .cloned()
+                    .collect();
+                let last = claude::last_user_text(&req.messages);
+                let replay = history
+                    .iter()
+                    .any(|m| m.role == super::types::Role::Assistant);
+                let plan = codex_app_server::AppServerPlan {
+                    cwd: cwd.as_ref().map(|p| p.display().to_string()),
+                    model: model_of(req),
+                    effort: req
+                        .params
+                        .reasoning_effort
+                        .as_deref()
+                        .and_then(codex_app_server::effort_of),
+                    instructions: (!instructions.trim().is_empty()).then_some(instructions),
+                    resume: resumed,
+                    resume_text: last.clone(),
+                    fresh_text: if replay {
+                        codex::render_prompt(&history)
+                    } else {
+                        last
+                    },
+                    effective: Some(l.run_mode.unwrap_or_default().under(account.sandbox)),
+                };
+                let spec = SpawnSpec {
+                    program: binary,
+                    args: vec!["app-server".into()],
+                    env,
+                    scrub,
+                    cwd,
+                    stdin: Some(plan.prelude()),
+                    ..SpawnSpec::default()
+                };
+                let asker = self.broker.clone().map(|broker| codex_app_server::Asker {
+                    broker,
+                    agent_id: turn.agent_id,
+                    request_id: turn.request_id,
+                    conversation: turn.conversation,
+                    registry: crate::core::assist::runs::active(),
+                });
+                (
+                    spec,
+                    Arc::new(codex_app_server::AppServerParser::new(plan, asker)),
+                )
+            }
             CliKind::Codex => {
                 // With a turn context the run mode decides the flags, capped
                 // by the account; without one, the account's sandbox alone.
@@ -724,6 +810,18 @@ impl AgentRuntime for CliRuntime {
                 run_mode: super::run_mode::of(&turn.conversation),
                 auto_mode: caps.permission_modes.iter().any(|m| m == "auto"),
                 approve_for_me: caps.has_flag("--approve-for-me"),
+                app_server: (kind == CliKind::Codex && codex_app_server::wanted(caps.app_server))
+                    .then(|| AppServerTurn {
+                        agent_id: agent.id.clone(),
+                        request_id: turn.request.clone(),
+                        conversation: turn.conversation.clone(),
+                    }),
+            };
+            // Codex resumes its thread only over the app-server; `exec`
+            // keeps replaying the transcript.
+            let native_resume = match kind {
+                CliKind::Claude => caps.native_resume,
+                CliKind::Codex => plan.app_server.is_some(),
             };
             if let Some(reg) = &registry {
                 let pins = crate::core::assist::runs::SessionPins {
@@ -737,12 +835,11 @@ impl AgentRuntime for CliRuntime {
                         "project"
                     }
                     .into(),
-                    native_resume: caps.native_resume && kind == CliKind::Claude,
+                    native_resume,
                 };
                 match reg.open_session(&turn.conversation, &agent.id, &pins) {
                     Ok((sess, repinned)) => {
-                        if kind == CliKind::Claude && caps.native_resume && !repinned && has_history
-                        {
+                        if native_resume && !repinned && has_history {
                             if let Some(handle) = sess.provider_handle.clone() {
                                 plan.resume = Some(handle);
                                 plan.resume_kind = crate::core::assist::runs::ResumeKind::Native;
@@ -838,6 +935,9 @@ impl AgentRuntime for CliRuntime {
         })
     }
 }
+
+#[cfg(test)]
+mod app_server_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1004,6 +1104,7 @@ mod tests {
             run_mode: None,
             auto_mode: false,
             approve_for_me: false,
+            app_server: None,
         };
         let (spec, _) = runtime.plan_with(
             &account,
@@ -1081,6 +1182,7 @@ mod tests {
             run_mode: None,
             auto_mode: false,
             approve_for_me: false,
+            app_server: None,
         };
         let effort = |req: &TurnRequest, p: &LaunchPlan| {
             let (spec, _) = runtime.plan_with(
