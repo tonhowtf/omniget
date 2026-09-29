@@ -10,6 +10,8 @@
    */
   import { t } from "$lib/i18n";
   import { handleOf, mentionAt, type QueuedMessage, type TurnStatus } from "$lib/llm/types";
+  import RunModeSelect from "./RunModeSelect.svelte";
+  import { loadRunMode, runModeOf, setRunMode } from "$lib/stores/llm-run-mode.svelte";
 
   type MemberOption = { id: string; name: string; role?: string };
 
@@ -20,6 +22,7 @@
     status = "idle",
     queue = [],
     members = [],
+    conversationId = null,
     onsend,
     onstop,
     onremovequeued,
@@ -31,6 +34,8 @@
     status?: TurnStatus;
     queue?: QueuedMessage[];
     members?: MemberOption[];
+    /** The chat conversation whose run mode (2.7) the picker shows and sets. */
+    conversationId?: string | null;
     onsend: (text: string) => boolean | Promise<boolean>;
     onstop: () => void;
     onremovequeued?: (id: string) => void;
@@ -46,6 +51,7 @@
   let activeIndex = $state(0);
 
   $effect(() => { value; queueMicrotask(autosize); });
+  $effect(() => { if (conversationId) void loadRunMode(conversationId); });
 
   let options = $derived.by<MemberOption[]>(() => {
     if (!mention || members.length === 0) return [];
@@ -171,6 +177,13 @@
       <span class="composer-hint">{$t("llm.composer.hint")}</span>
     {/if}
     <div class="composer-buttons">
+      {#if conversationId}
+        <RunModeSelect
+          compact
+          value={runModeOf(conversationId)}
+          onchange={(mode) => { if (conversationId) void setRunMode(conversationId, mode); }}
+        />
+      {/if}
       {#if running}
         <button type="button" class="button composer-send" onclick={onstop}>
           {$t("llm.conv.stop")}

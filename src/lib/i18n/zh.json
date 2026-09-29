@@ -3218,7 +3218,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "已允许完全访问",
+      "sandbox_full_hint": "此账户的回合可以编辑文件，运行模式为“完全访问”的回合不经询问直接运行。",
+      "sandbox_allow_full": "允许完全访问",
+      "sandbox_allow_full_confirm": "确认：允许完全访问",
+      "sandbox_make_write": "退回仅写入"
     },
     "rules": {
       "title": "Always rules",
@@ -5717,6 +5722,20 @@
           "open_jobs": "Open Jobs"
         }
       }
+    },
+    "run_mode": {
+      "label": "运行模式",
+      "approval_required": "事事先询问",
+      "auto_edits": "自动编辑",
+      "auto": "自动（CLI 审查器）",
+      "full_access": "完全访问",
+      "approval_required_hint": "每次编辑和每条命令都会先询问你。",
+      "auto_edits_hint": "文件编辑直接通过；命令会先询问。",
+      "auto_hint": "由 CLI 自带的审查器决定；CLI 没有审查器时，效果同“自动编辑”。",
+      "full_access_hint": "什么都不询问。CLI 账户也必须允许完全访问。",
+      "full_access_warning": "完全访问会不经询问执行每次编辑和每条命令。只在你可以承受丢失的文件夹里使用。",
+      "full_access_confirm": "允许完全访问",
+      "cancel": "取消"
     }
   },
   "omni": {

@@ -16,6 +16,9 @@ conta de escrita (SandboxMode::Write):
            --permission-prompts none --permission-mode acceptEdits
            --include-partial-messages [--model M] [--allowedTools ...]
 
+(`--run-mode`, item 2.7, troca só o `--permission-mode` por `permission_flags`,
+espelho de `claude::permission_flags`; o padrão `auto_edits` é a linha acima)
+
 e, com `--argv lean` (padrão desde a onda 2), o argv enxuto de job de projeto:
 `--effort low --append-system-prompt <PROJECT_BATCHING> --tools <PROJECT_TOOLS>
 --strict-mcp-config --exclude-dynamic-system-prompt-sections`.
@@ -508,15 +511,30 @@ def child_env():
     return env
 
 
+# Espelha run_mode::claude_permission (2.7) para uma conta `full`: o modo do job vira
+# --permission-mode. `auto_edits` (o padrão do chat e o que todo turno tinha antes)
+# é o argv de sempre, então o B0 mede a mesma linha de comando.
+RUN_MODE_FLAG = {'approval_required': 'default', 'auto_edits': 'acceptEdits', 'auto': 'auto',
+                 'full_access': 'bypassPermissions'}
+
+
+def permission_flags(run_mode='auto_edits', prompt_tool=None):
+    """Espelha claude::permission_flags: quem responde as perguntas + --permission-mode.
+    Sem projeção MCP não há prompt tool, então `--permission-prompts none`."""
+    out = (['--permission-prompts', 'host', '--permission-prompt-tool', prompt_tool] if prompt_tool
+           else ['--permission-prompts', 'none'])
+    return out + ['--permission-mode', RUN_MODE_FLAG[run_mode]]
+
+
 def claude_argv(args, model=None, effort=None):
     """Espelha claude::argv para SandboxMode::Write sem projeção.
 
     `--argv lean` (padrão) = job de projeto da onda 2 (plan_with com lean_project);
     `--argv baseline` = argv da onda 1, para comparar."""
     lean = getattr(args, 'argv', 'lean') == 'lean'
-    out = ['-p', '--output-format', 'stream-json', '--verbose',
-           '--permission-prompts', 'none', '--permission-mode', 'acceptEdits',
-           '--include-partial-messages']
+    out = ['-p', '--output-format', 'stream-json', '--verbose']
+    out += permission_flags(getattr(args, 'run_mode', 'auto_edits'))
+    out += ['--include-partial-messages']
     model = args.model if model is None else model
     if model:
         out += ['--model', model]
@@ -715,6 +733,8 @@ def main():
     ap.add_argument('--jobs', type=int, default=1,
                     help='missões em paralelo (cada uma no próprio workspace); o tempo por tarefa '
                          'continua medido por missão, e o valor vai no JSON para comparar rodadas iguais')
+    ap.add_argument('--run-mode', default='auto_edits', choices=sorted(RUN_MODE_FLAG),
+                    help='run_mode do job (2.7); auto_edits = argv de sempre (padrão do chat)')
     ap.add_argument('--list', action='store_true')
     args = ap.parse_args()
     if args.list:

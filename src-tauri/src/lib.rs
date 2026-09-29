@@ -1382,6 +1382,8 @@ pub fn run() {
             commands::llm::jobs::llm_trigger_fire,
             commands::llm::chat::llm_permission_rules_get,
             commands::llm::chat::llm_permission_rules_set,
+            commands::llm::chat::llm_conversation_run_mode,
+            commands::llm::chat::llm_conversation_run_mode_set,
             commands::llm::chat::llm_switch_model,
             commands::llm::models::llm_models_list,
             commands::llm::observatory::llm_telemetry_snapshot,

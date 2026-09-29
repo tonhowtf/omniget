@@ -3218,7 +3218,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "ອະນຸຍາດການເຂົ້າເຖິງເຕັມທີ່ແລ້ວ",
+      "sandbox_full_hint": "ຮອບຂອງບັນຊີນີ້ແກ້ໄຂໄຟລ໌ໄດ້, ແລະ ຮອບທີ່ໂໝດເປັນເຂົ້າເຖິງເຕັມທີ່ຈະເຮັດວຽກໂດຍບໍ່ຖາມ.",
+      "sandbox_allow_full": "ອະນຸຍາດການເຂົ້າເຖິງເຕັມທີ່",
+      "sandbox_allow_full_confirm": "ຢືນຢັນ: ອະນຸຍາດການເຂົ້າເຖິງເຕັມທີ່",
+      "sandbox_make_write": "ກັບໄປເປັນຂຽນໄດ້ຢ່າງດຽວ"
     },
     "rules": {
       "title": "Always rules",
@@ -5717,6 +5722,20 @@
           "open_jobs": "Open Jobs"
         }
       }
+    },
+    "run_mode": {
+      "label": "ໂໝດການເຮັດວຽກ",
+      "approval_required": "ຖາມກ່ອນທຸກຢ່າງ",
+      "auto_edits": "ແກ້ໄຂອັດຕະໂນມັດ",
+      "auto": "ອັດຕະໂນມັດ (ຜູ້ກວດຂອງ CLI)",
+      "full_access": "ເຂົ້າເຖິງເຕັມທີ່",
+      "approval_required_hint": "ທຸກການແກ້ໄຂ ແລະ ທຸກຄຳສັ່ງຈະຖາມທ່ານກ່ອນ.",
+      "auto_edits_hint": "ການແກ້ໄຂໄຟລ໌ຜ່ານໄປເລີຍ; ຄຳສັ່ງຈະຖາມກ່ອນ.",
+      "auto_hint": "ຜູ້ກວດຂອງ CLI ເອງເປັນຜູ້ຕັດສິນ; ຖ້າ CLI ບໍ່ມີ, ມັນເຮັດວຽກຄືກັບແກ້ໄຂອັດຕະໂນມັດ.",
+      "full_access_hint": "ບໍ່ມີຫຍັງຖາມ. ບັນຊີ CLI ກໍຕ້ອງອະນຸຍາດການເຂົ້າເຖິງເຕັມທີ່ນຳ.",
+      "full_access_warning": "ການເຂົ້າເຖິງເຕັມທີ່ຈະເຮັດທຸກການແກ້ໄຂ ແລະ ທຸກຄຳສັ່ງໂດຍບໍ່ຖາມ. ໃຊ້ສະເພາະໃນໂຟນເດີທີ່ທ່ານເສຍໄດ້ເທົ່ານັ້ນ.",
+      "full_access_confirm": "ອະນຸຍາດການເຂົ້າເຖິງເຕັມທີ່",
+      "cancel": "ຍົກເລີກ"
     }
   },
   "omni": {

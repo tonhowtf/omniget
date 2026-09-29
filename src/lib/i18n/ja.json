@@ -3218,7 +3218,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "フルアクセス許可",
+      "sandbox_full_hint": "このアカウントのターンはファイルを編集でき、実行モードがフルアクセスのターンは確認なしで実行されます。",
+      "sandbox_allow_full": "フルアクセスを許可",
+      "sandbox_allow_full_confirm": "確認：フルアクセスを許可",
+      "sandbox_make_write": "書き込みのみに戻す"
     },
     "rules": {
       "title": "Always rules",
@@ -5717,6 +5722,20 @@
           "open_jobs": "Open Jobs"
         }
       }
+    },
+    "run_mode": {
+      "label": "実行モード",
+      "approval_required": "すべて事前に確認",
+      "auto_edits": "編集は自動",
+      "auto": "自動（CLI のレビュアー）",
+      "full_access": "フルアクセス",
+      "approval_required_hint": "すべての編集とコマンドが先に確認します。",
+      "auto_edits_hint": "ファイルの編集はそのまま通り、コマンドは先に確認します。",
+      "auto_hint": "CLI 自身のレビュアーが判断します。CLI にない場合は「編集は自動」と同じ動作です。",
+      "full_access_hint": "何も確認しません。CLI アカウント側でもフルアクセスを許可する必要があります。",
+      "full_access_warning": "フルアクセスでは、すべての編集とコマンドが確認なしで実行されます。失っても構わないフォルダーでのみ使ってください。",
+      "full_access_confirm": "フルアクセスを許可",
+      "cancel": "キャンセル"
     }
   },
   "omni": {

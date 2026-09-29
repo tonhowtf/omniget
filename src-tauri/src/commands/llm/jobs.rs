@@ -20,7 +20,8 @@ pub async fn llm_job_get(app: AppHandle, id: String) -> Result<Value, String> {
 }
 
 /// `isolation`: `shared | worktree | auto` (absent = `auto`); `base`: the
-/// ref a worktree starts from (2.3).
+/// ref a worktree starts from (2.3); `run_mode`: what the job may do without
+/// asking (2.7; absent = `approval_required`, the default of a `run`).
 #[tauri::command]
 pub async fn llm_job_submit(
     app: AppHandle,
@@ -29,14 +30,21 @@ pub async fn llm_job_submit(
     workspace: Option<String>,
     isolation: Option<String>,
     base: Option<String>,
+    run_mode: Option<String>,
 ) -> Result<Value, String> {
     let isolation = isolation
         .as_deref()
         .filter(|s| !s.is_empty())
         .map(jobs::Isolation::parse)
         .transpose()?;
-    to(jobs::get(&app)?
-        .submit_placed("run", &agent_id, &prompt, workspace, None, isolation, base)?)
+    let run_mode = run_mode
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .map(jobs::RunMode::parse)
+        .transpose()?;
+    to(jobs::get(&app)?.submit_as(
+        "run", &agent_id, &prompt, workspace, None, isolation, base, run_mode,
+    )?)
 }
 
 /// Removes a finished job's worktree (2.3): its uncommitted work is saved

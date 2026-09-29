@@ -10,6 +10,7 @@
   import { getActiveConversation, getActiveTurn } from "$lib/stores/llm-store.svelte";
   import PermissionRules from "./PermissionRules.svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { runModeOf } from "$lib/stores/llm-run-mode.svelte";
 
   // Tools that need a project folder: absent in a personal conversation
   // (the backend removes them from the effective agent; this only says so).
@@ -72,6 +73,12 @@
         {/each}
       </ul>
     {/if}
+  </section>
+
+  <section class="block">
+    <h3>{$t("llm.run_mode.label")}</h3>
+    <p><span class="tag">{$t(`llm.run_mode.${runModeOf(conversation?.id)}`)}</span></p>
+    <p class="dim">{$t(`llm.run_mode.${runModeOf(conversation?.id)}_hint`)}</p>
   </section>
 
   <PermissionRules agentId={agent?.id ?? null} refreshKey={turn ? 1 : 0} />

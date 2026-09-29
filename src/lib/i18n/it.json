@@ -3218,7 +3218,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "accesso completo consentito",
+      "sandbox_full_hint": "I turni di questo account possono modificare file, e un turno in modalità Accesso completo viene eseguito senza chiedere.",
+      "sandbox_allow_full": "Consenti accesso completo",
+      "sandbox_allow_full_confirm": "Conferma: consenti accesso completo",
+      "sandbox_make_write": "Torna alla sola scrittura"
     },
     "rules": {
       "title": "Always rules",
@@ -5717,6 +5722,20 @@
           "open_jobs": "Open Jobs"
         }
       }
+    },
+    "run_mode": {
+      "label": "Modalità di esecuzione",
+      "approval_required": "Chiedi prima di tutto",
+      "auto_edits": "Modifiche automatiche",
+      "auto": "Automatica (revisore del CLI)",
+      "full_access": "Accesso completo",
+      "approval_required_hint": "Ogni modifica e ogni comando ti chiedono prima.",
+      "auto_edits_hint": "Le modifiche ai file passano; i comandi chiedono prima.",
+      "auto_hint": "Decide il revisore del CLI; dove il CLI non ne ha uno, funziona come Modifiche automatiche.",
+      "full_access_hint": "Niente chiede. Anche l'account del CLI deve consentire l'accesso completo.",
+      "full_access_warning": "L'accesso completo esegue ogni modifica e ogni comando senza chiedere. Usalo solo in una cartella che puoi permetterti di perdere.",
+      "full_access_confirm": "Consenti accesso completo",
+      "cancel": "Annulla"
     }
   },
   "omni": {

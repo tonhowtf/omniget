@@ -90,6 +90,8 @@ export type Job = {
   diff_unavailable?: string | null;
   /** Where it writes: the folder, a worktree of its own, or `auto` (a worktree only if the folder is busy). */
   isolation?: Isolation;
+  /** What it may do without asking (2.7): `approval_required` unless someone chose. */
+  run_mode?: import("./llm-run-mode.svelte").RunMode;
   /** The ref its worktree starts from; null = the checkout as it is, uncommitted work included. */
   base_ref?: string | null;
   /** Its worktree, while it has one. */
@@ -817,9 +819,10 @@ export async function submitJob(
   prompt: string,
   workspace: string | null,
   isolation: Isolation | null = null,
+  runMode: import("./llm-run-mode.svelte").RunMode | null = null,
 ): Promise<Job | null> {
   try {
-    const job = await invoke<Job>("llm_job_submit", { agentId, prompt, workspace, isolation });
+    const job = await invoke<Job>("llm_job_submit", { agentId, prompt, workspace, isolation, runMode });
     jobs = upsert(jobs, job);
     return job;
   } catch (e) {

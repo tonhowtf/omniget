@@ -150,7 +150,14 @@ pub struct Job {
     /// code, tokens, cost and time. Never written by the agent; 0 tokens.
     #[serde(default)]
     pub proof: Option<Value>,
+    /// How much the job's turns may do without asking (2.7, D2): a job from
+    /// outside the window asks before every edit and command unless the
+    /// caller chose otherwise; older rows keep what they did (`auto_edits`).
+    #[serde(default)]
+    pub run_mode: RunMode,
 }
+
+pub use omniget_core::core::llm::run_mode::RunMode;
 
 /// How a job is placed in its folder (2.3). `Auto` is the default of a job
 /// a person starts in the background (`run`, `trigger`); missions, Loop
@@ -397,6 +404,11 @@ pub struct LoopDef {
     /// Time spent inside rounds (the minute budget of a scheduled loop).
     #[serde(default)]
     pub active_ms: u64,
+    /// The run mode of every round (2.7). `None` = a Loop saved before the
+    /// field: its rounds keep `auto_edits`. The bridge fills
+    /// `approval_required` when the caller sends none.
+    #[serde(default)]
+    pub run_mode: Option<RunMode>,
 }
 
 /// One step of a running playbook.
@@ -724,6 +736,8 @@ pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
         // Diff by base..tip and the host's proof (2.4).
         "head_oid TEXT",
         "proof TEXT",
+        // One run mode per job (2.7): older rows read as `auto_edits`.
+        "run_mode TEXT",
     ] {
         let _ = db.execute(&format!("ALTER TABLE jobs ADD COLUMN {column}"), []);
     }
@@ -896,10 +910,14 @@ fn row_to_job(r: &rusqlite::Row<'_>) -> rusqlite::Result<Job> {
         proof: r
             .get::<_, Option<String>>(36)?
             .and_then(|s| serde_json::from_str(&s).ok()),
+        run_mode: r
+            .get::<_, Option<String>>(37)?
+            .and_then(|s| RunMode::parse(&s).ok())
+            .unwrap_or_default(),
     })
 }
 
-const JOB_COLS: &str = "id, kind, agent_id, conversation_id, prompt, workspace, state, loop_id, trigger_id, request_id, created_ms, started_ms, finished_ms, result, error, log, usage, state_seq, seen_ms, failure_reason, deadline_min, deadline_ms, wait_reason, diff_files, additions, deletions, diff_clipped, diff_unavailable, spec, playbook_id, isolation, base_ref, worktree_path, branch, base_oid, head_oid, proof";
+const JOB_COLS: &str = "id, kind, agent_id, conversation_id, prompt, workspace, state, loop_id, trigger_id, request_id, created_ms, started_ms, finished_ms, result, error, log, usage, state_seq, seen_ms, failure_reason, deadline_min, deadline_ms, wait_reason, diff_files, additions, deletions, diff_clipped, diff_unavailable, spec, playbook_id, isolation, base_ref, worktree_path, branch, base_oid, head_oid, proof, run_mode";
 
 impl Jobs {
     fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
@@ -1045,7 +1063,8 @@ impl Jobs {
                     job.branch,
                     job.base_oid,
                     job.head_oid,
-                    job.proof.as_ref().map(|p| p.to_string())
+                    job.proof.as_ref().map(|p| p.to_string()),
+                    job.run_mode.as_str()
                 ],
             )
             .map_err(|_| "JOB_STORAGE_UNAVAILABLE".to_owned())?;
@@ -1127,6 +1146,14 @@ impl Jobs {
             return Err(format!("{ERR_JOBS}: empty prompt"));
         }
         let id = short_id("j");
+        // A job that continues an existing conversation (a chat turn the app
+        // closed on) keeps that conversation's mode, the chat default when
+        // it never chose one; a fresh job takes the default of its kind.
+        let run_mode = match &conversation_id {
+            Some(conv) => omniget_core::core::llm::run_mode::chosen(&sanitize_id(conv))
+                .unwrap_or(RunMode::AutoEdits),
+            None => RunMode::default_for(kind),
+        };
         Ok(Job {
             conversation_id: conversation_id.unwrap_or_else(|| format!("job-{id}")),
             id,
@@ -1137,6 +1164,7 @@ impl Jobs {
             state: "queued".into(),
             created_ms: now_ms(),
             isolation: Isolation::default_for(kind, agent_id),
+            run_mode,
             ..Default::default()
         })
     }
@@ -1255,7 +1283,36 @@ impl Jobs {
         isolation: Option<Isolation>,
         base: Option<String>,
     ) -> Result<Job, String> {
+        self.submit_as(
+            kind,
+            agent_id,
+            prompt,
+            workspace,
+            deadline_min,
+            isolation,
+            base,
+            None,
+        )
+    }
+
+    /// [`Self::submit_placed`] with the job's run mode (2.7); `None` = the
+    /// default of the kind ([`RunMode::default_for`]: a `run` asks first).
+    #[allow(clippy::too_many_arguments)]
+    pub fn submit_as(
+        self: &Arc<Self>,
+        kind: &str,
+        agent_id: &str,
+        prompt: &str,
+        workspace: Option<String>,
+        deadline_min: Option<u32>,
+        isolation: Option<Isolation>,
+        base: Option<String>,
+        run_mode: Option<RunMode>,
+    ) -> Result<Job, String> {
         let mut job = self.new_job(kind, agent_id, prompt, workspace, None)?;
+        if let Some(mode) = run_mode {
+            job.run_mode = mode;
+        }
         job.deadline_min = deadline_min.map(|m| m.clamp(1, 24 * 60));
         if let Some(i) = isolation {
             job.isolation = i;
@@ -1634,6 +1691,9 @@ impl Jobs {
         // Held to the end of the job: however this returns, the token is
         // revoked and leaves the conversation's env (2.1).
         let _job_token = self.job_token_lease(&job, &conv);
+        // The turns of this job run in its run mode (2.7), whatever the
+        // conversation had chosen; the binding goes with the job.
+        let _run_mode = omniget_core::core::llm::run_mode::Binding::new(&conv, job.run_mode);
         let (request_id, cancel, mut stream) = match self
             .llm
             .turn_stream_with_cancel(&conv, &job.agent_id, &input, cancel.clone())
@@ -2700,6 +2760,7 @@ impl Jobs {
                 }
             };
             job.loop_id = Some(l.id.clone());
+            job.run_mode = l.run_mode.unwrap_or_default();
             job.deadline_min = l.deadline_min;
             job.spec = l.spec.clone();
             self.save_job(&job);

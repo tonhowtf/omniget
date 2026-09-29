@@ -3218,7 +3218,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "已允許完全存取",
+      "sandbox_full_hint": "此帳戶的回合可以編輯檔案，執行模式為「完全存取」的回合不經詢問直接執行。",
+      "sandbox_allow_full": "允許完全存取",
+      "sandbox_allow_full_confirm": "確認：允許完全存取",
+      "sandbox_make_write": "退回僅寫入"
     },
     "rules": {
       "title": "Always rules",
@@ -5717,6 +5722,20 @@
           "open_jobs": "Open Jobs"
         }
       }
+    },
+    "run_mode": {
+      "label": "執行模式",
+      "approval_required": "事事先詢問",
+      "auto_edits": "自動編輯",
+      "auto": "自動（CLI 審查器）",
+      "full_access": "完全存取",
+      "approval_required_hint": "每次編輯和每個指令都會先詢問你。",
+      "auto_edits_hint": "檔案編輯直接通過；指令會先詢問。",
+      "auto_hint": "由 CLI 自帶的審查器決定；CLI 沒有審查器時，效果同「自動編輯」。",
+      "full_access_hint": "什麼都不詢問。CLI 帳戶也必須允許完全存取。",
+      "full_access_warning": "完全存取會不經詢問執行每次編輯和每個指令。只在你可以承受遺失的資料夾裡使用。",
+      "full_access_confirm": "允許完全存取",
+      "cancel": "取消"
     }
   },
   "omni": {

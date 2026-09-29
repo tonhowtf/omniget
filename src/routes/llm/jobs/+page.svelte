@@ -2,6 +2,8 @@
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
   import RunsPanel from "$components/llm/activity/RunsPanel.svelte";
   import AskCard from "$components/llm/activity/AskCard.svelte";
+  import RunModeSelect from "$components/llm/RunModeSelect.svelte";
+  import type { RunMode } from "$lib/stores/llm-run-mode.svelte";
   import DiffView from "$components/llm/activity/DiffView.svelte";
   import { promptTitle } from "$components/llm/activity/run-status";
   /**
@@ -106,6 +108,9 @@
   let prompt = $state("");
   let workspace = $state<string | null>(null);
   let isolation = $state<Isolation>("auto");
+  // Started here, by a person in the window: edits go through, commands ask.
+  // Jobs from the CLI, the bridge or MCP ask for everything unless told (D2).
+  let runMode = $state<RunMode>("auto_edits");
   const isolations: Isolation[] = ["auto", "worktree", "shared"];
   let submitting = $state(false);
 
@@ -218,7 +223,7 @@
   async function run() {
     if (!agentId || !prompt.trim()) return;
     submitting = true;
-    const job = await submitJob(agentId, prompt.trim(), workspace, workspace ? isolation : null);
+    const job = await submitJob(agentId, prompt.trim(), workspace, workspace ? isolation : null, runMode);
     submitting = false;
     if (job) prompt = "";
   }
@@ -337,6 +342,7 @@
         </label>
       {/if}
     </div>
+    <RunModeSelect bind:value={runMode} />
     <label class="field">
       <span class="field-label">{$t("llm.jobs.prompt")}</span>
       <textarea class="input" rows="3" bind:value={prompt} placeholder={$t("llm.jobs.prompt_placeholder")}></textarea>
@@ -421,6 +427,10 @@
                 {#if full.workspace}
                   <div class="field-label">{$t("llm.jobs.workspace")}</div>
                   <code class="path">{full.workspace}</code>
+                {/if}
+                {#if full.run_mode}
+                  <div class="field-label">{$t("llm.run_mode.label")}</div>
+                  <div class="text" title={$t(`llm.run_mode.${full.run_mode}_hint`) as string}>{$t(`llm.run_mode.${full.run_mode}`)}</div>
                 {/if}
                 {#if full.branch}
                   <div class="field-label">{$t("llm.jobs.worktree.title")}</div>

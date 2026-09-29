@@ -3218,7 +3218,12 @@
         "connecting": "Conectando…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "acesso total permitido",
+      "sandbox_full_hint": "Os turnos desta conta podem editar arquivos, e um turno no modo Acesso total roda sem perguntar.",
+      "sandbox_allow_full": "Permitir acesso total",
+      "sandbox_allow_full_confirm": "Confirmar: permitir acesso total",
+      "sandbox_make_write": "Voltar a só escrita"
     },
     "rules": {
       "title": "Regras de Sempre",
@@ -5717,6 +5722,20 @@
           "open_jobs": "Abrir Jobs"
         }
       }
+    },
+    "run_mode": {
+      "label": "Modo de execução",
+      "approval_required": "Perguntar antes de tudo",
+      "auto_edits": "Edições automáticas",
+      "auto": "Automático (revisor do CLI)",
+      "full_access": "Acesso total",
+      "approval_required_hint": "Toda edição e todo comando perguntam antes.",
+      "auto_edits_hint": "Edições de arquivo passam; comandos perguntam antes.",
+      "auto_hint": "O revisor do próprio CLI decide; onde o CLI não tem um, funciona como Edições automáticas.",
+      "full_access_hint": "Nada pergunta. A conta do CLI também precisa permitir acesso total.",
+      "full_access_warning": "Acesso total roda toda edição e todo comando sem perguntar. Use só numa pasta que você pode perder.",
+      "full_access_confirm": "Permitir acesso total",
+      "cancel": "Cancelar"
     }
   },
   "omni": {

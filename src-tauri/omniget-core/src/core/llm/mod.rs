@@ -26,6 +26,7 @@ pub mod providers;
 pub mod prune;
 pub mod roster_store;
 pub mod router;
+pub mod run_mode;
 pub mod runtime;
 pub mod snapshot;
 pub mod sse;

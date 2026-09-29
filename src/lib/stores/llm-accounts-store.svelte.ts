@@ -32,7 +32,7 @@ export type WindowKind = "five_hour" | "seven_day";
  * account and the only value the backend ever infers; anything it does not
  * recognise parses back to `read-only`, so a write is always a deliberate act.
  */
-export type SandboxMode = "read-only" | "write";
+export type SandboxMode = "read-only" | "write" | "full";
 
 /** Span of each window, in ms. Used for the "runs out at this pace" line. */
 export const WINDOW_SPAN_MS: Record<WindowKind, number> = {
@@ -195,7 +195,8 @@ export function normalizeWindow(raw: unknown, accountId = ""): UsageWindow {
  * account as more restricted than it is, and must never invent a write.
  */
 export function normalizeSandbox(raw: unknown): SandboxMode {
-  return raw === "write" ? "write" : "read-only";
+  // `full` (2.7): the ceiling that lets a turn whose run mode is full_access run.
+  return raw === "write" ? "write" : raw === "full" ? "full" : "read-only";
 }
 
 /** A missing field never crashes a meter or a chart. */

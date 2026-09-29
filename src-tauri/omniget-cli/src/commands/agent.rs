@@ -125,6 +125,18 @@ fn workspace(arg: Option<String>, no_workspace: bool) -> Option<String> {
     })
 }
 
+/// The run modes of `--mode` (2.7), safest first. Without the flag the app
+/// uses `approval_required` for anything started from here (D2).
+const RUN_MODES: [&str; 4] = ["approval_required", "auto_edits", "auto", "full_access"];
+
+/// Adds `run_mode` to a run or Loop body when `--mode` was given.
+fn with_run_mode(mut body: Value, mode: Option<String>) -> Value {
+    if let Some(m) = mode.filter(|m| !m.trim().is_empty()) {
+        body["run_mode"] = json!(m);
+    }
+    body
+}
+
 /// The body of `POST /v1/agent/run`. `--isolate` asks for a worktree,
 /// `--shared` for the folder itself; neither leaves the app's `auto`.
 fn run_body(
@@ -506,6 +518,13 @@ pub enum AgentCommand {
             help = "Start the worktree from this branch or commit (default: your checkout as it is, uncommitted work included)"
         )]
         base: Option<String>,
+        #[arg(
+            long,
+            value_name = "MODE",
+            value_parser = RUN_MODES,
+            help = "What the agent may do without asking: approval_required (default: every edit and command asks), auto_edits, auto, full_access"
+        )]
+        mode: Option<String>,
     },
     /// Keep an agent working until a check passes or the budget runs out;
     /// `--catalog <loop id>` runs a loop of the catalog instead of a prompt
@@ -546,6 +565,13 @@ pub enum AgentCommand {
             help = "Shell command; the loop ends when it exits 0 (e.g. \"npm test\")"
         )]
         check: Option<String>,
+        #[arg(
+            long,
+            value_name = "MODE",
+            value_parser = RUN_MODES,
+            help = "What the agent may do without asking: approval_required (default: every edit and command asks), auto_edits, auto, full_access"
+        )]
+        mode: Option<String>,
     },
     /// List recent jobs, show one, or cancel one
     Jobs {
@@ -680,6 +706,7 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             isolate,
             shared,
             base,
+            mode,
             ..
         } => {
             let prompt = match args.as_slice() {
@@ -689,14 +716,17 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             let job = bridge
                 .post(
                     "/v1/agent/run",
-                    run_body(
-                        &agent,
-                        &prompt,
-                        workspace(ws, no_workspace),
-                        deadline_min,
-                        isolate,
-                        shared,
-                        base,
+                    with_run_mode(
+                        run_body(
+                            &agent,
+                            &prompt,
+                            workspace(ws, no_workspace),
+                            deadline_min,
+                            isolate,
+                            shared,
+                            base,
+                        ),
+                        mode,
                     ),
                 )
                 .await?;
@@ -759,12 +789,16 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             rounds,
             minutes,
             check,
+            mode,
             ..
         } => {
             let l = bridge
                 .post(
                     "/v1/agent/loop",
-                    json!({ "agent_id": agent, "prompt": prompt, "workspace": workspace(ws, false), "max_rounds": rounds, "max_minutes": minutes, "check_command": check }),
+                    with_run_mode(
+                        json!({ "agent_id": agent, "prompt": prompt, "workspace": workspace(ws, false), "max_rounds": rounds, "max_minutes": minutes, "check_command": check }),
+                        mode,
+                    ),
                 )
                 .await?;
             if json_out {
@@ -959,6 +993,34 @@ mod tests {
         );
         assert_eq!(resolve_token(None, None, Some("ext")), "ext");
         assert_eq!(resolve_token(None, None, None), "");
+    }
+
+    #[test]
+    fn mode_goes_in_the_body_only_when_given() {
+        let body = || run_body("a", "p", None, None, false, false, None);
+        assert!(with_run_mode(body(), None).get("run_mode").is_none());
+        assert_eq!(
+            with_run_mode(body(), Some("auto_edits".into()))["run_mode"],
+            "auto_edits"
+        );
+        // clap refuses anything else before a request is sent.
+        use clap::Parser;
+        #[derive(Parser)]
+        struct T {
+            #[command(subcommand)]
+            c: AgentCommand,
+        }
+        assert!(T::try_parse_from(["t", "run", "hi", "--mode", "yolo"]).is_err());
+        for m in RUN_MODES {
+            assert!(
+                T::try_parse_from(["t", "run", "hi", "--mode", m]).is_ok(),
+                "{m}"
+            );
+            assert!(
+                T::try_parse_from(["t", "loop", "hi", "--mode", m]).is_ok(),
+                "{m}"
+            );
+        }
     }
 
     #[test]

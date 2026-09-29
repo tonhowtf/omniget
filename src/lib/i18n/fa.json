@@ -3218,7 +3218,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "دسترسی کامل مجاز است",
+      "sandbox_full_hint": "نوبت‌های این حساب می‌توانند فایل ویرایش کنند و نوبتی که حالت اجرایش دسترسی کامل است بدون پرسیدن اجرا می‌شود.",
+      "sandbox_allow_full": "اجازهٔ دسترسی کامل",
+      "sandbox_allow_full_confirm": "تأیید: اجازهٔ دسترسی کامل",
+      "sandbox_make_write": "بازگشت به فقط نوشتن"
     },
     "rules": {
       "title": "Always rules",
@@ -5717,6 +5722,20 @@
           "open_jobs": "Open Jobs"
         }
       }
+    },
+    "run_mode": {
+      "label": "حالت اجرا",
+      "approval_required": "پیش از هر کاری بپرس",
+      "auto_edits": "ویرایش خودکار",
+      "auto": "خودکار (بازبین CLI)",
+      "full_access": "دسترسی کامل",
+      "approval_required_hint": "هر ویرایش و هر فرمان اول از شما می‌پرسد.",
+      "auto_edits_hint": "ویرایش فایل‌ها انجام می‌شود؛ فرمان‌ها اول می‌پرسند.",
+      "auto_hint": "بازبین خود CLI تصمیم می‌گیرد؛ اگر CLI بازبین نداشته باشد، مثل ویرایش خودکار کار می‌کند.",
+      "full_access_hint": "هیچ چیز نمی‌پرسد. حساب CLI هم باید دسترسی کامل را مجاز کند.",
+      "full_access_warning": "دسترسی کامل هر ویرایش و هر فرمان را بدون پرسیدن اجرا می‌کند. فقط در پوشه‌ای از آن استفاده کنید که از دست دادنش مهم نیست.",
+      "full_access_confirm": "اجازهٔ دسترسی کامل",
+      "cancel": "لغو"
     }
   },
   "omni": {

@@ -791,6 +791,13 @@ impl ToolBroker {
             ));
         };
         let mut mode = self.mode_for(grants, name);
+        // The turn's run mode moves the grant inside itself (2.7); a stored
+        // rule, the always-ask tools and the workspace check still come after.
+        if let Some(run) =
+            super::code_tools::current_turn().and_then(|c| super::run_mode::of(&c.conversation))
+        {
+            mode = super::run_mode::native_grant(run, name, mode);
+        }
         if !matches!(mode, GrantMode::Deny) {
             match super::perm::decide(agent_id, name, &input) {
                 Some(super::perm::Action::Allow) => mode = GrantMode::Auto,

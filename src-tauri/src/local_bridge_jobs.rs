@@ -90,6 +90,10 @@ struct RunBody {
     /// disk, uncommitted work included.
     #[serde(default)]
     base: Option<String>,
+    /// `approval_required | auto_edits | auto | full_access` (2.7); absent
+    /// = `approval_required`: a job started from outside asks first (D2).
+    #[serde(default)]
+    run_mode: Option<String>,
 }
 
 pub fn router<S>(state: JobsBridgeState) -> Router<S>
@@ -171,7 +175,14 @@ where
                         .as_deref()
                         .map(jobs::Isolation::parse)
                         .transpose()
-                        .and_then(|isolation| j.submit_placed(
+                        .and_then(|isolation| Ok((
+                            isolation,
+                            b.run_mode
+                                .as_deref()
+                                .map(jobs::RunMode::parse)
+                                .transpose()?
+                        )))
+                        .and_then(|(isolation, run_mode)| j.submit_as(
                             "run",
                             &b.agent_id,
                             &b.prompt,
@@ -179,6 +190,7 @@ where
                             b.deadline_min,
                             isolation,
                             b.base.clone(),
+                            run_mode,
                         ))))
                 },
             ),
@@ -186,7 +198,9 @@ where
         .route(
             "/v1/agent/loop",
             post(
-                move |headers: HeaderMap, Json(def): Json<LoopDef>| async move {
+                move |headers: HeaderMap, Json(mut def): Json<LoopDef>| async move {
+                    // A Loop started from outside asks first unless told (D2).
+                    def.run_mode.get_or_insert(jobs::RunMode::ApprovalRequired);
                     guarded!(s3, headers, |j: std::sync::Arc<jobs::Jobs>| ok(
                         j.loop_create(def)
                     ))

@@ -3218,7 +3218,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "full access allowed",
+      "sandbox_full_hint": "Turns on this account can edit files, and a turn whose run mode is Full access runs without asking.",
+      "sandbox_allow_full": "Allow full access",
+      "sandbox_allow_full_confirm": "Confirm: allow full access",
+      "sandbox_make_write": "Back to write only"
     },
     "rules": {
       "title": "Always rules",
@@ -5717,6 +5722,20 @@
           "open_jobs": "Open Jobs"
         }
       }
+    },
+    "run_mode": {
+      "label": "Run mode",
+      "approval_required": "Ask before anything",
+      "auto_edits": "Auto edits",
+      "auto": "Auto (CLI reviewer)",
+      "full_access": "Full access",
+      "approval_required_hint": "Every edit and command asks you first.",
+      "auto_edits_hint": "File edits go through; commands ask first.",
+      "auto_hint": "The CLI's own reviewer decides; where the CLI has none, it works like Auto edits.",
+      "full_access_hint": "Nothing asks. The CLI account must also allow full access.",
+      "full_access_warning": "Full access runs every edit and command without asking. Use it only in a folder you can afford to lose.",
+      "full_access_confirm": "Allow full access",
+      "cancel": "Cancel"
     }
   },
   "omni": {
