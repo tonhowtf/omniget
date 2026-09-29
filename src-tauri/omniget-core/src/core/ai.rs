@@ -59,7 +59,7 @@ impl AiConfig {
     pub fn view(&self) -> AiConfigView {
         AiConfigView {
             provider: self.provider,
-            kind: self.kind.clone(),
+            kind: self.provider_id(),
             model: self.model.clone(),
             local_base_url: self.local_base_url.clone(),
             has_openai_key: !self.openai_key.is_empty(),
@@ -121,50 +121,102 @@ fn hydrate_keys(cfg: &mut AiConfig) {
     cfg.anthropic_key = stored_key(migrate::APP_ANTHROPIC_ACCOUNT);
 }
 
-/// Write the config. The keys go to the secret store and never to the JSON —
-/// `openai_key`/`anthropic_key` are `skip_serializing`, so the file cannot
-/// carry them even by accident.
-fn write_to_disk(cfg: &AiConfig) {
-    use crate::core::secrets::{self, AI_KEYS};
-    use crate::core::tools::ai_keys::migrate;
-    for (account, value) in [
-        (migrate::APP_OPENAI_ACCOUNT, cfg.openai_key.trim()),
-        (migrate::APP_ANTHROPIC_ACCOUNT, cfg.anthropic_key.trim()),
-    ] {
-        if let Err(e) = secrets::put_or_delete(AI_KEYS, account, value) {
-            tracing::warn!("[ai] could not store {}: {}", account, e);
-        }
-    }
-    let Some(path) = file_path() else { return };
-    let Some(parent) = path.parent() else { return };
-    if let Err(e) = std::fs::create_dir_all(parent) {
-        tracing::warn!("[ai] create_dir_all failed: {}", e);
-        return;
-    }
-    let serialized = match serde_json::to_string_pretty(cfg) {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::warn!("[ai] serialize failed: {}", e);
-            return;
-        }
-    };
+/// The API keys never enter JSON: the fields are `skip_serializing`.
+fn write_config_file(path: &std::path::Path, cfg: &AiConfig) -> Result<(), String> {
+    use std::io::Write;
+
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Could not find the AI settings directory".to_string())?;
+    std::fs::create_dir_all(parent)
+        .map_err(|e| format!("Could not create the AI settings directory: {e}"))?;
+    let serialized = serde_json::to_string_pretty(cfg)
+        .map_err(|e| format!("Could not encode AI settings: {e}"))?;
     let tmp = path.with_extension("json.tmp");
     let result = (|| -> std::io::Result<()> {
-        use std::io::Write;
         let mut f = std::fs::File::create(&tmp)?;
         f.write_all(serialized.as_bytes())?;
         f.sync_all()?;
+        std::fs::rename(&tmp, path)?;
         Ok(())
     })();
     if let Err(e) = result {
-        tracing::warn!("[ai] write tmp failed: {}", e);
         let _ = std::fs::remove_file(&tmp);
-        return;
+        return Err(format!("Could not save AI settings: {e}"));
     }
-    if let Err(e) = std::fs::rename(&tmp, &path) {
-        tracing::warn!("[ai] rename failed: {}", e);
-        let _ = std::fs::remove_file(&tmp);
+    Ok(())
+}
+
+/// Persist secrets first and the atomic config file last. If either layer
+/// fails, restore every secret already written so memory and disk keep the
+/// previous configuration. Secret values are never included in errors.
+fn persist_config(
+    previous: &AiConfig,
+    next: &AiConfig,
+    path: &std::path::Path,
+    mut put_key: impl FnMut(&str, &str) -> Result<(), String>,
+) -> Result<(), String> {
+    use crate::core::tools::ai_keys::migrate;
+
+    let keys = [
+        (
+            migrate::APP_OPENAI_ACCOUNT,
+            previous.openai_key.trim(),
+            next.openai_key.trim(),
+        ),
+        (
+            migrate::APP_ANTHROPIC_ACCOUNT,
+            previous.anthropic_key.trim(),
+            next.anthropic_key.trim(),
+        ),
+    ];
+    let mut written: Vec<(&'static str, String)> = Vec::new();
+    for (account, old, value) in keys {
+        if old == value {
+            continue;
+        }
+        if let Err(error) = put_key(account, value) {
+            let rollback_failed = restore_keys(&written, &mut put_key);
+            return Err(persistence_error(error, rollback_failed));
+        }
+        written.push((account, old.to_string()));
     }
+
+    if let Err(error) = write_config_file(path, next) {
+        let rollback_failed = restore_keys(&written, &mut put_key);
+        return Err(persistence_error(error, rollback_failed));
+    }
+    Ok(())
+}
+
+fn restore_keys(
+    written: &[(&'static str, String)],
+    put_key: &mut impl FnMut(&str, &str) -> Result<(), String>,
+) -> bool {
+    let mut failed = false;
+    for (account, previous_value) in written.iter().rev() {
+        if put_key(account, previous_value).is_err() {
+            failed = true;
+        }
+    }
+    failed
+}
+
+fn persistence_error(error: String, rollback_failed: bool) -> String {
+    if rollback_failed {
+        format!("{error}. The previous credential state could not be fully restored.")
+    } else {
+        error
+    }
+}
+
+fn persist_current(previous: &AiConfig, next: &AiConfig) -> Result<(), String> {
+    use crate::core::secrets::{self, AI_KEYS};
+
+    let path = file_path().ok_or_else(|| "Could not find the AI settings file".to_string())?;
+    persist_config(previous, next, &path, |account, value| {
+        secrets::put_or_delete(AI_KEYS, account, value)
+    })
 }
 
 pub fn get() -> AiConfig {
@@ -179,19 +231,34 @@ pub fn set(
     local_base_url: String,
     openai_key: Option<String>,
     anthropic_key: Option<String>,
-) -> AiConfig {
+) -> Result<AiConfig, String> {
     let mut guard = store().lock().unwrap();
-    guard.provider = provider;
-    guard.model = model.trim().to_string();
-    guard.local_base_url = local_base_url.trim().trim_end_matches('/').to_string();
+    let previous = guard.clone();
+    let mut next = previous.clone();
+    next.provider = provider;
+    next.model = model.trim().to_string();
+    next.local_base_url = local_base_url.trim().trim_end_matches('/').to_string();
     if let Some(k) = openai_key {
-        guard.openai_key = k.trim().to_string();
+        next.openai_key = k.trim().to_string();
     }
     if let Some(k) = anthropic_key {
-        guard.anthropic_key = k.trim().to_string();
+        next.anthropic_key = k.trim().to_string();
     }
-    write_to_disk(&guard);
-    guard.clone()
+    clear_changed_connection_metadata(&previous, &mut next);
+    persist_current(&previous, &next)?;
+    *guard = next.clone();
+    Ok(next)
+}
+
+fn clear_changed_connection_metadata(previous: &AiConfig, next: &mut AiConfig) {
+    if previous.provider != next.provider || previous.local_base_url != next.local_base_url {
+        next.kind.clear();
+        next.key_id.clear();
+    } else if previous.openai_key != next.openai_key || previous.anthropic_key != next.anthropic_key
+    {
+        // A manual replacement/removal no longer represents the vault entry.
+        next.key_id.clear();
+    }
 }
 
 /// Which wire an `ai_keys` kind speaks. `Local` is not a downgrade: it is the
@@ -230,24 +297,27 @@ pub fn set_from_key(
     model: String,
     base_url: String,
     key: String,
-) -> AiConfig {
+) -> Result<AiConfig, String> {
     let provider = provider_for_kind(kind);
     let mut guard = store().lock().unwrap();
-    guard.provider = provider;
-    guard.kind = kind.to_string();
-    guard.key_id = key_id.to_string();
-    guard.model = model.trim().to_string();
-    guard.local_base_url = match provider {
+    let previous = guard.clone();
+    let mut next = previous.clone();
+    next.provider = provider;
+    next.kind = kind.to_string();
+    next.key_id = key_id.to_string();
+    next.model = model.trim().to_string();
+    next.local_base_url = match provider {
         // The OpenAI and Anthropic wires have a fixed endpoint in `chat()`.
         AiProvider::Openai | AiProvider::Anthropic | AiProvider::None => String::new(),
         AiProvider::Local => base_url.trim().trim_end_matches('/').to_string(),
     };
     match provider {
-        AiProvider::Anthropic => guard.anthropic_key = key.trim().to_string(),
-        _ => guard.openai_key = key.trim().to_string(),
+        AiProvider::Anthropic => next.anthropic_key = key.trim().to_string(),
+        _ => next.openai_key = key.trim().to_string(),
     }
-    write_to_disk(&guard);
-    guard.clone()
+    persist_current(&previous, &next)?;
+    *guard = next.clone();
+    Ok(next)
 }
 
 fn http_client() -> Result<reqwest::Client, String> {
@@ -570,6 +640,27 @@ pub fn history_clear() {
 mod tests {
     use super::*;
 
+    fn test_path(label: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "omniget-ai-config-{label}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        root.join("ai_config.json")
+    }
+
+    fn config_with_keys(openai: &str, anthropic: &str) -> AiConfig {
+        AiConfig {
+            openai_key: openai.to_string(),
+            anthropic_key: anthropic.to_string(),
+            ..Default::default()
+        }
+    }
+
     #[test]
     fn view_hides_keys() {
         let cfg = AiConfig {
@@ -586,6 +677,41 @@ mod tests {
         // ...and neither does what goes to ai_config.json.
         let json = serde_json::to_string(&cfg).unwrap();
         assert!(!json.contains("secret"), "{json}");
+    }
+
+    #[test]
+    fn manual_connection_changes_do_not_keep_a_stale_provider_or_vault_association() {
+        let previous = AiConfig {
+            provider: AiProvider::Local,
+            kind: "openrouter".to_string(),
+            key_id: "vault-entry".to_string(),
+            local_base_url: "https://example.invalid/v1".to_string(),
+            openai_key: "test-key".to_string(),
+            ..Default::default()
+        };
+        let mut model_edit = previous.clone();
+        model_edit.model = "new-model".to_string();
+        clear_changed_connection_metadata(&previous, &mut model_edit);
+        assert_eq!(model_edit.view().kind, "openrouter");
+        assert_eq!(model_edit.key_id, "vault-entry");
+
+        let mut endpoint_edit = previous.clone();
+        endpoint_edit.local_base_url = "http://localhost:11434/v1".to_string();
+        clear_changed_connection_metadata(&previous, &mut endpoint_edit);
+        assert_eq!(endpoint_edit.view().kind, "custom");
+        assert!(endpoint_edit.key_id.is_empty());
+
+        let mut remove_key = previous.clone();
+        remove_key.openai_key.clear();
+        clear_changed_connection_metadata(&previous, &mut remove_key);
+        assert_eq!(remove_key.view().kind, "openrouter");
+        assert!(remove_key.key_id.is_empty());
+
+        let mut protocol_edit = previous.clone();
+        protocol_edit.provider = AiProvider::Anthropic;
+        clear_changed_connection_metadata(&previous, &mut protocol_edit);
+        assert_eq!(protocol_edit.view().kind, "anthropic");
+        assert!(protocol_edit.key_id.is_empty());
     }
 
     /// `AiProvider` is a wire, `kind` is the provider. A stale kind (the user
@@ -620,5 +746,86 @@ mod tests {
         assert!(!cfg.is_configured());
         cfg.anthropic_key = "k".to_string();
         assert!(cfg.is_configured());
+    }
+
+    #[test]
+    fn failed_second_secret_write_restores_the_first_and_leaves_the_file_unchanged() {
+        use crate::core::tools::ai_keys::migrate;
+        use std::collections::HashMap;
+
+        let path = test_path("secret-rollback");
+        std::fs::write(&path, "previous config").unwrap();
+        let previous = config_with_keys("old-openai", "old-anthropic");
+        let next = config_with_keys("new-openai", "new-anthropic");
+        let mut secrets = HashMap::from([
+            (
+                migrate::APP_OPENAI_ACCOUNT.to_string(),
+                "old-openai".to_string(),
+            ),
+            (
+                migrate::APP_ANTHROPIC_ACCOUNT.to_string(),
+                "old-anthropic".to_string(),
+            ),
+        ]);
+
+        let result = persist_config(&previous, &next, &path, |account, value| {
+            if account == migrate::APP_ANTHROPIC_ACCOUNT && value == "new-anthropic" {
+                return Err("simulated secret-store failure".to_string());
+            }
+            if value.is_empty() {
+                secrets.remove(account);
+            } else {
+                secrets.insert(account.to_string(), value.to_string());
+            }
+            Ok(())
+        });
+
+        assert!(result.is_err());
+        assert_eq!(
+            secrets.get(migrate::APP_OPENAI_ACCOUNT).unwrap(),
+            "old-openai"
+        );
+        assert_eq!(
+            secrets.get(migrate::APP_ANTHROPIC_ACCOUNT).unwrap(),
+            "old-anthropic"
+        );
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "previous config");
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn failed_config_write_restores_credentials_and_does_not_leak_them_in_error() {
+        use crate::core::tools::ai_keys::migrate;
+        use std::collections::HashMap;
+
+        let path = test_path("file-rollback");
+        std::fs::create_dir(&path).unwrap();
+        let previous = config_with_keys("old-openai", "");
+        let next = config_with_keys("new-openai", "");
+        let mut secrets = HashMap::from([(
+            migrate::APP_OPENAI_ACCOUNT.to_string(),
+            "old-openai".to_string(),
+        )]);
+
+        let result = persist_config(&previous, &next, &path, |account, value| {
+            if value.is_empty() {
+                secrets.remove(account);
+            } else {
+                secrets.insert(account.to_string(), value.to_string());
+            }
+            Ok(())
+        });
+
+        let error = result.unwrap_err();
+        assert!(error.contains("Could not save AI settings"));
+        assert!(!error.contains("old-openai"));
+        assert!(!error.contains("new-openai"));
+        assert_eq!(
+            secrets.get(migrate::APP_OPENAI_ACCOUNT).unwrap(),
+            "old-openai"
+        );
+        assert!(path.is_dir());
+        assert!(!path.with_extension("json.tmp").exists());
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 }

@@ -15,8 +15,8 @@ pub fn ai_set_config(
     local_base_url: String,
     openai_key: Option<String>,
     anthropic_key: Option<String>,
-) -> AiConfigView {
-    ai::set(provider, model, local_base_url, openai_key, anthropic_key).view()
+) -> Result<AiConfigView, String> {
+    ai::set(provider, model, local_base_url, openai_key, anthropic_key).map(|config| config.view())
 }
 
 #[tauri::command]
