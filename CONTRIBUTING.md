@@ -1,0 +1,117 @@
+# Contributing to OmniGet
+
+Thanks for helping. This page is the short version of how the project works: how to get it running, what CI checks, and the few rules that keep the codebase tidy. Questions go to [Discord](https://discord.gg/jgdxyPy7Vn); bugs and ideas go to [Issues](https://github.com/tonhowtf/omniget/issues).
+
+## Contents
+
+- [Setup](#setup)
+- [Dev loop](#dev-loop)
+- [Checks](#checks)
+- [Tests](#tests)
+- [Project rules](#project-rules)
+- [Commits and pull requests](#commits-and-pull-requests)
+- [Environment variables](#environment-variables)
+
+## Setup
+
+| Tool | Version | Where it comes from |
+|---|---|---|
+| [Rust](https://rustup.rs/) | pinned | `rust-toolchain.toml`; rustup installs it on the first `cargo` call |
+| [Node.js](https://nodejs.org/) | 20, 22 or 24+ | `.nvmrc` has the recommended version (`nvm use`, `fnm use`) |
+| [pnpm](https://pnpm.io/) | pinned | `packageManager` in `package.json`; `corepack enable` picks it up |
+
+On Linux, install the system libraries listed under [Build from source](README.md#build-from-source) first.
+
+```bash
+git clone https://github.com/tonhowtf/omniget.git
+cd omniget
+pnpm install
+pnpm tauri dev
+```
+
+Use pnpm. `package-lock.json` exists only for the Flatpak build and the version bump; do not update it by hand.
+
+## Dev loop
+
+- **`pnpm tauri dev`** runs the app with hot reload for the frontend and a rebuild on Rust changes. A debug build uses its own profile, `omniget-dev` in your platform data folder (`~/Library/Application Support` on macOS, `~/.local/share` on Linux, `%APPDATA%` on Windows), so it never reads or writes the settings, keys, history and databases of the OmniGet you have installed, and it can run next to it. It also keeps secrets in the encrypted file store inside that profile instead of the OS keyring, keeps its WebView data (logins, local storage) in `webview/` inside it on Windows and Linux, and takes its bridge port from 47760 to 47769, so it never takes the installed app's port (47720 to 47729) or the extension pairing with it. Two things are still shared: the unpacked extension that **Browser extension** settings export, and the autostart entry if you turn autostart on from a dev build. Set `OMNIGET_DEV_REAL_PROFILE=1` to use your real profile again, or `OMNIGET_DATA_DIR=/some/folder` to pick another one.
+- **`pnpm dev:app`** is the supervised loop for agents and scripts: one Vite process, one Cargo watcher, an isolated profile, and JSON commands to wait for a revision and take a screenshot (`pnpm dev:wait`, `pnpm dev:capture`, `pnpm dev:stop`). See [scripts/dev/README.md](scripts/dev/README.md). Do not run `pnpm tauri dev` against the same session.
+- **`pnpm dev`** runs only the Vite frontend, without the Rust side.
+
+## Checks
+
+Run these before you push. They are what CI runs.
+
+| Command | What it does |
+|---|---|
+| `pnpm verify` | Every check CI runs, in one command, with one table of results at the end |
+| `pnpm verify --changed` | Only the areas your branch touched since it left `main` (commits, working tree and new files) |
+| `pnpm verify --fix` | Runs `cargo fmt --all` first |
+| `pnpm hooks:install` | Opt-in: a pre-push hook (`scripts/git-hooks/`) that runs `pnpm verify --changed`. `pnpm hooks:uninstall` removes it; `git push --no-verify` skips it once |
+| `pnpm test:fast` | Rust and web tests in parallel |
+
+`pnpm verify` and `pnpm test:fast` build Rust in `~/.cache/omniget/target`, shared by every checkout and worktree, so a second clone does not pay the cold build again. `CARGO_TARGET_DIR` still wins, and `OMNIGET_SHARED_TARGET=0` goes back to `src-tauri/target`. They use [sccache](https://github.com/mozilla/sccache) when it is installed.
+
+The individual steps, if you want to run one by hand:
+
+- Frontend: `pnpm check` (svelte-check), `pnpm test` (vitest), `pnpm check:i18n`, `pnpm generate:i18n-keys`
+- Rust, inside `src-tauri/`: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets`, `cargo test --workspace`
+- Clippy baseline, from the root: `pnpm check:clippy-baseline`
+- Tauri commands and events: `pnpm check:ipc`
+- Browser extension: `pnpm test:extension`. Claude Code plugin: `pnpm test:plugin`. Dev loop scripts: `pnpm test:dev`
+
+## Tests
+
+- **Add a test when it fixes a bug or protects a contract.** A bug fix comes with a test that fails without the fix. A contract is something other code or other programs rely on: a command or event name, a file format on disk, a wire protocol, a CLI flag. Tests that only restate the implementation are not wanted.
+- **No real clocks.** Never sleep to wait for a timer. In async Rust use tokio's paused time (`#[tokio::test(start_paused = true)]` or `tokio::time::pause()` with `advance`); elsewhere pass the duration in as a parameter so the test can use a tiny one.
+- **Name tests after behavior.** No tests tied to plan items, ticket numbers or steps of a roadmap: a test exists because the behavior matters, and its name says which behavior.
+- **Every `#[ignore]` carries a reason**, written as `#[ignore = "..."]`, and says how to run it (usually an environment variable, see [below](#test-only-and-internal)). Tests that need the network, a real agent CLI or a real yt-dlp are opt-in this way.
+- **Never touch the real profile.** Point `OMNIGET_DATA_DIR` (and the secret-store variables) at a temporary folder.
+- **`pnpm test:inventory`** runs the Rust suite with [cargo-nextest](https://nexte.st/) and reports the cost per area, every test over one second and every `#[ignore]` without a reason. Check it when you add something that takes more than a moment.
+
+## Project rules
+
+- **Clippy baseline.** `scripts/clippy-baseline.mjs --check` fails on any new warning. Fix the warning; never run `pnpm update:clippy-baseline` to hide one of yours.
+- **Interface text.** A key is born in `src/lib/i18n/en.json`. The other languages come from [Weblate](https://hosted.weblate.org/engage/omniget/) or from translation PRs; do not add machine translations to them in a feature PR. Run `pnpm generate:i18n-keys` and commit the generated `src/lib/i18n/keys.ts`.
+- **Tauri commands and events.** A new command is defined, registered in `generate_handler!` in `src-tauri/src/lib.rs` and called from the frontend in the same PR; a new frontend permission goes in `src-tauri/capabilities/`. The name Rust emits (`app.emit("x")`) must be exactly the name the frontend listens to (`listen("x")`). `pnpm check:ipc` catches drift.
+- **Browser extension.** Edit `browser-extension/chrome/`, then run `pnpm extension:sync` to copy the shared files to `firefox/`.
+- **Removing a feature removes everything only it used:** Rust commands and their registration, `invoke` calls, components, stores, i18n keys, assets in `static/`, capabilities and system permissions (`Info.plist`, `Entitlements.plist`, `.deb` depends), dependencies in `Cargo.toml` and `package.json`, and its README section and images. Grep for the feature's name afterwards.
+- **READMEs.** `README.md` is the source. `README_pt_br.md`, `README_zh_CN.md` and `README.ru.md` keep the same sections in the same order; change all four in the same PR, leaving English text where you cannot translate.
+- **Similar code.** Follow the style of the file around you, including how much it comments and in which language.
+
+## Commits and pull requests
+
+- Messages in English, [Conventional Commits](https://www.conventionalcommits.org/): `feat(scope): ...`, `fix`, `refactor`, `perf`, `docs`, `chore`, `style`, `test`. Add `!` for a breaking change (`refactor!: remove plugins`).
+- One pull request per subject. Say what changes for the person using the app and how you tested it; the PR template asks for both.
+- Only the product goes into git: code, build configs, lockfiles, workflows, assets the app or the READMEs use, and public docs. Local notes, plans, studies and agent files (`docs/`, `estudos/`, `CLAUDE.md`, `.claude/` and similar) are gitignored on purpose. Never `git add -f` them. If you create a new folder for local notes, add it to `.gitignore` in the same change.
+
+## Environment variables
+
+None of these are needed for normal development. The ones a contributor or a power user might set:
+
+| Variable | What it does |
+|---|---|
+| `OMNIGET_DATA_DIR` | Runs the app (and `omniget-cli`) against this folder instead of the default profile. A hand-set folder is a second profile: own settings, own bridge port, no single-instance lock, so it runs next to the installed app. |
+| `OMNIGET_DEV_REAL_PROFILE` | `1`: a debug build (`pnpm tauri dev`) uses the real profile instead of `omniget-dev`. |
+| `OMNIGET_KEYRING` | `1` or `0`: forces the OS keyring on or off for stored secrets. Default: off on macOS unless the binary has a stable signature, on in Windows release builds, on for Linux (Secret Service, falling back to the encrypted file). Also read under its old name `OMNIGET_OMNIDISC_KEYRING`. |
+| `OMNIGET_YTDLP_CHANNEL` | `nightly`: download yt-dlp from the nightly builds instead of the stable release. |
+| `OMNIGET_POT_PROVIDER_URL` | Base URL of a running YouTube PO token provider (bgutil); yt-dlp is pointed at it. |
+| `OMNIGET_PYTHON` | Python 3.10+ to try first for running yt-dlp as a zipapp (much faster to start than the single-file build on macOS). |
+| `OMNIGET_RELAY` | `host:port` of the relay used to send files between devices. Default `relay.tonho.wtf:9009`. |
+| `OMNIGET_EMBED_MODEL_DIR` | Folder that already holds the local embedding model files, so they are not downloaded. |
+| `OMNIGET_SKILL_SCANNER` | Path to the `skillspector` binary used to scan installed skills, when it is not on `PATH`. |
+| `OMNIGET_SKILL_SCAN` | `0`, `off` or `false`: skip the skill scan. |
+| `OMNIGET_MCP_URL`, `OMNIGET_MCP_TOKEN` | Endpoint and token the `omniget-mcp` stdio adapter uses to reach the desktop app. The URL must be `http://127.0.0.1`, `localhost` or `[::1]` with path `/mcp`. |
+| `OMNIGET_DEV_ENDPOINT` | Points `omniget-mcp` at a `pnpm dev:app` session's `endpoint.json` instead of the installed app. |
+| `OMNIGET_NO_SPLASH` | Any value: `omniget claude` does not print the splash (same as `--no-splash`). |
+| `OMNIGET_I18N_STRICT` | `1`: `vite dev` fails on locale key problems, as `vite build` does. `0`: `vite build` does not. |
+| `OMNIGET_SHARED_TARGET` | `0`: `pnpm verify` and `pnpm test:fast` build in the checkout's own `src-tauri/target` instead of the shared `~/.cache/omniget/target`. `CARGO_TARGET_DIR` still wins. |
+| `OMNIGET_TEST_DRIVER` | `1`, debug builds only: turns on the local bridge's `POST /v1/debug/eval` test driver. `pnpm dev:app` sets it. |
+
+The Claude Code plugin has its own variables (`OMNIGET_DIR`, `OMNIGET_TOOL_*`, `OMNIGET_WHISPER_MODEL`, `OMNIGET_COOKIES_FROM_BROWSER`, `OMNIGET_KEYS_FILE`); see [claude-plugin/omniget/README.md](claude-plugin/omniget/README.md#environment-variables).
+
+### Test-only and internal
+
+- Opt-in live tests: `OMNIGET_TEST_CLAUDE`, `OMNIGET_CODEX_BIN`, `OMNIGET_TEST_OLLAMA` (`_MODEL`, `_URL`), `OMNIGET_PROBE_MODEL`, `OMNIGET_ACP_LIVE_HOME` (`_CWD`, `_OUT`, `_EXTRA_ENV`), `OMNIGET_TEST_ONEDIR_YTDLP`, `OMNIGET_TEST_STANDALONE_YTDLP`, `OMNIGET_TEST_WORKER_LIVE_URL`, `OMNIGET_TEST_FFMPEG`, `OMNIGET_TEST_ENGINE_BINARIES`, `OMNIGET_YTDLP` with `OMNIGET_E2E_URL`, `OMNIGET_EMBED_OLLAMA_MODEL` (`_HOST`), `OMNIGET_HIGGSFIELD_TEST_CLI`, `OMNIGET_TEST_BRIDGE_PORT` (`_PROVIDER`, `_MODEL`, `_SECS`), `OMNIGET_REMOTE_HARNESS_OUT` (`_SECS`). Each test's doc comment says how to run it.
+- Test isolation: `OMNIGET_SECRETS_DIR` (every secret store under one folder), `OMNIGET_PROFILE_SECRET_DIR`, `OMNIGET_OMNIDISC_SESSION_DIR`, `OMNIGET_AI_KEYS_SECRET_DIR`, `OMNIGET_MCP_DOWNLOADS_SECRET_DIR`, `OMNIGET_LIMITS_DIR`, `OMNIGET_PET_DIR`, `OMNIGET_WIZARD_ROOT` (`OMNIGET_WIZARD_KEEP`), `OMNIGET_CLITOOLS_EXTRA_PATH`, `OMNIGET_CLITOOLS_NPM_PREFIX`.
+- Fixtures and benches: `OMNIGET_UPDATE_MCP_CATALOG` (regenerates `omniget-cli/mcp-catalog.json`), `OMNIGET_EMBED_FIXTURE_OUT`, `OMNIGET_BENCH_OUT`, `OMNIGET_PREPARED_TESTS`, `OMNIGET_CLI_USAGE_BENCH_MB` (`_STRICT`), `OMNIGET_SMOKE_EXIT_MS` (CI smoke test), `OMNIGET_WORLD_BENCH` (`_TIMEOUT_MS`, `_WEBKITGTK`, `_MESA`; see `scripts/world-bench.mjs`).
+- Set by OmniGet for its own child processes; do not set them: `OMNIGET_PORTABLE` (portable mode, turned on by a `portable.txt` next to the executable), `OMNIGET_DEV_PROFILE`, `OMNIGET_DEV_SESSION`, `OMNIGET_DEV_URL`, `OMNIGET_BACKEND_BUILD_ID`, `OMNIGET_WORKER_BUILD_ID`, `OMNIGET_BOOT_ID`, `OMNIGET_WORKER_MODE` and the other `OMNIGET_WORKER_*`, `OMNIGET_INFO_JSON_DIR`, `OMNIGET_LAUNCH_ID`, `OMNIGET_ARENA`, `OMNIGET_PROJECT_ROOT`, `OMNIGET_WORKTREE_PATH`, `OMNIGET_WMB_*`.

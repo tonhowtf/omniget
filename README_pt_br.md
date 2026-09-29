@@ -643,7 +643,7 @@ Adicione `--json` a qualquer comando para ter uma saída legível por máquina.
 
 ## Compilar do código-fonte
 
-Se você só quer usar o OmniGet, [pegue uma release](#download-and-install). Para compilar você precisa de [Rust](https://rustup.rs/) (a toolchain está fixada em `rust-toolchain.toml`), [Node.js](https://nodejs.org/) 18+ e [pnpm](https://pnpm.io/).
+Se você só quer usar o OmniGet, [pegue uma release](#download-and-install). Para compilar você precisa de [Rust](https://rustup.rs/) (a toolchain está fixada em `rust-toolchain.toml`), [Node.js](https://nodejs.org/) 20, 22 ou 24+ (o `.nvmrc` tem a versão recomendada) e [pnpm](https://pnpm.io/).
 
 ```bash
 git clone https://github.com/tonhowtf/omniget.git
@@ -651,6 +651,8 @@ cd omniget
 pnpm install
 pnpm tauri dev
 ```
+
+O `pnpm tauri dev` roda num perfil próprio (`omniget-dev` na sua pasta de dados), então nunca mexe nas configurações, chaves e histórico do OmniGet que você tem instalado. Defina `OMNIGET_DEV_REAL_PROFILE=1` para usar o perfil de verdade.
 
 <details>
 <summary>Dependências de build no Linux</summary>
@@ -672,6 +674,8 @@ As releases assinam os arquivos do atualizador com uma chave que só o mantenedo
 
 Stack: Tauri 2, Rust, SvelteKit com Svelte 5, SQLite, yt-dlp, FFmpeg, gallery-dl, aria2 e librqbit para torrents.
 
+Vai mudar alguma coisa? O [CONTRIBUTING.md](CONTRIBUTING.md) tem o ciclo de desenvolvimento, as verificações que o CI roda e as regras do projeto.
+
 ---
 
 <a id="notice-to-platform-owners"></a>
@@ -684,7 +688,7 @@ Se você é dono de uma plataforma e quer que o OmniGet deixe de dar suporte a e
 
 ## Contribuir e traduzir
 
-Relatos de bug e pull requests vão para [Issues](https://github.com/tonhowtf/omniget/issues) e [Pull requests](https://github.com/tonhowtf/omniget/pulls). Perguntas e ajuda rápida ficam no [Discord](https://discord.gg/jgdxyPy7Vn). As traduções são feitas no [Weblate](https://hosted.weblate.org/engage/omniget/). Strings novas aparecem lá algumas horas depois de entrarem na `main`.
+Relatos de bug e pull requests vão para [Issues](https://github.com/tonhowtf/omniget/issues) e [Pull requests](https://github.com/tonhowtf/omniget/pulls); leia o [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir um pull request. Perguntas e ajuda rápida ficam no [Discord](https://discord.gg/jgdxyPy7Vn). As traduções são feitas no [Weblate](https://hosted.weblate.org/engage/omniget/). Strings novas aparecem lá algumas horas depois de entrarem na `main`.
 
 Vai escrever sobre o OmniGet, ou pedir para uma IA escrever? O [MEDIA-KIT.md](MEDIA-KIT.md) tem a descrição, os fatos, o que não afirmar e modelos de post.
 

@@ -33,6 +33,9 @@
   },
   "type": "module",
   "packageManager": "pnpm@10.29.3",
+  "engines": {
+    "node": "^20.0.0 || ^22.0.0 || >=24.0.0"
+  },
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
