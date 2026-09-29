@@ -118,7 +118,7 @@
               {#if busy === entry.name}
                 {$t("llm.skills.installing")}
               {:else if confirming === entry.name}
-                {$t("llm.skills.install_confirm")}
+                {$t("llm.skills.scan_install_confirm")}
               {:else}
                 {$t("llm.skills.install")}
               {/if}

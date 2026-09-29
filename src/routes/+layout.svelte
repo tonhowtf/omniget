@@ -370,7 +370,7 @@
     if (settings?.download.clipboard_detection) {
       onClipboardUrl((clipboardUrl) => {
         queueExternalPrefill({ action: "prefill", url: clipboardUrl, source: "clipboard" });
-        showToast("info", $t("toast.clipboard_detected") as string);
+        showToast("info", $t("toast.clipboard_url_detected") as string);
         if (page.url.pathname !== "/") {
           goto("/");
         }
