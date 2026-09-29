@@ -175,6 +175,28 @@ describe("deriveWork", () => {
     expect(sections.done[0]).toBe("bad");
   });
 
+  it("shows a job the host resumed by itself as running, not as its old failure", () => {
+    const items = deriveWork(
+      input({
+        jobs: [
+          job("again", "running", { failure_reason: "app_restart", attempt: 1, session_id: "s1" }),
+          job("lost", "interrupted", { failure_reason: "app_restart" }),
+          job("stuck", "failed", { finished_ms: NOW - HOUR, failure_reason: "stalled", attempt: 2 }),
+        ],
+      }),
+    );
+    const byKey = Object.fromEntries(items.map((i) => [i.key, i]));
+    expect(byKey["job:again"].section).toBe("running");
+    expect(byKey["job:again"].detail).toBeNull();
+    expect(byKey["job:again"].resumed).toBe(1);
+    expect(byKey["job:lost"].pill).toBe("decision");
+    expect(byKey["job:lost"].detail).toBe("app_restart");
+    expect(byKey["job:lost"].resumed).toBeUndefined();
+    expect(byKey["job:stuck"].detail).toBe("stalled");
+    expect(byKey["job:stuck"].resumed).toBe(2);
+    expect(summarize(items).needsYou).toBe(1);
+  });
+
   it("folds a loop's round and a mission's turn into their parent instead of listing them twice", () => {
     const items = deriveWork(
       input({

@@ -46,6 +46,12 @@ export type WorkItem = {
   turn: string;
   /** The tool waiting for an answer, a failure reason. */
   detail: string | null;
+  /**
+   * Times the host started this job again by itself after the app closed or
+   * the watchdog stopped it (3.1). Such a job runs with its old
+   * `failure_reason` still set: the count says why, the pill says where.
+   */
+  resumed?: number;
 };
 
 export type WorkInput = {
@@ -262,7 +268,10 @@ export function deriveWork(input: WorkInput): WorkItem[] {
     const ask = j.state === "waiting_approval" && j.request_id ? asksByRequest.get(j.request_id) : undefined;
     if (ask) claimedAsks.add(ask.tool_call_id);
     const turn = pill === "approval" ? (ask?.tool_call_id ?? j.request_id ?? String(j.state_seq ?? 0)) : String(j.state_seq ?? 0);
-    const detail = ask?.tool ?? (j.state === "failed" ? (j.failure_reason ?? null) : null);
+    // A failure reason only while it is the job's state: an auto-resumed
+    // job (3.1) runs with its `app_restart`/`stalled` still on the row.
+    const ended = j.state === "failed" || j.state === "interrupted";
+    const detail = ask?.tool ?? (ended ? (j.failure_reason ?? null) : null);
     const at = jobAt(j);
 
     // A loop round: the loop is the unit, its round can only raise it.
@@ -285,7 +294,9 @@ export function deriveWork(input: WorkInput): WorkItem[] {
       items.set(`job:${j.id}`, make("job", j.id, titleOf(j.prompt), pill, `/llm?conversation=${encodeURIComponent(j.conversation_id)}`, at, turn, detail));
       continue;
     }
-    items.set(`job:${j.id}`, make("job", j.id, titleOf(j.prompt), pill, `/llm/jobs?job=${encodeURIComponent(j.id)}`, at, turn, detail));
+    const item = make("job", j.id, titleOf(j.prompt), pill, `/llm/jobs?job=${encodeURIComponent(j.id)}`, at, turn, detail);
+    if ((j.attempt ?? 0) > 0) item.resumed = j.attempt;
+    items.set(`job:${j.id}`, item);
   }
 
   // Threads of the Central. Their pending requests are the thread's own.

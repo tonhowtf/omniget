@@ -18,10 +18,16 @@
 
   onMount(() => initWorkStore());
 
+  /** The job failure reasons with a label (`llm.jobs.failure.*`). */
+  const FAILURES = new Set(["stalled", "no_start", "deadline", "limit", "ask_expired", "app_restart"]);
+
   function detailText(item: WorkItem): string {
-    if (!item.detail) return "";
+    const resumed = item.resumed ? ($t("llm.jobs.resumed_by_itself", { count: item.resumed }) as string) : "";
+    if (!item.detail) return resumed;
     if (item.pill === "approval") return $t("llm.work.asks_for", { tool: item.detail }) as string;
-    return item.detail;
+    const reason =
+      item.source === "job" && FAILURES.has(item.detail) ? ($t(`llm.jobs.failure.${item.detail}`) as string) : item.detail;
+    return resumed ? `${reason} · ${resumed}` : reason;
   }
 </script>
 
