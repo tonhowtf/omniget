@@ -15,8 +15,9 @@
     /** Put the residents to work with scripted jobs. */
     ondemo: () => void;
     demoBusy?: boolean;
+    loading?: boolean;
   }
-  let { agents, onfocus, ondemo, demoBusy = false }: Props = $props();
+  let { agents, onfocus, ondemo, demoBusy = false, loading = false }: Props = $props();
 
   let work = $state<Record<string, AgentWork>>({});
   let jobs = $derived(getJobs());
@@ -70,7 +71,9 @@
     </button>
   </header>
 
-  {#if agents.length === 0}
+  {#if loading}
+    <p class="empty" role="status">{$t("common.loading")}</p>
+  {:else if agents.length === 0}
     <p class="empty">{$t("world.activity.empty")}</p>
   {:else}
     <ul class="rows">
