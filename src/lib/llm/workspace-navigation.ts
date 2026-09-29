@@ -8,7 +8,7 @@ export const LLM_DESTINATIONS = [
     { href: '/llm/missions', key: 'mission.nav' }, { href: '/llm/jobs', key: 'llm.workspace.tasks' }, { href: '/llm/loops', key: 'llm.workspace.routines' }, { href: '/llm/observatory', key: 'llm.workspace.performance' },
   ] },
   { id: 'configure', href: '/llm/accounts', routes: ['/llm/accounts', '/llm/models', '/llm/mcp', '/llm/skills', '/llm/local', '/llm/arena'], tools: [
-    { href: '/llm/accounts', key: 'llm.tab.accounts' }, { href: '/llm/models', key: 'llm.tab.models' }, { href: '/llm/mcp', key: 'llm.tab.mcp' }, { href: '/llm/skills', key: 'llm.tab.skills' }, { href: '/llm/local', key: 'llm.tab.local' }, { href: '/llm/arena', key: 'llm.tab.arena' },
+    { href: '/llm/accounts', key: 'llm.tab.accounts' }, { href: '/llm/models', key: 'llm.tab.models' }, { href: '/llm/mcp', key: 'llm.tab.mcp' }, { href: '/llm/skills', key: 'llm.tab.skills' },
   ] },
 ] as const;
 export function llmDestination(path: string) {

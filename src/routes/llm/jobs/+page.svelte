@@ -251,7 +251,6 @@
   <header class="page-head">
     <div>
       <h1 class="page-title">{$t("llm.surface.tasks")}</h1>
-      <p class="page-lede">{$t("llm.jobs.lede")}</p>
     </div>
   </header>
   <SurfaceGuide text={$t("llm.surface.jobs_hint")} href="/help?article=tasks#guide" />

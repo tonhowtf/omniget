@@ -90,7 +90,6 @@
   <header class="page-head">
     <div>
       <h1 class="page-title">{$t("llm.surface.routines")}</h1>
-      <p class="page-lede">{$t("llm.loops.lede")}</p>
     </div>
   </header>
   <SurfaceGuide text={$t("llm.surface.loops_hint")} href="/help?article=routines#guide" />

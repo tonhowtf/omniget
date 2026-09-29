@@ -19,15 +19,21 @@
     onsave,
     oncancel,
     ondelete,
+    onconnect,
+    initialStep = 0,
   }: {
     agent: AgentDef;
     busy?: boolean;
     onsave: (agent: AgentDef) => void;
     oncancel: () => void;
     ondelete?: (id: string) => void;
+    onconnect?: (draft: AgentDef) => void;
+    initialStep?: number;
   } = $props();
 
-  let step = $state(0);
+  const policyGroup = $props.id();
+  let step = $state(untrack(() => initialStep));
+  let confirmingDelete = $state(false);
   let steps = $derived([$t("llm.surface.identity"), $t("llm.surface.model"), $t("llm.surface.review")]);
   const ROLES = ["coordinator", "worker", "advisor"] as const;
 
@@ -45,7 +51,7 @@
   let roleValue = $state(untrack(() => (typeof agent.role === "string" ? agent.role : "custom")));
   let customRole = $state(untrack(() => (typeof agent.role === "string" ? "" : agent.role.custom)));
 
-  let validModel = $derived(draft.model.policy === "fixed" ? !!draft.model.model.model.trim() : draft.model.chain.length > 0 && draft.model.chain.every(candidate => !!candidate.model.trim()));
+  let validModel = $derived(draft.model.policy === "fixed" ? !!draft.model.model.provider.trim() && !!draft.model.model.model.trim() : draft.model.chain.length > 0 && draft.model.chain.every(candidate => !!candidate.model.trim() && (candidate.runtime === "native" ? !!candidate.provider.trim() : !!candidate.account_id.trim())));
 
   let isRoute = $derived(draft.model.policy === "route");
 
@@ -62,7 +68,7 @@
     if (next === draft.model.policy) return;
     draft.model =
       next === "fixed"
-        ? { policy: "fixed", model: { provider: "openai", model: "" } }
+        ? { policy: "fixed", model: { provider: "", model: "" } }
         : { policy: "route", chain: [] };
   }
 
@@ -74,7 +80,7 @@
     if (draft.model.policy !== "route") return;
     const candidate: Candidate = {
       runtime: "native",
-      provider: "openrouter",
+      provider: "",
       model: "",
       max_cost_per_1k: null,
       min_context: 0,
@@ -93,6 +99,10 @@
 
   function save() {
     onsave({ ...($state.snapshot(draft) as AgentDef), role: role() });
+  }
+
+  function preserveForConnection() {
+    onconnect?.({ ...($state.snapshot(draft) as AgentDef), role: role() });
   }
 </script>
 
@@ -133,39 +143,28 @@
   {#if step === 1}
   <fieldset class="group-block">
     <legend class="field-label">{$t("llm.roster.model_policy")}</legend>
-    <div class="mac-segmented" role="tablist">
-      <button
-        type="button"
-        class="mac-segmented-btn"
-        role="tab"
-        aria-selected={!isRoute}
-        onclick={() => setPolicy("fixed")}
-      >
-        {$t("llm.roster.fixed")}
-      </button>
-      <button
-        type="button"
-        class="mac-segmented-btn"
-        role="tab"
-        aria-selected={isRoute}
-        onclick={() => setPolicy("route")}
-      >
-        {$t("llm.roster.route")}
-      </button>
+    <div class="policy-choice">
+      <label><input type="radio" name={policyGroup} checked={!isRoute} onchange={() => setPolicy("fixed")} />{$t("llm.roster.fixed")}</label>
+      <label><input type="radio" name={policyGroup} checked={isRoute} onchange={() => setPolicy("route")} />{$t("llm.roster.route")}</label>
     </div>
 
     {#if draft.model.policy === "fixed"}
-      <ModelPicker value={draft.model.model} onchange={setFixedModel} />
+      <ModelPicker value={draft.model.model} onchange={setFixedModel} onconnect={preserveForConnection} connectHref="/llm/accounts?guide=api&returnTo=editor" />
     {:else}
       <ol class="chain">
-        {#each draft.model.chain as candidate, index (index)}
+        {#each draft.model.chain as candidate, index (candidate)}
           <li class="chain-row">
-            <input
-              class="input"
-              bind:value={candidate.model}
-              placeholder={$t("llm.roster.model")}
-              aria-label={$t("llm.roster.model")}
-            />
+            <div class="candidate-model">
+              {#if candidate.runtime === "native"}
+                <ModelPicker value={{ provider: candidate.provider, model: candidate.model }} onchange={ref => { if (candidate.runtime === "native") { candidate.provider = ref.provider; candidate.model = ref.model; } }} onconnect={preserveForConnection} connectHref="/llm/accounts?guide=api&returnTo=editor" />
+              {:else}
+                <span class="hint">{candidate.account_id}</span>
+                <label class="field">
+                  <span class="field-label">{$t("llm.surface.model")}</span>
+                  <input class="input" bind:value={candidate.model} required />
+                </label>
+              {/if}
+            </div>
             <button type="button" class="button" onclick={() => removeCandidate(index)}>
               {$t("llm.roster.remove")}
             </button>
@@ -256,20 +255,37 @@
     {:else}<button type="submit" class="button primary">{$t("llm.roster.save")}</button>{/if}
     <button type="button" class="button" onclick={oncancel}>{$t("llm.roster.cancel")}</button>
     {#if ondelete}
-      <button type="button" class="button danger" onclick={() => ondelete?.(draft.id)}>
-        {$t("llm.roster.delete")}
-      </button>
+      {#if confirmingDelete}
+        <div class="delete-confirm" role="group" aria-label={$t("llm.roster.delete") as string}>
+          <p>{$t("llm.roster.delete_warning", { name: draft.name })}</p>
+          <button type="button" class="button danger" disabled={busy} onclick={() => ondelete?.(draft.id)}>
+            {$t("llm.roster.delete_confirm")}
+          </button>
+          <button type="button" class="button" disabled={busy} onclick={() => confirmingDelete = false}>
+            {$t("llm.roster.cancel")}
+          </button>
+        </div>
+      {:else}
+        <button type="button" class="button danger" disabled={busy} onclick={() => confirmingDelete = true}>
+          {$t("llm.roster.delete")}
+        </button>
+      {/if}
     {/if}
   </div>
   </fieldset>
 </form>
 
 <style>
+  .policy-choice { display: flex; gap: var(--space-4); flex-wrap: wrap; }
+  .policy-choice label { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
+  .candidate-model { flex: 1; min-width: 0; }
   .setup-steps { display:flex; list-style:none; gap:16px; margin:0 0 12px; padding:0; flex-wrap:wrap; }
   .setup-steps li { display:flex; align-items:center; gap:8px; color:var(--text-muted); font-size:13px; }
   .setup-steps li span { display:grid; place-items:center; width:28px; height:28px; border:1px solid var(--separator); border-radius:50%; }
   .setup-steps .current { color:var(--text); font-weight:600; } .setup-steps .current span, .setup-steps .complete span { background:var(--accent-soft); border-color:var(--accent); }
   .agent-review { padding:20px; border:1px solid var(--separator); border-radius:var(--radius-lg); }
+  .delete-confirm { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-2); flex:1 1 100%; padding:var(--space-3); border:1px solid var(--separator); border-radius:var(--radius-md); }
+  .delete-confirm p { flex:1 1 100%; margin:0; color:var(--text-dim); font-size:var(--text-sm); line-height:var(--leading-sm); }
   .agent-review h2 { font-size:18px; margin:0 0 12px; } .agent-review p { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.6; } .agent-review span { color:var(--text-muted); font-size:13px; }
   .agent-advanced summary { cursor:pointer; padding:12px 0; font-weight:600; }
   .agent-advanced .group-block { margin-top:16px; }

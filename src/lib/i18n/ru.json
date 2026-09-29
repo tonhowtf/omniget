@@ -2923,7 +2923,9 @@
       "skills": "Навыки",
       "skills_empty": "Навык не установлен. Установите его на вкладке «Навыки».",
       "save_error": "Не удалось сохранить. Изменения на месте. Попробуйте снова.",
-      "roles_hint": "Координатор распределяет работу и следит за ней. Исполнители выполняют порученные задачи; советники помогают оценивать решения."
+      "roles_hint": "Координатор распределяет работу и следит за ней. Исполнители выполняют порученные задачи; советники помогают оценивать решения.",
+      "delete_warning": "Удалить {name}? Агент и его настройки будут удалены. Сохранённые чаты останутся доступными для чтения, но продолжить их без агента не получится.",
+      "delete_confirm": "Удалить агента"
     },
     "template": {
       "solo": "Соло",
@@ -2959,7 +2961,15 @@
       "connect": "Подключить провайдеров или управлять ими",
       "local_hint": "Локальный сервер: убедитесь, что он запущен и на нём установлены модели. Сохранённый ключ API не нужен.",
       "no_models": "Провайдер не вернул ни одной модели. Проверьте, какие модели есть на сервере, или укажите идентификатор вручную.",
-      "load_failed": "Не удалось загрузить модели: {{error}}"
+      "load_failed": "Не удалось загрузить модели: {{error}}",
+      "providers_failed": "Could not load saved connections. Your saved settings have not been removed.",
+      "reopen_browser": "Reopen browser",
+      "stop_waiting": "Stop waiting",
+      "stop_waiting_hint": "This stops waiting in OmniGet. Close the browser tab to leave the external sign-in.",
+      "auth_expired": "Sign-in has not been confirmed after two minutes. Check the browser or start again.",
+      "saved_connections": "Saved connections",
+      "other_providers": "Other providers",
+      "choose_or_enter": "Load the available models, then choose one or enter its exact identifier."
     },
     "err": {
       "unavailable": "Бэкенд LLM ещё не подключён.",
@@ -3280,8 +3290,11 @@
         "preserved_retry": "Аккаунт и агент сохранены. Повторите попытку — дубликаты не создадутся.",
         "connecting": "Подключаемся…",
         "err_unknown_provider": "Неизвестный провайдер",
-        "err_credential_failed": "Не удалось проверить учётные данные"
-      }
+        "err_credential_failed": "Не удалось проверить учётные данные",
+        "new_api_connection": "Connect a new API provider"
+      },
+      "models_limits": "Review models and execution limits",
+      "advanced_accounts": "Advanced: CLI accounts, fallback and limits"
     },
     "rules": {
       "title": "Правила «Всегда»",
@@ -4057,7 +4070,10 @@
         "err_name_long": "Имя — не длиннее 48 символов.",
         "err_connection": "Выберите подключение.",
         "err_purpose_long": "Цель слишком длинная.",
-        "err_failed": "Бот не создан."
+        "err_failed": "Бот не создан.",
+        "draft_session": "Your form stays in this app window while you connect. Return here to finish.",
+        "return_to_draft": "Return to agent setup",
+        "advanced_setup": "Configure model, fallback and permissions manually"
       },
       "state": {
         "available": "Доступно",

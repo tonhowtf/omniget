@@ -2923,7 +2923,9 @@
       "skills": "Skills",
       "skills_empty": "No skill installed. Install one in the Skills tab.",
       "save_error": "Could not save. Your changes are still here. Try again.",
-      "roles_hint": "The coordinator divides and follows the work. Workers carry out assigned tasks; advisors help evaluate decisions."
+      "roles_hint": "The coordinator divides and follows the work. Workers carry out assigned tasks; advisors help evaluate decisions.",
+      "delete_warning": "Remove {name}? The agent and its settings will be removed. Saved conversations stay available to read, but you will not be able to continue them without an agent.",
+      "delete_confirm": "Delete agent"
     },
     "template": {
       "solo": "Solo",
@@ -2959,7 +2961,15 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "Could not load models: {{error}}"
+      "load_failed": "Could not load models: {{error}}",
+      "providers_failed": "Could not load saved connections. Your saved settings have not been removed.",
+      "reopen_browser": "Reopen browser",
+      "stop_waiting": "Stop waiting",
+      "stop_waiting_hint": "This stops waiting in OmniGet. Close the browser tab to leave the external sign-in.",
+      "auth_expired": "Sign-in has not been confirmed after two minutes. Check the browser or start again.",
+      "saved_connections": "Saved connections",
+      "other_providers": "Other providers",
+      "choose_or_enter": "Load the available models, then choose one or enter its exact identifier."
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
@@ -3280,8 +3290,11 @@
         "preserved_retry": "Your account and agent are preserved. Retry without creating duplicates.",
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
-        "err_credential_failed": "Credential validation failed"
-      }
+        "err_credential_failed": "Credential validation failed",
+        "new_api_connection": "Connect a new API provider"
+      },
+      "models_limits": "Review models and execution limits",
+      "advanced_accounts": "Advanced: CLI accounts, fallback and limits"
     },
     "rules": {
       "title": "Always rules",
@@ -4057,7 +4070,10 @@
         "err_name_long": "ໃຊ້ບໍ່ເກີນ 48 ຕົວອັກສອນສຳລັບຊື່.",
         "err_connection": "ເລືອກການເຊື່ອມຕໍ່.",
         "err_purpose_long": "ຈຸດປະສົງຍາວເກີນໄປ.",
-        "err_failed": "ບໍ່ໄດ້ສ້າງບອດ."
+        "err_failed": "ບໍ່ໄດ້ສ້າງບອດ.",
+        "draft_session": "Your form stays in this app window while you connect. Return here to finish.",
+        "return_to_draft": "Return to agent setup",
+        "advanced_setup": "Configure model, fallback and permissions manually"
       },
       "state": {
         "available": "ພ້ອມໃຊ້",

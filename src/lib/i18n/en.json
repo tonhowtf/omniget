@@ -2824,10 +2824,10 @@
     "tab": {
       "chat": "Chat",
       "roster": "Agent team",
-      "models": "Models & Routing",
+      "models": "Models and limits",
       "mcp": "MCP",
       "skills": "Skills",
-      "accounts": "Accounts",
+      "accounts": "Connections",
       "local": "Local",
       "arena": "Arena",
       "jobs": "Jobs",
@@ -2900,7 +2900,7 @@
     },
     "roster": {
       "title": "Agent team",
-      "new": "New agent",
+      "new": "Create agent",
       "name": "Name",
       "role": "Role",
       "model_policy": "Model",
@@ -2923,7 +2923,9 @@
       "skills": "Skills",
       "skills_empty": "No skill installed. Install one in the Skills tab.",
       "save_error": "Could not save. Your changes are still here. Try again.",
-      "roles_hint": "The coordinator divides and follows the work. Workers carry out assigned tasks; advisors help evaluate decisions."
+      "roles_hint": "The coordinator divides and follows the work. Workers carry out assigned tasks; advisors help evaluate decisions.",
+      "delete_warning": "Remove {name}? The agent and its settings will be removed. Saved conversations stay available to read, but you will not be able to continue them without an agent.",
+      "delete_confirm": "Delete agent"
     },
     "template": {
       "solo": "Solo",
@@ -2936,10 +2938,10 @@
       "preview": "Preview team"
     },
     "models": {
-      "title": "Models & Routing",
+      "title": "Models and limits",
       "providers": "Providers",
       "no_providers": "No API key saved yet.",
-      "add_key_hint": "Keys live in LLM → Models & Routing.",
+      "add_key_hint": "Connect this provider in AI connections before using its models.",
       "load": "Load models",
       "loading": "Loading…",
       "count": "{{count}} models",
@@ -2956,10 +2958,18 @@
       "openrouter_ok": "OpenRouter key saved.",
       "openrouter_failed": "OpenRouter sign-in failed: {{error}}",
       "routing_unavailable": "These strategies are not applied yet. Configure a fixed model or an ordered fallback chain for each agent in Agent team.",
-      "connect": "Connect or manage providers",
+      "connect": "Manage AI connections",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "Could not load models: {{error}}"
+      "load_failed": "Could not load models: {{error}}",
+      "providers_failed": "Could not load saved connections. Your saved settings have not been removed.",
+      "reopen_browser": "Reopen browser",
+      "stop_waiting": "Stop waiting",
+      "stop_waiting_hint": "This stops waiting in OmniGet. Close the browser tab to leave the external sign-in.",
+      "auth_expired": "Sign-in has not been confirmed after two minutes. Check the browser or start again.",
+      "saved_connections": "Saved connections",
+      "other_providers": "Other providers",
+      "choose_or_enter": "Load the available models, then choose one or enter its exact identifier."
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
@@ -3156,8 +3166,8 @@
       "copied": "Copied"
     },
     "accounts": {
-      "title": "Accounts & quota",
-      "lede": "CLI subscriptions, each in its own config directory. OmniGet keeps a pointer — never a credential.",
+      "title": "AI connections",
+      "lede": "Choose a subscription, an API provider or a local model for your agents.",
       "refresh": "Refresh",
       "new": "New account",
       "detected": "Found on this machine:",
@@ -3280,8 +3290,11 @@
         "preserved_retry": "Your account and agent are preserved. Retry without creating duplicates.",
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
-        "err_credential_failed": "Credential validation failed"
-      }
+        "err_credential_failed": "Credential validation failed",
+        "new_api_connection": "Connect a new API provider"
+      },
+      "models_limits": "Review models and execution limits",
+      "advanced_accounts": "Advanced: CLI accounts, fallback and limits"
     },
     "rules": {
       "title": "Always rules",
@@ -3622,7 +3635,7 @@
       "create_routine": "Create a routine",
       "jobs_hint": "Run a task in the background. Open its details to see the result, approve a tool or stop execution.",
       "loops_hint": "Repeat a task until a check passes or its limit is reached. Review the stop conditions before starting.",
-      "models_hint": "Connect an API provider, then choose its model for an agent. Chat subscriptions are configured in Connections.",
+      "models_hint": "Connections are managed in AI connections. Choose a model for an agent, or open advanced execution settings below.",
       "mcp_hint": "Connect a tool, test it, then choose which agents may use it. Adding a connection does not grant permission.",
       "skills_hint": "Skills give agents reusable instructions. Review the source and scan result before installing, then assign the skill to an agent.",
       "observatory_hint": "Inspect measured activity and provider quotas. Missing measurements are unavailable, never zero. Diagnostics run only when you open them.",
@@ -4034,8 +4047,8 @@
         "read_only": "Only recall, never save"
       },
       "create": {
-        "open": "Create bot",
-        "title": "Create a bot",
+        "open": "Create agent",
+        "title": "Create an agent",
         "lede": "Give it a name and a purpose, pick what it may do, and choose the connection it runs on. It gets no code or shell access unless you tick it.",
         "name": "Name",
         "name_placeholder": "Reading companion",
@@ -4051,13 +4064,16 @@
         "no_connection": "No connection is ready yet.",
         "connect_first": "Connect an account or model first",
         "instructions": "Instructions",
-        "submit": "Create bot",
+        "submit": "Create agent",
         "creating": "Creating…",
         "err_name": "Give the bot a name.",
         "err_name_long": "Use at most 48 characters for the name.",
         "err_connection": "Choose a connection.",
         "err_purpose_long": "The purpose is too long.",
-        "err_failed": "The bot was not created."
+        "err_failed": "The bot was not created.",
+        "draft_session": "Your form stays in this app window while you connect. Return here to finish.",
+        "return_to_draft": "Return to agent setup",
+        "advanced_setup": "Configure model, fallback and permissions manually"
       },
       "state": {
         "available": "Available",

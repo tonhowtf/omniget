@@ -1,3 +1,9 @@
+<script module lang="ts">
+  import type { AgentDef as PendingAgent } from "$lib/llm/types";
+  // Only this window's in-memory edit travels to Connections; nothing is saved.
+  let pendingEditor: PendingAgent | null = null;
+</script>
+
 <script lang="ts">
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
   /** Roster tab: the agent list, the editor and the team templates. */
@@ -22,6 +28,7 @@
 
   let agents = $derived(getAgents());
   let editing = $state<AgentDef | null>(null);
+  let editingStep = $state(0);
   // "Create bot" (the guided flow) and the bot screen of one roster agent.
   let creating = $state(false);
   let selected = $state<string | null>(null);
@@ -34,6 +41,11 @@
     const q = page.url.searchParams;
     if (q.get("create") === "1") creating = true;
     if (q.get("bot")) selected = q.get("bot");
+    if (q.get("edit") === "resume" && pendingEditor) {
+      editing = pendingEditor;
+      editingStep = 1;
+      pendingEditor = null;
+    }
   });
 
   function blankAgent(): AgentDef {
@@ -42,7 +54,7 @@
       name: "",
       role: "worker",
       system_prompt: "",
-      model: { policy: "fixed", model: { provider: "openai", model: "" } },
+      model: { policy: "fixed", model: { provider: "", model: "" } },
       tools: [],
       skills: [],
       budget: {},
@@ -91,12 +103,10 @@
       <p class="page-lede">{$t("llm.roster.roles_hint")}</p>
     </div>
     <div class="head-actions">
-      <button type="button" class="button primary" disabled={saving} onclick={() => { saved = false; saveError = false; editing = null; selected = null; creating = true; }}>
-        {$t("assist.bots.create.open")}
-      </button>
-      <button type="button" class="button" disabled={saving} onclick={() => { saved = false; saveError = false; creating = false; selected = null; editing = blankAgent(); }}>
+      <button type="button" class="button primary" disabled={saving} onclick={() => { saved = false; saveError = false; editing = null; editingStep = 0; selected = null; creating = true; }}>
         {$t("llm.roster.new")}
       </button>
+
     </div>
   </header>
   <SurfaceGuide text={$t("llm.surface.roster_hint")} href="/help?article=agent#guide" />
@@ -109,11 +119,11 @@
   {#if saveError}<p class="notice" role="alert">{$t("llm.roster.save_error")}</p>{/if}
   {#if saved}<p class="notice" role="status">{$t("llm.roster.saved")}</p>{/if}
   {#if creating}
-    <CreateBot oncancel={() => (creating = false)} oncreated={(v) => { creating = false; selected = v.agent.id; }} />
+    <CreateBot oncancel={() => (creating = false)} oncreated={(v) => { creating = false; selected = v.agent.id; }} onadvanced={({ name, purpose }) => { creating = false; editingStep = 0; editing = { ...blankAgent(), name, system_prompt: purpose }; }} />
   {:else if selectedAgent && !editing}
     <div class="bot-actions">
       <button type="button" class="button" onclick={() => (selected = null)}>‹ {$t("assist.bots.back")}</button>
-      <button type="button" class="button" onclick={() => { editing = selectedAgent; }}>{$t("assist.bots.edit_advanced")}</button>
+      <button type="button" class="button" onclick={() => { editingStep = 0; editing = selectedAgent; }}>{$t("assist.bots.edit_advanced")}</button>
     </div>
     {#key selectedAgent.id}<BotPanel botId={selectedAgent.id} />{/key}
   {:else if editing}
@@ -121,6 +131,8 @@
     <RosterEditor
       agent={editing}
       busy={saving}
+      initialStep={editingStep}
+      onconnect={(draft) => { pendingEditor = draft; }}
       onsave={onSave}
       oncancel={() => { editing = null; saveError = false; }}
       ondelete={agents.some((a) => a.id === editing?.id)

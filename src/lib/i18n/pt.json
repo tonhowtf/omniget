@@ -2824,10 +2824,10 @@
     "tab": {
       "chat": "Conversa",
       "roster": "Equipe de agentes",
-      "models": "Modelos e rotas",
+      "models": "Modelos e limites",
       "mcp": "MCP",
       "skills": "Skills",
-      "accounts": "Contas",
+      "accounts": "Conexões",
       "local": "Local",
       "arena": "Arena",
       "jobs": "Jobs",
@@ -2900,7 +2900,7 @@
     },
     "roster": {
       "title": "Equipe de agentes",
-      "new": "Novo agente",
+      "new": "Criar agente",
       "name": "Nome",
       "role": "Papel",
       "model_policy": "Modelo",
@@ -2923,7 +2923,9 @@
       "skills": "Skills",
       "skills_empty": "Nenhuma skill instalada. Instale uma na aba Skills.",
       "save_error": "Não foi possível salvar. Suas alterações foram mantidas. Tente novamente.",
-      "roles_hint": "O coordenador divide e acompanha o trabalho. Executores realizam tarefas atribuídas; consultores ajudam a avaliar decisões."
+      "roles_hint": "O coordenador divide e acompanha o trabalho. Executores realizam tarefas atribuídas; consultores ajudam a avaliar decisões.",
+      "delete_warning": "Remover {name}? O agente e suas configurações serão removidos. As conversas salvas continuarão disponíveis para leitura, mas não poderão continuar sem um agente.",
+      "delete_confirm": "Excluir agente"
     },
     "template": {
       "solo": "Solo",
@@ -2936,10 +2938,10 @@
       "preview": "Ver equipe"
     },
     "models": {
-      "title": "Modelos e rotas",
+      "title": "Modelos e limites",
       "providers": "Provedores",
       "no_providers": "Nenhuma chave de API salva ainda.",
-      "add_key_hint": "As chaves ficam em LLM → Modelos e rotas.",
+      "add_key_hint": "Conecte este provedor em Conexões de IA antes de usar seus modelos.",
       "load": "Carregar modelos",
       "loading": "Carregando…",
       "count": "{{count}} modelos",
@@ -2956,10 +2958,18 @@
       "openrouter_ok": "Chave do OpenRouter salva.",
       "openrouter_failed": "O login do OpenRouter falhou: {{error}}",
       "routing_unavailable": "Estas estratégias ainda não são aplicadas. Configure um modelo fixo ou uma sequência de alternativas para cada agente em Equipe de agentes.",
-      "connect": "Conectar ou gerenciar provedores",
+      "connect": "Gerenciar conexões de IA",
       "local_hint": "Servidor local: verifique se está em execução e possui modelos instalados. Não é necessária uma chave de API salva.",
       "no_models": "Este provedor não retornou modelos. Verifique os modelos disponíveis no servidor ou informe o identificador manualmente.",
-      "load_failed": "Não foi possível carregar os modelos: {{error}}"
+      "load_failed": "Não foi possível carregar os modelos: {{error}}",
+      "providers_failed": "Não foi possível carregar as conexões. Suas configurações salvas não foram removidas.",
+      "reopen_browser": "Reabrir navegador",
+      "stop_waiting": "Parar de aguardar",
+      "stop_waiting_hint": "Isso encerra a espera no OmniGet. Feche a aba do navegador para sair da autenticação externa.",
+      "auth_expired": "A autenticação não foi confirmada após dois minutos. Verifique o navegador ou comece novamente.",
+      "saved_connections": "Conexões salvas",
+      "other_providers": "Outros provedores",
+      "choose_or_enter": "Carregue os modelos disponíveis e escolha um ou digite seu identificador exato."
     },
     "err": {
       "unavailable": "O backend de LLM ainda não está ligado.",
@@ -3156,8 +3166,8 @@
       "copied": "Copiado"
     },
     "accounts": {
-      "title": "Contas e cota",
-      "lede": "Assinaturas de CLI, cada uma no seu diretório de config. O OmniGet guarda um ponteiro — nunca uma credencial.",
+      "title": "Conexões de IA",
+      "lede": "Escolha uma assinatura, um provedor de API ou um modelo local para seus agentes.",
       "refresh": "Atualizar",
       "new": "Nova conta",
       "detected": "Encontrado nesta máquina:",
@@ -3280,8 +3290,11 @@
         "preserved_retry": "Sua conta e seu agente são preservados. Tente novamente sem criar duplicatas.",
         "connecting": "Conectando…",
         "err_unknown_provider": "Unknown provider",
-        "err_credential_failed": "Credential validation failed"
-      }
+        "err_credential_failed": "Credential validation failed",
+        "new_api_connection": "Conectar um novo provedor de API"
+      },
+      "models_limits": "Revisar modelos e limites de execução",
+      "advanced_accounts": "Avançado: contas CLI, alternativas e limites"
     },
     "rules": {
       "title": "Regras de Sempre",
@@ -3622,7 +3635,7 @@
       "create_routine": "Criar rotina",
       "jobs_hint": "Execute uma tarefa em segundo plano. Abra os detalhes para ver o resultado, aprovar uma ferramenta ou parar a execução.",
       "loops_hint": "Repita uma tarefa até uma verificação passar ou atingir o limite. Revise as condições de parada antes de iniciar.",
-      "models_hint": "Conecte um provedor API e escolha o modelo de um agente. Assinaturas de chat são configuradas em Conexões.",
+      "models_hint": "As conexões são gerenciadas em Conexões de IA. Escolha um modelo para um agente ou abra os ajustes avançados de execução abaixo.",
       "mcp_hint": "Conecte uma ferramenta, teste e escolha quais agentes podem usá-la. Adicionar uma conexão não concede permissão.",
       "skills_hint": "Habilidades dão instruções reutilizáveis aos agentes. Revise a origem e a análise antes de instalar e associe a habilidade a um agente.",
       "observatory_hint": "Veja a atividade medida e as cotas dos provedores. Medição ausente fica indisponível, nunca zero. Diagnósticos só iniciam quando você os abre.",
@@ -4034,8 +4047,8 @@
         "read_only": "Só consultar, nunca salvar"
       },
       "create": {
-        "open": "Criar bot",
-        "title": "Criar um bot",
+        "open": "Criar agente",
+        "title": "Criar um agente",
         "lede": "Dê um nome e uma finalidade, escolha o que ele pode fazer e a conexão em que roda. Ele não recebe acesso a código nem a terminal, a menos que você marque.",
         "name": "Nome",
         "name_placeholder": "Companheiro de leitura",
@@ -4051,13 +4064,16 @@
         "no_connection": "Nenhuma conexão pronta ainda.",
         "connect_first": "Conecte uma conta ou modelo primeiro",
         "instructions": "Instruções",
-        "submit": "Criar bot",
+        "submit": "Criar agente",
         "creating": "Criando…",
         "err_name": "Dê um nome ao bot.",
         "err_name_long": "Use no máximo 48 caracteres no nome.",
         "err_connection": "Escolha uma conexão.",
         "err_purpose_long": "A finalidade está longa demais.",
-        "err_failed": "O bot não foi criado."
+        "err_failed": "O bot não foi criado.",
+        "draft_session": "Seu formulário fica salvo nesta janela enquanto você conecta. Volte aqui para concluir.",
+        "return_to_draft": "Voltar à criação do agente",
+        "advanced_setup": "Configurar modelo, alternativas e permissões manualmente"
       },
       "state": {
         "available": "Disponível",

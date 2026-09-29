@@ -1,5 +1,5 @@
 <script lang="ts">
-  /** Placeholder for the local tab; it is built in a later phase. */
+  /** Legacy URL opens the same local connection flow as Connections. */
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
   import { t } from "$lib/i18n";
 </script>
@@ -8,9 +8,8 @@
 
 <div class="page soon">
   <h1 class="page-title">{$t("llm.tab.local")}</h1>
-  <SurfaceGuide text={$t("llm.surface.local_hint")} steps={$t("llm.surface.local_steps").split("|")} href="/help?article=local#guide" />
-  <p class="page-lede">{$t("llm.local.explanation")}</p>
-  <a class="button" href="/llm/models">{$t("llm.tab.models")} →</a>
+  <SurfaceGuide text={$t("llm.surface.local_hint")} href="/help?article=local#guide" />
+  <a class="button primary" href="/llm/accounts?guide=local">{$t("llm.accounts.wizard.local_model")} →</a>
 </div>
 
 <style>
