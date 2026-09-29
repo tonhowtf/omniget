@@ -132,8 +132,11 @@ fn segments(t: &str) -> Vec<String> {
 /// match. Segment by segment, `outer`'s wildcard must accept `inner`'s
 /// segment (a `*` in `inner` is only accepted by a `*` in `outer`).
 pub fn covers(outer: &str, inner: &str) -> bool {
-    let o = segments(outer);
-    let i = segments(inner);
+    covers_segments(&segments(outer), &segments(inner))
+}
+
+/// [`covers`] on targets already split by [`segments`].
+fn covers_segments(o: &[String], i: &[String]) -> bool {
     if o.is_empty() || i.len() < o.len() {
         return false;
     }
@@ -156,7 +159,12 @@ pub fn covers(outer: &str, inner: &str) -> bool {
 /// same program with the same arguments.
 pub fn dedupe_against(primary: &[Rule], secondary: Vec<Rule>) -> Vec<Rule> {
     use super::rule::Action;
-    let primary_targets: Vec<&String> = primary.iter().flat_map(|r| r.targets.iter()).collect();
+    // Split once: normalizing inside the pairwise loop cost seconds.
+    let primary_targets: Vec<Vec<String>> = primary
+        .iter()
+        .flat_map(|r| r.targets.iter())
+        .map(|t| segments(t))
+        .collect();
     let primary_cmds: Vec<(&String, &Vec<String>)> = primary
         .iter()
         .filter_map(|r| match &r.action {
@@ -174,9 +182,10 @@ pub fn dedupe_against(primary: &[Rule], secondary: Vec<Rule>) -> Vec<Rule> {
                 return (!dup).then_some(r);
             }
             r.targets.retain(|s| {
+                let s = segments(s);
                 !primary_targets
                     .iter()
-                    .any(|p| covers(p, s) || (segments(s).len() >= 3 && covers(s, p)))
+                    .any(|p| covers_segments(p, &s) || (s.len() >= 3 && covers_segments(&s, p)))
             });
             (!r.targets.is_empty()).then_some(r)
         })
