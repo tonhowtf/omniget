@@ -318,7 +318,7 @@ pub fn parse_percent(line: &str) -> Option<u8> {
     digits.parse::<u32>().ok().map(|n| n.min(100) as u8)
 }
 
-async fn current_branch(ctx: &GitCtx) -> VcsResult<Option<String>> {
+pub(super) async fn current_branch(ctx: &GitCtx) -> VcsResult<Option<String>> {
     let out = ctx
         .git()
         .args(["symbolic-ref", "--quiet", "--short", "HEAD"])
@@ -328,7 +328,7 @@ async fn current_branch(ctx: &GitCtx) -> VcsResult<Option<String>> {
     Ok(out.ok().then(|| out.trimmed()))
 }
 
-async fn branch_exists(ctx: &GitCtx, name: &str) -> VcsResult<bool> {
+pub(super) async fn branch_exists(ctx: &GitCtx, name: &str) -> VcsResult<bool> {
     Ok(ctx
         .git()
         .args([
@@ -343,7 +343,7 @@ async fn branch_exists(ctx: &GitCtx, name: &str) -> VcsResult<bool> {
         .ok())
 }
 
-fn main_ctx(common_dir: &Path) -> GitCtx {
+pub(super) fn main_ctx(common_dir: &Path) -> GitCtx {
     // Non-bare repo: the common dir is `<main>/.git`.
     let root = if common_dir.file_name().map(|n| n == ".git").unwrap_or(false) {
         common_dir
@@ -548,7 +548,17 @@ async fn create_inner(
         let r = ctx
             .git()
             .env("GIT_PROGRESS_DELAY", "0")
-            .args(["worktree", "add", "-b", &branch])
+            // `--no-track`: no "behind by N" before the first push (orca
+            // `worktree-add.ts`); long paths for deep trees on Windows.
+            .args([
+                "-c",
+                "core.longpaths=true",
+                "worktree",
+                "add",
+                "--no-track",
+                "-b",
+                &branch,
+            ])
             .arg(&path)
             .arg(&base_commit)
             .timeout(Some(Duration::from_secs(600)))

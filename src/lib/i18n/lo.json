@@ -3332,7 +3332,8 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "ລໍຖ້າໂຟນເດີ"
+        "waiting_workspace": "ລໍຖ້າໂຟນເດີ",
+        "review": "ລໍຖ້າການກວດ"
       },
       "kind": {
         "run": "Run",
@@ -3439,6 +3440,30 @@
         "legacy_hint": "ເກັບໄວ້ໜຶ່ງເວີຊັນເພື່ອໃຫ້ສະຄຣິບເກົ່າຍັງເຮັດວຽກ. ເວີຊັນຕໍ່ໄປຈະປະຕິເສດມັນ.",
         "legacy_seen": "ກະແຈຂອງສ່ວນຂະຫຍາຍບຣາວເຊີຖືກໃຊ້ຢູ່ {{route}} ເວລາ {{when}}. ປ່ຽນສະຄຣິບນັ້ນໄປໃຊ້ໂທເຄັນທີ່ມີຂອບເຂດ.",
         "curl_hint": "ຕັ້ງ OMNIGET_TOKEN ເປັນໂທເຄັນທີ່ມີຂອບເຂດ jobs:operate (ໂທເຄັນເຂົ້າເຖິງ, ດ້ານລຸ່ມ)."
+      },
+      "isolation": {
+        "label": "ບ່ອນທີ່ມັນຂຽນ",
+        "auto": "ອັດຕະໂນມັດ: worktree ຂອງຕົນເອງ ສະເພາະເມື່ອມີວຽກອື່ນກຳລັງຂຽນຢູ່ບ່ອນນັ້ນ",
+        "worktree": "ຢູ່ໃນ git worktree ຂອງຕົນເອງສະເໝີ",
+        "shared": "ໃນໂຟນເດີເອງ (ລໍຖ້າຄິວ)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} ຈາກ {{base}}",
+        "gone": "ລຶບ worktree ແລ້ວ; branch ຍັງເກັບວຽກໄວ້.",
+        "remove": "ລຶບ worktree",
+        "removed": "ລຶບ worktree ແລ້ວ.",
+        "kept_branch": "ລຶບ worktree ແລ້ວ. branch {{branch}} ເກັບວຽກຂອງງານນີ້ໄວ້.",
+        "saved": "ບັນທຶກ {{count}} ໄຟລ໌ທີ່ຍັງບໍ່ commit ລົງ branch ກ່ອນ."
+      },
+      "proof": {
+        "title": "ຫຼັກຖານ",
+        "summary": "ປ່ຽນ {{files}} ໄຟລ໌ · {{tokens}} tokens · {{time}}",
+        "check": "{{command}} → ລະຫັດອອກ {{code}}",
+        "by_host": "OmniGet ໃນຄອມພິວເຕີນີ້ເປັນຜູ້ປະທັບຕາຈາກສິ່ງທີ່ມັນບັນທຶກ, ບໍ່ແມ່ນຕົວແທນຂຽນ."
+      },
+      "review": {
+        "mark": "ໝາຍວ່າກວດແລ້ວ"
       }
     },
     "loops": {
@@ -5540,7 +5565,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "ລໍຖ້າການກວດ"
         },
         "runner": {
           "label": "Runs with",
@@ -6277,7 +6303,10 @@
       "stale_title": "ຄຳຖາມທີ່ການເລີ່ມໃໝ່ປະໄວ້ໂດຍບໍ່ມີຄຳຕອບ",
       "stale_hint": "ແອັບປິດລົງໃນຂະນະທີ່ພວກມັນລໍຖ້າ. ບໍ່ມີຫຍັງຖືກແລ່ນ. ເລີ່ມຮອບໃໝ່ເພື່ອຖາມອີກຄັ້ງ.",
       "dismiss": "ປິດ",
-      "answer_on_card": "ຕອບຢູ່ບັດຂອງມັນ ທາງເທິງຂອງໜ້ານີ້."
+      "answer_on_card": "ຕອບຢູ່ບັດຂອງມັນ ທາງເທິງຂອງໜ້ານີ້.",
+      "answer_once": "ອະນຸຍາດຄັ້ງດຽວ",
+      "answer_always": "ອະນຸຍາດສະເໝີ",
+      "answer_deny": "ປະຕິເສດ"
     },
     "conversation": {
       "status_working": "ກຳລັງເຮັດວຽກ…",
@@ -6836,7 +6865,10 @@
       "adv_events": "ເຫດການ",
       "blocked_before_call": "ຢຸດກ່ອນການເອີ້ນໃດໆ: ບໍ່ມີຫຍັງເຮັດວຽກໃນຂັ້ນຕອນນີ້.",
       "verify_started": "ກຳລັງກວດສອບຢູ່ເບື້ອງຫຼັງ. ຜົນຈະສະແດງຢູ່ນີ້ເມື່ອສຳເລັດ.",
-      "verify_already_running": "ມີການກວດສອບກຳລັງດຳເນີນຢູ່ສຳລັບພາລະກິດນີ້ແລ້ວ."
+      "verify_already_running": "ມີການກວດສອບກຳລັງດຳເນີນຢູ່ສຳລັບພາລະກິດນີ້ແລ້ວ.",
+      "changes": "ການປ່ຽນແປງ",
+      "changes_no_job": "ໜ້າວຽກນີ້ຍັງບໍ່ທັນໄດ້ແລ່ນວຽກໃດເທື່ອ.",
+      "changes_job": "ວຽກ {{job}}"
     },
     "log": {
       "loading": "ກຳລັງໂຫຼດບັນທຶກ…",

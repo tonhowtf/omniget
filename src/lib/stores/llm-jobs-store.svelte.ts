@@ -13,10 +13,41 @@ export type JobState =
   | "running"
   | "waiting_approval"
   | "done"
+  /** It ended well and changed files: a person looks at them before it counts as done. */
+  | "review"
   | "failed"
   | "cancelled"
   /** The app closed while it ran: its result is unknown, a person decides. */
   | "interrupted";
+
+export type Isolation = "shared" | "worktree" | "auto";
+
+/** What removing a job's worktree did (`llm_job_remove_worktree`). */
+export type WorktreeRemoval = {
+  dirty: string[];
+  saved: string | null;
+  preserved_branch: string | null;
+  branch_deleted: string | null;
+  trashed: boolean;
+};
+
+/** What the host recorded about a finished job (never the agent's words). */
+export type JobProof = {
+  generated_by: "host";
+  /** `host:workspace@base→head` */
+  stamp: string;
+  mode: "worktree" | "shared";
+  branch: string | null;
+  base: string | null;
+  head: string | null;
+  file_count: number;
+  additions: number | null;
+  deletions: number | null;
+  checks: { command: string; exit_code: number | null; ok: boolean; at_ms: number }[];
+  tokens: { input: number | null; output: number | null; cache_read: number | null; billable: number | null };
+  cost_usd: number | null;
+  duration_ms: number | null;
+};
 
 export type Job = {
   id: string;
@@ -57,6 +88,20 @@ export type Job = {
   diff_clipped?: boolean;
   /** Why there is no diff: `code: detail` (`no_workspace`, `no_snapshot`, `error`). */
   diff_unavailable?: string | null;
+  /** Where it writes: the folder, a worktree of its own, or `auto` (a worktree only if the folder is busy). */
+  isolation?: Isolation;
+  /** The ref its worktree starts from; null = the checkout as it is, uncommitted work included. */
+  base_ref?: string | null;
+  /** Its worktree, while it has one. */
+  worktree_path?: string | null;
+  /** `omniget/job-<id>`: keeps the job's work after the worktree is gone. */
+  branch?: string | null;
+  /** The commit the worktree started from. */
+  base_oid?: string | null;
+  /** The commit holding the job's work on its branch (worktree mode). */
+  head_oid?: string | null;
+  /** Stamped by the host when the job ended; list rows and events leave it out. */
+  proof?: JobProof | null;
   /** Summed over the model calls of the job; `cost_usd` is null for local models and CLI accounts. */
   usage?: {
     model: string;
@@ -767,9 +812,14 @@ export async function fetchJob(id: string): Promise<Job | null> {
   }
 }
 
-export async function submitJob(agentId: string, prompt: string, workspace: string | null): Promise<Job | null> {
+export async function submitJob(
+  agentId: string,
+  prompt: string,
+  workspace: string | null,
+  isolation: Isolation | null = null,
+): Promise<Job | null> {
   try {
-    const job = await invoke<Job>("llm_job_submit", { agentId, prompt, workspace });
+    const job = await invoke<Job>("llm_job_submit", { agentId, prompt, workspace, isolation });
     jobs = upsert(jobs, job);
     return job;
   } catch (e) {
@@ -783,6 +833,19 @@ export async function cancelJob(id: string): Promise<void> {
     jobs = upsert(jobs, await invoke<Job>("llm_job_cancel", { id }));
   } catch (e) {
     fail(e);
+  }
+}
+
+/** Removes a finished job's worktree; its work is saved on the job's branch first. */
+export async function removeJobWorktree(id: string): Promise<WorktreeRemoval | null> {
+  try {
+    const out = await invoke<WorktreeRemoval>("llm_job_remove_worktree", { id });
+    const job = await invoke<Job | null>("llm_job_get", { id });
+    if (job) jobs = upsert(jobs, job);
+    return out;
+  } catch (e) {
+    fail(e);
+    return null;
   }
 }
 
@@ -898,6 +961,7 @@ export function pickState(state: string): string {
     case "preparing":
       return "blue";
     case "waiting_approval":
+    case "review":
     case "waiting_user":
     case "interrupted":
     case "unknown":

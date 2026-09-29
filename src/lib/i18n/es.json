@@ -3332,7 +3332,8 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "Esperando la carpeta"
+        "waiting_workspace": "Esperando la carpeta",
+        "review": "Pendiente de revisión"
       },
       "kind": {
         "run": "Run",
@@ -3439,6 +3440,30 @@
         "legacy_hint": "Se mantiene una versión para que los scripts antiguos sigan funcionando. La próxima versión la rechaza.",
         "legacy_seen": "La clave de la extensión del navegador se usó en {{route}} a las {{when}}. Cambia ese script a un token con alcance.",
         "curl_hint": "Define OMNIGET_TOKEN con un token con el alcance jobs:operate (Tokens de acceso, abajo)."
+      },
+      "isolation": {
+        "label": "Dónde escribe",
+        "auto": "Automático: su propio worktree solo si otro trabajo está escribiendo ahí",
+        "worktree": "Siempre en un worktree de git propio",
+        "shared": "En la propia carpeta (espera su turno)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} desde {{base}}",
+        "gone": "Worktree eliminado; la rama guarda el trabajo.",
+        "remove": "Eliminar worktree",
+        "removed": "Worktree eliminado.",
+        "kept_branch": "Worktree eliminado. La rama {{branch}} guarda el trabajo.",
+        "saved": "{{count}} archivo(s) sin commit guardado(s) antes en la rama."
+      },
+      "proof": {
+        "title": "Comprobante",
+        "summary": "{{files}} archivo(s) cambiado(s) · {{tokens}} tokens · {{time}}",
+        "check": "{{command}} → salida {{code}}",
+        "by_host": "Sellado por OmniGet en este equipo a partir de lo que registró, no escrito por el agente."
+      },
+      "review": {
+        "mark": "Marcar como revisado"
       }
     },
     "loops": {
@@ -5540,7 +5565,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "Pendiente de revisión"
         },
         "runner": {
           "label": "Runs with",
@@ -6277,7 +6303,10 @@
       "stale_title": "Preguntas que un reinicio dejó sin respuesta",
       "stale_hint": "La app se cerró mientras esperaban. No se ejecutó nada. Reinicia el turno para volver a preguntar.",
       "dismiss": "Descartar",
-      "answer_on_card": "Respóndela en su tarjeta, arriba en esta página."
+      "answer_on_card": "Respóndela en su tarjeta, arriba en esta página.",
+      "answer_once": "Permitir una vez",
+      "answer_always": "Permitir siempre",
+      "answer_deny": "Denegar"
     },
     "conversation": {
       "status_working": "Trabajando…",
@@ -6836,7 +6865,10 @@
       "adv_events": "Eventos",
       "blocked_before_call": "Se detuvo antes de cualquier llamada: no se ejecutó nada en este paso.",
       "verify_started": "Comprobando en segundo plano. El resultado aparece aquí cuando termine.",
-      "verify_already_running": "Ya hay una comprobación en curso para esta misión."
+      "verify_already_running": "Ya hay una comprobación en curso para esta misión.",
+      "changes": "Cambios",
+      "changes_no_job": "Esta tarea todavía no ejecutó ningún trabajo.",
+      "changes_job": "Trabajo {{job}}"
     },
     "log": {
       "loading": "Cargando el registro…",

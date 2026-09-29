@@ -439,7 +439,7 @@ pub fn route_need(method: &Method, path: &str) -> Option<Need> {
             need(SCOPE_JOBS_READ, None)
         }
         ["v1", "jobs", id] if get => need(SCOPE_JOBS_READ, Some(id)),
-        ["v1", "jobs", id, "explain" | "diff"] if get => need(SCOPE_JOBS_READ, Some(id)),
+        ["v1", "jobs", id, "explain" | "diff" | "proof"] if get => need(SCOPE_JOBS_READ, Some(id)),
         ["v1", "jobs", id, "cancel"] if post => need(SCOPE_JOBS_OPERATE, Some(id)),
         ["v1", "agent", "run" | "run-tool" | "loop" | "loop-catalog"] if post => {
             need(SCOPE_JOBS_OPERATE, None)
@@ -801,7 +801,7 @@ mod tests {
             let end = rest[q + 1..].find('"').unwrap();
             paths.push(rest[q + 1..q + 1 + end].to_string());
         }
-        assert_eq!(paths.len(), 17, "{paths:?}");
+        assert_eq!(paths.len(), 18, "{paths:?}");
         for p in &paths {
             let concrete = p.replace("{id}", "j1");
             let ok = route_need(&Method::GET, &concrete).is_some()

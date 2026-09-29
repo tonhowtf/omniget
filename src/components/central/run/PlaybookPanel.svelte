@@ -116,7 +116,7 @@
 
   function pill(state: string): string {
     if (state === "running") return "blue";
-    if (state === "done") return "green";
+    if (state === "done" || state === "review") return "green";
     if (state === "failed") return "red";
     if (state === "cancelled" || state === "skipped") return "";
     return "";

@@ -41,6 +41,7 @@
     markJobSeen,
     pickState,
     queuedEntry,
+    removeJobWorktree,
     queueLines,
     reasonLine,
     setJobLimits,
@@ -49,6 +50,7 @@
     submitJob,
     triggerInput,
     type CatchUp,
+    type Isolation,
     type Job,
     type JobDiffView,
     type Trigger,
@@ -67,7 +69,12 @@
   function matches(job: Job, key: string) {
     if (key === "active") return isActive(job);
     if (key === "attention")
-      return job.state === "waiting_approval" || job.state === "failed" || job.state === "interrupted";
+      return (
+        job.state === "waiting_approval" ||
+        job.state === "review" ||
+        job.state === "failed" ||
+        job.state === "interrupted"
+      );
     if (key === "done") return !isActive(job);
     return true;
   }
@@ -98,6 +105,8 @@
   let agentId = $state("");
   let prompt = $state("");
   let workspace = $state<string | null>(null);
+  let isolation = $state<Isolation>("auto");
+  const isolations: Isolation[] = ["auto", "worktree", "shared"];
   let submitting = $state(false);
 
   let openId = $state<string | null>(null);
@@ -209,9 +218,23 @@
   async function run() {
     if (!agentId || !prompt.trim()) return;
     submitting = true;
-    const job = await submitJob(agentId, prompt.trim(), workspace);
+    const job = await submitJob(agentId, prompt.trim(), workspace, workspace ? isolation : null);
     submitting = false;
     if (job) prompt = "";
+  }
+
+  async function removeWorktree(id: string) {
+    const out = await removeJobWorktree(id);
+    if (!out) return;
+    const saved = out.saved ? $t("llm.jobs.worktree.saved", { count: out.dirty.length }) + " " : "";
+    showToast(
+      "success",
+      saved +
+        (out.preserved_branch
+          ? $t("llm.jobs.worktree.kept_branch", { branch: out.preserved_branch })
+          : $t("llm.jobs.worktree.removed")),
+    );
+    if (openId === id) detail = await fetchJob(id);
   }
 
   async function createTrigger() {
@@ -303,6 +326,16 @@
           {/if}
         </div>
       </div>
+      {#if workspace}
+        <label class="field">
+          <span class="field-label">{$t("llm.jobs.isolation.label")}</span>
+          <select class="input" bind:value={isolation}>
+            {#each isolations as i (i)}
+              <option value={i}>{$t(`llm.jobs.isolation.${i}`)}</option>
+            {/each}
+          </select>
+        </label>
+      {/if}
     </div>
     <label class="field">
       <span class="field-label">{$t("llm.jobs.prompt")}</span>
@@ -389,6 +422,19 @@
                   <div class="field-label">{$t("llm.jobs.workspace")}</div>
                   <code class="path">{full.workspace}</code>
                 {/if}
+                {#if full.branch}
+                  <div class="field-label">{$t("llm.jobs.worktree.title")}</div>
+                  <div class="worktree">
+                    <span class="chip" title={full.base_oid ?? ""}>
+                      {$t("llm.jobs.worktree.chip", { branch: full.branch, base: (full.base_oid ?? "").slice(0, 7) })}
+                    </span>
+                    {#if full.worktree_path}
+                      <code class="path" title={full.worktree_path}>{full.worktree_path}</code>
+                    {:else}
+                      <span class="hint">{$t("llm.jobs.worktree.gone")}</span>
+                    {/if}
+                  </div>
+                {/if}
                 {#if full.result}
                   <div class="field-label">{$t("llm.jobs.result")}</div>
                   <div class="text">{full.result}</div>
@@ -433,6 +479,27 @@
                     {#if diff.clipped}<p class="hint">{$t("assist.runs.diff_clipped")}</p>{/if}
                   {/if}
                 {/if}
+                {#if full.proof}
+                  {@const pr = full.proof}
+                  <div class="field-label">{$t("llm.jobs.proof.title")}</div>
+                  <div class="proof">
+                    <code class="path" title={pr.stamp}>{pr.stamp}</code>
+                    <p class="hint">
+                      {$t("llm.jobs.proof.summary", {
+                        files: pr.file_count,
+                        tokens: (pr.tokens.billable ?? 0).toLocaleString(),
+                        time: duration(full.started_ms, full.finished_ms) || "—",
+                      })}{#if pr.cost_usd != null}{" · "}${pr.cost_usd.toFixed(4)}{/if}
+                    </p>
+                    {#each pr.checks as c, i (i)}
+                      <p class="hint">
+                        <span class={c.ok ? "plus" : "minus"}>{c.ok ? "✓" : "✗"}</span>
+                        {$t("llm.jobs.proof.check", { command: c.command, code: c.exit_code ?? "?" })}
+                      </p>
+                    {/each}
+                    <p class="hint">{$t("llm.jobs.proof.by_host")}</p>
+                  </div>
+                {/if}
                 <div class="field-label">{$t("llm.jobs.log")}</div>
                 <pre class="pre log">{full.log || $t("llm.jobs.log_empty")}</pre>
                 {#if job.state === "interrupted"}
@@ -457,6 +524,16 @@
                       {$t("llm.jobs.cancel")}
                     </button>
                   {:else}
+                    {#if job.state === "review"}
+                      <button type="button" class="button active" onclick={() => void markJobDone(job.id)}>
+                        {$t("llm.jobs.review.mark")}
+                      </button>
+                    {/if}
+                    {#if full.worktree_path}
+                      <button type="button" class="button" onclick={() => void removeWorktree(job.id)}>
+                        {$t("llm.jobs.worktree.remove")}
+                      </button>
+                    {/if}
                     <button type="button" class="button" onclick={() => void deleteJob(job.id)}>
                       {$t("llm.jobs.delete")}
                     </button>
@@ -734,6 +811,31 @@
 
   .mono {
     font-family: var(--font-mono);
+  }
+
+  .proof {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .worktree {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .chip {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    border: var(--hairline) solid var(--separator);
+    color: var(--text-muted);
+    white-space: nowrap;
   }
 
   .rows {

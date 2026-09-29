@@ -12,6 +12,15 @@ own paths go back), and when a later job changed its file (refused,
 ERR_UNDO_CONFLICT). A control run without the gate shows the check does see
 overwrites.
 
+Scenario B (worktree per job, 2.3, Foco de revisão 3): 4 `auto` jobs start
+together in one git repository whose checkout has uncommitted work of the
+user (an edited tracked file and an untracked one), all editing the same
+file. The gate keeps the folder for the first and places the other three in
+worktrees, which carry the user's work in through a private index. Goals: 4
+independent results, 0 user edits lost, the user's index and HEAD untouched,
+worktree creation < 1 s with no hook, `git worktree list` with no orphan
+after the discard, and each job's work kept on its preserved branch.
+
 Scenario C (configurable cap, 1.6): 8 read jobs (no folder, `sleep` mode)
 with the cap at 2, 4 and 8. Goals: wall time with cap 4 about 2x the median
 of one job (it was ~4x with 2 slots, 81#P2), never more jobs at once than the
@@ -96,6 +105,7 @@ def main():
             "BN2_REPS": str(args.reps),
             "BN2_READ_S": str(args.read_s),
             "BN2_WRITE_S": "0.3",
+            "BN2_B_HOLD_S": "4.0",
         }, out)
         m = read_metrics(out)
     diff = subprocess.run(
@@ -128,6 +138,27 @@ def main():
         goal("A: undo of a file changed later is refused, 0 bytes", {"codes": first, "bytes": m.get("a_undo_first_bytes_changed")},
              reps and len(first) == reps and all(c == "ERR_UNDO_CONFLICT" for c in first)
              and m.get("a_undo_first_bytes_changed") == 0, f"ERR_UNDO_CONFLICT x {reps}, 0 bytes"),
+        goal("B: one auto job keeps the folder, the others get worktrees", m.get("b_isolated"),
+             m.get("b_isolated") == 3 and m.get("b_jobs") == 4, "3 of 4 in worktrees"),
+        goal("B: the 4 jobs ran together (none waited for the folder)", m.get("b_overlapping_pairs"),
+             (m.get("b_overlapping_pairs") or 0) >= 3, ">= 3 overlapping pairs"),
+        goal("B: 4 independent results (each has only its own edit)", m.get("b_independent_results"),
+             m.get("b_independent_results") == 4, "4/4"),
+        goal("B: the user's uncommitted work is in every worktree, outside the job's diff",
+             m.get("b_user_work_carried"), m.get("b_user_work_carried") == 3, "3/3"),
+        goal("B: 0 user edits lost; index and HEAD untouched",
+             {"lost": m.get("b_user_edits_lost"), "index": m.get("b_user_index_untouched"),
+              "head": m.get("b_user_head_untouched")},
+             m.get("b_user_edits_lost") == 0 and m.get("b_user_index_untouched") is True
+             and m.get("b_user_head_untouched") is True, "0 lost, both untouched"),
+        goal("B: worktree creation < 1 s without a hook", m.get("b_create_ms_max"),
+             m.get("b_create_ms_max") is not None and m["b_create_ms_max"] < 1000, "< 1000 ms"),
+        goal("B: no orphan in git worktree list after the discard",
+             {"worktrees": m.get("b_worktrees_left_after_discard"), "folders": m.get("b_folders_left_after_discard")},
+             m.get("b_worktrees_left_after_discard") == 0 and m.get("b_folders_left_after_discard") == 0, "0 and 0"),
+        goal("B: the discard keeps each job's work on its branch",
+             {"preserved": m.get("b_branches_preserved"), "saved": m.get("b_work_saved_on_branch")},
+             m.get("b_branches_preserved") == 3 and m.get("b_work_saved_on_branch") == 3, "3 preserved, 3 saved"),
         goal("C: cap 4 wall time ~2x one job (was ~4x with 2 slots)", ratio4,
              ratio4 is not None and ratio4 <= 2.5, "<= 2.5x the median job"),
         goal("C: cap 2 wall time ~4x one job", m.get("c_ratio_cap2"),
@@ -146,14 +177,14 @@ def main():
         "when": dt.datetime.now().isoformat(timespec="seconds"),
         "mode": "fake",
         "level": "e2e from the gate down (gate, FolderKey, fake CLI process, ClaudeParser, shadow-git "
-                 "snapshot/undo); not through Jobs::run_job / the Tauri app (headless not feasible)",
+                 "snapshot/undo; B: gate placement + vcs::job_worktree create/remove on a real repo); "
+                 "not through Jobs::run_job / the Tauri app (headless not feasible)",
         "platform": sys.platform,
-        "params": {"reps_a": args.reps, "write_hold_s": 0.3, "read_job_s": args.read_s,
+        "params": {"reps_a": args.reps, "write_hold_s": 0.3, "b_hold_s": 4.0, "read_job_s": args.read_s,
                    "stagger_ms": 500, "spellings": ["folder", "symlink", "other case (macOS/Windows) or ./",
                                                      "parent folder"]},
         "not_measured": {"cost_per_task": "not run: the gate never changes the argv (see the argv goal); "
-                                          "B0 missions_eval.py --real was not rerun on purpose",
-                         "scenario_B": "2.3 (worktree), out of scope for wave 1"},
+                                          "B0 missions_eval.py --real was not rerun on purpose"},
         "run": run,
         "metrics": m,
         "goals": goals,

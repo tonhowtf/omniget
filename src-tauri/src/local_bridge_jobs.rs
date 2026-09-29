@@ -3,7 +3,8 @@
 //! maps each path to `jobs:read` or `jobs:operate`; the extension bearer
 //! still passes for one version with a `Deprecation` header. Routes:
 //! `POST /v1/hooks/<id>` (webhook trigger; the body becomes `{{body}}`), and
-//! the small API `omniget-cli agent run|loop|jobs|explain|status|diff` talks to.
+//! the small API `omniget-cli agent run|loop|jobs|explain|status|diff` talks to,
+//! and `GET /v1/jobs/{id}/proof` (the host's proof of a finished job, 2.4).
 //! `POST /v1/agent/run-tool` runs an agent of the catalog (or an `.md` file
 //! the CLI read) as the system prompt of a coding CLI (`omniget agent run
 //! <agent> --tool <x>`); `POST /v1/agent/loop-catalog` starts a catalog loop
@@ -82,6 +83,13 @@ struct RunBody {
     /// This job's ceiling in minutes (1–1440); absent = the setting.
     #[serde(default)]
     deadline_min: Option<u32>,
+    /// `shared | worktree | auto` (2.3); absent = `auto`.
+    #[serde(default)]
+    isolation: Option<String>,
+    /// The ref a worktree starts from; absent = the checkout as it is on
+    /// disk, uncommitted work included.
+    #[serde(default)]
+    base: Option<String>,
 }
 
 pub fn router<S>(state: JobsBridgeState) -> Router<S>
@@ -103,6 +111,7 @@ where
     let guard = state.guard();
     let (c1, c2, c3) = (state.clone(), state.clone(), state.clone());
     let (a1, a2) = (state.clone(), state.clone());
+    let s13 = state.clone();
     let (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12) = (
         state.clone(),
         state.clone(),
@@ -157,16 +166,20 @@ where
             "/v1/agent/run",
             post(
                 move |headers: HeaderMap, Json(b): Json<RunBody>| async move {
-                    guarded!(s2, headers, |j: std::sync::Arc<jobs::Jobs>| ok(j
-                        .submit_with_deadline(
+                    guarded!(s2, headers, |j: std::sync::Arc<jobs::Jobs>| ok(b
+                        .isolation
+                        .as_deref()
+                        .map(jobs::Isolation::parse)
+                        .transpose()
+                        .and_then(|isolation| j.submit_placed(
                             "run",
                             &b.agent_id,
                             &b.prompt,
                             b.workspace.clone(),
-                            None,
-                            None,
                             b.deadline_min,
-                        )))
+                            isolation,
+                            b.base.clone(),
+                        ))))
                 },
             ),
         )
@@ -319,6 +332,29 @@ where
                             e,
                         ),
                     }
+                },
+            ),
+        )
+        // The host's proof of what the job did (2.4, 83#P4): stamp, files,
+        // checks with exit codes, tokens, cost and time. 409 while it runs.
+        .route(
+            "/v1/jobs/{id}/proof",
+            get(
+                move |Path(id): Path<String>, headers: HeaderMap| async move {
+                    guarded!(
+                        s13,
+                        headers,
+                        |j: std::sync::Arc<jobs::Jobs>| match j.job(&id) {
+                            None => fail(StatusCode::NOT_FOUND, format!("no job {id}")),
+                            Some(job) => match jobs::proof_view(&job) {
+                                Ok(v) => Json(v).into_response(),
+                                Err((code, e)) => fail(
+                                    StatusCode::from_u16(code).unwrap_or(StatusCode::BAD_REQUEST),
+                                    e,
+                                ),
+                            },
+                        }
+                    )
                 },
             ),
         )

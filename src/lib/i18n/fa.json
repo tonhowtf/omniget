@@ -3332,7 +3332,8 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "در انتظار پوشه"
+        "waiting_workspace": "در انتظار پوشه",
+        "review": "نیازمند بازبینی"
       },
       "kind": {
         "run": "Run",
@@ -3439,6 +3440,30 @@
         "legacy_hint": "برای یک نسخه نگه داشته می‌شود تا اسکریپت‌های قدیمی کار کنند. نسخهٔ بعدی آن را رد می‌کند.",
         "legacy_seen": "کلید افزونهٔ مرورگر در {{when}} روی {{route}} استفاده شد. آن اسکریپت را به یک توکن دارای دامنه تغییر دهید.",
         "curl_hint": "OMNIGET_TOKEN را روی توکنی با دامنهٔ jobs:operate تنظیم کنید (توکن‌های دسترسی، پایین)."
+      },
+      "isolation": {
+        "label": "کجا می‌نویسد",
+        "auto": "خودکار: worktree جداگانه فقط اگر کار دیگری همان‌جا در حال نوشتن باشد",
+        "worktree": "همیشه در worktree گیتِ مخصوص خودش",
+        "shared": "در خود پوشه (منتظر نوبتش می‌ماند)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} از {{base}}",
+        "gone": "worktree حذف شد؛ شاخه کار را نگه می‌دارد.",
+        "remove": "حذف worktree",
+        "removed": "worktree حذف شد.",
+        "kept_branch": "worktree حذف شد. شاخهٔ {{branch}} کار این کار را نگه می‌دارد.",
+        "saved": "{{count}} فایلِ کامیت‌نشده ابتدا روی شاخه ذخیره شد."
+      },
+      "proof": {
+        "title": "رسید",
+        "summary": "{{files}} فایل تغییر کرد · {{tokens}} توکن · {{time}}",
+        "check": "{{command}} ← کد خروج {{code}}",
+        "by_host": "مهر شده توسط OmniGet روی همین رایانه بر اساس آنچه ثبت کرده، نه نوشتهٔ عامل."
+      },
+      "review": {
+        "mark": "علامت‌گذاری به‌عنوان بازبینی‌شده"
       }
     },
     "loops": {
@@ -5540,7 +5565,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "نیازمند بازبینی"
         },
         "runner": {
           "label": "Runs with",
@@ -6277,7 +6303,10 @@
       "stale_title": "پرسش‌هایی که یک راه‌اندازی دوباره بی‌پاسخ گذاشت",
       "stale_hint": "برنامه وقتی این‌ها منتظر بودند بسته شد. هیچ چیزی اجرا نشد. برای پرسیدن دوباره، نوبت را از نو شروع کنید.",
       "dismiss": "نادیده گرفتن",
-      "answer_on_card": "در کارت خودش، بالای همین صفحه، پاسخ دهید."
+      "answer_on_card": "در کارت خودش، بالای همین صفحه، پاسخ دهید.",
+      "answer_once": "یک بار اجازه",
+      "answer_always": "همیشه اجازه",
+      "answer_deny": "رد"
     },
     "conversation": {
       "status_working": "در حال کار…",
@@ -6836,7 +6865,10 @@
       "adv_events": "رویدادها",
       "blocked_before_call": "پیش از هر فراخوانی متوقف شد: در این مرحله چیزی اجرا نشد.",
       "verify_started": "بررسی در پس‌زمینه. نتیجه پس از پایان اینجا نمایش داده می‌شود.",
-      "verify_already_running": "یک بررسی برای این مأموریت در حال اجراست."
+      "verify_already_running": "یک بررسی برای این مأموریت در حال اجراست.",
+      "changes": "تغییرات",
+      "changes_no_job": "این وظیفه هنوز هیچ کاری اجرا نکرده است.",
+      "changes_job": "کار {{job}}"
     },
     "log": {
       "loading": "در حال بارگذاری گزارش…",

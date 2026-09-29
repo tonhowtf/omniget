@@ -3332,7 +3332,8 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "In attesa della cartella"
+        "waiting_workspace": "In attesa della cartella",
+        "review": "Da revisionare"
       },
       "kind": {
         "run": "Run",
@@ -3439,6 +3440,30 @@
         "legacy_hint": "Mantenuto per una versione perché i vecchi script continuino a funzionare. La prossima versione la rifiuta.",
         "legacy_seen": "La chiave dell'estensione del browser è stata usata su {{route}} alle {{when}}. Passa quello script a un token con ambito.",
         "curl_hint": "Imposta OMNIGET_TOKEN con un token con ambito jobs:operate (Token di accesso, qui sotto)."
+      },
+      "isolation": {
+        "label": "Dove scrive",
+        "auto": "Automatico: un proprio worktree solo se un altro job sta già scrivendo lì",
+        "worktree": "Sempre in un proprio worktree git",
+        "shared": "Nella cartella stessa (aspetta il suo turno)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} da {{base}}",
+        "gone": "Worktree rimosso; il branch conserva il lavoro.",
+        "remove": "Rimuovi worktree",
+        "removed": "Worktree rimosso.",
+        "kept_branch": "Worktree rimosso. Il branch {{branch}} conserva il lavoro del job.",
+        "saved": "{{count}} file non committati salvati prima sul branch."
+      },
+      "proof": {
+        "title": "Prova",
+        "summary": "{{files}} file modificati · {{tokens}} token · {{time}}",
+        "check": "{{command}} → uscita {{code}}",
+        "by_host": "Timbrato da OmniGet su questo computer da ciò che ha registrato, non scritto dall'agente."
+      },
+      "review": {
+        "mark": "Segna come revisionato"
       }
     },
     "loops": {
@@ -5540,7 +5565,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "Da revisionare"
         },
         "runner": {
           "label": "Runs with",
@@ -6277,7 +6303,10 @@
       "stale_title": "Domande lasciate senza risposta da un riavvio",
       "stale_hint": "L’app si è chiusa mentre aspettavano. Non è stato eseguito nulla. Riavvia il turno per chiedere di nuovo.",
       "dismiss": "Ignora",
-      "answer_on_card": "Rispondi sulla sua scheda, in cima a questa pagina."
+      "answer_on_card": "Rispondi sulla sua scheda, in cima a questa pagina.",
+      "answer_once": "Consenti una volta",
+      "answer_always": "Consenti sempre",
+      "answer_deny": "Nega"
     },
     "conversation": {
       "status_working": "In corso…",
@@ -6836,7 +6865,10 @@
       "adv_events": "Eventi",
       "blocked_before_call": "Fermato prima di qualsiasi chiamata: per questo passo non è stato eseguito nulla.",
       "verify_started": "Verifica in background. Il risultato appare qui quando finisce.",
-      "verify_already_running": "C'è già una verifica in corso per questa missione."
+      "verify_already_running": "C'è già una verifica in corso per questa missione.",
+      "changes": "Modifiche",
+      "changes_no_job": "Questo compito non ha ancora eseguito alcun job.",
+      "changes_job": "Job {{job}}"
     },
     "log": {
       "loading": "Caricamento del log…",

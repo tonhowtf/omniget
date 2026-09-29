@@ -3332,7 +3332,8 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "Waiting for folder"
+        "waiting_workspace": "Waiting for folder",
+        "review": "Needs review"
       },
       "kind": {
         "run": "Run",
@@ -3439,6 +3440,30 @@
         "legacy_hint": "Kept for one version so old scripts keep working. The next version refuses it.",
         "legacy_seen": "The browser extension's key was used on {{route}} at {{when}}. Switch that script to a scoped token.",
         "curl_hint": "Set OMNIGET_TOKEN to a token with the jobs:operate scope (Access tokens, below)."
+      },
+      "isolation": {
+        "label": "Where it writes",
+        "auto": "Automatic: its own worktree only if another job is writing there",
+        "worktree": "Always in a git worktree of its own",
+        "shared": "In the folder itself (waits its turn)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} from {{base}}",
+        "gone": "Worktree removed; the branch keeps the work.",
+        "remove": "Remove worktree",
+        "removed": "Worktree removed.",
+        "kept_branch": "Worktree removed. The branch {{branch}} keeps the job's work.",
+        "saved": "{{count}} uncommitted file(s) saved on the branch first."
+      },
+      "proof": {
+        "title": "Proof",
+        "summary": "{{files}} file(s) changed · {{tokens}} tokens · {{time}}",
+        "check": "{{command}} → exit {{code}}",
+        "by_host": "Stamped by OmniGet on this computer from what it recorded, not written by the agent."
+      },
+      "review": {
+        "mark": "Mark reviewed"
       }
     },
     "loops": {
@@ -5540,7 +5565,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "Needs review"
         },
         "runner": {
           "label": "Runs with",
@@ -6277,7 +6303,10 @@
       "stale_title": "Questions a restart left unanswered",
       "stale_hint": "The app closed while these waited. Nothing ran. Restart the turn to ask again.",
       "dismiss": "Dismiss",
-      "answer_on_card": "Answer it on its card at the top of this page."
+      "answer_on_card": "Answer it on its card at the top of this page.",
+      "answer_once": "Allow once",
+      "answer_always": "Always allow",
+      "answer_deny": "Deny"
     },
     "conversation": {
       "status_working": "Working…",
@@ -6836,7 +6865,10 @@
       "adv_events": "Events",
       "blocked_before_call": "Stopped before any call: nothing ran for this step.",
       "verify_started": "Checking in the background. The result shows up here when it ends.",
-      "verify_already_running": "A check is already running for this mission."
+      "verify_already_running": "A check is already running for this mission.",
+      "changes": "Changes",
+      "changes_no_job": "This task has not run a job yet.",
+      "changes_job": "Job {{job}}"
     },
     "log": {
       "loading": "Loading the log…",

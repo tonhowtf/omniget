@@ -47,6 +47,8 @@ BENCHES = {
     "bn2": (
         "jobs_parallel_eval.py",
         [CORE_LLM + "job_gate.rs", CORE_LLM + "folder_key.rs", CORE_LLM + "snapshot.rs", "src-tauri/src/jobs.rs",
+         "src-tauri/omniget-core/src/core/vcs/worktree.rs", "src-tauri/omniget-core/src/core/vcs/job_worktree",
+         "src-tauri/omniget-core/src/core/vcs/checkpoint.rs",
          "src-tauri/src/missions.rs", "scripts/llm/fake_claude.py", "scripts/llm/jobs_parallel_eval.py"],
         ["--reps", "5", "--read-s", "3"],
         ["omniget-core"],
@@ -62,7 +64,8 @@ BENCHES = {
     "bn4": (
         "diff_eval.py",
         [CORE_LLM + "snapshot.rs", "src-tauri/src/jobs.rs", "src-tauri/src/local_bridge_jobs.rs",
-         "src-tauri/src/mcp/orchestration.rs", "scripts/llm/fake_claude.py", "scripts/llm/diff_eval.py"],
+         "src-tauri/src/mcp/orchestration.rs", "scripts/llm/fake_claude.py", "scripts/llm/diff_eval.py",
+         "src-tauri/omniget-core/src/core/vcs/job_worktree", "src-tauri/omniget-core/src/core/vcs/checkpoint.rs"],
         ["--reps", "5"],
         ["omniget-core", "omniget"],
     ),

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""BN4 — job diff benchmark (roadmap item 1.7, shared mode).
+"""BN4 — job diff benchmark (roadmap items 1.7, shared mode, and 2.4, worktree mode).
 
 Fixtures: the 4 code tasks of `missions_eval.py` (t03-bugfix-py,
 t04-feature-py, t05-bugfix-js, t09-rename), seeded by the harness's own
@@ -22,6 +22,13 @@ Goals:
     folder has no snapshot is "unavailable", never an empty diff;
   * the turn's argv is unchanged (cost per task = B0: the diff is host-side
     post-processing).
+
+Worktree mode (2.4): the same fixtures, each seed made a git repository, the
+job run in a worktree of it (`vcs::job_worktree`), and the diff taken by
+`snapshot::worktree_diff` = merge-base(base, HEAD)..worktree, first with the
+work uncommitted (private index), then after it is committed on the job's
+branch (what `run_job` does). Same goals, plus: both diffs identical and
+`head_oid` = the commit on the branch in 4/4.
 
 How (`--fake`, the only mode): the Rust test `core::llm::snapshot::bn4::*`
 (omniget-core) runs `fake_claude.py` in `apply` mode through the real
@@ -175,7 +182,7 @@ HEADER = ("--- ", "+++ ", "index ", "new file mode", "deleted file mode", "old m
           "similarity", "rename ", "Only in ")
 
 
-def normalize(text, kind):
+def normalize(text, kind, work="work"):
     """{path: [hunk lines] | "BINARY"} from a unified diff. `kind`: "git"
     (`diff --git a/x b/x`) or "bsd" (`diff -ruN seed/x work/x`).
 
@@ -190,13 +197,13 @@ def normalize(text, kind):
             files[cur], in_hunk = [], False
             continue
         if kind == "bsd" and line.startswith("diff -ruN "):
-            cur = line.split(" work/", 1)[1]
+            cur = line.split(f" {work}/", 1)[1]
             files[cur], in_hunk = [], False
             continue
         if line.startswith("Binary files "):
             m = re.match(r"Binary files (.+) and (.+) differ", line)
             path = m.group(2) if m.group(2) != "/dev/null" else m.group(1)
-            path = re.sub(r"^(b/|a/|work/|seed/)", "", path)
+            path = re.sub(rf"^(b/|a/|{re.escape(work)}/|seed/)", "", path)
             files[path] = "BINARY"
             cur, in_hunk = None, False
             continue
@@ -223,18 +230,20 @@ def tree(root):
     return out
 
 
-def compare(fx, tmp):
-    seed, work = fx / "seed", fx / "work"
-    job = json.loads((fx / "job.json").read_text())
-    patch = (fx / "job.patch").read_text(encoding="utf-8")
-    ref = subprocess.run(["diff", "-ruN", "seed", "work"], cwd=fx, capture_output=True, text=True).stdout
-    a, b = normalize(patch, "git"), normalize(ref, "bsd")
+def compare(fx, tmp, suffix=""):
+    """`suffix` "" = shared mode (`work/`, `job.*`), "-wt" = worktree mode."""
+    work_name = "work" + suffix
+    seed, work = fx / "seed", fx / work_name
+    job = json.loads((fx / f"job{suffix}.json").read_text())
+    patch = (fx / f"job{suffix}.patch").read_text(encoding="utf-8")
+    ref = subprocess.run(["diff", "-ruN", "seed", work_name], cwd=fx, capture_output=True, text=True).stdout
+    a, b = normalize(patch, "git"), normalize(ref, "bsd", work_name)
     mismatched = sorted(p for p in set(a) | set(b) if a.get(p) != b.get(p))
     binary = sorted(f["path"] for f in job["files"] if f.get("binary"))
     # The patch applied to a copy of the seed must give the final folder.
-    copy = tmp / (fx.name + "-applied")
+    copy = tmp / (fx.name + suffix + "-applied")
     shutil.copytree(seed, copy)
-    cmd = ["git", "apply", "--whitespace=nowarn"] + [f"--exclude={p}" for p in binary] + [str(fx / "job.patch")]
+    cmd = ["git", "apply", "--whitespace=nowarn"] + [f"--exclude={p}" for p in binary] + [str(fx / f"job{suffix}.patch")]
     applied = subprocess.run(cmd, cwd=copy, capture_output=True, text=True) if patch else None
     got, want = tree(copy), tree(work)
     for p in binary:
@@ -266,6 +275,8 @@ def compare(fx, tmp):
         "job_diff_ms_max": job["job_diff_ms_max"],
         "turn_ok": job["turn_ok"],
         "clipped": job["clipped"],
+        "head_oid": job.get("head_oid"),
+        "same_uncommitted_and_committed": job.get("same_uncommitted_and_committed"),
     }
 
 
@@ -320,6 +331,7 @@ def main():
         app = run_tests("omniget", "jobs::bn4_read::", {}, out)
         m = read_metrics(out)
         per = {}
+        per_wt = {}
         solved = {}
         for name in CODE_TASKS + ["f50"]:
             fx = fixtures / name
@@ -327,6 +339,8 @@ def main():
                 per[name] = {"error": "the Rust harness left no job.json"}
                 continue
             per[name] = compare(fx, tmp)
+            per_wt[name] = (compare(fx, tmp, "-wt") if (fx / "job-wt.json").exists()
+                            else {"error": "the Rust harness left no job-wt.json"})
             if name in tasks:
                 ok, detail = tasks[name].check(fx / "work")
                 solved[name] = {"ok": bool(ok), "detail": detail}
@@ -344,6 +358,12 @@ def main():
     f50 = per.get("f50", {})
     writing = m.get("writing_jobs") or 0
     with_files = m.get("writing_jobs_with_files") or 0
+    wt = [per_wt.get(n, {}) for n in CODE_TASKS]
+    wt_norm = sum(1 for r in wt if r.get("normalized_equal"))
+    wt_applied = sum(1 for r in wt if r.get("patch_applies_byte_for_byte"))
+    wt_status = sum(1 for r in wt if r.get("statuses_ok"))
+    wt_head = sum(1 for r in wt if r.get("head_oid") and r.get("same_uncommitted_and_committed"))
+    wt_f50 = per_wt.get("f50", {})
     goals = [
         goal("job diff == diff -ruN seed/ final/ (normalized), code tasks", f"{norm}/4", norm == 4, "4/4"),
         goal("patch applied to the seed == final folder, byte for byte (text files)", f"{applied}/4", applied == 4, "4/4"),
@@ -365,6 +385,22 @@ def main():
              m.get("control_nosnap") == "ERR_DIFF_UNAVAILABLE", "ERR_DIFF_UNAVAILABLE"),
         goal("the known changes solve their tasks (missions_eval check)", {k: v["ok"] for k, v in solved.items()},
              len(solved) == 4 and all(v["ok"] for v in solved.values()), "4/4"),
+        goal("worktree: diff == diff -ruN seed/ final/ (normalized), code tasks", f"{wt_norm}/4", wt_norm == 4, "4/4"),
+        goal("worktree: patch applied to the seed == final folder (text files)", f"{wt_applied}/4", wt_applied == 4, "4/4"),
+        goal("worktree: A/M/D of every file matches the folders", f"{wt_status}/4", wt_status == 4, "4/4"),
+        goal("worktree: same diff uncommitted and committed, head_oid = the branch commit", f"{wt_head}/4",
+             wt_head == 4, "4/4"),
+        goal("worktree: f50 diff -ruN and git apply agree",
+             {k: wt_f50.get(k) for k in ("files", "normalized_equal", "patch_applies_byte_for_byte")},
+             wt_f50.get("files") == 50 and wt_f50.get("normalized_equal") and wt_f50.get("patch_applies_byte_for_byte"),
+             "50 files, equal"),
+        goal("worktree: worktree_diff with 50 files",
+             {"p50_ms": wt_f50.get("job_diff_ms_p50"), "max_ms": wt_f50.get("job_diff_ms_max")},
+             (wt_f50.get("job_diff_ms_max") or 1e9) < 200, "< 200 ms (max of the reps)"),
+        goal("worktree: writing jobs with a non-empty files list",
+             f"{m.get('wt_writing_jobs_with_files')}/{m.get('wt_writing_jobs')}",
+             (m.get("wt_writing_jobs") or 0) > 0 and m.get("wt_writing_jobs_with_files") == m.get("wt_writing_jobs"),
+             "100%"),
         goal("argv of the turn unchanged (cost per task = B0)", diff or "(empty)", not diff,
              "empty diff of cli_runtime/claude.rs, omniget-cli claude.rs, missions_eval.py"),
     ]
@@ -384,10 +420,10 @@ def main():
         "params": {"timing_reps": args.reps, "reference": "diff -ruN seed work (" + subprocess.run(
             ["diff", "--version"], capture_output=True, text=True).stdout.splitlines()[0] + ")"},
         "not_measured": {"cost_per_task": "unchanged by construction (host-side post-processing; argv goal); "
-                                          "missions_eval.py --real not rerun on purpose",
-                         "worktree_mode": "2.4 (wave 2)"},
+                                          "missions_eval.py --real not rerun on purpose"},
         "runs": {"core": core, "app": app},
         "per_fixture": per,
+        "per_fixture_worktree": per_wt,
         "tasks_solved": solved,
         "metrics": m,
         "goals": goals,

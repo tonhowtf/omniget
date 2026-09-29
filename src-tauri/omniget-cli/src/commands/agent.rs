@@ -125,6 +125,29 @@ fn workspace(arg: Option<String>, no_workspace: bool) -> Option<String> {
     })
 }
 
+/// The body of `POST /v1/agent/run`. `--isolate` asks for a worktree,
+/// `--shared` for the folder itself; neither leaves the app's `auto`.
+fn run_body(
+    agent: &str,
+    prompt: &str,
+    workspace: Option<String>,
+    deadline_min: Option<u32>,
+    isolate: bool,
+    shared: bool,
+    base: Option<String>,
+) -> Value {
+    let mut body = json!({ "agent_id": agent, "prompt": prompt, "workspace": workspace, "deadline_min": deadline_min });
+    if isolate {
+        body["isolation"] = json!("worktree");
+    } else if shared {
+        body["isolation"] = json!("shared");
+    }
+    if let Some(b) = base.filter(|b| !b.trim().is_empty()) {
+        body["base"] = json!(b);
+    }
+    body
+}
+
 fn print_job_line(j: &Value) {
     println!(
         "{:<12} {:<17} {:<8} {:<16} {}",
@@ -179,7 +202,7 @@ async fn follow(bridge: &Bridge, id: &str, json_out: bool) -> anyhow::Result<()>
                 last_state = state.clone();
             }
         }
-        if matches!(state.as_str(), "done" | "failed" | "cancelled") {
+        if matches!(state.as_str(), "done" | "review" | "failed" | "cancelled") {
             if json_out {
                 println!("{}", serde_json::to_string_pretty(&job)?);
             } else {
@@ -203,7 +226,14 @@ async fn follow(bridge: &Bridge, id: &str, json_out: bool) -> anyhow::Result<()>
                     );
                 }
             }
-            if state != "done" {
+            // `review`: it ended well and changed files a person should look at.
+            if state == "review" && !json_out {
+                if let Some(stamp) = job["proof"]["stamp"].as_str() {
+                    eprintln!("proof: {stamp}");
+                }
+                eprintln!("  it changed files: `omniget agent diff {id}` shows them");
+            }
+            if !matches!(state.as_str(), "done" | "review") {
                 std::process::exit(1);
             }
             return Ok(());
@@ -459,6 +489,23 @@ pub enum AgentCommand {
             help = "Stop the job after this many minutes (default: the app setting, 60)"
         )]
         deadline_min: Option<u32>,
+        #[arg(
+            long,
+            conflicts_with = "shared",
+            help = "Run in a git worktree of its own (default: only when another job is writing in the folder)"
+        )]
+        isolate: bool,
+        #[arg(
+            long,
+            help = "Run in the folder itself, waiting for it if another job is writing there"
+        )]
+        shared: bool,
+        #[arg(
+            long,
+            value_name = "REF",
+            help = "Start the worktree from this branch or commit (default: your checkout as it is, uncommitted work included)"
+        )]
+        base: Option<String>,
     },
     /// Keep an agent working until a check passes or the budget runs out;
     /// `--catalog <loop id>` runs a loop of the catalog instead of a prompt
@@ -630,6 +677,9 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             no_workspace,
             detach,
             deadline_min,
+            isolate,
+            shared,
+            base,
             ..
         } => {
             let prompt = match args.as_slice() {
@@ -637,7 +687,18 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
                 _ => bail!("two arguments (`<agent> <prompt>`) need --tool; without it, give only the prompt and pick the roster agent with --agent"),
             };
             let job = bridge
-                .post("/v1/agent/run", json!({ "agent_id": agent, "prompt": prompt, "workspace": workspace(ws, no_workspace), "deadline_min": deadline_min }))
+                .post(
+                    "/v1/agent/run",
+                    run_body(
+                        &agent,
+                        &prompt,
+                        workspace(ws, no_workspace),
+                        deadline_min,
+                        isolate,
+                        shared,
+                        base,
+                    ),
+                )
                 .await?;
             let id = job["id"].as_str().unwrap_or("").to_string();
             if detach {
@@ -898,6 +959,19 @@ mod tests {
         );
         assert_eq!(resolve_token(None, None, Some("ext")), "ext");
         assert_eq!(resolve_token(None, None, None), "");
+    }
+
+    #[test]
+    fn run_body_carries_the_placement() {
+        let plain = run_body("a", "p", Some("/w".into()), None, false, false, None);
+        assert!(plain.get("isolation").is_none() && plain.get("base").is_none());
+        let iso = run_body("a", "p", None, Some(5), true, false, Some("main".into()));
+        assert_eq!(iso["isolation"], "worktree");
+        assert_eq!(iso["base"], "main");
+        assert_eq!(iso["deadline_min"], 5);
+        let shared = run_body("a", "p", None, None, false, true, Some("  ".into()));
+        assert_eq!(shared["isolation"], "shared");
+        assert!(shared.get("base").is_none());
     }
 
     #[test]

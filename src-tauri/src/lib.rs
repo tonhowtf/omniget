@@ -1529,6 +1529,7 @@ pub fn run() {
             commands::llm::jobs::llm_jobs_limits_set,
             commands::llm::jobs::llm_job_explain,
             commands::llm::jobs::llm_job_diff,
+            commands::llm::jobs::llm_job_remove_worktree,
             commands::llm::jobs::llm_ui_focus,
             commands::llm::jobs::sync_llm_notify_strings,
             commands::assist::groups::assist_group_list,

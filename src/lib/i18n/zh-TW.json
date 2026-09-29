@@ -3332,7 +3332,8 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "等待資料夾"
+        "waiting_workspace": "等待資料夾",
+        "review": "待審閱"
       },
       "kind": {
         "run": "Run",
@@ -3439,6 +3440,30 @@
         "legacy_hint": "保留一個版本，讓舊指令碼繼續運作。下一個版本將拒絕它。",
         "legacy_seen": "瀏覽器擴充功能的金鑰於 {{when}} 在 {{route}} 上被使用。請將該指令碼改用具權限範圍的權杖。",
         "curl_hint": "將 OMNIGET_TOKEN 設為具有 jobs:operate 權限範圍的權杖（見下方存取權杖）。"
+      },
+      "isolation": {
+        "label": "寫入位置",
+        "auto": "自動：只有在另一個工作正在該資料夾寫入時才使用獨立 worktree",
+        "worktree": "一律使用獨立的 git worktree",
+        "shared": "直接在資料夾中（排隊等候）"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}}，基於 {{base}}",
+        "gone": "worktree 已移除；分支保留了這些工作。",
+        "remove": "移除 worktree",
+        "removed": "worktree 已移除。",
+        "kept_branch": "worktree 已移除。分支 {{branch}} 保留了該工作的成果。",
+        "saved": "已先將 {{count}} 個未提交的檔案儲存到分支。"
+      },
+      "proof": {
+        "title": "憑證",
+        "summary": "修改了 {{files}} 個檔案 · {{tokens}} 個 token · {{time}}",
+        "check": "{{command}} → 結束碼 {{code}}",
+        "by_host": "由本機上的 OmniGet 依其紀錄蓋章，而非代理程式所寫。"
+      },
+      "review": {
+        "mark": "標記為已審閱"
       }
     },
     "loops": {
@@ -5540,7 +5565,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "待審閱"
         },
         "runner": {
           "label": "Runs with",
@@ -6277,7 +6303,10 @@
       "stale_title": "重新啟動後未回答的問題",
       "stale_hint": "這些問題等待時應用程式關閉了。沒有執行任何動作。請重新開始這一輪以再次詢問。",
       "dismiss": "忽略",
-      "answer_on_card": "請在本頁頂端它的卡片上回答。"
+      "answer_on_card": "請在本頁頂端它的卡片上回答。",
+      "answer_once": "允許一次",
+      "answer_always": "一律允許",
+      "answer_deny": "拒絕"
     },
     "conversation": {
       "status_working": "處理中…",
@@ -6836,7 +6865,10 @@
       "adv_events": "事件",
       "blocked_before_call": "在任何呼叫之前停止：此步驟沒有執行任何內容。",
       "verify_started": "正在背景檢查。結束後結果會顯示在這裡。",
-      "verify_already_running": "此任務已有檢查正在進行。"
+      "verify_already_running": "此任務已有檢查正在進行。",
+      "changes": "變更",
+      "changes_no_job": "此任務尚未執行任何工作。",
+      "changes_job": "工作 {{job}}"
     },
     "log": {
       "loading": "正在載入記錄檔…",
