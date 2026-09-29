@@ -312,8 +312,7 @@ describe("conversations", () => {
   });
 
   it("keeps composer drafts isolated by conversation across selection changes", async () => {
-    invoke.mockRejectedValue("ERR_STUB");
-    await store.loadRoster();
+    await loadTestRoster();
     const [first, second] = store.getAgents();
     const firstId = store.selectAgent(first.id);
     store.setConversationDraft(firstId, "draft for first");
