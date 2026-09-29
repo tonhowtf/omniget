@@ -1757,7 +1757,6 @@
       "unsaved": "These settings are not saved. Testing will save them first; save them before summarizing.",
       "saving": "Saving…",
       "provider_endpoint": "Custom endpoint (local or remote)",
-      "connection_kind": "Connection type: {{kind}}",
       "connection_key": "Connection API key",
       "remove_key": "Remove saved key",
       "keep_key": "Keep saved key",

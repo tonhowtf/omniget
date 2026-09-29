@@ -14,9 +14,28 @@ pub async fn tool_usage_report(days: Option<u32>) -> usage::UsageReport {
 
 // ── Chaves de API (estudo 24) ──
 
+/// A table row plus the flags a settings form reads from it, so a provider
+/// added to the table later cannot be missing from a second list in the UI.
+#[derive(Serialize)]
+pub struct KindView {
+    #[serde(flatten)]
+    kind: ai_keys::Kind,
+    needs_key: bool,
+    accepts_key: bool,
+    base_url_editable: bool,
+}
+
 #[tauri::command]
-pub fn tool_keys_kinds() -> Vec<ai_keys::Kind> {
-    ai_keys::KINDS.to_vec()
+pub fn tool_keys_kinds() -> Vec<KindView> {
+    ai_keys::KINDS
+        .iter()
+        .map(|kind| KindView {
+            needs_key: kind.needs_key(),
+            accepts_key: kind.accepts_key(),
+            base_url_editable: kind.base_url_editable(),
+            kind: kind.clone(),
+        })
+        .collect()
 }
 
 #[tauri::command]

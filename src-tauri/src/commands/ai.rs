@@ -8,15 +8,31 @@ pub fn ai_get_config() -> AiConfigView {
     ai::get().view()
 }
 
+/// `kind` is the provider-table row the settings form picked. With one, the
+/// wire and the default endpoint come from the table; without one (AI off, or
+/// an older form) `provider` stays authoritative.
 #[tauri::command]
 pub fn ai_set_config(
     provider: AiProvider,
+    kind: Option<String>,
     model: String,
     local_base_url: String,
     openai_key: Option<String>,
     anthropic_key: Option<String>,
 ) -> Result<AiConfigView, String> {
-    ai::set(provider, model, local_base_url, openai_key, anthropic_key).map(|config| config.view())
+    let kind = kind
+        .map(|k| k.trim().to_string())
+        .filter(|k| !k.is_empty() && k != "none");
+    match kind {
+        Some(kind) if provider != AiProvider::None => {
+            if ai::provider_for_kind(&kind) != provider {
+                return Err(format!("provider {provider:?} does not match kind {kind}"));
+            }
+            ai::set_kind(&kind, model, local_base_url, openai_key, anthropic_key)
+        }
+        _ => ai::set(provider, model, local_base_url, openai_key, anthropic_key),
+    }
+    .map(|config| config.view())
 }
 
 #[tauri::command]

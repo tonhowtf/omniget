@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   aiSettingsPayload, clearSavedAiSettingsDraft, isAiSettingsDirty, isLoopbackAiEndpoint,
-  readAiSettingsDraft, retainAiSettingsDraft, type AiConfigView, type AiSettingsDraft,
+  providerForKind, readAiSettingsDraft, retainAiSettingsDraft, type AiConfigView, type AiSettingsDraft,
 } from "./settings-ai-form";
 
 const saved: AiConfigView = {
@@ -9,7 +9,7 @@ const saved: AiConfigView = {
   local_base_url: "https://example.invalid/v1", has_openai_key: true, has_anthropic_key: false,
 };
 const draft = (): AiSettingsDraft => ({
-  provider: saved.provider, model: saved.model, localBaseUrl: saved.local_base_url,
+  provider: saved.provider, kind: saved.kind, model: saved.model, localBaseUrl: saved.local_base_url,
   openaiKey: "", anthropicKey: "", removeOpenaiKey: false, removeAnthropicKey: false,
 });
 
@@ -29,6 +29,21 @@ describe("AI settings credential intent", () => {
     const form = { ...draft(), openaiKey: " test-key " };
     expect(aiSettingsPayload(form)).toMatchObject({ openaiKey: "test-key", anthropicKey: null });
     expect(isAiSettingsDirty(form, saved)).toBe(true);
+  });
+
+  it("sends the picked provider-table row and reports a switch as a change", () => {
+    expect(aiSettingsPayload(draft()).kind).toBe("openrouter");
+    expect(isAiSettingsDirty({ ...draft(), kind: "deepseek" }, saved)).toBe(true);
+    expect(aiSettingsPayload({ ...draft(), provider: "none", kind: "" }).kind).toBeNull();
+  });
+
+  it("derives the wire from the table row", () => {
+    const kinds = [{ id: "anthropic", wire: "anthropic" }, { id: "openai", wire: "openai" }, { id: "groq", wire: "openai" }, { id: "gemini", wire: "gemini" }];
+    expect(providerForKind("anthropic", kinds)).toBe("anthropic");
+    expect(providerForKind("openai", kinds)).toBe("openai");
+    expect(providerForKind("groq", kinds)).toBe("local");
+    expect(providerForKind("gemini", kinds)).toBe("local");
+    expect(providerForKind("none", kinds)).toBe("none");
   });
 
   it("does not report a change for endpoint normalization alone", () => {

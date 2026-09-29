@@ -6,9 +6,25 @@
 
   import {
     aiSettingsPayload, clearSavedAiSettingsDraft, isAiSettingsDirty, isLoopbackAiEndpoint,
-    readAiSettingsDraft, retainAiSettingsDraft,
-    type AiProvider as Provider, type AiConfigView as ConfigView, type AiSettingsDraft,
+    providerForKind, readAiSettingsDraft, retainAiSettingsDraft,
+    type AiConfigView as ConfigView, type AiKind, type AiSettingsDraft,
   } from "./settings-ai-form";
+
+  // Model names are not in the provider table, so these are placeholders only:
+  // the field stays free text and whatever the provider accepts is what works.
+  const MODEL_HINTS: Record<string, string> = {
+    openai: "gpt-4o-mini",
+    anthropic: "claude-sonnet-4-5",
+    deepseek: "deepseek-chat",
+    openrouter: "openai/gpt-4o-mini",
+    gemini: "gemini-2.5-flash",
+    groq: "llama-3.3-70b-versatile",
+    xai: "grok-3",
+    mistral: "mistral-large-latest",
+    siliconflow: "deepseek-ai/DeepSeek-V3",
+    newapi: "gpt-4o-mini",
+    ollama: "llama3.2",
+  };
 
   type HistoryEntry = {
     id: number;
@@ -19,7 +35,16 @@
     created_at_ms: number;
   };
 
-  let provider = $state<Provider>("none");
+  // The provider table (ai_keys::KINDS) drives the picker, so every provider
+  // the app can route to is reachable here. The wire follows the row picked.
+  let savedConfig = $state<ConfigView | null>(null);
+  let kinds = $state<AiKind[]>([]);
+  let kind = $state("none");
+  let provider = $derived(providerForKind(kind, kinds));
+  let selectedKind = $derived(kinds.find(k => k.id === kind));
+  let savedKind = $derived(savedConfig ? kindOf(savedConfig) : "none");
+  let acceptsKey = $derived(selectedKind ? selectedKind.accepts_key : kind !== "ollama");
+  let urlEditable = $derived(selectedKind ? selectedKind.base_url_editable : true);
   let model = $state("");
   let localBaseUrl = $state("");
   let openaiKey = $state("");
@@ -32,18 +57,50 @@
   let configLoading = $state(true);
   let saveFailed = $state(false);
 
-  let savedConfig = $state<ConfigView | null>(null);
   let configReady = $state(false);
   let saving = $state(false);
   let testing = $state(false);
   function draft(): AiSettingsDraft {
-    return { provider, model, localBaseUrl, openaiKey, anthropicKey, removeOpenaiKey, removeAnthropicKey };
+    return { provider, kind: kind === "none" ? "" : kind, model, localBaseUrl, openaiKey, anthropicKey, removeOpenaiKey, removeAnthropicKey };
   }
   let configDirty = $derived(isAiSettingsDirty(draft(), savedConfig));
-  let effectiveKind = $derived(
-    savedConfig && provider === savedConfig.provider && localBaseUrl.trim().replace(/\/+$/, "") === savedConfig.local_base_url
-      ? savedConfig.kind : ""
-  );
+  // A stored key belongs to the provider it was saved for: switching drops it.
+  let keyStored = $derived(kind === savedKind);
+  let storedOpenaiKey = $derived(hasOpenaiKey && keyStored);
+  let storedAnthropicKey = $derived(hasAnthropicKey && keyStored);
+
+  /** The row a saved config points at. Older builds kept no kind: a bare endpoint routes as `custom`. */
+  function kindOf(c: ConfigView): string {
+    if (c.provider === "none") return "none";
+    return c.kind || (c.provider === "local" ? "custom" : c.provider);
+  }
+
+  function changeKind(next: string) {
+    if (next === kind) return;
+    kind = next;
+    openaiKey = "";
+    anthropicKey = "";
+    removeOpenaiKey = false;
+    removeAnthropicKey = false;
+    if (savedConfig && next === savedKind) {
+      localBaseUrl = savedConfig.local_base_url;
+      return;
+    }
+    // The endpoint belongs to the provider: a fixed one comes from the table on
+    // save, and only a placeholder-shaped one (ollama, custom, a relay) is typed.
+    const row = kinds.find(k => k.id === next);
+    localBaseUrl = row?.base_url_editable && next === "ollama" ? row.base_url : "";
+  }
+
+  async function loadKinds() {
+    try {
+      const list = await invoke<AiKind[]>("tool_keys_kinds");
+      kinds = Array.isArray(list) ? list : [];
+    } catch {
+      // The picker falls back to the three wires it always had.
+      kinds = [];
+    }
+  }
   let summarizeUrl = $state("");
   let summarizing = $state(false);
   let summaryStyle = $state<"short" | "balanced" | "detailed">("balanced");
@@ -54,7 +111,7 @@
   let clearingHistory = $state(false);
 
   function applyConfig(c: ConfigView) {
-    provider = c.provider;
+    kind = kindOf(c);
     model = c.model;
     localBaseUrl = c.local_base_url;
     hasOpenaiKey = c.has_openai_key;
@@ -76,7 +133,7 @@
       applyConfig(c);
       const retained = readAiSettingsDraft();
       if (retained) {
-        provider = retained.provider;
+        kind = retained.provider === "none" ? "none" : retained.kind || kindOf({ ...c, provider: retained.provider, kind: "" });
         model = retained.model;
         localBaseUrl = retained.localBaseUrl;
         openaiKey = retained.openaiKey;
@@ -115,6 +172,7 @@
   }
 
   onMount(() => {
+    loadKinds();
     loadConfig();
     loadHistory();
   });
@@ -213,21 +271,23 @@
         <label class="setting-label" for="ai-provider">{$t('settings.ai.provider')}</label>
         <span class="setting-path">{$t('settings.ai.provider_desc')}</span>
       </div>
-      <select id="ai-provider" class="input-text select" bind:value={provider} disabled={saving || testing} onchange={(event) => {
-        const next = event.currentTarget.value as Provider;
-        if (next !== provider && (next === "openai" || next === "anthropic")) localBaseUrl = "";
-      }}>
+      <select id="ai-provider" class="input-text select" value={kind} disabled={saving || testing} onchange={(event) => changeKind(event.currentTarget.value)}>
         <option value="none">{$t('settings.ai.provider_none')}</option>
-        <option value="openai">OpenAI</option>
-        <option value="anthropic">Anthropic</option>
-        <option value="local">{$t('settings.ai.provider_endpoint')}</option>
+        {#if kinds.length}
+          {#each kinds as k (k.id)}
+            <option value={k.id}>{k.id === "custom" ? $t('settings.ai.provider_endpoint') : k.name}</option>
+          {/each}
+          {#if kind !== "none" && !kinds.some(k => k.id === kind)}<option value={kind}>{kind}</option>{/if}
+        {:else}
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic</option>
+          <option value="custom">{$t('settings.ai.provider_endpoint')}</option>
+          {#if !["none", "openai", "anthropic", "custom"].includes(kind)}<option value={kind}>{kind}</option>{/if}
+        {/if}
       </select>
     </div>
     {#if provider === "none" && (hasOpenaiKey || hasAnthropicKey)}
       <p class="setting-path wrap">{$t('settings.ai.off_keeps_keys')}</p>
-    {/if}
-    {#if effectiveKind && provider !== "none"}
-      <p class="setting-path wrap">{$t('settings.ai.connection_kind', { kind: effectiveKind })}</p>
     {/if}
 
     {#if provider !== "none"}
@@ -237,20 +297,20 @@
           <label class="setting-label" for="ai-model">{$t('settings.ai.model')}</label>
           <span class="setting-path">{$t('settings.ai.model_desc')}</span>
         </div>
-        <input type="text" class="input-text" placeholder={$t('settings.ai.model_placeholder')} id="ai-model" bind:value={model} disabled={saving || testing} />
+        <input type="text" class="input-text" placeholder={MODEL_HINTS[kind] ?? $t('settings.ai.model_placeholder')} id="ai-model" bind:value={model} disabled={saving || testing} />
       </div>
     {/if}
 
-    {#if provider === "openai" || provider === "local"}
+    {#if (provider === "openai" || provider === "local") && acceptsKey}
       <div class="divider"></div>
       <div class="setting-row" data-setting-key="settings.ai.connection_key">
         <div class="setting-col">
           <label class="setting-label" for="ai-openai-key">{$t('settings.ai.connection_key')}</label>
-          <span class="setting-path wrap" id="ai-openai-key-hint">{removeOpenaiKey ? $t('settings.ai.key_remove_pending') : hasOpenaiKey ? $t('settings.ai.key_set') : $t('settings.ai.key_unset')}</span>
+          <span class="setting-path wrap" id="ai-openai-key-hint">{removeOpenaiKey ? $t('settings.ai.key_remove_pending') : storedOpenaiKey ? $t('settings.ai.key_set') : $t('settings.ai.key_unset')}{#if selectedKind?.env && selectedKind.needs_key} · {selectedKind.env}{/if}</span>
         </div>
         <div class="credential-input">
-          <input id="ai-openai-key" type="password" class="input-text" autocomplete="off" placeholder={hasOpenaiKey && !removeOpenaiKey ? "••••••••" : ""} bind:value={openaiKey} disabled={saving || testing || removeOpenaiKey} aria-describedby="ai-openai-key-hint" />
-          {#if hasOpenaiKey}
+          <input id="ai-openai-key" type="password" class="input-text" autocomplete="off" placeholder={storedOpenaiKey && !removeOpenaiKey ? "••••••••" : ""} bind:value={openaiKey} disabled={saving || testing || removeOpenaiKey} aria-describedby="ai-openai-key-hint" />
+          {#if storedOpenaiKey}
             <button type="button" class="ghost-btn" onclick={() => { removeOpenaiKey = !removeOpenaiKey; openaiKey = ""; }}>
               {removeOpenaiKey ? $t('settings.ai.keep_key') : $t('settings.ai.remove_key')}
             </button>
@@ -264,11 +324,11 @@
       <div class="setting-row" data-setting-key="settings.ai.anthropic_key">
         <div class="setting-col">
           <label class="setting-label" for="ai-anthropic-key">{$t('settings.ai.anthropic_key')}</label>
-          <span class="setting-path wrap" id="ai-anthropic-key-hint">{removeAnthropicKey ? $t('settings.ai.key_remove_pending') : hasAnthropicKey ? $t('settings.ai.key_set') : $t('settings.ai.key_unset')}</span>
+          <span class="setting-path wrap" id="ai-anthropic-key-hint">{removeAnthropicKey ? $t('settings.ai.key_remove_pending') : storedAnthropicKey ? $t('settings.ai.key_set') : $t('settings.ai.key_unset')}</span>
         </div>
         <div class="credential-input">
-          <input id="ai-anthropic-key" type="password" class="input-text" autocomplete="off" placeholder={hasAnthropicKey && !removeAnthropicKey ? "••••••••" : ""} bind:value={anthropicKey} disabled={saving || testing || removeAnthropicKey} aria-describedby="ai-anthropic-key-hint" />
-          {#if hasAnthropicKey}
+          <input id="ai-anthropic-key" type="password" class="input-text" autocomplete="off" placeholder={storedAnthropicKey && !removeAnthropicKey ? "••••••••" : ""} bind:value={anthropicKey} disabled={saving || testing || removeAnthropicKey} aria-describedby="ai-anthropic-key-hint" />
+          {#if storedAnthropicKey}
             <button type="button" class="ghost-btn" onclick={() => { removeAnthropicKey = !removeAnthropicKey; anthropicKey = ""; }}>
               {removeAnthropicKey ? $t('settings.ai.keep_key') : $t('settings.ai.remove_key')}
             </button>
@@ -277,7 +337,7 @@
       </div>
     {/if}
 
-    {#if provider === "local"}
+    {#if provider === "local" && urlEditable}
       <div class="divider"></div>
       <div class="setting-row" data-setting-key="settings.ai.endpoint_url">
         <div class="setting-col">
@@ -285,7 +345,7 @@
           <span class="setting-path wrap">{$t('settings.ai.endpoint_url_desc')}</span>
           {#if localBaseUrl.trim()}<span class="setting-path wrap">{$t(isLoopbackAiEndpoint(localBaseUrl) ? 'settings.ai.endpoint_loopback' : 'settings.ai.endpoint_remote')}</span>{/if}
         </div>
-        <input type="text" class="input-text" placeholder="http://localhost:11434/v1" id="ai-endpoint" bind:value={localBaseUrl} disabled={saving || testing} />
+        <input type="text" class="input-text" placeholder={selectedKind && selectedKind.id !== "custom" ? selectedKind.base_url : "http://localhost:11434/v1"} id="ai-endpoint" bind:value={localBaseUrl} disabled={saving || testing} />
       </div>
     {/if}
 

@@ -1757,7 +1757,6 @@
       "unsaved": "Estos ajustes no están guardados. La prueba los guardará antes de ejecutarse; guárdalos antes de resumir.",
       "saving": "Guardando…",
       "provider_endpoint": "Custom endpoint (local or remote)",
-      "connection_kind": "Connection type: {{kind}}",
       "connection_key": "Connection API key",
       "remove_key": "Remove saved key",
       "keep_key": "Keep saved key",

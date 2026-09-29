@@ -1757,7 +1757,6 @@
       "unsaved": "Ces réglages ne sont pas enregistrés. Le test les enregistrera avant de démarrer ; enregistrez-les avant de résumer.",
       "saving": "Enregistrement…",
       "provider_endpoint": "Custom endpoint (local or remote)",
-      "connection_kind": "Connection type: {{kind}}",
       "connection_key": "Connection API key",
       "remove_key": "Remove saved key",
       "keep_key": "Keep saved key",

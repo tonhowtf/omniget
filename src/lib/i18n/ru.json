@@ -1757,7 +1757,6 @@
       "unsaved": "Настройки не сохранены. Проверка сначала сохранит их; перед созданием краткого содержания сохраните изменения.",
       "saving": "Сохранение…",
       "provider_endpoint": "Custom endpoint (local or remote)",
-      "connection_kind": "Connection type: {{kind}}",
       "connection_key": "Connection API key",
       "remove_key": "Remove saved key",
       "keep_key": "Keep saved key",

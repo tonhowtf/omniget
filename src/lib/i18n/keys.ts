@@ -6380,7 +6380,6 @@ export type TranslationKeys =
   | 'settings.advanced.user_agent_placeholder'
   | 'settings.ai.anthropic_key'
   | 'settings.ai.connection_key'
-  | 'settings.ai.connection_kind'
   | 'settings.ai.discard'
   | 'settings.ai.draft_retained'
   | 'settings.ai.endpoint_loopback'

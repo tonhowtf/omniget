@@ -1757,7 +1757,6 @@
       "unsaved": "Estas configurações ainda não foram salvas. O teste salvará as alterações antes de executar; salve-as antes de resumir.",
       "saving": "Salvando…",
       "provider_endpoint": "Endpoint personalizado (local ou remoto)",
-      "connection_kind": "Tipo de conexão: {{kind}}",
       "connection_key": "Chave de API da conexão",
       "remove_key": "Remover chave salva",
       "keep_key": "Manter chave salva",

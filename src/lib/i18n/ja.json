@@ -1757,7 +1757,6 @@
       "unsaved": "設定はまだ保存されていません。テストの前に保存されます。要約する前に設定を保存してください。",
       "saving": "保存中…",
       "provider_endpoint": "Custom endpoint (local or remote)",
-      "connection_kind": "Connection type: {{kind}}",
       "connection_key": "Connection API key",
       "remove_key": "Remove saved key",
       "keep_key": "Keep saved key",

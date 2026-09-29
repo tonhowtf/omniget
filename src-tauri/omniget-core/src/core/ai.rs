@@ -72,8 +72,20 @@ impl AiConfig {
             AiProvider::None => false,
             AiProvider::Openai => !self.openai_key.is_empty(),
             AiProvider::Anthropic => !self.anthropic_key.is_empty(),
-            AiProvider::Local => !self.local_base_url.is_empty(),
+            // `Local` is every OpenAI-shaped provider that is not api.openai.com,
+            // so the endpoint is what makes it usable. A key is only required by
+            // the rows that take one: a local server answers without it.
+            AiProvider::Local => {
+                !self.local_base_url.is_empty()
+                    && (!self.kind_needs_key() || !self.openai_key.is_empty())
+            }
         }
+    }
+
+    /// Whether the provider this config routes on takes a credential. A config
+    /// without a kind (older builds) routes as `custom`, which does not.
+    fn kind_needs_key(&self) -> bool {
+        crate::core::tools::ai_keys::kind_of(&self.provider_id()).needs_key()
     }
 }
 
@@ -248,6 +260,85 @@ pub fn set(
     persist_current(&previous, &next)?;
     *guard = next.clone();
     Ok(next)
+}
+
+/// Configure the app's AI by picking a row of the provider table in Settings.
+///
+/// The wire is derived from the kind (the same rule as [`provider_for_kind`]),
+/// and a provider whose endpoint is fixed in the table gets it without the form
+/// carrying one. Key fields follow [`set`]: `None` keeps, `Some("")` clears.
+pub fn set_kind(
+    kind: &str,
+    model: String,
+    base_url: String,
+    openai_key: Option<String>,
+    anthropic_key: Option<String>,
+) -> Result<AiConfig, String> {
+    let mut guard = store().lock().unwrap();
+    let previous = guard.clone();
+    let next = apply_kind(&previous, kind, model, base_url, openai_key, anthropic_key);
+    persist_current(&previous, &next)?;
+    *guard = next.clone();
+    Ok(next)
+}
+
+/// The config [`set_kind`] stores, without touching disk.
+///
+/// Switching providers never carries the previous provider's credential over:
+/// both OpenAI-shaped providers share the `openai_key` slot, so a blank key
+/// field on a switch would otherwise send the first provider's key to the
+/// second one's endpoint as a bearer token.
+fn apply_kind(
+    previous: &AiConfig,
+    kind: &str,
+    model: String,
+    base_url: String,
+    openai_key: Option<String>,
+    anthropic_key: Option<String>,
+) -> AiConfig {
+    let kind = kind.trim();
+    let provider = provider_for_kind(kind);
+    // Turning AI off keeps the keys (Settings says so), so coming back from
+    // off is not a switch; the kind recorded before it is gone by then.
+    let switched = previous.provider != AiProvider::None && previous.provider_id() != kind;
+    let mut next = previous.clone();
+    next.provider = provider;
+    next.model = model.trim().to_string();
+    next.local_base_url = match provider {
+        // The OpenAI and Anthropic wires have a fixed endpoint in `chat()`.
+        AiProvider::Openai | AiProvider::Anthropic | AiProvider::None => String::new(),
+        // A row whose table URL is only a shape (custom, a relay) has no
+        // endpoint until the user types one.
+        AiProvider::Local
+            if base_url.trim().is_empty()
+                && kind != "ollama"
+                && crate::core::tools::ai_keys::kind_of(kind).base_url_editable() =>
+        {
+            String::new()
+        }
+        AiProvider::Local => crate::core::tools::ai_keys::app_base_url(kind, &base_url),
+    };
+    let (openai_key, anthropic_key) = match (switched, provider) {
+        (true, AiProvider::Anthropic) => (openai_key, anthropic_key.or(Some(String::new()))),
+        (true, _) => (openai_key.or(Some(String::new())), anthropic_key),
+        (false, _) => (openai_key, anthropic_key),
+    };
+    if let Some(k) = openai_key {
+        next.openai_key = k.trim().to_string();
+    }
+    if let Some(k) = anthropic_key {
+        next.anthropic_key = k.trim().to_string();
+    }
+    if switched
+        || previous.local_base_url != next.local_base_url
+        || previous.openai_key != next.openai_key
+        || previous.anthropic_key != next.anthropic_key
+    {
+        // The vault entry no longer describes what is stored.
+        next.key_id.clear();
+    }
+    next.kind = kind.to_string();
+    next
 }
 
 fn clear_changed_connection_metadata(previous: &AiConfig, next: &mut AiConfig) {
@@ -746,6 +837,152 @@ mod tests {
         assert!(!cfg.is_configured());
         cfg.anthropic_key = "k".to_string();
         assert!(cfg.is_configured());
+    }
+
+    /// Choosing a provider by kind survives the round trip: the wire is derived,
+    /// the id the request is routed on is the kind, and a provider whose endpoint
+    /// is not `api.openai.com` gets its own base URL without the form sending one.
+    #[test]
+    fn a_provider_chosen_by_kind_keeps_its_endpoint_and_its_id() {
+        let cfg = apply_kind(
+            &AiConfig::default(),
+            "deepseek",
+            "deepseek-chat".to_string(),
+            String::new(),
+            Some("k".to_string()),
+            None,
+        );
+        assert_eq!(cfg.provider, AiProvider::Local);
+        assert_eq!(cfg.provider_id(), "deepseek");
+        assert_eq!(cfg.local_base_url, "https://api.deepseek.com");
+        assert!(cfg.is_configured());
+
+        // On the other wires the endpoint is fixed in `chat()` and stays empty.
+        let cfg = apply_kind(
+            &cfg,
+            "anthropic",
+            "m".to_string(),
+            String::new(),
+            None,
+            Some("a".to_string()),
+        );
+        assert_eq!(cfg.provider, AiProvider::Anthropic);
+        assert!(cfg.local_base_url.is_empty());
+    }
+
+    /// Gemini is reached through its OpenAI-compatible route.
+    #[test]
+    fn gemini_by_kind_gets_its_openai_compatible_route() {
+        let cfg = apply_kind(
+            &AiConfig::default(),
+            "gemini",
+            "m".to_string(),
+            String::new(),
+            None,
+            None,
+        );
+        assert_eq!(cfg.provider, AiProvider::Local);
+        assert!(
+            cfg.local_base_url.ends_with("/openai"),
+            "{}",
+            cfg.local_base_url
+        );
+    }
+
+    /// A blank key field keeps the stored key for the same provider, but a
+    /// switch must not send the previous provider's key to the new endpoint.
+    #[test]
+    fn switching_provider_drops_the_previous_credential() {
+        let mut saved = apply_kind(
+            &AiConfig::default(),
+            "openrouter",
+            "m".to_string(),
+            String::new(),
+            Some("sk-or".to_string()),
+            None,
+        );
+        saved.key_id = "vault-1".to_string();
+
+        let same = apply_kind(
+            &saved,
+            "openrouter",
+            "other".to_string(),
+            String::new(),
+            None,
+            None,
+        );
+        assert_eq!(same.openai_key, "sk-or");
+        assert_eq!(same.key_id, "vault-1");
+
+        let switched = apply_kind(
+            &saved,
+            "deepseek",
+            "m".to_string(),
+            String::new(),
+            None,
+            None,
+        );
+        assert!(switched.openai_key.is_empty());
+        assert!(switched.key_id.is_empty());
+        assert!(
+            !switched.is_configured(),
+            "a keyed provider needs its own key"
+        );
+
+        let with_key = apply_kind(
+            &saved,
+            "xai",
+            "m".to_string(),
+            String::new(),
+            Some("sk-xai".to_string()),
+            None,
+        );
+        assert_eq!(with_key.openai_key, "sk-xai");
+    }
+
+    /// A local server answers without a key, and a config from before kinds
+    /// existed (routed as `custom`) stays configured by its endpoint alone.
+    #[test]
+    fn local_servers_are_configured_without_a_key() {
+        let ollama = apply_kind(
+            &AiConfig::default(),
+            "ollama",
+            "llama3.2".to_string(),
+            String::new(),
+            None,
+            None,
+        );
+        assert_eq!(ollama.local_base_url, "http://localhost:11434/v1");
+        assert!(ollama.is_configured());
+
+        let legacy = AiConfig {
+            provider: AiProvider::Local,
+            local_base_url: "http://127.0.0.1:8080/v1".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(legacy.provider_id(), "custom");
+        assert!(legacy.is_configured());
+    }
+
+    /// The flags the settings form reads come from the table row.
+    #[test]
+    fn the_table_carries_the_form_flags() {
+        use crate::core::tools::ai_keys::kind_of;
+
+        assert!(kind_of("deepseek").needs_key());
+        assert!(!kind_of("deepseek").base_url_editable());
+
+        assert!(!kind_of("ollama").needs_key());
+        assert!(!kind_of("ollama").accepts_key());
+        assert!(kind_of("ollama").base_url_editable());
+
+        assert!(!kind_of("custom").needs_key());
+        assert!(kind_of("custom").accepts_key());
+        assert!(kind_of("custom").base_url_editable());
+
+        // A relay is deployed per site: its table URL is a placeholder.
+        assert!(kind_of("newapi").needs_key());
+        assert!(kind_of("newapi").base_url_editable());
     }
 
     #[test]
