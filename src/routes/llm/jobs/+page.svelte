@@ -13,7 +13,8 @@
    * ask inline, and the triggers (cron and webhook) that start jobs on
    * their own, with what they do about missed times.
    */
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
+  import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { getAgents, loadRoster } from "$lib/stores/llm-store.svelte";
@@ -134,6 +135,24 @@
   onMount(() => {
     initJobsStore();
     void loadRoster();
+  });
+
+  // `?job=<id>` (a row of /llm/work): that job opened, whatever the filter.
+  let linkedJob = $derived(page.url.searchParams.get("job"));
+  let linkedRun = $derived(page.url.searchParams.get("run"));
+  /** The link already followed: closing the row afterwards keeps it closed. */
+  let followedJob: string | null = null;
+  $effect(() => {
+    const id = linkedJob;
+    const row = id ? jobs.find((j) => j.id === id) : undefined;
+    if (!row || followedJob === row.id) return;
+    followedJob = row.id;
+    untrack(() => {
+      if (openId === row.id) return;
+      filter = "all";
+      toggle(row);
+      requestAnimationFrame(() => document.getElementById(`job-${row.id}`)?.scrollIntoView({ block: "center" }));
+    });
   });
 
   $effect(() => {
@@ -311,7 +330,7 @@
   </header>
   <SurfaceGuide text={$t("llm.surface.jobs_hint")} href="/help?article=tasks#guide" />
 
-  <RunsPanel />
+  <RunsPanel openRun={linkedRun} />
 
   <details class="creation-panel"><summary>{$t("llm.surface.create")}</summary>
   <section class="surface-card form">
@@ -404,7 +423,7 @@
       <div class="rows">
         {#each visibleJobs as job (job.id)}
           {@const ask = job.state === "waiting_approval" ? asks.find((a) => a.request_id === job.request_id) : undefined}
-          <div class="row" class:open={openId === job.id}>
+          <div class="row" id="job-{job.id}" class:open={openId === job.id}>
             <button type="button" class="row-head" aria-expanded={openId === job.id} onclick={() => toggle(job)}>
               <span class="pill {pickState(job.state)}">{job.state === "interrupted" ? $t("assist.runs.job_interrupted") : $t(`llm.jobs.state.${job.state}`)}</span>
               <span class="kind">{kindLabel(job.kind)}</span>

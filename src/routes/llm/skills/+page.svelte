@@ -24,7 +24,6 @@
     installFromGit,
     installFromRepo,
     installFromZip,
-    isDemoSkills,
     isScannerAvailable,
     isSkillsAvailable,
     isSkillsLoading,
@@ -119,9 +118,7 @@
   </header>
   <SurfaceGuide text={$t("llm.surface.skills_hint")} href="/help?article=skills#guide" />
 
-  {#if isDemoSkills()}
-    <p class="notice" role="status">{$t("llm.skills.demo")}</p>
-  {:else if !isSkillsAvailable()}
+  {#if !isSkillsAvailable()}
     <p class="notice" role="status">{$t("llm.skills.err_unavailable")}</p>
   {/if}
 

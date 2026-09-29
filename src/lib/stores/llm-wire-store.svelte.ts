@@ -90,7 +90,6 @@ export function wireErrorKey(err: unknown): string {
       return "llm.wire.error.auth";
     case "ERR_LLM_NET":
       return "llm.wire.error.net";
-    case "ERR_STUB":
     case "ERR_LLM_STUB":
       return "llm.wire.error.stub";
     default:

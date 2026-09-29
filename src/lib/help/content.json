@@ -159,7 +159,7 @@
     ],
     "expected": "Confira o resultado real na área indicada.",
     "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/local"
+    "action": "/llm/models"
   },
   {
     "id": "local",
@@ -177,7 +177,7 @@
     ],
     "expected": "Check the actual result in the indicated area.",
     "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/local"
+    "action": "/llm/models"
   },
   {
     "id": "api",
@@ -807,7 +807,7 @@
     ],
     "expected": "Проверьте фактический результат в указанном разделе.",
     "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/local"
+    "action": "/llm/models"
   },
   {
     "id": "api",

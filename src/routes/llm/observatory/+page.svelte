@@ -126,9 +126,9 @@
     </div>
   {:else}
     <div class="activity-summary">
-      <a href="/llm/jobs"><strong>{snapshot.agents.filter(a => a.state === "streaming").length}</strong>{$t("llm.observatory.running")}</a>
-      <a href="/llm/jobs"><strong>{snapshot.agents.filter(a => a.state === "waiting_tool").length}</strong>{$t("llm.observatory.waiting")}</a>
-      <a href="/llm/jobs"><strong>{snapshot.agents.filter(a => a.state === "error").length}</strong>{$t("llm.observatory.failures")}</a>
+      <a href="/llm/work"><strong>{snapshot.agents.filter(a => a.state === "streaming").length}</strong>{$t("llm.observatory.running")}</a>
+      <a href="/llm/work"><strong>{snapshot.agents.filter(a => a.state === "waiting_tool").length}</strong>{$t("llm.observatory.waiting")}</a>
+      <a href="/llm/work"><strong>{snapshot.agents.filter(a => a.state === "error").length}</strong>{$t("llm.observatory.failures")}</a>
     </div>
     {#if chain.length}
       <section>

@@ -2772,12 +2772,10 @@
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Accounts",
-      "local": "Local",
       "arena": "Arena",
       "jobs": "Jobs",
       "loops": "Loops"
     },
-    "demo_banner": "Demo data: the LLM backend is not wired yet.",
     "rail": {
       "title": "Agents",
       "unassigned": "Unassigned",
@@ -2785,7 +2783,8 @@
       "new_chat": "New chat",
       "empty": "No agents yet.",
       "no_profile": "No local profile",
-      "search": "Search agents"
+      "search": "Search agents",
+      "load_failed": "无法读取已保存的聊天。"
     },
     "role": {
       "coordinator": "Coordinator",
@@ -2896,14 +2895,11 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "Could not load models: {{error}}"
+      "load_failed": "无法读取你的提供商：{{error}}"
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
       "turn_failed": "The turn could not start."
-    },
-    "local": {
-      "explanation": "Local model management is not available here yet. Configure an existing local provider in Models & Routing."
     },
     "skills": {
       "title": "Skills",
@@ -2911,7 +2907,6 @@
       "installed_title": "Installed",
       "loading": "Reading the installed skills…",
       "empty": "No skill installed yet. Install one from a folder, a zip or a git repository.",
-      "demo": "Demo data — nothing here is installed on this machine.",
       "remove": "Remove",
       "install": "Install",
       "installing": "Installing…",
@@ -2993,7 +2988,6 @@
       "lede": "其他智能体连接的端点，以及 OmniGet 连接的服务器。",
       "half_client": "你使用的服务器",
       "half_server": "你的端点",
-      "demo": "演示服务器：MCP 后端尚未响应。这里的都不是真实连接。",
       "servers": "已连接的服务器",
       "add": "添加服务器",
       "loading": "正在读取已保存的服务器…",
@@ -3282,10 +3276,8 @@
       "undone": "Undone: {{count}} file(s) restored",
       "chat": "Chat",
       "agents": "Agents",
-      "activity": "Activity",
       "configure": "Configure",
       "tasks": "Tasks",
-      "routines": "Routines",
       "performance": "Usage and performance",
       "monitor": "Usage monitor",
       "off": "Off",
@@ -3307,7 +3299,10 @@
       "retro": "Retrospective",
       "installed": "Installed",
       "remote": "Remote access",
-      "wizard": "Project setup"
+      "wizard": "Project setup",
+      "work": "工作",
+      "more": "更多",
+      "loops": "循环"
     },
     "jobs": {
       "lede": "Agent runs that work in the background while you do something else.",
@@ -3351,7 +3346,7 @@
         "run": "Run",
         "chat": "Chat",
         "loop": "Loop",
-        "trigger": "Trigger",
+        "trigger": "定时",
         "mission": "任务"
       },
       "ask": {
@@ -3364,10 +3359,10 @@
         "cli": "在终端中：omniget agent approve {{id}}"
       },
       "trigger": {
-        "title": "Triggers",
-        "lede": "Start a job on a schedule or when a webhook is called.",
-        "empty": "No triggers yet. Create one below.",
-        "new_title": "New trigger",
+        "title": "定时与 Webhook",
+        "lede": "在设定的时间或调用 Webhook 时启动任务。",
+        "empty": "还没有定时任务。在下方创建一个。",
+        "new_title": "新建定时",
         "kind": "Kind",
         "kind_cron": "Schedule",
         "kind_webhook": "Webhook",
@@ -3375,10 +3370,10 @@
         "cron": "Cron line",
         "cron_hint": "Five fields (minute hour day month weekday), or @hourly, @daily, @weekly, @monthly.",
         "body_hint": "{{token}} is replaced by the webhook body.",
-        "create": "Create trigger",
+        "create": "创建定时",
         "enabled": "Enabled",
         "fire": "Fire now",
-        "fired": "Trigger fired",
+        "fired": "定时已启动一个任务",
         "fired_count": "Fired {{count}}×",
         "copy_curl": "Copy curl",
         "catch_up": "应用关闭期间错过的",
@@ -3663,22 +3658,18 @@
       "model": "Connection and model",
       "customize": "Tools and limits",
       "tasks": "Tasks",
-      "routines": "Routines",
       "active": "Running",
       "attention": "Needs attention",
       "done": "Finished",
       "create": "Create a task",
-      "create_routine": "Create a routine",
       "jobs_hint": "Run a task in the background. Open its details to see the result, approve a tool or stop execution.",
       "loops_hint": "Repeat a task until a check passes or its limit is reached. Review the stop conditions before starting.",
       "models_hint": "Connect an API provider, then choose its model for an agent. Chat subscriptions are configured in Connections.",
       "mcp_hint": "Connect a tool, test it, then choose which agents may use it. Adding a connection does not grant permission.",
       "skills_hint": "Skills give agents reusable instructions. Review the source and scan result before installing, then assign the skill to an agent.",
       "observatory_hint": "Inspect measured activity and provider quotas. Missing measurements are unavailable, never zero. Diagnostics run only when you open them.",
-      "local_hint": "Use a local model through a compatible server. Connect the running server and select one of its actual models before creating an agent.",
       "arena_hint": "Model comparison is not available yet. You can choose a model and run a conversation with the current tools.",
       "unavailable_feature": "Not available yet",
-      "local_steps": "Start your local model server|Connect its endpoint in AI settings|Choose the model for an agent",
       "arena_steps": "Select a model|Open a conversation|Review the result",
       "roster_hint": "Start with one agent and give it a clear purpose. Add a team when your task needs it.",
       "suggestion_1": "List my downloads and explain which need attention",
@@ -3691,7 +3682,8 @@
       "search": "Find an agent",
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
-      "mcp_server_hint": "让其他 AI 应用使用 OmniGet：打开服务器，创建只含所需权限的客户端，再把它的代码片段粘贴到该应用中。"
+      "mcp_server_hint": "让其他 AI 应用使用 OmniGet：打开服务器，创建只含所需权限的客户端，再把它的代码片段粘贴到该应用中。",
+      "create_loop": "创建循环"
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",
@@ -3722,7 +3714,7 @@
       "start": "启动超时（秒）",
       "start_desc": "启动后这段时间内一句话都没有的智能体，从未收到提示。",
       "deadline": "任务时间上限（分钟）",
-      "deadline_desc": "每个后台任务（运行、循环的每一轮、例行任务）都会在此停止，除非它设置了自己的上限。",
+      "deadline_desc": "每个后台任务（一次运行、循环的每一轮、定时运行）都会在此停止，除非它设置了自己的上限。",
       "ask_chat": "聊天中问题的等待时间（分钟）",
       "ask_chat_desc": "超时后问题失效：操作不会执行，并会告诉你原因。",
       "ask_job": "任务中问题的等待时间（分钟）",
@@ -5839,6 +5831,53 @@
       "retention_save": "保存",
       "retention_saved": "已保存；更早的记录已删除。",
       "cli_hint": "在终端里读取同一份日志，需要带 audit:read 的令牌。"
+    },
+    "work": {
+      "nav": "全部工作",
+      "lede": "你的智能体为你做的所有事都在一个列表里：先是需要你处理的，然后是运行中、等待中、待审阅和最近完成的。",
+      "badge_needs_you": "需要你 ({{count}})",
+      "badge_running": "{{count}} 个运行中",
+      "badge_review": "{{count}} 个待审阅",
+      "badge_queued": "{{count}} 个排队中",
+      "section": {
+        "needs_you": "需要你",
+        "running": "运行中",
+        "queued": "等待开始",
+        "review": "待审阅",
+        "done": "最近完成"
+      },
+      "pill": {
+        "approval": "需要批准",
+        "input": "需要回答",
+        "decision": "需要决定",
+        "working": "进行中",
+        "failed": "失败",
+        "queued": "排队中",
+        "review": "待审阅",
+        "ready": "完成",
+        "stopped": "已停止"
+      },
+      "source": {
+        "job": "任务",
+        "loop": "循环",
+        "mission": "任务目标",
+        "thread": "会话串",
+        "run": "聊天",
+        "ask": "提问"
+      },
+      "asks_for": "请求使用 {{tool}}",
+      "nothing_waits": "没有需要你处理的事。",
+      "empty": "还没有工作。",
+      "partial": "部分工作无法读取：{{error}}",
+      "notify": {
+        "approval": "需要批准：{{title}}",
+        "input": "需要回答：{{title}}",
+        "decision": "需要决定：{{title}}",
+        "failed": "失败：{{title}}",
+        "ready": "完成：{{title}}",
+        "review": "待审阅：{{title}}",
+        "more": "另有 {{count}} 项在“工作”中"
+      }
     }
   },
   "omni": {
@@ -7109,7 +7148,7 @@
     "auth_origin": {
       "user_ui": "你（任务页面）",
       "chat": "你（来自聊天）",
-      "trigger": "你设置的触发器",
+      "trigger": "你设置的定时任务",
       "external_mcp": "MCP 客户端"
     }
   },

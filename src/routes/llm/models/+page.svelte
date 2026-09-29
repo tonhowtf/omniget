@@ -27,27 +27,31 @@
   let kinds = $state<Kind[]>([]);
   let keys = $state<KeyView[]>([]);
   let signingIn = $state(false);
+  /** Why the providers could not be read: shown with a retry, never an empty list that looks real (U3). */
+  let loadError = $state<string | null>(null);
   let unlistenAuth: (() => void) | null = null;
 
   async function loadKeys() {
     try {
       keys = (await invoke<KeyView[] | null>("tool_keys_list")) ?? keys;
-    } catch {
-      // Keeps whatever the page already showed.
+      loadError = null;
+    } catch (e) {
+      // Keeps whatever the page already showed, and says the read failed.
+      loadError = String(e);
     }
   }
 
-  onMount(async () => {
+  async function loadAll() {
     try {
       kinds = (await invoke<Kind[] | null>("tool_keys_kinds")) ?? [];
-    } catch {
-      kinds = [];
+    } catch (e) {
+      loadError = String(e);
     }
-    try {
-      keys = (await invoke<KeyView[] | null>("tool_keys_list")) ?? [];
-    } catch {
-      keys = [];
-    }
+    await loadKeys();
+  }
+
+  onMount(async () => {
+    await loadAll();
     try {
       const { listen } = await import("@tauri-apps/api/event");
       unlistenAuth = await listen<AuthResult>("llm://openrouter-auth", (message) => {
@@ -60,8 +64,9 @@
           showToast("error", $t("llm.models.openrouter_failed", { error: result?.error ?? "" }));
         }
       });
-    } catch {
+    } catch (e) {
       // No event bridge (browser): the button still reports failures inline.
+      console.warn("models: no OpenRouter sign-in listener", e);
     }
   });
 
@@ -84,8 +89,9 @@
       // `signingIn` stays true until `llm://openrouter-auth` answers: the user is
       // in the browser and there is nothing to do here in the meantime.
       showToast("info", $t("llm.models.openrouter_started"));
-    } catch {
+    } catch (e) {
       signingIn = false;
+      console.warn("models: OpenRouter sign-in did not start", e);
       showToast("error", $t("llm.models.openrouter_unavailable"));
     }
   }
@@ -104,9 +110,16 @@
   </header>
   <SurfaceGuide text={$t("llm.surface.models_hint")} href="/help?article=models#guide" />
 
+  {#if loadError}
+    <p class="notice notice-danger" role="alert">
+      {$t("llm.models.load_failed", { error: loadError })}
+      <button type="button" class="button" onclick={() => void loadAll()}>{$t("llm.surface.retry")}</button>
+    </p>
+  {/if}
+
   <div class="group">
     <div class="group-label">{$t("llm.models.providers")}</div>
-    {#if keys.length === 0}
+    {#if keys.length === 0 && !loadError}
       <div class="group-row">
         <div class="group-row-content">
           <div class="group-row-title">{$t("llm.models.no_providers")}</div>

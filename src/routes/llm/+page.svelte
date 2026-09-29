@@ -18,8 +18,8 @@
     loadConversations,
     loadRooms,
     loadRoster,
+    getConversations,
     selectConversation,
-    seedDemoConversation,
     newConversation,
     selectAgent,
   } from "$lib/stores/llm-store.svelte";
@@ -49,7 +49,6 @@
     // Saved chats (old ones reopen as direct chats, same ids) and rooms load
     // with the roster; nothing here polls.
     void Promise.all([loadRoster(), loadConversations(), loadRooms()]).then(() => {
-      seedDemoConversation();
       rosterReady = true;
     }).catch(() => { rosterError = true; });
     void loadProfile();
@@ -59,6 +58,17 @@
     const requestedAgent = $page.url.searchParams.get("agent");
     if (rosterReady && requestedAgent && agents.some(agent => agent.id === requestedAgent)) {
       untrack(() => selectAgent(requestedAgent));
+    }
+  });
+
+  // `?conversation=<id>` (a chat turn listed under /llm/work) opens that chat.
+  let followedConversation: string | null = null;
+  $effect(() => {
+    const id = $page.url.searchParams.get("conversation");
+    if (!rosterReady || !id || id === followedConversation) return;
+    if (getConversations().some((c) => c.id === id)) {
+      followedConversation = id;
+      untrack(() => selectConversation(id));
     }
   });
 

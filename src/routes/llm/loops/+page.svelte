@@ -5,6 +5,7 @@
    * passes or the round/minute budget runs out.
    */
   import { onMount } from "svelte";
+  import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import { getAgents, loadRoster } from "$lib/stores/llm-store.svelte";
   import {
@@ -52,6 +53,15 @@
   let checkCommand = $state("");
   let creating = $state(false);
   let openId = $state<string | null>(null);
+  // `?loop=<id>` (a row of /llm/work) opens that loop.
+  let linkedLoop = $derived(page.url.searchParams.get("loop"));
+  let followedLoop: string | null = null;
+  $effect(() => {
+    if (linkedLoop && linkedLoop !== followedLoop && loops.some((l) => l.id === linkedLoop)) {
+      followedLoop = linkedLoop;
+      openId = linkedLoop;
+    }
+  });
   /** Re-read on each store change, enough for a quiet elapsed column. */
   let now = $state(Date.now());
 
@@ -105,14 +115,14 @@
 <div class="page page-wide loops-page">
   <header class="page-head">
     <div>
-      <h1 class="page-title">{$t("llm.surface.routines")}</h1>
+      <h1 class="page-title">{$t("llm.tab.loops")}</h1>
       <p class="page-lede">{$t("llm.loops.lede")}</p>
     </div>
   </header>
   <SurfaceGuide text={$t("llm.surface.loops_hint")} href="/help?article=routines#guide" />
   <CatalogLoops />
 
-  <details class="creation-panel"><summary>{$t("llm.surface.create_routine")}</summary>
+  <details class="creation-panel"><summary>{$t("llm.surface.create_loop")}</summary>
   <section class="surface-card form">
     <h2 class="section-header-title">{$t("llm.loops.new_title")}</h2>
     <div class="form-row">

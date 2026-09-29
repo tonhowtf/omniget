@@ -15,7 +15,9 @@
   onMount(async () => {
     try {
       targets = await agentkitTargets();
-    } catch {
+    } catch (e) {
+      // Without targets the catalogue still lists; the log says why none show.
+      console.warn("catalog: could not read the install targets", e);
       targets = [];
     }
   });

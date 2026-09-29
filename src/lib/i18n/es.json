@@ -2772,12 +2772,10 @@
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Accounts",
-      "local": "Local",
       "arena": "Arena",
       "jobs": "Jobs",
       "loops": "Loops"
     },
-    "demo_banner": "Demo data: the LLM backend is not wired yet.",
     "rail": {
       "title": "Agents",
       "unassigned": "Unassigned",
@@ -2785,7 +2783,8 @@
       "new_chat": "New chat",
       "empty": "No agents yet.",
       "no_profile": "No local profile",
-      "search": "Search agents"
+      "search": "Search agents",
+      "load_failed": "No se pudieron leer tus chats guardados."
     },
     "role": {
       "coordinator": "Coordinator",
@@ -2896,14 +2895,11 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "Could not load models: {{error}}"
+      "load_failed": "No se pudieron leer tus proveedores: {{error}}"
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
       "turn_failed": "The turn could not start."
-    },
-    "local": {
-      "explanation": "Local model management is not available here yet. Configure an existing local provider in Models & Routing."
     },
     "skills": {
       "title": "Skills",
@@ -2911,7 +2907,6 @@
       "installed_title": "Installed",
       "loading": "Reading the installed skills…",
       "empty": "No skill installed yet. Install one from a folder, a zip or a git repository.",
-      "demo": "Demo data — nothing here is installed on this machine.",
       "remove": "Remove",
       "install": "Install",
       "installing": "Installing…",
@@ -2993,7 +2988,6 @@
       "lede": "El punto de conexión al que se conectan otros agentes y los servidores a los que se conecta OmniGet.",
       "half_client": "Servidores que usas",
       "half_server": "Tu punto de conexión",
-      "demo": "Servidores de demostración: el backend de MCP aún no responde. Nada de esto es una conexión real.",
       "servers": "Servidores conectados",
       "add": "Añadir un servidor",
       "loading": "Leyendo los servidores guardados…",
@@ -3282,10 +3276,8 @@
       "undone": "Undone: {{count}} file(s) restored",
       "chat": "Chat",
       "agents": "Agents",
-      "activity": "Activity",
       "configure": "Configure",
       "tasks": "Tasks",
-      "routines": "Routines",
       "performance": "Usage and performance",
       "monitor": "Usage monitor",
       "off": "Off",
@@ -3307,7 +3299,10 @@
       "retro": "Retrospective",
       "installed": "Installed",
       "remote": "Remote access",
-      "wizard": "Project setup"
+      "wizard": "Project setup",
+      "work": "Trabajo",
+      "more": "Más",
+      "loops": "Bucles"
     },
     "jobs": {
       "lede": "Agent runs that work in the background while you do something else.",
@@ -3351,7 +3346,7 @@
         "run": "Run",
         "chat": "Chat",
         "loop": "Loop",
-        "trigger": "Trigger",
+        "trigger": "Programada",
         "mission": "Misión"
       },
       "ask": {
@@ -3364,10 +3359,10 @@
         "cli": "Desde una terminal: omniget agent approve {{id}}"
       },
       "trigger": {
-        "title": "Triggers",
-        "lede": "Start a job on a schedule or when a webhook is called.",
-        "empty": "No triggers yet. Create one below.",
-        "new_title": "New trigger",
+        "title": "Programaciones y webhooks",
+        "lede": "Inicia una tarea a horas fijas o cuando se llame a un webhook.",
+        "empty": "Todavía no hay programaciones. Crea una abajo.",
+        "new_title": "Nueva programación",
         "kind": "Kind",
         "kind_cron": "Schedule",
         "kind_webhook": "Webhook",
@@ -3375,10 +3370,10 @@
         "cron": "Cron line",
         "cron_hint": "Five fields (minute hour day month weekday), or @hourly, @daily, @weekly, @monthly.",
         "body_hint": "{{token}} is replaced by the webhook body.",
-        "create": "Create trigger",
+        "create": "Crear programación",
         "enabled": "Enabled",
         "fire": "Fire now",
-        "fired": "Trigger fired",
+        "fired": "La programación inició una tarea",
         "fired_count": "Fired {{count}}×",
         "copy_curl": "Copy curl",
         "catch_up": "Perdidas con la app cerrada",
@@ -3663,22 +3658,18 @@
       "model": "Connection and model",
       "customize": "Tools and limits",
       "tasks": "Tasks",
-      "routines": "Routines",
       "active": "Running",
       "attention": "Needs attention",
       "done": "Finished",
       "create": "Create a task",
-      "create_routine": "Create a routine",
       "jobs_hint": "Run a task in the background. Open its details to see the result, approve a tool or stop execution.",
       "loops_hint": "Repeat a task until a check passes or its limit is reached. Review the stop conditions before starting.",
       "models_hint": "Connect an API provider, then choose its model for an agent. Chat subscriptions are configured in Connections.",
       "mcp_hint": "Connect a tool, test it, then choose which agents may use it. Adding a connection does not grant permission.",
       "skills_hint": "Skills give agents reusable instructions. Review the source and scan result before installing, then assign the skill to an agent.",
       "observatory_hint": "Inspect measured activity and provider quotas. Missing measurements are unavailable, never zero. Diagnostics run only when you open them.",
-      "local_hint": "Use a local model through a compatible server. Connect the running server and select one of its actual models before creating an agent.",
       "arena_hint": "Model comparison is not available yet. You can choose a model and run a conversation with the current tools.",
       "unavailable_feature": "Not available yet",
-      "local_steps": "Start your local model server|Connect its endpoint in AI settings|Choose the model for an agent",
       "arena_steps": "Select a model|Open a conversation|Review the result",
       "roster_hint": "Start with one agent and give it a clear purpose. Add a team when your task needs it.",
       "suggestion_1": "List my downloads and explain which need attention",
@@ -3691,7 +3682,8 @@
       "search": "Find an agent",
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
-      "mcp_server_hint": "Deja que otras apps de IA usen OmniGet: enciende el servidor, crea un cliente solo con los permisos que necesita y pega su fragmento en esa app."
+      "mcp_server_hint": "Deja que otras apps de IA usen OmniGet: enciende el servidor, crea un cliente solo con los permisos que necesita y pega su fragmento en esa app.",
+      "create_loop": "Crear un bucle"
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",
@@ -3722,7 +3714,7 @@
       "start": "Tiempo de arranque (segundos)",
       "start_desc": "Un agente que no dice nada durante este tiempo tras iniciar nunca recibió el prompt.",
       "deadline": "Límite de tiempo del trabajo (minutos)",
-      "deadline_desc": "Todo trabajo en segundo plano (ejecución, ronda de bucle, rutina) se detiene aquí salvo que fije el suyo.",
+      "deadline_desc": "Toda tarea en segundo plano (ejecución, ronda de bucle, ejecución programada) se detiene aquí salvo que fije el suyo.",
       "ask_chat": "Espera de preguntas en el chat (minutos)",
       "ask_chat_desc": "Después la pregunta caduca: la acción no se ejecuta y se te dice por qué.",
       "ask_job": "Espera de preguntas en trabajos (minutos)",
@@ -5839,6 +5831,53 @@
       "retention_save": "Guardar",
       "retention_saved": "Guardado; se borraron las líneas más antiguas.",
       "cli_hint": "el mismo registro desde una terminal, con un token que tenga audit:read."
+    },
+    "work": {
+      "nav": "Todo el trabajo",
+      "lede": "Todo lo que tus agentes hacen por ti en una sola lista: primero lo que te necesita, luego lo que se ejecuta, espera, está listo para revisar o terminó hace poco.",
+      "badge_needs_you": "Te necesita ({{count}})",
+      "badge_running": "{{count}} en ejecución",
+      "badge_review": "{{count}} por revisar",
+      "badge_queued": "{{count}} en cola",
+      "section": {
+        "needs_you": "Te necesita",
+        "running": "En ejecución",
+        "queued": "Esperando para empezar",
+        "review": "Listo para revisar",
+        "done": "Terminado hace poco"
+      },
+      "pill": {
+        "approval": "Requiere aprobación",
+        "input": "Requiere respuesta",
+        "decision": "Requiere decisión",
+        "working": "Trabajando",
+        "failed": "Falló",
+        "queued": "En cola",
+        "review": "Revisar",
+        "ready": "Hecho",
+        "stopped": "Detenido"
+      },
+      "source": {
+        "job": "Tarea",
+        "loop": "Bucle",
+        "mission": "Misión",
+        "thread": "Hilo",
+        "run": "Chat",
+        "ask": "Pregunta"
+      },
+      "asks_for": "pide usar {{tool}}",
+      "nothing_waits": "Nada te está esperando.",
+      "empty": "Todavía no hay trabajo.",
+      "partial": "No se pudo leer parte del trabajo: {{error}}",
+      "notify": {
+        "approval": "Requiere aprobación: {{title}}",
+        "input": "Requiere respuesta: {{title}}",
+        "decision": "Requiere decisión: {{title}}",
+        "failed": "Falló: {{title}}",
+        "ready": "Hecho: {{title}}",
+        "review": "Listo para revisar: {{title}}",
+        "more": "Y {{count}} más en Trabajo"
+      }
     }
   },
   "omni": {
@@ -7109,7 +7148,7 @@
     "auth_origin": {
       "user_ui": "Tú, en la página Misiones",
       "chat": "Tú, desde un chat",
-      "trigger": "Un disparador que configuraste",
+      "trigger": "Una programación que configuraste",
       "external_mcp": "Un cliente MCP"
     }
   },

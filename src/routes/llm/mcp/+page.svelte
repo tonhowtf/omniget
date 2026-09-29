@@ -29,7 +29,6 @@
     getServers,
     getTestingId,
     getTestResult,
-    isDemo,
     isLoading,
     loadServers,
     loadTools,
@@ -182,9 +181,6 @@
       {/if}
     </section>
   {:else}
-    {#if isDemo()}
-      <p class="notice notice-info" role="status">{$t("llm.mcp.demo")}</p>
-    {/if}
     {#if getErrorKey()}
       <p class="notice notice-danger" role="alert">{$t(getErrorKey()!)}</p>
       <button type="button" class="button" disabled={isLoading()} onclick={() => void loadServers(true)}>{$t("llm.surface.retry")}</button>

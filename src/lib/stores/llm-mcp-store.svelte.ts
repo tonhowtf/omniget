@@ -10,15 +10,12 @@
  * 2. **`tools/list` is cached.** Once a server answered, its tools stay in the
  *    store until the user tests again, so opening the grant table twice costs
  *    one connection, not two.
- * 3. **A missing backend is not a failure.** `ERR_STUB` (a command that is not
- *    wired) and `null` (what the screenshot harness answers for an unknown
- *    command) both put the store in demo mode: a pair of example servers, so
- *    the tab is reviewable without a backend. `isDemo()` drives the banner
- *    that says as much, and nothing is presented as real.
+ * 3. **A failure is shown, never dressed as data.** A list the backend cannot
+ *    give stays empty with the error on screen (U4: the example servers of
+ *    the old demo mode are gone; the screenshot harness has its own fixture).
  */
 import { invoke } from "@tauri-apps/api/core";
 import type { AgentDef, GrantMode } from "$lib/llm/types";
-import { saveAgent } from "$lib/stores/llm-store.svelte";
 import {
   applyGrant,
   mcpErrorKey,
@@ -28,62 +25,10 @@ import {
   type McpToolDef,
 } from "$lib/llm/mcp";
 
-// ── Demo data (shown only when the backend is not wired) ────────────────
-
-function demoRows(): McpServerRow[] {
-  return [
-    {
-      config: {
-        id: "filesystem",
-        name: "Filesystem",
-        enabled: true,
-        transport: {
-          kind: "stdio",
-          command: "npx",
-          args: ["-y", "@modelcontextprotocol/server-filesystem", "/Users/demo/Notes"],
-          env: {},
-          cwd: null,
-        },
-      },
-      connected: false,
-      last_error: null,
-      tools: [
-        {
-          name: "read_file",
-          description: "Read the complete contents of a file.",
-          inputSchema: { properties: { path: {} }, required: ["path"] },
-        },
-        {
-          name: "write_file",
-          description: "Create a new file or overwrite an existing one.",
-          inputSchema: { properties: { path: {}, content: {} }, required: ["path", "content"] },
-        },
-        {
-          name: "list_directory",
-          description: "List the files and folders of a directory.",
-          inputSchema: { properties: { path: {} }, required: ["path"] },
-        },
-      ],
-    },
-    {
-      config: {
-        id: "context7",
-        name: "Context7",
-        enabled: false,
-        transport: { kind: "http", url: "https://mcp.context7.com/mcp", headers: {} },
-      },
-      connected: false,
-      last_error: null,
-      tools: [],
-    },
-  ];
-}
-
 // ── State ───────────────────────────────────────────────────────────────
 
 let rows = $state<McpServerRow[]>([]);
 let loading = $state(false);
-let demo = $state(false);
 let available = $state(true);
 let errorKey = $state<string | null>(null);
 let testing = $state<string | null>(null);
@@ -105,12 +50,7 @@ export function isLoading(): boolean {
   return loading;
 }
 
-/** True while the tab is showing the demo pair instead of saved servers. */
-export function isDemo(): boolean {
-  return demo;
-}
-
-/** False once a command answered something other than `ERR_STUB`. */
+/** False once the saved list could not be read or a change was refused. */
 export function isAvailable(): boolean {
   return available;
 }
@@ -130,10 +70,6 @@ export function getTestResult(id: string): McpTestResult | null {
 
 export function getTools(id: string): McpToolDef[] {
   return getServer(id)?.tools ?? [];
-}
-
-function isStub(err: unknown): boolean {
-  return String(err ?? "").includes("ERR_STUB");
 }
 
 /** Normalises both shapes the backend may answer: a list or `{ servers }`. */
@@ -159,23 +95,16 @@ export function loadServers(force = false): Promise<void> {
       const list = toRows(answer);
       if (list) {
         rows = list;
-        demo = false;
         available = true;
         return;
       }
-      // `null`: the screenshot harness, or a backend that does not know the
-      // command yet.
-      rows = demoRows();
-      demo = true;
+      // No list at all: a backend that does not answer.
       available = false;
+      errorKey = mcpErrorKey("ERR_NO_ANSWER");
     })
     .catch((err) => {
-      if (isStub(err)) { rows = demoRows(); demo = true; }
-      else if (demo) { rows = []; demo = false; }
       available = false;
-      // `ERR_STUB` is the backend saying "not wired yet", which the banner
-      // already explains; anything else is a failure worth naming.
-      if (!isStub(err)) errorKey = mcpErrorKey(err);
+      errorKey = mcpErrorKey(err);
     })
     .finally(() => {
       loading = false;
@@ -196,18 +125,12 @@ export async function saveServer(config: McpServerConfig): Promise<boolean> {
     const answer = await invoke<unknown>("llm_mcp_upsert", { config });
     const list = toRows(answer);
     rows = list ?? nextRows;
-    demo = false;
     available = true;
     return true;
   } catch (err) {
-    if (!isStub(err)) {
-      available = false;
-      errorKey = mcpErrorKey(err);
-      return false;
-    }
-    if (!demo) { available = false; errorKey = mcpErrorKey(err); return false; }
-    rows = nextRows;
-    return true; // Explicit demo roster only.
+    available = false;
+    errorKey = mcpErrorKey(err);
+    return false;
   }
 }
 
@@ -221,15 +144,9 @@ export async function removeServer(id: string): Promise<boolean> {
     delete results[id];
     return true;
   } catch (err) {
-    if (!isStub(err)) {
-      available = false;
-      errorKey = mcpErrorKey(err);
-      return false;
-    }
-    if (!demo) { available = false; errorKey = mcpErrorKey(err); return false; }
-    rows = nextRows;
-    delete results[id];
-    return true;
+    available = false;
+    errorKey = mcpErrorKey(err);
+    return false;
   }
 }
 
@@ -245,7 +162,8 @@ export async function testServer(id: string): Promise<McpTestResult | null> {
   try {
     const result = await invoke<McpTestResult | null>("llm_mcp_test", { id });
     if (!result) {
-      // Harness or unknown command: keep whatever the row already showed.
+      // No answer: keep whatever the row already showed, and say so.
+      errorKey = mcpErrorKey("ERR_NO_ANSWER");
       return null;
     }
     results = { ...results, [id]: result };
@@ -263,18 +181,15 @@ export async function testServer(id: string): Promise<McpTestResult | null> {
       elapsed_ms: Date.now() - startedAt,
       error: { code: String(err ?? ""), message: String(err ?? "") },
     };
-    if (!isStub(err)) {
-      results = { ...results, [id]: result };
-      const row = rows.find((r) => r.config.id === id);
-      if (row) {
-        row.connected = false;
-        row.last_error = result.error ?? null;
-      }
-      errorKey = mcpErrorKey(err);
-      available = false;
-      return result;
+    results = { ...results, [id]: result };
+    const row = rows.find((r) => r.config.id === id);
+    if (row) {
+      row.connected = false;
+      row.last_error = result.error ?? null;
     }
-    return null;
+    errorKey = mcpErrorKey(err);
+    available = false;
+    return result;
   } finally {
     testing = null;
   }
@@ -297,10 +212,8 @@ export async function loadTools(id: string, force = false): Promise<McpToolDef[]
     }
     return row.tools;
   } catch (err) {
-    if (!isStub(err)) {
-      row.last_error = { code: String(err ?? ""), message: String(err ?? "") };
-      errorKey = mcpErrorKey(err);
-    }
+    row.last_error = { code: String(err ?? ""), message: String(err ?? "") };
+    errorKey = mcpErrorKey(err);
     return row.tools;
   }
 }
@@ -309,10 +222,7 @@ export async function loadTools(id: string, force = false): Promise<McpToolDef[]
  * Writes one grant into `AgentDef.tools`; `null` clears it.
  *
  * `llm_mcp_grant` is the narrow command — it touches one grant and leaves the
- * rest of the agent alone. When it is not there yet the whole agent is saved
- * through the roster command that already exists, from the same pure
- * `applyGrant`, so the tab works either way and never two writes for one
- * click.
+ * rest of the agent alone; the local copy follows the same pure `applyGrant`.
  */
 export async function setGrant(
   agent: AgentDef,
@@ -330,21 +240,15 @@ export async function setGrant(
     agent.tools = next;
     return true;
   } catch (err) {
-    if (!isStub(err)) {
-      errorKey = mcpErrorKey(err);
-      return false;
-    }
+    errorKey = mcpErrorKey(err);
+    return false;
   }
-  const saved = await saveAgent({ ...agent, tools: next });
-  if (saved) agent.tools = next;
-  return saved;
 }
 
 /** Test seam: drops every bit of state. Nothing to cancel — nothing runs. */
 export function resetMcpStore(): void {
   rows = [];
   loading = false;
-  demo = false;
   available = true;
   errorKey = null;
   testing = null;
