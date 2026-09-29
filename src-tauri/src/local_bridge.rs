@@ -47,6 +47,24 @@ use tauri::Manager;
 /// the most common dev-server / Vite ranges so collisions are rare.
 const PORT_RANGE: std::ops::Range<u16> = 47720..47730;
 
+/// Range for the debug-build dev profile (`main.rs` `use_dev_profile`). It runs
+/// next to the installed app with its own settings, so drawing from
+/// `PORT_RANGE` would let it take the installed app's saved port while that app
+/// is closed; the installed app would then move and save a new port, breaking
+/// the paired extension and MCP configs. Kept clear of 47740, the gateway's
+/// documented listen port.
+const DEV_PORT_RANGE: std::ops::Range<u16> = 47760..47770;
+
+/// The range this process picks from: `DEV_PORT_RANGE` for the dev profile of
+/// a debug build, `PORT_RANGE` everywhere else (always in release).
+fn port_range() -> std::ops::Range<u16> {
+    if cfg!(debug_assertions) && std::env::var("OMNIGET_DEV_PROFILE").ok().as_deref() == Some("1") {
+        DEV_PORT_RANGE
+    } else {
+        PORT_RANGE
+    }
+}
+
 #[derive(Clone)]
 pub struct BridgeState {
     pub app: AppHandle,
@@ -125,13 +143,17 @@ fn bind_with_reuse(port: u16) -> std::io::Result<TcpListener> {
 /// Try to bind a free TCP listener — first the persisted port, then the
 /// preferred range, finally `0` (OS-picked) as last resort.
 async fn bind_listener(preferred: u16) -> std::io::Result<(u16, TcpListener)> {
-    if preferred != 0 {
+    let range = port_range();
+    // A dev profile saved before it had its own range may hold an installed
+    // app's port; move it into the dev range instead of reusing it.
+    let keep_preferred = range != DEV_PORT_RANGE || range.contains(&preferred);
+    if preferred != 0 && keep_preferred {
         if let Ok(listener) = bind_with_reuse(preferred) {
             return Ok((preferred, listener));
         }
     }
 
-    for port in PORT_RANGE {
+    for port in range {
         if let Ok(listener) = bind_with_reuse(port) {
             return Ok((port, listener));
         }
@@ -1007,5 +1029,15 @@ mod tests {
     #[test]
     fn build_pairing_url_uses_loopback_address() {
         assert_eq!(build_pairing_url(47720), "http://127.0.0.1:47720");
+    }
+
+    #[test]
+    fn the_dev_profile_never_draws_an_installed_app_port() {
+        // The browser extension scans PORT_RANGE, so it must stay 47720..47730
+        // (browser-extension/chrome/src/bridge-client.js DEFAULT_PORT_RANGE).
+        assert_eq!(PORT_RANGE, 47720..47730);
+        let (dev, real) = (DEV_PORT_RANGE, PORT_RANGE);
+        assert!(dev.start >= real.end);
+        assert!(!dev.contains(&47740), "the gateway's listen port");
     }
 }

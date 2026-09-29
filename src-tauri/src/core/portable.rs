@@ -36,6 +36,44 @@ pub fn portable_webview_dir_from_env() -> Option<PathBuf> {
     portable_webview_dir(Some(Path::new(&data_dir)))
 }
 
+/// Diretorio do WebView no perfil de dev de um build de debug.
+///
+/// O `main.rs` (`use_dev_profile`) publica `OMNIGET_DEV_PROFILE=1` e aponta
+/// `OMNIGET_DATA_DIR` para a pasta de dev; o WebView fica em `webview/` dentro
+/// dela. `None` fora do perfil de dev, e sempre em build de release.
+pub fn dev_webview_dir_from_env() -> Option<PathBuf> {
+    if !cfg!(debug_assertions) || std::env::var("OMNIGET_DEV_PROFILE").ok().as_deref() != Some("1")
+    {
+        return None;
+    }
+    crate::core::paths::app_data_dir().map(|d| d.join("webview"))
+}
+
+/// Aponta o WebView de uma janela secundaria (pet, bandeja, faixa de limites,
+/// preview, login) para a pasta do perfil de dev.
+///
+/// Sem isso, no Windows e no Linux, essas janelas caem no diretorio padrao do
+/// Tauri, chaveado pelo identifier, que e o mesmo do app instalado: o build de
+/// debug leria e gravaria os cookies de login e o localStorage dele. A janela
+/// principal resolve isso no `setup()` do `lib.rs`. No macOS o wry ignora
+/// `data_directory`, e o binario de dev ja tem a propria pasta do WebKit; em
+/// release nada muda.
+pub fn with_dev_webview_dir<'a, R, M>(
+    builder: tauri::WebviewWindowBuilder<'a, R, M>,
+) -> tauri::WebviewWindowBuilder<'a, R, M>
+where
+    R: tauri::Runtime,
+    M: tauri::Manager<R>,
+{
+    #[cfg(all(debug_assertions, any(windows, target_os = "linux")))]
+    if let Some(dir) = dev_webview_dir_from_env() {
+        if std::fs::create_dir_all(&dir).is_ok() {
+            return builder.data_directory(dir);
+        }
+    }
+    builder
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

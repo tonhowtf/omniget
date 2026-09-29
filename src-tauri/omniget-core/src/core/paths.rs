@@ -44,6 +44,30 @@ pub(crate) fn test_env_lock() -> &'static tokio::sync::RwLock<()> {
     &LOCK
 }
 
+/// Set to `1` to make a debug build of the app use the installed app's profile
+/// again instead of [`dev_profile_dir`].
+pub const DEV_REAL_PROFILE_ENV: &str = "OMNIGET_DEV_REAL_PROFILE";
+
+/// Folder, under the platform data dir, of the profile debug builds use.
+pub const DEV_PROFILE_DIR_NAME: &str = "omniget-dev";
+
+/// The profile a debug build of the app (`pnpm tauri dev`) uses so it never
+/// reads or writes the installed app's: `<platform data dir>/omniget-dev`.
+/// `None` when the profile is already chosen (`OMNIGET_DATA_DIR`, portable
+/// mode) or when `OMNIGET_DEV_REAL_PROFILE=1` asks for the real one. Pure so
+/// the rule can be tested; the app's `main.rs` calls it only in debug builds.
+pub fn dev_profile_dir(
+    data_dir_set: bool,
+    portable: bool,
+    real_profile: Option<&str>,
+    platform_data_dir: Option<&std::path::Path>,
+) -> Option<std::path::PathBuf> {
+    if data_dir_set || portable || real_profile.map(str::trim) == Some("1") {
+        return None;
+    }
+    platform_data_dir.map(|d| d.join(DEV_PROFILE_DIR_NAME))
+}
+
 fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
     if src.is_dir() {
         std::fs::create_dir_all(dst)?;
@@ -161,6 +185,36 @@ pub fn redact_private_paths(text: &str, keep: Option<&std::path::Path>) -> Strin
         i += ch.len_utf8();
     }
     out
+}
+
+#[cfg(test)]
+mod dev_profile_tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn debug_builds_get_their_own_profile_next_to_the_real_one() {
+        let base = Path::new("/home/u/.local/share");
+        assert_eq!(
+            dev_profile_dir(false, false, None, Some(base)),
+            Some(base.join("omniget-dev"))
+        );
+        // Anything other than `1` is not an opt-out.
+        assert_eq!(
+            dev_profile_dir(false, false, Some("0"), Some(base)),
+            Some(base.join("omniget-dev"))
+        );
+    }
+
+    #[test]
+    fn a_chosen_profile_or_the_opt_out_wins() {
+        let base = Path::new("/home/u/.local/share");
+        assert_eq!(dev_profile_dir(true, false, None, Some(base)), None);
+        assert_eq!(dev_profile_dir(false, true, None, Some(base)), None);
+        assert_eq!(dev_profile_dir(false, false, Some("1"), Some(base)), None);
+        assert_eq!(dev_profile_dir(false, false, Some(" 1 "), Some(base)), None);
+        assert_eq!(dev_profile_dir(false, false, None, None), None);
+    }
 }
 
 #[cfg(test)]

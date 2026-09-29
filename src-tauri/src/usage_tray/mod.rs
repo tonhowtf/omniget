@@ -558,11 +558,11 @@ pub(crate) fn show_panel(app: &AppHandle, rect: Option<Rect>) {
     }
     let window = match app.get_webview_window(PANEL_LABEL) {
         Some(w) => w,
-        None => match WebviewWindowBuilder::new(
+        None => match crate::core::portable::with_dev_webview_dir(WebviewWindowBuilder::new(
             app,
             PANEL_LABEL,
             WebviewUrl::App("/usage-panel".into()),
-        )
+        ))
         .title("OmniGet")
         .inner_size(PANEL_W, PANEL_H)
         .resizable(false)

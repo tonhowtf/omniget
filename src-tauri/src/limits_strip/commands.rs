@@ -166,20 +166,24 @@ fn build(app: &AppHandle, transparent: bool) -> tauri::Result<WebviewWindow> {
         "/limits-strip?solid=1"
     };
     let (w, h) = placement::window_size(prefs::Edge::Top, 1, false);
-    WebviewWindowBuilder::new(app, WINDOW_LABEL, WebviewUrl::App(url.into()))
-        .title("OmniGet")
-        .inner_size(w, h)
-        .resizable(false)
-        .decorations(false)
-        .transparent(transparent)
-        .shadow(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .visible_on_all_workspaces(true)
-        // Without this the first click on macOS only focuses the window.
-        .accept_first_mouse(true)
-        .focused(false)
-        .build()
+    crate::core::portable::with_dev_webview_dir(WebviewWindowBuilder::new(
+        app,
+        WINDOW_LABEL,
+        WebviewUrl::App(url.into()),
+    ))
+    .title("OmniGet")
+    .inner_size(w, h)
+    .resizable(false)
+    .decorations(false)
+    .transparent(transparent)
+    .shadow(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .visible_on_all_workspaces(true)
+    // Without this the first click on macOS only focuses the window.
+    .accept_first_mouse(true)
+    .focused(false)
+    .build()
 }
 
 pub(crate) fn open_window(app: &AppHandle, p: &StripPrefs) -> Result<(), String> {

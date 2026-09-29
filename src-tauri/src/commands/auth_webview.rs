@@ -79,11 +79,12 @@ pub async fn open_auth_webview(
     let nav_login_host = login_host.clone();
     let nav_login_path = login_path.clone();
 
-    let mut builder =
-        tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::External(parsed_url))
-            .title(&request.title)
-            .inner_size(width, height)
-            .center();
+    let mut builder = crate::core::portable::with_dev_webview_dir(
+        tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::External(parsed_url)),
+    )
+    .title(&request.title)
+    .inner_size(width, height)
+    .center();
 
     if let Some(ref script) = request.initialization_script {
         builder = builder.initialization_script(script);

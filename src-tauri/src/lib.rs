@@ -249,6 +249,17 @@ pub fn run() {
             core::paths::app_data_dir().as_deref(),
         )
     );
+    // Set by `main.rs` when a debug build moved itself off the real profile.
+    #[cfg(debug_assertions)]
+    if std::env::var("OMNIGET_DEV_PROFILE").ok().as_deref() == Some("1") {
+        tracing::info!(
+            "[dev] debug build: using the dev profile at {} instead of the installed app's; set {}=1 to use the real one",
+            core::paths::app_data_dir()
+                .map(|d| d.display().to_string())
+                .unwrap_or_default(),
+            core::paths::DEV_REAL_PROFILE_ENV
+        );
+    }
 
     let mut registry = core::registry::PlatformRegistry::new();
     // gallery-dl first: it claims bulk-listing URLs (profiles, subreddits)
@@ -295,8 +306,9 @@ pub fn run() {
         world: std::sync::OnceLock::new(),
     };
 
-    // A second profile (`OMNIGET_DATA_DIR` set by hand, not by portable mode)
-    // is its own app: own settings, own bridge port, no single-instance lock.
+    // A second profile (`OMNIGET_DATA_DIR` set by hand or by the debug-build dev
+    // profile in `main.rs`, not by portable mode) is its own app: own settings,
+    // own bridge port, no single-instance lock.
     let second_profile = std::env::var_os("OMNIGET_DATA_DIR").is_some()
         && std::env::var("OMNIGET_PORTABLE").ok().as_deref() != Some("1");
     let builder = tauri::Builder::default();
@@ -383,7 +395,16 @@ pub fn run() {
                 // WKWebView: incluir daria a impressao de cobrir um caso que
                 // nao esta coberto.
                 #[cfg(any(windows, target_os = "linux"))]
-                if let Some(webview_dir) = core::portable::portable_webview_dir_from_env() {
+                let webview_dir = core::portable::portable_webview_dir_from_env();
+                // The debug-build dev profile (`main.rs`) keeps the WebView's
+                // storage apart from the installed app's too; the other windows
+                // get it from `core::portable::with_dev_webview_dir`. macOS
+                // needs nothing: an unbundled dev binary already gets its own
+                // WebKit folder, named after the executable.
+                #[cfg(all(debug_assertions, any(windows, target_os = "linux")))]
+                let webview_dir = webview_dir.or_else(core::portable::dev_webview_dir_from_env);
+                #[cfg(any(windows, target_os = "linux"))]
+                if let Some(webview_dir) = webview_dir {
                     if let Err(e) = std::fs::create_dir_all(&webview_dir) {
                         tracing::warn!(
                             "[portable] nao foi possivel criar {}: {} — o WebView2 vai usar o diretorio padrao",

@@ -378,24 +378,28 @@ pub async fn pet_open(app: AppHandle) -> Result<serde_json::Value, String> {
         return Ok(state_value(true, &prefs));
     }
 
-    let window = WebviewWindowBuilder::new(&app, WINDOW_LABEL, WebviewUrl::App("/pet".into()))
-        .title("Omni")
-        .inner_size(PET_W, PET_H)
-        .resizable(false)
-        .decorations(false)
-        .transparent(true)
-        .shadow(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .visible_on_all_workspaces(true)
-        // Without this the first click on macOS only focuses the window, so
-        // dragging the pet would always take two gestures.
-        .accept_first_mouse(true)
-        .focused(false)
-        .build()
-        // A compositor with no ARGB visual is the common reason this fails, and
-        // it is exactly the case the in-app fallback exists for.
-        .map_err(|e| format!("{ERR_UNSUPPORTED}: {e}"))?;
+    let window = crate::core::portable::with_dev_webview_dir(WebviewWindowBuilder::new(
+        &app,
+        WINDOW_LABEL,
+        WebviewUrl::App("/pet".into()),
+    ))
+    .title("Omni")
+    .inner_size(PET_W, PET_H)
+    .resizable(false)
+    .decorations(false)
+    .transparent(true)
+    .shadow(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .visible_on_all_workspaces(true)
+    // Without this the first click on macOS only focuses the window, so
+    // dragging the pet would always take two gestures.
+    .accept_first_mouse(true)
+    .focused(false)
+    .build()
+    // A compositor with no ARGB visual is the common reason this fails, and
+    // it is exactly the case the in-app fallback exists for.
+    .map_err(|e| format!("{ERR_UNSUPPORTED}: {e}"))?;
 
     park(&window, prefs.corner)?;
     if prefs.click_through {
