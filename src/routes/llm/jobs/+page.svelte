@@ -147,17 +147,10 @@
   onMount(() => {
     initJobsStore();
     void loadRoster();
-    // `?job=<id>` (a company run links here) opens that job.
-    const wanted = new URLSearchParams(location.search).get("job");
-    if (wanted) {
-      openId = wanted;
-      void refreshDetail(wanted);
-      void refreshDiff(wanted);
-      void markJobSeen(wanted);
-    }
   });
 
-  // `?job=<id>` (a row of /llm/work): that job opened, whatever the filter.
+  // `?job=<id>` (a row of /llm/work, a company run): that job opened,
+  // whatever the filter.
   let linkedJob = $derived(page.url.searchParams.get("job"));
   let linkedRun = $derived(page.url.searchParams.get("run"));
   /** The link already followed: closing the row afterwards keeps it closed. */

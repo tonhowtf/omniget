@@ -197,6 +197,23 @@ describe("deriveWork", () => {
     expect(summarize(items).needsYou).toBe(1);
   });
 
+  it("lists a company's heartbeat run as a job linked to the company, and to the job while it asks", () => {
+    const items = deriveWork(
+      input({
+        jobs: [
+          job("hb", "running", { kind: "company", conversation_id: "company:co1:st1:0", prompt: "You are Ana, CEO at Acme.\nmore" }),
+          job("ask", "waiting_approval", { kind: "company", conversation_id: "company:co1:st2:0" }),
+        ],
+      }),
+    );
+    const byKey = Object.fromEntries(items.map((i) => [i.key, i]));
+    expect(byKey["job:hb"].href).toBe("/llm/company/co1/activity");
+    expect(byKey["job:hb"].title).toBe("You are Ana, CEO at Acme.");
+    expect(byKey["job:hb"].section).toBe("running");
+    expect(byKey["job:ask"].href).toBe("/llm/jobs?job=ask");
+    expect(byKey["job:ask"].section).toBe("needs_you");
+  });
+
   it("folds a loop's round and a mission's turn into their parent instead of listing them twice", () => {
     const items = deriveWork(
       input({

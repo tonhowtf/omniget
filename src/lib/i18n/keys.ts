@@ -4920,6 +4920,8 @@ export type TranslationKeys =
   | 'mcp_connections.catalog'
   | 'mcp_connections.claude_code_hint'
   | 'mcp_connections.client'
+  | 'mcp_connections.company_control'
+  | 'mcp_connections.company_read'
   | 'mcp_connections.compatibility'
   | 'mcp_connections.control'
   | 'mcp_connections.copied'

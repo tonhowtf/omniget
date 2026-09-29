@@ -7318,6 +7318,8 @@
     "local_network": "存取區域網路中的媒體（選用）",
     "transfer": "從所選資料夾傳輸產生的檔案",
     "folder_help": "只能傳輸此資料夾內屬於該用戶端的產出檔案。存取權會過期，並在撤銷此用戶端時終止。",
+    "company_read": "讀取代理人公司",
+    "company_control": "在代理人公司中操作（任務、留言、喚醒）",
     "orchestration_read": "讀取已授權的代理和自己的任務",
     "orchestration_control": "暫停和取消自己的任務",
     "orchestration_create": "在本機執行授權範圍內提議任務",

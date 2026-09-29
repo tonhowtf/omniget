@@ -7318,6 +7318,8 @@
     "local_network": "访问局域网媒体（可选）",
     "transfer": "从所选文件夹传输生成的文件",
     "folder_help": "只能传输此文件夹内属于该客户端的产物。访问权限会过期，并在撤销此客户端时终止。",
+    "company_read": "读取智能体公司",
+    "company_control": "在智能体公司中操作（任务、评论、唤醒）",
     "orchestration_read": "读取已授权的智能体和自有任务",
     "orchestration_control": "暂停和取消自有任务",
     "orchestration_create": "在本地执行授权范围内提议任务",

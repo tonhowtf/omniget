@@ -530,6 +530,14 @@ pub fn route_need(method: &Method, path: &str) -> Option<Need> {
             job: None,
             legacy_ok: false,
         }),
+        // The companies of agents (`omniget company`): a read at the route;
+        // the handler asks `jobs:operate` for a method that writes. New
+        // with the bearer check of 2.1 in place, so never the extension's.
+        ["v1", "company", "rpc"] if post => Some(Need {
+            scope: SCOPE_JOBS_READ,
+            job: None,
+            legacy_ok: false,
+        }),
         // Creating an agent (with any account) was never something the
         // extension did: its bearer is refused here right away (S2).
         ["v1", "agents", "cli"] if post => Some(Need {
@@ -985,6 +993,14 @@ mod tests {
         // And no handler checks the extension bearer on its own any more.
         assert!(!src.contains("check_bearer("));
         assert!(src.contains("route_layer("));
+        // The companies of agents: one route, behind the same guard.
+        let company = include_str!("local_bridge_company.rs");
+        let company = company.split("#[cfg(test)]").next().unwrap();
+        assert!(!company.contains("check_bearer("));
+        assert_eq!(company.matches(".route(").count(), 1);
+        let need = route_need(&Method::POST, "/v1/company/rpc").expect("company route");
+        assert_eq!(need.scope, SCOPE_JOBS_READ);
+        assert!(!need.legacy_ok, "the extension key never reached companies");
     }
 
     /// A merge once moved `router()`'s `.route_layer(..)` to the end of
@@ -998,6 +1014,10 @@ mod tests {
             (
                 "local_bridge_agentkit.rs",
                 include_str!("local_bridge_agentkit.rs"),
+            ),
+            (
+                "local_bridge_company.rs",
+                include_str!("local_bridge_company.rs"),
             ),
         ] {
             let served = src.split("#[cfg(test)]").next().unwrap();

@@ -7318,6 +7318,8 @@
     "local_network": "Access local network media (optional)",
     "transfer": "Transfer produced files from a selected folder",
     "folder_help": "Only owned artifacts inside this folder may be transferred. Access expires and ends when this client is revoked.",
+    "company_read": "Read the companies of agents",
+    "company_control": "Act in the companies of agents (issues, comments, wakeups)",
     "orchestration_read": "Read granted agents and owned missions",
     "orchestration_control": "Pause and cancel owned missions",
     "orchestration_create": "Propose missions within a local execution grant",

@@ -7318,6 +7318,8 @@
     "local_network": "Acessar mídia da rede local (opcional)",
     "transfer": "Transferir arquivos produzidos de uma pasta escolhida",
     "folder_help": "Somente artefatos deste cliente dentro da pasta podem ser transferidos. O acesso expira e termina quando a conexão é revogada.",
+    "company_read": "Ler as empresas de agentes",
+    "company_control": "Agir nas empresas de agentes (tarefas, comentários, acionamentos)",
     "orchestration_read": "Ler agentes concedidos e missões próprias",
     "orchestration_control": "Pausar e cancelar missões próprias",
     "orchestration_create": "Propor missões dentro de uma concessão local",

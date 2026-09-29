@@ -15,6 +15,16 @@
 //!
 //! On boot, runs the last session left `running` whose job is gone are
 //! closed as `interrupted`, which the core retries with backoff.
+//!
+//! A run's job goes through everything any other job does (waves 2 and 3
+//! of /llm): the job gate (slot, agent share, one writer per folder), the
+//! run mode of its conversation (`auto_edits` unless the person chose
+//! another; the tool questions land in the durable approvals, 2.2), the
+//! /llm budget policies of its agent, account and job (3.3), on top of the
+//! company's own, and the audit log: `job.created` with the company and the
+//! staff member as the actor, `job.ended`, and `job.cancelled` when the
+//! engine stops it. The host never restarts a `company` job by itself
+//! (3.1 leaves the kind out): the retries are the heartbeat's.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -213,9 +223,17 @@ fn ensure_agent(app: &AppHandle, s: &co::org::Staff) -> Result<(), String> {
     }
 }
 
+/// Who the /llm audit log names for a company run's job.
+fn audit_actor(company: &str, staff: &str) -> omniget_core::core::llm::audit::Actor {
+    omniget_core::core::llm::audit::Actor::via("company", &format!("company:{company}:{staff}"))
+}
+
 fn failure_class(job: &crate::jobs::Job) -> Option<String> {
     match job.failure_reason.as_deref() {
         Some("limit") => Some("budget".into()),
+        // The jobs module's name for "the app closed mid-run" (3.1); the
+        // heartbeat retries it like any interrupted run.
+        Some("app_restart") => Some("interrupted".into()),
         Some(r) => Some(r.into()),
         None => {
             let e = job.error.clone().unwrap_or_default().to_lowercase();
@@ -361,7 +379,7 @@ impl Engine {
                     .is_some();
             if blocked {
                 if let (Some(j), Some(jobs)) = (job, crate::jobs::try_get()) {
-                    let _ = jobs.cancel(&j);
+                    let _ = jobs.cancel_by(&j, audit_actor(&run.company_id, &run.staff_id));
                 }
             }
         }
@@ -532,6 +550,7 @@ impl Engine {
         let jobs = crate::jobs::get(&self.app)?;
         let workdir = self.workdir(claim).await;
         let job = jobs.prepare("company", &s.agent_id, &prompt, workdir, Some(conversation))?;
+        crate::llm_audit::job_created(audit_actor(&s.company_id, &s.id), &job);
         self.store
             .run_set_job(&claim.run.id, &job.id, prompt.len())?;
         self.live
@@ -721,7 +740,10 @@ impl Engine {
             .cloned()
             .flatten();
         match (job, crate::jobs::try_get()) {
-            (Some(j), Some(jobs)) => jobs.cancel(&j).map(|_| ()),
+            // The "Stop" button of the company screens: a person.
+            (Some(j), Some(jobs)) => jobs
+                .cancel_by(&j, omniget_core::core::llm::audit::Actor::window())
+                .map(|_| ()),
             _ => self
                 .store
                 .run_finish(

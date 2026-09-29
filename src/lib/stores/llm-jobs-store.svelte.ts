@@ -54,7 +54,7 @@ export type JobProof = {
 
 export type Job = {
   id: string;
-  kind: "run" | "chat" | "loop" | "trigger";
+  kind: "run" | "chat" | "loop" | "trigger" | "company";
   agent_id: string;
   conversation_id: string;
   prompt: string;

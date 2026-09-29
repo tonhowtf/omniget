@@ -308,7 +308,13 @@ export function deriveWork(input: WorkInput): WorkItem[] {
       items.set(`job:${j.id}`, make("job", j.id, titleOf(j.prompt), pill, `/llm?conversation=${encodeURIComponent(j.conversation_id)}`, at, turn, detail));
       continue;
     }
-    const item = make("job", j.id, titleOf(j.prompt), pill, `/llm/jobs?job=${encodeURIComponent(j.id)}`, at, turn, detail);
+    // A company's heartbeat run is a job (`kind = "company"`, conversation
+    // `company:<company>:<staff>:<generation>`): listed like any job, but
+    // linked to the company's runs, unless a tool question waits (answered
+    // on the job's row).
+    const company = j.kind === "company" && pill !== "approval" ? /^company:([^:]+):/.exec(j.conversation_id)?.[1] : undefined;
+    const href = company ? `/llm/company/${encodeURIComponent(company)}/activity` : `/llm/jobs?job=${encodeURIComponent(j.id)}`;
+    const item = make("job", j.id, titleOf(j.prompt), pill, href, at, turn, detail);
     if ((j.attempt ?? 0) > 0) item.resumed = j.attempt;
     items.set(`job:${j.id}`, item);
   }

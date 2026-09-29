@@ -7318,6 +7318,8 @@
     "local_network": "Acceder a medios de la red local (opcional)",
     "transfer": "Transferir archivos generados desde una carpeta seleccionada",
     "folder_help": "Solo se pueden transferir los archivos propios dentro de esta carpeta. El acceso caduca y termina cuando se revoca este cliente.",
+    "company_read": "Leer las empresas de agentes",
+    "company_control": "Actuar en las empresas de agentes (tareas, comentarios, activaciones)",
     "orchestration_read": "Leer los agentes concedidos y las misiones propias",
     "orchestration_control": "Pausar y cancelar misiones propias",
     "orchestration_create": "Proponer misiones dentro de un permiso de ejecución local",

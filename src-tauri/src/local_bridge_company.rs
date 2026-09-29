@@ -1,9 +1,14 @@
-//! `POST /v1/company/rpc` on the local bridge (same bearer): the CLI's door
-//! to the companies of agents. Body `{method, args}`; the answer is the
-//! method's JSON. Owner decisions are refused here (they are taken in the
-//! window), whatever the token.
+//! `POST /v1/company/rpc` on the local bridge: the CLI's door to the
+//! companies of agents. Body `{method, args}`; the answer is the method's
+//! JSON. Owner decisions are refused here (they are taken in the window),
+//! whatever the token.
+//!
+//! Behind the scoped-token guard of the agent routes (2.1): any user token
+//! with `jobs:read` reads, a method that changes something needs
+//! `jobs:operate` too. A job's own token is refused (it reaches only its
+//! job), and the extension key never worked here.
 
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use axum::{Json, Router};
@@ -11,7 +16,7 @@ use omniget_core::core::company::{self as co, rpc};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::local_bridge_llm::check_bearer;
+use crate::bridge_tokens::SCOPE_JOBS_OPERATE;
 
 #[derive(Deserialize)]
 struct Body {
@@ -20,19 +25,31 @@ struct Body {
     args: Value,
 }
 
-pub fn router<S>(token: std::sync::Arc<String>) -> Router<S>
+pub fn router<S>(guard: crate::bridge_tokens::Guard) -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
 {
-    Router::new().route(
-        "/v1/company/rpc",
-        post(move |headers: HeaderMap, Json(body): Json<Body>| {
-            let token = token.clone();
-            async move {
-                if !check_bearer(&headers, &token) {
+    Router::new()
+        .route(
+            "/v1/company/rpc",
+            post(
+                move |principal: Option<axum::Extension<crate::mcp::policy::Principal>>,
+                      Json(body): Json<Body>| async move {
+                let Some(axum::Extension(p)) = principal else {
                     return (
                         StatusCode::UNAUTHORIZED,
-                        Json(json!({"error": "bad or missing bearer token"})),
+                        Json(json!({"error": "no principal"})),
+                    )
+                        .into_response();
+                };
+                let operate = p.scopes.iter().any(|s| s == SCOPE_JOBS_OPERATE);
+                if !operate && !rpc::is_read_only(&body.method) {
+                    return (
+                        StatusCode::FORBIDDEN,
+                        Json(json!({"error": format!(
+                            "this token lacks the {SCOPE_JOBS_OPERATE} scope (`{}` changes the company)",
+                            body.method
+                        )})),
                     )
                         .into_response();
                 }
@@ -43,7 +60,7 @@ where
                     } else {
                         body.args
                     };
-                    let r = rpc::dispatch_external(&st, &body.method, &args, "bridge", true);
+                    let r = rpc::dispatch_external(&st, &body.method, &args, "bridge", operate);
                     if r.is_ok() && !rpc::is_read_only(&body.method) {
                         if let Some(e) = crate::company::get() {
                             e.poke();
@@ -55,9 +72,13 @@ where
                 .map_err(|e| e.to_string())
                 .and_then(|r| r);
                 respond(out)
-            }
-        }),
-    )
+            },
+            ),
+        )
+        .route_layer(axum::middleware::from_fn_with_state(
+            guard,
+            crate::bridge_tokens::guard,
+        ))
 }
 
 fn respond(r: Result<Value, String>) -> Response {
@@ -81,6 +102,71 @@ fn respond(r: Result<Value, String>) -> Response {
 /// BN13-http: the same API calls the Paperclip baseline made over HTTP, through
 /// this router, an axum server on loopback and a reqwest client.
 /// `cargo test -p omniget --lib local_bridge_company::bench -- --nocapture --test-threads=1`
+/// A guard for the tests: `read-token` has `jobs:read`, `operate-token`
+/// has `jobs:operate` too, `ext-key` is the extension's.
+#[cfg(test)]
+pub(crate) fn test_guard() -> crate::bridge_tokens::Guard {
+    use crate::bridge_tokens::{Guard, Kind, LegacyLog, Lookup, TokenView, SCOPE_JOBS_READ};
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+    Guard {
+        extension: Arc::new("ext-key".into()),
+        legacy_allowed: Arc::new(AtomicBool::new(true)),
+        legacy_log: Arc::new(LegacyLog::default()),
+        lookup: Arc::new(|t: &str| {
+            let scopes: &[&str] = match t {
+                "read-token" => &[SCOPE_JOBS_READ],
+                "operate-token" => &[SCOPE_JOBS_READ, SCOPE_JOBS_OPERATE],
+                _ => return Lookup::Unknown,
+            };
+            Lookup::Valid(TokenView {
+                id: t.into(),
+                kind: Kind::User,
+                name: t.into(),
+                scopes: scopes.iter().map(|s| s.to_string()).collect(),
+                job_id: None,
+                expires_ms: None,
+                created_ms: 0,
+                revoked_ms: None,
+                last_used_ms: None,
+                hint: String::new(),
+            })
+        }),
+        now: Arc::new(|| 0),
+    }
+}
+
+#[cfg(test)]
+mod guard_tests {
+    use serde_json::json;
+
+    /// The route is behind the scoped guard (2.1): no token is 401, the
+    /// extension key is 403, and a read token cannot write. None of these
+    /// reach the company store.
+    #[tokio::test]
+    async fn the_company_route_takes_scoped_tokens_only() {
+        let app: axum::Router = super::router(super::test_guard());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        let url = format!("http://{addr}/v1/company/rpc");
+        let http = reqwest::Client::new();
+        let body = json!({"method": "issue.create", "args": {}});
+        let status = |token: Option<&'static str>| {
+            let mut req = http.post(&url).json(&body);
+            if let Some(t) = token {
+                req = req.bearer_auth(t);
+            }
+            async move { req.send().await.unwrap().status().as_u16() }
+        };
+        assert_eq!(status(None).await, 401);
+        assert_eq!(status(Some("ext-key")).await, 403);
+        assert_eq!(status(Some("read-token")).await, 403);
+    }
+}
+
 #[cfg(test)]
 mod bench {
     use std::time::Instant;
@@ -120,8 +206,7 @@ mod bench {
             .unwrap();
         rt.block_on(async {
             let t_boot = Instant::now();
-            let token = std::sync::Arc::new("bench-token".to_string());
-            let app: axum::Router = super::router(token.clone());
+            let app: axum::Router = super::router(super::test_guard());
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let addr = listener.local_addr().unwrap();
             tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
@@ -131,7 +216,7 @@ mod bench {
                 let http = http.clone();
                 let url = url.clone();
                 async move {
-                    let r = http.post(&url).bearer_auth("bench-token").json(&json!({"method": method, "args": args})).send().await.unwrap();
+                    let r = http.post(&url).bearer_auth("operate-token").json(&json!({"method": method, "args": args})).send().await.unwrap();
                     let ok = r.status().is_success();
                     (ok, r.json::<Value>().await.unwrap_or(Value::Null))
                 }
