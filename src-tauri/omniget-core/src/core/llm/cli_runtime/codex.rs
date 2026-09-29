@@ -62,7 +62,11 @@ impl From<super::accounts::SandboxMode> for Sandbox {
     fn from(mode: super::accounts::SandboxMode) -> Self {
         match mode {
             super::accounts::SandboxMode::ReadOnly => Sandbox::ReadOnly,
-            super::accounts::SandboxMode::Write => Sandbox::WorkspaceWrite,
+            // Without a run mode a `full` account is still only a write one:
+            // `danger-full-access` comes from `run_mode::codex_flags` alone.
+            super::accounts::SandboxMode::Write | super::accounts::SandboxMode::Full => {
+                Sandbox::WorkspaceWrite
+            }
         }
     }
 }
@@ -74,6 +78,9 @@ pub struct CodexArgs {
     pub sandbox: Sandbox,
     /// `codex exec resume <id>`: continue an earlier thread.
     pub resume: Option<String>,
+    /// The run mode's flags (`run_mode::codex_flags`, 2.7). When set they
+    /// replace `--sandbox <sandbox>`; empty = the account's sandbox alone.
+    pub permission: Vec<String>,
 }
 
 /// Builds the argv. The trailing `-` makes Codex read the prompt from stdin,
@@ -87,8 +94,12 @@ pub fn argv(args: &CodexArgs) -> Vec<String> {
     out.push("--json".into());
     // Turns in a plain directory must not be refused for not being a repo.
     out.push("--skip-git-repo-check".into());
-    out.push("--sandbox".into());
-    out.push(args.sandbox.as_str().into());
+    if args.permission.is_empty() {
+        out.push("--sandbox".into());
+        out.push(args.sandbox.as_str().into());
+    } else {
+        out.extend(args.permission.iter().cloned());
+    }
     if let Some(model) = &args.model {
         out.push("-m".into());
         out.push(model.clone());
@@ -135,6 +146,10 @@ pub fn render_prompt(messages: &[Message]) -> String {
 pub struct CodexParser {
     started: AtomicBool,
     errored: AtomicBool,
+    /// Said next to a call Codex declined (2.7, S5): `codex exec` has no
+    /// approval surface, so a declined call is a denial the user must see
+    /// with its reason.
+    denial_note: Option<String>,
 }
 
 impl Default for CodexParser {
@@ -148,6 +163,29 @@ impl CodexParser {
         Self {
             started: AtomicBool::new(false),
             errored: AtomicBool::new(false),
+            denial_note: None,
+        }
+    }
+
+    /// The reason given next to a declined call (the turn's run mode).
+    pub fn with_denial_note(mut self, note: String) -> Self {
+        self.denial_note = Some(note);
+        self
+    }
+
+    fn declined(&self, item: &Value, out: &mut Vec<CliSignal>) {
+        if item.get("status").and_then(Value::as_str) != Some("declined") {
+            return;
+        }
+        if let Some((id, _)) = tool_identity(item) {
+            let note = self.denial_note.clone().unwrap_or_else(|| {
+                "[OmniGet] Denied: Codex declined this call under its sandbox and approval policy, and `codex exec` cannot ask a person.".into()
+            });
+            out.push(CliSignal::Event(TurnEvent::ToolResult {
+                id,
+                content: note,
+                is_error: true,
+            }));
         }
     }
 
@@ -278,11 +316,13 @@ fn item_completed(parser: &CodexParser, item: &Value, out: &mut Vec<CliSignal>) 
                 }));
                 out.push(CliSignal::Event(TurnEvent::ToolCallEnd { id }));
             }
+            parser.declined(item, out);
         }
         "command_execution" | "mcp_tool_call" | "collab_tool_call" | "web_search" => {
             if let Some((id, _)) = tool_identity(item) {
                 out.push(CliSignal::Event(TurnEvent::ToolCallEnd { id }));
             }
+            parser.declined(item, out);
         }
         _ => {}
     }
@@ -366,6 +406,7 @@ mod tests {
             cwd: Some("/repo".into()),
             sandbox: Sandbox::ReadOnly,
             resume: None,
+            permission: Vec::new(),
         });
         assert_eq!(argv.first().map(String::as_str), Some("exec"));
         assert_eq!(argv.last().map(String::as_str), Some("-"));
@@ -399,7 +440,7 @@ mod tests {
         assert_eq!(Sandbox::ReadOnly.as_str(), "read-only");
         assert_eq!(Sandbox::WorkspaceWrite.as_str(), "workspace-write");
         assert_eq!(Sandbox::default(), Sandbox::ReadOnly);
-        for mode in [SandboxMode::ReadOnly, SandboxMode::Write] {
+        for mode in [SandboxMode::ReadOnly, SandboxMode::Write, SandboxMode::Full] {
             let joined = argv(&CodexArgs {
                 sandbox: mode.into(),
                 ..CodexArgs::default()

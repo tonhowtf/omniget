@@ -30,6 +30,14 @@ use tauri::AppHandle;
 
 use crate::jobs::{self, LoopDef};
 
+/// Who called (the guard put it there), for the audit line of a route that
+/// writes its own (2.8).
+type Caller = Option<axum::Extension<crate::mcp::policy::Principal>>;
+
+fn caller(p: &Caller) -> omniget_core::core::llm::audit::Actor {
+    crate::llm_audit::actor_of(p.as_ref().map(|e| &e.0), "http")
+}
+
 #[derive(Clone)]
 pub struct JobsBridgeState {
     pub token: std::sync::Arc<String>,
@@ -97,6 +105,10 @@ struct RunBody {
     /// disk, uncommitted work included.
     #[serde(default)]
     base: Option<String>,
+    /// `approval_required | auto_edits | auto | full_access` (2.7); absent
+    /// = `approval_required`: a job started from outside asks first (D2).
+    #[serde(default)]
+    run_mode: Option<String>,
 }
 
 pub fn router<S>(state: JobsBridgeState) -> Router<S>
@@ -197,6 +209,7 @@ where
                         "deadline_min": b.deadline_min,
                         "isolation": b.isolation,
                         "base": b.base,
+                        "run_mode": b.run_mode,
                     });
                     match cmds.execute(&c, &body) {
                         Ok((r, _)) => {
@@ -269,10 +282,17 @@ where
         .route(
             "/v1/agent/loop",
             post(
-                move |headers: HeaderMap, Json(def): Json<LoopDef>| async move {
-                    guarded!(s3, headers, |j: std::sync::Arc<jobs::Jobs>| ok(
-                        j.loop_create(def)
-                    ))
+                move |headers: HeaderMap, who: Caller, Json(mut def): Json<LoopDef>| async move {
+                    // A Loop started from outside asks first unless told (D2).
+                    def.run_mode.get_or_insert(jobs::RunMode::ApprovalRequired);
+                    guarded!(s3, headers, |j: std::sync::Arc<jobs::Jobs>| ok(j
+                        .loop_create(def)
+                        .inspect(|l| omniget_core::core::llm::audit::log(
+                            caller(&who),
+                            "loop.created",
+                            omniget_core::core::llm::audit::Entity::loop_(&l.id),
+                            json!({ "agent_id": l.agent_id, "run_mode": l.run_mode, "max_rounds": l.max_rounds }),
+                        ))))
                 },
             ),
         )
@@ -292,7 +312,7 @@ where
         )
         .route(
             "/v1/agents/cli",
-            post(move |headers: HeaderMap, Json(b): Json<Value>| async move {
+            post(move |headers: HeaderMap, who: Caller, Json(b): Json<Value>| async move {
                 guarded!(s9, headers, |_j: std::sync::Arc<jobs::Jobs>| {
                     use omniget_core::core::llm::agent::{
                         AgentDef, AgentRole, ModelPolicy, RuntimeKind,
@@ -320,11 +340,18 @@ where
                         },
                         skin: None,
                     };
+                    let (id, cli, account) = (text("id", "claude-code"), text("cli", "claude"), text("account", ""));
                     ok(s9
                         .app
                         .state::<crate::AppState>()
                         .llm
                         .roster_create(agent)
+                        .inspect(|_| omniget_core::core::llm::audit::log(
+                            caller(&who),
+                            "agent.created",
+                            omniget_core::core::llm::audit::Entity::agent(&id),
+                            json!({ "cli": cli, "account": account }),
+                        ))
                         .map(|r| r.len()))
                 })
             }),
@@ -440,9 +467,9 @@ where
         .route(
             "/v1/jobs/{id}/cancel",
             post(
-                move |Path(id): Path<String>, headers: HeaderMap| async move {
+                move |Path(id): Path<String>, headers: HeaderMap, who: Caller| async move {
                     guarded!(s7, headers, |j: std::sync::Arc<jobs::Jobs>| ok(
-                        j.cancel(&id)
+                        j.cancel_by(&id, caller(&who))
                     ))
                 },
             ),
@@ -476,6 +503,13 @@ where
                     }
                 },
             ),
+        )
+        // The audit log (2.8): `omniget audit --since 1d`. Scope `audit:read`.
+        .route(
+            "/v1/audit",
+            get(move |RawQuery(query): RawQuery| async move {
+                crate::llm_audit::http_list(query.as_deref())
+            }),
         )
         .route(
             "/v1/loops",
@@ -587,9 +621,11 @@ where
         .route(
             "/v1/jobs/{id}/hunks/discard",
             post(
-                move |Path(id): Path<String>, headers: HeaderMap, Json(b): Json<DiscardHunkBody>| async move {
+                move |Path(id): Path<String>, headers: HeaderMap, who: Caller, Json(b): Json<DiscardHunkBody>| async move {
                     let j = with_jobs!(r2, headers);
-                    answer(j.discard_hunk(&id, &b.hunk_id, &b.patch).await)
+                    answer(j.discard_hunk(&id, &b.hunk_id, &b.patch).await.inspect(|_| {
+                        crate::llm_audit::job_reviewed(caller(&who), "job.hunk_discarded", &id, json!({ "hunk_id": b.hunk_id }))
+                    }))
                 },
             ),
         )
@@ -637,7 +673,7 @@ where
             })
             .post({
                 let r = r6b;
-                move |Path(id): Path<String>, headers: HeaderMap, body: Option<Json<IntegrateBody>>| async move {
+                move |Path(id): Path<String>, headers: HeaderMap, who: Caller, body: Option<Json<IntegrateBody>>| async move {
                     let j = with_jobs!(r, headers);
                     let b = body.map(|Json(b)| b).unwrap_or_default();
                     let strategy = match omniget_core::core::vcs::integrate::Strategy::parse(
@@ -648,6 +684,12 @@ where
                     };
                     match j.integrate(&id, strategy).await {
                         Ok((outcome, job)) => {
+                            crate::llm_audit::job_reviewed(
+                                caller(&who),
+                                "job.integrated",
+                                &id,
+                                json!({ "strategy": strategy, "status": outcome.status }),
+                            );
                             let ok = matches!(outcome.status.as_str(), "merged" | "up_to_date");
                             let body = json!({ "outcome": outcome, "job": job });
                             if ok {
@@ -670,9 +712,11 @@ where
         )
         .route(
             "/v1/jobs/{id}/discard",
-            post(move |Path(id): Path<String>, headers: HeaderMap| async move {
+            post(move |Path(id): Path<String>, headers: HeaderMap, who: Caller| async move {
                 let j = with_jobs!(r7, headers);
-                answer(j.discard_work(&id).await)
+                answer(j.discard_work(&id).await.inspect(|_| {
+                    crate::llm_audit::job_reviewed(caller(&who), "job.discarded", &id, json!({}))
+                }))
             }),
         )
         .route(

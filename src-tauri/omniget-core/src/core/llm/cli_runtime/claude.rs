@@ -120,7 +120,7 @@ pub fn effort_level(raw: &str) -> Option<&'static str> {
 pub fn permission_mode(sandbox: super::accounts::SandboxMode) -> &'static str {
     match sandbox {
         super::accounts::SandboxMode::ReadOnly => "plan",
-        super::accounts::SandboxMode::Write => "acceptEdits",
+        super::accounts::SandboxMode::Write | super::accounts::SandboxMode::Full => "acceptEdits",
     }
 }
 
@@ -133,6 +133,34 @@ impl ClaudeArgs {
     }
 }
 
+/// The permission half of the argv, in one place (2.7): who answers the
+/// prompts and the `--permission-mode` of the turn's run mode
+/// (`run_mode::claude_permission`). `scripts/llm/missions_eval.py`
+/// (`permission_flags`) mirrors exactly this function.
+pub fn permission_flags(prompt_tool: Option<&str>, mode: Option<&str>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    match prompt_tool {
+        // Prompts go to OmniGet's user through the projection.
+        Some(tool) => {
+            out.push("--permission-prompts".into());
+            out.push("host".into());
+            out.push("--permission-prompt-tool".into());
+            out.push(tool.to_string());
+        }
+        // Nobody is at the keyboard: anything that would prompt is denied
+        // instead of hanging the turn forever (and the parser says why).
+        None => {
+            out.push("--permission-prompts".into());
+            out.push("none".into());
+        }
+    }
+    if let Some(mode) = mode {
+        out.push("--permission-mode".into());
+        out.push(mode.into());
+    }
+    out
+}
+
 /// Builds the argv. Pure, so the test can pin the flags of a version.
 pub fn argv(args: &ClaudeArgs) -> Vec<String> {
     let mut out: Vec<String> = vec![
@@ -141,25 +169,10 @@ pub fn argv(args: &ClaudeArgs) -> Vec<String> {
         "stream-json".into(),
         "--verbose".into(),
     ];
-    match &args.permission_prompt_tool {
-        // Prompts go to OmniGet's user through the projection.
-        Some(tool) => {
-            out.push("--permission-prompts".into());
-            out.push("host".into());
-            out.push("--permission-prompt-tool".into());
-            out.push(tool.clone());
-        }
-        // Nobody is at the keyboard: anything that would prompt is denied
-        // instead of hanging the turn forever.
-        None => {
-            out.push("--permission-prompts".into());
-            out.push("none".into());
-        }
-    }
-    if let Some(mode) = args.permission_mode {
-        out.push("--permission-mode".into());
-        out.push(mode.into());
-    }
+    out.extend(permission_flags(
+        args.permission_prompt_tool.as_deref(),
+        args.permission_mode,
+    ));
     if args.partial_messages {
         out.push("--include-partial-messages".into());
     }
@@ -295,6 +308,13 @@ pub struct ClaudeParser {
     started: AtomicBool,
     errored: AtomicBool,
     tool_blocks: Mutex<HashMap<u64, String>>,
+    /// The turn asked for `--permission-mode auto`: `system/init` must say
+    /// `auto`, or the user is told the turn runs in another mode (SP2).
+    expect_auto: bool,
+    /// Said next to every call the CLI denied (2.7, S5).
+    denial_note: String,
+    /// Tool calls whose denial already carries the note.
+    explained: Mutex<std::collections::HashSet<String>>,
 }
 
 impl ClaudeParser {
@@ -304,7 +324,25 @@ impl ClaudeParser {
             started: AtomicBool::new(false),
             errored: AtomicBool::new(false),
             tool_blocks: Mutex::new(HashMap::new()),
+            expect_auto: false,
+            denial_note: "[OmniGet] Denied: the CLI refused this call under its permission mode and nobody could be asked.".into(),
+            explained: Mutex::new(std::collections::HashSet::new()),
         }
+    }
+
+    /// The turn's run mode as the parser needs it: whether `auto` was asked
+    /// for, and the reason to give next to a denial.
+    pub fn with_permission(mut self, expect_auto: bool, denial_note: String) -> Self {
+        self.expect_auto = expect_auto;
+        self.denial_note = denial_note;
+        self
+    }
+
+    fn explain(&self, id: &str) -> bool {
+        self.explained
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(id.to_string())
     }
 
     fn take_start(&self, id: &str, out: &mut Vec<CliSignal>) {
@@ -336,6 +374,18 @@ impl LineParser for ClaudeParser {
                 if let Some(id) = value.get("session_id").and_then(Value::as_str) {
                     self.take_start(id, &mut out);
                     out.push(CliSignal::Session(id.to_string()));
+                }
+                if self.expect_auto && value.get("subtype").and_then(Value::as_str) == Some("init")
+                {
+                    let got = value
+                        .get("permissionMode")
+                        .and_then(Value::as_str)
+                        .unwrap_or("unknown");
+                    if got != "auto" {
+                        out.push(CliSignal::Event(TurnEvent::TextDelta {
+                            text: crate::core::llm::run_mode::auto_fallback_note(got),
+                        }));
+                    }
                 }
             }
             "stream_event" => {
@@ -386,6 +436,24 @@ impl LineParser for ClaudeParser {
                 }
             }
             "result" => {
+                // A denial the tool result did not carry (another wording, or
+                // no result at all) still gets its reason, once per call.
+                for denial in value
+                    .get("permission_denials")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    if let Some(id) = denial.get("tool_use_id").and_then(Value::as_str) {
+                        if self.explain(id) {
+                            out.push(CliSignal::Event(TurnEvent::ToolResult {
+                                id: id.to_string(),
+                                content: self.denial_note.clone(),
+                                is_error: true,
+                            }));
+                        }
+                    }
+                }
                 if let Some(usage) = result_usage(&value) {
                     out.push(CliSignal::Event(TurnEvent::Usage { usage }));
                 }
@@ -464,7 +532,7 @@ impl LineParser for ClaudeParser {
                     let Some(id) = block.get("tool_use_id").and_then(Value::as_str) else {
                         continue;
                     };
-                    let content = match block.get("content") {
+                    let mut content = match block.get("content") {
                         Some(Value::String(text)) => text.clone(),
                         Some(Value::Array(parts)) => parts
                             .iter()
@@ -473,13 +541,21 @@ impl LineParser for ClaudeParser {
                             .join("\n"),
                         _ => String::new(),
                     };
+                    let is_error = block
+                        .get("is_error")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false);
+                    if is_error
+                        && crate::core::llm::run_mode::looks_denied(&content)
+                        && self.explain(id)
+                    {
+                        content.push_str("\n\n");
+                        content.push_str(&self.denial_note);
+                    }
                     out.push(CliSignal::Event(TurnEvent::ToolResult {
                         id: id.to_string(),
                         content,
-                        is_error: block
-                            .get("is_error")
-                            .and_then(Value::as_bool)
-                            .unwrap_or(false),
+                        is_error,
                     }));
                 }
             }

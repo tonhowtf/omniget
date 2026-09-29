@@ -6,6 +6,7 @@
 
 pub mod acp;
 pub mod agent;
+pub mod audit;
 pub mod brain;
 pub mod broker;
 pub mod budget;
@@ -27,6 +28,7 @@ pub mod prune;
 pub mod review;
 pub mod roster_store;
 pub mod router;
+pub mod run_mode;
 pub mod runtime;
 pub mod snapshot;
 pub mod sse;

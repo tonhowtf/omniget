@@ -667,9 +667,15 @@ async fn handle_inbound(
             let preview = format!("{title}\n{raw}");
             let label = format!("acp:{kind}");
             let subject = json!({ "command": title });
+            // The conversation's run mode answers what it allows without a
+            // question (2.7); a stored deny rule still wins.
+            let preallowed = super::run_mode::of(conversation)
+                .and_then(|m| super::run_mode::acp_preallowed(m, kind))
+                .unwrap_or(false);
             let answer = match super::perm::decide(agent_id, &label, &subject) {
                 Some(super::perm::Action::Allow) => Answer::Once,
                 Some(super::perm::Action::Deny) => Answer::Deny,
+                _ if preallowed => Answer::Once,
                 _ => {
                     broker
                         .ask_user(agent_id, request_id, &call_id, &label, &preview)

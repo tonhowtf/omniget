@@ -27,6 +27,7 @@ pub mod job_commands;
 pub mod jobs;
 pub mod limits_strip;
 pub mod llm_attention;
+pub mod llm_audit;
 pub mod llm_manager;
 pub mod local_bridge;
 pub mod local_bridge_agentkit;
@@ -373,6 +374,8 @@ pub fn run() {
             // app's store — keychain where the policy allows it — instead of
             // the core's file default. Must run before any secret is read.
             omniget_core::core::secrets::install(std::sync::Arc::new(secrets::AppSecretStore));
+            // The /llm audit log (2.8) is open before any job or question.
+            crate::llm_audit::boot(app.handle());
 
             // A janela principal e criada aqui, e nao pelo `tauri.conf.json`
             // (`"create": false`), porque so daqui da para passar
@@ -1417,6 +1420,10 @@ pub fn run() {
             commands::llm::jobs::llm_trigger_fire,
             commands::llm::chat::llm_permission_rules_get,
             commands::llm::chat::llm_permission_rules_set,
+            commands::llm::chat::llm_conversation_run_mode,
+            commands::llm::chat::llm_conversation_run_mode_set,
+            llm_audit::llm_audit_list,
+            llm_audit::llm_audit_retention_set,
             commands::llm::chat::llm_switch_model,
             commands::llm::models::llm_models_list,
             commands::llm::observatory::llm_telemetry_snapshot,

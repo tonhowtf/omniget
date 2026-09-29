@@ -56,6 +56,18 @@ enum Commands {
         #[command(subcommand)]
         command: commands::agent::AgentCommand,
     },
+    /// The /llm audit log of the app: who did what to jobs, questions, grants, tokens and agents
+    Audit {
+        #[arg(long, default_value = "1d", help = "How far back: 30m, 12h, 1d, 2w")]
+        since: String,
+        #[arg(
+            long,
+            help = "Only actions starting with this (job., ask.answered, token.)"
+        )]
+        action: Option<String>,
+        #[arg(long, default_value = "200")]
+        limit: usize,
+    },
     /// Short reference texts: `omniget guide agents` (delegating to your agents)
     Guide {
         /// Topic (none = the list)
@@ -178,6 +190,13 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Wmb { command } => {
             commands::wmb::execute(command, cli.json).await?;
+        }
+        Commands::Audit {
+            since,
+            action,
+            limit,
+        } => {
+            commands::audit::execute(since, action, limit, cli.json).await?;
         }
         Commands::Claude {
             account,

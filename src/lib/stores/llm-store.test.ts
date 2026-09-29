@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { fakeTurnEvents, splitChunks } from "$lib/llm/fake-turn";
+import { fakeTurnEvents, splitChunks, TEST_ROSTER } from "./llm-store.fixture";
 import type { TurnEvent } from "$lib/llm/types";
 
 const invoke = vi.fn();
@@ -17,8 +17,8 @@ function runFrame(): void {
 }
 
 beforeAll(async () => {
-  // The stub backend makes `sendMessage` play a fake turn on a timer; with fake
-  // timers it never fires unless a test asks, so each test drives the stream.
+  // Timers (the reconcile grace) only fire when a test asks: each test drives
+  // the stream by hand.
   vi.useFakeTimers();
   vi.stubGlobal("$state", <T>(value: T) => value);
   vi.stubGlobal("$derived", <T>(value: T) => value);
@@ -44,11 +44,20 @@ function manualScheduler(run: () => void): () => void {
   };
 }
 
+/** The fixture roster as the backend's answer; other commands answer `null`. */
+async function loadTestRoster(): Promise<void> {
+  invoke.mockImplementation((cmd: string) =>
+    Promise.resolve(cmd === "llm_roster_list" ? structuredClone(TEST_ROSTER) : null),
+  );
+  await store.loadRoster();
+}
+
 async function startTurn(): Promise<string> {
   store.setFrameScheduler(manualScheduler);
   invoke.mockImplementation((cmd: string) => {
-    if (cmd === "llm_roster_list") return Promise.reject("ERR_STUB");
-    return Promise.reject("ERR_STUB");
+    if (cmd === "llm_roster_list") return Promise.resolve(structuredClone(TEST_ROSTER));
+    if (cmd === "llm_turn_start") return Promise.resolve("req-test");
+    return Promise.resolve(null);
   });
   await store.loadRoster();
   const agentId = store.getAgents()[0].id;
@@ -64,31 +73,23 @@ describe("roster", () => {
     invoke.mockResolvedValue([]);
     await store.loadRoster();
     expect(store.getAgents()).toEqual([]);
-    expect(store.isDemoRoster()).toBe(false);
+    expect(store.getErrorKey()).toBeNull();
   });
-  it("does not substitute demo agents for a failed real read", async () => {
+  it("does not substitute agents for a failed read, and says it failed", async () => {
     invoke.mockRejectedValue("ERR_IO");
     await store.loadRoster();
     expect(store.getAgents()).toEqual([]);
-    expect(store.isDemoRoster()).toBe(false);
+    expect(store.isRosterAvailable()).toBe(false);
+    expect(store.getErrorKey()).toBe("llm.err.turn_failed");
   });
   it("preserves the effective model when the backend refuses a switch", async () => {
-    invoke.mockRejectedValue("ERR_STUB");
-    await store.loadRoster();
+    await loadTestRoster();
     store.selectAgent(store.getAgents()[0].id);
     const previous = store.getActiveConversation()?.model;
     invoke.mockRejectedValue("ERR_LLM_PROVIDER");
     expect(await store.switchModel({ provider: "new", model: "missing" })).toBe(false);
     expect(store.getActiveConversation()?.model).toEqual(previous);
   });
-  it("falls back to the demo roster on ERR_STUB and keeps the section usable", async () => {
-    invoke.mockRejectedValue("ERR_STUB");
-    await store.loadRoster();
-    expect(store.getAgents().length).toBeGreaterThan(0);
-    expect(store.isDemoRoster()).toBe(true);
-    expect(store.isRosterAvailable()).toBe(false);
-  });
-
   it("uses the backend roster when it answers", async () => {
     const agent = {
       id: "a1",
@@ -101,15 +102,15 @@ describe("roster", () => {
     invoke.mockResolvedValue([agent]);
     await store.loadRoster();
     expect(store.getAgents()).toEqual([agent]);
-    expect(store.isDemoRoster()).toBe(false);
     expect(store.isRosterAvailable()).toBe(true);
   });
 
-  it("treats the harness `null` answer as unavailable, not as a crash", async () => {
+  it("treats a `null` answer as unavailable, shown, with no agents invented", async () => {
     invoke.mockResolvedValue(null);
     await store.loadRoster();
-    expect(store.isDemoRoster()).toBe(true);
-    expect(store.getAgents().length).toBeGreaterThan(0);
+    expect(store.getAgents()).toEqual([]);
+    expect(store.isRosterAvailable()).toBe(false);
+    expect(store.getErrorKey()).toBe("llm.err.unavailable");
   });
 });
 
@@ -118,7 +119,7 @@ describe("turn launch recovery", () => {
     let finishStart!: (value: string) => void;
     const started = new Promise<string>(resolve => { finishStart = resolve; });
     invoke.mockImplementation((cmd: string) => {
-      if (cmd === "llm_roster_list") return Promise.reject("ERR_STUB");
+      if (cmd === "llm_roster_list") return Promise.resolve(structuredClone(TEST_ROSTER));
       if (cmd === "llm_turn_start") return started;
       return Promise.resolve(null);
     });
@@ -300,8 +301,7 @@ describe("tool ask (GrantMode::Ask)", () => {
 
 describe("conversations", () => {
   it("reuses the agent's conversation and keeps the model override", async () => {
-    invoke.mockRejectedValue("ERR_STUB");
-    await store.loadRoster();
+    await loadTestRoster();
     const [first, second] = store.getAgents();
     const a = store.selectAgent(first.id);
     store.selectAgent(second.id);
@@ -312,7 +312,7 @@ describe("conversations", () => {
   });
 });
 
-describe("fake turn helpers", () => {
+describe("turn script fixture", () => {
   it("splits without breaking surrogate pairs", () => {
     expect(splitChunks("abcdef", 3)).toEqual(["ab", "cd", "ef"]);
     expect(splitChunks("🙂🙂", 2)).toEqual(["🙂", "🙂"]);
@@ -330,8 +330,7 @@ describe("fake turn helpers", () => {
 
 describe("roster persistence failures", () => {
   async function existingAgent() {
-    invoke.mockRejectedValue("ERR_STUB");
-    await store.loadRoster();
+    await loadTestRoster();
     return structuredClone(store.getAgents()[0]);
   }
 
@@ -624,7 +623,7 @@ describe("a turn whose ending event never arrived", () => {
       if (cmd === "llm_roster_list") return Promise.resolve([agent]);
       if (cmd === "llm_turn_start") return Promise.resolve("run-1");
       if (cmd === "assist_runs_list") return Promise.resolve([{ run_id: "run-1", conversation_id: "x", bot_id: "real", state: "failed", error: "ERR_CLI_ACCOUNT: no CLI account ``" }]);
-      return Promise.reject("ERR_STUB");
+      return Promise.reject("ERR_IO");
     });
     await store.loadRoster();
     const convId = store.selectAgent("real");
@@ -644,7 +643,7 @@ describe("a turn whose ending event never arrived", () => {
       if (cmd === "llm_roster_list") return Promise.resolve([agent]);
       if (cmd === "llm_turn_start") return Promise.resolve("run-2");
       if (cmd === "assist_runs_list") return Promise.resolve([]);
-      return Promise.reject("ERR_STUB");
+      return Promise.reject("ERR_IO");
     });
     await store.loadRoster();
     const convId = store.selectAgent("real");

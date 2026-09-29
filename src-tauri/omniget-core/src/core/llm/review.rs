@@ -670,10 +670,9 @@ mod bn4 {
         String::from_utf8_lossy(&out.stdout).trim().to_string()
     }
 
-    fn data_dir() {
-        let data = std::env::temp_dir().join("omniget-vcs-tests-data");
-        std::fs::create_dir_all(&data).unwrap();
-        unsafe { std::env::set_var("OMNIGET_DATA_DIR", &data) };
+    /// The git tests' data dir, held for the whole test (`test_env`).
+    fn data_dir() -> crate::core::test_env::Shared {
+        crate::core::test_env::shared_data_dir()
     }
 
     fn seed_body(i: usize) -> String {
@@ -773,7 +772,7 @@ mod bn4 {
         if !snapshot::git_available() {
             return eprintln!("git missing: skipped");
         }
-        data_dir();
+        let _data = data_dir();
         // ── worktree mode ──
         let repo = std::env::temp_dir().join(format!("omniget-bn4h-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(repo.join("src")).unwrap();
@@ -900,7 +899,7 @@ mod bn4 {
         if !snapshot::git_available() {
             return eprintln!("git missing: skipped");
         }
-        data_dir();
+        let _data = data_dir();
         let repo = std::env::temp_dir().join(format!("omniget-bn4i-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&repo).unwrap();
         std::fs::write(repo.join("a.txt"), "a1\na2\na3\n").unwrap();
@@ -1074,7 +1073,7 @@ mod bn4 {
         if !snapshot::git_available() {
             return eprintln!("git missing: skipped");
         }
-        data_dir();
+        let _data = data_dir();
         let task = "Add a function calc_total(items) to shop.py that sums price * qty, with a test. Keep the style of the file.";
         let (mut ok, mut resumed, mut only_notes, mut applied) = (0, 0, 0, 0);
         let mut times = Vec::new();

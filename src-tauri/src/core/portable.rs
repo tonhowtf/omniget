@@ -66,56 +66,44 @@ mod tests {
     #[test]
     fn leitor_de_ambiente_exige_as_duas_variaveis() {
         // Um teste so, sequencial: `set_var` e global ao processo e os testes
-        // rodam em paralelo. Nenhum outro teste toca estas duas variaveis, mas
-        // dividir isto em varios seria corrida garantida.
-        let restore = (
-            std::env::var("OMNIGET_PORTABLE").ok(),
-            std::env::var("OMNIGET_DATA_DIR").ok(),
-        );
-
-        std::env::remove_var("OMNIGET_PORTABLE");
-        std::env::remove_var("OMNIGET_DATA_DIR");
+        // rodam em paralelo. Outros testes do crate mexem no
+        // `OMNIGET_DATA_DIR`: todos seguram a mesma trava
+        // (`secrets::test_env`), que tambem devolve os valores no fim.
+        let env = crate::secrets::test_env::EnvGuard::acquire();
+        env.set("OMNIGET_PORTABLE", None);
+        env.set("OMNIGET_DATA_DIR", None);
         assert_eq!(
             portable_webview_dir_from_env(),
             None,
             "sem env nao e portatil"
         );
 
-        std::env::set_var("OMNIGET_PORTABLE", "1");
+        env.set("OMNIGET_PORTABLE", Some("1"));
         assert_eq!(
             portable_webview_dir_from_env(),
             None,
             "portatil sem data dir nao pode inventar caminho"
         );
 
-        std::env::set_var("OMNIGET_DATA_DIR", "   ");
+        env.set("OMNIGET_DATA_DIR", Some("   "));
         assert_eq!(
             portable_webview_dir_from_env(),
             None,
             "data dir em branco nao pode virar caminho relativo"
         );
 
-        std::env::set_var("OMNIGET_DATA_DIR", "/tmp/omniget-portatil/data");
+        env.set("OMNIGET_DATA_DIR", Some("/tmp/omniget-portatil/data"));
         assert_eq!(
             portable_webview_dir_from_env(),
             Some(PathBuf::from("/tmp/omniget-portatil/data/webview"))
         );
 
-        std::env::set_var("OMNIGET_PORTABLE", "0");
+        env.set("OMNIGET_PORTABLE", Some("0"));
         assert_eq!(
             portable_webview_dir_from_env(),
             None,
             "so a string \"1\" liga o modo portatil"
         );
-
-        match restore.0 {
-            Some(v) => std::env::set_var("OMNIGET_PORTABLE", v),
-            None => std::env::remove_var("OMNIGET_PORTABLE"),
-        }
-        match restore.1 {
-            Some(v) => std::env::set_var("OMNIGET_DATA_DIR", v),
-            None => std::env::remove_var("OMNIGET_DATA_DIR"),
-        }
     }
 }
 

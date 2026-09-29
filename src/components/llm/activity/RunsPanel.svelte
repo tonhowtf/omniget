@@ -23,7 +23,7 @@
   import RunDetail from "./RunDetail.svelte";
   import { matchesFilter, promptTitle, runStatus, statusTone, type RunFilter } from "./run-status";
 
-  let { conversationId = null }: { conversationId?: string | null } = $props();
+  let { conversationId = null, openRun = null }: { conversationId?: string | null; openRun?: string | null } = $props();
 
   let agents = $derived(getAgents());
   let all = $derived(getRuns().filter((r) => !conversationId || r.conversation_id === conversationId));
@@ -42,6 +42,15 @@
   const filters: RunFilter[] = ["all", "active", "attention", "done"];
   let visible = $derived(all.filter((r) => matchesFilter(r, filter)));
   let openId = $state<string | null>(null);
+  // A run linked from /llm/work opens once it is in the list.
+  let followed: string | null = null;
+  $effect(() => {
+    if (openRun && openRun !== followed && all.some((r) => r.id === openRun)) {
+      followed = openRun;
+      openId = openRun;
+      filter = "all";
+    }
+  });
 
   onMount(() => {
     initJobsStore();

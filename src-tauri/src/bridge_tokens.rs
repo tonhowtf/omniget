@@ -52,7 +52,15 @@ use crate::mcp::policy::Principal;
 pub const SCOPE_JOBS_READ: &str = "jobs:read";
 pub const SCOPE_JOBS_OPERATE: &str = "jobs:operate";
 pub const SCOPE_APPROVALS_RESPOND: &str = "approvals:respond";
-pub const SCOPES: &[&str] = &[SCOPE_JOBS_READ, SCOPE_JOBS_OPERATE, SCOPE_APPROVALS_RESPOND];
+/// Reading the audit log (2.8): who did what with every token, so neither a
+/// job's token nor the extension key ever has it.
+pub const SCOPE_AUDIT_READ: &str = "audit:read";
+pub const SCOPES: &[&str] = &[
+    SCOPE_JOBS_READ,
+    SCOPE_JOBS_OPERATE,
+    SCOPE_APPROVALS_RESPOND,
+    SCOPE_AUDIT_READ,
+];
 
 /// What the child of a job finds its token in.
 pub const JOB_TOKEN_ENV: &str = "OMNIGET_JOB_TOKEN";
@@ -367,7 +375,9 @@ pub fn ensure_cli_token(db: &Connection, dir: &std::path::Path, now: u64) -> Res
     let path = dir.join(CLI_TOKEN_FILE);
     if let Ok(text) = std::fs::read_to_string(&path) {
         if let Lookup::Valid(v) = lookup(db, text.trim(), now) {
-            if v.kind == Kind::Cli {
+            // A token minted before a scope existed (`audit:read`, 2.8) is
+            // replaced, so the CLI keeps every scope.
+            if v.kind == Kind::Cli && SCOPES.iter().all(|s| v.scopes.iter().any(|x| x == s)) {
                 return Ok(());
             }
         }
@@ -484,6 +494,12 @@ pub fn route_need(method: &Method, path: &str) -> Option<Need> {
         ["v1", "approvals"] if get => need(SCOPE_JOBS_READ, None),
         ["v1", "approvals", _] if post => Some(Need {
             scope: SCOPE_APPROVALS_RESPOND,
+            job: None,
+            legacy_ok: false,
+        }),
+        // The audit log (2.8): its own scope, never the extension's.
+        ["v1", "audit"] if get => Some(Need {
+            scope: SCOPE_AUDIT_READ,
             job: None,
             legacy_ok: false,
         }),
@@ -688,6 +704,8 @@ pub async fn guard(State(g): State<Guard>, mut req: Request, next: Next) -> Resp
     if legacy {
         g.legacy_log.record(&path, (g.now)());
     }
+    // Token use on an agent route (2.8), with the token's id as the actor.
+    crate::llm_audit::on_route(&principal, req.method(), &path, (g.now)());
     req.extensions_mut().insert(principal);
     let mut resp = next.run(req).await;
     if legacy {
@@ -884,7 +902,7 @@ mod tests {
             let end = rest[q + 1..].find('"').unwrap();
             paths.push(rest[q + 1..q + 1 + end].to_string());
         }
-        assert_eq!(paths.len(), 28, "{paths:?}");
+        assert_eq!(paths.len(), 29, "{paths:?}");
         for p in &paths {
             let concrete = p.replace("{id}", "j1").replace("{note}", "n1");
             let ok = route_need(&Method::GET, &concrete).is_some()
@@ -895,6 +913,49 @@ mod tests {
         // And no handler checks the extension bearer on its own any more.
         assert!(!src.contains("check_bearer("));
         assert!(src.contains("route_layer("));
+    }
+
+    /// A merge once moved `router()`'s `.route_layer(..)` to the end of
+    /// another function, leaving the agent routes unguarded. In each file
+    /// that serves agent routes, the guard is the last call of the builder:
+    /// after every `.route(`/`.merge(` of that same function.
+    #[test]
+    fn the_guard_layer_comes_after_every_route() {
+        for (name, src) in [
+            ("local_bridge_jobs.rs", include_str!("local_bridge_jobs.rs")),
+            (
+                "local_bridge_agentkit.rs",
+                include_str!("local_bridge_agentkit.rs"),
+            ),
+        ] {
+            let served = src.split("#[cfg(test)]").next().unwrap();
+            let start = served
+                .find("pub fn router<")
+                .unwrap_or_else(|| panic!("{name}: no router()"));
+            let body = &served[start..];
+            // The function ends at the first line that is just `}`.
+            let end = body.find("\n}\n").unwrap_or(body.len());
+            let body = &body[..end];
+            let layer = body
+                .rfind(".route_layer(")
+                .unwrap_or_else(|| panic!("{name}: router() has no route_layer"));
+            assert!(
+                body[layer..].contains("bridge_tokens::guard"),
+                "{name}: the layer is not the bridge guard"
+            );
+            let last_route = body.rfind(".route(").unwrap_or(0);
+            let last_merge = body.rfind(".merge(").unwrap_or(0);
+            assert!(
+                layer > last_route && layer > last_merge,
+                "{name}: a route of router() comes after its route_layer"
+            );
+            // And no other function of the file carries the guard.
+            assert_eq!(
+                served.matches(".route_layer(").count(),
+                1,
+                "{name}: the guard layer must be router()'s only"
+            );
+        }
     }
 
     #[test]
@@ -913,6 +974,10 @@ mod tests {
         let answer = p("/v1/approvals/apr_1");
         assert_eq!(answer.scope, SCOPE_APPROVALS_RESPOND);
         assert!(!answer.legacy_ok);
+        let audit = g("/v1/audit");
+        assert_eq!(audit.scope, SCOPE_AUDIT_READ);
+        assert!(!audit.legacy_ok);
+        assert!(!job_scopes().contains(&SCOPE_AUDIT_READ.to_string()));
         assert!(route_need(&Method::POST, "/v1/approvals").is_none());
         // 2.5: the command surface is closed to the extension key and to a
         // job's own token (bound to its job); waiting reads one job.
@@ -973,7 +1038,7 @@ mod tests {
             first
         );
         assert!(
-            matches!(lookup(&db, &first, 3), Lookup::Valid(v) if v.kind == Kind::Cli && v.scopes.len() == 3)
+            matches!(lookup(&db, &first, 3), Lookup::Valid(v) if v.kind == Kind::Cli && v.scopes.len() == SCOPES.len())
         );
         #[cfg(unix)]
         {
@@ -991,6 +1056,24 @@ mod tests {
         let second = std::fs::read_to_string(dir.join(CLI_TOKEN_FILE)).unwrap();
         assert_ne!(first, second);
         assert!(matches!(lookup(&db, &second, 6), Lookup::Valid(_)));
+        // A CLI token from before `audit:read` (2.8) is replaced by one with it.
+        let old = mint(
+            &db,
+            Kind::Cli,
+            "old cli",
+            &s(&[SCOPE_JOBS_READ, SCOPE_JOBS_OPERATE, SCOPE_APPROVALS_RESPOND]),
+            None,
+            None,
+            7,
+        )
+        .unwrap();
+        write_private(&dir.join(CLI_TOKEN_FILE), old.token.as_bytes()).unwrap();
+        ensure_cli_token(&db, &dir, 8).unwrap();
+        let third = std::fs::read_to_string(dir.join(CLI_TOKEN_FILE)).unwrap();
+        assert_ne!(third, old.token);
+        assert!(
+            matches!(lookup(&db, &third, 9), Lookup::Valid(v) if v.scopes.contains(&SCOPE_AUDIT_READ.to_string()))
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 

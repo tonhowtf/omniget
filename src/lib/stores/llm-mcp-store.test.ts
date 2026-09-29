@@ -55,25 +55,24 @@ describe("loadServers", () => {
     invoke.mockResolvedValue([ROW]);
     await store.loadServers();
     expect(store.getServers()).toHaveLength(1);
-    expect(store.isDemo()).toBe(false);
     expect(store.isAvailable()).toBe(true);
     expect(invoke).toHaveBeenCalledWith("llm_mcp_list");
   });
 
-  it("falls back to demo servers on ERR_STUB, without calling it an error", async () => {
-    invoke.mockRejectedValue("ERR_STUB");
+  it("shows no invented servers and an error when the backend fails to list", async () => {
+    invoke.mockRejectedValue("ERR_IO");
     await store.loadServers();
-    expect(store.getServers().length).toBeGreaterThan(0);
-    expect(store.isDemo()).toBe(true);
+    expect(store.getServers()).toEqual([]);
     expect(store.isAvailable()).toBe(false);
-    expect(store.getErrorKey()).toBeNull();
+    expect(store.getErrorKey()).toBe("llm.mcp.err.generic");
   });
 
-  it("falls back to demo servers when the harness answers null", async () => {
+  it("treats a null answer as a failure, not as data", async () => {
     invoke.mockResolvedValue(null);
     await store.loadServers();
-    expect(store.isDemo()).toBe(true);
+    expect(store.getServers()).toEqual([]);
     expect(store.isAvailable()).toBe(false);
+    expect(store.getErrorKey()).toBe("llm.mcp.err.generic");
   });
 
   it("reports a real failure with an i18n key", async () => {
@@ -102,7 +101,6 @@ describe("loadServers", () => {
     invoke.mockResolvedValue({ servers: [ROW] });
     await store.loadServers();
     expect(store.getServers()).toHaveLength(1);
-    expect(store.isDemo()).toBe(false);
   });
 });
 
@@ -114,13 +112,12 @@ describe("saveServer / removeServer", () => {
     expect(await store.removeServer("fetch")).toBe(false);
     expect(store.getServers()).toEqual([ROW]);
   });
-  it("does not replace saved servers with demo connections after a read failure", async () => {
+  it("keeps the saved servers on screen after a failed re-read", async () => {
     invoke.mockResolvedValue([ROW]);
     await store.loadServers();
     invoke.mockRejectedValue("ERR_IO");
     await store.loadServers(true);
     expect(store.getServers()).toEqual([ROW]);
-    expect(store.isDemo()).toBe(false);
   });
   it("sends the config and takes the list the backend answers", async () => {
     invoke.mockResolvedValue([ROW]);
@@ -131,12 +128,13 @@ describe("saveServer / removeServer", () => {
     expect(store.getServers()).toHaveLength(2);
   });
 
-  it("keeps the optimistic row when the backend is a stub", async () => {
-    invoke.mockRejectedValue("ERR_STUB");
+  it("does not add the row when the save fails", async () => {
+    invoke.mockResolvedValue([]);
     await store.loadServers();
-    const before = store.getServers().length;
-    expect(await store.saveServer(ROW.config)).toBe(true);
-    expect(store.getServers()).toHaveLength(before + 1);
+    invoke.mockRejectedValue("ERR_IO");
+    expect(await store.saveServer(ROW.config)).toBe(false);
+    expect(store.getServers()).toEqual([]);
+    expect(store.getErrorKey()).toBe("llm.mcp.err.generic");
   });
 
   it("surfaces a refused config", async () => {
@@ -208,11 +206,12 @@ describe("testServer", () => {
     expect(store.getTestingId()).toBeNull();
   });
 
-  it("stays quiet on ERR_STUB", async () => {
-    invoke.mockRejectedValue("ERR_STUB");
+  it("says so when the probe gets no answer", async () => {
+    invoke.mockResolvedValue([ROW]);
     await store.loadServers();
-    expect(await store.testServer("filesystem")).toBeNull();
-    expect(store.getErrorKey()).toBeNull();
+    invoke.mockResolvedValue(null);
+    expect(await store.testServer("fetch")).toBeNull();
+    expect(store.getErrorKey()).toBe("llm.mcp.err.generic");
   });
 });
 
@@ -234,14 +233,15 @@ describe("setGrant", () => {
     expect(a.tools).toEqual([{ source: "mcp", server: "fetch", tool: "fetch", mode: "ask" }]);
   });
 
-  it("falls back to the roster command while llm_mcp_grant is a stub", async () => {
+  it("never writes the whole agent behind the narrow command's back", async () => {
     invoke.mockImplementation((cmd: string) =>
-      cmd === "llm_mcp_grant" ? Promise.reject("ERR_STUB") : Promise.resolve(null),
+      cmd === "llm_mcp_grant" ? Promise.reject("ERR_IO") : Promise.resolve(null),
     );
     const a = agent();
-    expect(await store.setGrant(a, "fetch", "fetch", "auto")).toBe(true);
+    expect(await store.setGrant(a, "fetch", "fetch", "auto")).toBe(false);
     const calls = invoke.mock.calls.map((c) => c[0]);
-    expect(calls).toContain("llm_roster_create");
+    expect(calls).not.toContain("llm_roster_create");
+    expect(calls).not.toContain("llm_roster_update");
   });
 
   it("clears a grant with a null mode", async () => {

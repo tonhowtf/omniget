@@ -84,7 +84,9 @@ pub fn from_app(app: &tauri::AppHandle) -> Result<Approvals, String> {
             // as a turn.
             match crate::jobs::try_get().and_then(|j| j.job_of_request(run).map(|id| (j, id))) {
                 Some((jobs, id)) => {
-                    let _ = jobs.cancel(&id);
+                    // The answer's own line says who; this one says why (2.8).
+                    let _ =
+                        jobs.cancel_by(&id, omniget_core::core::llm::audit::Actor::system("ask"));
                 }
                 None => {
                     let _ = cancel_llm.cancel(run);
@@ -676,5 +678,231 @@ mod tests {
         }
         assert!(p50 < 1_000.0, "p50 {p50} ms");
         assert!(a.registry.permissions(None, true).is_empty());
+    }
+
+    /// 2.8's proof: a job started over the bridge, its ask, the approval
+    /// from the CLI and the cancel leave exactly four lines, each with its
+    /// channel and actor; the file holds no `sk-` and no `Bearer `; only
+    /// `audit:read` reads it back.
+    #[tokio::test]
+    async fn audit_job_ask_approve_cancel_is_four_lines() {
+        use crate::bridge_tokens::{self as bt, Guard, Kind, LegacyLog, Lookup};
+        use axum::extract::{Path, RawQuery};
+        use axum::routing::{get, post};
+        use omniget_core::core::llm::audit;
+        use std::sync::atomic::AtomicBool;
+
+        let dir = std::env::temp_dir().join(format!(
+            "omniget-audit-proof-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        let db_path = dir.join("audit.db");
+        audit::init(&db_path, 90).unwrap();
+
+        let (a, _ran, _) = setup();
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        bt::ensure_schema(&conn).unwrap();
+        let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        let cli = bt::mint(&conn, Kind::Cli, "cli", &s(bt::SCOPES), None, None, 1_000).unwrap();
+        let cli_id = format!("token:{}", cli.view.id);
+        let cli = cli.token;
+        let reader = bt::mint(
+            &conn,
+            Kind::User,
+            "reader",
+            &s(&[bt::SCOPE_JOBS_READ]),
+            None,
+            None,
+            1_000,
+        )
+        .unwrap()
+        .token;
+        let db = Arc::new(Mutex::new(conn));
+        let ext = "ext-key-0123456789abcdefghijklmnopqrstuvw";
+        let guard = Guard {
+            extension: Arc::new(ext.into()),
+            legacy_allowed: Arc::new(AtomicBool::new(true)),
+            legacy_log: Arc::new(LegacyLog::default()),
+            lookup: {
+                let db = db.clone();
+                Arc::new(move |t: &str| -> Lookup { bt::lookup(&db.lock().unwrap(), t, 2_000) })
+            },
+            now: Arc::new(crate::llm_manager::now_ms),
+        };
+        type Who = Option<axum::Extension<crate::mcp::policy::Principal>>;
+        let job = |id: &str| crate::jobs::Job {
+            id: id.into(),
+            kind: "run".into(),
+            agent_id: "worker".into(),
+            state: "running".into(),
+            prompt: "use key sk-ant-api03-DONOTLOG and Bearer DONOTLOG".into(),
+            ..Default::default()
+        };
+        let a2 = a.clone();
+        let app = axum::Router::new()
+            // The same audit calls the production handlers make.
+            .route(
+                "/v1/agent/run",
+                post(move |who: Who| async move {
+                    let j = job("job-proof");
+                    crate::llm_audit::job_created(
+                        crate::llm_audit::actor_of(who.as_ref().map(|e| &e.0), "http"),
+                        &j,
+                    );
+                    Json(json!(j))
+                }),
+            )
+            .route(
+                "/v1/jobs/{id}/cancel",
+                post(move |Path(id): Path<String>, who: Who| async move {
+                    crate::llm_audit::job_cancelled(
+                        crate::llm_audit::actor_of(who.as_ref().map(|e| &e.0), "http"),
+                        &job(&id),
+                    );
+                    Json(json!({"id": id}))
+                }),
+            )
+            .route(
+                "/v1/approvals/{id}",
+                post(
+                    move |Path(id): Path<String>, p: Who, Json(b): Json<Value>| async move {
+                        http_respond(&a2, &id, &b, p.as_ref().map(|e| &e.0))
+                    },
+                ),
+            )
+            .route(
+                "/v1/audit",
+                get(move |RawQuery(q): RawQuery| async move {
+                    crate::llm_audit::http_list(q.as_deref())
+                }),
+            )
+            .route_layer(axum::middleware::from_fn_with_state(guard, bt::guard));
+        let base = crate::bridge_tokens::bn5::serve(app).await;
+        let http = reqwest::Client::new();
+        let post_as = |path: String, body: Value| {
+            http.post(format!("{base}{path}"))
+                .bearer_auth(&cli)
+                .json(&body)
+                .send()
+        };
+
+        // job -> ask -> approve (CLI) -> cancel.
+        assert_eq!(
+            post_as("/v1/agent/run".into(), json!({}))
+                .await
+                .unwrap()
+                .status()
+                .as_u16(),
+            200
+        );
+        let task = ask(&a, "req-proof", "call-proof");
+        let ask_id = pending_id(&a, "call-proof").await;
+        let r = post_as(
+            format!("/v1/approvals/{ask_id}"),
+            json!({"decision": "accept", "channel": "cli"}),
+        )
+        .await
+        .unwrap();
+        assert_eq!(r.status().as_u16(), 200);
+        task.await.unwrap().unwrap();
+        assert_eq!(
+            post_as("/v1/jobs/job-proof/cancel".into(), json!({}))
+                .await
+                .unwrap()
+                .status()
+                .as_u16(),
+            200
+        );
+
+        // Only `audit:read` reads it: not a jobs:read token, not the extension key.
+        for tok in [reader.as_str(), ext] {
+            let r = http
+                .get(format!("{base}/v1/audit?since=1h"))
+                .bearer_auth(tok)
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(r.status().as_u16(), 403);
+        }
+        let rows: Value = http
+            .get(format!("{base}/v1/audit?since=1h&limit=5000"))
+            .bearer_auth(&cli)
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        // Other tests of this binary may write to the same log: ours only.
+        let mut ours: Vec<&Value> = rows
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r["entity_id"] == "job-proof" || r["entity_id"] == ask_id.as_str())
+            .collect();
+        ours.reverse();
+        let seen: Vec<(String, String, String)> = ours
+            .iter()
+            .map(|r| {
+                (
+                    r["action"].as_str().unwrap().to_string(),
+                    r["actor"].as_str().unwrap().to_string(),
+                    r["channel"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect();
+        let want = vec![
+            (
+                "job.created".to_string(),
+                cli_id.clone(),
+                "http".to_string(),
+            ),
+            (
+                "ask.opened".to_string(),
+                "agent:worker".to_string(),
+                "turn".to_string(),
+            ),
+            (
+                "ask.answered".to_string(),
+                cli_id.clone(),
+                "cli".to_string(),
+            ),
+            (
+                "job.cancelled".to_string(),
+                cli_id.clone(),
+                "http".to_string(),
+            ),
+        ];
+        assert_eq!(seen, want, "{rows:#}");
+        // The routes that wrote their own line left no `token.use` besides.
+        assert!(!rows
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["action"] == "token.use"
+                && r["actor"] == cli_id.as_str()
+                && r["entity_id"].as_str().unwrap_or("").starts_with("POST")));
+
+        // No secret and no content in the file, WAL included.
+        let mut bytes = Vec::new();
+        for f in ["audit.db", "audit.db-wal"] {
+            if let Ok(b) = std::fs::read(dir.join(f)) {
+                bytes.extend(b);
+            }
+        }
+        let text = String::from_utf8_lossy(&bytes);
+        let hits_sk = text.matches("sk-").count();
+        let hits_bearer = text.matches("Bearer ").count();
+        crate::bridge_tokens::bn5::emit(
+            json!({"bench": "audit", "metric": "proof_lines", "value": seen.len()}),
+        );
+        crate::bridge_tokens::bn5::emit(
+            json!({"bench": "audit", "metric": "grep_sk", "value": hits_sk}),
+        );
+        crate::bridge_tokens::bn5::emit(
+            json!({"bench": "audit", "metric": "grep_bearer", "value": hits_bearer}),
+        );
+        assert_eq!((hits_sk, hits_bearer), (0, 0));
+        assert!(!text.contains("DONOTLOG"));
     }
 }

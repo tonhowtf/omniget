@@ -163,7 +163,21 @@ const DEPS = [
   { name: "ffmpeg", installed: true, version: "7.1" },
 ];
 
-const FIXTURES = { SETTINGS, HISTORY, QUEUE, DEPS };
+// The /llm section: the app shows no demo data of its own any more (a
+// failing backend reads as an error), so the screenshots get theirs here.
+const LLM_ROSTER = [
+  { id: "omni", name: "Omni", role: "coordinator", system_prompt: "You coordinate the other agents.", model: { policy: "fixed", model: { provider: "anthropic", model: "claude-opus-5" } }, tools: [], skills: [], budget: {}, runtime: { kind: "native" } },
+  { id: "shellhand", name: "Shellhand", role: "worker", system_prompt: "You run the local CLI agents.", model: { policy: "fixed", model: { provider: "custom", model: "claude-code" } }, tools: [], skills: [], budget: {}, runtime: { kind: "cli", cli: "claude", account: "local" } },
+];
+const nowMs = Date.now();
+const LLM_JOBS = [
+  { id: "job-ask", kind: "run", agent_id: "shellhand", conversation_id: "job-ask", prompt: "Update the changelog for the next release", workspace: "/Users/demo/code/app", state: "waiting_approval", loop_id: null, trigger_id: null, request_id: "req-ask", created_ms: nowMs - 120000, started_ms: nowMs - 110000, finished_ms: null, result: null, error: null, log: "", state_seq: 3 },
+  { id: "job-run", kind: "run", agent_id: "omni", conversation_id: "job-run", prompt: "Summarize the open issues", workspace: null, state: "running", loop_id: null, trigger_id: null, request_id: "req-run", created_ms: nowMs - 60000, started_ms: nowMs - 50000, finished_ms: null, result: null, error: null, log: "", state_seq: 2 },
+  { id: "job-done", kind: "run", agent_id: "omni", conversation_id: "job-done", prompt: "Rename the build script", workspace: "/Users/demo/code/app", state: "done", loop_id: null, trigger_id: null, request_id: "req-done", created_ms: nowMs - 3600000, started_ms: nowMs - 3590000, finished_ms: nowMs - 3500000, result: "Renamed.", error: null, log: "", state_seq: 4 },
+];
+const LLM_ASKS = [{ agent: "shellhand", request_id: "req-ask", tool_call_id: "tc-ask", tool: "shell_exec", preview: "git log --oneline -20" }];
+
+const FIXTURES = { SETTINGS, HISTORY, QUEUE, DEPS, LLM_ROSTER, LLM_JOBS, LLM_ASKS };
 
 function initScript(theme) {
   return `(() => {
@@ -204,6 +218,20 @@ function initScript(theme) {
             ? ["[omniget] $ yt-dlp -f 'bv*+ba' … https://www.youtube.com/watch?v=priv1", "ERROR: [youtube] priv1: Private video. Sign in if you've been granted access"]
             : [];
         case "get_download_command": return null;
+        case "llm_roster_list": return F.LLM_ROSTER;
+        case "llm_conversation_list":
+        case "llm_loops_list":
+        case "llm_mcp_list":
+        case "llm_skills_list":
+        case "llm_skills_catalog":
+        case "assist_runs_list":
+        case "assist_permissions_pending":
+        case "assist_mission_list":
+          return [];
+        case "llm_jobs_list": return F.LLM_JOBS;
+        case "llm_tool_asks_pending": return F.LLM_ASKS;
+        case "llm_triggers_list": return { triggers: [], bridge: { base_url: "http://127.0.0.1:0", token: "" } };
+        case "threads_snapshot": return { sequence: 0, projects: [], threads: [], pendingApprovals: [], pendingUserInputs: [] };
         case "retry_download_with_command": return "ok";
         case "diagnose_download_error": {
           const t = String(args.stderr || "").toLowerCase();

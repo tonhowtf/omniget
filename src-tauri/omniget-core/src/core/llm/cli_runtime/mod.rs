@@ -247,6 +247,14 @@ pub struct LaunchPlan {
     pub lean_project: bool,
     /// The CLI lists `--effort` in its help (see [`claude::PROJECT_EFFORT`]).
     pub effort_flag: bool,
+    /// The turn's run mode (2.7): the job's or Loop's binding, else the
+    /// chat's choice. `None` = nobody chose: the chat default `auto_edits`,
+    /// which is the argv every turn had before.
+    pub run_mode: Option<super::run_mode::RunMode>,
+    /// `claude --help` lists `auto` among the `--permission-mode` choices.
+    pub auto_mode: bool,
+    /// `codex exec --help` lists `--approve-for-me` (Codex's `auto`).
+    pub approve_for_me: bool,
 }
 
 /// The CLI half of `CompositeRuntime`.
@@ -473,7 +481,7 @@ impl CliRuntime {
                 // cache reuse; the batching line cuts turns.
                 let lean = !external
                     && !restrict
-                    && account.sandbox == accounts::SandboxMode::Write
+                    && account.sandbox.writes()
                     && launch
                         .map(|l| l.lean_project && !l.projectless)
                         .unwrap_or(false);
@@ -487,6 +495,15 @@ impl CliRuntime {
                 } else {
                     system_prompt
                 };
+                // `None` without a turn context: the account's sandbox alone,
+                // as before 2.7.
+                let claude_permission = launch.filter(|_| !external).map(|l| {
+                    super::run_mode::claude_permission(
+                        l.run_mode.unwrap_or_default().under(account.sandbox),
+                        l.auto_mode,
+                    )
+                });
+                let has_prompt_tool = launch.is_some_and(|l| l.permission_prompt_tool.is_some());
                 let args = claude::ClaudeArgs {
                     model: model_of(req),
                     system_prompt,
@@ -494,13 +511,14 @@ impl CliRuntime {
                     partial_messages: self.options.partial_messages,
                     resume,
                     settings: None,
-                    // Claude's half of the account's sandbox knob. Always set,
-                    // so a turn never inherits whatever the profile's
+                    // The turn's run mode under the account's ceiling. Always
+                    // set, so a turn never inherits whatever the profile's
                     // `settings.json` happens to say.
                     permission_mode: Some(if external {
                         "default"
                     } else {
-                        claude::permission_mode(account.sandbox)
+                        claude_permission
+                            .map_or_else(|| claude::permission_mode(account.sandbox), |p| p.flag)
                     }),
                     allowed_tools: if mcp.is_some() {
                         vec![format!(
@@ -554,17 +572,34 @@ impl CliRuntime {
                     // stays byte-identical.
                     ..SpawnSpec::default()
                 };
-                (
-                    spec,
-                    Arc::new(claude::ClaudeParser::new(self.options.partial_messages)),
-                )
+                let parser = claude::ClaudeParser::new(self.options.partial_messages);
+                let parser = match claude_permission {
+                    Some(p) => parser.with_permission(
+                        p.flag == "auto",
+                        super::run_mode::denial_note(p.applied, has_prompt_tool),
+                    ),
+                    None => parser,
+                };
+                (spec, Arc::new(parser))
             }
             CliKind::Codex => {
+                // With a turn context the run mode decides the flags, capped
+                // by the account; without one, the account's sandbox alone.
+                let permission = launch.map(|l| {
+                    super::run_mode::codex_flags(
+                        l.run_mode.unwrap_or_default().under(account.sandbox),
+                        l.approve_for_me,
+                    )
+                });
                 let args = codex::CodexArgs {
                     model: model_of(req),
                     cwd: self.options.cwd.as_ref().map(|p| p.display().to_string()),
                     sandbox: account.sandbox.into(),
                     resume: None,
+                    permission: permission
+                        .as_ref()
+                        .map(|(flags, _)| flags.clone())
+                        .unwrap_or_default(),
                 };
                 let spec = SpawnSpec {
                     program: binary,
@@ -578,7 +613,12 @@ impl CliRuntime {
                     // stays byte-identical.
                     ..SpawnSpec::default()
                 };
-                (spec, Arc::new(codex::CodexParser::new()))
+                let parser = match permission {
+                    Some((_, applied)) => codex::CodexParser::new()
+                        .with_denial_note(super::run_mode::denial_note(applied, false)),
+                    None => codex::CodexParser::new(),
+                };
+                (spec, Arc::new(parser))
             }
         }
     }
@@ -681,6 +721,9 @@ impl AgentRuntime for CliRuntime {
                     && caps.has_flag("--strict-mcp-config")
                     && caps.has_flag("--exclude-dynamic-system-prompt-sections"),
                 effort_flag: kind == CliKind::Claude && caps.has_flag("--effort"),
+                run_mode: super::run_mode::of(&turn.conversation),
+                auto_mode: caps.permission_modes.iter().any(|m| m == "auto"),
+                approve_for_me: caps.has_flag("--approve-for-me"),
             };
             if let Some(reg) = &registry {
                 let pins = crate::core::assist::runs::SessionPins {
@@ -961,6 +1004,9 @@ mod tests {
             external: false,
             lean_project: lean,
             effort_flag: false,
+            run_mode: None,
+            auto_mode: false,
+            approve_for_me: false,
         };
         let (spec, _) = runtime.plan_with(
             &account,
@@ -1035,6 +1081,9 @@ mod tests {
             external: false,
             lean_project: lean,
             effort_flag,
+            run_mode: None,
+            auto_mode: false,
+            approve_for_me: false,
         };
         let effort = |req: &TurnRequest, p: &LaunchPlan| {
             let (spec, _) = runtime.plan_with(
@@ -1469,3 +1518,6 @@ mod tests {
 
 #[cfg(test)]
 mod durable_tests;
+
+#[cfg(all(test, unix))]
+mod run_mode_tests;

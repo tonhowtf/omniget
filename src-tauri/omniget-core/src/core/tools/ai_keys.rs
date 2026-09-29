@@ -993,7 +993,6 @@ pub async fn pkce_finish(code: &str, state: Option<&str>) -> anyhow::Result<KeyV
 mod tests {
     use super::*;
     use std::path::PathBuf;
-    use std::sync::{MutexGuard, OnceLock};
 
     #[test]
     fn hints() {
@@ -1135,23 +1134,16 @@ mod tests {
     // ── Storage and migration ────────────────────────────────────────────
 
     /// `set_var` is process-global and cargo runs tests on threads, so every
-    /// test that moves the data directory takes this lock.
-    fn env_lock() -> MutexGuard<'static, ()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-    }
-
+    /// test that moves the data directory holds the crate's env guard
+    /// (`test_env`), which puts the old values back when it drops.
     struct Sandbox {
         root: PathBuf,
-        _guard: MutexGuard<'static, ()>,
-        previous: Vec<(&'static str, Option<String>)>,
+        _env: crate::core::test_env::Exclusive,
     }
 
     impl Sandbox {
         fn new(name: &str) -> Self {
-            let guard = env_lock();
+            let env = crate::core::test_env::exclusive();
             let root = std::env::temp_dir().join(format!(
                 "omniget-ai-keys-{}-{}-{}",
                 name,
@@ -1163,22 +1155,12 @@ mod tests {
             ));
             let _ = std::fs::remove_dir_all(&root);
             std::fs::create_dir_all(root.join("tools")).unwrap();
-            let mut previous = Vec::new();
-            for (key, value) in [
-                ("OMNIGET_DATA_DIR", root.to_str().unwrap().to_string()),
-                (
-                    crate::core::secrets::SECRETS_DIR_ENV,
-                    root.join("secrets").to_str().unwrap().to_string(),
-                ),
-            ] {
-                previous.push((key, std::env::var(key).ok()));
-                std::env::set_var(key, value);
-            }
-            Self {
-                root,
-                _guard: guard,
-                previous,
-            }
+            env.set_data_dir(&root);
+            env.set(
+                crate::core::secrets::SECRETS_DIR_ENV,
+                Some(root.join("secrets").as_os_str()),
+            );
+            Self { root, _env: env }
         }
 
         fn vault(&self) -> PathBuf {
@@ -1188,12 +1170,6 @@ mod tests {
 
     impl Drop for Sandbox {
         fn drop(&mut self) {
-            for (key, value) in self.previous.iter().rev() {
-                match value {
-                    Some(v) => std::env::set_var(key, v),
-                    None => std::env::remove_var(key),
-                }
-            }
             let _ = std::fs::remove_dir_all(&self.root);
         }
     }

@@ -118,6 +118,13 @@ pub struct LlmSettings {
     /// action a person did not click; a job or Loop can say otherwise.
     #[serde(default)]
     pub auto_resume: bool,
+    /// Days the audit log (`<llm dir>/audit.db`, 2.8) keeps a line.
+    #[serde(default = "default_audit_retention_days")]
+    pub audit_retention_days: u32,
+}
+
+fn default_audit_retention_days() -> u32 {
+    90
 }
 
 fn default_prune_min_tokens() -> u32 {
@@ -172,6 +179,7 @@ impl Default for LlmSettings {
             jobs_max_parallel: default_jobs_max_parallel(),
             jobs_max_per_agent: None,
             auto_resume: false,
+            audit_retention_days: default_audit_retention_days(),
         }
     }
 }

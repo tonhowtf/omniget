@@ -44,6 +44,10 @@ pub struct RuntimeCaps {
     /// Long flags the installed executable lists in its help (probe only).
     #[serde(default)]
     pub flags: Vec<String>,
+    /// The `--permission-mode` choices the help lists (Claude Code); run
+    /// mode `auto` is only used when `auto` is one of them (2.7).
+    #[serde(default)]
+    pub permission_modes: Vec<String>,
     /// True when this answer comes from running the executable.
     #[serde(default)]
     pub probed: bool,
@@ -155,6 +159,34 @@ pub fn parse_help_flags(help: &str) -> Vec<String> {
     out
 }
 
+/// The `(choices: "a", "b", …)` a help text lists for `flag`, in order.
+/// `claude --help` 2.1.284 wraps them over lines:
+/// `--permission-mode <mode>  … (choices: "acceptEdits", "auto",` ↵
+/// `"bypassPermissions", "manual", "dontAsk", "plan")`.
+pub fn parse_help_choices(help: &str, flag: &str) -> Vec<String> {
+    let Some(at) = help.find(&format!("{flag} ")) else {
+        return Vec::new();
+    };
+    let rest = &help[at..];
+    let Some(open) = rest.find("(choices:") else {
+        return Vec::new();
+    };
+    // The choices must belong to this flag, not to the next one.
+    let next_flag = rest[flag.len()..]
+        .find("\n  -")
+        .map(|i| i + flag.len())
+        .unwrap_or(rest.len());
+    if open > next_flag {
+        return Vec::new();
+    }
+    let body = &rest[open + "(choices:".len()..];
+    let body = &body[..body.find(')').unwrap_or(body.len())];
+    body.split(',')
+        .map(|c| c.trim().trim_matches('"').to_string())
+        .filter(|c| !c.is_empty() && !c.contains(' '))
+        .collect()
+}
+
 /// `2.1.282 (Claude Code)` → `2.1.282`; `codex-cli 0.50.0` → `0.50.0`.
 pub fn parse_version(text: &str) -> Option<String> {
     text.split_whitespace()
@@ -205,6 +237,7 @@ pub fn cli_caps(cli: &str, version: Option<String>, flags: Vec<String>) -> Runti
                 builtin_web: true,
                 limits,
                 flags,
+                permission_modes: Vec::new(),
                 probed: true,
                 missing: false,
             }
@@ -279,7 +312,8 @@ pub async fn probe_binary(cli: &str, binary: &Path) -> RuntimeCaps {
             help.push_str(&exec);
         }
     }
-    let caps = cli_caps(cli, version, parse_help_flags(&help));
+    let mut caps = cli_caps(cli, version, parse_help_flags(&help));
+    caps.permission_modes = parse_help_choices(&help, "--permission-mode");
     remember(&format!("cli:{cli}"), &caps);
     caps
 }
@@ -358,6 +392,26 @@ mod tests {
         let caps = cli_caps("claude", Some("2.1.282".into()), flags);
         assert!(caps.native_resume && caps.mcp_projection && caps.interactive_permissions);
         assert!(caps.builtin_web && !caps.steering);
+    }
+
+    #[test]
+    fn the_permission_mode_choices_come_from_the_help() {
+        let help = "  --permission-mode <mode>              Permission mode to use for the session\n                                        (choices: \"acceptEdits\", \"auto\",\n                                        \"bypassPermissions\", \"manual\",\n                                        \"dontAsk\", \"plan\")\n  --permission-prompts <target>         Who answers (choices: \"host\", \"none\", default:\n                                        \"host\")\n";
+        assert_eq!(
+            parse_help_choices(help, "--permission-mode"),
+            [
+                "acceptEdits",
+                "auto",
+                "bypassPermissions",
+                "manual",
+                "dontAsk",
+                "plan"
+            ]
+        );
+        // An older help without `auto`, and choices that belong to the next flag.
+        let old =
+            "  --permission-mode <mode>  Permission mode\n  --other <x>  (choices: \"auto\")\n";
+        assert!(parse_help_choices(old, "--permission-mode").is_empty());
     }
 
     #[test]

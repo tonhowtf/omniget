@@ -207,7 +207,12 @@ impl Engine for Fake {
             state: "queued".into(),
             title: spec.title.clone(),
             owner: Some(owner.into()),
-            run_mode: spec.run_mode.clone(),
+            run_mode: spec
+                .run_mode
+                .as_deref()
+                .map(crate::jobs::RunMode::parse)
+                .transpose()?
+                .unwrap_or(crate::jobs::RunMode::ApprovalRequired),
             created_ms: crate::llm_manager::now_ms(),
             ..Default::default()
         };
@@ -221,7 +226,11 @@ impl Engine for Fake {
     fn job(&self, id: &str) -> Option<Job> {
         self.0.jobs.lock().unwrap().get(id).cloned()
     }
-    fn cancel(&self, id: &str) -> Result<Job, String> {
+    fn cancel(
+        &self,
+        id: &str,
+        _actor: omniget_core::core::llm::audit::Actor,
+    ) -> Result<Job, String> {
         let mut j = self.job(id).ok_or("no job")?;
         if jobs::is_active(&j.state) {
             j.state = "cancelled".into();
@@ -384,14 +393,11 @@ async fn a_command_checks_its_own_scope_and_fields() {
         );
     }
     // `task`, `budget: {usd}` and `run_mode` are accepted and stored.
-    let ok = json!({"command_id": "v9", "type": "job.start", "agent_id": "a", "task": "t", "budget": {"usd": 0.5}, "run_mode": "approval_required"});
+    let ok = json!({"command_id": "v9", "type": "job.start", "agent_id": "a", "task": "t", "budget": {"usd": 0.5}, "run_mode": "full_access"});
     let (r, _) = cmds.execute(&operator(), &ok).unwrap();
     assert_eq!(
-        f.job(r["job_id"].as_str().unwrap())
-            .unwrap()
-            .run_mode
-            .as_deref(),
-        Some("approval_required")
+        f.job(r["job_id"].as_str().unwrap()).unwrap().run_mode,
+        crate::jobs::RunMode::FullAccess
     );
     assert_eq!(parse_start(ok).unwrap().budget_usd, Some(0.5));
 }
@@ -971,4 +977,26 @@ async fn bn5_delegate_end_to_end_without_a_window() {
     ] {
         bt::bn5::emit(json!({"scenario": "delegate", "metric": metric, "value": value}));
     }
+}
+
+/// 2.7 wiring: `run_mode` is one of the four modes (a typo is a 400 with no
+/// receipt), and the caller is the audit actor of what it starts or stops.
+#[tokio::test]
+async fn run_mode_is_one_of_the_four_and_the_caller_is_the_actor() {
+    let (f, _) = Fake::new(false);
+    let cmds = f.commands();
+    for bad in ["yolo", "Full Access!", "approval-required-please"] {
+        let body = json!({"command_id": format!("rm-{}", bad.len()), "type": "job.start", "agent_id": "a", "prompt": "p", "run_mode": bad});
+        assert_eq!(
+            cmds.execute(&operator(), &body).unwrap_err().code,
+            ERR_COMMAND_INVALID,
+            "{bad}"
+        );
+    }
+    for good in ["approval_required", "auto_edits", "auto", "full_access"] {
+        let body = json!({"command_id": format!("ok-{good}"), "type": "job.start", "agent_id": "a", "prompt": "p", "run_mode": good});
+        assert!(cmds.execute(&operator(), &body).is_ok(), "{good}");
+    }
+    let a = operator().actor();
+    assert_eq!((a.id.as_str(), a.channel.as_str()), ("token:t1", "http"));
 }

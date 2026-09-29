@@ -4,12 +4,10 @@ use std::path::{Path, PathBuf};
 
 use super::*;
 
-fn data_dir() -> PathBuf {
-    // Same data dir as the other vcs tests (the env var is process-wide).
-    let d = std::env::temp_dir().join("omniget-vcs-tests-data");
-    std::fs::create_dir_all(&d).unwrap();
-    unsafe { std::env::set_var("OMNIGET_DATA_DIR", &d) };
-    d
+/// The data dir the git tests share, held for the whole test: the env var
+/// is process-wide (`test_env`).
+fn data_dir() -> crate::core::test_env::Shared {
+    crate::core::test_env::shared_data_dir()
 }
 
 fn scratch(name: &str) -> PathBuf {
@@ -87,7 +85,7 @@ fn include_lines_are_literal_repo_paths() {
 /// files are byte for byte what they were.
 #[tokio::test]
 async fn the_users_uncommitted_work_is_carried_without_touching_their_index() {
-    data_dir();
+    let _data = data_dir();
     let r = repo("carry", "*.log\n");
     write(&r.join("a.txt"), b"user staged\n");
     git(&r, &["add", "a.txt"]);
@@ -142,7 +140,7 @@ async fn the_users_uncommitted_work_is_carried_without_touching_their_index() {
 
 #[tokio::test]
 async fn a_named_base_carries_nothing() {
-    data_dir();
+    let _data = data_dir();
     let r = repo("base", "");
     let first = git(&r, &["rev-parse", "HEAD"]);
     write(&r.join("a.txt"), b"two\n");
@@ -164,7 +162,7 @@ async fn a_named_base_carries_nothing() {
 
 #[tokio::test]
 async fn ignored_deps_are_linked_or_copied_and_never_show_in_the_diff() {
-    data_dir();
+    let _data = data_dir();
     let r = repo("deps", "node_modules\n.env\ntarget\n");
     write(
         &r.join("node_modules/dep/index.js"),
@@ -197,7 +195,7 @@ async fn ignored_deps_are_linked_or_copied_and_never_show_in_the_diff() {
 
 #[tokio::test]
 async fn a_directory_only_pattern_does_not_leak_the_link_into_the_diff() {
-    data_dir();
+    let _data = data_dir();
     let r = repo("deps-slash", "node_modules/\n");
     write(&r.join("node_modules/dep/index.js"), b"1\n");
     let wt = create(&r, &job_id(), None).await.unwrap();
@@ -214,7 +212,7 @@ async fn a_directory_only_pattern_does_not_leak_the_link_into_the_diff() {
 /// preserved and reported. A job that did nothing leaves no branch.
 #[tokio::test]
 async fn removal_saves_the_work_preserves_the_branch_and_leaves_no_orphan() {
-    data_dir();
+    let _data = data_dir();
     let r = repo("remove", "");
     let busy = create(&r, &job_id(), None).await.unwrap();
     let idle = create(&r, &job_id(), None).await.unwrap();
@@ -249,7 +247,7 @@ async fn removal_saves_the_work_preserves_the_branch_and_leaves_no_orphan() {
 
 #[tokio::test]
 async fn a_vanished_worktree_is_recreated_from_its_branch() {
-    data_dir();
+    let _data = data_dir();
     let r = repo("ensure", "");
     let wt = create(&r, &job_id(), None).await.unwrap();
     write(&wt.path.join("work.txt"), b"round one\n");
@@ -281,7 +279,7 @@ async fn a_vanished_worktree_is_recreated_from_its_branch() {
 #[tokio::test]
 async fn the_worktree_diff_is_the_jobs_own_work_committed_or_not() {
     use crate::core::llm::snapshot::worktree_diff;
-    data_dir();
+    let _data = data_dir();
     let r = repo("wtdiff", "");
     write(&r.join("b.txt"), b"user wip\n");
     let wt = create(&r, &job_id(), None).await.unwrap();

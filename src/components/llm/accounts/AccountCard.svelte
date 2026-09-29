@@ -57,7 +57,25 @@
   /** Second click of the read-only → write switch. */
   let confirmingWrite = $state(false);
 
-  let writes = $derived(account.sandbox === "write");
+  let writes = $derived(account.sandbox === "write" || account.sandbox === "full");
+  /** The ceiling that lets a turn in run mode full_access through (2.7). */
+  let full = $derived(account.sandbox === "full");
+  /** Second click of the write → full switch. */
+  let confirmingFull = $state(false);
+
+  function toggleFull() {
+    if (full) {
+      onsandbox(account.id, "write");
+      confirmingFull = false;
+      return;
+    }
+    if (!confirmingFull) {
+      confirmingFull = true;
+      return;
+    }
+    onsandbox(account.id, "full");
+    confirmingFull = false;
+  }
 
   function removeNow() {
     onremove(account.id, purge);
@@ -103,13 +121,13 @@
     <div class="sandbox-text">
       <span class="sandbox-label">
         {$t("llm.accounts.sandbox")}
-        <strong>{writes ? $t("llm.accounts.sandbox_write") : $t("llm.accounts.sandbox_read_only")}</strong>
+        <strong>{full ? $t("llm.accounts.sandbox_full") : writes ? $t("llm.accounts.sandbox_write") : $t("llm.accounts.sandbox_read_only")}</strong>
       </span>
       {#if account.sandbox_flag}
         <code class="sandbox-flag">{account.sandbox_flag}</code>
       {/if}
       <span class="sandbox-hint">
-        {writes ? $t("llm.accounts.sandbox_write_hint") : $t("llm.accounts.sandbox_read_only_hint")}
+        {full ? $t("llm.accounts.sandbox_full_hint") : writes ? $t("llm.accounts.sandbox_write_hint") : $t("llm.accounts.sandbox_read_only_hint")}
       </span>
     </div>
     <button
@@ -131,6 +149,28 @@
       <button class="button" type="button" onclick={() => (confirmingWrite = false)}>
         {$t("llm.accounts.cancel")}
       </button>
+    {/if}
+    {#if writes}
+      <button
+        class="button"
+        class:danger={!full && confirmingFull}
+        type="button"
+        disabled={busy}
+        onclick={toggleFull}
+      >
+        {#if full}
+          {$t("llm.accounts.sandbox_make_write")}
+        {:else if confirmingFull}
+          {$t("llm.accounts.sandbox_allow_full_confirm")}
+        {:else}
+          {$t("llm.accounts.sandbox_allow_full")}
+        {/if}
+      </button>
+      {#if confirmingFull && !full}
+        <button class="button" type="button" onclick={() => (confirmingFull = false)}>
+          {$t("llm.accounts.cancel")}
+        </button>
+      {/if}
     {/if}
   </div>
 

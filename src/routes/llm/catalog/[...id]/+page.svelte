@@ -199,8 +199,8 @@
     try {
       await navigator.clipboard.writeText(item?.id ?? "");
       showToast("success", $t("llm.central.catalog.copied"));
-    } catch {
-      /* ignore */
+    } catch (e) {
+      showToast("error", String(e));
     }
   }
 </script>

@@ -2,6 +2,8 @@
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
   import RunsPanel from "$components/llm/activity/RunsPanel.svelte";
   import AskCard from "$components/llm/activity/AskCard.svelte";
+  import RunModeSelect from "$components/llm/RunModeSelect.svelte";
+  import type { RunMode } from "$lib/stores/llm-run-mode.svelte";
   import DiffView from "$components/llm/activity/DiffView.svelte";
   import JobReview from "$components/llm/activity/JobReview.svelte";
   import { promptTitle } from "$components/llm/activity/run-status";
@@ -11,7 +13,8 @@
    * ask inline, and the triggers (cron and webhook) that start jobs on
    * their own, with what they do about missed times.
    */
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
+  import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { getAgents, loadRoster } from "$lib/stores/llm-store.svelte";
@@ -107,6 +110,9 @@
   let prompt = $state("");
   let workspace = $state<string | null>(null);
   let isolation = $state<Isolation>("auto");
+  // Started here, by a person in the window: edits go through, commands ask.
+  // Jobs from the CLI, the bridge or MCP ask for everything unless told (D2).
+  let runMode = $state<RunMode>("auto_edits");
   const isolations: Isolation[] = ["auto", "worktree", "shared"];
   let submitting = $state(false);
 
@@ -129,6 +135,24 @@
   onMount(() => {
     initJobsStore();
     void loadRoster();
+  });
+
+  // `?job=<id>` (a row of /llm/work): that job opened, whatever the filter.
+  let linkedJob = $derived(page.url.searchParams.get("job"));
+  let linkedRun = $derived(page.url.searchParams.get("run"));
+  /** The link already followed: closing the row afterwards keeps it closed. */
+  let followedJob: string | null = null;
+  $effect(() => {
+    const id = linkedJob;
+    const row = id ? jobs.find((j) => j.id === id) : undefined;
+    if (!row || followedJob === row.id) return;
+    followedJob = row.id;
+    untrack(() => {
+      if (openId === row.id) return;
+      filter = "all";
+      toggle(row);
+      requestAnimationFrame(() => document.getElementById(`job-${row.id}`)?.scrollIntoView({ block: "center" }));
+    });
   });
 
   $effect(() => {
@@ -226,7 +250,7 @@
   async function run() {
     if (!agentId || !prompt.trim()) return;
     submitting = true;
-    const job = await submitJob(agentId, prompt.trim(), workspace, workspace ? isolation : null);
+    const job = await submitJob(agentId, prompt.trim(), workspace, workspace ? isolation : null, runMode);
     submitting = false;
     if (job) prompt = "";
   }
@@ -306,7 +330,7 @@
   </header>
   <SurfaceGuide text={$t("llm.surface.jobs_hint")} href="/help?article=tasks#guide" />
 
-  <RunsPanel />
+  <RunsPanel openRun={linkedRun} />
 
   <details class="creation-panel"><summary>{$t("llm.surface.create")}</summary>
   <section class="surface-card form">
@@ -345,6 +369,7 @@
         </label>
       {/if}
     </div>
+    <RunModeSelect bind:value={runMode} />
     <label class="field">
       <span class="field-label">{$t("llm.jobs.prompt")}</span>
       <textarea class="input" rows="3" bind:value={prompt} placeholder={$t("llm.jobs.prompt_placeholder")}></textarea>
@@ -398,7 +423,7 @@
       <div class="rows">
         {#each visibleJobs as job (job.id)}
           {@const ask = job.state === "waiting_approval" ? asks.find((a) => a.request_id === job.request_id) : undefined}
-          <div class="row" class:open={openId === job.id}>
+          <div class="row" id="job-{job.id}" class:open={openId === job.id}>
             <button type="button" class="row-head" aria-expanded={openId === job.id} onclick={() => toggle(job)}>
               <span class="pill {pickState(job.state)}">{job.state === "interrupted" ? $t("assist.runs.job_interrupted") : $t(`llm.jobs.state.${job.state}`)}</span>
               <span class="kind">{kindLabel(job.kind)}</span>
@@ -432,6 +457,10 @@
                 {#if full.workspace}
                   <div class="field-label">{$t("llm.jobs.workspace")}</div>
                   <code class="path">{full.workspace}</code>
+                {/if}
+                {#if full.run_mode}
+                  <div class="field-label">{$t("llm.run_mode.label")}</div>
+                  <div class="text" title={$t(`llm.run_mode.${full.run_mode}_hint`) as string}>{$t(`llm.run_mode.${full.run_mode}`)}</div>
                 {/if}
                 {#if full.branch}
                   <div class="field-label">{$t("llm.jobs.worktree.title")}</div>

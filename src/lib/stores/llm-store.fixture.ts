@@ -1,16 +1,11 @@
 /**
- * Local fake turn and demo roster.
- *
- * While `llm_turn_start` answers `ERR_STUB` there is no backend to stream from,
- * so the UI drives itself from here: `fakeTurnEvents` builds the exact same
- * `TurnEvent` sequence the Rust side will emit and `runFakeTurn` plays it back
- * on a timer. The timer only exists while a turn runs — it is cleared by the
- * returned cancel function and by the `finished` event.
- *
- * Nothing here touches the network and nothing runs unless the user pressed
- * send (or a screenshot harness asked for it).
+ * Test fixture of the chat store (not imported by the app): a roster and the
+ * exact `TurnEvent` script a backend turn streams, so the store tests can
+ * drive a turn without a backend. It used to live in `$lib/llm/fake-turn` as
+ * the demo mode of the store; the app no longer invents a roster or an
+ * answer when the backend fails (3.9, U4).
  */
-import type { AgentDef, TurnEvent, Usage } from "./types";
+import type { AgentDef, TurnEvent, Usage } from "$lib/llm/types";
 
 export interface FakeTurnOptions {
   /** The whole answer; it is cut into `chunks` text deltas. */
@@ -67,42 +62,6 @@ export function fakeTurnEvents(requestId: string, opts: FakeTurnOptions): TurnEv
   return events;
 }
 
-export type CancelFake = () => void;
-
-/**
- * Plays `events` back through `emit`, one every `delayMs`. Returns a cancel
- * function that stops the timer and emits `finished { cancelled }` once.
- */
-export function runFakeTurn(
-  events: TurnEvent[],
-  emit: (event: TurnEvent) => void,
-  delayMs = 24,
-): CancelFake {
-  let index = 0;
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  let cancelled = false;
-
-  const step = () => {
-    timer = null;
-    if (cancelled) return;
-    const event = events[index++];
-    if (!event) return;
-    emit(event);
-    if (event.type === "finished") return;
-    timer = setTimeout(step, delayMs);
-  };
-
-  timer = setTimeout(step, delayMs);
-
-  return () => {
-    if (cancelled) return;
-    cancelled = true;
-    if (timer) clearTimeout(timer);
-    timer = null;
-    emit({ type: "finished", reason: "cancelled" });
-  };
-}
-
 const T = {
   purple: [199, 125, 255] as [number, number, number],
   blue: [90, 169, 255] as [number, number, number],
@@ -111,12 +70,8 @@ const T = {
   teal: [72, 207, 223] as [number, number, number],
 };
 
-/**
- * Roster shown while `llm_roster_list` answers `ERR_STUB`: enough agents to
- * exercise the rail (groups, roles, unassigned) without inventing a backend.
- * The UI flags it as demo data; it is never written back.
- */
-export const DEMO_ROSTER: AgentDef[] = [
+/** A roster with every shape the store handles (roles, routes, a CLI runtime). */
+export const TEST_ROSTER: AgentDef[] = [
   {
     id: "omni",
     name: "Omni",
@@ -187,18 +142,3 @@ export const DEMO_ROSTER: AgentDef[] = [
     skin: { id: "omni-default", tint: T.teal },
   },
 ];
-
-/** Canned answer used by the demo turn (markdown on purpose). */
-export const DEMO_ANSWER = [
-  "Here is the plan:",
-  "",
-  "1. Read the queue and pick the failed items.",
-  "2. Re-run them with `--extractor-args youtube:player_client=ios`.",
-  "3. Report what is still failing.",
-  "",
-  "```bash",
-  "omniget queue retry --failed",
-  "```",
-  "",
-  "Want me to start?",
-].join("\n");

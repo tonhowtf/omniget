@@ -273,6 +273,22 @@ struct PendingAsk {
     /// covers the next asks of the same turn for it.
     tool: String,
     permission: Option<(crate::core::assist::runs::Registry, String)>,
+    /// The agent that asked, for the audit line of an "always" (2.8).
+    agent: String,
+}
+
+/// The id an ask has in the audit log: its durable id when it has a row,
+/// else the tool call it belongs to.
+fn ask_entity(
+    permission: &Option<(crate::core::assist::runs::Registry, String)>,
+    call: &str,
+) -> super::audit::Entity {
+    super::audit::Entity::ask(
+        permission
+            .as_ref()
+            .map(|(_, id)| id.as_str())
+            .unwrap_or(call),
+    )
 }
 
 /// Why an answer did not apply.
@@ -608,10 +624,17 @@ impl ToolBroker {
         };
         use crate::core::assist::runs::PermissionState as S;
         match reg.permission(permission_id).map(|p| p.state) {
-            Some(S::Stale) if decision == Decision::Cancel => reg
-                .dismiss_stale(permission_id, actor)
-                .map(|_| ())
-                .map_err(|_| AnswerRefused::Resolved),
+            Some(S::Stale) if decision == Decision::Cancel => {
+                reg.dismiss_stale(permission_id, actor)
+                    .map_err(|_| AnswerRefused::Resolved)?;
+                super::audit::log(
+                    actor.into(),
+                    "ask.dismissed",
+                    super::audit::Entity::ask(permission_id),
+                    serde_json::json!({ "state": "stale" }),
+                );
+                Ok(())
+            }
             Some(S::Stale) => Err(AnswerRefused::Stale),
             Some(S::Expired) => Err(AnswerRefused::Expired),
             Some(S::Pending) | None => Err(AnswerRefused::Unknown),
@@ -651,6 +674,7 @@ impl ToolBroker {
         let Some(entry) = entry else {
             return Err(AnswerRefused::Unknown);
         };
+        let entity = ask_entity(&entry.permission, tool_call_id);
         if let Some((reg, id)) = &entry.permission {
             if let Err(e) = reg.answer_permission_by(id, decision.word(), actor) {
                 // Dropping `entry.tx` makes the waiter read "no".
@@ -662,6 +686,21 @@ impl ToolBroker {
                     },
                 );
             }
+        }
+        // Who answered, through what (2.8): the one line every channel leaves.
+        super::audit::log(
+            actor.into(),
+            "ask.answered",
+            entity,
+            serde_json::json!({ "decision": decision.as_str(), "tool": entry.tool, "run": entry.request_id }),
+        );
+        if decision == Decision::AcceptAlways {
+            super::audit::log(
+                actor.into(),
+                "grant.always",
+                super::audit::Entity::rule(&format!("{}:{}", entry.agent, entry.tool)),
+                serde_json::json!({ "agent": entry.agent, "tool": entry.tool }),
+            );
         }
         if decision == Decision::AcceptSession {
             let mut allow = self.session_allow.lock().unwrap_or_else(|e| e.into_inner());
@@ -710,6 +749,12 @@ impl ToolBroker {
         let n = gone.len();
         let mut done = std::collections::HashSet::new();
         for p in gone {
+            super::audit::log(
+                super::audit::Actor::system("cancel"),
+                "ask.cancelled",
+                ask_entity(&p.permission, ""),
+                serde_json::json!({ "tool": p.tool, "run": p.request_id }),
+            );
             if let Some((reg, _)) = &p.permission {
                 if done.insert(p.request_id.clone()) {
                     let _ = reg.cancel_permissions(&p.request_id);
@@ -791,6 +836,13 @@ impl ToolBroker {
             ));
         };
         let mut mode = self.mode_for(grants, name);
+        // The turn's run mode moves the grant inside itself (2.7); a stored
+        // rule, the always-ask tools and the workspace check still come after.
+        if let Some(run) =
+            super::code_tools::current_turn().and_then(|c| super::run_mode::of(&c.conversation))
+        {
+            mode = super::run_mode::native_grant(run, name, mode);
+        }
         if !matches!(mode, GrantMode::Deny) {
             match super::perm::decide(agent_id, name, &input) {
                 Some(super::perm::Action::Allow) => mode = GrantMode::Auto,
@@ -1065,9 +1117,18 @@ impl ToolBroker {
                     request_id: request_id.to_string(),
                     tool: name.to_string(),
                     permission: permission.clone(),
+                    agent: agent_id.to_string(),
                 },
             );
         }
+        // Never the preview (it can hold a file's content): the tool and the
+        // turn are the fact (2.8).
+        super::audit::log(
+            super::audit::Actor::agent(agent_id),
+            "ask.opened",
+            ask_entity(&permission, tool_call_id),
+            serde_json::json!({ "tool": name, "run": request_id }),
+        );
         self.bus.emit(BusEvent::ToolAsk {
             agent: agent_id.to_string(),
             request_id: request_id.to_string(),
@@ -1111,6 +1172,12 @@ impl ToolBroker {
             }
         }
         if let AskEnd::Expired { waited } = end {
+            super::audit::log(
+                super::audit::Actor::system("timeout"),
+                "ask.expired",
+                ask_entity(&permission, tool_call_id),
+                serde_json::json!({ "tool": name, "run": request_id, "waited_ms": waited.as_millis() as u64 }),
+            );
             tracing::warn!(
                 "[broker] {ERR_TOOL_TIMEOUT}: `{name}` of {request_id} unanswered after {} s",
                 waited.as_secs()

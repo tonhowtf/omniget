@@ -140,7 +140,7 @@ impl Bridge {
         Ok(body)
     }
 
-    async fn get(&self, path: &str) -> anyhow::Result<Value> {
+    pub(crate) async fn get(&self, path: &str) -> anyhow::Result<Value> {
         self.send(self.http.get(format!("{}{path}", self.base)))
             .await
     }
@@ -214,6 +214,18 @@ fn auto_resume_flag(on: bool, off: bool) -> Option<bool> {
         (_, true) => Some(false),
         _ => None,
     }
+}
+
+/// The run modes of `--mode` (2.7), safest first. Without the flag the app
+/// uses `approval_required` for anything started from here (D2).
+const RUN_MODES: [&str; 4] = ["approval_required", "auto_edits", "auto", "full_access"];
+
+/// Adds `run_mode` to a run or Loop body when `--mode` was given.
+fn with_run_mode(mut body: Value, mode: Option<String>) -> Value {
+    if let Some(m) = mode.filter(|m| !m.trim().is_empty()) {
+        body["run_mode"] = json!(m);
+    }
+    body
 }
 
 /// The body of `POST /v1/agent/run`. `--isolate` asks for a worktree,
@@ -725,6 +737,13 @@ pub enum AgentCommand {
         auto_resume: bool,
         #[arg(long, help = "Never start again by itself, whatever the app's setting")]
         no_auto_resume: bool,
+        #[arg(
+            long,
+            value_name = "MODE",
+            value_parser = RUN_MODES,
+            help = "What the agent may do without asking: approval_required (default: every edit and command asks), auto_edits, auto, full_access"
+        )]
+        mode: Option<String>,
     },
     /// Keep an agent working until a check passes or the budget runs out;
     /// `--catalog <loop id>` runs a loop of the catalog instead of a prompt
@@ -773,6 +792,13 @@ pub enum AgentCommand {
         auto_resume: bool,
         #[arg(long, help = "Never start again by itself, whatever the app's setting")]
         no_auto_resume: bool,
+        #[arg(
+            long,
+            value_name = "MODE",
+            value_parser = RUN_MODES,
+            help = "What the agent may do without asking: approval_required (default: every edit and command asks), auto_edits, auto, full_access"
+        )]
+        mode: Option<String>,
     },
     /// List recent jobs, show one, or cancel one
     Jobs {
@@ -940,6 +966,7 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             isolate,
             shared,
             base,
+            mode,
             command_id,
             title,
             auto_resume,
@@ -952,14 +979,17 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             };
             // `job.start` on the command surface (2.5): the receipt names
             // the job and the state it started in.
-            let mut body = run_body(
-                &agent,
-                &prompt,
-                workspace(ws, no_workspace),
-                deadline_min,
-                isolate,
-                shared,
-                base,
+            let mut body = with_run_mode(
+                run_body(
+                    &agent,
+                    &prompt,
+                    workspace(ws, no_workspace),
+                    deadline_min,
+                    isolate,
+                    shared,
+                    base,
+                ),
+                mode,
             );
             body["type"] = json!("job.start");
             body["command_id"] = json!(command_id.unwrap_or_else(fresh_command_id));
@@ -1033,12 +1063,16 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             schedule,
             auto_resume,
             no_auto_resume,
+            mode,
             ..
         } => {
             let l = bridge
                 .post(
                     "/v1/agent/loop",
-                    json!({ "agent_id": agent, "prompt": prompt, "workspace": workspace(ws, false), "max_rounds": rounds, "max_minutes": minutes, "check_command": check, "schedule": schedule, "auto_resume": auto_resume_flag(auto_resume, no_auto_resume) }),
+                    with_run_mode(
+                        json!({ "agent_id": agent, "prompt": prompt, "workspace": workspace(ws, false), "max_rounds": rounds, "max_minutes": minutes, "check_command": check, "schedule": schedule, "auto_resume": auto_resume_flag(auto_resume, no_auto_resume) }),
+                        mode,
+                    ),
                 )
                 .await?;
             if json_out {
@@ -1258,6 +1292,34 @@ mod tests {
         );
         assert_eq!(resolve_token(None, None, Some("ext")), "ext");
         assert_eq!(resolve_token(None, None, None), "");
+    }
+
+    #[test]
+    fn mode_goes_in_the_body_only_when_given() {
+        let body = || run_body("a", "p", None, None, false, false, None);
+        assert!(with_run_mode(body(), None).get("run_mode").is_none());
+        assert_eq!(
+            with_run_mode(body(), Some("auto_edits".into()))["run_mode"],
+            "auto_edits"
+        );
+        // clap refuses anything else before a request is sent.
+        use clap::Parser;
+        #[derive(Parser)]
+        struct T {
+            #[command(subcommand)]
+            c: AgentCommand,
+        }
+        assert!(T::try_parse_from(["t", "run", "hi", "--mode", "yolo"]).is_err());
+        for m in RUN_MODES {
+            assert!(
+                T::try_parse_from(["t", "run", "hi", "--mode", m]).is_ok(),
+                "{m}"
+            );
+            assert!(
+                T::try_parse_from(["t", "loop", "hi", "--mode", m]).is_ok(),
+                "{m}"
+            );
+        }
     }
 
     #[test]

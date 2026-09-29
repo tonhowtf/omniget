@@ -20,7 +20,8 @@ pub async fn llm_job_get(app: AppHandle, id: String) -> Result<Value, String> {
 }
 
 /// `isolation`: `shared | worktree | auto` (absent = `auto`); `base`: the
-/// ref a worktree starts from (2.3).
+/// ref a worktree starts from (2.3); `run_mode`: what the job may do without
+/// asking (2.7; absent = `approval_required`, the default of a `run`).
 #[tauri::command]
 pub async fn llm_job_submit(
     app: AppHandle,
@@ -29,14 +30,23 @@ pub async fn llm_job_submit(
     workspace: Option<String>,
     isolation: Option<String>,
     base: Option<String>,
+    run_mode: Option<String>,
 ) -> Result<Value, String> {
     let isolation = isolation
         .as_deref()
         .filter(|s| !s.is_empty())
         .map(jobs::Isolation::parse)
         .transpose()?;
-    to(jobs::get(&app)?
-        .submit_placed("run", &agent_id, &prompt, workspace, None, isolation, base)?)
+    let run_mode = run_mode
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .map(jobs::RunMode::parse)
+        .transpose()?;
+    let job = jobs::get(&app)?.submit_as(
+        "run", &agent_id, &prompt, workspace, None, isolation, base, run_mode,
+    )?;
+    crate::llm_audit::job_created(omniget_core::core::llm::audit::Actor::window(), &job);
+    to(job)
 }
 
 /// Removes a finished job's worktree (2.3): its uncommitted work is saved
@@ -70,7 +80,7 @@ pub async fn llm_jobs_limits_set(
 
 #[tauri::command]
 pub async fn llm_job_cancel(app: AppHandle, id: String) -> Result<Value, String> {
-    to(jobs::get(&app)?.cancel(&id)?)
+    to(jobs::get(&app)?.cancel_by(&id, omniget_core::core::llm::audit::Actor::window())?)
 }
 
 #[tauri::command]
@@ -247,12 +257,28 @@ pub async fn llm_bridge_token_mint(
         .filter(|d| *d > 0)
         .map(|d| crate::llm_manager::now_ms() + u64::from(d.min(3650)) * 86_400_000);
     let minted = jobs::get(&app)?.token_mint(&name, &scopes, expires_ms)?;
+    // The line names the token by id and scopes, never its secret (2.8).
+    omniget_core::core::llm::audit::log(
+        omniget_core::core::llm::audit::Actor::window(),
+        "token.minted",
+        omniget_core::core::llm::audit::Entity::token(&minted.view.id),
+        json!({ "name": minted.view.name, "scopes": minted.view.scopes, "expires_ms": minted.view.expires_ms }),
+    );
     Ok(json!({ "token": minted.token, "view": minted.view }))
 }
 
 #[tauri::command]
 pub async fn llm_bridge_token_revoke(app: AppHandle, id: String) -> Result<Value, String> {
-    Ok(json!({ "revoked": jobs::get(&app)?.token_revoke(&id)? }))
+    let revoked = jobs::get(&app)?.token_revoke(&id)?;
+    if revoked {
+        omniget_core::core::llm::audit::log(
+            omniget_core::core::llm::audit::Actor::window(),
+            "token.revoked",
+            omniget_core::core::llm::audit::Entity::token(&id),
+            json!({}),
+        );
+    }
+    Ok(json!({ "revoked": revoked }))
 }
 
 /// Turns the extension key's grace period on the agent routes on or off.
@@ -282,7 +308,14 @@ pub async fn llm_job_discard_hunk(
     hunk_id: String,
     patch: String,
 ) -> Result<Value, String> {
-    jobs::get(&app)?.discard_hunk(&id, &hunk_id, &patch).await
+    let r = jobs::get(&app)?.discard_hunk(&id, &hunk_id, &patch).await?;
+    crate::llm_audit::job_reviewed(
+        omniget_core::core::llm::audit::Actor::window(),
+        "job.hunk_discarded",
+        &id,
+        json!({ "hunk_id": hunk_id }),
+    );
+    Ok(r)
 }
 
 #[tauri::command]
@@ -338,13 +371,26 @@ pub async fn llm_job_integrate(
         omniget_core::core::vcs::integrate::Strategy::parse(strategy.as_deref().unwrap_or(""))
             .map_err(|e| format!("{}: {e}", jobs::ERR_JOBS))?;
     let (outcome, job) = jobs::get(&app)?.integrate(&id, strategy).await?;
+    crate::llm_audit::job_reviewed(
+        omniget_core::core::llm::audit::Actor::window(),
+        "job.integrated",
+        &id,
+        json!({ "strategy": strategy, "status": outcome.status }),
+    );
     Ok(json!({ "outcome": outcome, "job": job }))
 }
 
 /// Throws the worktree job's work away: worktree and branch.
 #[tauri::command]
 pub async fn llm_job_discard_worktree(app: AppHandle, id: String) -> Result<Value, String> {
-    jobs::get(&app)?.discard_work(&id).await
+    let r = jobs::get(&app)?.discard_work(&id).await?;
+    crate::llm_audit::job_reviewed(
+        omniget_core::core::llm::audit::Actor::window(),
+        "job.discarded",
+        &id,
+        json!({}),
+    );
+    Ok(r)
 }
 
 /// The walkthrough of the job's diff, on demand (`refresh` skips the cache).

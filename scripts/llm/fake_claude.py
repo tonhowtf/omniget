@@ -32,6 +32,8 @@ turn and must stay the real one:
                        `--resume` so OmniGet's capability probe sees native
                        resume (BN6 runs the real app against this fake)
   FAKE_CLAUDE_LIVE_DIR `bn6`: folder of pid files of the fakes alive now
+  FAKE_CLAUDE_TRACE    `perm`: one JSON line per permission question and a
+                       last line with the totals
 
 Modes:
   ok                 init, a text reply, result; exit 0.
@@ -54,6 +56,19 @@ Modes:
                      then a reply and the result.
   sleep              init, HOLD seconds of work (silent), a reply, the result:
                      a read-only job of known length.
+  perm               the BN12 fixture (2.7): an Edit of notes.txt and a Bash
+                     `ls`, each decided by the permission flags of the argv
+                     as the mode's contract says (82#P5): bypassPermissions
+                     and auto run both (auto falls back to default on a haiku
+                     model, as SP2 measured, and says so in system/init),
+                     acceptEdits asks for the shell, default/manual asks for
+                     both, plan refuses the edit. A question goes to the
+                     prompt tool when the argv has one (counted, answered yes)
+                     and is denied with the CLI's own wording when it has
+                     `--permission-prompts none`. Called as `exec ...` it is
+                     Codex (`--sandbox`, `-c approval_policy=`,
+                     `--approve-for-me`), whose exec has no approval surface:
+                     a question becomes a `declined` item.
   apply              init, a Bash tool_use, applies FAKE_CLAUDE_CHANGES to the
                      working folder byte for byte (a known edit, as an agent's
                      shell would make it: nothing goes through OmniGet's
@@ -148,17 +163,20 @@ def tool_use(tool_id, command):
         "usage": {"input_tokens": 4, "output_tokens": 9}}, "parent_tool_use_id": None})
 
 
-def tool_result(tool_id, content):
-    emit({"type": "user", "message": {"role": "user", "content": [
-        {"type": "tool_result", "tool_use_id": tool_id, "content": content}]},
-        "parent_tool_use_id": None})
+def tool_result(tool_id, content, is_error=False):
+    block = {"type": "tool_result", "tool_use_id": tool_id, "content": content}
+    if is_error:
+        block["is_error"] = True
+    emit({"type": "user", "message": {"role": "user", "content": [block]},
+          "parent_tool_use_id": None})
 
 
-def result(text):
+def result(text, denials=None):
     emit({"type": "result", "subtype": "success", "duration_ms": 10, "duration_api_ms": 5,
           "is_error": False, "num_turns": 1, "result": text, "stop_reason": "end_turn",
           # BN11 gives each arena column its own price to compare.
           "total_cost_usd": float(os.environ.get("FAKE_CLAUDE_COST_USD", "0") or 0),
+          "permission_denials": denials or [],
           "usage": {"input_tokens": 4, "output_tokens": 2, "cache_creation_input_tokens": 0,
                     "cache_read_input_tokens": 12040}})
 
@@ -216,6 +234,124 @@ def bn6(prompt, hold):
     return 0
 
 
+def arg(flag):
+    argv = sys.argv[1:]
+    return argv[argv.index(flag) + 1] if flag in argv and argv.index(flag) + 1 < len(argv) else None
+
+
+# Claude's wording with `--permission-prompts none` (2.1.284, SP2).
+DENIED = ("Permission for this tool use was denied. It requires approval, and this session has no "
+          "approval surface — nobody can answer a permission prompt here — so the call was not run.")
+FIXTURE = [("edit", "Edit", {"file_path": "notes.txt", "old_string": "draft", "new_string": "final"}),
+           ("shell", "Bash", {"command": "ls"})]
+
+
+def trace(line):
+    path = os.environ.get("FAKE_CLAUDE_TRACE")
+    if path:
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(line) + "\n")
+
+
+def run_fixture(kind):
+    if kind == "edit":
+        with open("notes.txt", "a", encoding="utf-8") as fh:
+            fh.write("final\n")
+        return "The file notes.txt has been updated."
+    return "\n".join(sorted(os.listdir(".")))
+
+
+def perm_claude():
+    asked = arg("--permission-mode") or "default"
+    model = arg("--model") or ""
+    mode = {"manual": "default"}.get(asked, asked)
+    if mode == "auto" and "haiku" in model:
+        mode = "default"  # SP2: silent fallback, only system/init tells
+    host = arg("--permission-prompts") == "host" and arg("--permission-prompt-tool")
+    emit({"type": "system", "subtype": "init", "cwd": os.getcwd(), "claude_code_version": "2.1.284-fake",
+          "model": model or "claude-sonnet-4-5", "permissionMode": mode, "tools": ["Bash", "Edit"],
+          "mcp_servers": []})
+    questions, denials = 0, []
+    for i, (kind, name, tool_input) in enumerate(FIXTURE):
+        tid = f"toolu_perm_{i}"
+        emit({"type": "assistant", "message": {
+            "id": f"msg_perm_{i}", "type": "message", "role": "assistant", "model": "claude-sonnet-4-5",
+            "content": [{"type": "tool_use", "id": tid, "name": name, "input": tool_input}],
+            "stop_reason": "tool_use", "usage": {"input_tokens": 4, "output_tokens": 9}},
+            "parent_tool_use_id": None})
+        if mode in ("bypassPermissions", "auto"):
+            verdict = "allow"
+        elif mode == "acceptEdits":
+            verdict = "allow" if kind == "edit" else "ask"
+        elif mode == "plan":
+            verdict = "deny" if kind == "edit" else "ask"
+        elif mode == "dontAsk":
+            verdict = "deny"
+        else:
+            verdict = "ask"
+        if verdict == "ask":
+            questions += 1
+            trace({"cli": "claude", "question": name, "surface": bool(host)})
+            verdict = "allow" if host else "deny"
+        if verdict == "allow":
+            tool_result(tid, run_fixture(kind))
+        else:
+            tool_result(tid, DENIED, is_error=True)
+            denials.append({"tool_name": name, "tool_use_id": tid, "tool_input": tool_input})
+    trace({"cli": "claude", "mode": mode, "questions": questions, "denials": len(denials)})
+    text_reply("done")
+    result("done", denials)
+    return 0
+
+
+def perm_codex():
+    argv = sys.argv[1:]
+    sandbox = arg("--sandbox") or "read-only"
+    policy = "on-request"
+    for i, a in enumerate(argv):
+        if a == "-c" and i + 1 < len(argv) and argv[i + 1].startswith("approval_policy="):
+            policy = argv[i + 1].split("=", 1)[1].strip('"')
+    reviewer = "--approve-for-me" in argv
+    emit_raw = lambda o: (sys.stdout.write(json.dumps(o) + "\n"), sys.stdout.flush())  # noqa: E731
+    emit_raw({"type": "thread.started", "thread_id": "0199-fake-thread"})
+    emit_raw({"type": "turn.started"})
+    questions = declined = 0
+    for i, (kind, _name, tool_input) in enumerate(FIXTURE):
+        if sandbox == "danger-full-access" and policy == "never":
+            verdict = "allow"
+        elif reviewer:
+            verdict = "allow"
+        elif sandbox == "workspace-write" and policy == "on-request":
+            verdict = "allow" if kind == "edit" else "ask"
+        elif sandbox == "read-only" and policy == "on-request":
+            verdict = "deny" if kind == "edit" else "allow"  # the pre-2.7 read-only argv
+        else:
+            verdict = "ask"
+        if verdict == "ask":
+            questions += 1
+            trace({"cli": "codex", "question": kind, "surface": False})
+            verdict = "declined"  # `codex exec` cannot ask anyone
+        status = "completed" if verdict == "allow" else "declined"
+        if verdict == "allow":
+            run_fixture(kind)
+        else:
+            declined += 1
+        if kind == "edit":
+            emit_raw({"type": "item.completed", "item": {"id": f"item_{i}", "type": "file_change",
+                      "changes": [{"path": "notes.txt", "kind": "update"}], "status": status}})
+        else:
+            emit_raw({"type": "item.started", "item": {"id": f"item_{i}", "type": "command_execution",
+                      "command": tool_input["command"], "status": "in_progress"}})
+            emit_raw({"type": "item.completed", "item": {"id": f"item_{i}", "type": "command_execution",
+                      "command": tool_input["command"], "aggregated_output": "", "exit_code": 0 if status == "completed" else None,
+                      "status": status}})
+    trace({"cli": "codex", "mode": f"{sandbox}/{policy}{'/auto' if reviewer else ''}", "questions": questions,
+           "denials": declined})
+    emit_raw({"type": "item.completed", "item": {"id": "item_msg", "type": "agent_message", "text": "done"}})
+    emit_raw({"type": "turn.completed", "usage": {"input_tokens": 10, "cached_input_tokens": 0, "output_tokens": 2}})
+    return 0
+
+
 def main():
     if "--help" in sys.argv[1:] or "-h" in sys.argv[1:]:
         print("Usage: claude [options] (fake for OmniGet benchmarks)\n  -p, --print\n  --output-format <format>")
@@ -238,6 +374,8 @@ def main():
         return 0
     if mode == "bn6":
         return bn6(prompt, hold)
+    if mode == "perm":
+        return perm_codex() if sys.argv[1:2] == ["exec"] else perm_claude()
     init()
     if mode == "ok":
         text_reply("ok")

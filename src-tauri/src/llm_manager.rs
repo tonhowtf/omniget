@@ -838,6 +838,7 @@ impl LlmManager {
         let _ = std::fs::create_dir_all(&root);
         omniget_core::core::llm::code_tools::set_store_file(root.join("workspaces.json"));
         omniget_core::core::llm::perm::set_store_file(root.join("permission-rules.json"));
+        omniget_core::core::llm::run_mode::set_store_file(root.join("run-modes.json"));
         omniget_core::core::llm::snapshot::set_root(root.join("snapshots"));
 
         let bus = Arc::new(Bus::new());
