@@ -2881,7 +2881,7 @@
       "deny": "Deny",
       "always": "Always",
       "always_hint": "Allow now and stop asking for this kind of call (for a command: the same program and subcommand).",
-      "other_chat_running": "{agent} sta lavorando in un'altra conversazione.",
+      "other_chat_running": "{{agent}} sta lavorando in un'altra conversazione.",
       "open_running": "Apri conversazione"
     },
     "composer": {
@@ -2934,8 +2934,9 @@
       "skills_empty": "No skill installed. Install one in the Skills tab.",
       "save_error": "Could not save. Your changes are still here. Try again.",
       "roles_hint": "The coordinator divides and follows the work. Workers carry out assigned tasks; advisors help evaluate decisions.",
-      "delete_warning": "Rimuovere {name}? L'agente e le sue impostazioni verranno rimosse. Le conversazioni salvate resteranno leggibili, ma non potranno continuare senza un agente.",
-      "delete_confirm": "Elimina agente"
+      "delete_warning": "Rimuovere {{name}}? L'agente e le sue impostazioni verranno rimosse. Le conversazioni salvate resteranno leggibili, ma non potranno continuare senza un agente.",
+      "delete_confirm": "Elimina agente",
+      "return_to_edit": "Return to editing the agent"
     },
     "template": {
       "solo": "Solo",

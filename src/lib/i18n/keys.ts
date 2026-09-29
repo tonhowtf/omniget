@@ -4643,6 +4643,7 @@ export type TranslationKeys =
   | 'llm.roster.new'
   | 'llm.roster.provider'
   | 'llm.roster.remove'
+  | 'llm.roster.return_to_edit'
   | 'llm.roster.role'
   | 'llm.roster.roles_hint'
   | 'llm.roster.route'

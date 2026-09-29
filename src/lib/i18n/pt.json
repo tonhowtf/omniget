@@ -2881,7 +2881,7 @@
       "deny": "Negar",
       "always": "Sempre",
       "always_hint": "Permite agora e para de perguntar para esse tipo de chamada (para um comando: o mesmo programa e subcomando).",
-      "other_chat_running": "{agent} está trabalhando em outra conversa.",
+      "other_chat_running": "{{agent}} está trabalhando em outra conversa.",
       "open_running": "Abrir conversa"
     },
     "composer": {
@@ -2934,8 +2934,9 @@
       "skills_empty": "Nenhuma skill instalada. Instale uma na aba Skills.",
       "save_error": "Não foi possível salvar. Suas alterações foram mantidas. Tente novamente.",
       "roles_hint": "O coordenador divide e acompanha o trabalho. Executores realizam tarefas atribuídas; consultores ajudam a avaliar decisões.",
-      "delete_warning": "Remover {name}? O agente e suas configurações serão removidos. As conversas salvas continuarão disponíveis para leitura, mas não poderão continuar sem um agente.",
-      "delete_confirm": "Excluir agente"
+      "delete_warning": "Remover {{name}}? O agente e suas configurações serão removidos. As conversas salvas continuarão disponíveis para leitura, mas não poderão continuar sem um agente.",
+      "delete_confirm": "Excluir agente",
+      "return_to_edit": "Return to editing the agent"
     },
     "template": {
       "solo": "Solo",

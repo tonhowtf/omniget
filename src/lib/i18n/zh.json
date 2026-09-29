@@ -2881,7 +2881,7 @@
       "deny": "Deny",
       "always": "Always",
       "always_hint": "Allow now and stop asking for this kind of call (for a command: the same program and subcommand).",
-      "other_chat_running": "{agent} 正在另一個對話中工作。",
+      "other_chat_running": "{{agent}} 正在另一個對話中工作。",
       "open_running": "開啟對話"
     },
     "composer": {
@@ -2934,8 +2934,9 @@
       "skills_empty": "No skill installed. Install one in the Skills tab.",
       "save_error": "Could not save. Your changes are still here. Try again.",
       "roles_hint": "The coordinator divides and follows the work. Workers carry out assigned tasks; advisors help evaluate decisions.",
-      "delete_warning": "要移除 {name} 嗎？智能體及其設定會被移除。已儲存的對話仍可閱讀，但沒有智能體就無法繼續。",
-      "delete_confirm": "刪除智能體"
+      "delete_warning": "要移除 {{name}} 嗎？智能體及其設定會被移除。已儲存的對話仍可閱讀，但沒有智能體就無法繼續。",
+      "delete_confirm": "刪除智能體",
+      "return_to_edit": "Return to editing the agent"
     },
     "template": {
       "solo": "Solo",
