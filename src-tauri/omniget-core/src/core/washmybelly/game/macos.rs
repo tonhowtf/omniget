@@ -269,11 +269,14 @@ mod tests {
     #[test]
     fn kqueue_sees_the_exit_of_our_test_child() {
         let mut child = std::process::Command::new("sleep")
-            .arg("1")
+            .arg("30")
             .spawn()
             .unwrap();
         let mut w = KqWaiter::new(child.id(), 0);
         assert!(w.kq >= 0);
+        assert!(!w.wait(Duration::from_millis(50)), "still running");
+        // A kill is an exit like any other; no need to wait a second for it.
+        let _ = child.kill();
         let t0 = Instant::now();
         let mut exited = false;
         while t0.elapsed() < Duration::from_secs(5) {

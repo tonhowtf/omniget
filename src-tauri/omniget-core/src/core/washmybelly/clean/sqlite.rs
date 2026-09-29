@@ -13,6 +13,14 @@ use rusqlite::{Connection, OpenFlags};
 
 use super::super::fsops;
 
+/// How long a vacuum waits for another program's lock before it gives up.
+/// Unit tests hold the lock on purpose, so they wait less.
+const BUSY_WAIT: Duration = if cfg!(test) {
+    Duration::from_millis(50)
+} else {
+    Duration::from_millis(500)
+};
+
 const MAGIC: &[u8; 16] = b"SQLite format 3\0";
 
 /// Bytes a `VACUUM` would give back, from the header: free pages × page
@@ -74,8 +82,7 @@ pub fn vacuum(path: &Path) -> Result<u64, String> {
         OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )
     .map_err(|e| format!("{}: {e}", path.display()))?;
-    db.busy_timeout(Duration::from_millis(500))
-        .map_err(|e| e.to_string())?;
+    db.busy_timeout(BUSY_WAIT).map_err(|e| e.to_string())?;
     let busy = || {
         format!(
             "LOCKED: {} is open in another program; close it and try again",

@@ -615,23 +615,20 @@ mod driver_e2e {
     /// A fake `claude` that logs its argv and stdin, answers the first user
     /// message with a recorded turn, then waits for EOF.
     fn fake_cli(dir: &Path, fixture_name: &str) -> std::path::PathBuf {
-        use std::os::unix::fs::PermissionsExt;
         let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("src/core/llm/drivers/claude/fixtures")
             .join(fixture_name);
         let script = dir.join("claude");
-        std::fs::write(
+        crate::core::process::test_exec::script(
             &script,
-            format!(
+            &format!(
                 "#!/bin/sh\necho \"$@\" > '{argv}'\necho \"CFG=$CLAUDE_CONFIG_DIR NEST=${{CLAUDECODE:-none}}\" > '{env}'\nsent=0\nwhile IFS= read -r line; do\n  echo \"$line\" >> '{stdin}'\n  case \"$line\" in\n    *'\"type\":\"user\"'*) if [ $sent = 0 ]; then cat '{fx}'; sent=1; fi ;;\n  esac\ndone\n",
                 argv = dir.join("argv.txt").display(),
                 env = dir.join("env.txt").display(),
                 stdin = dir.join("stdin.jsonl").display(),
                 fx = fixture.display(),
             ),
-        )
-        .unwrap();
-        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        );
         script
     }
 

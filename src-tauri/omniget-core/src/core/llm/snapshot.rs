@@ -1318,10 +1318,12 @@ mod bn4 {
             return eprintln!("git missing: skipped");
         }
         test_root();
+        // Timing repetitions are the benchmark's (`diff_eval.py` sets them);
+        // `cargo test` computes each diff once.
         let reps: usize = std::env::var("BN4_TIMING_REPS")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(5);
+            .unwrap_or(1);
         let root = match std::env::var("BN4_FIXTURES") {
             Ok(dir) => PathBuf::from(dir),
             Err(_) => {

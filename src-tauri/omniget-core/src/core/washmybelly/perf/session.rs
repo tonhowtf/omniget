@@ -948,7 +948,12 @@ mod tests {
         )
         .unwrap_err()
         .starts_with("BUSY"));
-        std::thread::sleep(Duration::from_millis(1300));
+        // The first sample is taken right away; wait for it, not a second.
+        let id_dir = tmp.path().join("perf").join(&s.id);
+        let t0 = Instant::now();
+        while read_sensors(&id_dir).is_empty() && t0.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
         let done = finish("stopped").unwrap();
         assert_eq!(done.status, "done");
         assert_eq!(done.frame_mode, "none");

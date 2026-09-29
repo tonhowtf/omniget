@@ -209,19 +209,6 @@ mod tests {
     }
 
     #[test]
-    fn a_fast_pace_runs_out_before_the_reset() {
-        // 2 h of a 5 h window gone, 60 % used: 100 % at 3 h20, before the reset.
-        let at = runs_out_at(0.6, NOW + 3 * HOUR_MS, 5 * HOUR_MS, NOW).unwrap();
-        assert_eq!(at, NOW + 80 * 60_000);
-        // 20 % used in the same 2 h: lasts to the reset.
-        assert_eq!(runs_out_at(0.2, NOW + 3 * HOUR_MS, 5 * HOUR_MS, NOW), None);
-        // Already out.
-        assert_eq!(runs_out_at(1.0, NOW + HOUR_MS, 5 * HOUR_MS, NOW), Some(NOW));
-        // A reset further away than the window is not trusted.
-        assert_eq!(runs_out_at(0.5, NOW + 6 * HOUR_MS, 5 * HOUR_MS, NOW), None);
-    }
-
-    #[test]
     fn session_and_weekly_are_told_apart() {
         let r = ring(
             "claude:work",

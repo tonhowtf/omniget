@@ -50,6 +50,9 @@ pub struct HttpFetcherConfig {
     pub connect_timeout: Duration,
     pub read_timeout: Duration,
     pub max_retries_per_segment: u32,
+    /// Wait before retrying a failed segment, times the attempt number
+    /// (capped at 5x).
+    pub retry_backoff: Duration,
     pub steal_threshold: Duration,
     pub steal_min_chunk_size: u64,
     pub use_sidecar_resume: bool,
@@ -65,6 +68,7 @@ impl Default for HttpFetcherConfig {
             connect_timeout: Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS),
             read_timeout: Duration::from_secs(DEFAULT_READ_TIMEOUT_SECS),
             max_retries_per_segment: DEFAULT_MAX_RETRIES_PER_SEGMENT,
+            retry_backoff: Duration::from_secs(1),
             steal_threshold: Duration::from_secs(DEFAULT_STEAL_THRESHOLD_SECS),
             steal_min_chunk_size: DEFAULT_STEAL_MIN_CHUNK_SIZE,
             use_sidecar_resume: true,
@@ -881,7 +885,7 @@ async fn worker_loop(
                         seg.state.store(SEG_FAILED, Ordering::Relaxed);
                         return Err(e);
                     }
-                    let delay = Duration::from_secs((attempt as u64).min(5));
+                    let delay = cfg.retry_backoff * attempt.min(5);
                     tracing::warn!(
                         "[http_fetcher] segment {}: attempt {}/{} failed: {}",
                         seg.id,

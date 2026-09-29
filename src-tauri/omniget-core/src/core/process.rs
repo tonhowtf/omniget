@@ -932,3 +932,50 @@ mod tree_tests {
         assert_eq!(count(), 0, "a ping survived the job close");
     }
 }
+
+/// Fake executables for tests that hand a program path to the code under
+/// test (a CLI the runtime launches by path). macOS assesses the first
+/// `exec` of every new executable file, about 0.3 s each and one at a time
+/// across the whole machine, so a suite that writes a fresh script per test
+/// waits seconds on it. Here every fake is a hard link to one launcher that
+/// stays in the temp folder (assessed once per machine), and the launcher
+/// runs `<fake>.body` with `/bin/sh` in the same process. A hard link, not
+/// a symlink: code that canonicalizes the path it was given still finds the
+/// body next to it.
+#[cfg(all(test, unix))]
+pub(crate) mod test_exec {
+    use std::path::{Path, PathBuf};
+
+    const LAUNCHER: &str = "#!/bin/sh\nexec /bin/sh \"$0.body\" \"$@\"\n";
+
+    fn launcher() -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join("omniget-test-exec");
+        let path = dir.join("launcher-v1");
+        if std::fs::read(&path).is_ok_and(|b| b == LAUNCHER.as_bytes()) {
+            return path;
+        }
+        std::fs::create_dir_all(&dir).unwrap();
+        // Written aside and renamed: a test in another process never runs a
+        // half-written launcher.
+        let tmp = dir.join(format!("launcher-{}.tmp", uuid::Uuid::new_v4().simple()));
+        std::fs::write(&tmp, LAUNCHER).unwrap();
+        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::rename(&tmp, &path).unwrap();
+        path
+    }
+
+    /// Makes `path` an executable that runs `body`, a `/bin/sh` script (a
+    /// leading shebang line is just a comment to it).
+    pub fn script(path: &Path, body: &str) {
+        let mut body_path = path.as_os_str().to_owned();
+        body_path.push(".body");
+        std::fs::write(PathBuf::from(body_path), body).unwrap();
+        let _ = std::fs::remove_file(path);
+        let launcher = launcher();
+        if std::fs::hard_link(&launcher, path).is_err() {
+            // Another file system: a copy works, it just pays the first exec.
+            std::fs::copy(&launcher, path).unwrap();
+        }
+    }
+}

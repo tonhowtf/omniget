@@ -505,7 +505,6 @@ mod tests {
         missions::*,
     };
     use serde_json::{json, Value};
-    use std::os::unix::fs::PermissionsExt;
     fn fixture() -> (tempfile::TempDir, AssistDb, Cli, AssistCtx, String) {
         let dir = tempfile::tempdir().unwrap();
         let workspace = dir.path().canonicalize().unwrap();
@@ -542,8 +541,7 @@ mod tests {
         transition(&db, &d.mission.id, MissionState::Running, "driver", None).unwrap();
         let path = workspace.join("fixture-cli");
         let script=format!("#!/bin/sh\ncase \"$1 $2\" in\n'model list') echo '[{{\"job_type\":\"gpt_image_2_5\",\"secret\":\"CANARY\"}}]' ;;\n'model get') echo '{{\"job_type\":\"gpt_image_2_5\",\"params\":[{{\"name\":\"prompt\"}},{{\"name\":\"api_key\"}}]}}' ;;\n'generate cost') echo '{{\"credits\":0.25}}' ;;\n'generate create') echo x >> '{}'; echo '{{\"job_ids\":[\"job-1\"]}}' ;;\n'generate get') echo '{{\"id\":\"job-1\",\"status\":\"completed\",\"results\":[{{\"url\":\"https://private/?token=CANARY\"}}]}}' ;;\nesac\n",workspace.join("submissions").display());
-        std::fs::write(&path, script).unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+        crate::core::process::test_exec::script(&path, &script);
         media_tools::configure_local_cli(&db, &path).unwrap();
         let cli = Cli::installed(&path).unwrap();
         let ctx = AssistCtx {

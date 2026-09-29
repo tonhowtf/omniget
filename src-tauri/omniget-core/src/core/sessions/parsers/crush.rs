@@ -362,7 +362,10 @@ mod tests {
 
     #[test]
     fn per_project_db_with_wrapped_parts() {
-        let proj = std::env::temp_dir().join(format!("omniget-crush-{}", std::process::id()));
+        // A parent of its own: `dbs()` also scans the project's siblings, and
+        // in the shared temp folder those were other runs' leftovers.
+        let tmp = tempfile::tempdir().unwrap();
+        let proj = tmp.path().join("proj");
         let data = proj.join(".crush");
         std::fs::create_dir_all(&data).unwrap();
         let db = data.join("crush.db");
@@ -391,6 +394,5 @@ mod tests {
         assert_eq!(c.ms, Some(2000));
         assert_eq!(s.turns[1].usage.input, 1000);
         assert_eq!(s.turns[1].cost_usd, Some(0.05));
-        std::fs::remove_dir_all(&proj).ok();
     }
 }

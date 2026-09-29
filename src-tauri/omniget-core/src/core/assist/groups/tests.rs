@@ -547,7 +547,8 @@ async fn delegate_runs_the_child_and_returns_its_authored_answer() {
     assert!(input.contains("Filme X (2019)") && input.contains("plataforma + legenda"));
 }
 
-#[tokio::test]
+// Paused clock: the 5 s limit runs in virtual time.
+#[tokio::test(start_paused = true)]
 async fn delegate_stops_a_child_at_the_time_limit() {
     let (db, _) = temp_db();
     let room = room3(&db, Some("curator"));
@@ -561,7 +562,7 @@ async fn delegate_stops_a_child_at_the_time_limit() {
         ..Default::default()
     };
     req.limit_s = Some(5);
-    let started = std::time::Instant::now();
+    let started = tokio::time::Instant::now();
     let t = tasks::delegate(
         &db,
         &d,

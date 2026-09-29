@@ -564,7 +564,9 @@ mod tests {
     #[test]
     fn detects_tempo_of_a_click_track() {
         for target in [90.0f32, 128.0, 140.0] {
-            let s = clicks(target, 22050, 30.0);
+            // 12 s: past the 8 s the detector needs, without 30 s of
+            // unoptimized DSP per tempo.
+            let s = clicks(target, 22050, 12.0);
             let t = bpm(&s, 22050).expect("tempo");
             assert!(
                 (t.bpm - target).abs() < 2.0,

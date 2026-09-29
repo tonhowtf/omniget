@@ -521,8 +521,10 @@ mod tests {
     #[tokio::test]
     async fn stdio_a_server_that_dies_mid_session_fails_with_proto() {
         need_node!();
-        // Exits right after answering `initialize`.
-        let client = McpClient::connect(&stdio_config("fx", &["--crash-after", "1"], Some(5_000)))
+        // Exits right after answering `initialize`. The roomy window only
+        // covers `node`'s start-up on a loaded machine: the crash answers at
+        // once, so it never waits it out.
+        let client = McpClient::connect(&stdio_config("fx", &["--crash-after", "1"], Some(30_000)))
             .await
             .expect("the handshake still completes");
         let err = client.tools().await.unwrap_err();
@@ -546,10 +548,12 @@ mod tests {
     #[tokio::test]
     async fn stdio_a_slow_tool_hits_the_timeout() {
         need_node!();
-        // 3 s is comfortably above `node`'s start-up and far below the tool.
-        let client = McpClient::connect(&stdio_config("fx", &[], Some(3_000)))
+        // The handshake gets the roomy window (`node`'s start-up on a loaded
+        // machine); the call gets a short one, far below the tool's minute.
+        let mut client = McpClient::connect(&stdio_config("fx", &[], Some(30_000)))
             .await
             .unwrap();
+        client.timeout = Duration::from_millis(300);
         let err = client
             .call("slow", json!({ "ms": 60_000 }), None)
             .await

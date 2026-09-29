@@ -60,13 +60,15 @@ mod tests {
     /// The budget is 200 ms for 500 MB. Writing half a gigabyte on a machine
     /// with ~16 GB free is not polite, so the test generates a smaller file,
     /// measures the real throughput and checks the budget as a rate. Set
-    /// `OMNIGET_CLI_USAGE_BENCH_MB` to measure the full 500 MB by hand.
+    /// `OMNIGET_CLI_USAGE_BENCH_MB` to measure the full 500 MB by hand; the
+    /// default 8 MB is enough for the warm-sweep assertion, the one that
+    /// always runs.
     #[test]
     fn a_cold_sweep_stays_inside_the_budget() {
         let mb: u64 = std::env::var("OMNIGET_CLI_USAGE_BENCH_MB")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(100);
+            .unwrap_or(8);
         let dir = std::env::temp_dir().join(format!(
             "omniget-cli-usage-bench-{}",
             std::time::SystemTime::now()

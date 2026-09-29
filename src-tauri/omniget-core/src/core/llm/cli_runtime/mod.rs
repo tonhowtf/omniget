@@ -832,20 +832,16 @@ mod tests {
     /// exercised end to end with no CLI installed.
     #[cfg(unix)]
     fn fake_cli_replaying(name: &str, fixture_name: &str) -> PathBuf {
-        use std::io::Write;
-        use std::os::unix::fs::PermissionsExt;
         let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests")
             .join("cli_fixtures")
             .join(fixture_name);
         let path =
             std::env::temp_dir().join(format!("omniget-replay-{name}-{}.sh", std::process::id()));
-        let mut f = std::fs::File::create(&path).unwrap();
-        writeln!(f, "#!/bin/sh").unwrap();
-        writeln!(f, "cat > /dev/null").unwrap();
-        writeln!(f, "cat {}", fixture_path.display()).unwrap();
-        drop(f);
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        crate::core::process::test_exec::script(
+            &path,
+            &format!("cat > /dev/null\ncat {}\n", fixture_path.display()),
+        );
         path
     }
 
@@ -1187,27 +1183,21 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn a_runtime_turn_runs_under_its_watchdog() {
-        use std::io::Write;
-        use std::os::unix::fs::PermissionsExt;
         let root = tmp("watchdog");
         let accounts = store_with(&root, CliKind::Claude);
         let runtime = CliRuntime::new(accounts, Arc::new(CliCapacity::new()));
         let fake = root.join("hang.sh");
-        let mut f = std::fs::File::create(&fake).unwrap();
-        writeln!(f, "#!/bin/sh\ncat > /dev/null").unwrap();
-        writeln!(
-            f,
-            "echo '{{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s1\"}}'"
-        )
-        .unwrap();
-        writeln!(f, "sleep 30").unwrap();
-        drop(f);
-        std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+        crate::core::process::test_exec::script(
+            &fake,
+            "cat > /dev/null\necho '{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s1\"}'\nsleep 30\n",
+        );
         runtime.set_binary(CliKind::Claude, fake);
+        // A short idle window (the one under test) and a roomy start window,
+        // so a slow spawn on a loaded machine is not read as a no-start.
         runtime.set_watchdog(WatchdogConfig {
-            idle: Some(std::time::Duration::from_millis(800)),
+            idle: Some(std::time::Duration::from_millis(200)),
             tool_idle: None,
-            start: Some(std::time::Duration::from_secs(5)),
+            start: Some(std::time::Duration::from_secs(30)),
         });
         let started = std::time::Instant::now();
         let events: Vec<TurnEvent> = runtime
@@ -1224,7 +1214,7 @@ mod tests {
             })
             .expect("the hung CLI must be stopped");
         assert_eq!(error.code, ERR_CLI_STALLED);
-        assert!(started.elapsed() < std::time::Duration::from_secs(10));
+        assert!(started.elapsed() < std::time::Duration::from_secs(20));
         let _ = std::fs::remove_dir_all(&root);
     }
 

@@ -345,7 +345,13 @@ pub fn undo_all(exec: &dyn Exec, steps: &[UndoStep]) -> Vec<Value> {
 type ApplyFn = Box<dyn FnOnce() -> Result<Applied, String> + Send>;
 type WaiterFn = Box<dyn FnOnce() -> Box<dyn ExitWaiter> + Send>;
 
+/// How long the watcher waits for the exit between two looks at the stop
+/// flag; every third look runs `Exec::tick`. Unit tests use a short one so
+/// a stop or a tick never waits a whole second.
+#[cfg(not(test))]
 const TICK: Duration = Duration::from_secs(1);
+#[cfg(test)]
+const TICK: Duration = Duration::from_millis(50);
 
 /// Start a session: a thread applies, watches and undoes. Returns once the
 /// apply step has finished.
@@ -830,7 +836,7 @@ mod tests {
     fn watcher_undoes_everything_when_the_game_exits() {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Ctx::at(dir.path());
-        let child = spawn_sleep(1);
+        let child = spawn_sleep(20);
         let t = target_of(&child);
         let fake = Arc::new(Fake::default());
         let (pid, started) = (t.pid, t.started);
@@ -845,14 +851,18 @@ mod tests {
         assert_eq!(a.method, "test");
         assert_eq!(kv_read(&ctx).len(), 1, "state is in kv while the game runs");
         let mut child = child;
+        // The game exits (killed, so the test does not wait for it).
+        let _ = child.kill();
         let _ = child.wait(); // reap, so the pid is really gone
         let t0 = Instant::now();
         while fake.undone.lock().unwrap().len() < 3 && t0.elapsed() < Duration::from_secs(8) {
-            std::thread::sleep(Duration::from_millis(100));
+            std::thread::sleep(Duration::from_millis(10));
         }
         assert_eq!(fake.undone.lock().unwrap().len(), 3);
         assert_eq!(fake.undone.lock().unwrap()[0], UndoStep::ExecutionState);
-        std::thread::sleep(Duration::from_millis(200));
+        while active_list().iter().any(|x| x.pid == pid) && t0.elapsed() < Duration::from_secs(8) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
         assert!(!active_list().iter().any(|x| x.pid == pid));
         assert!(kv_read(&ctx).is_empty(), "kv is cleared after the exit");
     }
@@ -1014,7 +1024,11 @@ mod tests {
             Box::new(move || Box::new(PollWaiter { pid, started }) as Box<dyn ExitWaiter>),
         )
         .unwrap();
-        std::thread::sleep(Duration::from_millis(3600));
+        // Every third look ticks (150 ms with the test TICK).
+        let t0 = Instant::now();
+        while *fake.ticks.lock().unwrap() == 0 && t0.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
         stop(t.pid);
         let _ = child.kill();
         let _ = child.wait();

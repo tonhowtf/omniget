@@ -852,11 +852,9 @@ mod tests {
         impl Bin {
             /// Writes an executable `skillspector` whose body is `script`.
             fn new(tag: &str, script: &str) -> Self {
-                use std::os::unix::fs::PermissionsExt;
                 let dir = super::super::super::install::tests_support::temp_dir(tag);
                 let path = dir.join(SCANNER_BIN);
-                std::fs::write(&path, format!("#!/bin/sh\n{script}\n")).unwrap();
-                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+                crate::core::process::test_exec::script(&path, &format!("{script}\n"));
                 Self { dir }
             }
 

@@ -377,6 +377,7 @@ async fn download_attempt(
             headers.clone(),
             cancel,
             max_segments,
+            policy.backoff,
         )
         .await
         {
@@ -464,6 +465,7 @@ async fn download_attempt(
     Ok(size)
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_http_fetcher(
     client: &reqwest::Client,
     url: &str,
@@ -472,6 +474,7 @@ async fn run_http_fetcher(
     headers: Option<reqwest::header::HeaderMap>,
     cancel: Option<&CancellationToken>,
     max_segments: Option<usize>,
+    retry_backoff: Duration,
 ) -> anyhow::Result<u64> {
     // B35: o numero de Config vira **teto**, nao valor fixo. Um CDN que estrangula
     // com 8 conexoes entrega mais com 4, e so medindo da para saber qual e o caso
@@ -498,6 +501,8 @@ async fn run_http_fetcher(
         // host discards partials), so a resume sidecar there is only a stray
         // file in the job folder for crash reconciliation to misread.
         use_sidecar_resume: max_segments.is_none(),
+        // A failed segment waits as long as a broken stream before its retry.
+        retry_backoff,
         ..Default::default()
     };
 
@@ -1438,32 +1443,39 @@ mod tests {
         let srv_body = body.clone();
         let (base, log) =
             test_server::spawn(move |_, req| test_server::serve_bytes(&srv_body, req)).await;
+        let url = format!("{base}/big.bin");
+        // The tuner is per process and keyed by host:port. Under `cargo test`
+        // an earlier test's server on a reused port may have left a 429
+        // there, which halves the segments of this one (the flake: a single
+        // Range past byte 0). What is pinned here is the split itself.
+        concurrency_tuner()
+            .lock()
+            .await
+            .forget(&host_of(&url).unwrap());
         let out = scratch("big.bin");
         let client = build_worker_client().unwrap();
-        let got = download_attempt(
-            &client,
-            &format!("{base}/big.bin"),
-            &out,
-            &sink(),
-            None,
-            None,
-            true,
-            &FAST,
-        )
-        .await;
+        let got = download_attempt(&client, &url, &out, &sink(), None, None, true, &FAST).await;
         assert!(got.is_ok(), "{got:?}");
         assert_eq!(std::fs::read(&out).unwrap(), body);
-        let starts: std::collections::HashSet<u64> = log
+        let gets: Vec<(u64, Option<u64>)> = log
             .lock()
             .unwrap()
             .iter()
             .filter(|r| r.method == "GET")
-            .filter_map(|r| r.range().map(|(s, _)| s))
-            .filter(|s| *s > 0)
+            .map(|r| {
+                r.range()
+                    .expect("every GET is a Range segment, never one stream")
+            })
             .collect();
+        // Each segment asks for an explicit slice, and more than one slice
+        // was asked for: however many segments the connection budget allows
+        // right now (at least 2 even with 12 downloads in this process),
+        // the file never went down as a single piece.
+        assert!(gets.iter().all(|(_, end)| end.is_some()), "{gets:?}");
+        let starts: std::collections::HashSet<u64> = gets.iter().map(|(s, _)| *s).collect();
         assert!(
-            starts.len() >= 2,
-            "expected several Range segments: {starts:?}"
+            starts.contains(&0) && starts.len() >= 2,
+            "expected several Range segments: {gets:?}"
         );
     }
 

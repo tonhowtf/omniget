@@ -100,3 +100,9 @@ libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = "5"
+
+[dev-dependencies]
+# Paused clock for the timing tests (`#[tokio::test(start_paused = true)]`):
+# windows and backoffs run in virtual time instead of sleeping. Test builds
+# only; `--workspace` builds already get it from the app's dev-dependencies.
+tokio = { version = "1", features = ["full", "test-util"] }
