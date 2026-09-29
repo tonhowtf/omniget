@@ -15,21 +15,21 @@ pub type ActiveP2pSends = Arc<tokio::sync::Mutex<HashMap<String, P2pSendHandle>>
 
 pub mod agentkit_boot;
 pub mod commands;
+pub mod company;
 pub mod cookies;
 pub mod core;
 pub mod extension_storage;
 pub mod external_url;
 pub mod hotkey;
 pub mod ipc_guard;
-pub mod company;
 pub mod jobs;
 pub mod limits_strip;
 pub mod llm_attention;
 pub mod llm_manager;
 pub mod local_bridge;
 pub mod local_bridge_agentkit;
-pub mod local_bridge_debug;
 pub mod local_bridge_company;
+pub mod local_bridge_debug;
 pub mod local_bridge_jobs;
 pub mod local_bridge_llm;
 pub mod local_bridge_observe;
