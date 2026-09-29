@@ -220,14 +220,19 @@ fn the_empty_sidecar_placeholder_is_not_a_hook_binary() {
     let dir = tmp("shim");
     let empty = dir.join("omniget-hook-shim");
     let real = dir.join("real-shim");
+    let text = dir.join("not-a-binary");
     std::fs::write(&empty, b"").unwrap();
     std::fs::write(&real, b"#!/bin/sh\n").unwrap();
+    std::fs::write(&text, b"placeholder\n").unwrap();
     let missing = dir.join("missing");
     assert_eq!(
-        first_usable([missing, empty.clone(), real.clone()]),
+        first_usable([missing, empty.clone(), text.clone(), real.clone()]),
         Some(real)
     );
-    assert_eq!(first_usable([empty]), None);
+    assert_eq!(first_usable([empty, text]), None);
+    // The test binary itself is a real executable of this platform.
+    let me = std::env::current_exe().unwrap();
+    assert_eq!(first_usable([me.clone()]), Some(me));
 }
 
 #[test]

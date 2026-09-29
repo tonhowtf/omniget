@@ -997,9 +997,19 @@ impl AgentRuntime for CliRuntime {
                             Err(e) => tracing::warn!("[cli] permission hooks: {e}"),
                         }
                     }
-                    None => tracing::debug!(
-                        "[cli] no omniget-hook-shim: the CLI's permission mode alone judges its tools"
-                    ),
+                    None => {
+                        // Once per process at `warn`: a release without the
+                        // bundled sidecar must be visible in the log.
+                        static SAID: std::sync::atomic::AtomicBool =
+                            std::sync::atomic::AtomicBool::new(false);
+                        if !SAID.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                            tracing::warn!(
+                                "[cli] no hook binary (omniget-hook sidecar / omniget-hook-shim): Claude Code turns run without OmniGet's permission hooks; its permission mode alone judges its tools"
+                            );
+                        } else {
+                            tracing::debug!("[cli] no hook binary: turn without permission hooks");
+                        }
+                    }
                 }
             }
             launch = Some(plan);

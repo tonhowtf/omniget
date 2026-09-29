@@ -5,22 +5,31 @@
 //! switches.
 //!
 //! Source lookup: next to the running executable (release bundle, where Tauri
-//! puts `externalBin` sidecars without their target triple, and `cargo run`
-//! in dev, where every workspace binary lands in `target/<profile>/`), then the
-//! workspace `target/debug` and `target/release` folders (dev builds started
-//! from another folder). The copy happens only when the destination is missing
-//! or its hash differs. Runs once, off the main thread.
+//! puts the `omniget-hook` `externalBin` sidecar without its target triple,
+//! and `cargo run` in dev, where every workspace binary lands in
+//! `target/<profile>/`), then the workspace `target/debug` and
+//! `target/release` folders (dev builds started from another folder). Only a
+//! runnable file counts (`usable_binary`): the empty sidecar placeholder of a
+//! dev/CI build is never installed, and an installed copy that is not
+//! runnable is not pinned. The copy happens only when the destination is
+//! missing or its hash differs. Runs once, off the main thread.
 
 use std::path::{Path, PathBuf};
 
-use omniget_core::core::agentkit::convert::hook_common::{set_shim_path, SHIM_NAME};
+use omniget_core::core::agentkit::convert::hook_common::{
+    set_shim_path, usable_binary, SHIM_NAME, SHIM_SIDECAR,
+};
+
+fn exe(name: &str) -> String {
+    if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_string()
+    }
+}
 
 fn exe_name() -> String {
-    if cfg!(windows) {
-        format!("{SHIM_NAME}.exe")
-    } else {
-        SHIM_NAME.to_string()
-    }
+    exe(SHIM_NAME)
 }
 
 fn sha256_file(p: &Path) -> Option<String> {
@@ -29,14 +38,16 @@ fn sha256_file(p: &Path) -> Option<String> {
     Some(hex::encode(sha2::Sha256::digest(&bytes)))
 }
 
-/// Where a built shim may be, in order.
+/// Where a built shim may be, in order: the bundled sidecar first.
 fn candidates() -> Vec<PathBuf> {
     let name = exe_name();
+    let sidecar = exe(SHIM_SIDECAR);
     let mut out = Vec::new();
     if let Some(dir) = std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(Path::to_path_buf))
     {
+        out.push(dir.join(&sidecar));
         out.push(dir.join(&name));
         // macOS bundle: Contents/MacOS/<app> — resources live in Contents/Resources
         if let Some(contents) = dir.parent() {
@@ -60,7 +71,16 @@ pub fn shim_destination() -> Option<PathBuf> {
 /// anywhere: hook commands then fall back to the core's own lookup).
 pub fn ensure_shim() -> Result<Option<PathBuf>, String> {
     let dst = shim_destination().ok_or("AGENTKIT_BOOT: no app data directory")?;
-    let src = candidates().into_iter().find(|p| p.is_file() && *p != dst);
+    ensure_shim_from(&candidates(), &dst)
+}
+
+/// [`ensure_shim`] with the sources and the destination given (tests).
+fn ensure_shim_from(candidates: &[PathBuf], dst: &Path) -> Result<Option<PathBuf>, String> {
+    let dst = dst.to_path_buf();
+    let src = candidates
+        .iter()
+        .find(|p| usable_binary(p) && **p != dst)
+        .cloned();
     if let Some(src) = &src {
         let want = sha256_file(src);
         let have = sha256_file(&dst);
@@ -73,10 +93,20 @@ pub fn ensure_shim() -> Result<Option<PathBuf>, String> {
             );
         }
     }
-    if dst.is_file() {
+    if usable_binary(&dst) {
         set_shim_path(Some(dst.clone()));
         Ok(Some(dst))
     } else {
+        // An empty or broken copy (an older build installed the placeholder)
+        // goes away: a hook command must never point at it.
+        if dst.exists() {
+            let _ = std::fs::remove_file(&dst);
+            tracing::warn!(
+                "[agentkit] removed an unusable hook shim at {}",
+                dst.display()
+            );
+        }
+        set_shim_path(None);
         Ok(None)
     }
 }
@@ -111,8 +141,55 @@ pub fn spawn_ensure_shim() {
         .spawn(|| match ensure_shim() {
             Ok(Some(p)) => tracing::info!("[agentkit] hook shim at {}", p.display()),
             Ok(None) => tracing::warn!(
-                "[agentkit] hook shim not found (build it with `cargo build -p omniget-cli --bin omniget-hook-shim`)"
+                "[agentkit] hook shim not found (no `omniget-hook` sidecar in the bundle; in dev: `cargo build -p omniget-cli --bin omniget-hook-shim`): Claude Code turns run without OmniGet's permission hooks"
             ),
             Err(e) => tracing::warn!("[agentkit] {e}"),
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tmp(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!(
+            "omniget-shim-boot-{name}-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    #[test]
+    fn the_empty_placeholder_is_never_installed_and_a_real_shim_is() {
+        let d = tmp("boot");
+        let placeholder = d.join("omniget-hook");
+        std::fs::write(&placeholder, b"").unwrap();
+        let dst = d.join("bin").join(exe_name());
+        // Only the placeholder: nothing installed, nothing pinned.
+        assert_eq!(ensure_shim_from(&[placeholder.clone()], &dst), Ok(None));
+        assert!(!dst.exists());
+        // A real executable (this test binary) behind the placeholder wins.
+        let real = std::env::current_exe().unwrap();
+        assert_eq!(
+            ensure_shim_from(&[placeholder.clone(), real.clone()], &dst),
+            Ok(Some(dst.clone()))
+        );
+        assert_eq!(sha256_file(&dst), sha256_file(&real));
+        let _ = std::fs::remove_dir_all(&d);
+        set_shim_path(None);
+    }
+
+    #[test]
+    fn an_installed_empty_copy_is_removed_not_pinned() {
+        let d = tmp("stale");
+        let dst = d.join("bin").join(exe_name());
+        std::fs::create_dir_all(dst.parent().unwrap()).unwrap();
+        std::fs::write(&dst, b"").unwrap();
+        let placeholder = d.join("omniget-hook");
+        std::fs::write(&placeholder, b"").unwrap();
+        assert_eq!(ensure_shim_from(&[placeholder], &dst), Ok(None));
+        assert!(!dst.exists());
+        let _ = std::fs::remove_dir_all(&d);
+    }
 }

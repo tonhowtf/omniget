@@ -85,30 +85,35 @@ impl TurnHooks {
 }
 
 /// The hook binary: the host's pinned copy (`<app_data>/bin/`), else next to
-/// the running executable, else `<app_data>/bin/`. An empty file (the
+/// the running executable (the bundle's `omniget-hook` sidecar, then a dev
+/// build's `omniget-hook-shim`), else `<app_data>/bin/`. An empty file (the
 /// sidecar placeholder of a dev build) does not count: a missing binary
 /// would make the shell fail with 127, which Claude reads as "go ahead".
 pub fn resolve_shim() -> Option<PathBuf> {
-    use crate::core::agentkit::convert::hook_common::{pinned_shim, SHIM_NAME};
-    let name = if cfg!(windows) {
-        format!("{SHIM_NAME}.exe")
-    } else {
-        SHIM_NAME.to_string()
+    use crate::core::agentkit::convert::hook_common::{pinned_shim, SHIM_NAME, SHIM_SIDECAR};
+    let exe = |n: &str| {
+        if cfg!(windows) {
+            format!("{n}.exe")
+        } else {
+            n.to_string()
+        }
     };
-    let beside = std::env::current_exe()
+    let dir = std::env::current_exe()
         .ok()
-        .and_then(|p| p.parent().map(|d| d.join(&name)));
-    let in_data = crate::core::paths::app_data_dir().map(|d| d.join("bin").join(&name));
-    first_usable([pinned_shim(), beside, in_data].into_iter().flatten())
+        .and_then(|p| p.parent().map(Path::to_path_buf));
+    let beside = [SHIM_SIDECAR, SHIM_NAME]
+        .into_iter()
+        .filter_map(|n| dir.as_ref().map(|d| d.join(exe(n))));
+    let in_data = crate::core::paths::app_data_dir().map(|d| d.join("bin").join(exe(SHIM_NAME)));
+    first_usable(pinned_shim().into_iter().chain(beside).chain(in_data))
 }
 
-/// The first candidate that is a non-empty file.
+/// The first candidate that can run ([`usable_binary`]).
+///
+/// [`usable_binary`]: crate::core::agentkit::convert::hook_common::usable_binary
 fn first_usable(candidates: impl IntoIterator<Item = PathBuf>) -> Option<PathBuf> {
-    candidates.into_iter().find(|p| {
-        std::fs::metadata(p)
-            .map(|m| m.is_file() && m.len() > 0)
-            .unwrap_or(false)
-    })
+    use crate::core::agentkit::convert::hook_common::usable_binary;
+    candidates.into_iter().find(|p| usable_binary(p))
 }
 
 /// The hook command line Claude runs (through its shell).

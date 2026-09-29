@@ -79,7 +79,8 @@
     },
     "externalBin": [
       "binaries/omniget-worker",
-      "binaries/omniget-elevate"
+      "binaries/omniget-elevate",
+      "binaries/omniget-hook"
     ]
   }
 }

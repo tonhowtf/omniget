@@ -19,6 +19,45 @@ use crate::core::agentkit::{AgentkitError, Env, Os, Result, Scope};
 /// File name of the shim binary (without `.exe`).
 pub const SHIM_NAME: &str = "omniget-hook-shim";
 
+/// The same binary as the release bundle ships it: a Tauri `externalBin`
+/// sidecar under its own name. `tauri-build` copies every sidecar into
+/// `target/<profile>/` under that name, and in a dev or CI build the sidecar
+/// is an empty placeholder (`build.rs`): named `omniget-hook-shim`, it would
+/// overwrite the cargo binary of the same name in the shared target.
+pub const SHIM_SIDECAR: &str = "omniget-hook";
+
+/// Whether `p` can be run as the shim: a non-empty file that starts like an
+/// executable (Mach-O, ELF, PE or a `#!` script). The empty sidecar
+/// placeholder of a dev build is not one: a hook command pointing at it
+/// fails in the shell, which Claude Code reads as "no objection".
+pub fn usable_binary(p: &Path) -> bool {
+    use std::io::Read;
+    let Ok(meta) = std::fs::metadata(p) else {
+        return false;
+    };
+    if !meta.is_file() || meta.len() < 4 {
+        return false;
+    }
+    let mut head = [0u8; 4];
+    let Ok(mut f) = std::fs::File::open(p) else {
+        return false;
+    };
+    if f.read_exact(&mut head).is_err() {
+        return false;
+    }
+    matches!(
+        head,
+        [0x7f, b'E', b'L', b'F']
+            | [0xcf, 0xfa, 0xed, 0xfe]
+            | [0xce, 0xfa, 0xed, 0xfe]
+            | [0xfe, 0xed, 0xfa, 0xcf]
+            | [0xfe, 0xed, 0xfa, 0xce]
+            | [0xca, 0xfe, 0xba, 0xbe]
+            | [b'M', b'Z', _, _]
+            | [b'#', b'!', _, _]
+    )
+}
+
 static SHIM_OVERRIDE: RwLock<Option<PathBuf>> = RwLock::new(None);
 
 /// Pins the shim path written into hook commands (tests, or the host after it
